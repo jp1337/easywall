@@ -1,0 +1,2 @@
+# Add one IP-Address per line.
+# Please write full IPv6-Addresses! They are not expanded by EasyWall.

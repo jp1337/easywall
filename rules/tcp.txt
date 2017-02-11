@@ -1,0 +1,8 @@
+# One port per line.
+# Special Ports like ssh-Port are marked with identifiers.
+#
+# Possible Values are:
+# ssh
+#
+# Example:
+# 22;ssh
