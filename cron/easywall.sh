@@ -226,14 +226,21 @@ $IP6TABLES -A ICMPFLOOD -j ACCEPT
 if [ -f $TCP ];
 then
 	for port in `egrep -v -E "^#|^$" $TCP`; do
-		if [[ $port == *"ssh"* ]]; then
-			port=$(echo $port| cut -d';' -f 1)
-			$IPTABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
-			$IP6TABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+		if [[ $port == *":"* ]]; then
+			$IPTABLES -A INPUT -p tcp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+			$IP6TABLES -A INPUT -p tcp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
 		else
-			$IPTABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
-			$IP6TABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+			if [[ $port == *"ssh"* ]]; then
+				port=$(echo $port| cut -d';' -f 1)
+				$IPTABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+				$IP6TABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+			else
+				$IPTABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+				$IP6TABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+			fi
 		fi
+	
+
 	done
 else
 	echo "No TCP Port-List found!"
@@ -244,13 +251,18 @@ fi
 if [ -f $UDP ];
 then
 	for port in `egrep -v -E "^#|^$" $UDP`; do
-		if [[ $port == *"ssh"* ]]; then
-			port=$(echo $port| cut -d';' -f 1)
-			$IPTABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
-			$IP6TABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+		if [[ $port == *":"* ]]; then
+			$IPTABLES -A INPUT -p udp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+			$IP6TABLES -A INPUT -p udp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
 		else
-			$IPTABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
-			$IP6TABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+			if [[ $port == *"ssh"* ]]; then
+				port=$(echo $port| cut -d';' -f 1)
+				$IPTABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+				$IP6TABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+			else
+				$IPTABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+				$IP6TABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+			fi
 		fi
 	done
 else
