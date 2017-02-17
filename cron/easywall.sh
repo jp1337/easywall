@@ -13,12 +13,12 @@ then
 	
 	if [ -n "$1" ]; then
 		IN="$1"
-		DateTime=`date "+%Y/%m/%d %H:%M:%S"`
+		DateTime=$(date "+%Y/%m/%d %H:%M:%S")
 		echo $DateTime': '$IN >> $LOGDIR$LOGFILE
 	else
 		while read IN
 		do
-			DateTime=`date "+%Y/%m/%d %H:%M:%S"`
+			DateTime=$(date "+%Y/%m/%d %H:%M:%S")
 			echo $DateTime': '$IN >> $LOGDIR$LOGFILE
 		done
 	fi
@@ -127,7 +127,7 @@ if [ -f $BLACKLIST ];
 then
 	$IPTABLES -N BLACKLIST
 	$IP6TABLES -N BLACKLIST
-	for ip in `egrep -v -E "^#|^$" $BLACKLIST`; do
+	for ip in $(egrep -v -E "^#|^$" $BLACKLIST); do
 		if is_ipv4 $ip ; then
 			$IPTABLES -A BLACKLIST -s $ip -j LOG --log-prefix "BLACKLIST"
 			$IPTABLES -A BLACKLIST -s $ip -j DROP
@@ -148,7 +148,7 @@ if [ -f $WHITELIST ];
 then
 	$IPTABLES -N WHITELIST
 	$IP6TABLES -N WHITELIST
-	for ip in `egrep -v -E "^#|^$" $WHITELIST`; do
+	for ip in $(egrep -v -E "^#|^$" $WHITELIST); do
 		if is_ipv4 $ip ; then
 			$IPTABLES -A WHITELIST -s $ip -j LOG --log-prefix "WHITELIST"
 			$IPTABLES -A WHITELIST -s $ip -j ACCEPT
@@ -225,7 +225,7 @@ $IP6TABLES -A ICMPFLOOD -j ACCEPT
 # tcp ports
 if [ -f $TCP ];
 then
-	for port in `egrep -v -E "^#|^$" $TCP`; do
+	for port in $(egrep -v -E "^#|^$" $TCP); do
 		if [[ $port == *":"* ]]; then
 			$IPTABLES -A INPUT -p tcp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
 			$IP6TABLES -A INPUT -p tcp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
@@ -250,7 +250,7 @@ fi
 # udp ports
 if [ -f $UDP ];
 then
-	for port in `egrep -v -E "^#|^$" $UDP`; do
+	for port in $(egrep -v -E "^#|^$" $UDP); do
 		if [[ $port == *":"* ]]; then
 			$IPTABLES -A INPUT -p udp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
 			$IP6TABLES -A INPUT -p udp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
