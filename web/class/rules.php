@@ -43,7 +43,7 @@ class Rules
 			}
 		}
 	
-		foreach ($this->rules as $key => $value) {
+		foreach ($this->rules as $value) {
 			$content .= $value . "\r\n";
 		}
 		
@@ -60,18 +60,18 @@ class Rules
 		return false;
     }
 	
-	public function remove($ip) {
-		if (in_array($ip, $this->rules)) {
-			$index = array_search($ip, $this->rules);
+	public function remove($ipadr) {
+		if (in_array($ipadr, $this->rules)) {
+			$index = array_search($ipadr, $this->rules);
 			unset($this->rules[$index]);
 			return $this->writeRules($this->filename);
 		}
 		return false;
 	}
 	
-	public function add($ip) {
-		if (!in_array($ip, $this->rules)) {
-			array_push($this->rules, $ip);
+	public function add($ipadr) {
+		if (!in_array($ipadr, $this->rules)) {
+			array_push($this->rules, $ipadr);
 			return $this->writeRules($this->filename);
 		}
 		return false;

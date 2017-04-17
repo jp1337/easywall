@@ -57,7 +57,7 @@
 						<div class="form-group">
 							<label for="ipadr">IP-Address</label>
 							<input type="text" class="form-control" id="ipadr" name="ipadr" aria-describedby="ipadrHelp">
-							<small id="ipadrHelp" class="form-text text-muted">Please enter the IP-Adress to block. If you enter an IPv6-Address it <strong>has to be expanded</strong>. Please do not add hostnames here.<br><br>Examples:<br>IPV4: 192.168.178.44<br>IPV6: 1234:1234:1234:1234:1234:1234:1234:1234</small>
+							<small id="ipadrHelp" class="form-text text-muted">Please enter the IP-Adress to block. If you enter an IPv6-Address it <strong>has to be expanded</strong>. Please do not add hostnames here.<br><br><strong>Examples:</strong><br>IPV4: 192.168.178.44<br>IPV6: 1234:1234:1234:1234:1234:1234:1234:1234</small>
 						</div>
 						<button type="submit" class="btn btn-primary">Add</button>
 					</form>
