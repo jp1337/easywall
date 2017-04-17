@@ -1,7 +1,8 @@
 <?php
-
+	require('class/config.php');
+	$config = new Config();
+	$req_uri = basename($_SERVER['REQUEST_URI']);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 	<head>
@@ -28,27 +29,26 @@
 				<span class="navbar-toggler-icon"></span>
 			</button>
 			<a class="navbar-brand" href="index.php">
-				<!--<i class="fa fa-lock" aria-hidden="true"></i>&nbsp;EasyWall-->
 				<i class="fa fa-lock" aria-hidden="true"></i>&nbsp;EasyWall
 			</a>
 			<div class="collapse navbar-collapse" id="topNavBar">
 				<ul class="navbar-nav mr-auto">
-					<li class="nav-item active">
-						<a class="nav-link btn" href="index.php">Home <span class="sr-only">(current)</span></a>
+					<li class="nav-item <?php if ($req_uri == "index.php") { echo "active"; } ?>">
+						<a class="nav-link btn" href="index.php">Home</a>
 					</li>
-					<li class="nav-item">
+					<li class="nav-item <?php if ($req_uri == "options.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="options.php">Options</a>
 					</li>
-					<li class="nav-item">
+					<li class="nav-item <?php if ($req_uri == "blacklist.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="blacklist.php">Blacklist</a>
 					</li>
-					<li class="nav-item">
+					<li class="nav-item <?php if ($req_uri == "whitelist.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="whitelist.php">Whitelist</a>
 					</li>
-					<li class="nav-item">
+					<li class="nav-item <?php if ($req_uri == "ports.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="ports.php">Ports</a>
 					</li>
-					<li class="nav-item">
+					<li class="nav-item <?php if ($req_uri == "apply.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="apply.php">Apply</a>
 					</li>
 				</ul>
