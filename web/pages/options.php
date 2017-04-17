@@ -100,22 +100,22 @@
 								<div class="form-group">
 									<label for="blacklistfile">Blacklist File</label>
 									<input type="text" class="form-control" id="blacklistfile" name="BLACKLIST" aria-describedby="blacklistfileHelp" placeholder="Example: rules/blacklist.txt" <?php if ($config->getValue('BLACKLIST') != false) { echo 'value="' . $config->getValue('BLACKLIST') . '"'; } ?>>
-									<small id="blacklistfileHelp" class="form-text text-muted">Enter the file path to the blacklist file. You can use a full path or a relative path starting from EasyWall directory.</small>
+									<small id="blacklistfileHelp" class="form-text text-muted">Enter the file path to the blacklist file. We suggest a full path here. The relative Path must be reachable by Web and Cron directory.</small>
 								</div>
 								<div class="form-group">
 									<label for="whitelistfile">Whitelist File</label>
 									<input type="text" class="form-control" id="whitelistfile" name="WHITELIST" aria-describedby="whitelistfileHelp" placeholder="Example: rules/whitelist.txt" <?php if ($config->getValue('WHITELIST') != false) { echo 'value="' . $config->getValue('WHITELIST') . '"'; } ?>>
-									<small id="whitelistfileHelp" class="form-text text-muted">Enter the file path to the whitelist file. You can use a full path or a relative path starting from EasyWall directory.</small>
+									<small id="whitelistfileHelp" class="form-text text-muted">Enter the file path to the whitelist file. We suggest a full path here. The relative Path must be reachable by Web and Cron directory.</small>
 								</div>
 								<div class="form-group">
 									<label for="tcpfile">TCP Ports File</label>
 									<input type="text" class="form-control" id="tcpfile" name="TCP" aria-describedby="tcpfileHelp" placeholder="Example: rules/tcp.txt" <?php if ($config->getValue('TCP') != false) { echo 'value="' . $config->getValue('TCP') . '"'; } ?>>
-									<small id="tcpfileHelp" class="form-text text-muted">Enter the file path to the tcp ports file. You can use a full path or a relative path starting from EasyWall directory.</small>
+									<small id="tcpfileHelp" class="form-text text-muted">Enter the file path to the tcp file. We suggest a full path here. The relative Path must be reachable by Web and Cron directory.</small>
 								</div>
 								<div class="form-group">
 									<label for="udpfile">UDP Ports File</label>
 									<input type="text" class="form-control" id="udpfile" name="UDP" aria-describedby="udpfileHelp" placeholder="Example: rules/udp.txt" <?php if ($config->getValue('UDP') != false) { echo 'value="' . $config->getValue('UDP') . '"'; } ?>>
-									<small id="udpfileHelp" class="form-text text-muted">Enter the file path to the udp ports file. You can use a full path or a relative path starting from EasyWall directory.</small>
+									<small id="udpfileHelp" class="form-text text-muted">Enter the file path to the udp file. We suggest a full path here. The relative Path must be reachable by Web and Cron directory.</small>
 								</div>
 								<button type="submit" class="btn btn-primary">Save</button>
 							</form>

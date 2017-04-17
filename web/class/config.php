@@ -48,7 +48,7 @@ class Config
 	}
 	
 	public function getValue($key) {
-		if ($this->config != null) {
+		if (isset($this->config)) {
 			if ($this->config[$key] != null) {
 				return $this->config[$key];
 			}
@@ -58,7 +58,6 @@ class Config
 	
 	public function setValue($key, $value) {
 		if (ctype_space($value) || $value == '') {
-			unset($key);
 			return $this->writeConfig($this->filename);
 		}
 
