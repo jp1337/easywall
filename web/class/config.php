@@ -59,11 +59,10 @@ class Config
 	public function setValue($key, $value) {
 		if (ctype_space($value) || $value == '') {
 			unset($key);
+			return $this->writeConfig($this->filename);
 		}
-		else
-		{
-			$this->config[$key] = $value;
-		}
+
+		$this->config[$key] = $value;
 		return $this->writeConfig($this->filename);
 	}
 }
