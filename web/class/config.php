@@ -9,8 +9,9 @@ class Config
 		$this->filename = $filename;
 		
 		if ($this->readConfig($filename) === false) {
-			die("Error in reading config File from " . $filename . ". Please check file path!");
+			return false;
 		}
+		return true;
     }
 	
 	protected function readConfig($filename) {
@@ -40,10 +41,6 @@ class Config
 			$content .= $key . "=" . $value . "\r\n";
 		}
 		
-		echo $content;
-		
-		echo file_put_contents($filename, $content);
-		
 		if (file_put_contents($filename, $content) != false) {
 			return true;
 		}
@@ -65,7 +62,7 @@ class Config
 		} else {
 			$this->config[$key] = $value;
 		}
-		$this->writeConfig($this->filename);
+		return $this->writeConfig($this->filename);
 	}
 }
 ?>
