@@ -1,0 +1,71 @@
+<?php
+class Config
+{
+	protected $config;
+	protected $filename;
+	
+	public function __construct($filename="../config/easywall.cfg") {
+		$this->config = array();
+		$this->filename = $filename;
+		
+		if ($this->readConfig($filename) === false) {
+			die("Error in reading config File from " . $filename . ". Please check file path!");
+		}
+    }
+	
+	protected function readConfig($filename) {
+		$content = file($filename);
+	
+		foreach ($content as $line) {
+			if (!ctype_space($line) && $line != '') {
+				if (substr( $line, 0, 1 ) != "#") {
+					$param = explode("=", $line);
+					if (count($param) === 2) {
+						$this->config[trim($param[0])] = trim($param[1]);
+					}
+				}
+			}
+		}
+		
+		if (count($this->config) > 0) {
+			return true;
+		}
+		return false;
+	}
+	
+	protected function writeConfig($filename) {
+		$content = "";
+	
+		foreach ($this->config as $key => $value) {
+			$content .= $key . "=" . $value . "\r\n";
+		}
+		
+		echo $content;
+		
+		echo file_put_contents($filename, $content);
+		
+		if (file_put_contents($filename, $content) != false) {
+			return true;
+		}
+		return false;
+	}
+	
+	public function getValue($key) {
+		if ($this->config != null) {
+			if ($this->config[$key] != null) {
+				return $this->config[$key];
+			}
+		}
+		return false;
+    }
+	
+	public function setValue($key, $value) {
+		if (ctype_space($value) || $value == '') {
+			unset($key);
+		} else {
+			$this->config[$key] = $value;
+		}
+		$this->writeConfig($this->filename);
+	}
+}
+?>
