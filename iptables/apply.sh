@@ -85,12 +85,18 @@ $IP6TABLES_SAVE | log
 
 # Delete all existing rules in all chains for starting with a clean firewall
 log "Clearing IPTables Rules."
+$IPTABLES -P INPUT ACCEPT
+$IPTABLES -P OUTPUT ACCEPT
+$IPTABLES -P FORWARD ACCEPT
 $IPTABLES -F
 $IPTABLES -X
 $IPTABLES -t nat -F
 $IPTABLES -t nat -X
 $IPTABLES -t mangle -F
 $IPTABLES -t mangle -X
+$IP6TABLES -P INPUT ACCEPT
+$IP6TABLES -P OUTPUT ACCEPT
+$IP6TABLES -P FORWARD ACCEPT
 $IP6TABLES -F
 $IP6TABLES -X
 $IP6TABLES -t nat -F
