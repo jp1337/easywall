@@ -13,7 +13,7 @@ int main(void)
 	*          arbitary commands if not.
 	* */
 
-	system("/bin/bash /usr/local/EasyWall/iptables/timer.sh");
+	system("/bin/bash ../iptables/timer.sh");
 
 	return 0;
 }

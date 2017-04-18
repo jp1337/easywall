@@ -13,7 +13,7 @@ int main(void)
 	*          arbitary commands if not.
 	* */
 
-	system("/bin/bash /usr/local/EasyWall/iptables/apply.sh");
+	system("/bin/bash ../iptables/apply.sh");
 
 	return 0;
 }
