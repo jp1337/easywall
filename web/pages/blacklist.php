@@ -6,7 +6,6 @@
 </div>
 
 <div class="container pt-0 mb-3">
-
 	<div class="row">
 		<div class="col pb-3">
 		
@@ -37,10 +36,10 @@
 			<form action="blacklist.php" method="post">
 				<ul class="list-group">
 					<?php
-					foreach ($rules->getAll() as $ip) {
+					foreach ($rules->getAll() as $ipadr) {
 						echo '<li class="list-group-item justify-content-between">';
-						echo $ip;
-						echo '<button type="submit" name="' . $ip . '" class="btn btn-danger btn-sm">Remove</button>';
+						echo $ipadr;
+						echo '<button type="submit" name="' . $ipadr . '" class="btn btn-danger btn-sm">Remove</button>';
 						echo '</li>';
 					}
 					?>

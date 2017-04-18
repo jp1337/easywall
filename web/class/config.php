@@ -38,7 +38,7 @@ class Config
 		$content = "";
 	
 		foreach ($this->config as $key => $value) {
-			$content .= $key . "=" . $value . "\r\n";
+			$content .= $key . "=" . $value . "\n";
 		}
 		
 		if (file_put_contents($filename, $content) != false) {

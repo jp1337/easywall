@@ -44,7 +44,7 @@ class Rules
 		}
 	
 		foreach ($this->rules as $value) {
-			$content .= $value . "\r\n";
+			$content .= $value . "\n";
 		}
 		
 		if (file_put_contents($filename, $content) != false) {

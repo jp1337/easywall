@@ -8,6 +8,21 @@
 <div class="container pt-0 mb-3">
 	<div class="row mb-3">
 		<div class="col">
+		
+			<?php
+			if (isset($saved)) {
+				if ($saved == true) {
+					echo '<div class="alert alert-success" role="alert">';
+					echo '	<strong>Well done!</strong> The Configuration was saved successfully.';
+					echo '</div>';
+				} else {
+					echo '<div class="alert alert-danger" role="alert">';
+					echo '	<strong>Oh snap!</strong> There was an error saving the configuration... Please review WebServer Logfile!';
+					echo '</div>';
+				}
+			}
+			?>
+		
 			<div class="card w-100">
 			<div class="card-header">
 				Open Port
@@ -47,32 +62,64 @@
 	</div>
 	<div class="row pb-3">
 		<div class="col-md">
-			<ul class="list-group">
-				<li class="list-group-item justify-content-between">
-					<span class="badge badge-default badge-pill">tcp</span>
-					80
-					<button type="button" class="btn btn-danger btn-sm">Remove</button>
-				</li>
-				<li class="list-group-item justify-content-between">
-					<span class="badge badge-default badge-pill">tcp - ssh</span>
-					22
-					<button type="button" class="btn btn-danger btn-sm">Remove</button>
-				</li>
-			</ul>
+		
+			<?php
+			if (count($tcp->getAll()) === 0) {
+				echo '<ul class="list-group">';
+				echo '<li class="list-group-item justify-content-between">';
+				echo 'No opened TCP Ports found.';
+				echo '</li>';
+				echo '</ul>';
+			}
+			?>
+		
+			<form action="ports.php" method="post">
+				<input type="hidden" name="remove" value="tcp">
+				<ul class="list-group">
+					<?php
+					foreach ($tcp->getAll() as $port) {
+						echo '<li class="list-group-item justify-content-between">';
+						if (count(explode(';', $port)) > 1)
+						{
+							echo '<span class="badge badge-default badge-pill">tcp - ' . explode(';', $port)[1] . '</span>';
+							echo explode(';', $port)[0];
+						} else {
+							echo '<span class="badge badge-default badge-pill">tcp</span>';
+							echo $port;
+						}
+						echo '<button type="submit" name="' . $port . '" class="btn btn-danger btn-sm">Remove</button>';
+						echo '</li>';
+					}
+					?>
+				</ul>
+			</form>
 		</div>
 		<div class="col-md">
-			<ul class="list-group">
-				<li class="list-group-item justify-content-between">
-					<span class="badge badge-default badge-pill">udp</span>
-					15000:16000
-					<button type="button" class="btn btn-danger btn-sm">Remove</button>
-				</li>
-				<li class="list-group-item justify-content-between">
-					<span class="badge badge-default badge-pill">udp</span>
-					541
-					<button type="button" class="btn btn-danger btn-sm">Remove</button>
-				</li>
-			</ul>
+		
+			<?php
+			if (count($udp->getAll()) === 0) {
+				echo '<ul class="list-group">';
+				echo '<li class="list-group-item justify-content-between">';
+				echo 'No opened UDP Ports found.';
+				echo '</li>';
+				echo '</ul>';
+			}
+			?>
+		
+			<form action="ports.php" method="post">
+				<input type="hidden" name="remove" value="udp">
+				<ul class="list-group">
+					<?php
+					foreach ($udp->getAll() as $port) {
+						echo '<li class="list-group-item justify-content-between">';
+						echo '<span class="badge badge-default badge-pill">udp</span>';
+						echo $port;
+						echo '<button type="submit" name="' . $port . '" class="btn btn-danger btn-sm">Remove</button>';
+						echo '</li>';
+					}
+					?>
+				</ul>
+			</form>
 		</div>
 	</div>
 </div>
