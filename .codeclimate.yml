@@ -1,0 +1,3 @@
+## exclude vendors from testing. They should fix their own problems :)
+exclude_paths:
+- "web/vendors/"
