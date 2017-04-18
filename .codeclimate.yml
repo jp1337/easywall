@@ -5,4 +5,4 @@ languages:
   shellcheck: true
   markdownlint: true
 exclude_paths:
-- "web/vendors/*"
+- "**/web/vendors/"
