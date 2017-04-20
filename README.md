@@ -33,7 +33,7 @@ Check the **[EasyWall wiki](https://github.com/kingjp/easywall/wiki)**.
 
 netdata is GNU General Public License v3.0.
 
-It re-distributes other open-source tools and libraries. Please check its [License](https://github.com/kingjp/easywall/blob/master/LICENSE.md).
+It re-distributes other open-source tools and libraries. Please check its [License](https://github.com/kingjp/easywall/blob/master/LICENSE).
 
 ## Screenshots
 
