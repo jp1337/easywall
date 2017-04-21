@@ -234,15 +234,15 @@ then
 	for port in $(egrep -v -E "^#|^$" $TCP); do
 		if [[ $port == *":"* ]]; then
 			$IPTABLES -A INPUT -p tcp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
-			$IP6TABLES -A INPUT -p tcp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+			$IP6TABLES -A INPUT -p tcp --match multiport --dports $port -m conntrack --ctstate NEW -j SSHBRUTE
 		else
 			if [[ $port == *"ssh"* ]]; then
 				port=$(echo $port| cut -d';' -f 1)
 				$IPTABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
-				$IP6TABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+				$IP6TABLES -A INPUT -p tcp --dport $port -m conntrack --ctstate NEW -j SSHBRUTE
 			else
 				$IPTABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
-				$IP6TABLES -A INPUT -p tcp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+				$IP6TABLES -A INPUT -p tcp --dport $port -m conntrack --ctstate NEW -j ACCEPT
 			fi
 		fi
 	
@@ -258,16 +258,16 @@ if [ -f $UDP ];
 then
 	for port in $(egrep -v -E "^#|^$" $UDP); do
 		if [[ $port == *":"* ]]; then
-			$IPTABLES -A INPUT -p udp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
-			$IP6TABLES -A INPUT -p udp --match multiport --dports $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+			$IPTABLES -A INPUT -p udp --match multiport --dports $port -m conntrack --ctstate NEW -j SSHBRUTE
+			$IP6TABLES -A INPUT -p udp --match multiport --dports $port -m conntrack --ctstate NEW -j SSHBRUTE
 		else
 			if [[ $port == *"ssh"* ]]; then
 				port=$(echo $port| cut -d';' -f 1)
-				$IPTABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
-				$IP6TABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j SSHBRUTE
+				$IPTABLES -A INPUT -p udp --dport $port -m conntrack --ctstate NEW -j SSHBRUTE
+				$IP6TABLES -A INPUT -p udp --dport $port -m conntrack --ctstate NEW -j SSHBRUTE
 			else
-				$IPTABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
-				$IP6TABLES -A INPUT -p udp --dport $port --syn -m conntrack --ctstate NEW -j ACCEPT
+				$IPTABLES -A INPUT -p udp --dport $port -m conntrack --ctstate NEW -j ACCEPT
+				$IP6TABLES -A INPUT -p udp --dport $port -m conntrack --ctstate NEW -j ACCEPT
 			fi
 		fi
 	done
@@ -338,7 +338,7 @@ $IP6TABLES -A INPUT -p udp --sport 53 -j DROP
 
 # Good practise is to explicately reject AUTH traffic so that it fails fast.
 $IPTABLES -A INPUT -p tcp --dport 113 --syn -m conntrack --ctstate NEW -j REJECT --reject-with tcp-reset
-$IP6TABLES -A INPUT -p tcp --dport 113 --syn -m conntrack --ctstate NEW -j REJECT --reject-with tcp-reset
+$IP6TABLES -A INPUT -p tcp --dport 113 -m conntrack --ctstate NEW -j REJECT --reject-with tcp-reset
 
 # Prevent DOS by filling log files.
 # $IPTABLES -A INPUT -m limit --limit 1/second --limit-burst 100 -j LOG --log-prefix "iptables[DOS]: "
@@ -346,9 +346,9 @@ $IP6TABLES -A INPUT -p tcp --dport 113 --syn -m conntrack --ctstate NEW -j REJEC
 
 # on tcp connections only allow syn packets. this will filter all other packets which are not SYN.
 $IPTABLES -A INPUT -p tcp ! --syn -m state --state NEW -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "SYN FILTER"
-$IP6TABLES -A INPUT -p tcp ! --syn -m state --state NEW -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "SYN FILTER"
+$IP6TABLES -A INPUT -p tcp -m state --state NEW -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "SYN FILTER"
 $IPTABLES -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
-$IP6TABLES -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
+$IP6TABLES -A INPUT -p tcp -m state --state NEW -j DROP
 
 # force fragments packets ckeck.
 $IPTABLES -A INPUT -f -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "FRAGMENTS FILTER"
