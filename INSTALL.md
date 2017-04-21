@@ -18,7 +18,7 @@ You just need three simple steps for installing EasyWall on your system.
 
 ```sh
 sudo apt-get update
-sudo apt-get install apache2 libapache2-mod-php5 php5
+sudo apt-get install bash git apache2 libapache2-mod-php5 php5
 ```
 
 You can replace **apache2 and php5** if you want to use other pachages like **nginx** or self compiled php version. You can also use **PHP CGI** to use EasyWall.
