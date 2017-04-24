@@ -18,7 +18,7 @@ function getLastCommit() {
 	if (!isset($_SESSION['lastCommit']) || $_SESSION['lastCommit'] === null) {
 		$options  = array('http' => array('user_agent' => 'EasyWall Firewall by KingJP'));
 		$context  = stream_context_create($options);
-		$raw = file_get_contents('https://api.github.com/repos/kingjp/easywall/commits/master?access_token=5a5db93a3f1cac758f08314802c58eb2ed839459', false, $context);
+		$raw = file_get_contents('https://api.github.com/repos/kingjp/easywall/commits/master', false, $context);
 		$_SESSION['lastCommit'] = json_decode($raw);
 	}
 	
