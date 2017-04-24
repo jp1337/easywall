@@ -55,6 +55,11 @@ class Rules
 	
 	public function getAll() {
 		if (isset($this->rules)) {
+			try {
+				array_multisort($this->rules, SORT_ASC, SORT_NUMERIC);
+			} catch (Exception $e) {
+				asort($this->rules);
+			}
 			return $this->rules;
 		}
 		return false;

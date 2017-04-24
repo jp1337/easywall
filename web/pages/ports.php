@@ -1,7 +1,7 @@
 <div class="jumbotron text-center">
 	<div class="container">
 		<h1>Open Ports</h1>
-		<p class="lead">On this page you can add the ports for incomin connections.<br>You can add tcp and udp ports.<br>Please check periodically if you need the ports. If you don't need them, close them.<br>You can list all listening ports on linux with the command <code>netstat --listen</code></p>
+		<p class="lead">On the Open Ports page you can open incoming connections for your listening ports.<br>You can add tcp and udp ports.<br>Please check periodically if you need the ports. If you don't need them, close them.<br>You can list all listening ports on linux with the command <code>netstat -ln</code></p>
 	</div>
 </div>
 
@@ -32,7 +32,7 @@
 					<div class="form-group">
 						<div class="form-check form-check-inline">
 							<label class="form-check-label">
-								<input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp" id="tcpudp1" value="tcp"> TCP
+								<input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp" id="tcpudp1" value="tcp" checked="checked"> TCP
 							</label>
 						</div>
 						<div class="form-check form-check-inline">
@@ -44,8 +44,11 @@
 					</div>
 					<div class="form-group">
 						<label for="port">Port</label>
-						<input type="text" class="form-control" id="port" name="port" aria-describedby="portHelp" placeholder="22 / 22:80">
-						<small id="portHelp" class="form-text text-muted">Please enter the Port-Number you want to open on your server. You can open a single port or a port range. To open a port range just type <code>startport:endport</code>.</small>
+						<input type="text" class="form-control" id="port" name="port" aria-describedby="portHelp">
+						<small id="portHelp" class="form-text text-muted">
+							Please enter the Port you want to open on your server. You can enter a single port or a port range.<br />
+							<strong>Example:</strong> Single Port: <code>22</code> Port Range: <code>25017:25020</code>.
+						</small>
 					</div>
 					<div class="form-check">
 						<label class="form-check-label">
