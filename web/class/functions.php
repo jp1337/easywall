@@ -16,12 +16,9 @@ function getLatestVersion() {
 
 function getLastCommit() {
 	if (!isset($_SESSION['lastCommit']) || $_SESSION['lastCommit'] === null) {
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, 'https://api.github.com/repos/kingjp/easywall/commits/master?access_token=5a5db93a3f1cac758f08314802c58eb2ed839459');
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-		curl_setopt($ch, CURLOPT_USERAGENT, 'EasyWall Firewall by KingJP');
-		$raw = curl_exec($ch);
-		curl_close($ch);
+		$options  = array('http' => array('user_agent' => 'EasyWall Firewall by KingJP'));
+		$context  = stream_context_create($options);
+		$raw = file_get_contents('https://api.github.com/repos/kingjp/easywall/commits/master?access_token=5a5db93a3f1cac758f08314802c58eb2ed839459', false, $context);
 		$_SESSION['lastCommit'] = json_decode($raw);
 	}
 	
