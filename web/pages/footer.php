@@ -29,7 +29,18 @@
 						</button>
 					</div>
 					<div class="modal-body">
-						EasyWall Version 0.1
+						<p>
+							<strong><?php if (version_compare(getCurrentVersion(), getLatestVersion()) >= 0) { echo 'You have installed the current version.'; } else { echo 'New version of netdata available!'; } ?></strong>
+						</p>
+						<hr>
+						Your EasyWall version: <b><code><?php echo getCurrentVersion(); ?></code></b><br />
+						Latest EasyWall version: <b><code><?php echo getLatestVersion(); ?></code></b><br />
+						<hr>
+						Latest commit: <b><code><?php echo getLatestCommitSha(); ?></code></b><br />
+						Commit date: <b><code><?php echo getLatestCommitDate(); ?> ago</code></b><br />
+						<hr>
+						<p><a href="https://github.com/kingjp/easywall/wiki/update" target="_blank">Click here for directions on updating</a> your EasyWall installation.</p>
+						<p>Please keep in mind to always keep your installation up to date. You have to inform yourself independently about the closure of possible security gaps.</p>
 					</div>
 					<div class="modal-footer">
 						<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
@@ -49,7 +60,18 @@
 						</button>
 					</div>
 					<div class="modal-body">
-						<?php echo php_uname(); ?>
+						<ul class="list-group" style="word-break: break-word">
+							<?php
+								foreach($_SERVER as $key => $value) {
+									if (!startsWith($key, 'PHP_AUTH')) {
+										echo '<li class="list-group-item align-items-start">';
+										echo '	<p class="mb-1 w-100"><strong>' . $key . '</strong></p>';
+										echo '	<p class="mb-0">' . $value . '</p>';
+										echo '</li>';
+									}
+								}
+							?>
+						</ul>
 					</div>
 					<div class="modal-footer">
 						<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>

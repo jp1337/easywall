@@ -1,7 +1,9 @@
 <?php
 	require('class/config.php');
+	require('class/functions.php');
+	
 	$config = new Config();
-	$req_uri = basename($_SERVER['REQUEST_URI']);
+	session_start();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -28,27 +30,29 @@
 			<button class="navbar-toggler navbar-toggler-right" type="button" data-toggle="collapse" data-target="#topNavBar" aria-controls="topNavBar" aria-expanded="false" aria-label="Toggle navigation">
 				<span class="navbar-toggler-icon"></span>
 			</button>
+			
 			<a class="navbar-brand" href="index.php">
-				<i class="fa fa-lock" aria-hidden="true"></i>&nbsp;EasyWall
+				<i class="fa fa-shield" aria-hidden="true"></i>&nbsp;EasyWall
 			</a>
+			
 			<div class="collapse navbar-collapse" id="topNavBar">
 				<ul class="navbar-nav mr-auto">
-					<li class="nav-item <?php if ($req_uri == "index.php") { echo "active"; } ?>">
+					<li class="nav-item <?php if (getReqUri() == "index.php" || getReqUri() == "") { echo "active"; } ?>">
 						<a class="nav-link btn" href="index.php">Home</a>
 					</li>
-					<li class="nav-item <?php if ($req_uri == "options.php") { echo "active"; } ?>">
+					<li class="nav-item <?php if (getReqUri() == "options.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="options.php">Options</a>
 					</li>
-					<li class="nav-item <?php if ($req_uri == "blacklist.php") { echo "active"; } ?>">
+					<li class="nav-item <?php if (getReqUri() == "blacklist.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="blacklist.php">Blacklist</a>
 					</li>
-					<li class="nav-item <?php if ($req_uri == "whitelist.php") { echo "active"; } ?>">
+					<li class="nav-item <?php if (getReqUri() == "whitelist.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="whitelist.php">Whitelist</a>
 					</li>
-					<li class="nav-item <?php if ($req_uri == "ports.php") { echo "active"; } ?>">
+					<li class="nav-item <?php if (getReqUri() == "ports.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="ports.php">Ports</a>
 					</li>
-					<li class="nav-item <?php if ($req_uri == "apply.php") { echo "active"; } ?>">
+					<li class="nav-item <?php if (getReqUri() == "apply.php") { echo "active"; } ?>">
 						<a class="nav-link btn" href="apply.php">Apply</a>
 					</li>
 				</ul>
@@ -56,29 +60,37 @@
 				<ul class="navbar-nav navbar-right">
 					<li class="nav-item">
 						<a class="nav-link btn" title="EasyWall on GitHub" href="https://kingjp.github.io/EasyWall/" target="_blank">
-							<i class="fa fa-github" aria-hidden="true"></i>
-							<span class="hidden-lg-up">GitHub</span>
+							<i class="fa fa-github" aria-hidden="true"></i>&nbsp;
+							<span class="hidden-sm-down">GitHub</span>
+							<span class="hidden-lg-up">EasyWall on GitHub</span>
 						</a>
 					</li>
 					<li class="nav-item">
 						<a class="nav-link btn" title="Need help?" href="#" data-toggle="modal" data-target="#helpModal">
-							<i class="fa fa-question" aria-hidden="true"></i>
-							<span class="hidden-lg-up">Help</span>
+							<i class="fa fa-support" aria-hidden="true"></i>&nbsp;
+							<span class="hidden-sm-down">Help</span>
+							<span class="hidden-lg-up">Need help?</span>
 						</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link btn" title="Show Version" href="#" data-toggle="modal" data-target="#versionModal">
-							<i class="fa fa-code-fork" aria-hidden="true"></i>
-							<span class="hidden-lg-up">Version</span>
+						<a class="nav-link btn" title="Version and Update" href="#" data-toggle="modal" data-target="#versionModal">
+							<i class="fa fa-cloud-download" aria-hidden="true"></i>&nbsp;
+							<span class="hidden-sm-down">Update</span>
+							<span class="hidden-lg-up">Version and Update</span>
+							<?php
+								if (version_compare(getCurrentVersion(), getLatestVersion()) < 0) {
+									echo '<span class="badge badge-pill badge-warning">!</span>';
+								}
+							?>
 						</a>
 					</li>
 					<li class="nav-item">
-						<a class="nav-link btn" title="Show Host Details" href="#" data-toggle="modal" data-target="#hostModal">
-							<i class="fa fa-server" aria-hidden="true"></i>
-							<span class="hidden-lg-up">Hostname</span>
+						<a class="nav-link btn" title="Host Information" href="#" data-toggle="modal" data-target="#hostModal">
+							<i class="fa fa-server" aria-hidden="true"></i>&nbsp;
+							<span class="hidden-sm-down">Host</span>
+							<span class="hidden-lg-up">Host Information</span>
 						</a>
 					</li>
 				</ul>
-				
 			</div>
 		</nav>
