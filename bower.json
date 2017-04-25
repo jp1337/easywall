@@ -8,7 +8,6 @@
   "description": "Easy Firewall Webinterface for Linux IPTables",
   "main": "web/index.php",
   "license": "GPL-3.0",
-  "private": true,
   "ignore": [
     "**/.*",
     "node_modules",
@@ -18,6 +17,7 @@
     "*.yml",
     "src",
     "*.md",
+    "*.json",
     "web/bower_components"
   ],
   "dependencies": {

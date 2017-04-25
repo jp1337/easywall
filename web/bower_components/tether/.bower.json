@@ -31,6 +31,5 @@
   },
   "_source": "https://github.com/HubSpot/tether.git",
   "_target": "^1.4.0",
-  "_originalSource": "tether",
-  "_direct": true
+  "_originalSource": "tether"
 }
