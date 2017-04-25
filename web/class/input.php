@@ -2,32 +2,32 @@
 
 class Input
 {
-	private $_post;
-	private $_get;
-	private $_session;
-	private $_server;
+	private $privatePost;
+	private $privateGet;
+	private $privateSession;
+	private $privateServer;
 
 	public function __construct()
 	{
-		$this->_post = $_POST;
-		$this->_get = $_GET;
-		$this->_session = $_SESSION;
-		$this->_server = $_SERVER;
+		$this->privatePost = $_POST;
+		$this->privateGet = $_GET;
+		$this->privateSession = $_SESSION;
+		$this->privateServer = $_SERVER;
 	}
 
 	public function post($key = null, $default = null)
 	{
-		return $this->checkGlobal($this->_post, $key, $default);
+		return $this->checkGlobal($this->privatePost, $key, $default);
 	}
 
 	public function get($key = null, $default = null)
 	{
-		return $this->checkGlobal($this->_get, $key, $default);
+		return $this->checkGlobal($this->privateGet, $key, $default);
 	}
 
 	public function sessionGet($key = null, $default = null)
 	{
-		return $this->checkGlobal($this->_session, $key, $default);
+		return $this->checkGlobal($this->privateSession, $key, $default);
 	}
 	
 	public function sessionSet($key = null, $value = "")
@@ -40,7 +40,7 @@ class Input
 	
 	public function server($key = null, $default = null)
 	{
-		return $this->checkGlobal($this->_server, $key, $default);
+		return $this->checkGlobal($this->privateServer, $key, $default);
 	}
 
 	private function checkGlobal($global, $key = null, $default = null)
@@ -48,9 +48,8 @@ class Input
 		if ($key) {
 			if (isset($global[$key])) {
 				return $global[$key];
-			} else {
-				return $default ?: null;
 			}
+			return $default ?: null;
 		}
 		return $global;
 	}
