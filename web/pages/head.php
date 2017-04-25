@@ -1,9 +1,17 @@
 <?php
 	require('class/config.php');
-	require('class/functions.php');
-	
 	$config = new Config();
+	
+	require('class/cache.php');
+	$cache = new Cache();
+	
+	require('class/functions.php');
 	session_start();
+	
+	// Debug Only
+	ini_set('display_errors', 1);
+	ini_set('display_startup_errors', 1);
+	error_reporting(E_ALL);
 ?>
 <!DOCTYPE html>
 <html lang="en">

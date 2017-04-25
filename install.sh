@@ -86,7 +86,7 @@ fi
 # -------- Set Privileges in Root Directory ---------
 # ---------------------------------------------------
 
-WWWUSER=$(ps -ef | egrep '(httpd|apache2|apache)' | grep -v `whoami` | grep -v root | head -n1 | awk '{print $1}')
+WWWUSER=$(ps -ef | egrep '(httpd|apache2|apache)' | grep -v $(whoami) | grep -v root | head -n1 | awk '{print $1}')
 
 chown -R $WWWUSER:$WWWUSER $WEBDIR
 chmod -R 0700 $WEBDIR

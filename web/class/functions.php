@@ -1,28 +1,36 @@
 <?php
 
 function getCurrentVersion() {
-	if (!isset($_SESSION['currentVersion']) || $_SESSION['currentVersion'] === null) {
-		$_SESSION['currentVersion'] = file_get_contents('../.version');
+	global $cache;
+	$version = $cache->getValue('currentVersion');
+	if (!isset($version) || $version === null || $version === false) {
+		$version = file_get_contents('../.version');
+		$cache->setValue('currentVersion', $version);
 	}
-	return $_SESSION['currentVersion'];
+	return $version;
 }
 
 function getLatestVersion() {
-	if (!isset($_SESSION['latestVersion']) || $_SESSION['latestVersion'] === null) {
-		$_SESSION['latestVersion'] = file_get_contents('https://raw.githubusercontent.com/KingJP/EasyWall/master/.version');
+	global $cache;
+	$version = $cache->getValue('latestVersion');
+	if (!isset($version) || $version === null || $version === false) {
+		$version = file_get_contents('https://raw.githubusercontent.com/KingJP/EasyWall/master/.version');
+		$cache->setValue('latestVersion', $version);
 	}
-	return $_SESSION['latestVersion'];
+	return $version;
 }
 
 function getLastCommit() {
-	if (!isset($_SESSION['lastCommit']) || $_SESSION['lastCommit'] === null) {
+	global $cache;
+	$commit = $cache->getValue('lastCommit');
+	if (!isset($commit) || $commit === null || $commit === false) {
 		$options  = array('http' => array('user_agent' => 'EasyWall Firewall by KingJP'));
 		$context  = stream_context_create($options);
 		$raw = file_get_contents('https://api.github.com/repos/kingjp/easywall/commits/master', false, $context);
-		$_SESSION['lastCommit'] = json_decode($raw);
+		$commit = json_decode($raw);
+		$cache->setValue('lastCommit', $commit);
 	}
-	
-	return $_SESSION['lastCommit'];
+	return $commit;
 }
 
 function getLatestCommitSha() {

@@ -1,6 +1,7 @@
 {
-  "name": "EasyWall",
+  "name": "easywall",
   "homepage": "https://github.com/KingJP/EasyWall",
+  "keywords": [],
   "authors": [
     "KingJP <12394156+jp1337@users.noreply.github.com>"
   ],
@@ -14,6 +15,9 @@
     "bower_components",
     "test",
     "tests",
+    "*.yml",
+    "src",
+    "*.md",
     "web/bower_components"
   ],
   "dependencies": {
@@ -21,5 +25,6 @@
     "font-awesome": "^4.7.0",
     "tether": "^1.4.0",
     "jquery": "^3.2.1"
-  }
+  },
+  "devDependencies": {}
 }

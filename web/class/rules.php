@@ -32,10 +32,10 @@ class Rules
 	}
 	
 	protected function writeRules($filename) {
-		$curr_content = file($filename);
+		$currContent = file($filename);
 		$content = "";
 		
-		foreach ($curr_content as $line) {
+		foreach ($currContent as $line) {
 			if (!ctype_space($line) && $line != '') {
 				if (substr( $line, 0, 1 ) == "#") {
 					$content .= $line;
