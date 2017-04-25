@@ -1,9 +1,9 @@
 <?php
+	require('class/input.php');
+	$input = new Input();
+
 	require('class/config.php');
 	$config = new Config();
-	
-	require('class/cache.php');
-	$cache = new Cache();
 	
 	require('class/functions.php');
 	session_start();
