@@ -1,175 +1,138 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ---------------------------------------------------
-# ---------- Define some useful functions -----------
-# ---------------------------------------------------
-
-function log {
-if [ $LOG = true ];
-then
-	mkdir -p $LOGDIR
-	touch $LOGDIR$LOGFILE
-	
-	
-	if [ -n "$1" ]; then
-		IN="$1"
-		DateTime=$(date "+%Y/%m/%d %H:%M:%S")
-		echo $DateTime': '$IN >> $LOGDIR$LOGFILE
-	else
-		while read IN
-		do
-			DateTime=$(date "+%Y/%m/%d %H:%M:%S")
-			echo $DateTime': '$IN >> $LOGDIR$LOGFILE
-		done
-	fi
-	
-	#echo $DateTime': '$IN
-fi
-}
-
-function abort {
-	echo "ERROR: "$1 1>&2
-	exit 1
-}
-
-function is_ipv4 {
-    local  ip=$1
-    local  stat=1
-
-    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        OIFS=$IFS
-        IFS='.'
-        ip=($ip)
-        IFS=$OIFS
-        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
-        stat=$?
-    fi
-    return $stat
-}
-
-function is_ipv6 {
-    local  ip=$1
-    if [[ $ip =~ ^$|^[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}$ ]]; then
-        return 0
-    fi
-    return 1
-}
-
-
-# ---------------------------------------------------
-# ---------- Read Configuration Parameters ----------
+# ------- Read in Configuration and Functions -------
 # ---------------------------------------------------
 
 # filepath to configuration parameter file
 CONFIG=../config/easywall.cfg
 
-echo "Reading Config File $CONFIG"
-if [ -f $CONFIG ];
-then
-	echo "Found config file. Reading lines"
-	source $CONFIG
-else
-	abort "Config File not found."
-fi
+source "functions.sh"
 
+readConfig $CONFIG
+
+logStart "apply.sh"
 
 # ----------------------------------------------------
-# ------ Save Existing Rules and Reset IPTABLES ------
+# ---------------- Save Existing Rules ---------------
 # ----------------------------------------------------
 
 # Save existings rules in log file
-log "Saving IPTables Configuration"
-$IPTABLES_SAVE | log
-log "Saving IP6Tables Configuration"
-$IP6TABLES_SAVE | log
+log "Start by storing the current iptables rules"
+$IPTABLES_SAVE | logIptables
 
-# Delete all existing rules in all chains for starting with a clean firewall
-log "Clearing IPTables Rules."
-$IPTABLES -P INPUT ACCEPT
-$IPTABLES -P OUTPUT ACCEPT
-$IPTABLES -P FORWARD ACCEPT
-$IPTABLES -F
-$IPTABLES -X
-$IPTABLES -t nat -F
-$IPTABLES -t nat -X
-$IPTABLES -t mangle -F
-$IPTABLES -t mangle -X
-$IP6TABLES -P INPUT ACCEPT
-$IP6TABLES -P OUTPUT ACCEPT
-$IP6TABLES -P FORWARD ACCEPT
-$IP6TABLES -F
-$IP6TABLES -X
-$IP6TABLES -t nat -F
-$IP6TABLES -t nat -X
-$IP6TABLES -t mangle -F
-$IP6TABLES -t mangle -X
-log "All Rules are cleared."
+if [ $IPV6 = true ] ; then
+	log "Start by storing the current ip6tables rules"
+	$IP6TABLES_SAVE | logIp6tables
+fi
 
+# ----------------------------------------------------
+# ------------------ Reset IPTABLES ------------------
+# ----------------------------------------------------
+
+resetIPTables
 
 # ---------------------------------------------------
-# ---------- Add General Connection Rules -----------
+# --------- Setting General chain policies ----------
 # ---------------------------------------------------
  
-# general rules for all connections
+log "Setting General chain policies"
+
 $IPTABLES -P INPUT DROP
 $IPTABLES -P OUTPUT ACCEPT
 $IPTABLES -P FORWARD DROP
-$IP6TABLES -P INPUT DROP
-$IP6TABLES -P OUTPUT ACCEPT
-$IP6TABLES -P FORWARD DROP
 
-# allow localhost input and output
+if [ $IPV6 = true ] ; then
+	$IP6TABLES -P INPUT DROP
+	$IP6TABLES -P OUTPUT ACCEPT
+	$IP6TABLES -P FORWARD DROP
+fi
+
+# ---------------------------------------------------
+# -------------- Allow Loopback access --------------
+# ---------------------------------------------------
+
+log "Allow Loopback access"
+
 $IPTABLES -A INPUT -i lo -j ACCEPT
-$IP6TABLES -A INPUT -i lo -j ACCEPT
 
-
+if [ $IPV6 = true ] ; then
+	$IP6TABLES -A INPUT -i lo -j ACCEPT
+fi
 
 # ---------------------------------------------------
-# ------ Blacklist and Whitelist IP-Addresses -------
+# -------- Block IP-addresses from blacklist --------
 # ---------------------------------------------------
 
-# blacklist
+log "Block some bad IP-Addresses"
+
 if [ -f $BLACKLIST ];
 then
 	$IPTABLES -N BLACKLIST
-	$IP6TABLES -N BLACKLIST
+	
+	if [ $IPV6 = true ] ; then
+		$IP6TABLES -N BLACKLIST
+	fi
+	
 	for ip in $(egrep -v -E "^#|^$" $BLACKLIST); do
 		if is_ipv4 $ip ; then
-			$IPTABLES -A BLACKLIST -s $ip -j LOG --log-prefix "BLACKLIST"
+			log "Blocking IPV4 Address $ip"
+			$IPTABLES -A BLACKLIST -s $ip -j LOG --log-prefix " EasyWall BLACKLIST Blocked "
 			$IPTABLES -A BLACKLIST -s $ip -j DROP
 		fi
-		if is_ipv6 $ip ; then
-			$IP6TABLES -A BLACKLIST -s $ip -j LOG --log-prefix "BLACKLIST"
-			$IP6TABLES -A BLACKLIST -s $ip -j DROP
+		if [ $IPV6 = true ] ; then
+			if is_ipv6 $ip ; then
+				log "Blocking IPV6 Address $ip"
+				$IP6TABLES -A BLACKLIST -s $ip -j LOG --log-prefix " EasyWall BLACKLIST Blocked "
+				$IP6TABLES -A BLACKLIST -s $ip -j DROP
+			fi
 		fi
 	done
+	
 	$IPTABLES -I INPUT -j BLACKLIST
-	$IP6TABLES -I INPUT -j BLACKLIST
+	
+	if [ $IPV6 = true ] ; then
+		$IP6TABLES -I INPUT -j BLACKLIST
+	fi
 else
-	echo "No Blacklist found!"
+	log "No Blacklist file found! Please fix that. Script has searched here: $BLACKLIST"
 fi
 
-# whitelist
+# ---------------------------------------------------
+# -------- Allow IP-addresses from whitelist --------
+# ---------------------------------------------------
+
+log "Allowing all good IP-Addresses"
+
 if [ -f $WHITELIST ];
 then
 	$IPTABLES -N WHITELIST
-	$IP6TABLES -N WHITELIST
+	
+	if [ $IPV6 = true ] ; then
+		$IP6TABLES -N WHITELIST
+	fi
+	
 	for ip in $(egrep -v -E "^#|^$" $WHITELIST); do
 		if is_ipv4 $ip ; then
-			$IPTABLES -A WHITELIST -s $ip -j LOG --log-prefix "WHITELIST"
+			log "Allowing IPV4 Address $ip"
 			$IPTABLES -A WHITELIST -s $ip -j ACCEPT
 		fi
-		if is_ipv6 $ip ; then
-			$IP6TABLES -A WHITELIST -s $ip -j LOG --log-prefix "WHITELIST"
-			$IP6TABLES -A WHITELIST -s $ip -j ACCEPT
+		if [ $IPV6 = true ] ; then
+			if is_ipv6 $ip ; then
+				log "Allowing IPV6 Address $ip"
+				$IP6TABLES -A WHITELIST -s $ip -j ACCEPT
+			fi
 		fi
 	done
+	
 	$IPTABLES -I INPUT -j WHITELIST
-	$IP6TABLES -I INPUT -j WHITELIST
+	
+	if [ $IPV6 = true ] ; then
+		$IP6TABLES -I INPUT -j WHITELIST
+	fi
 else
-	echo "No Whitelist found!"
+	log "No Whitelist file found! Please fix that. Script has searched here: $WHITELIST"
 fi
-
 
 # ---------------------------------------------------
 # ------------- Add Some Security Rules -------------
@@ -339,10 +302,6 @@ $IP6TABLES -A INPUT -p udp --sport 53 -j DROP
 # Good practise is to explicately reject AUTH traffic so that it fails fast.
 $IPTABLES -A INPUT -p tcp --dport 113 --syn -m conntrack --ctstate NEW -j REJECT --reject-with tcp-reset
 $IP6TABLES -A INPUT -p tcp --dport 113 -m conntrack --ctstate NEW -j REJECT --reject-with tcp-reset
-
-# Prevent DOS by filling log files.
-# $IPTABLES -A INPUT -m limit --limit 1/second --limit-burst 100 -j LOG --log-prefix "iptables[DOS]: "
-# $IP6TABLES -A INPUT -m limit --limit 1/second --limit-burst 100 -j LOG --log-prefix "iptables[DOS]: "
 
 # on tcp connections only allow syn packets. this will filter all other packets which are not SYN.
 $IPTABLES -A INPUT -p tcp ! --syn -m state --state NEW -m limit --limit 5/m --limit-burst 7 -j LOG --log-level 4 --log-prefix "SYN FILTER"

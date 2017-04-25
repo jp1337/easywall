@@ -33,7 +33,9 @@ class Input
 	public function sessionSet($key = null, $value = "")
 	{
 		if ($key) {
-			return $this->_session[$key] = $value;
+			$_SESSION[$key] = $value;
+			$this->privateSession[$key] = $value;
+			return true;
 		}
 		return false;
 	}

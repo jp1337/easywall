@@ -1,4 +1,6 @@
 <?php
+	session_start();
+
 	require('class/input.php');
 	$input = new Input();
 
@@ -6,7 +8,6 @@
 	$config = new Config();
 	
 	require('class/functions.php');
-	session_start();
 	
 	// Debug Only
 	ini_set('display_errors', 1);
@@ -24,14 +25,13 @@
 		<title>EasyWall</title>
 
 		<!-- Bootstrap core CSS -->
-		<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+		<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ">
 		
 		<!-- Font Awesome CSS -->
-		<link rel="stylesheet" href="bower_components/font-awesome/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=" crossorigin="anonymous">
+		<link rel="stylesheet" href="bower_components/font-awesome/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=">
 		
 		<!-- EasyWall CSS -->
-		<!--<link rel="stylesheet" href="css/easywall.css" integrity="sha256-tT7PVk4pTqLO82Am+XD7hzRQy7jCCkBm/bluNTNVzco=" crossorigin="anonymous">-->
-		<link rel="stylesheet" href="css/easywall.css">
+		<link rel="stylesheet" href="css/easywall.css" integrity="sha256-Z29OgkmN607jVmSig90OXePgoW5V+ievEynMbw438Rs=">
 	</head>
 	<body>
 		<nav class="navbar navbar-toggleable-md navbar-inverse bg-inverse fixed-top">

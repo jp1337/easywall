@@ -30,7 +30,7 @@
 					</div>
 					<div class="modal-body">
 						<p>
-							<strong><?php if (version_compare(getCurrentVersion(), getLatestVersion()) >= 0) { echo 'You have installed the current version.'; } else { echo 'New version of netdata available!'; } ?></strong>
+							<strong><?php if (version_compare(getCurrentVersion(), getLatestVersion()) >= 0) { echo 'You have installed the current version.'; } else { echo 'New version of EasyWall available!'; } ?></strong>
 						</p>
 						<hr>
 						Your EasyWall version: <b><code><?php echo getCurrentVersion(); ?></code></b><br />
@@ -62,7 +62,7 @@
 					<div class="modal-body">
 						<ul class="list-group" style="word-break: break-word">
 							<?php
-								foreach($_SERVER as $key => $value) {
+								foreach($input->server() as $key => $value) {
 									if (!startsWith($key, 'PHP_AUTH')) {
 										echo '<li class="list-group-item align-items-start">';
 										echo '	<p class="mb-1 w-100"><strong>' . $key . '</strong></p>';

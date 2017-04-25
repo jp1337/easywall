@@ -1,59 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ---------------------------------------------------
-# ---------- Define some useful functions -----------
-# ---------------------------------------------------
-
-function log {
-if [ $LOG = true ];
-then
-	mkdir -p $LOGDIR
-	touch $LOGDIR$LOGFILE
-	
-	
-	if [ -n "$1" ]; then
-		IN="$1"
-		DateTime=$(date "+%Y/%m/%d %H:%M:%S")
-		echo $DateTime': '$IN >> $LOGDIR$LOGFILE
-	else
-		while read IN
-		do
-			DateTime=$(date "+%Y/%m/%d %H:%M:%S")
-			echo $DateTime': '$IN >> $LOGDIR$LOGFILE
-		done
-	fi
-	
-	#echo $DateTime': '$IN
-fi
-}
-
-function abort {
-	echo "ERROR: "$1 1>&2
-	exit 1
-}
-
-# ---------------------------------------------------
-# -------------- Sleep for 30 seconds ---------------
-# ---------------------------------------------------
-
-sleep 30
-
-# ---------------------------------------------------
-# ---------- Read Configuration Parameters ----------
+# ------- Read in Configuration and Functions -------
 # ---------------------------------------------------
 
 # filepath to configuration parameter file
 CONFIG=../config/easywall.cfg
 
-echo "Reading Config File $CONFIG"
-if [ -f $CONFIG ];
-then
-	echo "Found config file. Reading lines"
-	source $CONFIG
-else
-	abort "Config File not found."
-fi
+source "functions.sh"
 
+readConfig $CONFIG
+
+logStart "timer.sh"
+
+# ---------------------------------------------------
+# -------------- Sleep for 30 seconds ---------------
+# ---------------------------------------------------
+
+log "timer.sh now starts to sleep 30 seconds"
+
+sleep 30
+
+log "The 30 seconds are over"
 
 # ----------------------------------------------------
 # ------------------ Reset IPTABLES ------------------
@@ -61,26 +29,10 @@ fi
 
 if [ $APPLIED = false ];
 then
-	log "Resetting Rules while not applying firewall rules."
-	$IPTABLES -P INPUT ACCEPT
-	$IPTABLES -P OUTPUT ACCEPT
-	$IPTABLES -P FORWARD ACCEPT
-	$IPTABLES -F
-	$IPTABLES -X
-	$IPTABLES -t nat -F
-	$IPTABLES -t nat -X
-	$IPTABLES -t mangle -F
-	$IPTABLES -t mangle -X
-	$IP6TABLES -P INPUT ACCEPT
-	$IP6TABLES -P OUTPUT ACCEPT
-	$IP6TABLES -P FORWARD ACCEPT
-	$IP6TABLES -F
-	$IP6TABLES -X
-	$IP6TABLES -t nat -F
-	$IP6TABLES -t nat -X
-	$IP6TABLES -t mangle -F
-	$IP6TABLES -t mangle -X
-	log "Rules Resetted Successfully."
+	log "The rules were not accepted by the user."
+	resetIPTables
+else
+	log "The rules have been successfully accepted and are not reset"
 fi
 
 exit 0

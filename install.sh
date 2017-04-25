@@ -6,24 +6,10 @@ if [ "$EUID" -ne 0 ] ; then
 fi
 
 # ---------------------------------------------------
-# ---------- Define some useful functions -----------
+# ---------------- Read in Functions ----------------
 # ---------------------------------------------------
 
-function AddSlash {
-	local STR=$1
-	local length=${#STR}
-	local last_char=${STR:length-1:1}
-	[[ $last_char != "/" ]] && STR="$STR/"; :
-	echo $STR
-}
-
-function RemoveSlash {
-	local STR=$1
-	local length=${#STR}
-	local last_char=${STR:length-1:1}
-	[[ $last_char == "/" ]] && STR=${STR:0:length-1}; :
-	echo $STR
-}
+source "iptables/functions.sh"
 
 # ---------------------------------------------------
 # ------------ Define Install Directories -----------
