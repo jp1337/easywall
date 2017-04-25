@@ -1,0 +1,25 @@
+{
+  "name": "EasyWall",
+  "homepage": "https://github.com/KingJP/EasyWall",
+  "authors": [
+    "KingJP <12394156+jp1337@users.noreply.github.com>"
+  ],
+  "description": "Easy Firewall Webinterface for Linux IPTables",
+  "main": "web/index.php",
+  "license": "GPL-3.0",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "web/bower_components"
+  ],
+  "dependencies": {
+    "bootstrap": "v4.0.0-alpha.6",
+    "font-awesome": "^4.7.0",
+    "jquery": "^3.2.1",
+    "tether": "^1.4.0"
+  }
+}
