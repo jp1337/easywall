@@ -13,13 +13,13 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 		<link rel="icon" href="favicon.png">
 		
-		<title>EasyWall - Home</title>
+		<title>EasyWall</title>
 
 		<!-- Bootstrap core CSS -->
-		<link rel="stylesheet" href="vendors/bootstrap-4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+		<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
 		
 		<!-- Font Awesome CSS -->
-		<link rel="stylesheet" href="vendors/font-awesome-4.7.0/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=" crossorigin="anonymous">
+		<link rel="stylesheet" href="bower_components/font-awesome/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=" crossorigin="anonymous">
 		
 		<!-- EasyWall CSS -->
 		<!--<link rel="stylesheet" href="css/easywall.css" integrity="sha256-tT7PVk4pTqLO82Am+XD7hzRQy7jCCkBm/bluNTNVzco=" crossorigin="anonymous">-->
