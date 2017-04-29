@@ -4,13 +4,14 @@
 # ------- Read in Configuration and Functions -------
 # ---------------------------------------------------
 
-# filepath to configuration parameter file
-CONFIG=../config/easywall.cfg
+if [ -f "../iptables/functions.sh" ] ; then
+	source "../iptables/functions.sh"
+else
+	echo "functions.sh not found. Aborting." 1>&2
+	exit 1
+fi
 
-source "functions.sh"
-
-readConfig $CONFIG
-
+sourceFile "../config/easywall.cfg"
 logStart "timer.sh"
 
 # ---------------------------------------------------

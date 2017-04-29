@@ -4,14 +4,13 @@
 # ---------- Define some useful functions -----------
 # ---------------------------------------------------
 
-function readConfig {
-	echo "Reading Config File $1"
-	if [ -f $1 ];
-	then
-		echo "Found config file. Reading lines"
+function sourceFile {
+	echo "Sourcing File $1"
+	if [ -f $1 ] ; then
+		echo "Found file $1. Sourcing it."
 		source $1
 	else
-		abort "Config File not found."
+		abort "File $1 not found. Aborting."
 	fi
 }
 
@@ -73,14 +72,13 @@ function log {
 function logIptables {
 	if [ $LOG = true ];
 	then
-		local LOGFILE="rules.v4"
 		mkdir -p $LOGDIR
-		touch $LOGDIR$LOGFILE
-		echo "" > $LOGDIR$LOGFILE
+		touch $LOGDIR$LOGIPV4
+		echo "" > $LOGDIR$LOGIPV4
 
 		while read IN
 		do
-			echo $IN >> $LOGDIR$LOGFILE
+			echo $IN >> $LOGDIR$LOGIPV4
 		done
 	fi
 }
@@ -88,14 +86,13 @@ function logIptables {
 function logIp6tables {
 	if [ $LOG = true ];
 	then
-		local LOGFILE="rules.v6"
 		mkdir -p $LOGDIR
-		touch $LOGDIR$LOGFILE
-		echo "" > $LOGDIR$LOGFILE
+		touch $LOGDIR$LOGIPV6
+		echo "" > $LOGDIR$LOGIPV6
 
 		while read IN
 		do
-			echo $IN >> $LOGDIR$LOGFILE
+			echo $IN >> $LOGDIR$LOGIPV6
 		done
 	fi
 }
