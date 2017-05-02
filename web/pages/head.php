@@ -9,10 +9,13 @@
 	
 	require('class/functions.php');
 	
-	// Debug Only
-	ini_set('display_errors', 1);
-	ini_set('display_startup_errors', 1);
-	error_reporting(E_ALL);
+	if ($config->getValue('WEBDEBUG') === "true") {
+		ini_set('display_errors', 1);
+		ini_set('display_startup_errors', 1);
+		error_reporting(E_ALL);
+		require( 'bower_components/PHP-Error/src/php_error.php' );
+		\php_error\reportErrors();
+	}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -26,6 +29,9 @@
 
 		<!-- Bootstrap core CSS -->
 		<link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ">
+		
+		<!-- Bootstrap Toggle CSS -->
+		<link rel="stylesheet" href="bower_components/bootstrap-toggle/css/bootstrap-toggle.min.css" integrity="sha-256-rDWX6XrmRttWyVBePhmrpHnnZ1EPmM6WQRQl6h0h7J8=">
 		
 		<!-- Font Awesome CSS -->
 		<link rel="stylesheet" href="bower_components/font-awesome/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=">

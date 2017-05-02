@@ -1,4 +1,4 @@
-# EasyWall [![Codacy Badge](https://api.codacy.com/project/badge/Grade/3e06b3dc52b34cca839c8848d799d251)](https://www.codacy.com/app/KingJP/EasyWall?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=KingJP/EasyWall&amp;utm_campaign=Badge_Grade) [![Code Climate](https://codeclimate.com/github/KingJP/EasyWall/badges/gpa.svg)](https://codeclimate.com/github/KingJP/EasyWall) [![Built with Grunt](https://cdn.gruntjs.com/builtwith.png)](http://gruntjs.com)  [![Dependency Status](https://gemnasium.com/badges/github.com/KingJP/EasyWall.svg)](https://gemnasium.com/github.com/KingJP/EasyWall)
+# EasyWall [![Codacy Badge](https://api.codacy.com/project/badge/Grade/3e06b3dc52b34cca839c8848d799d251)](https://www.codacy.com/app/KingJP/EasyWall?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=KingJP/EasyWall&amp;utm_campaign=Badge_Grade) [![Code Climate](https://codeclimate.com/github/KingJP/EasyWall/badges/gpa.svg)](https://codeclimate.com/github/KingJP/EasyWall) [![Dependency Status](https://gemnasium.com/badges/github.com/KingJP/EasyWall.svg)](https://gemnasium.com/github.com/KingJP/EasyWall) [![bower](https://img.shields.io/badge/bower-1.8.0-blue.svg)](https://github.com/KingJP/EasyWall) [![status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/KingJP/EasyWall)
 
 Today **Firewalls** are more important than years before. Hackers and Bots are trying to invade your server. So what to do against it?
 Set up a firewall! But which one? **IPTables** is the strongest firewall in **Linux** environments. So we wanted to make IPTables usable by everyone. We created a simple **Web Interface** for IPTables so everyone can install and use it on his / her server.
@@ -21,9 +21,8 @@ Set up a firewall! But which one? **IPTables** is the strongest firewall in **Li
 
 ## Install
 
-We provide extensive instructions on our [installation](https://github.com/KingJP/EasyWall/blob/master/INSTALL.md) page.
-
-> We are currently working on an automatic installation script.*
+We provide extensive instructions on our [installation](https://github.com/KingJP/EasyWall/blob/master/INSTALL.md) page.  
+You can find a script for automatic downloading and installation.
 
 ## Documentation
 
@@ -42,3 +41,18 @@ It re-distributes other open-source tools and libraries. Please check its [Licen
 ![Screenshot 3: Ports Page Upper Part](http://i.imgur.com/qYjxXNZ.png)
 ![Screenshot 4: Ports Page Lower Part](http://i.imgur.com/zdN0oRu.png)
 ![Screenshot 5: Apply Page with Automatic Timeout Reset](http://i.imgur.com/BaWMkZD.png)
+
+## Changelog
+
+### 1.0.6 (2017-05-02)
+
+Features:
+
+- Extended Configuration to set new Bash Variables
+- Added Bootstrap Toggle Button for Settings and Ports
+- Error Handling with PHP-Error from [JosephLenton/PHP-Error](https://github.com/JosephLenton/PHP-Error)
+
+Performance:
+Bugfixes:
+
+- Reduced Host Information to only print Server Information

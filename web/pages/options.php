@@ -1,7 +1,7 @@
 <div class="jumbotron text-center">
 	<div class="container">
 		<h1>Options</h1>
-		<p class="lead">Here you can edit general script and firewall settings.<br>First of all you have to choose the folder path to the EasyWall Firewall folder on your server.<br>Then you can edit the general firewall settings including some builtin rules.</p>
+		<p class="lead">EasyWall is configurable down to the last detail.<br />The system offers a variety of built-in safety rules. We recommend using the standard rules.</p>
 	</div>
 </div>
 
@@ -30,72 +30,35 @@
 							<a class="nav-link active" data-toggle="tab" href="#iptables" role="tab">IPTables</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" data-toggle="tab" href="#log" role="tab">Log</a>
+							<a class="nav-link" data-toggle="tab" href="#easywall" role="tab">EasyWall</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" data-toggle="tab" href="#files" role="tab">Files</a>
+							<a class="nav-link" data-toggle="tab" href="#logpane" role="tab">Log</a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link" data-toggle="tab" href="#binaries" role="tab">Binaries</a>
 						</li>
 					</ul>
 				</div>
+				
 				<div class="card-block">
 					<div class="tab-content">
+					
 						<div class="tab-pane active" id="iptables" role="tabpanel">
 							<form action="options.php" method="post">
-								<div class="form-group">
-									<label for="enableipv6">Enable IPv6 Rules</label>
-									<select class="form-control" id="enableipv6" name="IPV6" aria-describedby="enableipv6Help">
-										<option value="true" <?php if ($config->getValue('IPV6') != false) { if ($config->getValue('IPV6') == 'true') { echo 'selected'; } } ?>>Yes</option>
-										<option value="false" <?php if ($config->getValue('IPV6') != false) { if ($config->getValue('IPV6') == 'false') { echo 'selected'; } } ?>>No</option>
-									</select>
-									<small id="enableipv6Help" class="form-text text-muted">Enable this option if you have configured IPv6 on your server. Please ensure that your server and ISP supports IPv6.</small>
-								</div>
-								<div class="form-group">
-									<label for="iptablesbin">IPTables Binary</label>
-									<input type="text" class="form-control" id="iptablesbin" name="IPTABLES" aria-describedby="iptablesbinHelp" placeholder="Example: /sbin/iptables" <?php if ($config->getValue('IPTABLES') != false) { echo 'value="' . $config->getValue('IPTABLES') . '"'; } ?>>
-									<small id="iptablesbinHelp" class="form-text text-muted">Enter the full path to your IPTables Binary. On command line you can find it with the command <code>whereis iptables</code>.</small>
-								</div>
-								<div class="form-group">
-									<label for="iptablessavebin">IPTables-Save Binary</label>
-									<input type="text" class="form-control" id="iptablessavebin" name="IPTABLES_SAVE" aria-describedby="iptablessavebinHelp" placeholder="Example: /sbin/iptables-save" <?php if ($config->getValue('IPTABLES_SAVE') != false) { echo 'value="' . $config->getValue('IPTABLES_SAVE') . '"'; } ?>>
-									<small id="iptablessavebinHelp" class="form-text text-muted">Enter the full path to your IPTables-Save Binary. This is needed for saving the current iptables rules. On command line you can find it with the command <code>whereis iptables-save</code>.</small>
-								</div>
-								<div class="form-group">
-									<label for="ip6tablesbin">IP6Tables Binary</label>
-									<input type="text" class="form-control" id="ip6tablesbin" name="IP6TABLES" aria-describedby="ip6tablesbinHelp" placeholder="Example: /sbin/ip6tables" <?php if ($config->getValue('IP6TABLES') != false) { echo 'value="' . $config->getValue('IP6TABLES') . '"'; } ?>>
-									<small id="ip6tablesbinHelp" class="form-text text-muted">Enter the full path to your IP6Tables Binary. On command line you can find it with the command <code>whereis ip6tables</code>.</small>
-								</div>
-								<div class="form-group">
-									<label for="ip6tablessavebin">IP6Tables-Save Binary</label>
-									<input type="text" class="form-control" id="ip6tablessavebin" name="IP6TABLES_SAVE" aria-describedby="ip6tablessavebinHelp" placeholder="Example: /sbin/ip6tables-save" <?php if ($config->getValue('IP6TABLES_SAVE') != false) { echo 'value="' . $config->getValue('IP6TABLES_SAVE') . '"'; } ?>>
-									<small id="ip6tablessavebinHelp" class="form-text text-muted">Enter the full path to your IP6Tables-Save Binary. This is needed for saving the current ip6tables rules. On command line you can find it with the command <code>whereis ip6tables-save</code>.</small>
+								<div class="form-group checkbox">
+									<label class="form-check-label" for="IPV6">
+										<input type="hidden" value="false" name="IPV6">
+										<input type="checkbox" id="IPV6" name="IPV6" <?php if ($config->getValue('IPV6') != false) { if ($config->getValue('IPV6') == 'true') { echo 'checked'; } } ?> aria-describedby="IPV6Help">
+										Enable IPv6
+									</label>
+									<small id="IPV6Help" class="form-text text-muted">Please only activate the function if <strong>IPv6</strong> is <strong>configured and activated</strong> on the server. If you disable the feature, EasyWall will disable IPv6 entirely on the server for security reasons.</small>
 								</div>
 								<button type="submit" class="btn btn-primary">Save</button>
 							</form>
 						</div>
-						<div class="tab-pane" id="log" role="tabpanel">
-							<form action="options.php" method="post">
-								<div class="form-group">
-									<label for="enablelog">Enable Logging</label>
-									<select class="form-control" id="enablelog" name="LOG" aria-describedby="enablelogHelp">
-										<option value="true" <?php if ($config->getValue('LOG') != false) { if ($config->getValue('LOG') == 'true') { echo 'selected'; } } ?>>Yes</option>
-										<option value="false" <?php if ($config->getValue('LOG') != false) { if ($config->getValue('LOG') == 'false') { echo 'selected'; } } ?>>No</option>
-									</select>
-									<small id="enablelogHelp" class="form-text text-muted">Enable this if EasyWall should write a log file on cron run.</small>
-								</div>
-								<div class="form-group">
-									<label for="logdir">Log Directory</label>
-									<input type="text" class="form-control" id="logdir" name="LOGDIR" aria-describedby="logdirHelp" placeholder="Example: log/" <?php if ($config->getValue('LOGDIR') != false) { echo 'value="' . $config->getValue('LOGDIR') . '"'; } ?>>
-									<small id="logdirHelp" class="form-text text-muted">Enter the log directory. You can use a full path or a relative path from the EasyWall directory.</small>
-								</div>
-								<div class="form-group">
-									<label for="logfile">Log File</label>
-									<input type="text" class="form-control" id="logfile" name="LOGFILE" aria-describedby="logfileHelp" placeholder="Example: easywall.log" <?php if ($config->getValue('LOGFILE') != false) { echo 'value="' . $config->getValue('LOGFILE') . '"'; } ?>>
-									<small id="logfileHelp" class="form-text text-muted">Enter the filename for the logfile. This is important if you want to use an existing log file.</small>
-								</div>
-								<button type="submit" class="btn btn-primary">Save</button>
-							</form>
-						</div>
-						<div class="tab-pane" id="files" role="tabpanel">
+						
+						<div class="tab-pane" id="easywall" role="tabpanel">
 							<form action="options.php" method="post">
 								<div class="form-group">
 									<label for="blacklistfile">Blacklist File</label>
@@ -120,6 +83,67 @@
 								<button type="submit" class="btn btn-primary">Save</button>
 							</form>
 						</div>
+						
+						<div class="tab-pane" id="logpane" role="tabpanel">
+							<form action="options.php" method="post">
+								<div class="form-group checkbox">
+									<label class="form-check-label" for="LOG">
+										<input type="hidden" value="false" name="LOG">
+										<input type="checkbox" id="LOG" name="LOG" <?php if ($config->getValue('LOG') != false) { if ($config->getValue('LOG') == 'true') { echo 'checked'; } } ?> aria-describedby="LOGHelp">
+										Enable Logging
+									</label>
+									<small id="LOGHelp" class="form-text text-muted">Logging stores different information every time the firewall is changed. In addition, the newly applied rules are stored in a file.</small>
+								</div>
+								<div class="form-group">
+									<label for="logdir">Log Directory</label>
+									<input type="text" class="form-control" id="logdir" name="LOGDIR" aria-describedby="logdirHelp" placeholder="Example: /log" <?php if ($config->getValue('LOGDIR') != false) { echo 'value="' . $config->getValue('LOGDIR') . '"'; } ?>>
+									<small id="logdirHelp" class="form-text text-muted">Please specify the log directory. We recommend using the local <code>../log/</code> directory. The use of the global <code>/log</code> directory is also possible.</small>
+								</div>
+								<div class="form-group">
+									<label for="logfile">Log File</label>
+									<input type="text" class="form-control" id="logfile" name="LOGFILE" aria-describedby="logfileHelp" placeholder="Example: easywall.log" <?php if ($config->getValue('LOGFILE') != false) { echo 'value="' . $config->getValue('LOGFILE') . '"'; } ?>>
+									<small id="logfileHelp" class="form-text text-muted">Please specify the filename for the logfile.</small>
+								</div>
+								<div class="form-group">
+									<label for="LOGIPV4">IPv4 Rules File</label>
+									<input type="text" class="form-control" id="LOGIPV4" name="LOGIPV4" aria-describedby="LOGIPV4Help" placeholder="Example: rules.v4.log" <?php if ($config->getValue('LOGIPV4') != false) { echo 'value="' . $config->getValue('LOGIPV4') . '"'; } ?>>
+									<small id="LOGIPV4Help" class="form-text text-muted">After every change to the firewall, the current IPv4 rules are stored in this file. Specify the name for the file.</small>
+								</div>
+								<div class="form-group">
+									<label for="LOGIPV6">IPv6 Rules File</label>
+									<input type="text" class="form-control" id="LOGIPV6" name="LOGIPV6" aria-describedby="LOGIPV6Help" placeholder="Example: rules.v6.log" <?php if ($config->getValue('LOGIPV6') != false) { echo 'value="' . $config->getValue('LOGIPV6') . '"'; } ?>>
+									<small id="LOGIPV6Help" class="form-text text-muted">After every change to the firewall, the current IPv6 rules are stored in this file. Specify the name for the file.</small>
+								</div>
+								<button type="submit" class="btn btn-primary">Save</button>
+							</form>
+						</div>
+						
+						<div class="tab-pane" id="binaries" role="tabpanel">
+							<form action="options.php" method="post">
+								<div class="form-group">
+									<label for="iptablesbin">IPTables Binary</label>
+									<input type="text" class="form-control" id="iptablesbin" name="IPTABLES" aria-describedby="iptablesbinHelp" placeholder="Example: /sbin/iptables" <?php if ($config->getValue('IPTABLES') != false) { echo 'value="' . $config->getValue('IPTABLES') . '"'; } ?>>
+									<small id="iptablesbinHelp" class="form-text text-muted">Please enter the full path to the IPTables Binary.<br />You can read out the path in the command line with the command <code>whereis iptables</code>.</small>
+								</div>
+								<div class="form-group">
+									<label for="iptablessavebin">IPTables-Save Binary</label>
+									<input type="text" class="form-control" id="iptablessavebin" name="IPTABLES_SAVE" aria-describedby="iptablessavebinHelp" placeholder="Example: /sbin/iptables-save" <?php if ($config->getValue('IPTABLES_SAVE') != false) { echo 'value="' . $config->getValue('IPTABLES_SAVE') . '"'; } ?>>
+									<small id="iptablessavebinHelp" class="form-text text-muted">Please enter the full path to the IPTables-Save Binary.<br />This is needed for saving the current iptables rules. You can read out the path in the command line with the command <code>whereis iptables-save</code>.</small>
+								</div>
+								<div class="form-group">
+									<label for="ip6tablesbin">IP6Tables Binary</label>
+									<input type="text" class="form-control" id="ip6tablesbin" name="IP6TABLES" aria-describedby="ip6tablesbinHelp" placeholder="Example: /sbin/ip6tables" <?php if ($config->getValue('IP6TABLES') != false) { echo 'value="' . $config->getValue('IP6TABLES') . '"'; } ?>>
+									<small id="ip6tablesbinHelp" class="form-text text-muted">Please enter the full path to the IP6Tables Binary.<br />You can read out the path in the command line with the command <code>whereis ip6tables</code>.</small>
+								</div>
+								<div class="form-group">
+									<label for="ip6tablessavebin">IP6Tables-Save Binary</label>
+									<input type="text" class="form-control" id="ip6tablessavebin" name="IP6TABLES_SAVE" aria-describedby="ip6tablessavebinHelp" placeholder="Example: /sbin/ip6tables-save" <?php if ($config->getValue('IP6TABLES_SAVE') != false) { echo 'value="' . $config->getValue('IP6TABLES_SAVE') . '"'; } ?>>
+									<small id="ip6tablessavebinHelp" class="form-text text-muted">Please enter the full path to the IP6Tables-Save Binary.<br />This is needed for saving the current ip6tables rules. You can read out the path in the command line with the command <code>whereis ip6tables-save</code>.</small>
+								</div>
+								<button type="submit" class="btn btn-primary">Save</button>
+							</form>
+						</div>
+						
 					</div>
 				</div>
 			</div>

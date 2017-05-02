@@ -63,7 +63,7 @@
 						<ul class="list-group" style="word-break: break-word">
 							<?php
 								foreach($input->server() as $key => $value) {
-									if (!startsWith($key, 'PHP_AUTH')) {
+									if (startsWith($key, 'SERVER')) {
 										echo '<li class="list-group-item align-items-start">';
 										echo '	<p class="mb-1 w-100"><strong>' . $key . '</strong></p>';
 										echo '	<p class="mb-0">' . $value . '</p>';
@@ -84,5 +84,16 @@
 		<script src="bower_components/jquery/dist/jquery.slim.min.js" integrity="sha256-k2WSCIexGzOj3Euiig+TlR8gA0EmPjuc79OEeY5L45g="></script>
 		<script src="bower_components/tether/dist/js/tether.min.js" integrity="sha256-gL1ibrbVcRIHKlCO5OXOPC/lZz/gpdApgQAzskqqXp8="></script>
 		<script src="bower_components/bootstrap/dist/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn"></script>
+		
+		<!-- Bootstrap Toggle JS -->
+		<script src="bower_components/bootstrap-toggle/js/bootstrap-toggle.min.js" integrity="sha256-Li1z7ma/dGhI4vzY72kzxlBybiPzy1OBeGE6orCSMG4="></script>
+		
+		<script>
+			$(function() {
+				$('input[type=checkbox]').bootstrapToggle({
+					offstyle: 'secondary'
+				});
+			})
+		</script>
 	</body>
 </html>

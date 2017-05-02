@@ -5,7 +5,7 @@
   "authors": [
     "KingJP <12394156+jp1337@users.noreply.github.com>"
   ],
-  "description": "Easy Firewall Webinterface for Linux IPTables",
+  "description": "Easy Firewall Webinterface for Linux",
   "main": "web/index.php",
   "license": "GPL-3.0",
   "ignore": [
@@ -24,7 +24,9 @@
     "bootstrap": "v4.0.0-alpha.6",
     "font-awesome": "^4.7.0",
     "tether": "^1.4.0",
-    "jquery": "^3.2.1"
+    "jquery": "^3.2.1",
+    "bootstrap-toggle": "^2.2.2",
+    "PHP-Error": "git://github.com/JosephLenton/PHP-Error.git#9918dd5"
   },
   "devDependencies": {}
 }
