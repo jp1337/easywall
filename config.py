@@ -5,7 +5,7 @@ import log
 class config(object):
 
     def __init__(self, configpath):
-        log.logging.info("Setting up logging...")
+        log.logging.info("Setting up configuration...")
         self.configpath = configpath
         self.config = configparser.ConfigParser()
         log.logging.info("Reading config file from " + configpath)
