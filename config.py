@@ -5,12 +5,12 @@ import log
 class config(object):
 
     def __init__(self, configpath):
-        log.logging.info("Setting up configuration...")
+        log.logging.debug("Setting up configuration...")
         self.configpath = configpath
         self.config = configparser.ConfigParser()
-        log.logging.info("Reading config file from " + configpath)
+        log.logging.debug("Reading config file from " + configpath)
         self.config.read(self.configpath)
-        log.logging.info("Configuration is set up.")
+        log.logging.debug("Configuration is set up.")
 
     def getValue(self, section, key):
         log.logging.debug(

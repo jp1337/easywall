@@ -1,7 +1,8 @@
 import logging
 import config
-import os
-import sys
+from os import path
+from os import makedirs
+from sys import stdout
 
 
 class log(object):
@@ -9,7 +10,6 @@ class log(object):
     def __init__(self):
         self.config = config.config("config/config.ini")
         self.loglevel = self.getLevel(self.config.getValue("LOG", "level"))
-        self.to_file = self.config.getValue("LOG", "to_files") == "true"
 
         # create logger with easywall
         root = logging.getLogger()
@@ -20,16 +20,16 @@ class log(object):
             '[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s')
 
         # create console handler -> logs are always written to stdout
-        stdHandler = logging.StreamHandler(sys.stdout)
+        stdHandler = logging.StreamHandler(stdout)
         stdHandler.setLevel(self.loglevel)
         stdHandler.setFormatter(formatter)
         root.addHandler(stdHandler)
 
         # create file handler if enabled in configuration
-        if self.to_file == True:
+        if bool(self.config.getValue("LOG", "to_files")) == True:
             # create log filepath if not exists
-            if not os.path.exists(self.config.getValue("LOG", "filepath")):
-                os.makedirs(self.config.getValue("LOG", "filepath"))
+            if not path.exists(self.config.getValue("LOG", "filepath")):
+                makedirs(self.config.getValue("LOG", "filepath"))
 
             fileHandler = logging.FileHandler(self.config.getValue(
                 "LOG", "filepath") + "/" + self.config.getValue("LOG", "filename"))

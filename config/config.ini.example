@@ -1,13 +1,15 @@
 [EXEC]
-IPTables = /sbin/iptables
-IP6Tables = /sbin/ip6tables
-IPTables-save = /sbin/iptables-save
-IP6Tables-save = /sbin/ip6tables-save
+iptables = /sbin/iptables
+ip6tables = /sbin/ip6tables
+iptables-save = /sbin/iptables-save
+ip6tables-save = /sbin/ip6tables-save
+iptables-restore = /sbin/iptables-restore
+ip6tables-restore = /sbin/ip6tables-restore
 
 [LOG]
 ; possible values: debug, info, warning, error, critical
 level = info 
-to_files = true
+to_files = yes
 filepath = /var/log/easywall
 filename = easywall
 ; rotateeverybytes = 10485760
@@ -16,15 +18,16 @@ filename = easywall
 
 [BACKUP]
 filepath = ./backup
-ipv4filename = rules.v4.log
-ipv6filename = rules.v6.log
+ipv4filename = iptables_v4_backup
+ipv6filename = iptables_v6_backup
 
-[IPV4]
-Enabled = yes
-IPV4FORWARDING = no
+[ACCEPTANCE]
+; time in seconds
+time = 3
+filename = .accepted
 
 [IPV6]
-Enabled = yes
+enabled = yes
 IPV6FORWARDING = no
 
 [SECURITY]
