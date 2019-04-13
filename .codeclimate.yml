@@ -1,8 +1,0 @@
-## exclude vendors from testing. They should fix their own problems :)
-languages:
-  JavaScript: true
-  PHP: true
-  shellcheck: true
-  markdownlint: true
-exclude_paths:
-- "**/web/bower_components/"
