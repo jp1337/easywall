@@ -4,6 +4,7 @@ import iptables
 import acceptance
 import os
 import utility
+from datetime import datetime
 
 
 class easywall(object):
@@ -92,10 +93,8 @@ class easywall(object):
         if self.acceptance.check() == False:
             self.iptables.restore()
         else:
-            # move old rules
-            # save new rules
-            print("")
-        self.iptables.list()
+            self.rotateRules()
+            self.iptables.save()
 
     def getRuleList(self, ruletype):
         self.filepath = self.config.getValue("RULES", "filepath")
@@ -106,6 +105,18 @@ class easywall(object):
         with open(self.filepath + "/" + self.filename, 'r') as rulesfile:
             lines = rulesfile.read().split('\n')
             return lines
+
+    def rotateRules(self):
+        self.filepath = self.config.getValue("BACKUP", "filepath")
+        self.filename = self.config.getValue("BACKUP", "ipv4filename")
+        self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        os.rename(self.filepath + "/" + self.filename,
+                  self.filepath + "/" + self.date + "_" + self.filename)
+        self.ipv6 = self.config.getValue("IPV6", "enabled")
+        if bool(self.ipv6) == True:
+            self.filename = self.config.getValue("BACKUP", "ipv6filename")
+            os.rename(self.filepath + "/" + self.filename,
+                      self.filepath + "/" + self.date + "_" + self.filename)
 
 
 if __name__ == "__main__":

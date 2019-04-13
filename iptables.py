@@ -39,9 +39,9 @@ class iptables(object):
             os.system(self.ip6tables + " -N " + chain)
 
     def addAppend(self, chain, rule, onlyv6=False, onlyv4=False):
-        if onlyv6 == False:
+        if onlyv4 == True and onlyv6 == False:
             os.system(self.iptables + " -A " + chain + " " + rule)
-        if self.ipv6 == True and onlyv4 == False:
+        if self.ipv6 == True and onlyv6 == True:
             os.system(self.ip6tables + " -A " + chain + " " + rule)
 
     def flush(self, chain=""):
@@ -85,7 +85,7 @@ class iptables(object):
             filename = self.config.getValue("BACKUP", "ipv6filename")
             with open(filepath + "/" + filename, 'w'):
                 pass
-            os.system(self.iptables_save + " | while read IN ; do echo $IN >> " +
+            os.system(self.ip6tables_save + " | while read IN ; do echo $IN >> " +
                       filepath + "/" + filename + " ; done")
 
     def restore(self):
