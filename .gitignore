@@ -1,5 +1,7 @@
+backup/
+__pycache__/
+rules/
+
 *.log
 config.ini
-__pycache__
-backup/
 .accepted

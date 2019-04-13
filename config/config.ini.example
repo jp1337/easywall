@@ -1,11 +1,3 @@
-[EXEC]
-iptables = /sbin/iptables
-ip6tables = /sbin/ip6tables
-iptables-save = /sbin/iptables-save
-ip6tables-save = /sbin/ip6tables-save
-iptables-restore = /sbin/iptables-restore
-ip6tables-restore = /sbin/ip6tables-restore
-
 [LOG]
 ; possible values: debug, info, warning, error, critical
 level = info 
@@ -16,10 +8,13 @@ filename = easywall
 ; keepfiles = 7
 ; permissions = 0600
 
-[BACKUP]
-filepath = ./backup
-ipv4filename = iptables_v4_backup
-ipv6filename = iptables_v6_backup
+[EXEC]
+iptables = /sbin/iptables
+ip6tables = /sbin/ip6tables
+iptables-save = /sbin/iptables-save
+ip6tables-save = /sbin/ip6tables-save
+iptables-restore = /sbin/iptables-restore
+ip6tables-restore = /sbin/ip6tables-restore
 
 [ACCEPTANCE]
 ; time in seconds
@@ -28,21 +23,15 @@ filename = .accepted
 
 [IPV6]
 enabled = yes
-IPV6FORWARDING = no
 
-[SECURITY]
-SSHBrute = yes
-ICMPFlood = yes
-InvalidDrop = yes
-PortScan = yes
-ICMP = yes
-Broadcast = yes
-Multicast = yes
-Anycast = yes
-DropAuth = yes
+[BACKUP]
+filepath = ./backup
+ipv4filename = iptables_v4_backup
+ipv6filename = iptables_v6_backup
 
 [RULES]
-Blacklist = ../rules/blacklist.txt
-Whitelist = ../rules/whitelist.txt
-TCP = ../rules/tcp.txt
-UDP = ../rules/udp.txt
+filepath = ./rules
+blacklist = blacklist.txt
+whitelist = whitelist.txt
+tcp = tcp.txt
+udp = udp.txt

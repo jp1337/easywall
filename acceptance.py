@@ -26,3 +26,8 @@ class acceptance(object):
                 log.logging.info(
                     "Acceptance Process Result: Not Accepted (file content: " + accepted + ")")
                 return False
+
+    def accept(self):
+        # this function is only for testing purposes!
+        with open(self.filename, 'w') as accfile:
+            accfile.write('true')
