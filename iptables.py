@@ -1,6 +1,7 @@
 import config
 import os
 import log
+import utility
 from enum import Enum
 
 
@@ -31,6 +32,11 @@ class iptables(object):
                 os.system(self.ip6tables + " -P " + chain + " " + target)
         else:
             log.logging.error("Invalid Target for addPolicy " + target)
+
+    def addChain(self, chain):
+        os.system(self.iptables + " -N " + chain)
+        if self.ipv6 == True:
+            os.system(self.ip6tables + " -N " + chain)
 
     def addAppend(self, chain, rule, onlyv6=False, onlyv4=False):
         if onlyv6 == False:
@@ -65,8 +71,7 @@ class iptables(object):
     def save(self):
         # Create Backup Directory if not exists
         filepath = self.config.getValue("BACKUP", "filepath")
-        if not os.path.exists(filepath):
-            os.makedirs(filepath)
+        utility.createFolderIfNotExists(filepath)
 
         # backing up ipv4 iptables rules
         filename = self.config.getValue("BACKUP", "ipv4filename")
@@ -84,18 +89,17 @@ class iptables(object):
                       filepath + "/" + filename + " ; done")
 
     def restore(self):
-        filepath = self.config.getValue("BACKUP", "filepath")
         log.logging.info("Starting Firewall Rule Restore...")
+        filepath = self.config.getValue("BACKUP", "filepath")
+        utility.createFolderIfNotExists(filepath)
 
-        # Check if Backup dir exists
-        if os.path.exists(filepath):
-            log.logging.info("Restoring ipv4 rules...")
-            filename = self.config.getValue("BACKUP", "ipv4filename")
-            os.system(self.iptables_restore + " < " +
+        log.logging.info("Restoring ipv4 rules...")
+        filename = self.config.getValue("BACKUP", "ipv4filename")
+        os.system(self.iptables_restore + " < " +
+                  filepath + "/" + filename)
+
+        if self.ipv6 == True:
+            log.logging.info("Restoring ipv6 rules...")
+            filename = self.config.getValue("BACKUP", "ipv6filename")
+            os.system(self.ip6tables_restore + " < " +
                       filepath + "/" + filename)
-
-            if self.ipv6 == True:
-                log.logging.info("Restoring ipv6 rules...")
-                filename = self.config.getValue("BACKUP", "ipv6filename")
-                os.system(self.ip6tables_restore + " < " +
-                          filepath + "/" + filename)

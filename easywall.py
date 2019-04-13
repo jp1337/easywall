@@ -3,6 +3,7 @@ import log
 import iptables
 import acceptance
 import os
+import utility
 
 
 class easywall(object):
@@ -41,10 +42,31 @@ class easywall(object):
         self.iptables.addAppend("INPUT", "-s ::1/128 ! -i lo -j DROP", True)
 
         # Block IP-addresses from blacklist
+        for ip in self.getRuleList("blacklist"):
+            if ip != "":
+                if ":" in ip:
+                    self.iptables.addAppend(
+                        "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", True)
+                    self.iptables.addAppend(
+                        "INPUT", "-s " + ip + " -j DROP", True)
+                else:
+                    self.iptables.addAppend(
+                        "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", False, True)
+                    self.iptables.addAppend(
+                        "INPUT", "-s " + ip + " -j DROP", False, True)
+
         # Allow IP-addresses from whitelist
+        for ip in self.getRuleList("whitelist"):
+            if ip != "":
+                if ":" in ip:
+                    self.iptables.addAppend(
+                        "INPUT", "-s " + ip + " -j ACCEPT", True)
+                else:
+                    self.iptables.addAppend(
+                        "INPUT", "-s " + ip + " -j ACCEPT", False, True)
 
         # Allow TCP Ports
-        for port in self.getRules("tcp"):
+        for port in self.getRuleList("tcp"):
             if port != "":
                 if ":" in port:
                     self.iptables.addAppend(
@@ -54,12 +76,19 @@ class easywall(object):
                         "INPUT", "-p tcp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
         # Allow UDP Ports
+        for port in self.getRuleList("udp"):
+            if port != "":
+                if ":" in port:
+                    self.iptables.addAppend(
+                        "INPUT", "-p udp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+                else:
+                    self.iptables.addAppend(
+                        "INPUT", "-p udp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
         # log and reject all other packages
         self.iptables.addAppend("INPUT", "-j LOG")
         self.iptables.addAppend("INPUT", "-j REJECT")
 
-        # self.iptables.list()
         if self.acceptance.check() == False:
             self.iptables.restore()
         else:
@@ -68,13 +97,13 @@ class easywall(object):
             print("")
         self.iptables.list()
 
-    def getRules(self, ruletype):
+    def getRuleList(self, ruletype):
         self.filepath = self.config.getValue("RULES", "filepath")
         self.filename = self.config.getValue("RULES", ruletype)
+        utility.createFolderIfNotExists(self.filepath)
+        utility.createFileIfNotExists(self.filepath + "/" + self.filename)
 
-        if not os.path.exists(self.filepath):
-            os.makedirs(self.filepath)
-        with open(self.filepath + "/" + self.filename, 'r+') as rulesfile:
+        with open(self.filepath + "/" + self.filename, 'r') as rulesfile:
             lines = rulesfile.read().split('\n')
             return lines
 

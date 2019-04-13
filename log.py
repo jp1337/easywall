@@ -1,5 +1,6 @@
 import logging
 import config
+import utility
 from os import path
 from os import makedirs
 from sys import stdout
@@ -28,8 +29,8 @@ class log(object):
         # create file handler if enabled in configuration
         if bool(self.config.getValue("LOG", "to_files")) == True:
             # create log filepath if not exists
-            if not path.exists(self.config.getValue("LOG", "filepath")):
-                makedirs(self.config.getValue("LOG", "filepath"))
+            utility.createFolderIfNotExists(
+                self.config.getValue("LOG", "filepath"))
 
             fileHandler = logging.FileHandler(self.config.getValue(
                 "LOG", "filepath") + "/" + self.config.getValue("LOG", "filename"))
