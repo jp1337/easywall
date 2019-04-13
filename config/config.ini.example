@@ -1,0 +1,44 @@
+[EXEC]
+IPTables = /sbin/iptables
+IP6Tables = /sbin/ip6tables
+IPTables-save = /sbin/iptables-save
+IP6Tables-save = /sbin/ip6tables-save
+
+[LOG]
+level = debug ; possible values: debug, info, warning, error, critical
+to_files = true
+filepath = /var/log/easywall
+filename = easywall
+rotateeverybytes = 10485760
+keepfiles = 7
+; permissions = 0600
+
+[BACKUP]
+filepath = ./backup
+ipv4filename = rules.v4.log
+ipv6filename = rules.v6.log
+
+[IPV4]
+Enabled = yes
+IPV4FORWARDING = no
+
+[IPV6]
+Enabled = yes
+IPV6FORWARDING = no
+
+[SECURITY]
+SSHBrute = yes
+ICMPFlood = yes
+InvalidDrop = yes
+PortScan = yes
+ICMP = yes
+Broadcast = yes
+Multicast = yes
+Anycast = yes
+DropAuth = yes
+
+[RULES]
+Blacklist = ../rules/blacklist.txt
+Whitelist = ../rules/whitelist.txt
+TCP = ../rules/tcp.txt
+UDP = ../rules/udp.txt
