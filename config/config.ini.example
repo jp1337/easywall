@@ -18,7 +18,7 @@ ip6tables-restore = /sbin/ip6tables-restore
 
 [ACCEPTANCE]
 ; time in seconds
-time = 3
+time = 10
 filename = .accepted
 
 [IPV6]

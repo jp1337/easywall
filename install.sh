@@ -1,7 +1,8 @@
 #!/bin/bash
 
 echo "Installing required packages..."
-apt-get install -qq python3 #python3-pip
+apt-get install -qq python3 python3-pip
+pip3 install watchdog
 
 echo "Creating configuration..."
 cp config/config.ini.example config/config.ini

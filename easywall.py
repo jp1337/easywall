@@ -4,23 +4,33 @@ import iptables
 import acceptance
 import os
 import utility
+import time
 from datetime import datetime
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+
+class ModifiedHandler(FileSystemEventHandler):
+    def on_any_event(self, event):
+        if event.src_path.endswith(".txt"):
+            easywall()
 
 
 class easywall(object):
+
     def __init__(self):
         self.log = log.log()
-        log.logging.info("Starting up EasyWall...")
+        # log.logging.info("Starting up EasyWall...")
         self.config = config.config("config/config.ini")
         self.iptables = iptables.iptables()
         self.acceptance = acceptance.acceptance()
-        self.apply()  # only testing
-        log.logging.info("Shutting down EasyWall...")
+        self.apply()
+        # log.logging.info("Shutting down EasyWall...")
         self.log.closeLogging()
 
     def apply(self):
         self.acceptance.reset()
-        self.acceptance.accept()  # testing only!!!
+        # self.acceptance.accept()  # testing only!!!
 
         # save current ruleset and reset iptables for clean setup
         self.iptables.save()
@@ -120,4 +130,14 @@ class easywall(object):
 
 
 if __name__ == "__main__":
-    easywall()
+    event_handler = ModifiedHandler()
+    observer = Observer()
+    observer.schedule(
+        event_handler, config.config("config/config.ini").getValue("RULES", "filepath"))
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
