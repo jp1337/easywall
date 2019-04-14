@@ -14,6 +14,7 @@ class log(object):
 
         # create logger with easywall
         root = logging.getLogger()
+        root.handlers.clear() # workaround for default stdout handler
         root.setLevel(self.loglevel)
 
         # create formatter and add it to the handlers

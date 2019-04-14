@@ -2,12 +2,6 @@ import config
 import os
 import log
 import utility
-from enum import Enum
-
-
-class ruletype(Enum):
-    TCP = 1
-    UDP = 2
 
 
 class iptables(object):

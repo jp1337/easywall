@@ -147,7 +147,7 @@ def run():
     try:
         while True:
             time.sleep(1)
-    except KeyboardInterrupt:
+    except:
         observer.stop()
 
     # Shutdown Process

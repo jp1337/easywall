@@ -1,6 +1,6 @@
 [LOG]
 ; possible values: debug, info, warning, error, critical
-level = info 
+level = info
 to_files = yes
 filepath = /var/log/easywall
 filename = easywall
@@ -32,6 +32,7 @@ ipv6filename = iptables_v6_backup
 
 [RULES]
 filepath = ./rules
+; files have to end with .txt
 blacklist = blacklist.txt
 whitelist = whitelist.txt
 tcp = tcp.txt
