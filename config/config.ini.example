@@ -17,7 +17,7 @@ iptables-restore = /sbin/iptables-restore
 ip6tables-restore = /sbin/ip6tables-restore
 
 [ACCEPTANCE]
-enabled = no
+enabled = yes
 ; time in seconds
 time = 10
 filename = .accepted

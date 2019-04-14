@@ -14,7 +14,7 @@ class ModifiedHandler(FileSystemEventHandler):
     def on_any_event(self, event):
         if event.src_path.endswith(".txt"):
             log.logging.info(
-                "file modification occured. infos: " + event.src_path)
+                "file modification occured. filename: " + event.src_path)
             while os.path.isfile(".running"):
                 time.sleep(1)
             easywall()
@@ -23,6 +23,7 @@ class ModifiedHandler(FileSystemEventHandler):
 class easywall(object):
 
     def __init__(self):
+        log.logging.info("Applying new configuration.")
         self.createRunningFile()
         self.config = config.config("config/config.ini")
         self.iptables = iptables.iptables()
@@ -102,20 +103,25 @@ class easywall(object):
             "INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
         self.iptables.addAppend("INPUT", "-j REJECT")
 
+        log.logging.info("Checking acceptance.")
         if self.acceptance.check() == False:
+            log.logging.info("Configuration not accepted, rolling back.")
             self.iptables.restore()
         else:
-            self.rotateRules()
+            self.rotateBackup()
             self.iptables.save()
+            log.logging.info("New configuration was applied.")
 
     def getRuleList(self, ruletype):
         with open(self.config.getValue("RULES", "filepath") + "/" + self.config.getValue("RULES", ruletype), 'r') as rulesfile:
             return rulesfile.read().split('\n')
 
-    def rotateRules(self):
+    def rotateBackup(self):
         self.filepath = self.config.getValue("BACKUP", "filepath")
         self.filename = self.config.getValue("BACKUP", "ipv4filename")
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        log.logging.debug("rotating backup files in folder " +
+                          self.filepath + " -> add prefix " + self.date)
         os.rename(self.filepath + "/" + self.filename,
                   self.filepath + "/" + self.date + "_" + self.filename)
         self.ipv6 = self.config.getValue("IPV6", "enabled")
@@ -144,18 +150,21 @@ def run():
     observer.start()
     log.logging.info("EasyWall is up and running.")
 
+    # waiting for file modifications
     try:
         while True:
             time.sleep(1)
     except:
-        observer.stop()
+        pass  # placeholder for graceful stop on interrupt
 
     # Shutdown Process
     log.logging.info("Shutting down EasyWall...")
+    observer.stop()
     utility.deleteFileIfExists(".running")
     utility.deleteFileIfExists(masterconfig.getValue("ACCEPTANCE", "filename"))
     observer.join()
     masterlog.closeLogging()
+    log.logging.info("EasyWall was stopped gracefully")
 
 
 def ensureRulesFiles(config):
