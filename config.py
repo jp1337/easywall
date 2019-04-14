@@ -15,6 +15,8 @@ class config(object):
     def getValue(self, section, key):
         log.logging.debug(
             "getting configuration value with key " + key + " from section " + section)
+        if self.config[section][key] in ["yes", "no", "true", "false", "on", "off"]:
+            return self.config.getboolean(section, key)
         return self.config[section][key]
 
     def getSections(self):

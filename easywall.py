@@ -13,24 +13,25 @@ from watchdog.events import FileSystemEventHandler
 class ModifiedHandler(FileSystemEventHandler):
     def on_any_event(self, event):
         if event.src_path.endswith(".txt"):
+            log.logging.info(
+                "file modification occured. infos: " + event.src_path)
+            while os.path.isfile(".running"):
+                time.sleep(1)
             easywall()
 
 
 class easywall(object):
 
     def __init__(self):
-        self.log = log.log()
-        # log.logging.info("Starting up EasyWall...")
+        self.createRunningFile()
         self.config = config.config("config/config.ini")
         self.iptables = iptables.iptables()
         self.acceptance = acceptance.acceptance()
         self.apply()
-        # log.logging.info("Shutting down EasyWall...")
-        self.log.closeLogging()
+        self.deleteRunningFile()
 
     def apply(self):
         self.acceptance.reset()
-        # self.acceptance.accept()  # testing only!!!
 
         # save current ruleset and reset iptables for clean setup
         self.iptables.save()
@@ -97,7 +98,8 @@ class easywall(object):
                         "INPUT", "-p udp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
         # log and reject all other packages
-        self.iptables.addAppend("INPUT", "-j LOG")
+        self.iptables.addAppend(
+            "INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
         self.iptables.addAppend("INPUT", "-j REJECT")
 
         if self.acceptance.check() == False:
@@ -107,14 +109,8 @@ class easywall(object):
             self.iptables.save()
 
     def getRuleList(self, ruletype):
-        self.filepath = self.config.getValue("RULES", "filepath")
-        self.filename = self.config.getValue("RULES", ruletype)
-        utility.createFolderIfNotExists(self.filepath)
-        utility.createFileIfNotExists(self.filepath + "/" + self.filename)
-
-        with open(self.filepath + "/" + self.filename, 'r') as rulesfile:
-            lines = rulesfile.read().split('\n')
-            return lines
+        with open(self.config.getValue("RULES", "filepath") + "/" + self.config.getValue("RULES", ruletype), 'r') as rulesfile:
+            return rulesfile.read().split('\n')
 
     def rotateRules(self):
         self.filepath = self.config.getValue("BACKUP", "filepath")
@@ -128,16 +124,47 @@ class easywall(object):
             os.rename(self.filepath + "/" + self.filename,
                       self.filepath + "/" + self.date + "_" + self.filename)
 
+    def createRunningFile(self):
+        utility.createFileIfNotExists(".running")
 
-if __name__ == "__main__":
+    def deleteRunningFile(self):
+        utility.deleteFileIfExists(".running")
+
+
+def run():
+    # Startup Process
+    masterlog = log.log()
+    log.logging.info("Starting up EasyWall...")
+    masterconfig = config.config("config/config.ini")
+    ensureRulesFiles(masterconfig)
     event_handler = ModifiedHandler()
     observer = Observer()
     observer.schedule(
-        event_handler, config.config("config/config.ini").getValue("RULES", "filepath"))
+        event_handler, masterconfig.getValue("RULES", "filepath"))
     observer.start()
+    log.logging.info("EasyWall is up and running.")
+
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
+
+    # Shutdown Process
+    log.logging.info("Shutting down EasyWall...")
+    utility.deleteFileIfExists(".running")
+    utility.deleteFileIfExists(masterconfig.getValue("ACCEPTANCE", "filename"))
     observer.join()
+    masterlog.closeLogging()
+
+
+def ensureRulesFiles(config):
+    for ruletype in ["blacklist", "whitelist", "tcp", "udp"]:
+        filepath = config.getValue("RULES", "filepath")
+        filename = config.getValue("RULES", ruletype)
+        utility.createFolderIfNotExists(filepath)
+        utility.createFileIfNotExists(filepath + "/" + filename)
+
+
+if __name__ == "__main__":
+    run()
