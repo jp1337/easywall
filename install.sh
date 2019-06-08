@@ -1,11 +1,18 @@
 #!/bin/bash
 
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root or using sudo"
+  exit
+fi
+
 STEPS=4
 STEP=1
 
 echo "("$STEP"/"$STEPS") Installing required packages" && ((STEP++))
-apt-get install -qq python3 python3-pip
-pip3 -q install watchdog
+apt-get clean
+apt-get update
+apt-get -y install python3 python3-pip
+pip3 install watchdog
 
 echo "("$STEP"/"$STEPS") Creating configuration" && ((STEP++))
 cp config/config.ini.example config/config.ini
