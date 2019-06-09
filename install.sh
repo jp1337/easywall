@@ -12,7 +12,7 @@ echo "("$STEP"/"$STEPS") Installing required packages" && ((STEP++))
 apt-get clean
 apt-get update
 apt-get -y install python3 python3-pip
-pip3 install watchdog
+pip3 install watchdog flask
 
 echo "("$STEP"/"$STEPS") Creating configuration" && ((STEP++))
 cp config/config.ini.example config/config.ini
