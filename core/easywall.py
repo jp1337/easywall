@@ -75,47 +75,43 @@ class easywall(object):
 
     def apply_blacklist(self):
         for ip in self.get_rule_list("blacklist"):
-            if ip != "":
-                if ":" in ip:
-                    self.iptables.addAppend(
-                        "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", True)
-                    self.iptables.addAppend(
-                        "INPUT", "-s " + ip + " -j DROP", True)
-                else:
-                    self.iptables.addAppend(
-                        "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", False, True)
-                    self.iptables.addAppend(
-                        "INPUT", "-s " + ip + " -j DROP", False, True)
+            if ":" in ip:
+                self.iptables.addAppend(
+                    "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", True)
+                self.iptables.addAppend(
+                    "INPUT", "-s " + ip + " -j DROP", True)
+            else:
+                self.iptables.addAppend(
+                    "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", False, True)
+                self.iptables.addAppend(
+                    "INPUT", "-s " + ip + " -j DROP", False, True)
 
     def apply_whitelist(self):
         for ip in self.get_rule_list("whitelist"):
-            if ip != "":
-                if ":" in ip:
-                    self.iptables.addAppend(
-                        "INPUT", "-s " + ip + " -j ACCEPT", True)
-                else:
-                    self.iptables.addAppend(
-                        "INPUT", "-s " + ip + " -j ACCEPT", False, True)
+            if ":" in ip:
+                self.iptables.addAppend(
+                    "INPUT", "-s " + ip + " -j ACCEPT", True)
+            else:
+                self.iptables.addAppend(
+                    "INPUT", "-s " + ip + " -j ACCEPT", False, True)
 
     def apply_tcp_rules(self):
         for port in self.get_rule_list("tcp"):
-            if port != "":
-                if ":" in port:
-                    self.iptables.addAppend(
-                        "INPUT", "-p tcp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
-                else:
-                    self.iptables.addAppend(
-                        "INPUT", "-p tcp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+            if ":" in port:
+                self.iptables.addAppend(
+                    "INPUT", "-p tcp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+            else:
+                self.iptables.addAppend(
+                    "INPUT", "-p tcp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
     def apply_udp_rules(self):
         for port in self.get_rule_list("udp"):
-            if port != "":
-                if ":" in port:
-                    self.iptables.addAppend(
-                        "INPUT", "-p udp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
-                else:
-                    self.iptables.addAppend(
-                        "INPUT", "-p udp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+            if ":" in port:
+                self.iptables.addAppend(
+                    "INPUT", "-p udp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+            else:
+                self.iptables.addAppend(
+                    "INPUT", "-p udp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
     def check_acceptance(self):
         log.logging.info("Checking acceptance.")
@@ -128,8 +124,12 @@ class easywall(object):
             log.logging.info("New configuration was applied.")
 
     def get_rule_list(self, ruletype):
+        rule_list = []
         with open(self.config.getValue("RULES", "filepath") + "/" + self.config.getValue("RULES", ruletype), 'r') as rulesfile:
-            return rulesfile.read().split('\n')
+            for rule in rulesfile.read().split('\n'):
+                if rule != "":
+                    rule_list.append(rule)
+        return rule_list
 
     def rotate_backup(self):
         self.filepath = self.config.getValue("BACKUP", "filepath")
