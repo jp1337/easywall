@@ -42,7 +42,8 @@ class iptables(object):
             log.logging.debug(
                 "adding append for ipv4, chain: " + chain + ", rule: " + rule)
             os.system(self.iptables_bin + " -A " + chain + " " + rule)
-        if self.ipv6 == True and (onlyv6 == True or (onlyv6 == False and onlyv4 == False)):
+        if self.ipv6 == True and(
+                onlyv6 == True or(onlyv6 == False and onlyv4 == False)):
             log.logging.debug(
                 "adding append for ipv6, chain: " + chain + ", rule: " + rule)
             os.system(self.ip6tables_bin + " -A " + chain + " " + rule)
@@ -81,8 +82,9 @@ class iptables(object):
         filename = self.config.getValue("BACKUP", "ipv4filename")
         with open(filepath + "/" + filename, 'w'):
             pass
-        os.system(self.iptables_bin_save + " | while read IN ; do echo $IN >> " +
-                  filepath + "/" + filename + " ; done")
+        os.system(
+            self.iptables_bin_save + " | while read IN ; do echo $IN >> " +
+            filepath + "/" + filename + " ; done")
 
         # backing up ipv6 iptables rules
         if self.ipv6 == True:
@@ -90,8 +92,9 @@ class iptables(object):
             filename = self.config.getValue("BACKUP", "ipv6filename")
             with open(filepath + "/" + filename, 'w'):
                 pass
-            os.system(self.ip6tables_bin_save + " | while read IN ; do echo $IN >> " +
-                      filepath + "/" + filename + " ; done")
+            os.system(
+                self.ip6tables_bin_save + " | while read IN ; do echo $IN >> " +
+                filepath + "/" + filename + " ; done")
 
     def restore(self):
         log.logging.debug("Starting Firewall Rule Restore...")

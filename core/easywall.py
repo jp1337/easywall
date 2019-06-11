@@ -61,10 +61,10 @@ class easywall(object):
         self.apply_whitelist()
 
         # Allow TCP Ports
-        self.apply_tcp_rules()
+        self.apply_rules("tcp")
 
         # Allow UDP Ports
-        self.apply_udp_rules()
+        self.apply_rules("udp")
 
         # log and reject all other packages
         self.iptables.addAppend(
@@ -77,12 +77,15 @@ class easywall(object):
         for ip in self.get_rule_list("blacklist"):
             if ":" in ip:
                 self.iptables.addAppend(
-                    "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", True)
+                    "INPUT", "-s " + ip +
+                    " -j LOG --log-prefix \" easywall[blacklist]: \"", True)
                 self.iptables.addAppend(
                     "INPUT", "-s " + ip + " -j DROP", True)
             else:
                 self.iptables.addAppend(
-                    "INPUT", "-s " + ip + " -j LOG --log-prefix \" easywall[blacklist]: \"", False, True)
+                    "INPUT", "-s " + ip +
+                    " -j LOG --log-prefix \" easywall[blacklist]: \"", False,
+                    True)
                 self.iptables.addAppend(
                     "INPUT", "-s " + ip + " -j DROP", False, True)
 
@@ -95,27 +98,20 @@ class easywall(object):
                 self.iptables.addAppend(
                     "INPUT", "-s " + ip + " -j ACCEPT", False, True)
 
-    def apply_tcp_rules(self):
-        for port in self.get_rule_list("tcp"):
+    def apply_rules(self, ruletype):
+        for port in self.get_rule_list(ruletype):
             if ":" in port:
                 self.iptables.addAppend(
-                    "INPUT", "-p tcp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+                    "INPUT", "-p " + ruletype + " --match multiport --dports " +
+                    port + " -m conntrack --ctstate NEW -j ACCEPT")
             else:
                 self.iptables.addAppend(
-                    "INPUT", "-p tcp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
-
-    def apply_udp_rules(self):
-        for port in self.get_rule_list("udp"):
-            if ":" in port:
-                self.iptables.addAppend(
-                    "INPUT", "-p udp --match multiport --dports " + port + " -m conntrack --ctstate NEW -j ACCEPT")
-            else:
-                self.iptables.addAppend(
-                    "INPUT", "-p udp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
+                    "INPUT", "-p " + ruletype + " --dport " + port +
+                    " -m conntrack --ctstate NEW -j ACCEPT")
 
     def check_acceptance(self):
         log.logging.info("Checking acceptance.")
-        if self.acceptance.check() == False:
+        if self.acceptance.check() is False:
             log.logging.info("Configuration not accepted, rolling back.")
             self.iptables.restore()
         else:
@@ -125,7 +121,8 @@ class easywall(object):
 
     def get_rule_list(self, ruletype):
         rule_list = []
-        with open(self.config.getValue("RULES", "filepath") + "/" + self.config.getValue("RULES", ruletype), 'r') as rulesfile:
+        with open(self.config.getValue("RULES", "filepath") + "/" +
+                  self.config.getValue("RULES", ruletype), 'r') as rulesfile:
             for rule in rulesfile.read().split('\n'):
                 if rule != "":
                     rule_list.append(rule)
@@ -140,10 +137,10 @@ class easywall(object):
         os.rename(self.filepath + "/" + self.filename,
                   self.filepath + "/" + self.date + "_" + self.filename)
         self.ipv6 = self.config.getValue("IPV6", "enabled")
-        if bool(self.ipv6) == True:
-            self.filename = self.config.getValue("BACKUP", "ipv6filename")
-            os.rename(self.filepath + "/" + self.filename,
-                      self.filepath + "/" + self.date + "_" + self.filename)
+        if bool(self.ipv6) is True:
+            self.filenamev6 = self.config.getValue("BACKUP", "ipv6filename")
+            os.rename(self.filepath + "/" + self.filenamev6,
+                      self.filepath + "/" + self.date + "_" + self.filenamev6)
 
     def create_running_file(self):
         utility.create_file_if_not_exists(".running")
@@ -169,7 +166,7 @@ def run():
     try:
         while True:
             time.sleep(1)
-    except:
+    except Exception:
         shutdown(observer, masterconfig, masterlog)
     shutdown(observer, masterconfig, masterlog)
 
