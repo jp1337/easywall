@@ -102,8 +102,9 @@ class easywall(object):
         for port in self.get_rule_list(ruletype):
             if ":" in port:
                 self.iptables.addAppend(
-                    "INPUT", "-p " + ruletype + " --match multiport --dports " +
-                    port + " -m conntrack --ctstate NEW -j ACCEPT")
+                    "INPUT", "-p " + ruletype +
+                    " --match multiport --dports " + port +
+                    " -m conntrack --ctstate NEW -j ACCEPT")
             else:
                 self.iptables.addAppend(
                     "INPUT", "-p " + ruletype + " --dport " + port +
@@ -146,7 +147,7 @@ class easywall(object):
         utility.create_file_if_not_exists(".running")
 
     def delete_running_file(self):
-        utility.create_file_if_not_exists(".running")
+        utility.delete_file_if_exists(".running")
 
 
 def run():
