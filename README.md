@@ -9,11 +9,11 @@ Set up a firewall! But which one? **IPTables** is the strongest firewall in **Li
 
 ## Features
 
- - **Blacklist for completely blocking an IPV4 / IPV6 Address**
- - **Whitelist to allow complete traffic from a specific IP**
- - **Opening TCP and UDP Ports**
- - **Opening TCP and UDP Port Ranges**
- - **Automatic Reset of Firewall Settings on connection loss or bad firewall settings**
+- **Blacklist for completely blocking an IPV4 / IPV6 Address**
+- **Whitelist to allow complete traffic from a specific IP**
+- **Opening TCP and UDP Ports**
+- **Opening TCP and UDP Port Ranges**
+- **Automatic Reset of Firewall Settings on connection loss or bad firewall settings**
 
 ## Install
 
@@ -43,19 +43,21 @@ It re-distributes other open-source tools and libraries. Please check its [Licen
 ### 0.0.2 (2019-06-08)
 
 Features:
+
 - Changed branch master to old python branch
 - Renamed old master branch to php-old
 - Bumped version
 - Changed documentation
 
 Bugfixes:
+
 - Information of the user in install.sh if not running as root or using sudo
 - Removed quiet option in install.sh for apt-get and pip3 for better user experience
-
 
 ### 0.0.1 (2019-04-24)
 
 Features:
+
 - Incomplete Rework of Branch php-old
 - EasyWall is split in two parts in the new concept
 - EasyWall Firewall Core Part running as root user finished

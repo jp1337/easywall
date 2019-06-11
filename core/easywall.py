@@ -170,8 +170,11 @@ def run():
         while True:
             time.sleep(1)
     except:
-        pass  # placeholder for graceful stop on interrupt
+        shutdown(observer, masterconfig, masterlog)
+    shutdown(observer, masterconfig, masterlog)
 
+
+def shutdown(observer, masterconfig, masterlog):
     # Shutdown Process
     log.logging.info("Shutting down EasyWall...")
     observer.stop()
