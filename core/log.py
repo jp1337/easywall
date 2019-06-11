@@ -14,7 +14,7 @@ class log(object):
 
         # create logger with easywall
         root = logging.getLogger()
-        root.handlers.clear() # workaround for default stdout handler
+        root.handlers.clear()  # workaround for default stdout handler
         root.setLevel(self.loglevel)
 
         # create formatter and add it to the handlers
@@ -30,7 +30,7 @@ class log(object):
         # create file handler if enabled in configuration
         if bool(self.config.getValue("LOG", "to_files")) == True:
             # create log filepath if not exists
-            utility.createFolderIfNotExists(
+            utility.create_folder_if_not_exists(
                 self.config.getValue("LOG", "filepath"))
 
             fileHandler = logging.FileHandler(self.config.getValue(
@@ -46,15 +46,15 @@ class log(object):
             root.removeFilter(handler)
 
     def getLevel(self, logLevel):
+        level = logging.NOTSET
         if logLevel == "debug":
-            return logging.DEBUG
+            level = logging.DEBUG
         elif logLevel == "info":
-            return logging.INFO
+            level = logging.INFO
         elif logLevel == "warning":
-            return logging.WARNING
+            level = logging.WARNING
         elif logLevel == "error":
-            return logging.ERROR
+            level = logging.ERROR
         elif logLevel == "critical":
-            return logging.CRITICAL
-        else:
-            return logging.NOTSET
+            level = logging.CRITICAL
+        return level

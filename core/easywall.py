@@ -24,12 +24,12 @@ class easywall(object):
 
     def __init__(self):
         log.logging.info("Applying new configuration.")
-        self.createRunningFile()
+        self.create_running_file()
         self.config = config.config("config/config.ini")
         self.iptables = iptables.iptables()
         self.acceptance = acceptance.acceptance()
         self.apply()
-        self.deleteRunningFile()
+        self.delete_running_file()
 
     def apply(self):
         self.acceptance.reset()
@@ -55,7 +55,26 @@ class easywall(object):
         self.iptables.addAppend("INPUT", "-s ::1/128 ! -i lo -j DROP", True)
 
         # Block IP-addresses from blacklist
-        for ip in self.getRuleList("blacklist"):
+        self.apply_blacklist()
+
+        # Allow IP-addresses from whitelist
+        self.apply_whitelist()
+
+        # Allow TCP Ports
+        self.apply_tcp_rules()
+
+        # Allow UDP Ports
+        self.apply_udp_rules()
+
+        # log and reject all other packages
+        self.iptables.addAppend(
+            "INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
+        self.iptables.addAppend("INPUT", "-j REJECT")
+
+        self.check_acceptance()
+
+    def apply_blacklist(self):
+        for ip in self.get_rule_list("blacklist"):
             if ip != "":
                 if ":" in ip:
                     self.iptables.addAppend(
@@ -68,8 +87,8 @@ class easywall(object):
                     self.iptables.addAppend(
                         "INPUT", "-s " + ip + " -j DROP", False, True)
 
-        # Allow IP-addresses from whitelist
-        for ip in self.getRuleList("whitelist"):
+    def apply_whitelist(self):
+        for ip in self.get_rule_list("whitelist"):
             if ip != "":
                 if ":" in ip:
                     self.iptables.addAppend(
@@ -78,8 +97,8 @@ class easywall(object):
                     self.iptables.addAppend(
                         "INPUT", "-s " + ip + " -j ACCEPT", False, True)
 
-        # Allow TCP Ports
-        for port in self.getRuleList("tcp"):
+    def apply_tcp_rules(self):
+        for port in self.get_rule_list("tcp"):
             if port != "":
                 if ":" in port:
                     self.iptables.addAppend(
@@ -88,8 +107,8 @@ class easywall(object):
                     self.iptables.addAppend(
                         "INPUT", "-p tcp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
-        # Allow UDP Ports
-        for port in self.getRuleList("udp"):
+    def apply_udp_rules(self):
+        for port in self.get_rule_list("udp"):
             if port != "":
                 if ":" in port:
                     self.iptables.addAppend(
@@ -98,25 +117,21 @@ class easywall(object):
                     self.iptables.addAppend(
                         "INPUT", "-p udp --dport " + port + " -m conntrack --ctstate NEW -j ACCEPT")
 
-        # log and reject all other packages
-        self.iptables.addAppend(
-            "INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
-        self.iptables.addAppend("INPUT", "-j REJECT")
-
+    def check_acceptance(self):
         log.logging.info("Checking acceptance.")
         if self.acceptance.check() == False:
             log.logging.info("Configuration not accepted, rolling back.")
             self.iptables.restore()
         else:
-            self.rotateBackup()
+            self.rotate_backup()
             self.iptables.save()
             log.logging.info("New configuration was applied.")
 
-    def getRuleList(self, ruletype):
+    def get_rule_list(self, ruletype):
         with open(self.config.getValue("RULES", "filepath") + "/" + self.config.getValue("RULES", ruletype), 'r') as rulesfile:
             return rulesfile.read().split('\n')
 
-    def rotateBackup(self):
+    def rotate_backup(self):
         self.filepath = self.config.getValue("BACKUP", "filepath")
         self.filename = self.config.getValue("BACKUP", "ipv4filename")
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -130,11 +145,11 @@ class easywall(object):
             os.rename(self.filepath + "/" + self.filename,
                       self.filepath + "/" + self.date + "_" + self.filename)
 
-    def createRunningFile(self):
-        utility.createFileIfNotExists(".running")
+    def create_running_file(self):
+        utility.create_file_if_not_exists(".running")
 
-    def deleteRunningFile(self):
-        utility.deleteFileIfExists(".running")
+    def delete_running_file(self):
+        utility.create_file_if_not_exists(".running")
 
 
 def run():
@@ -142,7 +157,7 @@ def run():
     masterlog = log.log()
     log.logging.info("Starting up EasyWall...")
     masterconfig = config.config("config/config.ini")
-    ensureRulesFiles(masterconfig)
+    ensure_rules_files(masterconfig)
     event_handler = ModifiedHandler()
     observer = Observer()
     observer.schedule(
@@ -160,19 +175,20 @@ def run():
     # Shutdown Process
     log.logging.info("Shutting down EasyWall...")
     observer.stop()
-    utility.deleteFileIfExists(".running")
-    utility.deleteFileIfExists(masterconfig.getValue("ACCEPTANCE", "filename"))
+    utility.delete_file_if_exists(".running")
+    utility.delete_file_if_exists(
+        masterconfig.getValue("ACCEPTANCE", "filename"))
     observer.join()
     masterlog.closeLogging()
     log.logging.info("EasyWall was stopped gracefully")
 
 
-def ensureRulesFiles(config):
+def ensure_rules_files(config):
     for ruletype in ["blacklist", "whitelist", "tcp", "udp"]:
         filepath = config.getValue("RULES", "filepath")
         filename = config.getValue("RULES", ruletype)
-        utility.createFolderIfNotExists(filepath)
-        utility.createFileIfNotExists(filepath + "/" + filename)
+        utility.create_folder_if_not_exists(filepath)
+        utility.create_file_if_not_exists(filepath + "/" + filename)
 
 
 if __name__ == "__main__":

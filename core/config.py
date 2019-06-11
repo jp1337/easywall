@@ -7,17 +7,17 @@ class config(object):
     def __init__(self, configpath):
         log.logging.debug("Setting up configuration...")
         self.configpath = configpath
-        self.config = configparser.ConfigParser()
+        self.configlib = configparser.ConfigParser()
         log.logging.debug("Reading config file from " + configpath)
-        self.config.read(self.configpath)
+        self.configlib.read(self.configpath)
         log.logging.debug("Configuration is set up.")
 
     def getValue(self, section, key):
         log.logging.debug(
             "getting configuration value with key " + key + " from section " + section)
-        if self.config[section][key] in ["yes", "no", "true", "false", "on", "off"]:
-            return self.config.getboolean(section, key)
-        return self.config[section][key]
+        if self.configlib[section][key] in ["yes", "no", "true", "false", "on", "off"]:
+            return self.configlib.getboolean(section, key)
+        return self.configlib[section][key]
 
     def getSections(self):
         log.logging.debug("Listing all config sections...")
@@ -26,7 +26,7 @@ class config(object):
     def setValue(self, section, key, value):
         log.logging.debug("setting configuration value with key " + key + " in section " +
                           section + " from " + self.getValue(section, key) + " to " + value)
-        self.config[section][key] = value
+        self.configlib[section][key] = value
         log.logging.debug("writing configuration file to " + self.configpath)
         with open(self.configpath, 'w') as configfile:
-            self.config.write(configfile)
+            self.configlib.write(configfile)
