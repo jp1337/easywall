@@ -102,9 +102,8 @@ class easywall(object):
         for port in self.get_rule_list(ruletype):
             if ":" in port:
                 self.iptables.addAppend(
-                    "INPUT", "-p " + ruletype +
-                    " --match multiport --dports " + port +
-                    " -m conntrack --ctstate NEW -j ACCEPT")
+                    "INPUT", "-p " + ruletype + " --match multiport --dports " +
+                    port + " -m conntrack --ctstate NEW -j ACCEPT")
             else:
                 self.iptables.addAppend(
                     "INPUT", "-p " + ruletype + " --dport " + port +
@@ -135,13 +134,15 @@ class easywall(object):
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log.logging.debug("rotating backup files in folder " +
                           self.filepath + " -> add prefix " + self.date)
-        os.rename(self.filepath + "/" + self.filename,
-                  self.filepath + "/" + self.date + "_" + self.filename)
+        self.rename_backup_file()
         self.ipv6 = self.config.getValue("IPV6", "enabled")
         if bool(self.ipv6) is True:
-            self.filenamev6 = self.config.getValue("BACKUP", "ipv6filename")
-            os.rename(self.filepath + "/" + self.filenamev6,
-                      self.filepath + "/" + self.date + "_" + self.filenamev6)
+            self.filename = self.config.getValue("BACKUP", "ipv6filename")
+            self.rename_backup_file()
+
+    def rename_backup_file(self):
+        os.rename(self.filepath + "/" + self.filename,
+                  self.filepath + "/" + self.date + "_" + self.filename)
 
     def create_running_file(self):
         utility.create_file_if_not_exists(".running")
