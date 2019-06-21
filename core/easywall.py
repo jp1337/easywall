@@ -102,8 +102,9 @@ class easywall(object):
         for port in self.get_rule_list(ruletype):
             if ":" in port:
                 self.iptables.addAppend(
-                    "INPUT", "-p " + ruletype + " --match multiport --dports " +
-                    port + " -m conntrack --ctstate NEW -j ACCEPT")
+                    "INPUT", "-p " + ruletype +
+                    " --match multiport --dports " + port +
+                    " -m conntrack --ctstate NEW -j ACCEPT")
             else:
                 self.iptables.addAppend(
                     "INPUT", "-p " + ruletype + " --dport " + port +
