@@ -1,29 +1,36 @@
 #!/bin/bash
 
-if [ "$EUID" -ne 0 ]
-  then echo "Please run as root or using sudo"
-  exit
+if [ "$EUID" -ne 0 ]; then
+    read -r -d '' NOROOT <<EOF
+Heya! To install EasyWall you need to have a privileged user.
+So you can try these:
+
+# sudo bash install.sh
+or
+# su root -c "install.sh"
+EOF
+    echo "$NOROOT"
+    exit
 fi
 
 STEPS=4
 STEP=1
 
-echo "("$STEP"/"$STEPS") Installing required packages" && ((STEP++))
+echo "($STEP/$STEPS) Installing required packages" && ((STEP++))
 apt-get clean
 apt-get update
-apt-get -y install python3 python3-pip
-pip3 install watchdog flask
+apt-get -y install python3 python3-watchdog python3-flask
 
-echo "("$STEP"/"$STEPS") Creating configuration" && ((STEP++))
+echo "($STEP/$STEPS) Creating configuration" && ((STEP++))
 cp config/config.ini.example config/config.ini
 
-echo "("$STEP"/"$STEPS") Making all scripts executable" && ((STEP++))
-chmod +x *.sh
+echo "($STEP/$STEPS) Making all scripts executable" && ((STEP++))
+chmod +x -- *.sh
 
-echo "("$STEP"/"$STEPS") Setting up systemd process" && ((STEP++))
-SERVICEFILE="/lib/systemd/system/easywall.service"
-INSTALLDIR=$(pwd)
-read -r -d '' SERVICECONTENT << EOF
+function installDaemon() {
+    SERVICEFILE="/lib/systemd/system/easywall.service"
+    INSTALLDIR=$(pwd)
+    read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=EasyWall - The IPTables Interface Core
 Wants=network-online.target
@@ -45,10 +52,38 @@ Group=root
 [Install]
 WantedBy=multi-user.target
 EOF
-touch $SERVICEFILE
-echo "$SERVICECONTENT" > $SERVICEFILE
-systemctl daemon-reload
-systemctl enable easywall
+    touch $SERVICEFILE
+    echo "$SERVICECONTENT" >$SERVICEFILE
+    systemctl daemon-reload
+    systemctl enable easywall
+}
 
-echo "Finished."
-echo "To start EasyWall execute 'systemctl start easywall'"
+echo "($STEP/$STEPS) Setting up systemd process" && ((STEP++))
+read -r -n1 -p "Do you want to install easywall as a Daemon? [y,n]" DAEMON
+case $DAEMON in
+y | Y) printf "\\ninstalling service ...\\n" && installDaemon ;;
+n | N) printf "\\nNot installing Daemon.\\n" ;;
+*) printf "\\nNot installing Daemon.\\n" ;;
+esac
+
+read -r -d '' INTRODUCTION <<EOF
+
+------------------------------
+You successfully installed EasyWall on your System!
+Wasn't that easy?
+
+So what now?
+
+If you have installed EasyWall as a Daemon you simply have to type:
+# systemctl start easywall
+or
+# service easywall start
+
+If you want to run easywall manually you can enter:
+# (sudo) python3 core/easywall.py
+
+If you have any questions on starting EasyWall, just create a new GitHub Issue:
+https://github.com/jp1337/easywall/issues/new
+EOF
+
+echo "$INTRODUCTION"
