@@ -28,6 +28,7 @@ class easywall(object):
         self.config = config.config("config/config.ini")
         self.iptables = iptables.iptables()
         self.acceptance = acceptance.acceptance()
+        self.ipv6 = self.config.getValue("IPV6", "enabled")
         self.apply()
         self.delete_running_file()
 
@@ -54,6 +55,9 @@ class easywall(object):
             "INPUT", "-s 127.0.0.0/8 ! -i lo -j DROP", False, True)
         self.iptables.addAppend("INPUT", "-s ::1/128 ! -i lo -j DROP", True)
 
+        # Apply ICMP Rules
+        self.apply_icmp()
+
         # Block IP-addresses from blacklist
         self.apply_blacklist()
 
@@ -72,6 +76,19 @@ class easywall(object):
         self.iptables.addAppend("INPUT", "-j REJECT")
 
         self.check_acceptance()
+
+    def apply_icmp(self):
+        for icmptype in [0, 3, 8, 11]:
+            self.iptables.addAppend(
+                "INPUT", "-p icmp --icmp-type " + str(icmptype) +
+                " -m conntrack --ctstate NEW -j ACCEPT", False, True)
+        if self.ipv6 is True:
+            for icmptype in [
+                    1, 2, 3, 4, 128, 133, 134, 135, 136, 137,
+                    141, 142, 151, 152, 153]:
+                self.iptables.addAppend(
+                    "INPUT", "-p ipv6-icmp --icmpv6-type " +
+                    str(icmptype) + " -j ACCEPT", True)
 
     def apply_blacklist(self):
         for ip in self.get_rule_list("blacklist"):
@@ -125,7 +142,7 @@ class easywall(object):
         with open(self.config.getValue("RULES", "filepath") + "/" +
                   self.config.getValue("RULES", ruletype), 'r') as rulesfile:
             for rule in rulesfile.read().split('\n'):
-                if rule != "":
+                if rule.strip() != "":
                     rule_list.append(rule)
         return rule_list
 
@@ -136,8 +153,7 @@ class easywall(object):
         log.logging.debug("rotating backup files in folder " +
                           self.filepath + " -> add prefix " + self.date)
         self.rename_backup_file()
-        self.ipv6 = self.config.getValue("IPV6", "enabled")
-        if bool(self.ipv6) is True:
+        if self.ipv6 is True:
             self.filename = self.config.getValue("BACKUP", "ipv6filename")
             self.rename_backup_file()
 
