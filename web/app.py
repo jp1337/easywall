@@ -1,8 +1,8 @@
-import config
 from flask import Flask, render_template, session, redirect, flash, request
-import os
 from datetime import datetime
-
+import config
+import os
+import platform
 
 app = Flask(__name__)
 
@@ -10,8 +10,9 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     if check_login() is True:
+        print(get_default_vars("Home").year)
         return render_template(
-            'index.html', title="Home", customcss="easywall")
+            'index.html', vars=get_default_vars("Home"))
     else:
         return login("", None)
 
@@ -34,23 +35,48 @@ def logout():
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template(
-        '404.html', title="404 Error", customcss='error'), 404
+        '404.html', vars=get_default_vars("404 Error", "error")), 404
 
 
 def login(message, messagetype):
     if messagetype != None:
         message = ""
-    today = datetime.today()
-    year = today.year
     return render_template(
-        'login.html', year=year, message=message, title="Signin",
-        customcss="signin")
+        'login.html', vars=get_default_vars("Signin", "signin"))
 
 
 def check_login():
     if not session.get('logged_in'):
         return False
     return True
+
+
+def get_default_vars(title, css="easywall"):
+    vars = DefaultVars()
+    vars.year = datetime.today().year
+    vars.title = title
+    vars.customcss = css
+    vars.machine = get_machine_infos()
+    return vars
+
+
+def get_machine_infos():
+    d = {}
+    d["Machine"] = platform.machine()
+    d["Hostname"] = platform.node()
+    d["Platform"] = platform.platform()
+    d["Python Build"] = platform.python_build()
+    d["Python Compiler"] = platform.python_compiler()
+    d["Python Implementation"] = platform.python_implementation()
+    d["Python Version"] = platform.python_version()
+    d["Release"] = platform.release()
+    d["Linux Distribution"] = platform.linux_distribution()
+    d["Libc Version"] = platform.libc_ver()
+    return d
+
+
+class DefaultVars(object):
+    pass
 
 
 if __name__ == '__main__':

@@ -57,16 +57,12 @@
             </div>
             <div class="modal-body">
                 <ul class="list-group" style="word-break: break-word">
-                    <?php
-                                        foreach($input->server() as $key => $value) {
-                                            if (startsWith($key, 'SERVER')) {
-                                                echo '<li class="list-group-item align-items-start">';
-                                                echo '	<p class="mb-1 w-100"><strong>' . $key . '</strong></p>';
-                                                echo '	<p class="mb-0">' . $value . '</p>';
-                                                echo '</li>';
-                                            }
-                                        }
-                                    ?>
+                    {% for key, value in vars.machine.items() | sort() %}
+                    <li class="list-group-item align-items-start">
+                        <p class="mb-1 w-100"><strong>{{key}}</strong></p>
+                        <p class="mb-0">{{value}}</p>
+                    </li>
+                    {% endfor %}
                 </ul>
             </div>
             <div class="modal-footer">
@@ -76,8 +72,6 @@
     </div>
 </div>
 
-<!-- Optional JavaScript -->
-<!-- jQuery first, then Popper.js, then Bootstrap JS -->
 <script src="/static/js/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
 <script src="/static/js/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
 <script src="/static/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
