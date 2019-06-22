@@ -1,8 +1,6 @@
 import logging
 import config
 import utility
-from os import path
-from os import makedirs
 from sys import stdout
 
 
@@ -10,7 +8,7 @@ class log(object):
 
     def __init__(self):
         self.config = config.config("config/config.ini")
-        self.loglevel = self.getLevel(self.config.getValue("LOG", "level"))
+        self.loglevel = self.get_level(self.config.getValue("LOG", "level"))
 
         # create logger with easywall
         root = logging.getLogger()
@@ -34,18 +32,20 @@ class log(object):
                 self.config.getValue("LOG", "filepath"))
 
             fileHandler = logging.FileHandler(self.config.getValue(
-                "LOG", "filepath") + "/" + self.config.getValue("LOG", "filename"))
+                "LOG", "filepath") + "/" +
+                self.config.getValue(
+                "LOG", "filename"))
             fileHandler.setLevel(self.loglevel)
             fileHandler.setFormatter(formatter)
             root.addHandler(fileHandler)
 
-    def closeLogging(self):
+    def close_logging(self):
         root = logging.getLogger()
         for handler in root.handlers:
             handler.close()
             root.removeFilter(handler)
 
-    def getLevel(self, logLevel):
+    def get_level(self, logLevel):
         level = logging.NOTSET
         if logLevel == "debug":
             level = logging.DEBUG

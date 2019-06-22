@@ -198,7 +198,7 @@ def shutdown(observer, masterconfig, masterlog):
     utility.delete_file_if_exists(
         masterconfig.getValue("ACCEPTANCE", "filename"))
     observer.join()
-    masterlog.closeLogging()
+    masterlog.close_logging()
     log.logging.info("EasyWall was stopped gracefully")
 
 

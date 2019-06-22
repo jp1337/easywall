@@ -2,7 +2,6 @@ import config
 from flask import Flask, render_template, session, redirect, flash, request
 import os
 from datetime import datetime
-import sys
 
 
 app = Flask(__name__)
