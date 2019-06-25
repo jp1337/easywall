@@ -128,3 +128,6 @@ if __name__ == '__main__':
     host = "0.0.0.0"
     debug = True
     app.run(host, port, debug)
+
+if __name__ == 'uwsgi_file_app':
+    app.secret_key = os.urandom(12)

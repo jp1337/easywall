@@ -19,7 +19,7 @@ STEP=1
 echo "($STEP/$STEPS) Installing required packages" && ((STEP++))
 apt-get clean
 apt-get update
-apt-get -y install python3 python3-watchdog python3-flask
+apt-get -y install python3 python3-watchdog python3-flask uwsgi uwsgi-plugin-python3
 
 echo "($STEP/$STEPS) Creating configuration" && ((STEP++))
 cp config/config.ini.example config/config.ini
