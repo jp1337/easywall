@@ -10,9 +10,52 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     if check_login() is True:
-        print(get_default_vars("Home").year)
+        return render_template('index.html', vars=get_default_vars("Home"))
+    else:
+        return login("", None)
+
+
+@app.route('/options')
+def options():
+    if check_login() is True:
         return render_template(
-            'index.html', vars=get_default_vars("Home"))
+            'options.html', vars=get_default_vars("Options"))
+    else:
+        return login("", None)
+
+
+@app.route('/blacklist')
+def blacklist():
+    if check_login() is True:
+        return render_template(
+            'blacklist.html', vars=get_default_vars("Blacklist"))
+    else:
+        return login("", None)
+
+
+@app.route('/whitelist')
+def whitelist():
+    if check_login() is True:
+        return render_template(
+            'whitelist.html', vars=get_default_vars("Whitelist"))
+    else:
+        return login("", None)
+
+
+@app.route('/ports')
+def ports():
+    if check_login() is True:
+        return render_template(
+            'ports.html', vars=get_default_vars("Ports"))
+    else:
+        return login("", None)
+
+
+@app.route('/apply')
+def apply():
+    if check_login() is True:
+        return render_template(
+            'apply.html', vars=get_default_vars("Apply"))
     else:
         return login("", None)
 
