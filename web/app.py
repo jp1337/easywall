@@ -71,14 +71,19 @@ def login_post():
 
 @app.route("/logout")
 def logout():
-    session['logged_in'] = False
-    return redirect("/")
-
+    if check_login() is True:
+        session['logged_in'] = False
+        return redirect("/")
+    else:
+        return login("", None)
 
 @app.errorhandler(404)
 def page_not_found(e):
-    return render_template(
-        '404.html', vars=get_default_vars("404 Error", "error")), 404
+    if check_login() is True:
+        return render_template('404.html', 
+            vars=get_default_vars("404 Error", "error")), 404
+    else:
+        return login("", None)
 
 
 def login(message, messagetype):
