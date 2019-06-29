@@ -23,7 +23,7 @@ SCRIPTPATH="$(
     cd "$(dirname "$0")" || exit 1
     pwd -P
 )"
-STEPS=8
+STEPS=9
 STEP=1
 
 # Step 1
@@ -153,6 +153,10 @@ y | Y) printf "\\ninstalling service ...\\n" && installDaemon ;;
 n | N) printf "\\nNot installing Daemon.\\n" ;;
 *) printf "\\nNot installing Daemon.\\n" ;;
 esac
+
+# Step 9
+echo "" && echo "($STEP/$STEPS) Please set a password for EasyWall Web" && ((STEP++))
+/usr/bin/python3 core/passwd.py
 
 # Finished. Printing Introduction
 echo ""
