@@ -3,6 +3,7 @@ from datetime import datetime
 import config
 import os
 import platform
+import hashlib
 
 app = Flask(__name__)
 
@@ -62,7 +63,15 @@ def apply():
 
 @app.route('/login', methods=['POST'])
 def login_post():
-    if request.form['password'] == 'adminadmin' and request.form['username'] == 'testuser':
+    hostname = platform.node().encode("utf-8")
+    salt = hashlib.sha512(hostname).hexdigest()
+    pw_hash = hashlib.sha512(
+        str(salt + request.form['password']).encode("utf-8")).hexdigest()
+    cfg = config.config("../config/config.ini")
+
+    if request.form['username'] == cfg.getValue(
+            "WEB", "username") and pw_hash == cfg.getValue(
+            "WEB", "password"):
         session['logged_in'] = True
     else:
         flash('wrong password!')
@@ -77,11 +86,12 @@ def logout():
     else:
         return login("", None)
 
+
 @app.errorhandler(404)
 def page_not_found(e):
     if check_login() is True:
-        return render_template('404.html', 
-            vars=get_default_vars("404 Error", "error")), 404
+        return render_template(
+            '404.html', vars=get_default_vars("404 Error", "error")), 404
     else:
         return login("", None)
 
@@ -127,6 +137,7 @@ class DefaultVars(object):
     pass
 
 
+# only debugging
 if __name__ == '__main__':
     app.secret_key = os.urandom(12)
     port = 5000
@@ -134,5 +145,6 @@ if __name__ == '__main__':
     debug = True
     app.run(host, port, debug)
 
+# production mode
 if __name__ == 'uwsgi_file_app':
     app.secret_key = os.urandom(12)

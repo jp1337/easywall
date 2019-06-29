@@ -2,7 +2,7 @@
 
 DEBUG=false
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
-PYTHONPATH=$(dirname $SCRIPTPATH)
+PYTHONPATH=$(dirname $SCRIPTPATH)/core
 
 while getopts d opt
 do
@@ -12,7 +12,7 @@ do
 done
 
 if [[ $DEBUG == true ]] ; then
-    export PYTHONPATH=../
+    export PYTHONPATH=$PYTHONPATH
     python3 app.py
 else
     uwsgi --http-socket 127.0.0.1:9000 --need-plugin python3 --wsgi-file app.py --callable app --pythonpath $PYTHONPATH --processes 4 --threads 2
