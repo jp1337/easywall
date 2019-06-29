@@ -4,6 +4,10 @@ rules/
 *.log
 config.ini
 .accepted
+web/static/css/*.min.css
+web/static/css/font-awesome*
+web/static/fonts/*
+web/static/js/*.min.js
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
