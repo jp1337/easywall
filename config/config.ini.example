@@ -1,12 +1,8 @@
 [LOG]
-; possible values: debug, info, warning, error, critical
 level = info
 to_files = yes
 filepath = /var/log/easywall
 filename = easywall
-; rotateeverybytes = 10485760
-; keepfiles = 7
-; permissions = 0600
 
 [EXEC]
 iptables = /sbin/iptables
@@ -18,7 +14,6 @@ ip6tables-restore = /sbin/ip6tables-restore
 
 [ACCEPTANCE]
 enabled = yes
-; time in seconds
 time = 10
 filename = .accepted
 
@@ -32,8 +27,11 @@ ipv6filename = iptables_v6_backup
 
 [RULES]
 filepath = ./rules
-; files have to end with .txt
 blacklist = blacklist.txt
 whitelist = whitelist.txt
 tcp = tcp.txt
 udp = udp.txt
+
+[WEB]
+username =
+password =
