@@ -15,7 +15,7 @@ cfg = config.config("../config/config.ini")
 @app.route('/')
 def index():
     if check_login() is True:
-        return render_template('index.html', vars=get_default_vars("Home"))
+        return render_template('index.html', vars=get_default_payload("Home"))
     else:
         return login("", None)
 
@@ -24,7 +24,7 @@ def index():
 def options():
     if check_login() is True:
         return render_template(
-            'options.html', vars=get_default_vars("Options"))
+            'options.html', vars=get_default_payload("Options"))
     else:
         return login("", None)
 
@@ -33,7 +33,7 @@ def options():
 def blacklist():
     if check_login() is True:
         return render_template(
-            'blacklist.html', vars=get_default_vars("Blacklist"))
+            'blacklist.html', vars=get_default_payload("Blacklist"))
     else:
         return login("", None)
 
@@ -42,7 +42,7 @@ def blacklist():
 def whitelist():
     if check_login() is True:
         return render_template(
-            'whitelist.html', vars=get_default_vars("Whitelist"))
+            'whitelist.html', vars=get_default_payload("Whitelist"))
     else:
         return login("", None)
 
@@ -51,7 +51,7 @@ def whitelist():
 def ports():
     if check_login() is True:
         return render_template(
-            'ports.html', vars=get_default_vars("Ports"))
+            'ports.html', vars=get_default_payload("Ports"))
     else:
         return login("", None)
 
@@ -60,7 +60,7 @@ def ports():
 def apply():
     if check_login() is True:
         return render_template(
-            'apply.html', vars=get_default_vars("Apply"))
+            'apply.html', vars=get_default_payload("Apply"))
     else:
         return login("", None)
 
@@ -93,18 +93,18 @@ def logout():
 def page_not_found(e):
     if check_login() is True:
         return render_template(
-            '404.html', vars=get_default_vars("404 Error", "error")), 404
+            '404.html', vars=get_default_payload("404 Error", "error")), 404
     else:
         return login("", None)
 
 
 def login(message, messagetype):
-    vars = get_default_vars("Signin", "signin")
+    payload = get_default_payload("Signin", "signin")
     if messagetype != None:
-        vars.messagetype = messagetype
+        payload.messagetype = messagetype
     if message != None:
-        vars.message = message
-    return render_template('login.html', vars=vars)
+        payload.message = message
+    return render_template('login.html', vars=payload)
 
 
 def check_login():
@@ -113,18 +113,18 @@ def check_login():
     return True
 
 
-def get_default_vars(title, css="easywall"):
-    vars = DefaultVars()
-    vars.year = datetime.today().year
-    vars.title = title
-    vars.customcss = css
-    vars.machine = get_machine_infos()
-    vars.latest_version = get_latest_version()
-    vars.current_version = utility.file_get_contents("../.version")
-    vars.commit_sha = get_latest_commit()["sha"]
-    vars.commit_date = get_commit_date(
+def get_default_payload(title, css="easywall"):
+    payload = DefaultPayload()
+    payload.year = datetime.today().year
+    payload.title = title
+    payload.customcss = css
+    payload.machine = get_machine_infos()
+    payload.latest_version = get_latest_version()
+    payload.current_version = utility.file_get_contents("../.version")
+    payload.commit_sha = get_latest_commit()["sha"]
+    payload.commit_date = get_commit_date(
         get_latest_commit()["commit"]["author"]["date"])
-    return vars
+    return payload
 
 
 def get_machine_infos():
@@ -169,7 +169,7 @@ def get_commit_date(datestring):
     return utility.time_duration_diff(d1, d2)
 
 
-class DefaultVars(object):
+class DefaultPayload(object):
     pass
 
 
