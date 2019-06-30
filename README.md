@@ -40,6 +40,27 @@ It re-distributes other open-source tools and libraries. Please check its [Licen
 
 ## Changelog
 
+### 0.0.3 (2019-06-30)
+
+Features:
+
+- added EasyWall-Web using flask
+- added old php templates to web
+- improved install script a lot and added so many features to it
+- simplified code using codacy and code climate
+- ICMP Support added after testing on a server of mine
+- added a daemon script for running EasyWall-Web
+- 404 error page added to web
+- for a production use of EasyWall-Web I added uwsgi instead of the small development server of flask
+- logout button added to web
+- added a password generator script and added it to install script
+
+Bugfixes:
+
+- improved exception handling in several files
+- the `.running` file was not deleted properly
+- moved the system `os.system` to a single function where security checks can be implemented in the future
+
 ### 0.0.2 (2019-06-08)
 
 Features:
