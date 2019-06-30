@@ -189,7 +189,7 @@ def run():
     try:
         while True:
             time.sleep(1)
-    except Exception:
+    except KeyboardInterrupt:
         shutdown(observer, masterconfig, masterlog)
     shutdown(observer, masterconfig, masterlog)
 
@@ -204,6 +204,7 @@ def shutdown(observer, masterconfig, masterlog):
     observer.join()
     masterlog.close_logging()
     log.logging.info("EasyWall was stopped gracefully")
+    exit(0)
 
 
 def ensure_rules_files(config):
