@@ -37,3 +37,4 @@ username =
 password =
 bindip = 127.0.0.1
 bindport = 12227
+github_oauth = 12345

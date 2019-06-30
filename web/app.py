@@ -156,7 +156,7 @@ def get_latest_commit():
         data=None,
         headers={
             'User-Agent': 'EasyWall Firewall by jp1337',
-            'Authorization': 'token 87bfd3cabedccabd8e4f829ff9b76e2470f2aee7'
+            'Authorization': cfg.getValue("WEB", "github_oauth")
         }
     )
     response = urllib.request.urlopen(req)
