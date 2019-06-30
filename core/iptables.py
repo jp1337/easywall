@@ -25,7 +25,8 @@ class iptables(object):
         log.logging.debug("adding policy for chain " +
                           chain + " and target " + target)
         if target == "ACCEPT" or target == "DROP":
-            self.system_call(self.iptables_bin + " -P " + chain + " " + target)
+            self.system_call(
+                self.iptables_bin + " -P " + chain + " " + target)
             if self.ipv6 is True:
                 self.system_call(
                     self.ip6tables_bin + " -P " + chain + " " + target)
@@ -112,6 +113,7 @@ class iptables(object):
             self.system_call(self.ip6tables_bin_restore + " < " +
                              filepath + "/" + filename)
 
+    @classmethod
     def system_call(self, command):
         # add security checks here
         os.system(command)

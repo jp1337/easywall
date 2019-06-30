@@ -11,6 +11,8 @@ from watchdog.events import FileSystemEventHandler
 
 
 class ModifiedHandler(FileSystemEventHandler):
+
+    @classmethod
     def on_any_event(self, event):
         if event.src_path.endswith(".txt"):
             log.logging.info(
@@ -161,9 +163,11 @@ class easywall(object):
         os.rename(self.filepath + "/" + self.filename,
                   self.filepath + "/" + self.date + "_" + self.filename)
 
+    @classmethod
     def create_running_file(self):
         utility.create_file_if_not_exists(".running")
 
+    @classmethod
     def delete_running_file(self):
         utility.delete_file_if_exists(".running")
 

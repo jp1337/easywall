@@ -10,25 +10,25 @@
 
     <div class="collapse navbar-collapse" id="topNavBar">
         <ul class="navbar-nav mr-auto mt-2 mt-lg-0">
-            <li class="nav-item active">
+            <li class="nav-item {% if vars.title == 'Home' %} active {% endif %}">
                 <a class="nav-link btn" href="/">Home</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item {% if vars.title == 'Options' %} active {% endif %}">
                 <a class="nav-link btn" href="/options">Options</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item {% if vars.title == 'Blacklist' %} active {% endif %}">
                 <a class="nav-link btn" href="/blacklist">Blacklist</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item {% if vars.title == 'Whitelist' %} active {% endif %}">
                 <a class="nav-link btn" href="/whitelist">Whitelist</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item {% if vars.title == 'Ports' %} active {% endif %}">
                 <a class="nav-link btn" href="/ports">Ports</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item {% if vars.title == 'Custom' %} active {% endif %}">
                 <a class="nav-link btn" href="/custom">Custom</a>
             </li>
-            <li class="nav-item">
+            <li class="nav-item {% if vars.title == 'Apply' %} active {% endif %}">
                 <a class="nav-link btn" href="/apply">Apply</a>
             </li>
         </ul>

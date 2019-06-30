@@ -1,4 +1,4 @@
-from flask import Flask, render_template, session, redirect, flash, request
+from flask import Flask, render_template, session, redirect, request
 from datetime import datetime
 import config
 import utility
