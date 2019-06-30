@@ -35,3 +35,5 @@ udp = udp.txt
 [WEB]
 username =
 password =
+bindip = 127.0.0.1
+bindport = 12227

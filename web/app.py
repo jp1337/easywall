@@ -6,6 +6,7 @@ import platform
 import hashlib
 
 app = Flask(__name__)
+cfg = config.config("../config/config.ini")
 
 
 @app.route('/')
@@ -67,7 +68,6 @@ def login_post():
     salt = hashlib.sha512(hostname).hexdigest()
     pw_hash = hashlib.sha512(
         str(salt + request.form['password']).encode("utf-8")).hexdigest()
-    cfg = config.config("../config/config.ini")
 
     if request.form['username'] == cfg.getValue(
             "WEB", "username") and pw_hash == cfg.getValue(
@@ -140,8 +140,8 @@ class DefaultVars(object):
 # only debugging
 if __name__ == '__main__':
     app.secret_key = os.urandom(12)
-    port = 5000
-    host = "0.0.0.0"
+    port = int(cfg.getValue("WEB", "bindport"))
+    host = cfg.getValue("WEB", "bindip")
     debug = True
     app.run(host, port, debug)
 
