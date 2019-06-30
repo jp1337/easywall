@@ -6,8 +6,8 @@ from time import sleep
 class acceptance(object):
     def __init__(self):
         self.config = config.config("config/config.ini")
-        self.enabled = bool(self.config.getValue("ACCEPTANCE", "enabled"))
-        self.filename = self.config.getValue("ACCEPTANCE", "filename")
+        self.enabled = bool(self.config.get_value("ACCEPTANCE", "enabled"))
+        self.filename = self.config.get_value("ACCEPTANCE", "filename")
         log.logging.debug("Acceptance Process initialized. Status: " +
                           str(self.enabled) + " Filename: " + self.filename)
 
@@ -19,9 +19,10 @@ class acceptance(object):
 
     def check(self):
         if self.enabled == True:
-            seconds = int(self.config.getValue("ACCEPTANCE", "time"))
+            seconds = int(self.config.get_value("ACCEPTANCE", "time"))
             log.logging.debug(
-                "Starting Acceptance Check... waiting for " + str(seconds) + " seconds")
+                "Starting Acceptance Check... waiting for " + str(seconds) +
+                " seconds")
             sleep(seconds)
             with open(self.filename, 'r') as accfile:
                 accepted = accfile.read()

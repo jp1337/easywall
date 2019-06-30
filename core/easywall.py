@@ -30,7 +30,7 @@ class easywall(object):
         self.config = config.config("config/config.ini")
         self.iptables = iptables.iptables()
         self.acceptance = acceptance.acceptance()
-        self.ipv6 = self.config.getValue("IPV6", "enabled")
+        self.ipv6 = self.config.get_value("IPV6", "enabled")
         self.apply()
         self.delete_running_file()
 
@@ -141,22 +141,22 @@ class easywall(object):
 
     def get_rule_list(self, ruletype):
         rule_list = []
-        with open(self.config.getValue("RULES", "filepath") + "/" +
-                  self.config.getValue("RULES", ruletype), 'r') as rulesfile:
+        with open(self.config.get_value("RULES", "filepath") + "/" +
+                  self.config.get_value("RULES", ruletype), 'r') as rulesfile:
             for rule in rulesfile.read().split('\n'):
                 if rule.strip() != "":
                     rule_list.append(rule)
         return rule_list
 
     def rotate_backup(self):
-        self.filepath = self.config.getValue("BACKUP", "filepath")
-        self.filename = self.config.getValue("BACKUP", "ipv4filename")
+        self.filepath = self.config.get_value("BACKUP", "filepath")
+        self.filename = self.config.get_value("BACKUP", "ipv4filename")
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log.logging.debug("rotating backup files in folder " +
                           self.filepath + " -> add prefix " + self.date)
         self.rename_backup_file()
         if self.ipv6 is True:
-            self.filename = self.config.getValue("BACKUP", "ipv6filename")
+            self.filename = self.config.get_value("BACKUP", "ipv6filename")
             self.rename_backup_file()
 
     def rename_backup_file(self):
@@ -181,7 +181,7 @@ def run():
     event_handler = ModifiedHandler()
     observer = Observer()
     observer.schedule(
-        event_handler, masterconfig.getValue("RULES", "filepath"))
+        event_handler, masterconfig.get_value("RULES", "filepath"))
     observer.start()
     log.logging.info("EasyWall is up and running.")
 
@@ -200,7 +200,7 @@ def shutdown(observer, masterconfig, masterlog):
     observer.stop()
     utility.delete_file_if_exists(".running")
     utility.delete_file_if_exists(
-        masterconfig.getValue("ACCEPTANCE", "filename"))
+        masterconfig.get_value("ACCEPTANCE", "filename"))
     observer.join()
     masterlog.close_logging()
     log.logging.info("EasyWall was stopped gracefully")
@@ -209,8 +209,8 @@ def shutdown(observer, masterconfig, masterlog):
 
 def ensure_rules_files(config):
     for ruletype in ["blacklist", "whitelist", "tcp", "udp"]:
-        filepath = config.getValue("RULES", "filepath")
-        filename = config.getValue("RULES", ruletype)
+        filepath = config.get_value("RULES", "filepath")
+        filename = config.get_value("RULES", ruletype)
         utility.create_folder_if_not_exists(filepath)
         utility.create_file_if_not_exists(filepath + "/" + filename)
 

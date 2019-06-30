@@ -8,17 +8,18 @@ class iptables(object):
     def __init__(self):
         log.logging.debug("Setting up iptables...")
         self.config = config.config("config/config.ini")
-        self.ipv6 = bool(self.config.getValue("IPV6", "enabled"))
-        self.iptables_bin = self.config.getValue("EXEC", "iptables")
-        self.iptables_bin_save = self.config.getValue("EXEC", "iptables-save")
-        self.iptables_bin_restore = self.config.getValue(
+        self.ipv6 = bool(self.config.get_value("IPV6", "enabled"))
+        self.iptables_bin = self.config.get_value("EXEC", "iptables")
+        self.iptables_bin_save = self.config.get_value(
+            "EXEC", "iptables-save")
+        self.iptables_bin_restore = self.config.get_value(
             "EXEC", "iptables-restore")
         if self.ipv6 is True:
             log.logging.debug("IPV6 is enabled")
-            self.ip6tables_bin = self.config.getValue("EXEC", "ip6tables")
-            self.ip6tables_bin_save = self.config.getValue(
+            self.ip6tables_bin = self.config.get_value("EXEC", "ip6tables")
+            self.ip6tables_bin_save = self.config.get_value(
                 "EXEC", "ip6tables-save")
-            self.ip6tables_bin_restore = self.config.getValue(
+            self.ip6tables_bin_restore = self.config.get_value(
                 "EXEC", "ip6tables-restore")
 
     def addPolicy(self, chain, target):
@@ -76,19 +77,19 @@ class iptables(object):
     def save(self):
         log.logging.debug("Starting Firewall Rule Backup...")
         # Create Backup Directory if not exists
-        filepath = self.config.getValue("BACKUP", "filepath")
+        filepath = self.config.get_value("BACKUP", "filepath")
         utility.create_folder_if_not_exists(filepath)
 
         # backing up ipv4 iptables rules
         log.logging.debug("Backing up ipv4 rules...")
-        filename = self.config.getValue("BACKUP", "ipv4filename")
+        filename = self.config.get_value("BACKUP", "ipv4filename")
         open(filepath + "/" + filename, 'w')
         self.save_execute(self.iptables_bin_save, filepath, filename)
 
         # backing up ipv6 iptables rules
         if self.ipv6 is True:
             log.logging.debug("Backing up ipv6 rules...")
-            filename = self.config.getValue("BACKUP", "ipv6filename")
+            filename = self.config.get_value("BACKUP", "ipv6filename")
             open(filepath + "/" + filename, 'w')
             self.save_execute(self.ip6tables_bin_save, filepath, filename)
 
@@ -99,17 +100,17 @@ class iptables(object):
 
     def restore(self):
         log.logging.debug("Starting Firewall Rule Restore...")
-        filepath = self.config.getValue("BACKUP", "filepath")
+        filepath = self.config.get_value("BACKUP", "filepath")
         utility.create_folder_if_not_exists(filepath)
 
         log.logging.debug("Restoring ipv4 rules...")
-        filename = self.config.getValue("BACKUP", "ipv4filename")
+        filename = self.config.get_value("BACKUP", "ipv4filename")
         self.system_call(self.iptables_bin_restore + " < " +
                          filepath + "/" + filename)
 
         if self.ipv6 is True:
             log.logging.debug("Restoring ipv6 rules...")
-            filename = self.config.getValue("BACKUP", "ipv6filename")
+            filename = self.config.get_value("BACKUP", "ipv6filename")
             self.system_call(self.ip6tables_bin_restore + " < " +
                              filepath + "/" + filename)
 

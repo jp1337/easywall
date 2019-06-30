@@ -8,7 +8,7 @@ class log(object):
 
     def __init__(self):
         self.config = config.config("config/config.ini")
-        self.loglevel = self.get_level(self.config.getValue("LOG", "level"))
+        self.loglevel = self.get_level(self.config.get_value("LOG", "level"))
 
         # create logger with easywall
         root = logging.getLogger()
@@ -26,14 +26,14 @@ class log(object):
         root.addHandler(stdHandler)
 
         # create file handler if enabled in configuration
-        if bool(self.config.getValue("LOG", "to_files")) == True:
+        if bool(self.config.get_value("LOG", "to_files")) == True:
             # create log filepath if not exists
             utility.create_folder_if_not_exists(
-                self.config.getValue("LOG", "filepath"))
+                self.config.get_value("LOG", "filepath"))
 
-            fileHandler = logging.FileHandler(self.config.getValue(
+            fileHandler = logging.FileHandler(self.config.get_value(
                 "LOG", "filepath") + "/" +
-                self.config.getValue(
+                self.config.get_value(
                 "LOG", "filename"))
             fileHandler.setLevel(self.loglevel)
             fileHandler.setFormatter(formatter)

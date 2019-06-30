@@ -15,11 +15,11 @@ class passwd(object):
         salt = hashlib.sha512(hostname).hexdigest()
         pw_hash = hashlib.sha512(
             str(salt + password).encode("utf-8")).hexdigest()
-        self.config.setValue("WEB", "password", pw_hash)
+        self.config.set_value("WEB", "password", pw_hash)
         print("Password successfully saved.")
 
     def saveuser(self, username):
-        self.config.setValue("WEB", "username", username)
+        self.config.set_value("WEB", "username", username)
         print("Username successfully saved.")
 
     def ask_user(self):
