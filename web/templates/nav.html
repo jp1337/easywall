@@ -1,7 +1,8 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#topNavBar" aria-controls="topNavBar" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#topNavBar"
+        aria-controls="topNavBar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
 
     <a class="navbar-brand" href="/">
         <i class="fa fa-shield" aria-hidden="true"></i>&nbsp;EasyWall
@@ -25,18 +26,14 @@
                 <a class="nav-link btn" href="/ports">Ports</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link btn" href="/custom">Custom</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link btn" href="/apply">Apply</a>
             </li>
         </ul>
 
         <ul class="navbar-nav mr-right my-2 my-lg-0">
-            <li class="nav-item">
-                <a class="nav-link btn" title="EasyWall on GitHub" href="https://jp1337.github.io/easywall/" target="_blank">
-                    <i class="fa fa-github" aria-hidden="true"></i>&nbsp;
-                    <span class="d-none d-sm-inline">GitHub</span>
-                    <span class="d-lg-none">EasyWall on GitHub</span>
-                </a>
-            </li>
             <li class="nav-item">
                 <a class="nav-link btn" title="Need help?" href="#" data-toggle="modal" data-target="#helpModal">
                     <i class="fa fa-support" aria-hidden="true"></i>&nbsp;
@@ -45,11 +42,14 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link btn" title="Version and Update" href="#" data-toggle="modal" data-target="#versionModal">
+                <a class="nav-link btn" title="Version and Update" href="#" data-toggle="modal"
+                    data-target="#versionModal">
                     <i class="fa fa-cloud-download" aria-hidden="true"></i>&nbsp;
                     <span class="d-none d-sm-inline">Update</span>
                     <span class="d-lg-none">Version and Update</span>
+                    {% if vars.current_version != vars.latest_version %}
                     <span class="badge badge-pill badge-warning">!</span>
+                    {% endif %}
                 </a>
             </li>
             <li class="nav-item">
@@ -60,9 +60,17 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link btn" title="EasyWall on GitHub" href="https://jp1337.github.io/easywall/"
+                    target="_blank">
+                    <i class="fa fa-github" aria-hidden="true"></i>&nbsp;
+                    <span class="d-none d-sm-inline"></span>
+                    <span class="d-lg-none">EasyWall on GitHub</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link btn" title="Sign Out of EasyWall" href="/logout">
                     <i class="fa fa-sign-out" aria-hidden="true"></i>&nbsp;
-                    <span class="d-none d-sm-inline">Logout</span>
+                    <span class="d-none d-sm-inline"></span>
                     <span class="d-lg-none">Sign Out</span>
                 </a>
             </li>

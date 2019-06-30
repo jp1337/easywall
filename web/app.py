@@ -1,9 +1,12 @@
 from flask import Flask, render_template, session, redirect, flash, request
 from datetime import datetime
 import config
+import utility
 import os
 import platform
 import hashlib
+import urllib
+import json
 
 app = Flask(__name__)
 cfg = config.config("../config/config.ini")
@@ -73,9 +76,8 @@ def login_post():
             "WEB", "username") and pw_hash == cfg.getValue(
             "WEB", "password"):
         session['logged_in'] = True
-    else:
-        flash('wrong password!')
-    return redirect("/")
+        return redirect("/")
+    return login("Incorrect username or password.", "danger")
 
 
 @app.route("/logout")
@@ -97,10 +99,12 @@ def page_not_found(e):
 
 
 def login(message, messagetype):
+    vars = get_default_vars("Signin", "signin")
     if messagetype != None:
-        message = ""
-    return render_template(
-        'login.html', vars=get_default_vars("Signin", "signin"))
+        vars.messagetype = messagetype
+    if message != None:
+        vars.message = message
+    return render_template('login.html', vars=vars)
 
 
 def check_login():
@@ -115,6 +119,11 @@ def get_default_vars(title, css="easywall"):
     vars.title = title
     vars.customcss = css
     vars.machine = get_machine_infos()
+    vars.latest_version = get_latest_version()
+    vars.current_version = utility.file_get_contents("../.version")
+    vars.commit_sha = get_latest_commit()["sha"]
+    vars.commit_date = get_commit_date(
+        get_latest_commit()["commit"]["author"]["date"])
     return vars
 
 
@@ -131,6 +140,33 @@ def get_machine_infos():
     d["Linux Distribution"] = platform.linux_distribution()
     d["Libc Version"] = platform.libc_ver()
     return d
+
+
+def get_latest_version():
+    url = "https://raw.githubusercontent.com/jp1337/easywall/master/.version"
+    response = urllib.request.urlopen(url)
+    data = response.read()
+    return data.decode('utf-8')
+
+
+def get_latest_commit():
+    url = "https://api.github.com/repos/jp1337/easywall/commits/master"
+    req = urllib.request.Request(
+        url,
+        data=None,
+        headers={
+            'User-Agent': 'EasyWall Firewall by jp1337',
+            'Authorization': 'token 87bfd3cabedccabd8e4f829ff9b76e2470f2aee7'
+        }
+    )
+    response = urllib.request.urlopen(req)
+    return json.loads(response.read().decode('utf-8'))
+
+
+def get_commit_date(datestring):
+    d1 = datetime.strptime(datestring, "%Y-%m-%dT%H:%M:%SZ")
+    d2 = datetime.now()
+    return utility.time_duration_diff(d1, d2)
 
 
 class DefaultVars(object):

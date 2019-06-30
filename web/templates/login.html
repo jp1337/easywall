@@ -2,11 +2,19 @@
 
 <div class="text-center w-100">
     <form class="form-signin" action="/login" method="POST">
+
         <img class="mb-4" src="/static/img/logo.png" alt="" width="72" height="72">
         <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
 
+        {% if vars.message and vars.messagetype %}
+        <div class="alert alert-{{vars.messagetype}}" role="alert">
+            {{vars.message}}
+        </div>
+        {% endif %}
+
         <label for="inputUsername" class="sr-only">Username</label>
-        <input type="text" id="inputUsername" name="username" class="form-control" placeholder="Username" required autofocus>
+        <input type="text" id="inputUsername" name="username" class="form-control" placeholder="Username" required
+            autofocus>
 
         <label for="inputPassword" class="sr-only">Password</label>
         <input type="password" id="inputPassword" name="password" class="form-control" placeholder="Password" required>
