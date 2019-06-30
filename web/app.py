@@ -1,5 +1,5 @@
 from flask import Flask, render_template, session, redirect, request
-from datetime import datetime
+from datetime import datetime, timezone
 import config
 import utility
 import os
@@ -165,6 +165,10 @@ def get_latest_commit():
 
 def get_commit_date(datestring):
     d1 = datetime.strptime(datestring, "%Y-%m-%dT%H:%M:%SZ")
+    d1 = d1.replace(
+        tzinfo=timezone.utc).astimezone(
+        tz=None).replace(
+        tzinfo=None)
     d2 = datetime.now()
     return utility.time_duration_diff(d1, d2)
 

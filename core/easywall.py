@@ -18,7 +18,7 @@ class ModifiedHandler(FileSystemEventHandler):
             log.logging.info(
                 "file modification occured. filename: " + event.src_path)
             while os.path.isfile(".running"):
-                time.sleep(1)
+                time.sleep(2)
             easywall()
 
 
@@ -188,7 +188,7 @@ def run():
     # waiting for file modifications
     try:
         while True:
-            time.sleep(1)
+            time.sleep(2)
     except KeyboardInterrupt:
         shutdown(observer, masterconfig, masterlog)
     shutdown(observer, masterconfig, masterlog)
