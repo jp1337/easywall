@@ -21,10 +21,13 @@ def index():
 
 
 @app.route('/options')
-def options():
+def options(saved=False):
     if check_login() is True:
+        payload = get_default_payload("Options")
+        payload.config = cfg
+        payload.saved = saved
         return render_template(
-            'options.html', vars=get_default_payload("Options"))
+            'options.html', vars=payload)
     else:
         return login("", None)
 
@@ -65,6 +68,26 @@ def apply():
         return login("", None)
 
 
+@app.route('/options-save', methods=['POST'])
+def options_save():
+    if check_login() is True:
+        section = request.form['section']
+        for key, value in request.form.items():
+            if key != "section":
+                # checkbox workaround.
+                if key.startswith("checkbox"):
+                    key = key.replace("checkbox_", "")
+                    if key in request.form:
+                        value = "yes"
+                    else:
+                        value = "no"
+                if value != "on":
+                    cfg.set_value(section, key, value)
+        return options(True)
+    else:
+        return login("", None)
+
+
 @app.route('/login', methods=['POST'])
 def login_post():
     hostname = platform.node().encode("utf-8")
@@ -72,8 +95,8 @@ def login_post():
     pw_hash = hashlib.sha512(
         str(salt + request.form['password']).encode("utf-8")).hexdigest()
 
-    if request.form['username'] == cfg.getValue(
-            "WEB", "username") and pw_hash == cfg.getValue(
+    if request.form['username'] == cfg.get_value(
+            "WEB", "username") and pw_hash == cfg.get_value(
             "WEB", "password"):
         session['logged_in'] = True
         return redirect("/")
@@ -156,7 +179,7 @@ def get_latest_commit():
         data=None,
         headers={
             'User-Agent': 'EasyWall Firewall by jp1337',
-            'Authorization': cfg.getValue("WEB", "github_oauth")
+            'Authorization': "token " + cfg.get_value("WEB", "github_oauth")
         }
     )
     response = urllib.request.urlopen(req)
@@ -180,8 +203,8 @@ class DefaultPayload(object):
 # only debugging
 if __name__ == '__main__':
     app.secret_key = os.urandom(12)
-    port = int(cfg.getValue("WEB", "bindport"))
-    host = cfg.getValue("WEB", "bindip")
+    port = int(cfg.get_value("WEB", "bindport"))
+    host = cfg.get_value("WEB", "bindip")
     debug = True
     app.run(host, port, debug)
 
