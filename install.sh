@@ -102,7 +102,7 @@ wget -q --show-progress "https://code.jquery.com/jquery-$JQUERY.slim.min.js"
 cp jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
 
 # Popper (for Bootstrap)
-wget -q --show-progress "https://cdnjs.cloudflare.com/ajax/libs/popper.js/$POPPER/umd/popper.min.js"
+wget -q --show-progress "https://unpkg.com/popper.js@$POPPER/dist/umd/popper.min.js"
 cp popper.min.js "$WEBDIR/static/js/"
 
 cd "$SCRIPTPATH" || exit 1

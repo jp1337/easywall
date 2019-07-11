@@ -4,6 +4,7 @@ rules/
 *.log
 config.ini
 .accepted
+.running
 web/static/css/*.min.css
 web/static/css/font-awesome*
 web/static/fonts/*
