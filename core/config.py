@@ -30,6 +30,7 @@ class config(object):
 
     def set_value(self, section, key, value):
         """Writes a key, value pair into memory configuration and writes it to config file"""
+        value = str(value)
         log.logging.debug(
             "setting configuration value with key " + key + " in section " +
             section + " from " + str(self.get_value(section, key)) + " to " + value)
