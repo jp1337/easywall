@@ -39,6 +39,7 @@ bindip = 127.0.0.1
 bindport = 12227
 
 [VERSION]
+version = 0
 sha = 0
 date = 0
 timestamp = 0

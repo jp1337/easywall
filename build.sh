@@ -10,6 +10,8 @@ newconfig=$(sed "s/bindip.*/bindip = 127.0.0.1/g" config/config.ini.example)
 echo "$newconfig" >config/config.ini.example
 newconfig=$(sed "s/bindport.*/bindport = 12227/g" config/config.ini.example)
 echo "$newconfig" >config/config.ini.example
+newconfig=$(sed "s/version.*/version = 0/g" config/config.ini.example)
+echo "$newconfig" >config/config.ini.example
 newconfig=$(sed "s/sha.*/sha = 0/g" config/config.ini.example)
 echo "$newconfig" >config/config.ini.example
 newconfig=$(sed "s/date.*/date = 0/g" config/config.ini.example)

@@ -7,6 +7,7 @@ import platform
 import hashlib
 import urllib
 import json
+import time
 
 app = Flask(__name__)
 cfg = config.config("../config/config.ini")
@@ -122,6 +123,7 @@ def page_not_found(e):
 
 
 def login(message, messagetype):
+    update_last_commit_infos()
     payload = get_default_payload("Signin", "signin")
     if messagetype != None:
         payload.messagetype = messagetype
@@ -142,11 +144,10 @@ def get_default_payload(title, css="easywall"):
     payload.title = title
     payload.customcss = css
     payload.machine = get_machine_infos()
-    payload.latest_version = get_latest_version()
+    payload.latest_version = cfg.get_value("VERSION", "version")
     payload.current_version = utility.file_get_contents("../.version")
-    payload.commit_sha = get_latest_commit()["sha"]
-    payload.commit_date = get_commit_date(
-        get_latest_commit()["commit"]["author"]["date"])
+    payload.commit_sha = cfg.get_value("VERSION", "sha")
+    payload.commit_date = cfg.get_value("VERSION", "date")
     return payload
 
 
@@ -160,16 +161,35 @@ def get_machine_infos():
     d["Python Implementation"] = platform.python_implementation()
     d["Python Version"] = platform.python_version()
     d["Release"] = platform.release()
-    d["Linux Distribution"] = platform.linux_distribution()
     d["Libc Version"] = platform.libc_ver()
     return d
 
 
 def get_latest_version():
     url = "https://raw.githubusercontent.com/jp1337/easywall/master/.version"
-    response = urllib.request.urlopen(url)
+    req = urllib.request.Request(
+        url,
+        data=None,
+        headers={
+            'User-Agent': 'EasyWall Firewall by jp1337'
+        }
+    )
+    response = urllib.request.urlopen(req)
     data = response.read()
     return data.decode('utf-8')
+
+
+def update_last_commit_infos():
+    currtime = int(time.time())
+    lasttime = int(cfg.get_value("VERSION", "timestamp"))
+    waitseconds = 21600  # 6 hours × 60 minutes × 60 seconds
+    if (currtime > lasttime + waitseconds):
+        commit = get_latest_commit()
+        cfg.set_value("VERSION", "version", get_latest_version())
+        cfg.set_value("VERSION", "sha", commit["sha"])
+        cfg.set_value("VERSION", "date", commit["commit"]["author"]["date"])
+        cfg.set_value("VERSION", "timestamp", currtime)
+        
 
 
 def get_latest_commit():
@@ -178,22 +198,11 @@ def get_latest_commit():
         url,
         data=None,
         headers={
-            'User-Agent': 'EasyWall Firewall by jp1337',
-            'Authorization': "token " + cfg.get_value("WEB", "github_oauth")
+            'User-Agent': 'EasyWall Firewall by jp1337'
         }
     )
     response = urllib.request.urlopen(req)
     return json.loads(response.read().decode('utf-8'))
-
-
-def get_commit_date(datestring):
-    d1 = datetime.strptime(datestring, "%Y-%m-%dT%H:%M:%SZ")
-    d1 = d1.replace(
-        tzinfo=timezone.utc).astimezone(
-        tz=None).replace(
-        tzinfo=None)
-    d2 = datetime.now()
-    return utility.time_duration_diff(d1, d2)
 
 
 class DefaultPayload(object):
