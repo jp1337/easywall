@@ -147,7 +147,7 @@ def get_default_payload(title, css="easywall"):
     payload.latest_version = cfg.get_value("VERSION", "version")
     payload.current_version = utility.file_get_contents("../.version")
     payload.commit_sha = cfg.get_value("VERSION", "sha")
-    payload.commit_date = cfg.get_value("VERSION", "date")
+    payload.commit_date = get_commit_date(cfg.get_value("VERSION", "date"))
     return payload
 
 
@@ -204,6 +204,14 @@ def get_latest_commit():
     response = urllib.request.urlopen(req)
     return json.loads(response.read().decode('utf-8'))
 
+def get_commit_date(datestring):
+    d1 = datetime.strptime(datestring, "%Y-%m-%dT%H:%M:%SZ")
+    d1 = d1.replace(
+        tzinfo=timezone.utc).astimezone(
+        tz=None).replace(
+        tzinfo=None)
+    d2 = datetime.now()
+    return utility.time_duration_diff(d1, d2)
 
 class DefaultPayload(object):
     pass
