@@ -182,7 +182,7 @@ def get_latest_version():
 def update_last_commit_infos():
     currtime = int(time.time())
     lasttime = int(cfg.get_value("VERSION", "timestamp"))
-    waitseconds = 21600  # 6 hours × 60 minutes × 60 seconds
+    waitseconds = 3600  # 60 minutes × 60 seconds
     if (currtime > lasttime + waitseconds):
         commit = get_latest_commit()
         cfg.set_value("VERSION", "version", get_latest_version())
