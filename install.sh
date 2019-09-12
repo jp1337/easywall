@@ -23,23 +23,35 @@ SCRIPTPATH="$(
     cd "$(dirname "$0")" || exit 1
     pwd -P
 )"
-STEPS=9
+STEPS=12
 STEP=1
 
 # Step 1
-echo "" && echo "($STEP/$STEPS) Installing required packages" && ((STEP++))
+echo "" && echo "($STEP/$STEPS) Installing required packages for easywall" && ((STEP++))
 apt-get -q update
-apt-get -qy install python3 python3-watchdog python3-flask uwsgi uwsgi-plugin-python3 wget unzip
+apt-get -qy install python3-dev python3-pip python3-venv curl
 
 # Step 2
+echo "" && echo "($STEP/$STEPS) Installing Poetry Dependency Manager" && ((STEP++))
+curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python3
+
+# Step 3
+echo "" && echo "($STEP/$STEPS) Installing Python3 Dependencies using Poetry" && ((STEP++))
+poetry install
+
+# Step 3
+echo "" && echo "($STEP/$STEPS) Installing required packages for easywall-web" && ((STEP++))
+apt-get -qy install uwsgi uwsgi-plugin-python3 wget unzip
+
+# Step 4
 echo "" && echo "($STEP/$STEPS) Creating configuration" && ((STEP++))
 cp config/config.ini.example config/config.ini
 
-# Step 3
+# Step 5
 echo "" && echo "($STEP/$STEPS) Making all scripts executable" && ((STEP++))
 chmod +x -- *.sh
 
-# Step 4
+# Step 6
 echo "" && echo "($STEP/$STEPS) Setting up EasyWall core systemd process" && ((STEP++))
 function installDaemon() {
     SERVICEFILE="/lib/systemd/system/easywall.service"
@@ -79,7 +91,7 @@ n | N) printf "\\nNot installing Daemon.\\n" ;;
 *) printf "\\nNot installing Daemon.\\n" ;;
 esac
 
-# Step 5
+# Step 8
 echo "" && echo "($STEP/$STEPS) Installing 3rd Party Products for EasyWall Web" && ((STEP++))
 WEBDIR="$SCRIPTPATH/web"
 TMPDIR="$WEBDIR/tmp"
@@ -108,15 +120,15 @@ cp popper.min.js "$WEBDIR/static/js/"
 cd "$SCRIPTPATH" || exit 1
 rm -rf "$TMPDIR"
 
-# Step 6
+# Step 9
 echo "" && echo "($STEP/$STEPS) Adding easywall-web user" && ((STEP++))
 /usr/sbin/adduser --system easywall
 
-# Step 7
+# Step 10
 echo "" && echo "($STEP/$STEPS) Permission correction for web folder" && ((STEP++))
 chown -R easywall:root "$WEBDIR"
 
-# Step 8
+# Step 11
 echo "" && echo "($STEP/$STEPS) Setting up easywall-web systemd process" && ((STEP++))
 function installDaemon() {
     SERVICEFILE="/lib/systemd/system/easywall-web.service"
@@ -154,7 +166,7 @@ n | N) printf "\\nNot installing Daemon.\\n" ;;
 *) printf "\\nNot installing Daemon.\\n" ;;
 esac
 
-# Step 9
+# Step 12
 echo "" && echo "($STEP/$STEPS) Please set a password for EasyWall Web" && ((STEP++))
 /usr/bin/python3 core/passwd.py
 
