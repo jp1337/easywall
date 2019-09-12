@@ -27,7 +27,7 @@ class easywall(object):
     def __init__(self):
         log.logging.info("Applying new configuration.")
         self.create_running_file()
-        self.config = config.config("config/config.ini")
+        self.config = config.Config("config/config.ini")
         self.iptables = iptables.iptables()
         self.acceptance = acceptance.acceptance()
         self.ipv6 = self.config.get_value("IPV6", "enabled")
@@ -174,9 +174,9 @@ class easywall(object):
 
 def run():
     # Startup Process
-    masterlog = log.log()
+    masterlog = log.Log("config/config.ini")
     log.logging.info("Starting up EasyWall...")
-    masterconfig = config.config("config/config.ini")
+    masterconfig = config.Config("config/config.ini")
     ensure_rules_files(masterconfig)
     event_handler = ModifiedHandler()
     observer = Observer()

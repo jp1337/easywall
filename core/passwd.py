@@ -7,7 +7,7 @@ import platform
 class passwd(object):
 
     def __init__(self):
-        self.config = config.config("config/config.ini")
+        self.config = config.Config("config/config.ini")
         self.ask_user()
 
     def savepasswd(self, password):

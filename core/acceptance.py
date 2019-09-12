@@ -5,7 +5,7 @@ from time import sleep
 
 class acceptance(object):
     def __init__(self):
-        self.config = config.config("config/config.ini")
+        self.config = config.Config("config/config.ini")
         self.enabled = bool(self.config.get_value("ACCEPTANCE", "enabled"))
         self.filename = self.config.get_value("ACCEPTANCE", "filename")
         log.logging.debug("Acceptance Process initialized. Status: " +

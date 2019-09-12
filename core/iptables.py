@@ -7,7 +7,7 @@ import utility
 class iptables(object):
     def __init__(self):
         log.logging.debug("Setting up iptables...")
-        self.config = config.config("config/config.ini")
+        self.config = config.Config("config/config.ini")
         self.ipv6 = bool(self.config.get_value("IPV6", "enabled"))
         self.iptables_bin = self.config.get_value("EXEC", "iptables")
         self.iptables_bin_save = self.config.get_value(
