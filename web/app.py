@@ -10,7 +10,7 @@ import json
 import time
 
 app = Flask(__name__)
-cfg = config.config("../config/config.ini")
+cfg = config.Config("../config/config.ini")
 
 
 @app.route('/')
@@ -189,7 +189,6 @@ def update_last_commit_infos():
         cfg.set_value("VERSION", "sha", commit["sha"])
         cfg.set_value("VERSION", "date", commit["commit"]["author"]["date"])
         cfg.set_value("VERSION", "timestamp", currtime)
-        
 
 
 def get_latest_commit():
@@ -204,6 +203,7 @@ def get_latest_commit():
     response = urllib.request.urlopen(req)
     return json.loads(response.read().decode('utf-8'))
 
+
 def get_commit_date(datestring):
     d1 = datetime.strptime(datestring, "%Y-%m-%dT%H:%M:%SZ")
     d1 = d1.replace(
@@ -212,6 +212,7 @@ def get_commit_date(datestring):
         tzinfo=None)
     d2 = datetime.now()
     return utility.time_duration_diff(d1, d2)
+
 
 class DefaultPayload(object):
     pass
