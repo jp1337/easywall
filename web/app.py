@@ -36,8 +36,10 @@ def options(saved=False):
 @app.route('/blacklist')
 def blacklist():
     if check_login() is True:
+        payload = get_default_payload("Blacklist")
+        payload.addresses = get_rule_list("blacklist")
         return render_template(
-            'blacklist.html', vars=get_default_payload("Blacklist"))
+            'blacklist.html', vars=payload)
     else:
         return login("", None)
 
@@ -56,6 +58,15 @@ def ports():
     if check_login() is True:
         return render_template(
             'ports.html', vars=get_default_payload("Ports"))
+    else:
+        return login("", None)
+
+
+@app.route('/custom')
+def custom():
+    if check_login() is True:
+        return render_template(
+            'custom.html', vars=get_default_payload("Custom"))
     else:
         return login("", None)
 
@@ -205,13 +216,26 @@ def get_latest_commit():
 
 
 def get_commit_date(datestring):
-    d1 = datetime.strptime(datestring, "%Y-%m-%dT%H:%M:%SZ")
+    d1 = datetime.strptime(str(datestring), "%Y-%m-%dT%H:%M:%SZ")
     d1 = d1.replace(
         tzinfo=timezone.utc).astimezone(
         tz=None).replace(
         tzinfo=None)
     d2 = datetime.now()
     return utility.time_duration_diff(d1, d2)
+
+
+def get_rule_list(ruletype):
+    rule_list = []
+    filepath = cfg.get_value(
+        "RULES", "filepath") + "/" + cfg.get_value("RULES", ruletype)
+    if filepath.startswith("."):
+        filepath = "../" + filepath
+    with open(filepath, 'r') as rulesfile:
+        for rule in rulesfile.read().split('\n'):
+            if rule.strip() != "":
+                rule_list.append(rule)
+    return rule_list
 
 
 class DefaultPayload(object):
