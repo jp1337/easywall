@@ -25,7 +25,7 @@ We suggest to use the directories **/usr/local** or **/opt** for EasyWall Instal
 
 ```sh
 sudo chmod +x install.sh
-sudo bash install.sh
+sudo -H bash install.sh
 ```
 
 We suggest to use the installer for proper installation. **You have to execute the installer as root user!** For manual installation execute the steps in the installer file on your own.

@@ -53,9 +53,8 @@ $NOCOLOR
     The packages may be used by other software which has not been installed by linux packages.
 $YELLOW
     Packages:
-    - python3-dev
+    - python3
     - python3-pip
-    - python3-venv
     - curl
     - uwsgi
     - uwsgi-plugin-python3

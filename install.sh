@@ -13,7 +13,7 @@ if [ "$EUID" -ne 0 ]; then
 Heya! To install EasyWall you need to have a privileged user.
 So you can try these:
 
-# sudo bash $SCRIPTNAME
+# sudo -H bash $SCRIPTNAME
 or
 # su root -c "$SCRIPTNAME"
 EOF
@@ -25,21 +25,18 @@ SCRIPTPATH="$(
     cd "$(dirname "$0")" || exit 1
     pwd -P
 )"
-STEPS=12
+STEPS=11
 STEP=1
 
 # Step 1
 echo "" && echo "($STEP/$STEPS) Installing required packages for easywall" && ((STEP++))
 apt-get -q update
-apt-get -qy install python3-dev python3-pip python3-venv curl
+apt-get -qy install python3 python3-pip curl
 
 # Step 2
-echo "" && echo "($STEP/$STEPS) Installing Poetry Dependency Manager" && ((STEP++))
-curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python3
-
-# Step 3
-echo "" && echo "($STEP/$STEPS) Installing Python3 Dependencies using Poetry" && ((STEP++))
-poetry install
+echo "" && echo "($STEP/$STEPS) Installing Python3 Dependencies using Pip" && ((STEP++))
+pip3 install Flask
+pip3 install watchdog
 
 # Step 3
 echo "" && echo "($STEP/$STEPS) Installing required packages for easywall-web" && ((STEP++))
@@ -93,7 +90,7 @@ n | N) printf "\\nNot installing Daemon.\\n" ;;
 *) printf "\\nNot installing Daemon.\\n" ;;
 esac
 
-# Step 8
+# Step 7
 echo "" && echo "($STEP/$STEPS) Installing 3rd Party Products for EasyWall Web" && ((STEP++))
 WEBDIR="$SCRIPTPATH/web"
 TMPDIR="$WEBDIR/tmp"
@@ -122,15 +119,15 @@ cp popper.min.js "$WEBDIR/static/js/"
 cd "$SCRIPTPATH" || exit 1
 rm -rf "$TMPDIR"
 
-# Step 9
+# Step 8
 echo "" && echo "($STEP/$STEPS) Adding easywall-web user" && ((STEP++))
 /usr/sbin/adduser --system easywall
 
-# Step 10
+# Step 9
 echo "" && echo "($STEP/$STEPS) Permission correction for web folder" && ((STEP++))
 chown -R easywall:root "$WEBDIR"
 
-# Step 11
+# Step 10
 echo "" && echo "($STEP/$STEPS) Setting up easywall-web systemd process" && ((STEP++))
 function installDaemon() {
     SERVICEFILE="/lib/systemd/system/easywall-web.service"
@@ -168,7 +165,7 @@ n | N) printf "\\nNot installing Daemon.\\n" ;;
 *) printf "\\nNot installing Daemon.\\n" ;;
 esac
 
-# Step 12
+# Step 11
 echo "" && echo "($STEP/$STEPS) Please set a password for EasyWall Web" && ((STEP++))
 /usr/bin/python3 core/passwd.py
 
@@ -183,11 +180,18 @@ So what now?
 
 If you have installed EasyWall as a Daemon you simply have to type:
 # systemctl start easywall
+# systemctl start easywall-web
 or
 # service easywall start
+# service easywall-web start
 
 If you want to run easywall manually you can enter:
 # (sudo) python3 core/easywall.py
+
+if you want to run easywall-web manually you can enter:
+# cd web && ./easywall_web.sh
+or for debugging
+# cd web && ./easywall_web.sh -d
 
 If you have any questions on starting EasyWall, just create a new GitHub Issue:
 https://github.com/jp1337/easywall/issues/new
