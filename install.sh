@@ -6,17 +6,19 @@ FONTAWESOME="4.7.0"
 JQUERY="3.3.1"
 POPPER="1.14.7"
 
+SCRIPTNAME=$(basename "$0")
+
 if [ "$EUID" -ne 0 ]; then
     read -r -d '' NOROOT <<EOF
 Heya! To install EasyWall you need to have a privileged user.
 So you can try these:
 
-# sudo bash install.sh
+# sudo bash $SCRIPTNAME
 or
-# su root -c "install.sh"
+# su root -c "$SCRIPTNAME"
 EOF
     echo "$NOROOT"
-    exit
+    exit 1
 fi
 
 SCRIPTPATH="$(
