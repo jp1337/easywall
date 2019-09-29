@@ -74,11 +74,14 @@ def ports(saved=False):
 
 
 @APP.route('/custom')
-def custom():
+def custom(saved=False):
     """the function returns the custom rules page when the user is logged in"""
     if check_login() is True:
+        payload = get_default_payload("Custom")
+        payload.custom = get_rule_list("custom")
+        payload.saved = saved
         return render_template(
-            'custom.html', vars=get_default_payload("Custom"))
+            'custom.html', vars=payload)
     return login("", None)
 
 
@@ -196,6 +199,17 @@ def ports_save():
                 save_rule_list("udp", udp)
 
         return ports(True)
+    return login("", None)
+
+
+@APP.route('/custom-save', methods=['POST'])
+def custom_save():
+    """the function saves the custom rules into the corresponding rulesfile"""
+    if check_login() is True:
+        for key, value in request.form.items():
+            rulelist = value.split("\n")
+            save_rule_list("custom", rulelist)
+        return custom(True)
     return login("", None)
 
 

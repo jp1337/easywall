@@ -31,6 +31,7 @@ blacklist = blacklist.txt
 whitelist = whitelist.txt
 tcp = tcp.txt
 udp = udp.txt
+custom = custom.txt
 
 [WEB]
 username =
