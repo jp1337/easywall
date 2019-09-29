@@ -93,13 +93,14 @@
                 <input type="hidden" name="remove" value="tcp">
                 <ul class="list-group">
                     {% for port in vars.tcp %}
-                    <li class="list-group-item justify-content-between">
+                    <li class="list-group-item d-flex justify-content-between">
                         {% if ';' in port %}
                         {% set templist = port.split(';') %}
-                        <span class="badge badge-default badge-pill">tcp - {{ templist[1] }}</span>';
+                        <span class="badge badge-secondary badge-pill align-self-center">tcp -
+                            {{ templist[1] }}</span>';
                         {{ templist[0] }}
                         {% else %}
-                        <span class="badge badge-default badge-pill">tcp</span>
+                        <span class="badge badge-secondary badge-pill align-self-center">tcp</span>
                         <span class="text-center">{{ port }}</span>
                         {% endif %}
                         <button type="submit" name="{{ port }}"
@@ -123,13 +124,14 @@
                 <input type="hidden" name="remove" value="udp">
                 <ul class="list-group">
                     {% for port in vars.udp %}
-                    <li class="list-group-item justify-content-between">
+                    <li class="list-group-item d-flex justify-content-between">
                         {% if ';' in port %}
                         {% set templist = port.split(';') %}
-                        <span class="badge badge-default badge-pill">udp - {{ templist[1] }}</span>';
+                        <span class="badge badge-secondary badge-pill align-self-center">udp -
+                            {{ templist[1] }}</span>';
                         {{ templist[0] }}
                         {% else %}
-                        <span class="badge badge-default badge-pill">udp</span>
+                        <span class="badge badge-secondary badge-pill align-self-center">udp</span>
                         <span class="text-center">{{ port }}</span>
                         {% endif %}
                         <button type="submit" name="{{ port }}"
