@@ -135,6 +135,7 @@ def blacklist_save():
         return blacklist(True)
     return login("", None)
 
+
 @APP.route('/whitelist-save', methods=['POST'])
 def whitelist_save():
     """the function saves the whitelist rules into the corresponding rulesfile"""
@@ -156,6 +157,48 @@ def whitelist_save():
         return whitelist(True)
     return login("", None)
 
+
+@APP.route('/ports-save', methods=['POST'])
+def ports_save():
+    """the function saves the tcp and udp rules into the corresponding rulesfiles"""
+    if check_login() is True:
+        tcp = get_rule_list("tcp")
+        udp = get_rule_list("udp")
+        action = "add"
+        ruletype = "tcp"
+        port = ""
+
+        for key, value in request.form.items():
+            if key == "remove":
+                action = "remove"
+                ruletype = value
+            elif key == "tcpudp":
+                action = "add"
+                ruletype = value
+            elif key == "port":
+                port = str(value)
+            else:
+                port = str(key)
+
+        if action == "add":
+            if ruletype == "tcp":
+                tcp.append(port)
+                save_rule_list("tcp", tcp)
+            else:
+                udp.append(port)
+                save_rule_list("udp", udp)
+        else:
+            if ruletype == "tcp":
+                tcp.remove(port)
+                save_rule_list("tcp", tcp)
+            else:
+                udp.remove(port)
+                save_rule_list("udp", udp)
+
+        return ports(True)
+    return login("", None)
+
+
 @APP.route('/login', methods=['POST'])
 def login_post():
     """
@@ -166,8 +209,9 @@ def login_post():
     salt = hashlib.sha512(hostname).hexdigest()
     pw_hash = hashlib.sha512(
         str(salt + request.form['password']).encode("utf-8")).hexdigest()
-    if request.form['username'] == CFG.get_value("WEB", "username") and pw_hash == CFG.get_value(
-            "WEB", "password"):
+    if request.form['username'] == CFG.get_value(
+            "WEB", "username") and pw_hash == CFG.get_value(
+                "WEB", "password"):
         session['logged_in'] = True
         return redirect("/")
     return login("Incorrect username or password.", "danger")
@@ -300,7 +344,10 @@ def get_commit_date(datestring):
     for comparing the datestring parameter is in UTC timezone
     """
     date1 = datetime.strptime(str(datestring), "%Y-%m-%dT%H:%M:%SZ")
-    date1 = date1.replace(tzinfo=timezone.utc).astimezone(tz=None).replace(tzinfo=None)
+    date1 = date1.replace(
+        tzinfo=timezone.utc).astimezone(
+            tz=None).replace(
+                tzinfo=None)
     date2 = datetime.now()
     return utility.time_duration_diff(date1, date2)
 
@@ -355,6 +402,7 @@ class DefaultPayload(object):
         self.current_version = None
         self.commit_sha = None
         self.commit_date = None
+
 
 # only debugging
 if __name__ == '__main__':

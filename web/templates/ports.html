@@ -3,8 +3,12 @@
 <div class="jumbotron text-center">
     <div class="container">
         <h1>Open Ports</h1>
-        <p class="lead">On the Open Ports page you can open incoming connections for your listening ports.<br>You can add tcp and udp ports.<br>Please check periodically if you need the ports. If you don't need them, close them.<br>You can list all listening ports on
-            linux with the command <code>netstat -ln</code></p>
+        <p class="lead">On this page you can open ports for incoming connections.
+            You can add tcp and udp ports.<br>
+            Please check whether the entries in the list are needed in the future and remove old entries if they are no
+            longer needed.<br>
+            To list all open ports under Linux use the command <code>netstat -ln</code>
+        </p>
     </div>
 </div>
 
@@ -12,120 +16,128 @@
     <div class="row mb-3">
         <div class="col">
 
-            <?php
-                if (isset($saved)) {
-                    if ($saved == true) {
-                        echo '<div class="alert alert-success" role="alert">';
-                        echo '	<strong>Well done!</strong> The Configuration was saved successfully.';
-                        echo '</div>';
-                    } else {
-                        echo '<div class="alert alert-danger" role="alert">';
-                        echo '	<strong>Oh snap!</strong> There was an error saving the configuration... Please review WebServer Logfile!';
-                        echo '</div>';
-                    }
-                }
-                ?>
+            {% if vars.saved %}
+            <div class="alert alert-success" role="alert">
+                <strong>Well done!</strong> The Configuration was saved successfully.
+            </div>
+            {% endif %}
 
-                <div class="card w-100">
-                    <div class="card-header">
-                        Open Port
-                    </div>
-                    <div class="card-block">
-                        <form action="ports.php" method="post">
-                            <div class="form-group">
-                                <div class="form-check form-check-inline">
-                                    <label class="form-check-label">
-                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp" id="tcpudp1" value="tcp" checked="checked"> TCP
-                                </label>
-                                </div>
-                                <div class="form-check form-check-inline">
-                                    <label class="form-check-label">
-                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp" id="tcpudp2" value="udp"> UDP
-                                </label>
-                                </div>
-                                <small id="tcpudpHelp" class="form-text text-muted">Select if you want to open a TCP or UDP port.</small>
-                            </div>
-                            <div class="form-group">
-                                <label for="port">Port</label>
-                                <input type="text" class="form-control" id="port" name="port" aria-describedby="portHelp">
-                                <small id="portHelp" class="form-text text-muted">
-                                Please enter the Port you want to open on your server. You can enter a single port or a port range.<br />
-                                <strong>Example:</strong> Single Port: <code>22</code> Port Range: <code>25017:25020</code>.
-                            </small>
-                            </div>
-                            <div class="form-check">
+            {% if vars.error %}
+            <div class="alert alert-danger" role="alert">
+                <strong>Oh snap!</strong> There was an error saving the configuration... Please review WebServer
+                Logfile!
+            </div>
+            {% endif %}
+
+            <div class="card w-100">
+                <div class="card-header">
+                    Open port in firewall for incoming connections
+                </div>
+                <div class="card-body">
+                    <form action="/ports-save" method="post">
+                        <div class="form-group">
+                            <div class="form-check form-check-inline">
                                 <label class="form-check-label">
-                                <input type="checkbox" id="ssh" name="ssh" aria-describedby="sshHelp" class="form-check-input">
+                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio"
+                                        name="tcpudp" id="tcpudp1" value="tcp" checked="checked"> TCP
+                                </label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <label class="form-check-label">
+                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio"
+                                        name="tcpudp" id="tcpudp2" value="udp"> UDP
+                                </label>
+                            </div>
+                            <small id="tcpudpHelp" class="form-text text-muted">Choose between a TCP or UDP port
+                                here.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="port">Port Number</label>
+                            <input type="text" class="form-control" id="port" name="port" aria-describedby="portHelp">
+                            <small id="portHelp" class="form-text text-muted">
+                                Please enter the numeric Port you want to open on this server.
+                                You can enter a single port or a port range.<br />
+                                <strong>Example:</strong>
+                                Single Port: <code>22</code>
+                                Port Range: <code>25017:25020</code>.
+                            </small>
+                        </div>
+                        <!-- <div class="form-check">
+                            <label class="form-check-label">
+                                <input type="checkbox" id="ssh" name="ssh" aria-describedby="sshHelp"
+                                    class="form-check-input">
                                 SSH
                             </label>
-                                <small id="sshHelp" class="form-text text-muted">Check this, if the port you want to open is the ssh port. There are some special rules executed on the ssh port.</small>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Save</button>
-                        </form>
-                    </div>
+                            <small id="sshHelp" class="form-text text-muted">Check this, if the port you want to open is
+                                the ssh port. There are some special rules executed on the ssh port.</small>
+                        </div> -->
+                        <button type="submit" class="btn btn-primary"
+                            style="margin-left: 50%; transform: translateX(-50%)">Add</button>
+                    </form>
                 </div>
+            </div>
         </div>
     </div>
     <div class="row pb-3">
         <div class="col-md">
 
-            <?php
-                if (count($tcp->getAll()) === 0) {
-                    echo '<ul class="list-group">';
-                    echo '<li class="list-group-item justify-content-between">';
-                    echo 'No opened TCP Ports found.';
-                    echo '</li>';
-                    echo '</ul>';
-                }
-                ?>
+            {% if vars.tcp|length == 0 %}
+            <ul class="list-group">
+                <li class="list-group-item justify-content-between">
+                    No opened TCP Ports found.
+                </li>
+            </ul>
+            {% endif %}
 
-                <form action="ports.php" method="post">
-                    <input type="hidden" name="remove" value="tcp">
-                    <ul class="list-group">
-                        <?php
-                        foreach ($tcp->getAll() as $port) {
-                            echo '<li class="list-group-item justify-content-between">';
-                            if (count(explode(';', $port)) > 1)
-                            {
-                                echo '<span class="badge badge-default badge-pill">tcp - ' . explode(';', $port)[1] . '</span>';
-                                echo explode(';', $port)[0];
-                            } else {
-                                echo '<span class="badge badge-default badge-pill">tcp</span>';
-                                echo $port;
-                            }
-                            echo '<button type="submit" name="' . $port . '" class="btn btn-danger btn-sm">Remove</button>';
-                            echo '</li>';
-                        }
-                        ?>
-                    </ul>
-                </form>
+            <form action="/ports-save" method="post">
+                <input type="hidden" name="remove" value="tcp">
+                <ul class="list-group">
+                    {% for port in vars.tcp %}
+                    <li class="list-group-item justify-content-between">
+                        {% if ';' in port %}
+                        {% set templist = port.split(';') %}
+                        <span class="badge badge-default badge-pill">tcp - {{ templist[1] }}</span>';
+                        {{ templist[0] }}
+                        {% else %}
+                        <span class="badge badge-default badge-pill">tcp</span>
+                        <span class="text-center">{{ port }}</span>
+                        {% endif %}
+                        <button type="submit" name="{{ port }}"
+                            class="btn btn-danger btn-sm float-right">Remove</button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </form>
         </div>
         <div class="col-md">
 
-            <?php
-                if (count($udp->getAll()) === 0) {
-                    echo '<ul class="list-group">';
-                    echo '<li class="list-group-item justify-content-between">';
-                    echo 'No opened UDP Ports found.';
-                    echo '</li>';
-                    echo '</ul>';
-                }
-                ?>
+            {% if vars.udp|length == 0 %}
+            <ul class="list-group">
+                <li class="list-group-item justify-content-between">
+                    No opened UDP Ports found.
+                </li>
+            </ul>
+            {% endif %}
 
-                <form action="ports.php" method="post">
-                    <input type="hidden" name="remove" value="udp">
-                    <ul class="list-group">
-                        <?php
-                        foreach ($udp->getAll() as $port) {
-                            echo '<li class="list-group-item justify-content-between">';
-                            echo '<span class="badge badge-default badge-pill">udp</span>';
-                            echo $port;
-                            echo '<button type="submit" name="' . $port . '" class="btn btn-danger btn-sm">Remove</button>';
-                            echo '</li>';
-                        }
-                        ?>
-                    </ul>
-                </form>
+            <form action="/ports-save" method="post">
+                <input type="hidden" name="remove" value="udp">
+                <ul class="list-group">
+                    {% for port in vars.udp %}
+                    <li class="list-group-item justify-content-between">
+                        {% if ';' in port %}
+                        {% set templist = port.split(';') %}
+                        <span class="badge badge-default badge-pill">udp - {{ templist[1] }}</span>';
+                        {{ templist[0] }}
+                        {% else %}
+                        <span class="badge badge-default badge-pill">udp</span>
+                        <span class="text-center">{{ port }}</span>
+                        {% endif %}
+                        <button type="submit" name="{{ port }}"
+                            class="btn btn-danger btn-sm float-right">Remove</button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </form>
         </div>
     </div>
 </div>
