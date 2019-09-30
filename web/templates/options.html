@@ -75,7 +75,7 @@
                                 <input type="hidden" value="RULES" name="section">
 
                                 <div class="form-group">
-                                    <label for="blacklistfile">Blacklist File</label>
+                                    <label for="blacklistfile">Blacklist file</label>
                                     <input type="text" class="form-control" id="blacklistfile" name="BLACKLIST"
                                         aria-describedby="blacklistfileHelp" placeholder="Example: rules/blacklist.txt"
                                         {% if vars.config.get_value("RULES", "blacklist") != "" %}
@@ -87,7 +87,7 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="whitelistfile">Whitelist File</label>
+                                    <label for="whitelistfile">Whitelist file</label>
                                     <input type="text" class="form-control" id="whitelistfile" name="WHITELIST"
                                         aria-describedby="whitelistfileHelp" placeholder="Example: rules/whitelist.txt"
                                         {% if vars.config.get_value("RULES", "whitelist") != "" %}
@@ -99,7 +99,7 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="tcpfile">TCP Ports File</label>
+                                    <label for="tcpfile">TCP ports file</label>
                                     <input type="text" class="form-control" id="tcpfile" name="TCP"
                                         aria-describedby="tcpfileHelp" placeholder="Example: rules/tcp.txt"
                                         {% if vars.config.get_value("RULES", "tcp") != "" %}
@@ -111,7 +111,7 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="udpfile">UDP Ports File</label>
+                                    <label for="udpfile">UDP ports file</label>
                                     <input type="text" class="form-control" id="udpfile" name="UDP"
                                         aria-describedby="udpfileHelp" placeholder="Example: rules/udp.txt"
                                         {% if vars.config.get_value("RULES", "udp") != "" %}
@@ -119,6 +119,18 @@
                                     <small id="udpfileHelp" class="form-text text-muted">
                                         Enter the file path to the udp file. We suggest a full path here. The relative
                                         Path must be reachable by Web and Cron directory.
+                                    </small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="customfile">Custom rules file</label>
+                                    <input type="text" class="form-control" id="customfile" name="CUSTOM"
+                                        aria-describedby="customfileHelp" placeholder="Example: rules/custom.txt"
+                                        {% if vars.config.get_value("RULES", "custom") != "" %}
+                                        value={{vars.config.get_value("RULES", "custom")}} {% endif %}>
+                                    <small id="customfileHelp" class="form-text text-muted">
+                                        Enter the file path to the custom rules file. We suggest a full path here.
+                                        The relative Path must be reachable by Web and Cron directory.
                                     </small>
                                 </div>
 
