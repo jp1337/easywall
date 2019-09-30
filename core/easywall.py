@@ -208,7 +208,7 @@ def shutdown(observer, masterconfig, masterlog):
 
 
 def ensure_rules_files(config):
-    for ruletype in ["blacklist", "whitelist", "tcp", "udp"]:
+    for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
         filepath = config.get_value("RULES", "filepath")
         filename = config.get_value("RULES", ruletype)
         utility.create_folder_if_not_exists(filepath)
