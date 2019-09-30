@@ -86,11 +86,16 @@ def custom(saved=False):
 
 
 @APP.route('/apply')
-def apply():
+def apply(saved=False, step=1):
     """the function returns the apply page when the user is logged in"""
     if check_login() is True:
+        payload = get_default_payload("Apply")
+        payload.saved = saved
+        payload.step = step
+        payload.lastapplied = get_last_accept_time()
+        payload.accepttime = CFG.get_value("ACCEPTANCE", "time")
         return render_template(
-            'apply.html', vars=get_default_payload("Apply"))
+            'apply.html', vars=payload)
     return login("", None)
 
 
@@ -395,6 +400,24 @@ def save_rule_list(ruletype, rulelist):
     with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
         rulesfile.write('\n'.join(rulelist))
     return True
+
+
+def get_last_accept_time():
+    """
+    the function retrieves the modify time of the acceptance file and compares the time to the current time
+    """
+    filepath = "../" + CFG.get_value("ACCEPTANCE", "filename")
+    if os.path.exists(filepath):
+        mtime = os.path.getmtime(filepath)
+        mtime = datetime.utcfromtimestamp(mtime)
+        mtime = mtime.replace(
+            tzinfo=timezone.utc).astimezone(
+            tz=None).replace(
+                tzinfo=None)
+        now = datetime.now()
+        return utility.time_duration_diff(mtime, now)
+    else:
+        return "never"
 
 
 class DefaultPayload(object):
