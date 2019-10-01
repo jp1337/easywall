@@ -1,11 +1,13 @@
-from webutils import webutils
-from login import login
+"""the module contains functions for the whitelist route"""
 from flask import render_template, request
+
+from login import login
+from webutils import Webutils
 
 
 def whitelist(saved=False):
     """the function returns the whitelist page when the user is logged in"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Whitelist")
         payload.addresses = utils.get_rule_list("whitelist")
@@ -17,7 +19,7 @@ def whitelist(saved=False):
 
 def whitelist_save():
     """the function saves the whitelist rules into the corresponding rulesfile"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         ipaddress = ""
         rulelist = utils.get_rule_list("whitelist")

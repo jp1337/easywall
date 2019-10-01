@@ -1,3 +1,4 @@
+"""the module contains a class webutils which is called in the route modules"""
 import json
 import os
 import platform
@@ -12,7 +13,9 @@ from config import Config
 from defaultpayload import DefaultPayload
 
 
-class webutils(object):
+class Webutils(object):
+    """the class is called in the route modules and contains non route-specific functions"""
+
     def __init__(self):
         self.cfg = Config("../config/config.ini")
 
@@ -129,7 +132,8 @@ class webutils(object):
 
     def get_last_accept_time(self):
         """
-        the function retrieves the modify time of the acceptance file and compares the time to the current time
+        the function retrieves the modify time of the acceptance file
+        and compares the time to the current time
         """
         filepath = "../" + self.cfg.get_value("ACCEPTANCE", "filename")
         if os.path.exists(filepath):
@@ -137,8 +141,8 @@ class webutils(object):
             mtime = datetime.utcfromtimestamp(mtime)
             mtime = mtime.replace(
                 tzinfo=timezone.utc).astimezone(
-                tz=None).replace(
-                    tzinfo=None)
+                    tz=None).replace(
+                        tzinfo=None)
             now = datetime.now()
             return utility.time_duration_diff(mtime, now)
         else:

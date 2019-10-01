@@ -1,11 +1,13 @@
-from webutils import webutils
-from login import login
+"""the module contains functions for the ports route"""
 from flask import render_template, request
+
+from login import login
+from webutils import Webutils
 
 
 def ports(saved=False):
     """the function returns the ports page when the user is logged in"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Ports")
         payload.tcp = utils.get_rule_list("tcp")
@@ -18,7 +20,7 @@ def ports(saved=False):
 
 def ports_save():
     """the function saves the tcp and udp rules into the corresponding rulesfiles"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         tcp = utils.get_rule_list("tcp")
         udp = utils.get_rule_list("udp")

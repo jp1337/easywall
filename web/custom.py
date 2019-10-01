@@ -1,11 +1,13 @@
-from webutils import webutils
-from login import login
+"""the module contains functions for the custom rules route"""
 from flask import render_template, request
+
+from login import login
+from webutils import Webutils
 
 
 def custom(saved=False):
     """the function returns the custom rules page when the user is logged in"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Custom")
         payload.custom = utils.get_rule_list("custom")
@@ -17,9 +19,10 @@ def custom(saved=False):
 
 def custom_save():
     """the function saves the custom rules into the corresponding rulesfile"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         for key, value in request.form.items():
+            key = str(key) + ""  # just for ignoring the warning
             rulelist = value.split("\n")
             utils.save_rule_list("custom", rulelist)
         return custom(True)

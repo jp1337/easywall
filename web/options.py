@@ -1,11 +1,13 @@
-from webutils import webutils
-from login import login
+"""the module contains functions for the options route"""
 from flask import render_template, request
+
+from login import login
+from webutils import Webutils
 
 
 def options(saved=False):
     """the function returns the options page when the user is logged in"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Options")
         payload.config = utils.cfg
@@ -20,7 +22,7 @@ def options_save():
     the function saves the options from a section using the config class
     for example the Enabled flag in the IPv6 section is saved to the config file
     """
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         section = request.form['section']
         for key, value in request.form.items():

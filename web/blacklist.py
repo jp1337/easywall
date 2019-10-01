@@ -1,11 +1,13 @@
-from webutils import webutils
-from login import login
+"""the module contains functions for the blacklist route"""
 from flask import render_template, request
+
+from login import login
+from webutils import Webutils
 
 
 def blacklist(saved=False):
     """the function returns the blacklist page when the user is logged in"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Blacklist")
         payload.addresses = utils.get_rule_list("blacklist")
@@ -17,7 +19,7 @@ def blacklist(saved=False):
 
 def blacklist_save():
     """the function saves the blacklist rules into the corresponding rulesfile"""
-    utils = webutils()
+    utils = Webutils()
     if utils.check_login() is True:
         ipaddress = ""
         rulelist = utils.get_rule_list("blacklist")

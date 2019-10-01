@@ -1,3 +1,6 @@
+"""the module contains a empty class which is used as object"""
+
+
 class DefaultPayload(object):
     """the class is a empty skeleton for generating objects"""
 
