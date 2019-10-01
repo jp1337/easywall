@@ -27,14 +27,17 @@ def options_save():
         section = request.form['section']
         for key, value in request.form.items():
             if key != "section":
-                # checkbox workaround.
                 if key.startswith("checkbox"):
-                    key = key.replace("checkbox_", "")
-                    if key in request.form:
-                        value = "yes"
-                    else:
-                        value = "no"
+                    value = correct_value_checkbox(key)
                 if value != "on":
                     utils.cfg.set_value(section, key, value)
         return options(True)
     return login("", None)
+
+
+def correct_value_checkbox(key):
+    """the function corrects the value of a checkbox"""
+    key = key.replace("checkbox_", "")
+    if key in request.form:
+        return "yes"
+    return "no"

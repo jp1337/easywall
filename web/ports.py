@@ -22,8 +22,6 @@ def ports_save():
     """the function saves the tcp and udp rules into the corresponding rulesfiles"""
     utils = Webutils()
     if utils.check_login() is True:
-        tcp = utils.get_rule_list("tcp")
-        udp = utils.get_rule_list("udp")
         action = "add"
         ruletype = "tcp"
         port = ""
@@ -41,19 +39,25 @@ def ports_save():
                 port = str(key)
 
         if action == "add":
-            if ruletype == "tcp":
-                tcp.append(port)
-                utils.save_rule_list("tcp", tcp)
-            else:
-                udp.append(port)
-                utils.save_rule_list("udp", udp)
+            add_port(port, ruletype)
         else:
-            if ruletype == "tcp":
-                tcp.remove(port)
-                utils.save_rule_list("tcp", tcp)
-            else:
-                udp.remove(port)
-                utils.save_rule_list("udp", udp)
+            remove_port(port, ruletype)
 
         return ports(True)
     return login("", None)
+
+
+def add_port(port, ruletype):
+    """the function adds a port to the opened port rules file"""
+    utils = Webutils()
+    rulelist = utils.get_rule_list(ruletype)
+    rulelist.append(port)
+    utils.save_rule_list(ruletype, rulelist)
+
+
+def remove_port(port, ruletype):
+    """the function removes a port from the opened port rules file"""
+    utils = Webutils()
+    rulelist = utils.get_rule_list(ruletype)
+    rulelist.remove(port)
+    utils.save_rule_list(ruletype, rulelist)
