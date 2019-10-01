@@ -78,7 +78,7 @@ def urlencode(inputstr: str):
 def time_duration_diff(date1, date2):
     """The function calculates the difference between two dates and returns them as a string."""
     diff = date2 - date1
-    diff = diff.seconds
+    diff = diff.total_seconds()
     if diff < 1:
         diff = 1
 
