@@ -72,7 +72,7 @@ StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=easywall
 User=root
-Group=root
+Group=easywall
 
 [Install]
 WantedBy=multi-user.target

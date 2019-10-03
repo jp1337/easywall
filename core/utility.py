@@ -23,6 +23,7 @@ def create_file_if_not_exists(fullpath: str):
         log.logging.debug("creating file: {}".format(fullpath))
         with open(fullpath, 'w+'):
             pass
+        os.chmod(fullpath, os.stat.S_IWGRP)
 
 
 def delete_file_if_exists(fullpath):
