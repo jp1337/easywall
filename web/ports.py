@@ -12,6 +12,9 @@ def ports(saved=False):
         payload = utils.get_default_payload("Ports")
         payload.tcp = utils.get_rule_list("tcp")
         payload.udp = utils.get_rule_list("udp")
+        payload.custom = False
+        if utils.get_rule_status("tcp") == "custom" or utils.get_rule_status("udp") == "custom":
+            payload.custom = True
         payload.saved = saved
         return render_template(
             'ports.html', vars=payload)

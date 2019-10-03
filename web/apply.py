@@ -1,5 +1,5 @@
 """the module contains functions for the apply rules route"""
-from flask import render_template
+from flask import render_template, request
 
 from login import login
 from webutils import Webutils
@@ -17,3 +17,37 @@ def apply(saved=False, step=1):
         return render_template(
             'apply.html', vars=payload)
     return login("", None)
+
+
+def apply_save():
+    """the function applies the configuration and copies the rules to easywall core"""
+    utils = Webutils()
+    step = 0
+    if utils.check_login() is True:
+        for key, value in request.form.items():
+            if key == "step_1":
+                apply_step_one()
+                step = 2
+            if key == "step_2":
+                apply_step_two()
+                step = 3
+        return apply(True, step)
+    return login("", None)
+
+
+def apply_step_one():
+    """the function copies the rules from temporary web to easywall core"""
+    for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
+        utils = Webutils()
+        utils.apply_rule_list(ruletype)
+
+
+def apply_step_two():
+    """the function writes true into the accept file from easywall core"""
+    try:
+        utils = Webutils()
+        filepath = "../" + utils.cfg.get_value("ACCEPTANCE", "filename")
+        with open(filepath, mode='wt', encoding='utf-8') as acceptfile:
+            acceptfile.write("True")
+    except Exception as exc:
+        print("{}".format(exc))

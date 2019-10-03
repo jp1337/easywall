@@ -11,6 +11,7 @@ def whitelist(saved=False):
     if utils.check_login() is True:
         payload = utils.get_default_payload("Whitelist")
         payload.addresses = utils.get_rule_list("whitelist")
+        payload.custom = utils.get_rule_status("whitelist") == "custom"
         payload.saved = saved
         return render_template(
             'whitelist.html', vars=payload)

@@ -7,7 +7,6 @@ from webutils import Webutils
 
 def page_not_found(error):
     """the function returns the 404 error page when the user is logged in"""
-    error += ""  # just for removing the warning
     utils = Webutils()
     if utils.check_login() is True:
         return render_template(

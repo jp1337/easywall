@@ -11,6 +11,7 @@ def blacklist(saved=False):
     if utils.check_login() is True:
         payload = utils.get_default_payload("Blacklist")
         payload.addresses = utils.get_rule_list("blacklist")
+        payload.custom = utils.get_rule_status("blacklist") == "custom"
         payload.saved = saved
         return render_template(
             'blacklist.html', vars=payload)

@@ -10,7 +10,8 @@ def custom(saved=False):
     utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Custom")
-        payload.custom = utils.get_rule_list("custom")
+        payload.rules = utils.get_rule_list("custom")
+        payload.custom = utils.get_rule_status("custom") == "custom"
         payload.saved = saved
         return render_template(
             'custom.html', vars=payload)

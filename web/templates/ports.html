@@ -16,6 +16,13 @@
     <div class="row mb-3">
         <div class="col">
 
+            {% if vars.custom %}
+            <div class="alert alert-warning" role="alert">
+                <strong>Unsaved!</strong> Differences between the current configuration and the active configuration
+                found.
+            </div>
+            {% endif %}
+
             {% if vars.saved %}
             <div class="alert alert-success" role="alert">
                 <strong>Well done!</strong> The Configuration was saved successfully.

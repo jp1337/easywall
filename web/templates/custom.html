@@ -14,6 +14,13 @@
     <div class="row">
         <div class="col">
 
+            {% if vars.custom %}
+            <div class="alert alert-warning" role="alert">
+                <strong>Unsaved!</strong> Differences between the current configuration and the active configuration
+                found.
+            </div>
+            {% endif %}
+
             {% if vars.saved %}
             <div class="alert alert-success" role="alert">
                 <strong>Well done!</strong> The Configuration was saved successfully.
@@ -30,7 +37,7 @@
             <form action="/custom-save" method="post">
                 <div class="form-group">
                     <label for="customarea">Add custom rules here</label>
-                    <textarea class="form-control" id="customarea" name="rules" rows="5">{% for row in vars.custom %}{{ row }}
+                    <textarea class="form-control" id="customarea" name="rules" rows="5">{% for row in vars.rules %}{{ row }}
 {% endfor %}</textarea>
                 </div>
                 <button type="submit" class="btn btn-primary btn-md"

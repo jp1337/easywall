@@ -114,22 +114,6 @@ class Webutils(object):
         data = response.read()
         return data.decode('utf-8')
 
-    def get_rule_list(self, ruletype):
-        """
-        the function reads a file into the ram and returns a list of all rows in a list
-        for example you get all the ip addresses of the blacklist in a array
-        """
-        rule_list = []
-        filepath = self.cfg.get_value(
-            "RULES", "filepath") + "/" + self.cfg.get_value("RULES", ruletype)
-        if filepath.startswith("."):
-            filepath = "../" + filepath
-        with open(filepath, 'r') as rulesfile:
-            for rule in rulesfile.read().split('\n'):
-                if rule.strip() != "":
-                    rule_list.append(rule)
-        return rule_list
-
     def get_last_accept_time(self):
         """
         the function retrieves the modify time of the acceptance file
@@ -148,15 +132,80 @@ class Webutils(object):
         else:
             return "never"
 
-    def save_rule_list(self, ruletype, rulelist):
+    # -------------------------
+    # Rule Operations
+
+    def get_rule_status(self, ruletype):
+        """
+        the function checks if a custom / temporary rulefile exists
+        and returns "custom" when a temporary rulefile exists or "production" when no file exists
+        """
+        filepath = self.get_rule_file_path(ruletype, True)
+        if not os.path.exists(filepath):
+            filepath = self.get_rule_file_path(ruletype)
+            if not os.path.exists(filepath):
+                return "error"
+            return "production"
+        return "custom"
+
+    def get_rule_file_path(self, ruletype, tmp=False):
+        """
+        the function reads the configuration and returns the relative
+        or absolute path to the rulefile for the ruletype
+        """
+        filename = self.cfg.get_value("RULES", ruletype)
+        if tmp:
+            filepath = self.cfg.get_value("WEB", "rules_tmp_path")
+        else:
+            filepath = self.cfg.get_value("RULES", "filepath")
+            # workaround because the easywall dir is one dir up - this is not pretty
+            if filepath.startswith("."):
+                filepath = "../" + filepath
+        utility.create_folder_if_not_exists(filepath)
+        return filepath + "/" + filename
+
+    def get_rule_list(self, ruletype):
+        """
+        the function reads a file into the ram and returns a list of all rows in a list
+        for example you get all the ip addresses of the blacklist in a array
+        """
+        rule_list = []
+
+        status = self.get_rule_status(ruletype)
+        filepath = self.get_rule_file_path(ruletype)
+        if status == "custom":
+            filepath = self.get_rule_file_path(ruletype, True)
+
+        with open(filepath, 'r') as rulesfile:
+            for rule in rulesfile.read().split('\n'):
+                if rule.strip() != "":
+                    rule_list.append(rule)
+        return rule_list
+
+    def save_rule_list(self, ruletype, rulelist, to_production=False):
         """
         the function writes a list of strings into a rulesfile
-        for example it saves the blacklist rules into the blacklist rulesfile
+        for example it saves the blacklist rules into the blacklist temporary rulesfile
         """
-        filepath = self.cfg.get_value(
-            "RULES", "filepath") + "/" + self.cfg.get_value("RULES", ruletype)
-        if filepath.startswith("."):
-            filepath = "../" + filepath
-        with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
-            rulesfile.write('\n'.join(rulelist))
+        filepath = self.get_rule_file_path(ruletype, True)
+        if to_production:
+            filepath = self.get_rule_file_path(ruletype)
+        try:
+            rulelist = list(filter(None, rulelist))
+            if not to_production and not rulelist:
+                utility.delete_file_if_exists(filepath)
+            else:
+                with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
+                    rulesfile.write('\n'.join(rulelist))
+        except Exception as exc:
+            print("{}".format(exc))
+            return False
         return True
+
+    def apply_rule_list(self, ruletype):
+        """
+        the function copys the rulefile from the temporary path to the permanent path
+        this is used to copy the rules from web to easywall folder
+        """
+        rule_list = self.get_rule_list(ruletype)
+        self.save_rule_list(ruletype, rule_list, True)
