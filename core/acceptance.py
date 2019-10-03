@@ -32,7 +32,9 @@ class Acceptance(object):
             log.logging.debug(
                 "Starting Acceptance Check... waiting for " + str(seconds) +
                 " seconds")
-            sleep(seconds)
+            while seconds > 0:
+                sleep(1)
+                seconds = seconds - 1
             with open(self.filename, 'r') as accfile:
                 accepted = accfile.read()
                 accepted = accepted.replace("\n", "")
