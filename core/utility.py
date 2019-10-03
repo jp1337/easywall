@@ -2,13 +2,14 @@
 import csv
 import math
 import os
+import stat
 import urllib
 
 import log
 
-
 # -------------------------
 # File Operations
+
 
 def create_folder_if_not_exists(filepath: str):
     """Checks if a folder exists and creates if it does not exist"""
@@ -23,7 +24,7 @@ def create_file_if_not_exists(fullpath: str):
         log.logging.debug("creating file: {}".format(fullpath))
         with open(fullpath, 'w+'):
             pass
-        os.chmod(fullpath, os.stat.S_IWGRP)
+        os.chmod(fullpath, stat.S_IWGRP)
 
 
 def delete_file_if_exists(fullpath):
@@ -37,6 +38,12 @@ def file_get_contents(filepath):
     """A wrapper function to easily read the contents of a file."""
     with open(filepath) as filehandler:
         return filehandler.read()
+
+
+def write_into_file(filepath, content):
+    """a wrapper around the os functions to easily write text into a file"""
+    with open(filepath, 'w') as tmpfile:
+        tmpfile.write(content)
 
 
 # -------------------------

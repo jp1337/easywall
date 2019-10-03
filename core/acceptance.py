@@ -3,6 +3,7 @@ from time import sleep
 
 import config
 import log
+import utility
 
 
 class Acceptance(object):
@@ -21,8 +22,8 @@ class Acceptance(object):
     def reset(self):
         """the function is called then the user did not accept the changes"""
         if self.enabled:
-            with open(self.filename, 'w') as accfile:
-                accfile.write('false')
+            utility.create_file_if_not_exists(self.filename)
+            utility.write_into_file(self.filename, "false")
             log.logging.debug("Acceptance has been reset.")
 
     def check(self):
