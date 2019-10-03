@@ -1,6 +1,7 @@
 """the module contains functions for the apply rules route"""
 from flask import render_template, request
 
+import utility
 from login import login
 from webutils import Webutils
 
@@ -49,5 +50,7 @@ def apply_step_two():
         filepath = "../" + utils.cfg.get_value("ACCEPTANCE", "filename")
         with open(filepath, mode='wt', encoding='utf-8') as acceptfile:
             acceptfile.write("true")
+        for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
+            utility.delete_file_if_exists(utils.get_rule_file_path(ruletype, True))
     except Exception as exc:
         print("{}".format(exc))
