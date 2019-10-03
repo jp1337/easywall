@@ -48,6 +48,6 @@ def apply_step_two():
         utils = Webutils()
         filepath = "../" + utils.cfg.get_value("ACCEPTANCE", "filename")
         with open(filepath, mode='wt', encoding='utf-8') as acceptfile:
-            acceptfile.write("True")
+            acceptfile.write("true")
     except Exception as exc:
         print("{}".format(exc))

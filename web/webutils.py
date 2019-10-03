@@ -188,6 +188,7 @@ class Webutils(object):
         for example it saves the blacklist rules into the blacklist temporary rulesfile
         """
         filepath = self.get_rule_file_path(ruletype, True)
+        state = self.get_rule_status(ruletype)
         if to_production:
             filepath = self.get_rule_file_path(ruletype)
         try:
@@ -195,7 +196,7 @@ class Webutils(object):
             if not to_production and not rulelist:
                 utility.delete_file_if_exists(filepath)
             else:
-                if rulelist:
+                if rulelist and not to_production or rulelist and to_production and state == "custom":
                     with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
                         rulesfile.write('\n'.join(rulelist))
         except Exception as exc:
