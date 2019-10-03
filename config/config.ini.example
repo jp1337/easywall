@@ -14,7 +14,7 @@ ip6tables-restore = /sbin/ip6tables-restore
 
 [ACCEPTANCE]
 enabled = yes
-time = 10
+time = 120
 filename = .accepted
 
 [IPV6]
@@ -38,6 +38,7 @@ username =
 password =
 bindip = 0.0.0.0
 bindport = 12227
+rules_tmp_path = ./rules
 
 [VERSION]
 version = 0
