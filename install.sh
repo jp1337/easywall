@@ -122,6 +122,8 @@ rm -rf "$TMPDIR"
 # Step 8
 echo "" && echo "($STEP/$STEPS) Adding easywall-web user" && ((STEP++))
 /usr/sbin/adduser --system easywall
+/usr/sbin/addgroup easywall
+/usr/sbin/adduser easywall easywall
 
 # Step 9
 echo "" && echo "($STEP/$STEPS) Permission correction for web folder" && ((STEP++))
