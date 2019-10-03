@@ -195,8 +195,9 @@ class Webutils(object):
             if not to_production and not rulelist:
                 utility.delete_file_if_exists(filepath)
             else:
-                with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
-                    rulesfile.write('\n'.join(rulelist))
+                if rulelist:
+                    with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
+                        rulesfile.write('\n'.join(rulelist))
         except Exception as exc:
             print("{}".format(exc))
             return False
