@@ -40,6 +40,23 @@ It re-distributes other open-source tools and libraries. Please check its [Licen
 
 ## Changelog
 
+### 0.0.4 (2019-10-04)
+
+Features:
+
+- added possibility to apply custom IPTables rules
+- full implemented webinterface - old PHP sources are history
+- rule changes made in the webinterface are only written temporary into web directory
+- rules can be applied in the webinterface
+- a lot of code improvements
+- this is kind the first "stable" version ready for testing
+- I will test this on my webserver a lot, so the next versions will be more stable
+
+Bugfixes:
+
+- too many, I can't count them
+- there was a long time since the last version
+
 ### 0.0.3 (2019-06-30)
 
 Features:
