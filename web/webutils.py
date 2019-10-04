@@ -25,6 +25,9 @@ class Webutils(object):
             return False
         return True
 
+    # -------------------------
+    # Payload Operations
+
     def get_default_payload(self, title, css="easywall"):
         """the function creates a object of information that are needed on every page"""
         payload = DefaultPayload()
