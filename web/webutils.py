@@ -193,7 +193,7 @@ class Webutils(object):
             filepath = self.get_rule_file_path(ruletype)
         try:
             rulelist = list(filter(None, rulelist))
-            if not to_production or rulelist and to_production and state == "custom":
+            if not to_production or to_production and state == "custom":
                 with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
                     rulesfile.write('\n'.join(rulelist))
         except Exception as exc:
