@@ -217,3 +217,12 @@ class Webutils(object):
             return utility.time_duration_diff(mtime, now)
         else:
             return "never"
+
+    def check_acceptance_running(self):
+        """
+        the function checks if there is a running file.
+        """
+        filepath = "../.running"
+        if os.path.exists(filepath):
+            return True
+        return False

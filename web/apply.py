@@ -14,6 +14,7 @@ def apply(saved=False, step=1):
         payload.saved = saved
         payload.step = step
         payload.lastapplied = utils.get_last_accept_time()
+        payload.running = utils.check_acceptance_running()
         payload.accepttime = utils.cfg.get_value("ACCEPTANCE", "time")
         return render_template(
             'apply.html', vars=payload)

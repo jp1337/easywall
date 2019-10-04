@@ -19,16 +19,18 @@
                 <div class="card-body">
 
                     The firewall rules were applied <span class="badge badge-success">{{ vars.lastapplied }}</span>
-                    ago.<br />
-                    <br />
+                    ago.<br /><br />
+
+                    {% if not vars.running %}
                     <div class="alert alert-warning" role="alert">
                         <strong>Warning!</strong> Are you sure you want to apply the rules?<br>
                         After pushing the button you have {{ vars.accepttime }} seconds to check if the server responses
                         properly.<br>
                         The most important things to check are ssh and web access.
                     </div>
+                    {% endif %}
 
-                    {% if vars.step == 2 %}
+                    {% if vars.step == 2 and not vars.running %}
                     You still have <span id="countdown" class="badge badge-warning"></span> seconds left to check the
                     firewall rules.<br />
                     <br />
@@ -47,11 +49,20 @@
                     </div>
                     {% endif %}
 
-                    {% if vars.step == 99 %}
+                    {% if vars.step == 99 and not vars.running %}
                     <div class="alert alert-danger" role="alert">
                         <strong>Attention!</strong> You got into the {{ vars.accepttime }} seconds timeout.<br>
                         The firewall has been automatically disabled. All ports are now open.<br>
                         Please correct the firewall rules and re-activate them as soon as possible.<br>
+                    </div>
+                    {% endif %}
+
+                    {% if vars.running and vars.step != 3 %}
+                    <div class="alert alert-danger" role="alert">
+                        <strong>Attention!</strong> We have noticed that new firewall rules are currently being
+                        applied.<br />
+                        To make sure that this is not disturbed at the moment no rules can be applied.<br />
+                        The waiting time is up to {{ vars.accepttime }} seconds.
                     </div>
                     {% endif %}
                 </div>
@@ -101,7 +112,7 @@
                 <button type="submit" name="step_2" class="btn btn-danger">Yes, I checked the server
                     access</button>
                 {% endif %}
-                {% if vars.step == 1 %}
+                {% if vars.step == 1 and not vars.running %}
                 <button type="submit" name="step_1" class="btn btn-danger">Apply firewall rules</button>
                 {% endif %}
             </form>
