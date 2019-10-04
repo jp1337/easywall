@@ -52,6 +52,9 @@ class Webutils(object):
         infos["Libc Version"] = platform.libc_ver()
         return infos
 
+    # -------------------------
+    # Update Info Operations
+
     def get_commit_date(self, datestring):
         """
         the function compares a datetime with the current date
@@ -113,24 +116,6 @@ class Webutils(object):
         response = urllib.request.urlopen(req)
         data = response.read()
         return data.decode('utf-8')
-
-    def get_last_accept_time(self):
-        """
-        the function retrieves the modify time of the acceptance file
-        and compares the time to the current time
-        """
-        filepath = "../" + self.cfg.get_value("ACCEPTANCE", "filename")
-        if os.path.exists(filepath):
-            mtime = os.path.getmtime(filepath)
-            mtime = datetime.utcfromtimestamp(mtime)
-            mtime = mtime.replace(
-                tzinfo=timezone.utc).astimezone(
-                    tz=None).replace(
-                        tzinfo=None)
-            now = datetime.now()
-            return utility.time_duration_diff(mtime, now)
-        else:
-            return "never"
 
     # -------------------------
     # Rule Operations
@@ -201,6 +186,9 @@ class Webutils(object):
             return False
         return True
 
+    # -------------------------
+    # Acceptance Operations
+
     def apply_rule_list(self, ruletype):
         """
         the function copys the rulefile from the temporary path to the permanent path
@@ -208,3 +196,21 @@ class Webutils(object):
         """
         rule_list = self.get_rule_list(ruletype)
         self.save_rule_list(ruletype, rule_list, True)
+
+    def get_last_accept_time(self):
+        """
+        the function retrieves the modify time of the acceptance file
+        and compares the time to the current time
+        """
+        filepath = "../" + self.cfg.get_value("ACCEPTANCE", "filename")
+        if os.path.exists(filepath):
+            mtime = os.path.getmtime(filepath)
+            mtime = datetime.utcfromtimestamp(mtime)
+            mtime = mtime.replace(
+                tzinfo=timezone.utc).astimezone(
+                    tz=None).replace(
+                        tzinfo=None)
+            now = datetime.now()
+            return utility.time_duration_diff(mtime, now)
+        else:
+            return "never"
