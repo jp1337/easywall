@@ -126,8 +126,10 @@ echo "" && echo "($STEP/$STEPS) Adding easywall-web user" && ((STEP++))
 /usr/sbin/adduser easywall easywall
 
 # Step 9
-echo "" && echo "($STEP/$STEPS) Permission correction for web folder" && ((STEP++))
+echo "" && echo "($STEP/$STEPS) Permission correction for web user" && ((STEP++))
 chown -R easywall:root "$WEBDIR"
+chown -R root:easywall config
+chmod -R 770 config
 
 # Step 10
 echo "" && echo "($STEP/$STEPS) Setting up easywall-web systemd process" && ((STEP++))
