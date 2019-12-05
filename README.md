@@ -100,6 +100,3 @@ Features:
 - EasyWall is split in two parts in the new concept
 - EasyWall Firewall Core Part running as root user finished
 - The New EasyWall will be one part running as root and one part running as easywall user which has access to config files.
-
-Performance:
-Bugfixes:
