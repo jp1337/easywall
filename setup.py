@@ -34,9 +34,6 @@ setup(
         'pytest-runner',
     ],
     tests_require=[
-        'pytest-cov',
-        'pytest-pythonpath',
-        'pytest',
-        'coverage'
+        'pytest'
     ]
 )
