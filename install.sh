@@ -10,7 +10,7 @@ SCRIPTNAME=$(basename "$0")
 
 if [ "$EUID" -ne 0 ]; then
     read -r -d '' NOROOT <<EOF
-Heya! To install EasyWall you need to have a privileged user.
+Heya! To install easywall you need to have a privileged user.
 So you can try these:
 
 # sudo -H bash $SCRIPTNAME
@@ -51,13 +51,13 @@ echo "" && echo "($STEP/$STEPS) Making all scripts executable" && ((STEP++))
 chmod +x -- *.sh
 
 # Step 6
-echo "" && echo "($STEP/$STEPS) Setting up EasyWall core systemd process" && ((STEP++))
+echo "" && echo "($STEP/$STEPS) Setting up easywall core systemd process" && ((STEP++))
 function installDaemon() {
     SERVICEFILE="/lib/systemd/system/easywall.service"
     INSTALLDIR=$(pwd)
     read -r -d '' SERVICECONTENT <<EOF
 [Unit]
-Description=EasyWall - The IPTables Interface Core
+Description=easywall - The IPTables Interface Core
 Wants=network-online.target
 After=syslog.target time-sync.target network.target network-online.target
 
@@ -91,7 +91,7 @@ n | N) printf "\\nNot installing Daemon.\\n" ;;
 esac
 
 # Step 7
-echo "" && echo "($STEP/$STEPS) Installing 3rd Party Products for EasyWall Web" && ((STEP++))
+echo "" && echo "($STEP/$STEPS) Installing 3rd Party Products for easywall Web" && ((STEP++))
 WEBDIR="$SCRIPTPATH/web"
 TMPDIR="$WEBDIR/tmp"
 mkdir "$TMPDIR" && cd "$TMPDIR" || exit 1
@@ -138,7 +138,7 @@ function installDaemon() {
     INSTALLDIR=$(pwd)/web
     read -r -d '' SERVICECONTENT <<EOF
 [Unit]
-Description=EasyWall Web - The IPTables Interface WebInterface
+Description=easywall Web - The IPTables Interface WebInterface
 Wants=network-online.target
 After=syslog.target time-sync.target network.target network-online.target
 
@@ -170,19 +170,19 @@ n | N) printf "\\nNot installing Daemon.\\n" ;;
 esac
 
 # Step 11
-echo "" && echo "($STEP/$STEPS) Please set a password for EasyWall Web" && ((STEP++))
+echo "" && echo "($STEP/$STEPS) Please set a password for easywall Web" && ((STEP++))
 /usr/bin/python3 core/passwd.py
 
 # Finished. Printing Introduction
 echo ""
 read -r -d '' INTRODUCTION <<EOF
 ------------------------------
-You successfully installed EasyWall on your System!
+You successfully installed easywall on your System!
 Wasn't that easy?
 
 So what now?
 
-If you have installed EasyWall as a Daemon you simply have to type:
+If you have installed easywall as a Daemon you simply have to type:
 # systemctl start easywall
 # systemctl start easywall-web
 or
@@ -197,7 +197,7 @@ if you want to run easywall-web manually you can enter:
 or for debugging
 # cd web && ./easywall_web.sh -d
 
-If you have any questions on starting EasyWall, just create a new GitHub Issue:
+If you have any questions on starting easywall, just create a new GitHub Issue:
 https://github.com/jp1337/easywall/issues/new
 EOF
 
