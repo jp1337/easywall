@@ -16,5 +16,5 @@ script:
   - python3 setup.py pytest
   - coverage xml
 after_script:
-  - ./cc-test-reporter format-coverage -t coverage.py -o codeclimate.json coverage.xml
+  - ./cc-test-reporter format-coverage -t coverage.py -o coverage/codeclimate.json coverage.xml
   - if [[ "$TRAVIS_TEST_RESULT" == 0 ]]; then ./cc-test-reporter upload-coverage; fi
