@@ -135,3 +135,5 @@ rules/
 config.ini
 .accepted
 .running
+codeclimate.json
+cc-test-reporter
