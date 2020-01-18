@@ -34,6 +34,7 @@ setup(
         'pytest-runner',
     ],
     tests_require=[
+        'pytest-cov',
         'pytest'
     ]
 )
