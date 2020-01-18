@@ -1,9 +1,10 @@
 """the module contains a class that is used when accepting the firewall changes"""
 from time import sleep
 
+from easywall.log import logging
+from easywall.utility import create_file_if_not_exists, write_into_file
+
 import config
-import log
-import utility
 
 
 class Acceptance(object):
@@ -16,21 +17,21 @@ class Acceptance(object):
         self.config = config.Config("config/config.ini")
         self.enabled = bool(self.config.get_value("ACCEPTANCE", "enabled"))
         self.filename = self.config.get_value("ACCEPTANCE", "filename")
-        log.logging.debug("Acceptance Process initialized. Status: " +
-                          str(self.enabled) + " Filename: " + self.filename)
+        logging.debug("Acceptance Process initialized. Status: " +
+                      str(self.enabled) + " Filename: " + self.filename)
 
     def reset(self):
         """the function is called then the user did not accept the changes"""
         if self.enabled:
-            utility.create_file_if_not_exists(self.filename)
-            utility.write_into_file(self.filename, "false")
-            log.logging.debug("Acceptance has been reset.")
+            create_file_if_not_exists(self.filename)
+            write_into_file(self.filename, "false")
+            logging.debug("Acceptance has been reset.")
 
     def check(self):
         """the function checks for acceptance and executes the next steps"""
         if self.enabled:
             seconds = int(self.config.get_value("ACCEPTANCE", "time"))
-            log.logging.debug(
+            logging.debug(
                 "Starting Acceptance Check... waiting for " + str(seconds) +
                 " seconds")
             while seconds > 0:
@@ -40,12 +41,12 @@ class Acceptance(object):
                 accepted = accfile.read()
                 accepted = accepted.replace("\n", "")
                 if accepted == "true":
-                    log.logging.debug("Acceptance Process Result: Accepted")
+                    logging.debug("Acceptance Process Result: Accepted")
                     return True
                 else:
-                    log.logging.debug(
+                    logging.debug(
                         "Acceptance Process Result: Not Accepted (file content: " + accepted + ")")
                     return False
         else:
-            log.logging.debug("Acceptance is disabled. Skipping check.")
+            logging.debug("Acceptance is disabled. Skipping check.")
             return True

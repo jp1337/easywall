@@ -3,7 +3,7 @@ import getpass
 import hashlib
 import platform
 
-import config
+from easywall.config import Config
 
 
 class Passwd(object):
@@ -11,7 +11,7 @@ class Passwd(object):
 
     def __init__(self):
         """the init function creates the config variable and calls the user input"""
-        self.config = config.Config("config/config.ini")
+        self.config = Config("config/config.ini")
         self.ask_user()
 
     def savepasswd(self, password):
@@ -30,10 +30,11 @@ class Passwd(object):
 
     def ask_user(self):
         """the function asks the user for the username and password"""
-        username = input("EasyWall Web Username: ")
+        username = input("easywall Web Username: ")
         self.saveuser(username)
-        password = getpass.getpass("EasyWall Web Password: ")
+        password = getpass.getpass("easywall Web Password: ")
         self.savepasswd(password)
 
 
-PASSWD = Passwd()
+if __name__ == "__main__":
+    PASSWD = Passwd()

@@ -3,14 +3,15 @@ import os
 import time
 from datetime import datetime
 
+from easywall.acceptance import Acceptance
+from easywall.config import Config
+from easywall.iptables import Iptables
+from easywall.log import Log, logging
+from easywall.utility import (create_file_if_not_exists,
+                              create_folder_if_not_exists,
+                              delete_file_if_exists)
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
-
-import log
-import utility
-from acceptance import Acceptance
-from config import Config
-from iptables import Iptables
 
 
 class ModifiedHandler(FileSystemEventHandler):
@@ -21,7 +22,7 @@ class ModifiedHandler(FileSystemEventHandler):
         the function overrides the empty event handler for every file change in the given directory
         """
         if event.src_path.endswith(".txt"):
-            log.logging.info(
+            logging.info(
                 "file modification occured. filename: " + event.src_path)
             while os.path.isfile(".running"):
                 time.sleep(2)
@@ -35,7 +36,7 @@ class Easywall(object):
     """
 
     def __init__(self):
-        log.logging.info("Applying new configuration.")
+        logging.info("Applying new configuration.")
         self.create_running_file()
         self.config = Config("config/config.ini")
         self.iptables = Iptables()
@@ -149,14 +150,14 @@ class Easywall(object):
 
     def check_acceptance(self):
         """the function checks for accetance of the new applied configuration"""
-        log.logging.info("Checking acceptance.")
+        logging.info("Checking acceptance.")
         if self.acceptance.check() is False:
-            log.logging.info("Configuration not accepted, rolling back.")
+            logging.info("Configuration not accepted, rolling back.")
             self.iptables.restore()
         else:
             self.rotate_backup()
             self.iptables.save()
-            log.logging.info("New configuration was applied.")
+            logging.info("New configuration was applied.")
 
     def get_rule_list(self, ruletype):
         """the function retrieves the rules from the rules file"""
@@ -173,8 +174,8 @@ class Easywall(object):
         self.filepath = self.config.get_value("BACKUP", "filepath")
         self.filename = self.config.get_value("BACKUP", "ipv4filename")
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log.logging.debug("rotating backup files in folder " +
-                          self.filepath + " -> add prefix " + self.date)
+        logging.debug("rotating backup files in folder " +
+                      self.filepath + " -> add prefix " + self.date)
         self.rename_backup_file()
         if self.ipv6 is True:
             self.filename = self.config.get_value("BACKUP", "ipv6filename")
@@ -187,18 +188,18 @@ class Easywall(object):
 
     def create_running_file(self):
         """the function creates a file in the main directory called .running"""
-        utility.create_file_if_not_exists(".running")
+        create_file_if_not_exists(".running")
 
     def delete_running_file(self):
         """the function deletes a file in the main directory called .running"""
-        utility.delete_file_if_exists(".running")
+        delete_file_if_exists(".running")
 
 
 def run():
     """this is the main function of the program"""
     # Startup Process
-    masterlog = log.Log("config/config.ini")
-    log.logging.info("Starting up EasyWall...")
+    masterlog = Log("config/config.ini")
+    logging.info("Starting up easywall...")
     masterconfig = Config("config/config.ini")
     ensure_rules_files(masterconfig)
     event_handler = ModifiedHandler()
@@ -206,7 +207,7 @@ def run():
     observer.schedule(
         event_handler, masterconfig.get_value("RULES", "filepath"))
     observer.start()
-    log.logging.info("EasyWall is up and running.")
+    logging.info("easywall is up and running.")
 
     # waiting for file modifications
     try:
@@ -219,14 +220,14 @@ def run():
 
 def shutdown(observer, masterconfig, masterlog):
     """this function executes a shutdown of easywall"""
-    log.logging.info("Shutting down EasyWall...")
+    logging.info("Shutting down easywall...")
     observer.stop()
-    utility.delete_file_if_exists(".running")
-    utility.delete_file_if_exists(
+    delete_file_if_exists(".running")
+    delete_file_if_exists(
         masterconfig.get_value("ACCEPTANCE", "filename"))
     observer.join()
     masterlog.close_logging()
-    log.logging.info("EasyWall was stopped gracefully")
+    logging.info("easywall was stopped gracefully")
     exit(0)
 
 
@@ -235,8 +236,8 @@ def ensure_rules_files(cfg):
     for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
         filepath = cfg.get_value("RULES", "filepath")
         filename = cfg.get_value("RULES", ruletype)
-        utility.create_folder_if_not_exists(filepath)
-        utility.create_file_if_not_exists(filepath + "/" + filename)
+        create_folder_if_not_exists(filepath)
+        create_file_if_not_exists(filepath + "/" + filename)
 
 
 if __name__ == "__main__":

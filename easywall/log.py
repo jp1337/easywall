@@ -2,15 +2,15 @@
 import logging
 from sys import stdout
 
-import config
-import utility
+from easywall.config import Config
+from easywall.utility import create_folder_if_not_exists
 
 
 class Log(object):
     """This class is a wrapper class around the logging module"""
 
     def __init__(self, configpath):
-        self.config = config.Config(configpath)
+        self.config = Config(configpath)
         self.loglevel = self.get_level(self.config.get_value("LOG", "level"))
 
         # create logger
@@ -31,7 +31,7 @@ class Log(object):
         # create file handler if enabled in configuration
         if bool(self.config.get_value("LOG", "to_files")):
             # create log filepath if not exists
-            utility.create_folder_if_not_exists(
+            create_folder_if_not_exists(
                 self.config.get_value("LOG", "filepath"))
 
             file_handler = logging.FileHandler(
