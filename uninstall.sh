@@ -1,10 +1,7 @@
 #!/bin/bash
 
 SCRIPTNAME=$(basename "$0")
-SCRIPTPATH="$(
-    cd "$(dirname "$0")" || exit 1
-    pwd -P
-)"
+SCRIPTPATH=$(dirname "$(readlink -f "$0")")
 RED="\\e[31m"
 GREEN="\\e[32m"
 YELLOW="\\e[33m"
@@ -15,9 +12,9 @@ if [ "$EUID" -ne 0 ]; then
 Heya! To remove easywall you need to have a privileged user.
 So you can try these:
 
-# sudo bash $SCRIPTNAME
+# sudo bash ${SCRIPTNAME}
 or
-# su root -c "$SCRIPTNAME"
+# su root -c "{$SCRIPTNAME}"
 EOF
     echo "$NOROOT"
     exit 1
