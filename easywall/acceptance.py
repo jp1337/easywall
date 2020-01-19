@@ -1,10 +1,9 @@
 """the module contains a class that is used when accepting the firewall changes"""
 from time import sleep
 
+from easywall.config import Config
 from easywall.log import logging
 from easywall.utility import create_file_if_not_exists, write_into_file
-
-import config
 
 
 class Acceptance(object):
@@ -14,7 +13,7 @@ class Acceptance(object):
 
     def __init__(self):
         """the init function creates some class variables"""
-        self.config = config.Config("config/config.ini")
+        self.config = Config("config/config.ini")
         self.enabled = bool(self.config.get_value("ACCEPTANCE", "enabled"))
         self.filename = self.config.get_value("ACCEPTANCE", "filename")
         logging.debug("Acceptance Process initialized. Status: " +
