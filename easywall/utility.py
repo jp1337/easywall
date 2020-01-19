@@ -5,8 +5,6 @@ import os
 import stat
 import urllib
 
-from easywall.log import logging
-
 # -------------------------
 # File Operations
 
@@ -14,14 +12,12 @@ from easywall.log import logging
 def create_folder_if_not_exists(filepath: str):
     """Checks if a folder exists and creates if it does not exist"""
     if not os.path.exists(filepath):
-        logging.debug("creating folder: {}".format(filepath))
         os.makedirs(filepath)
 
 
 def create_file_if_not_exists(fullpath: str):
     """The function creates a file if it does not already exist."""
     if not os.path.isfile(fullpath) or not os.access(fullpath, os.R_OK):
-        logging.debug("creating file: {}".format(fullpath))
         with open(fullpath, 'w+'):
             pass
         os.chmod(fullpath, stat.S_IWGRP)
@@ -30,7 +26,6 @@ def create_file_if_not_exists(fullpath: str):
 def delete_file_if_exists(fullpath):
     """The function checks if a file exists in a directory and deletes it if it exists."""
     if os.path.isfile(fullpath):
-        logging.debug("deleting file: {}".format(fullpath))
         os.remove(fullpath)
 
 
