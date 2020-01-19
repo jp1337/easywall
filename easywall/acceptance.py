@@ -13,7 +13,7 @@ class Acceptance(object):
 
     def __init__(self):
         """the init function creates some class variables"""
-        self.config = Config("config/config.ini")
+        self.config = Config("config/easywall.ini")
         self.enabled = bool(self.config.get_value("ACCEPTANCE", "enabled"))
         self.filename = self.config.get_value("ACCEPTANCE", "filename")
         logging.debug("Acceptance Process initialized. Status: " +

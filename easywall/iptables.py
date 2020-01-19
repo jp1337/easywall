@@ -12,7 +12,7 @@ class Iptables(object):
     def __init__(self):
         """the init function creates some useful class variables"""
         logging.debug("Setting up iptables...")
-        self.config = Config("config/config.ini")
+        self.config = Config("config/easywall.ini")
         self.ipv6 = bool(self.config.get_value("IPV6", "enabled"))
         self.iptables_bin = self.config.get_value("EXEC", "iptables")
         self.iptables_bin_save = self.config.get_value(
