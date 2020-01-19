@@ -1,7 +1,7 @@
 """This module exports a generic class for configuration"""
 import configparser
 
-from easywall.utility import is_int, is_float
+from easywall.utility import is_float, is_int
 
 
 class Config(object):

@@ -3,6 +3,8 @@ import os
 import time
 from datetime import datetime
 
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 from easywall.acceptance import Acceptance
 from easywall.config import Config
 from easywall.iptables import Iptables
@@ -10,8 +12,6 @@ from easywall.log import Log, logging
 from easywall.utility import (create_file_if_not_exists,
                               create_folder_if_not_exists,
                               delete_file_if_exists)
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
 
 
 class ModifiedHandler(FileSystemEventHandler):
