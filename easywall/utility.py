@@ -41,8 +41,13 @@ def write_into_file(filepath, content):
         tmpfile.write(content)
 
 
+def get_abs_path_of_filepath(filepath):
+    """returns the absolute path of a path containing a filename"""
+    return os.path.dirname(os.path.realpath(filepath))
+
 # -------------------------
 # Data Type Operations
+
 
 def is_float(value):
     """tries to convert input value into a float value. Returns Boolean"""
