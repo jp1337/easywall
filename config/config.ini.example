@@ -1,7 +1,8 @@
 [LOG]
 level = info
 to_files = yes
-filepath = /var/log/easywall
+to_stdout = yes
+filepath = /var/log
 filename = easywall
 
 [EXEC]
@@ -32,16 +33,3 @@ whitelist = whitelist.txt
 tcp = tcp.txt
 udp = udp.txt
 custom = custom.txt
-
-[WEB]
-username =
-password =
-bindip = 0.0.0.0
-bindport = 12227
-rules_tmp_path = ./rules
-
-[VERSION]
-version = 0
-sha = 0
-date = 0
-timestamp = 0

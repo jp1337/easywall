@@ -23,10 +23,11 @@ class Log(object):
             '[%(asctime)s] [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s')
 
         # create console handler -> logs are always written to stdout
-        std_handler = logging.StreamHandler(stdout)
-        std_handler.setLevel(self.loglevel)
-        std_handler.setFormatter(formatter)
-        root.addHandler(std_handler)
+        if bool(self.config.get_value("LOG", "to_stdout")):
+            std_handler = logging.StreamHandler(stdout)
+            std_handler.setLevel(self.loglevel)
+            std_handler.setFormatter(formatter)
+            root.addHandler(std_handler)
 
         # create file handler if enabled in configuration
         if bool(self.config.get_value("LOG", "to_files")):
