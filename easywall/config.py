@@ -40,9 +40,9 @@ class Config(object):
             error("Error while reading sections from config file: {}".format(exc))
         return sections
 
-    def set_value(self, section: str, key: str, value: any):
+    def set_value(self, section: str, key: str, value: str):
         """Writes a key, value pair into memory configuration and writes it to config file"""
-        value = str(value)
+        result = True
         try:
             self.configlib[section][key] = value
         except Exception as exc:
@@ -51,6 +51,7 @@ class Config(object):
                     value, key, section, exc))
             info("Valid sections are: ")
             info("{}".format(self.get_sections()))
+            result = False
 
         try:
             with open(self.configpath, 'w') as configfile:
@@ -59,3 +60,6 @@ class Config(object):
             error(
                 "Error while writing configuration into file {}: {}".format(
                     self.configpath, exc))
+            result = False
+
+        return result

@@ -35,3 +35,10 @@ class TestConfig(unittest.TestCase):
 
     def test_get_sections(self):
         self.assertIn("TEST", self.config.get_sections())
+
+    def test_set_value_success(self):
+        self.assertEqual(self.config.set_value(
+            "TEST", "teststring", "erfolg"), True)
+
+    def test_set_value_fail_section(self):
+        self.assertEqual(self.config.set_value("TEST2", "asd", "asd"), False)
