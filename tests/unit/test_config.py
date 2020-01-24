@@ -1,5 +1,5 @@
-from easywall.lib.config import Config
-from easywall.lib.utility import create_file_if_not_exists, write_into_file, delete_file_if_exists
+from easywall.config import Config
+from easywall.utility import create_file_if_not_exists, write_into_file, delete_file_if_exists
 from tests import *
 
 

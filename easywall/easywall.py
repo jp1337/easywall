@@ -4,9 +4,9 @@ from logging import debug, info
 
 from easywall.acceptance import Acceptance
 from easywall.iptables import Iptables
-from easywall.lib.config import Config
-from easywall.lib.utility import (create_file_if_not_exists,
-                                  delete_file_if_exists, rename_file)
+from easywall.config import Config
+from easywall.utility import (create_file_if_not_exists,
+                              delete_file_if_exists, rename_file)
 
 
 class Easywall(object):

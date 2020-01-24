@@ -2,8 +2,8 @@
 from logging import debug
 from time import sleep
 
-from easywall.lib.config import Config
-from easywall.lib.utility import create_file_if_not_exists, write_into_file
+from easywall.config import Config
+from easywall.utility import create_file_if_not_exists, write_into_file
 
 
 class Acceptance(object):

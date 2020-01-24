@@ -1,9 +1,9 @@
 """the iptables module is a wrapper around the iptables software"""
 from logging import debug, error
 
-from easywall.lib.config import Config
-from easywall.lib.utility import (create_folder_if_not_exists,
-                                  execute_os_command)
+from easywall.config import Config
+from easywall.utility import (create_folder_if_not_exists,
+                              execute_os_command)
 
 
 class Iptables(object):

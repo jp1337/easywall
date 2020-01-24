@@ -6,9 +6,9 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from easywall.easywall import Easywall
-from easywall.lib.config import Config
-from easywall.lib.log import Log
-from easywall.lib.utility import (create_file_if_not_exists,
+from easywall.config import Config
+from easywall.log import Log
+from easywall.utility import (create_file_if_not_exists,
                                   create_folder_if_not_exists,
                                   delete_file_if_exists, file_exists)
 
