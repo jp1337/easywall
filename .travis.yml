@@ -16,6 +16,7 @@ before_script:
 install:
   - pip3 install coverage
   - pip3 install -r requirements.txt
+  - pip3 install .
 script:
   - python3 setup.py pytest
   - coverage xml
