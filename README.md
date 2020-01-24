@@ -4,8 +4,8 @@ Today **Firewalls** are more important than years before. Hackers and Bots are t
 Set up a firewall! But which one? **IPTables** is the strongest firewall in **Linux** environments. So we wanted to make IPTables usable by everyone. We created a simple **Web Interface** for IPTables so everyone can install and use it on his / her server.
 
 [![Travis (.org)](https://img.shields.io/travis/jp1337/easywall)](https://travis-ci.org/jp1337/easywall)
-[![Codacy grade](https://img.shields.io/codacy/grade/4e00bc51bf1b418099414d857d25249b)](https://app.codacy.com/manual/jp1337/easywall/dashboard)
 [![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability/jp1337/easywall)](https://codeclimate.com/github/jp1337/easywall)
+[![Code Climate coverage](https://img.shields.io/codeclimate/coverage/jp1337/easywall)](https://codeclimate.com/github/jp1337/easywall)
 [![GitHub license](https://img.shields.io/github/license/jp1337/easywall)](https://github.com/jp1337/easywall/blob/master/LICENSE)
 [![GitHub repo size](https://img.shields.io/github/repo-size/jp1337/easywall.svg)](https://github.com/jp1337/easywall)
 [![Project Version](https://img.shields.io/badge/release-alpha%20testing-red.svg)](https://github.com/jp1337/easywall)
