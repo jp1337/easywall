@@ -1,1 +1,1 @@
-watchdog3
+git+git://github.com/gorakhargosh/watchdog@releases/tag/0.10.0#egg=watchdog
