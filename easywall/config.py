@@ -13,7 +13,7 @@ class Config(object):
         self.configlib = ConfigParser()
         self.configlib.read(self.configpath)
 
-    def get_value(self, section: str, key: str):
+    def get_value(self, section: str, key: str) -> any:
         """Returns a value in a given section from the configuration file.
         Returns String, Float, Integer, Boolean"""
         value = ""
@@ -31,16 +31,16 @@ class Config(object):
             return self.configlib.getfloat(section, key)
         return value
 
-    def get_sections(self):
+    def get_sections(self) -> list:
         """Return a list of section names, excluding [DEFAULT]"""
-        sections = ""
+        sections: list
         try:
             sections = self.configlib.sections()
         except Exception as exc:
             error("Error while reading sections from config file: {}".format(exc))
         return sections
 
-    def set_value(self, section: str, key: str, value: str):
+    def set_value(self, section: str, key: str, value: str) -> bool:
         """Writes a key, value pair into memory configuration and writes it to config file"""
         result = True
         try:
