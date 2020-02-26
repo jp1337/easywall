@@ -1,11 +1,11 @@
+"""
+this is the init file of the tests module
+"""
 import unittest
 
 import pytest
-from tests.helpers import *
-from tests.tests_helper import *
 
 __all__ = [
     'pytest',
     'unittest',
-    'tests_helper'
 ]
