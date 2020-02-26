@@ -33,7 +33,7 @@ class Config(object):
 
     def get_sections(self) -> list:
         """Return a list of section names, excluding [DEFAULT]"""
-        sections: list
+        sections = []
         try:
             sections = self.configlib.sections()
         except Exception as exc:
