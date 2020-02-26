@@ -43,8 +43,8 @@ class Acceptance(object):
                     debug("Acceptance Process Result: Accepted")
                     return True
                 else:
-                    debug(
-                        "Acceptance Process Result: Not Accepted (file content: " + accepted + ")")
+                    debug("Acceptance Process Result: Not Accepted (file content: {})".format(
+                        accepted))
                     return False
         else:
             debug("Acceptance is disabled. Skipping check.")

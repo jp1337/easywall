@@ -57,9 +57,8 @@ class Config(object):
             with open(self.configpath, 'w') as configfile:
                 self.configlib.write(configfile)
         except Exception as exc:
-            error(
-                "Error while writing configuration into file {}: {}".format(
-                    self.configpath, exc))
+            error("Error while writing configuration into file {}: {}".format(
+                self.configpath, exc))
             result = False
 
         return result

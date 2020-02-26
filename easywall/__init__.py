@@ -1,5 +1,5 @@
 """the module contains the core functions of easywall"""
-from logging import info
+from logging import info, error
 from time import sleep
 
 from watchdog.events import FileSystemEventHandler
@@ -21,16 +21,16 @@ class ModifiedHandler(FileSystemEventHandler):
         the function overrides the empty event handler for every file change in the given directory
         """
         if event.src_path.endswith(".txt"):
-            info(
-                "file modification occured. filename: " + event.src_path)
+            info("file modification occured. filename: " + event.src_path)
             while file_exists(".running"):
                 sleep(2)
             Easywall()
 
 
 def run():
-    """this is the main function of the program"""
-    # Startup Process
+    """
+    this is the first and main function of the program
+    """
     config = Config("config/easywall.ini")
     loglevel = config.get_value("LOG", "level")
     to_stdout = config.get_value("LOG", "to_stdout")
@@ -38,46 +38,58 @@ def run():
     logpath = config.get_value("LOG", "filepath")
     logfile = config.get_value("LOG", "filename")
     log = Log(loglevel, to_stdout, to_files, logpath, logfile)
-    info("Starting up easywall...")
+    info("executing startup sequence...")
 
-    ensure_rules_files(config)
+    create_rule_files(config)
     event_handler = ModifiedHandler()
     observer = Observer()
-    observer.schedule(
-        event_handler, config.get_value("RULES", "filepath"))
+    observer.schedule(event_handler, config.get_value("RULES", "filepath"))
     observer.start()
-    info("easywall is up and running.")
+    info("startup sequence successfully finished")
+    start_observer(observer, config, log)
 
-    # waiting for file modifications
+
+def start_observer(observer: Observer, config: Config, log: Log):
+    """
+    this function is called to keep the main process running
+    if someone is pressing ctrl + C the software will initiate the stop process
+    """
     try:
         while True:
-            sleep(2)
+            sleep(1)
     except KeyboardInterrupt:
         info("KeyboardInterrupt received, starting shutdown")
+    except Exception as exc:
+        error("Got error message: {}".format(exc))
     finally:
         shutdown(observer, config, log)
 
 
-def shutdown(observer, config, log):
-    """this function executes a shutdown of easywall"""
-    info("Shutting down easywall...")
+def shutdown(observer: Observer, config: Config, log: Log):
+    """
+    the function stops all threads and shuts the software down gracefully
+    """
+    info("starting shutdown...")
     observer.stop()
     delete_file_if_exists(".running")
-    delete_file_if_exists(
-        config.get_value("ACCEPTANCE", "filename"))
+    delete_file_if_exists(config.get_value("ACCEPTANCE", "filename"))
     observer.join()
+    info("shutdown successfully completed")
     log.close_logging()
-    info("easywall was stopped gracefully")
     exit(0)
 
 
-def ensure_rules_files(cfg):
-    """the function creates several files if they don't exist"""
+def create_rule_files(cfg: Config):
+    """
+    the function checks if the rule files exist and creates them if they don't exist
+    """
+    filepath = cfg.get_value("RULES", "filepath")
+    create_folder_if_not_exists(filepath)
+    filename = ""
+
     for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
-        filepath = cfg.get_value("RULES", "filepath")
         filename = cfg.get_value("RULES", ruletype)
-        create_folder_if_not_exists(filepath)
-        create_file_if_not_exists(filepath + "/" + filename)
+        create_file_if_not_exists("{}/{}".format(filepath, filename))
 
 
 if __name__ == "__main__":
