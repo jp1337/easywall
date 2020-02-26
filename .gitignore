@@ -132,8 +132,6 @@ dmypy.json
 backup/
 rules/
 *.log
-easywall.ini
+config/*.ini
 .accepted
 .running
-codeclimate.json
-cc-test-reporter
