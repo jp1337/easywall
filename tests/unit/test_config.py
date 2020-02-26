@@ -1,9 +1,15 @@
+"""
+this file is the test module for the config module
+"""
 from easywall.config import Config
 from easywall.utility import create_file_if_not_exists, write_into_file, delete_file_if_exists
-from tests import *
+from tests import unittest
 
 
 class TestConfig(unittest.TestCase):
+    """
+    this class contains all test functions for the config module
+    """
 
     def setUp(self):
         content = """[TEST]
