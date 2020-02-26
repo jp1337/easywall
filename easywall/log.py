@@ -1,4 +1,7 @@
-"""This module exports a generic class for Easier Logging"""
+"""
+This is a wrapper around the logging module.
+It supports the simple configuration of the outputs.
+"""
 import logging
 from sys import stdout
 
@@ -6,7 +9,10 @@ from easywall.utility import create_folder_if_not_exists
 
 
 class Log(object):
-    """This class is a wrapper class around the logging module"""
+    """
+    This class is the main class of the log module.
+    All logging information is required as inputs.
+    """
 
     def __init__(
             self, loglevel: str, to_stdout: bool, to_files: bool, logpath: str,
