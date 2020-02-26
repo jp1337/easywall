@@ -40,11 +40,11 @@ It re-distributes other open-source tools and libraries. Please check its [Licen
 
 ## Screenshots
 
-![Screenshot 1: Home Page on Mobile](http://i.imgur.com/vEneFWK.png)
-![Screenshot 2: Main Menu on Mobile](http://i.imgur.com/zxCcPQW.png)
-![Screenshot 3: Ports Page Upper Part](http://i.imgur.com/qYjxXNZ.png)
-![Screenshot 4: Ports Page Lower Part](http://i.imgur.com/zdN0oRu.png)
-![Screenshot 5: Apply Page with Automatic Timeout Reset](http://i.imgur.com/BaWMkZD.png)
+![Screenshot 1: Home Page on Mobile](https://i.imgur.com/vEneFWK.png)
+![Screenshot 2: Main Menu on Mobile](https://i.imgur.com/zxCcPQW.png)
+![Screenshot 3: Ports Page Upper Part](https://i.imgur.com/qYjxXNZ.png)
+![Screenshot 4: Ports Page Lower Part](https://i.imgur.com/zdN0oRu.png)
+![Screenshot 5: Apply Page with Automatic Timeout Reset](https://i.imgur.com/BaWMkZD.png)
 
 ## DEV Environment
 
