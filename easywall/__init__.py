@@ -12,6 +12,8 @@ from easywall.utility import (create_file_if_not_exists,
                               create_folder_if_not_exists,
                               delete_file_if_exists, file_exists)
 
+CONFIG_PATH = "config/easywall.ini"
+
 
 class ModifiedHandler(FileSystemEventHandler):
     """the class contains a event handler which listens on specified file types"""
@@ -24,14 +26,14 @@ class ModifiedHandler(FileSystemEventHandler):
             info("file modification occured. filename: " + event.src_path)
             while file_exists(".running"):
                 sleep(2)
-            Easywall()
+            Easywall(CONFIG_PATH)
 
 
 def run():
     """
     this is the first and main function of the program
     """
-    config = Config("config/easywall.ini")
+    config = Config(CONFIG_PATH)
     loglevel = config.get_value("LOG", "level")
     to_stdout = config.get_value("LOG", "to_stdout")
     to_files = config.get_value("LOG", "to_files")
@@ -56,7 +58,7 @@ def start_observer(observer: Observer, config: Config, log: Log):
     """
     try:
         while True:
-            sleep(1)
+            sleep(2)
     except KeyboardInterrupt:
         info("KeyboardInterrupt received, starting shutdown")
     except Exception as exc:

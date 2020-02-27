@@ -9,10 +9,10 @@ from easywall.utility import (create_folder_if_not_exists,
 class Iptables(object):
     """the class contains functions that interact with the iptables software"""
 
-    def __init__(self):
+    def __init__(self, configpath: str):
         """the init function creates some useful class variables"""
         debug("Setting up iptables...")
-        self.config = Config("config/easywall.ini")
+        self.config = Config(configpath)
         self.ipv6 = bool(self.config.get_value("IPV6", "enabled"))
         self.iptables_bin = self.config.get_value("EXEC", "iptables")
         self.iptables_bin_save = self.config.get_value(

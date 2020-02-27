@@ -5,6 +5,7 @@ from logging import error
 from math import floor
 from os import R_OK, access, chmod, makedirs, path, remove, rename, system
 from urllib import parse
+from io import StringIO
 
 # -------------------------
 # File Operations
@@ -80,9 +81,15 @@ def is_int(value):
         return False
 
 
-def csv_to_array(inputstr: str):
+def csv_to_array(inputstr: str, delimiter: str) -> list:
     """Convert a CSV string into a Python compatible array"""
-    return reader(inputstr, delimiter=',')
+    results = []
+    strio = StringIO(inputstr)
+    csv_reader = reader(strio, delimiter=delimiter)
+    for row in csv_reader:
+        for element in row:
+            results.append(element)
+    return results
 
 
 def urlencode(inputstr: str):
@@ -127,9 +134,12 @@ def time_duration_diff(date1: datetime, date2: datetime):
 # System Operations
 
 
-def execute_os_command(command: str):
+def execute_os_command(command: str) -> bool:
     """this function executes a command on the operating system"""
     try:
-        system(command)
+        if system(command) > 0:
+            return False
     except Exception as exc:
         error("Got error when executing os command: {}".format(exc))
+        return False
+    return True

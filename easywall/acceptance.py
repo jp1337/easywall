@@ -11,9 +11,9 @@ class Acceptance(object):
     the class contains function for checking the user acceptance after applying new firewall rules
     """
 
-    def __init__(self):
+    def __init__(self, configpath: str):
         """the init function creates some class variables"""
-        self.config = Config("config/easywall.ini")
+        self.config = Config(configpath)
         self.enabled = bool(self.config.get_value("ACCEPTANCE", "enabled"))
         self.filename = self.config.get_value("ACCEPTANCE", "filename")
         debug("Acceptance Process initialized. Status: " +

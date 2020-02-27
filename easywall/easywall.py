@@ -15,12 +15,12 @@ class Easywall(object):
     such as applying a new configuration or listening on rule file changes
     """
 
-    def __init__(self):
+    def __init__(self, configpath: str):
         info("Applying new configuration.")
         self.create_running_file()
-        self.config = Config("config/easywall.ini")
-        self.iptables = Iptables()
-        self.acceptance = Acceptance()
+        self.config = Config(configpath)
+        self.iptables = Iptables(configpath)
+        self.acceptance = Acceptance(configpath)
         self.ipv6 = self.config.get_value("IPV6", "enabled")
         self.filepath = None
         self.filename = None

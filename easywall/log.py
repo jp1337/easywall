@@ -14,9 +14,7 @@ class Log(object):
     All logging information is required as inputs.
     """
 
-    def __init__(
-            self, loglevel: str, to_stdout: bool, to_files: bool, logpath: str,
-            logfile: str):
+    def __init__(self, loglevel: str, to_stdout: bool, to_files: bool, logpath: str, logfile: str):
         self.loglevel = self.correct_level(loglevel)
 
         # create logger
@@ -56,6 +54,7 @@ class Log(object):
     def correct_level(self, loglevel):
         """This internal function determines the loglevel of the logging class"""
         level = logging.NOTSET
+        loglevel = loglevel.lower()
         if loglevel == "debug":
             level = logging.DEBUG
         elif loglevel == "info":
