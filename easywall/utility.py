@@ -1,7 +1,6 @@
 """This file contains useful functions which should be used instead of implementing in a class"""
 from csv import reader
 from datetime import datetime
-from logging import error
 from math import floor
 from os import R_OK, access, chmod, makedirs, path, remove, rename, system
 from urllib import parse
@@ -72,13 +71,10 @@ def is_float(value):
 
 def is_int(value):
     """tries to convert the input value into a int value"""
-    try:
-        if is_float(value):
-            if float(value) % 1 == 0:
-                return True
-        return False
-    except ValueError:
-        return False
+    if is_float(value):
+        if float(value) % 1 == 0:
+            return True
+    return False
 
 
 def csv_to_array(inputstr: str, delimiter: str) -> list:
@@ -103,6 +99,7 @@ def urlencode(inputstr: str):
 
 def time_duration_diff(date1: datetime, date2: datetime):
     """The function calculates the difference between two dates and returns them as a string."""
+    result = ""
     diff = date2 - date1
     diff = diff.total_seconds()
     if diff < 1:
@@ -126,9 +123,9 @@ def time_duration_diff(date1: datetime, date2: datetime):
         ending = ""
         if number_of_units > 1:
             ending = "s"
-        return str(number_of_units) + " " + text + ending
+        result = str(number_of_units) + " " + text + ending
 
-    return ""
+    return result
 
 # -------------------------
 # System Operations
@@ -136,10 +133,6 @@ def time_duration_diff(date1: datetime, date2: datetime):
 
 def execute_os_command(command: str) -> bool:
     """this function executes a command on the operating system"""
-    try:
-        if system(command) > 0:
-            return False
-    except Exception as exc:
-        error("Got error when executing os command: {}".format(exc))
+    if system(command) > 0:
         return False
     return True

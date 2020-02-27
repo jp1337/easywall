@@ -66,6 +66,9 @@ class TestUtility(unittest.TestCase):
         date1 = datetime.now()
         date2 = date1 + timedelta(0, 5)
         self.assertEqual(time_duration_diff(date1, date2), "5 seconds")
+        date1 = datetime.now()
+        date2 = datetime.now()
+        self.assertEqual(time_duration_diff(date1, date2), "1 second")
 
     def test_execute_os_command(self):
         self.assertTrue(execute_os_command("touch testfile"))
