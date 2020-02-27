@@ -33,12 +33,7 @@ class Config(object):
 
     def get_sections(self) -> list:
         """Return a list of section names, excluding [DEFAULT]"""
-        sections = []
-        try:
-            sections = self.configlib.sections()
-        except Exception as exc:
-            error("Error while reading sections from config file: {}".format(exc))
-        return sections
+        return self.configlib.sections()
 
     def set_value(self, section: str, key: str, value: str) -> bool:
         """Writes a key, value pair into memory configuration and writes it to config file"""
@@ -53,12 +48,8 @@ class Config(object):
             info("{}".format(self.get_sections()))
             result = False
 
-        try:
+        if result:
             with open(self.configpath, 'w') as configfile:
                 self.configlib.write(configfile)
-        except Exception as exc:
-            error("Error while writing configuration into file {}: {}".format(
-                self.configpath, exc))
-            result = False
 
         return result
