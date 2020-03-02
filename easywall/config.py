@@ -1,5 +1,5 @@
 """This module exports a generic class for configuration"""
-from configparser import ConfigParser
+from configparser import RawConfigParser
 from logging import error, info
 
 from easywall.utility import is_float, is_int
