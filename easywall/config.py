@@ -10,7 +10,7 @@ class Config(object):
 
     def __init__(self, configpath: str):
         self.configpath = configpath
-        self.configlib = ConfigParser()
+        self.configlib = RawConfigParser()
         self.configlib.read(self.configpath)
 
     def get_value(self, section: str, key: str) -> any:
