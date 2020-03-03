@@ -3,6 +3,7 @@ from csv import reader
 from datetime import datetime
 from math import floor
 from os import R_OK, access, chmod, makedirs, path, remove, rename, system
+from traceback import TracebackException
 from urllib import parse
 from io import StringIO
 
@@ -52,7 +53,7 @@ def rename_file(oldpath: str, newpath: str):
     rename(oldpath, newpath)
 
 
-def file_exists(filepath: str):
+def file_exists(filepath: str) -> bool:
     """simply checks if a file exists in the given path"""
     return path.isfile(filepath)
 
@@ -60,7 +61,7 @@ def file_exists(filepath: str):
 # Data Type Operations
 
 
-def is_float(value):
+def is_float(value) -> bool:
     """tries to convert input value into a float value. Returns Boolean"""
     try:
         float(value)
@@ -69,7 +70,7 @@ def is_float(value):
         return False
 
 
-def is_int(value):
+def is_int(value) -> bool:
     """tries to convert the input value into a int value"""
     if is_float(value):
         if float(value) % 1 == 0:
@@ -88,11 +89,15 @@ def csv_to_array(inputstr: str, delimiter: str) -> list:
     return results
 
 
-def urlencode(inputstr: str):
+def urlencode(inputstr: str) -> str:
     """Convert a String to a URL Encoded String"""
     inputstr = parse.quote_plus(inputstr)
     return inputstr.replace("+", "%20")
 
+
+def format_exception(exc: Exception) -> str:
+    """Converts a exception object to a readable string"""
+    return "".join(TracebackException.from_exception(exc).format())
 
 # -------------------------
 # Time Operations
