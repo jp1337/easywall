@@ -132,6 +132,6 @@ dmypy.json
 backup/
 rules/
 *.log
-config/*.ini
+config/easywall*.ini
 .accepted
 .running
