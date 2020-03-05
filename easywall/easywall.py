@@ -3,10 +3,10 @@ from datetime import datetime
 from logging import debug, info
 
 from easywall.acceptance import Acceptance
-from easywall.iptables import Iptables
 from easywall.config import Config
-from easywall.utility import (create_file_if_not_exists,
-                              delete_file_if_exists, rename_file)
+from easywall.iptables_handler import Iptables
+from easywall.utility import rename_file
+from easywall.rules_handler import RulesHandler
 
 
 class Easywall(object):
@@ -15,18 +15,15 @@ class Easywall(object):
     such as applying a new configuration or listening on rule file changes
     """
 
-    def __init__(self, configpath: str):
-        info("Applying new configuration.")
-        self.create_running_file()
-        self.config = Config(configpath)
-        self.iptables = Iptables(configpath)
-        self.acceptance = Acceptance(configpath)
-        self.ipv6 = self.config.get_value("IPV6", "enabled")
+    def __init__(self, config: Config) -> None:
+        self.cfg = config
+        self.iptables = Iptables(self.cfg)
+        self.acceptance = Acceptance(self.cfg)
+        self.ipv6 = self.cfg.get_value("IPV6", "enabled")
         self.filepath = None
         self.filename = None
         self.date = None
-        self.apply()
-        self.delete_running_file()
+        self.rules = RulesHandler(self.cfg)
 
     def apply(self):
         """the function applies the configuration from the rule files"""
@@ -44,12 +41,10 @@ class Easywall(object):
         self.iptables.add_append("INPUT", "-i lo -j ACCEPT")
 
         # allow established or related connections
-        self.iptables.add_append(
-            "INPUT", "-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
+        self.iptables.add_append("INPUT", "-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
 
         # Block remote packets claiming to be from a loopback address.
-        self.iptables.add_append(
-            "INPUT", "-s 127.0.0.0/8 ! -i lo -j DROP", False, True)
+        self.iptables.add_append("INPUT", "-s 127.0.0.0/8 ! -i lo -j DROP", False, True)
         self.iptables.add_append("INPUT", "-s ::1/128 ! -i lo -j DROP", True)
 
         # Apply ICMP Rules
@@ -68,65 +63,72 @@ class Easywall(object):
         self.apply_rules("udp")
 
         # log and reject all other packages
-        self.iptables.add_append(
-            "INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
+        self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
         self.iptables.add_append("INPUT", "-j REJECT")
 
         self.check_acceptance()
 
-    def apply_icmp(self):
-        """the function applies the icmp rules"""
+    def apply_icmp(self) -> None:
+        """
+        this function adds rules to iptables for incoming ICMP requests
+        """
         for icmptype in [0, 3, 8, 11]:
             self.iptables.add_append(
-                "INPUT", "-p icmp --icmp-type " + str(icmptype) +
-                " -m conntrack --ctstate NEW -j ACCEPT", False, True)
+                "INPUT", "-p icmp --icmp-type {} -m conntrack --ctstate NEW -j ACCEPT".format(
+                    icmptype), False, True)
         if self.ipv6 is True:
-            for icmptype in [
-                    1, 2, 3, 4, 128, 133, 134, 135, 136, 137,
-                    141, 142, 151, 152, 153]:
+            for icmptype in [1, 2, 3, 4, 128, 133, 134, 135, 136, 137, 141, 142, 151, 152, 153]:
                 self.iptables.add_append(
-                    "INPUT", "-p ipv6-icmp --icmpv6-type " +
-                    str(icmptype) + " -j ACCEPT", True)
+                    "INPUT", "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
 
     def apply_blacklist(self):
-        """the function applies the blacklist rules from the rules file"""
-        for ipaddr in self.get_rule_list("blacklist"):
+        """
+        this function adds rules to iptables which block incoming traffic
+        from a list of ip addresses
+        """
+        for ipaddr in self.rules.get_current_rules("blacklist"):
             if ":" in ipaddr:
                 self.iptables.add_append(
-                    "INPUT", "-s " + ipaddr +
-                    " -j LOG --log-prefix \" easywall[blacklist]: \"", True)
-                self.iptables.add_append(
-                    "INPUT", "-s " + ipaddr + " -j DROP", True)
+                    chain="INPUT",
+                    rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
+                    onlyv6=True)
+                self.iptables.add_append("INPUT", "-s {} -j DROP".format(ipaddr), onlyv6=True)
             else:
                 self.iptables.add_append(
-                    "INPUT", "-s " + ipaddr +
-                    " -j LOG --log-prefix \" easywall[blacklist]: \"", False,
-                    True)
-                self.iptables.add_append(
-                    "INPUT", "-s " + ipaddr + " -j DROP", False, True)
+                    chain="INPUT",
+                    rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
+                    onlyv4=True)
+                self.iptables.add_append("INPUT", "-s {} -j DROP".format(ipaddr), onlyv4=True)
 
     def apply_whitelist(self):
-        """the function applies the whitelist rules from the rules file"""
-        for ipaddr in self.get_rule_list("whitelist"):
+        """
+        this function adds rules to iptables which explicitly allows a connection
+        from this list ip addresses
+        """
+        for ipaddr in self.rules.get_current_rules("whitelist"):
             if ":" in ipaddr:
-                self.iptables.add_append(
-                    "INPUT", "-s " + ipaddr + " -j ACCEPT", True)
+                self.iptables.add_append("INPUT", "-s {} -j ACCEPT".format(ipaddr), onlyv6=True)
             else:
-                self.iptables.add_append(
-                    "INPUT", "-s " + ipaddr + " -j ACCEPT", False, True)
+                self.iptables.add_append("INPUT", "-s {} -j ACCEPT".format(ipaddr), onlyv4=True)
 
     def apply_rules(self, ruletype):
-        """the function applies the rules from the rules file"""
-        for port in self.get_rule_list(ruletype):
+        """
+        this function adds rules for incoming tcp and udp connections to iptables
+        which allow a connection to this list of ports
+
+        [INFO] the function also processes port ranges split by ":" separator.
+        """
+        for port in self.rules.get_current_rules(ruletype):
             if ":" in port:
-                self.iptables.add_append(
-                    "INPUT", "-p " + ruletype +
-                    " --match multiport --dports " + port +
-                    " -m conntrack --ctstate NEW -j ACCEPT")
+                rule = "-p {} --match multiport --dports {}".format(
+                    ruletype, port)
             else:
-                self.iptables.add_append(
-                    "INPUT", "-p " + ruletype + " --dport " + port +
-                    " -m conntrack --ctstate NEW -j ACCEPT")
+                rule = "-p {} --dport {}".format(ruletype, port)
+
+            self.iptables.add_append(
+                chain="INPUT",
+                rule="{} -m conntrack --ctstate NEW -j ACCEPT".format(rule)
+            )
 
     def check_acceptance(self):
         """the function checks for accetance of the new applied configuration"""
@@ -139,37 +141,19 @@ class Easywall(object):
             self.iptables.save()
             info("New configuration was applied.")
 
-    def get_rule_list(self, ruletype):
-        """the function retrieves the rules from the rules file"""
-        rule_list = []
-        with open(self.config.get_value("RULES", "filepath") + "/" +
-                  self.config.get_value("RULES", ruletype), 'r') as rulesfile:
-            for rule in rulesfile.read().split('\n'):
-                if rule.strip() != "":
-                    rule_list.append(rule)
-        return rule_list
-
     def rotate_backup(self):
         """the function rotates the backup files to have a clean history of files"""
-        self.filepath = self.config.get_value("BACKUP", "filepath")
-        self.filename = self.config.get_value("BACKUP", "ipv4filename")
+        self.filepath = self.cfg.get_value("BACKUP", "filepath")
+        self.filename = self.cfg.get_value("BACKUP", "ipv4filename")
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         debug("rotating backup files in folder " +
               self.filepath + " -> add prefix " + self.date)
         self.rename_backup_file()
         if self.ipv6 is True:
-            self.filename = self.config.get_value("BACKUP", "ipv6filename")
+            self.filename = self.cfg.get_value("BACKUP", "ipv6filename")
             self.rename_backup_file()
 
     def rename_backup_file(self):
         """the function renames a backup file"""
         rename_file("{}/{}".format(self.filepath, self.filename),
                     "{}/{}_{}".format(self.filepath, self.date, self.filename))
-
-    def create_running_file(self):
-        """the function creates a file in the main directory called .running"""
-        create_file_if_not_exists(".running")
-
-    def delete_running_file(self):
-        """the function deletes a file in the main directory called .running"""
-        delete_file_if_exists(".running")
