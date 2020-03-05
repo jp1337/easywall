@@ -1,17 +1,14 @@
 """the module contains the core functions of easywall"""
-from logging import error, info
+from logging import info
 from time import sleep
-
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
 
 from easywall.config import Config
 from easywall.easywall import Easywall
 from easywall.log import Log
-from easywall.utility import (create_file_if_not_exists,
-                              create_folder_if_not_exists,
-                              delete_file_if_exists, file_exists, folder_exists)
 from easywall.rules_handler import RulesHandler
+from easywall.utility import delete_file_if_exists, folder_exists
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 CONFIG_PATH = "config/easywall.ini"
 
