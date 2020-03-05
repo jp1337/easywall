@@ -31,7 +31,7 @@ def delete_file_if_exists(fullpath: str):
         remove(fullpath)
 
 
-def file_get_contents(filepath: str):
+def file_get_contents(filepath: str) -> str:
     """A wrapper function to easily read the contents of a file."""
     with open(filepath) as filehandler:
         return filehandler.read()
@@ -54,8 +54,21 @@ def rename_file(oldpath: str, newpath: str):
 
 
 def file_exists(filepath: str) -> bool:
-    """simply checks if a file exists in the given path"""
+    """
+    the function checks if a fiven file exists on the system.
+
+    [Data Types] boolean
+    """
     return path.isfile(filepath)
+
+
+def folder_exists(folder_path: str) -> bool:
+    """
+    the function checks if a given folder exists on the system.
+
+    [Data Types] bool
+    """
+    return path.isdir(folder_path)
 
 # -------------------------
 # Data Type Operations
@@ -101,6 +114,7 @@ def format_exception(exc: Exception) -> str:
 
 # -------------------------
 # Time Operations
+
 
 def time_duration_diff(date1: datetime, date2: datetime):
     """The function calculates the difference between two dates and returns them as a string."""
