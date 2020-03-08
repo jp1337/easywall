@@ -11,6 +11,15 @@
 Today **Firewalls** are more important than years before. Hackers and Bots are trying to invade your server. So what is the most effective way to prevent this?
 Set up a firewall! But which one? **IPTables** is the strongest firewall in **Linux** environments. So we wanted to make IPTables usable by everyone. We created a simple **Web Interface** for IPTables so everyone can install and use it on his / her server.
 
+## Features
+
+- Configuration of Firewall Rules using a **simple Webinterface**
+- **Blacklist** for blocking incoming triffic from a IPV4 / IPV6 Address
+- **Whitelist** to allow all incoming network traffic from a specific IP Address
+- Allow incoming traffic to a **single TCP or UDP Port**
+- Allow incoming Traffic from a **TCP or UDP Port range**
+- **Automatic Reset of Firewall Settings** on connection loss or bad firewall settings
+
 ## Roadmap for the next release
 
 Most of you noticed that there are a lot of changes made at the moment, but the release status is still in "development" and there are no minor releases. This is because I currently enhance the project until the next release. The reason for this is because I learned a lot of Python 3 coding the last year in my main job. I want to use this knowledge and clean this project up so everyone can use it and there are less bugs than before (there were a lot of bugs). If you want to support me and improve the development speed you can send me a beer on beerpay :beers:
@@ -22,36 +31,31 @@ Most of you noticed that there are a lot of changes made at the moment, but the 
 - :x: create unit tests for all classes in web folder
 - :x: rework all classes in easywall folder
 - :x: rework all classes in web folder
+- :x: SSL Implementation for web application
 - :x: write documentation for installing and uninstalling
 - :x: write documentation for contributing
 
 ## Roadmap for later version
+
+These are long-term planned features. If you want to have more features listed here you just have to create a issue and we can discuss the feature.
 
 - :x: create a `pydoc` documentation
 - :x: finish all `TODO: Docs` documentations
 - :x: set up a demo server
 - :x: create a ansible role for easy installing
 
-<!-- ## Demo
+## Demo
 
-> We are currently setting up a self resetting demo server.\* -->
+:hourglass: We have planned to set up a demo server in later releases.
 
-## Features
+<!-- ## Install
 
-- **Blacklist for completely blocking an IPV4 / IPV6 Address**
-- **Whitelist to allow complete traffic from a specific IP**
-- **Opening TCP and UDP Ports**
-- **Opening TCP and UDP Port Ranges**
-- **Automatic Reset of Firewall Settings on connection loss or bad firewall settings**
+We provide extensive instructions on our [installation](https://github.com/jp1337/easywall/blob/master/INSTALL.md) page.
+You can find a script for automatic downloading and installation. -->
 
-## Install
+<!-- ## Documentation
 
-We provide extensive instructions on our [installation](https://github.com/jp1337/easywall/blob/master/INSTALL.md) page.  
-You can find a script for automatic downloading and installation.
-
-## Documentation
-
-Check the **[easywall wiki](https://github.com/jp1337/easywall/wiki)**.
+Check the **[easywall wiki](https://github.com/jp1337/easywall/wiki)**. -->
 
 ## License
 
