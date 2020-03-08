@@ -1,11 +1,13 @@
-"""This file contains useful functions which should be used instead of implementing in a class"""
+"""
+this module exports useful functions which are not implemented in python by default
+"""
 from csv import reader
 from datetime import datetime
+from io import StringIO
 from math import floor
 from os import R_OK, access, chmod, makedirs, path, remove, rename, system
 from traceback import TracebackException
 from urllib import parse
-from io import StringIO
 
 # -------------------------
 # File Operations
