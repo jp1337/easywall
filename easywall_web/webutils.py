@@ -36,7 +36,8 @@ class Webutils(object):
         payload.customcss = css
         payload.machine = self.get_machine_infos()
         payload.latest_version = self.cfg.get_value("VERSION", "version")
-        payload.current_version = file_get_contents("{}/../.version".format(get_abs_path_of_filepath(__file__)))
+        payload.current_version = file_get_contents(
+            "{}/../.version".format(get_abs_path_of_filepath(__file__)))
         payload.commit_sha = self.cfg.get_value("VERSION", "sha")
         payload.commit_date = self.get_commit_date(self.cfg.get_value("VERSION", "date"))
         return payload

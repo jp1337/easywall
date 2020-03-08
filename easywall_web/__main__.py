@@ -2,7 +2,6 @@
 import os
 
 from easywall.config import Config
-from easywall.log import Log
 from easywall_web.apply import apply, apply_save
 from easywall_web.blacklist import blacklist, blacklist_save
 from easywall_web.custom import custom, custom_save
@@ -114,13 +113,21 @@ def page_not_found_route(error):
     return page_not_found(error)
 
 
+class Main(object):
+    """
+    TODO: Doku
+    """
+
+    def __init__(self, debug=False):
+        if debug is True:
+            port = int(CFG.get_value("WEB", "bindport"))
+            host = CFG.get_value("WEB", "bindip")
+            debug = True
+            app.run(host, port, debug)
+        app.secret_key = os.urandom(12)
+
+
 if __name__ == '__main__':
-    # debugging mode
-    app.secret_key = os.urandom(12)
-    PORT = int(CFG.get_value("WEB", "bindport"))
-    HOST = CFG.get_value("WEB", "bindip")
-    DEBUG = True
-    app.run(HOST, PORT, DEBUG)
+    Main(debug=True)
 else:
-    # production mode
-    app.secret_key = os.urandom(12)
+    Main()
