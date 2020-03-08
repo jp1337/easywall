@@ -3,8 +3,8 @@ this file is the test module for the log module
 """
 from logging import CRITICAL, DEBUG, ERROR, INFO, NOTSET, WARNING
 
-from oracle_reporting.log import Log
-from oracle_reporting.utility import delete_file_if_exists
+from easywall.log import Log
+from easywall.utility import delete_file_if_exists
 from tests import unittest
 
 

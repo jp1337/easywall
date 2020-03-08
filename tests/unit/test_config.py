@@ -3,9 +3,9 @@ TODO: Doku
 """
 from configparser import ParsingError
 
-from oracle_reporting.config import Config
-from oracle_reporting.utility import (create_file_if_not_exists,
-                                      delete_file_if_exists, write_into_file)
+from easywall.config import Config
+from easywall.utility import (create_file_if_not_exists,
+                              delete_file_if_exists, write_into_file)
 from tests import unittest
 
 
