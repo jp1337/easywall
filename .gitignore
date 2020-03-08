@@ -149,3 +149,4 @@ easywall_web/static/js/*.min.js
 *.crt
 *.key
 .acceptance_status
+.apply
