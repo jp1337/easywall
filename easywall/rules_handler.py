@@ -1,7 +1,6 @@
 """
 TODO: Doku
 """
-from easywall.config import Config
 from easywall.utility import (create_file_if_not_exists,
                               create_folder_if_not_exists, file_get_contents,
                               write_into_file)
@@ -12,8 +11,7 @@ class RulesHandler(object):
     TODO: Doku
     """
 
-    def __init__(self, cfg: Config) -> None:
-        self.cfg = cfg
+    def __init__(self) -> None:
         self.rulesfolder = "rules"
         self.types = ["blacklist", "whitelist", "tcp", "udp", "custom"]
         self.states = ["current", "new", "backup"]
@@ -22,7 +20,7 @@ class RulesHandler(object):
         """
         TODO: Doku
         """
-        file_get_contents("{}/current/{}".format(self.rulesfolder, ruletype)).splitlines()
+        return file_get_contents("{}/current/{}".format(self.rulesfolder, ruletype)).splitlines()
 
     def backup_current_rules(self) -> None:
         """
