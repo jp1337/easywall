@@ -3,7 +3,6 @@ import os
 
 from easywall.config import Config
 from easywall.log import Log
-from flask import Flask
 from easywall_web.apply import apply, apply_save
 from easywall_web.blacklist import blacklist, blacklist_save
 from easywall_web.custom import custom, custom_save
@@ -13,7 +12,7 @@ from easywall_web.login import login_post, logout
 from easywall_web.options import options, options_save
 from easywall_web.ports import ports, ports_save
 from easywall_web.whitelist import whitelist, whitelist_save
-
+from flask import Flask
 
 app = Flask(__name__)
 CFG = Config("config/web.ini")
