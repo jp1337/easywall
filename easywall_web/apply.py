@@ -17,8 +17,8 @@ def apply(saved=False, step=1):
         payload.saved = saved
         payload.step = step
         payload.lastapplied = utils.get_last_accept_time()
-        payload.running = ""
-        payload.accepttime = utils.cfg.get_value("ACCEPTANCE", "time")
+        payload.running = step > 1
+        payload.accepttime = utils.cfg_easywall.get_value("ACCEPTANCE", "duration")
         return render_template('apply.html', vars=payload)
     return login("", None)
 
