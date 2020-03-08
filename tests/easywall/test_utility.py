@@ -3,7 +3,7 @@ this file is the test module for the utility module
 """
 import os
 from datetime import datetime, timedelta
-
+from time import sleep
 from easywall.utility import (create_file_if_not_exists,
                               create_folder_if_not_exists, csv_to_array,
                               delete_file_if_exists, execute_os_command,
@@ -23,10 +23,14 @@ class TestUtility(unittest.TestCase):
         """
         TODO: Doku
         """
-        create_folder_if_not_exists("testfolder")
-        self.assertTrue(folder_exists("testfolder"))
-        os.removedirs("testfolder")
-        self.assertFalse(folder_exists("testfolder"))
+        foldername = "pytestfolder"
+        create_folder_if_not_exists(foldername)
+        sleep(1)
+        self.assertTrue(folder_exists(foldername))
+        sleep(1)
+        os.removedirs(foldername)
+        sleep(1)
+        self.assertFalse(folder_exists(foldername))
 
     def test_file(self):
         """
