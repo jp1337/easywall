@@ -11,8 +11,7 @@ def options(saved=False):
         payload = utils.get_default_payload("Options")
         payload.config = utils.cfg
         payload.saved = saved
-        return render_template(
-            'options.html', vars=payload)
+        return render_template('options.html', vars=payload)
     return login("", None)
 
 

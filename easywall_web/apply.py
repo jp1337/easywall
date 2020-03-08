@@ -1,27 +1,32 @@
-"""the module contains functions for the apply rules route"""
+"""
+the module contains functions for the apply rules route
+"""
 from flask import render_template, request
-from easywall.utility import delete_file_if_exists
+from easywall.utility import create_file_if_not_exists, write_into_file
 from easywall_web.login import login
 from easywall_web.webutils import Webutils
 
 
 def apply(saved=False, step=1):
-    """the function returns the apply page when the user is logged in"""
+    """
+    the function returns the apply page when the user is logged in
+    """
     utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Apply")
         payload.saved = saved
         payload.step = step
         payload.lastapplied = utils.get_last_accept_time()
-        payload.running = utils.check_acceptance_running()
+        payload.running = ""
         payload.accepttime = utils.cfg.get_value("ACCEPTANCE", "time")
-        return render_template(
-            'apply.html', vars=payload)
+        return render_template('apply.html', vars=payload)
     return login("", None)
 
 
 def apply_save():
-    """the function applies the configuration and copies the rules to easywall core"""
+    """
+    the function applies the configuration and copies the rules to easywall core
+    """
     utils = Webutils()
     step = 0
     if utils.check_login() is True:
@@ -36,21 +41,13 @@ def apply_save():
     return login("", None)
 
 
-def apply_step_one():
-    """the function copies the rules from temporary web to easywall core"""
-    for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
-        utils = Webutils()
-        utils.apply_rule_list(ruletype)
+def apply_step_one() -> None:
+    """
+    the function triggeres the easywall core to apply the new firewall rules
+    """
+    create_file_if_not_exists(".apply")
 
 
-def apply_step_two():
+def apply_step_two() -> None:
     """the function writes true into the accept file from easywall core"""
-    try:
-        utils = Webutils()
-        filepath = "../" + utils.cfg.get_value("ACCEPTANCE", "filename")
-        with open(filepath, mode='wt', encoding='utf-8') as acceptfile:
-            acceptfile.write("true")
-        for ruletype in ["blacklist", "whitelist", "tcp", "udp", "custom"]:
-            delete_file_if_exists(utils.get_rule_file_path(ruletype, True))
-    except Exception as exc:
-        print("{}".format(exc))
+    write_into_file(".acceptance", "true")

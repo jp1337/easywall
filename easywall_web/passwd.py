@@ -33,7 +33,11 @@ class Passwd(object):
         username = input("easywall Web Username: ")
         self.saveuser(username)
         password = getpass.getpass("easywall Web Password: ")
-        self.savepasswd(password)
+        password_repeat = getpass.getpass("easywall Web Password repeat: ")
+        if password == password_repeat:
+            self.savepasswd(password)
+        else:
+            print("password is not equal. password not saved!")
 
 
 if __name__ == "__main__":

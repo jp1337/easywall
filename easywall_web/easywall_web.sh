@@ -1,11 +1,11 @@
 #!/bin/bash
 
-CONFIGFOLDER="config"
-CONFIGFILE="web.ini"
-SCRIPTPATH=$(dirname "$(readlink -f "$0")")
-CONFIGPATH="$SCRIPTPATH"/../"$CONFIGFOLDER"
-BINDIP=$(awk -F "=" '/bindip/ {print $2}' "$CONFIGPATH"/"$CONFIGFILE")
-BINDPORT=$(awk -F "=" '/bindport/ {print $2}' "$CONFIGPATH"/"$CONFIGFILE")
+# CONFIGFOLDER="config"
+# CONFIGFILE="web.ini"
+# SCRIPTPATH=$(dirname "$(readlink -f "$0")")
+# CONFIGPATH="$SCRIPTPATH"/../"$CONFIGFOLDER"
+# BINDIP=$(awk -F "=" '/bindip/ {print $2}' "$CONFIGPATH"/"$CONFIGFILE")
+# BINDPORT=$(awk -F "=" '/bindport/ {print $2}' "$CONFIGPATH"/"$CONFIGFILE")
 DEBUG=false
 
 function print_help() {
@@ -39,7 +39,7 @@ while true; do
 done
 
 if [[ $DEBUG == true ]]; then
-    /usr/bin/env python3 easywall_web/__init__.py
+    /usr/bin/env python3 -m easywall_web
 else
-    uwsgi --http-socket "$BINDIP:$BINDPORT" --need-plugin python3 --wsgi-file easywall_web/__init__.py --callable app --processes 4 --threads 2
+    uwsgi config/web.ini
 fi

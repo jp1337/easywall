@@ -1,4 +1,6 @@
-"""the module contains functions for the user management routes"""
+"""
+the module contains functions for the user management routes
+"""
 import hashlib
 import platform
 
@@ -40,7 +42,9 @@ def login_post():
 
 
 def logout():
-    """the function removes the logged_in session variable if the user is logged in"""
+    """
+    the function removes the logged_in session variable if the user is logged in
+    """
     utils = Webutils()
     if utils.check_login() is True:
         session['logged_in'] = False

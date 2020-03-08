@@ -1,6 +1,5 @@
 """the module contains a class webutils which is called in the route modules"""
 import json
-import os
 import platform
 import time
 import urllib
@@ -8,8 +7,8 @@ from datetime import datetime, timezone
 
 from flask import session
 from easywall.config import Config
-from easywall.utility import (create_folder_if_not_exists, file_get_contents,
-                              time_duration_diff, get_abs_path_of_filepath)
+from easywall.utility import (file_get_contents, get_abs_path_of_filepath,
+                              time_duration_diff, file_exists)
 from easywall_web.defaultpayload import DefaultPayload
 
 
@@ -18,6 +17,7 @@ class Webutils(object):
 
     def __init__(self):
         self.cfg = Config("config/web.ini")
+        self.cfg_easywall = Config("config/easywall.ini")
 
     def check_login(self):
         """the function checks if the user/session is logged in"""
@@ -85,7 +85,7 @@ class Webutils(object):
             self.cfg.set_value("VERSION", "version", self.get_latest_version())
             self.cfg.set_value("VERSION", "sha", commit["sha"])
             self.cfg.set_value("VERSION", "date", commit["commit"]["author"]["date"])
-            self.cfg.set_value("VERSION", "timestamp", currtime)
+            self.cfg.set_value("VERSION", "timestamp", str(currtime))
 
     def get_latest_commit(self):
         """
@@ -105,11 +105,11 @@ class Webutils(object):
         response = urllib.request.urlopen(req)
         return json.loads(response.read().decode('utf-8'))
 
-    def get_latest_version(self):
+    def get_latest_version(self) -> str:
         """
         the function retrieves the latest version from github and returns the version string
         """
-        url = "https://raw.githubusercontent.com/jp1337/easywall-web/master/.version"
+        url = "https://raw.githubusercontent.com/jp1337/easywall/master/.version"
         req = urllib.request.Request(
             url,
             data=None,
@@ -122,108 +122,25 @@ class Webutils(object):
         return data.decode('utf-8')
 
     # -------------------------
-    # Rule Operations
-
-    def get_rule_status(self, ruletype):
-        """
-        the function checks if a custom / temporary rulefile exists
-        and returns "custom" when a temporary rulefile exists or "production" when no file exists
-        """
-        filepath = self.get_rule_file_path(ruletype, True)
-        if not os.path.exists(filepath):
-            filepath = self.get_rule_file_path(ruletype)
-            if not os.path.exists(filepath):
-                return "error"
-            return "production"
-        return "custom"
-
-    def get_rule_file_path(self, ruletype, tmp=False):
-        """
-        the function reads the configuration and returns the relative
-        or absolute path to the rulefile for the ruletype
-        """
-        filename = self.cfg.get_value("RULES", ruletype)
-        if tmp:
-            filepath = self.cfg.get_value("WEB", "rules_tmp_path")
-        else:
-            filepath = self.cfg.get_value("RULES", "filepath")
-            # workaround because the easywall dir is one dir up - this is not pretty
-            if filepath.startswith("."):
-                filepath = "../" + filepath
-        create_folder_if_not_exists(filepath)
-        return filepath + "/" + filename
-
-    def get_rule_list(self, ruletype):
-        """
-        the function reads a file into the ram and returns a list of all rows in a list
-        for example you get all the ip addresses of the blacklist in a array
-        """
-        rule_list = []
-
-        status = self.get_rule_status(ruletype)
-        filepath = self.get_rule_file_path(ruletype)
-        if status == "custom":
-            filepath = self.get_rule_file_path(ruletype, True)
-
-        with open(filepath, 'r') as rulesfile:
-            for rule in rulesfile.read().split('\n'):
-                if rule.strip() != "":
-                    rule_list.append(rule)
-        return rule_list
-
-    def save_rule_list(self, ruletype, rulelist, to_production=False):
-        """
-        the function writes a list of strings into a rulesfile
-        for example it saves the blacklist rules into the blacklist temporary rulesfile
-        """
-        filepath = self.get_rule_file_path(ruletype, True)
-        state = self.get_rule_status(ruletype)
-        if to_production:
-            filepath = self.get_rule_file_path(ruletype)
-        try:
-            rulelist = list(filter(None, rulelist))
-            if not to_production or to_production and state == "custom":
-                with open(filepath, mode='wt', encoding='utf-8') as rulesfile:
-                    rulesfile.write('\n'.join(rulelist))
-        except Exception as exc:
-            print("{}".format(exc))
-            return False
-        return True
-
-    # -------------------------
     # Acceptance Operations
-
-    def apply_rule_list(self, ruletype):
-        """
-        the function copys the rulefile from the temporary path to the permanent path
-        this is used to copy the rules from web to easywall folder
-        """
-        rule_list = self.get_rule_list(ruletype)
-        self.save_rule_list(ruletype, rule_list, True)
 
     def get_last_accept_time(self):
         """
         the function retrieves the modify time of the acceptance file
         and compares the time to the current time
         """
-        filepath = "../" + self.cfg.get_value("ACCEPTANCE", "filename")
-        if os.path.exists(filepath):
-            mtime = os.path.getmtime(filepath)
-            mtime = datetime.utcfromtimestamp(mtime)
-            mtime = mtime.replace(
-                tzinfo=timezone.utc).astimezone(
-                    tz=None).replace(
-                        tzinfo=None)
-            now = datetime.now()
-            return time_duration_diff(mtime, now)
-        else:
+        timestamp = self.cfg_easywall.get_value("ACCEPTANCE", "timestamp")
+        if timestamp == "":
             return "never"
+        timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
+        now = datetime.now()
+        return time_duration_diff(timestamp, now)
 
-    def check_acceptance_running(self):
+    def get_acceptance_status(self):
         """
-        the function checks if there is a running file.
+        get the status of the current acceptance
         """
-        filepath = "../.running"
-        if os.path.exists(filepath):
-            return True
-        return False
+        filepath = ".acceptance_status"
+        if file_exists(filepath):
+            return file_get_contents(filepath)
+        return ""
