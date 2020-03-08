@@ -7,8 +7,7 @@ from datetime import datetime, timezone
 
 from flask import session
 from easywall.config import Config
-from easywall.utility import (file_get_contents, get_abs_path_of_filepath,
-                              time_duration_diff, file_exists)
+from easywall.utility import file_exists, file_get_contents, time_duration_diff
 from easywall_web.defaultpayload import DefaultPayload
 
 
@@ -36,8 +35,7 @@ class Webutils(object):
         payload.customcss = css
         payload.machine = self.get_machine_infos()
         payload.latest_version = self.cfg.get_value("VERSION", "version")
-        payload.current_version = file_get_contents(
-            "{}/../.version".format(get_abs_path_of_filepath(__file__)))
+        payload.current_version = file_get_contents(".version")
         payload.commit_sha = self.cfg.get_value("VERSION", "sha")
         payload.commit_date = self.get_commit_date(self.cfg.get_value("VERSION", "date"))
         return payload
@@ -94,12 +92,12 @@ class Webutils(object):
         for example the object contains the last commit date and the last commit sha
         This function should not be called very often, because GitHub has a rate limit implemented
         """
-        url = "https://api.github.com/repos/jp1337/easywall-web/commits/master"
+        url = "https://api.github.com/repos/jp1337/easywall/commits/master"
         req = urllib.request.Request(
             url,
             data=None,
             headers={
-                'User-Agent': 'easywall by github.com/jp1337/easywall-web'
+                'User-Agent': 'easywall by github.com/jp1337/easywall'
             }
         )
         response = urllib.request.urlopen(req)
@@ -114,7 +112,7 @@ class Webutils(object):
             url,
             data=None,
             headers={
-                'User-Agent': 'easywall by github.com/jp1337/easywall-web'
+                'User-Agent': 'easywall by github.com/jp1337/easywall'
             }
         )
         response = urllib.request.urlopen(req)

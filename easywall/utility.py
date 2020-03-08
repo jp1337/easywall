@@ -136,7 +136,7 @@ def time_duration_diff(date1: datetime, date2: datetime):
         1: "second"
     }
 
-    for unit, text in sorted(tokens.items(), reverse=True):
+    for unit, text in sorted(tokens.items(), reverse=False):
         unit = int(unit)
         if diff < unit:
             continue
