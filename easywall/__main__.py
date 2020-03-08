@@ -87,7 +87,7 @@ class Main(object):
         info("starting shutdown")
 
         self.observer.stop()
-        delete_file_if_exists(self.cfg.get_value("ACCEPTANCE", "filename"))
+        delete_file_if_exists(".acceptance")
         self.observer.join()
 
         info("shutdown completed")
