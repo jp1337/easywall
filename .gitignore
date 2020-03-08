@@ -133,6 +133,6 @@ backup/
 rules/
 *.log
 config/easywall*.ini
-.accepted
+.acceptance
 .running
 apply
