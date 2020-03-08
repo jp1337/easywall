@@ -30,9 +30,9 @@ class Acceptance(object):
         self.enabled = self.cfg.get_value("ACCEPTANCE", "enabled")
         self.duration = self.cfg.get_value("ACCEPTANCE", "duration")
 
-        self.mystatus = "ready"
+        self.set_status("ready")
         if not self.enabled:
-            self.mystatus = "disabled"
+            self.set_status("disabled")
 
         info("Acceptance Library initialized.\n Enabled: {}\n Filename: {}".format(
             self.enabled, self.filename))
@@ -47,7 +47,7 @@ class Acceptance(object):
         if self.mystatus in ["ready", "accepted", "not accepted"]:
             create_file_if_not_exists(self.filename)
             write_into_file(self.filename, "false")
-            self.mystatus = "started"
+            self.set_status("started")
         info("Acceptance Process has been started.")
 
     def wait(self) -> None:
@@ -59,7 +59,7 @@ class Acceptance(object):
         if self.mystatus == "started":
             seconds = deepcopy(self.duration)
             info("acceptance wait process started. waiting for {} seconds".format(seconds))
-            self.mystatus = "waiting"
+            self.set_status("waiting")
 
             while seconds > 0:
                 content = file_get_contents(self.filename)
@@ -71,7 +71,7 @@ class Acceptance(object):
                 sleep(2)
                 seconds = seconds - 2
 
-            self.mystatus = "waited"
+            self.set_status("waited")
 
         info("acceptance wait process finished")
 
@@ -99,11 +99,20 @@ class Acceptance(object):
 
             if content.lower() == "true":
                 info("acceptance result: Accepted")
-                self.mystatus = "accepted"
+                self.set_status("accepted")
             else:
                 info("acceptance result: Not Accepted (file content: {})".format(content))
-                self.mystatus = "not accepted"
+                self.set_status("not accepted")
 
             delete_file_if_exists(self.filename)
 
         return self.mystatus
+
+    def set_status(self, status: str) -> None:
+        """
+        TODO: Doku
+        """
+        filename = ".acceptance_status"
+        create_file_if_not_exists(filename)
+        write_into_file(filename, status)
+        self.mystatus = status
