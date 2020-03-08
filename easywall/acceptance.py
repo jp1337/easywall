@@ -7,7 +7,7 @@ from time import sleep
 
 from easywall.config import Config
 from easywall.utility import (create_file_if_not_exists, delete_file_if_exists,
-                              write_into_file)
+                              file_get_contents, write_into_file)
 
 
 class Acceptance(object):
@@ -34,7 +34,7 @@ class Acceptance(object):
         if not self.enabled:
             self.mystatus = "disabled"
 
-        info("Acceptance Library initialized. \n Enabled: {} \n Filename: {}".format(
+        info("Acceptance Library initialized.\n Enabled: {}\n Filename: {}".format(
             self.enabled, self.filename))
 
     def start(self) -> None:
@@ -62,8 +62,14 @@ class Acceptance(object):
             self.mystatus = "waiting"
 
             while seconds > 0:
-                sleep(1)
-                seconds = seconds - 1
+                content = file_get_contents(self.filename)
+                content = content.replace("\n", "")
+                content = content.replace("\t", "")
+                content = content.replace(" ", "")
+                if content.lower() == "true":
+                    break
+                sleep(2)
+                seconds = seconds - 2
 
             self.mystatus = "waited"
 
@@ -87,17 +93,16 @@ class Acceptance(object):
         """
 
         if self.mystatus == "waited":
-            with open(self.filename, 'r') as tmpfile:
-                content = tmpfile.read()
-                content = content.replace("\n", "")
-                content = content.replace("\t", "")
+            content = file_get_contents(self.filename)
+            content = content.replace("\n", "")
+            content = content.replace("\t", "")
 
-                if content.lower() == "true":
-                    info("acceptance result: Accepted")
-                    self.mystatus = "accepted"
-                else:
-                    info("acceptance result: Not Accepted (file content: {})".format(content))
-                    self.mystatus = "not accepted"
+            if content.lower() == "true":
+                info("acceptance result: Accepted")
+                self.mystatus = "accepted"
+            else:
+                info("acceptance result: Not Accepted (file content: {})".format(content))
+                self.mystatus = "not accepted"
 
             delete_file_if_exists(self.filename)
 
