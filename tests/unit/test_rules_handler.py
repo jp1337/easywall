@@ -13,9 +13,7 @@ class TestRulesHandler(unittest.TestCase):
 
     def setUp(self):
         self.rules = RulesHandler()
-
-    # def tearDown(self):
-        # delete_file_if_exists("acceptance.ini")
+        self.rules.rules_firstrun()
 
     def test_firstrun(self):
         """
