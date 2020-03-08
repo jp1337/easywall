@@ -1,2 +1,2 @@
-# git+git://github.com/gorakhargosh/watchdog@tags/v0.10.2#egg=watchdog
 watchdog
+Flask
