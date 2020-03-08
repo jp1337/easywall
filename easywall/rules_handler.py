@@ -22,6 +22,20 @@ class RulesHandler(object):
         """
         return file_get_contents("{}/current/{}".format(self.rulesfolder, ruletype)).splitlines()
 
+    def get_new_rules(self, ruletype: str) -> list:
+        """
+        TODO: Doku
+        """
+        return file_get_contents("{}/new/{}".format(self.rulesfolder, ruletype)).splitlines()
+
+    def get_rules_for_web(self, ruletype: str) -> list:
+        """
+        TODO: Doku
+        """
+        if self.diff_new_current(ruletype):
+            return self.get_new_rules(ruletype)
+        return self.get_current_rules(ruletype)
+
     def backup_current_rules(self) -> None:
         """
         TODO: Doku
@@ -59,3 +73,26 @@ class RulesHandler(object):
 
             for ruletype in self.types:
                 create_file_if_not_exists("{}/{}/{}".format(self.rulesfolder, state, ruletype))
+
+    def diff_new_current(self, ruletype: str) -> bool:
+        """
+        TODO: Doku
+
+        True = There are differences between new and current
+        False = There are no differences between new and current
+        """
+        state = False
+
+        new = file_get_contents("{}/new/{}".format(self.rulesfolder, ruletype))
+        current = file_get_contents("{}/current/{}".format(self.rulesfolder, ruletype))
+        if new != current:
+            return True
+
+        return state
+
+    def save_new_rules(self, ruletype: str, rules: list) -> None:
+        """
+        TODO: Doku
+        """
+        rules = list(filter(None, rules))
+        write_into_file("{}/new/{}".format(self.rulesfolder, ruletype), '\n'.join(rules))
