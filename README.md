@@ -61,8 +61,6 @@ Check the **[easywall wiki](https://github.com/jp1337/easywall/wiki)**. -->
 
 easywall is GNU General Public License v3.0.
 
-It re-distributes other open-source tools and libraries. Please check its [License](https://github.com/jp1337/easywall/blob/master/LICENSE).
-
 ## Screenshots
 
 ![Screenshot 1: Home Page on Mobile](https://i.imgur.com/vEneFWK.png)
