@@ -23,14 +23,32 @@ class Easywall(object):
         self.filepath = None
         self.filename = None
         self.date = None
-        self.rules = RulesHandler(self.cfg)
+        self.rules = RulesHandler()
 
     def apply(self):
-        """the function applies the configuration from the rule files"""
-        self.acceptance.reset()
-
-        # save current ruleset and reset iptables for clean setup
+        """
+        TODO: Doku
+        """
+        self.acceptance.start()
+        self.rotate_backup()
         self.iptables.save()
+        self.rules.backup_current_rules()
+        self.rules.apply_new_rules()
+        self.apply_iptables()
+        self.acceptance.wait()
+
+        if self.acceptance.status() == "not accepted":
+            self.iptables.restore()
+            self.rules.rollback_from_backup()
+            info("Configuration was not accepted, rollback applied")
+        else:
+            info("New configuration was applied.")
+
+    def apply_iptables(self) -> None:
+        """
+        TODO: Doku
+        """
+        # and reset iptables for clean setup
         self.iptables.reset()
 
         # drop intbound traffic and allow outbound traffic
@@ -65,8 +83,6 @@ class Easywall(object):
         # log and reject all other packages
         self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
         self.iptables.add_append("INPUT", "-j REJECT")
-
-        self.check_acceptance()
 
     def apply_icmp(self) -> None:
         """
@@ -130,30 +146,26 @@ class Easywall(object):
                 rule="{} -m conntrack --ctstate NEW -j ACCEPT".format(rule)
             )
 
-    def check_acceptance(self):
-        """the function checks for accetance of the new applied configuration"""
-        info("Checking acceptance.")
-        if self.acceptance.check() is False:
-            info("Configuration not accepted, rolling back.")
-            self.iptables.restore()
-        else:
-            self.rotate_backup()
-            self.iptables.save()
-            info("New configuration was applied.")
-
     def rotate_backup(self):
-        """the function rotates the backup files to have a clean history of files"""
+        """
+        the function rotates the backup files to have a clean history of files
+        """
         self.filepath = self.cfg.get_value("BACKUP", "filepath")
         self.filename = self.cfg.get_value("BACKUP", "ipv4filename")
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        debug("rotating backup files in folder " +
-              self.filepath + " -> add prefix " + self.date)
+
         self.rename_backup_file()
         if self.ipv6 is True:
             self.filename = self.cfg.get_value("BACKUP", "ipv6filename")
             self.rename_backup_file()
 
-    def rename_backup_file(self):
-        """the function renames a backup file"""
-        rename_file("{}/{}".format(self.filepath, self.filename),
-                    "{}/{}_{}".format(self.filepath, self.date, self.filename))
+        debug("backup file rotated in folder {} \n prefix added: {}".format(
+            self.filepath, self.date))
+
+    def rename_backup_file(self) -> None:
+        """
+        the function renames a backup file
+        """
+        old_filename = "{}/{}".format(self.filepath, self.filename)
+        new_filename = "{}/{}_{}".format(self.filepath, self.date, self.filename)
+        rename_file(old_filename, new_filename)
