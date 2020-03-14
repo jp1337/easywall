@@ -6,9 +6,11 @@ JQUERY="3.3.1"
 POPPER="1.14.7"
 SCRIPTNAME=$(basename "$0")
 SCRIPTPATH=$(dirname "$(readlink -f "$0")")
+HOMEPATH="${SCRIPTPATH}/.."
 CONFIGFOLDER="config"
 CONFIGFILE="web.ini"
-WEBDIR="$SCRIPTPATH/easywall_web"
+EXAMPLECONFIGFILE="web.samle.ini"
+WEBDIR="$HOMEPATH/easywall_web"
 TMPDIR="$WEBDIR/tmp"
 STEPS=8
 STEP=1
@@ -33,12 +35,12 @@ apt -y install python3 python3-pip uwsgi uwsgi-plugin-python3 wget unzip
 
 # Step 2
 echo "" && echo "($STEP/$STEPS) install required python 3 packages using pip" && ((STEP++))
-pip3 install -r requirements.txt
-pip3 install "$SCRIPTPATH"
+pip3 install -r "${HOMEPATH}"/requirements.txt
+pip3 install "${HOMEPATH}"
 
 # Step 3
 echo "" && echo "($STEP/$STEPS) creating configuration file from example" && ((STEP++))
-cp "$SCRIPTPATH"/"$CONFIGFOLDER"/"$CONFIGFILE".example "$SCRIPTPATH"/"$CONFIGFOLDER"/"$CONFIGFILE"
+cp "$HOMEPATH"/"$CONFIGFOLDER"/"$EXAMPLECONFIGFILE" "$HOMEPATH"/"$CONFIGFOLDER"/"$CONFIGFILE"
 
 # Step 4
 echo "" && echo "($STEP/$STEPS) installing 3rd party files for easywall-web" && ((STEP++))
@@ -64,7 +66,7 @@ cp jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
 wget -q --show-progress "https://unpkg.com/popper.js@$POPPER/dist/umd/popper.min.js"
 cp popper.min.js "$WEBDIR/static/js/"
 
-cd "$SCRIPTPATH" || exit 1
+cd "$HOMEPATH" || exit 1
 rm -rf "$TMPDIR"
 
 # Step 5
@@ -75,8 +77,8 @@ adduser easywall easywall
 # Step 6
 echo "" && echo "($STEP/$STEPS) setting folder permission for easywall-web application user" && ((STEP++))
 chown -R easywall:easywall "$WEBDIR"
-chown -R easywall:easywall "$SCRIPTPATH"/"$CONFIGFOLDER"
-chmod -R 750 "$SCRIPTPATH"/"$CONFIGFOLDER"
+chown -R easywall:easywall "$HOMEPATH"/"$CONFIGFOLDER"
+chmod -R 750 "$HOMEPATH"/"$CONFIGFOLDER"
 
 # Step 7
 echo "" && echo "($STEP/$STEPS) installing systemd process for easywall-web" && ((STEP++))
@@ -90,7 +92,7 @@ After=syslog.target time-sync.target network.target network-online.target
 
 [Service]
 ExecStart=/bin/bash easywall_web/easywall_web.sh
-WorkingDirectory=${SCRIPTPATH}
+WorkingDirectory=${HOMEPATH}
 Restart=always
 RestartSec=10
 StandardOutput=none
