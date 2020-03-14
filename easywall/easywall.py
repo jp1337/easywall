@@ -1,4 +1,6 @@
-"""this is the module which interacts with the given firewall"""
+"""
+TODO: Doku
+"""
 from datetime import datetime
 from logging import debug, info
 
@@ -25,7 +27,7 @@ class Easywall(object):
         self.date = None
         self.rules = RulesHandler()
 
-    def apply(self):
+    def apply(self) -> None:
         """
         TODO: Doku
         """
@@ -80,6 +82,9 @@ class Easywall(object):
         # Allow UDP Ports
         self.apply_rules("udp")
 
+        # Apply Custom Rules
+        self.apply_custom_rules()
+
         # log and reject all other packages
         self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
         self.iptables.add_append("INPUT", "-j REJECT")
@@ -97,7 +102,7 @@ class Easywall(object):
                 self.iptables.add_append(
                     "INPUT", "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
 
-    def apply_blacklist(self):
+    def apply_blacklist(self) -> None:
         """
         this function adds rules to iptables which block incoming traffic
         from a list of ip addresses
@@ -116,7 +121,7 @@ class Easywall(object):
                     onlyv4=True)
                 self.iptables.add_append("INPUT", "-s {} -j DROP".format(ipaddr), onlyv4=True)
 
-    def apply_whitelist(self):
+    def apply_whitelist(self) -> None:
         """
         this function adds rules to iptables which explicitly allows a connection
         from this list ip addresses
@@ -127,7 +132,7 @@ class Easywall(object):
             else:
                 self.iptables.add_append("INPUT", "-s {} -j ACCEPT".format(ipaddr), onlyv4=True)
 
-    def apply_rules(self, ruletype):
+    def apply_rules(self, ruletype) -> None:
         """
         this function adds rules for incoming tcp and udp connections to iptables
         which allow a connection to this list of ports
@@ -146,9 +151,19 @@ class Easywall(object):
                 rule="{} -m conntrack --ctstate NEW -j ACCEPT".format(rule)
             )
 
-    def rotate_backup(self):
+    def apply_custom_rules(self) -> None:
         """
-        the function rotates the backup files to have a clean history of files
+        TODO: Doku
+        """
+        for rule in self.rules.get_current_rules("custom"):
+            self.iptables.add_append(
+                chain="INPUT",
+                rule=rule
+            )
+
+    def rotate_backup(self) -> None:
+        """
+        TODO: Doku
         """
         self.filepath = self.cfg.get_value("BACKUP", "filepath")
         self.filename = self.cfg.get_value("BACKUP", "ipv4filename")
@@ -164,7 +179,7 @@ class Easywall(object):
 
     def rename_backup_file(self) -> None:
         """
-        the function renames a backup file
+        TODO: Doku
         """
         old_filename = "{}/{}".format(self.filepath, self.filename)
         new_filename = "{}/{}_{}".format(self.filepath, self.date, self.filename)
