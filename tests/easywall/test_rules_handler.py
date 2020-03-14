@@ -30,6 +30,15 @@ class TestRulesHandler(unittest.TestCase):
 """)
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
+    def test_get_new_rules(self):
+        """
+        TODO: Doku
+        """
+        write_into_file("{}/new/tcp".format(self.rules.rulesfolder), """80
+443
+""")
+        self.assertEqual(self.rules.get_new_rules("tcp"), ["80", "443"])
+
     def test_backup_current_rules(self):
         """
         TODO: Doku
@@ -66,3 +75,24 @@ class TestRulesHandler(unittest.TestCase):
         self.assertEqual(self.rules.get_current_rules("tcp"), [])
         self.rules.rollback_from_backup()
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
+
+    def test_get_rules_for_web(self):
+        """
+        TODO: Doku
+        """
+        write_into_file("{}/current/tcp".format(self.rules.rulesfolder), """80
+443
+""")
+        self.assertEqual(self.rules.get_rules_for_web("tcp"), ["80", "443"])
+        write_into_file("{}/new/tcp".format(self.rules.rulesfolder), """80
+443
+8080
+""")
+        self.assertEqual(self.rules.get_rules_for_web("tcp"), ["80", "443", "8080"])
+
+    def test_save_new_rules(self):
+        """
+        TODO: Doku
+        """
+        self.rules.save_new_rules("tcp", ["80", "443"])
+        self.assertEqual(file_get_contents("{}/new/tcp".format(self.rules.rulesfolder)), "80\n443")

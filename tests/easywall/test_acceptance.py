@@ -57,3 +57,12 @@ class TestAcceptance(unittest.TestCase):
         self.acceptance.wait()
         write_into_file(self.acceptance.filename, "true")
         self.assertEqual(self.acceptance.status(), "accepted")
+
+    def test_accepted_early(self):
+        """
+        TODO: Doku
+        """
+        self.acceptance.start()
+        write_into_file(self.acceptance.filename, "true")
+        self.acceptance.wait()
+        self.assertEqual(self.acceptance.status(), "accepted")
