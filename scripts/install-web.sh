@@ -6,7 +6,7 @@ JQUERY="3.3.1"
 POPPER="1.14.7"
 SCRIPTNAME=$(basename "$0")
 SCRIPTPATH=$(dirname "$(readlink -f "$0")")
-HOMEPATH="${SCRIPTPATH}/.."
+HOMEPATH="$(dirname "$SCRIPTPATH")"
 CONFIGFOLDER="config"
 CONFIGFILE="web.ini"
 EXAMPLECONFIGFILE="web.sample.ini"
@@ -72,7 +72,8 @@ rm -rf "$TMPDIR"
 # Step 5
 echo "" && echo "($STEP/$STEPS) creating easywall-web system user and creating permission for file modification" && ((STEP++))
 adduser --system easywall
-adduser easywall easywall
+addgroup easywall
+usermod -g easywall easywall
 
 # Step 6
 echo "" && echo "($STEP/$STEPS) setting folder permission for easywall-web application user" && ((STEP++))
