@@ -165,13 +165,13 @@ class Easywall(object):
         """
         TODO: Doku
         """
-        self.filepath = self.cfg.get_value("BACKUP", "filepath")
-        self.filename = self.cfg.get_value("BACKUP", "ipv4filename")
+        self.filepath = "backup"
+        self.filename = "iptables_v4_backup"
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         self.rename_backup_file()
         if self.ipv6 is True:
-            self.filename = self.cfg.get_value("BACKUP", "ipv6filename")
+            self.filename = "iptables_v6_backup"
             self.rename_backup_file()
 
         debug("backup file rotated in folder {} \n prefix added: {}".format(
