@@ -29,13 +29,13 @@
                 <div class="card-header">
                     <ul class="nav nav-tabs card-header-tabs">
                         <li class="nav-item">
-                            <a class="nav-link active" data-toggle="tab" href="#iptables" role="tab">IPTables</a>
+                            <a class="nav-link active" data-toggle="tab" href="#ipv6" role="tab">IPv6</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#easywall" role="tab">easywall</a>
+                            <a class="nav-link" data-toggle="tab" href="#acceptance" role="tab">Acceptance</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#logpane" role="tab">Log</a>
+                            <a class="nav-link" data-toggle="tab" href="#logpane" role="tab">Logging</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="tab" href="#binaries" role="tab">Binaries</a>
@@ -46,7 +46,7 @@
                 <div class="card-body">
                     <div class="tab-content">
 
-                        <div class="tab-pane active" id="iptables" role="tabpanel">
+                        <div class="tab-pane active" id="ipv6" role="tabpanel">
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="IPV6" name="section">
@@ -69,68 +69,35 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="easywall" role="tabpanel">
+                        <div class="tab-pane" id="acceptance" role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="RULES" name="section">
+                                <input type="hidden" value="ACCEPTANCE" name="section">
 
-                                <div class="form-group">
-                                    <label for="blacklistfile">Blacklist file</label>
-                                    <input type="text" class="form-control" id="blacklistfile" name="BLACKLIST"
-                                        aria-describedby="blacklistfileHelp" placeholder="Example: rules/blacklist.txt"
-                                        {% if vars.config.get_value("RULES", "blacklist") != "" %}
-                                        value={{vars.config.get_value("RULES", "blacklist")}} {% endif %}>
-                                    <small id="blacklistfileHelp" class="form-text text-muted">
-                                        Enter the file path to the blacklist file. We suggest a full path here. The
-                                        relative Path must be reachable by Web and Cron directory.
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="enabled">
+                                        <input type="hidden" value="off" name="checkbox_enabled">
+                                        <input type="checkbox" id="enabled" name="enabled"
+                                            {% if vars.config.get_value("ACCEPTANCE", "enabled") == true %} checked
+                                            {% endif %} aria-describedby="enabledHelp">
+                                        Enable Acceptance
+                                    </label>
+                                    <small id="enabledHelp" class="form-text text-muted">
+                                        Enable this feature to activate a timer which automatically resets the firewall
+                                        to the last state when the firewall state is not accepted. This is highly
+                                        recommended and enabled by default!
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="whitelistfile">Whitelist file</label>
-                                    <input type="text" class="form-control" id="whitelistfile" name="WHITELIST"
-                                        aria-describedby="whitelistfileHelp" placeholder="Example: rules/whitelist.txt"
-                                        {% if vars.config.get_value("RULES", "whitelist") != "" %}
-                                        value={{vars.config.get_value("RULES", "whitelist")}} {% endif %}>
-                                    <small id="whitelistfileHelp" class="form-text text-muted">
-                                        Enter the file path to the whitelist file. We suggest a full path here. The
-                                        relative Path must be reachable by Web and Cron directory.
-                                    </small>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="tcpfile">TCP ports file</label>
-                                    <input type="text" class="form-control" id="tcpfile" name="TCP"
-                                        aria-describedby="tcpfileHelp" placeholder="Example: rules/tcp.txt"
-                                        {% if vars.config.get_value("RULES", "tcp") != "" %}
-                                        value={{vars.config.get_value("RULES", "tcp")}} {% endif %}>
-                                    <small id="tcpfileHelp" class="form-text text-muted">
-                                        Enter the file path to the tcp file. We suggest a full path here. The relative
-                                        Path must be reachable by Web and Cron directory.
-                                    </small>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="udpfile">UDP ports file</label>
-                                    <input type="text" class="form-control" id="udpfile" name="UDP"
-                                        aria-describedby="udpfileHelp" placeholder="Example: rules/udp.txt"
-                                        {% if vars.config.get_value("RULES", "udp") != "" %}
-                                        value={{vars.config.get_value("RULES", "udp")}} {% endif %}>
-                                    <small id="udpfileHelp" class="form-text text-muted">
-                                        Enter the file path to the udp file. We suggest a full path here. The relative
-                                        Path must be reachable by Web and Cron directory.
-                                    </small>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="customfile">Custom rules file</label>
-                                    <input type="text" class="form-control" id="customfile" name="CUSTOM"
-                                        aria-describedby="customfileHelp" placeholder="Example: rules/custom.txt"
-                                        {% if vars.config.get_value("RULES", "custom") != "" %}
-                                        value={{vars.config.get_value("RULES", "custom")}} {% endif %}>
-                                    <small id="customfileHelp" class="form-text text-muted">
-                                        Enter the file path to the custom rules file. We suggest a full path here.
-                                        The relative Path must be reachable by Web and Cron directory.
+                                    <label for="duration">Acceptance Duration</label>
+                                    <input type="text" class="form-control" id="duration" name="duration"
+                                        aria-describedby="durationHelp" placeholder="Example: 120"
+                                        {% if vars.config.get_value("ACCEPTANCE", "duration") != "" %}
+                                        value={{vars.config.get_value("ACCEPTANCE", "duration")}} {% endif %}>
+                                    <small id="durationHelp" class="form-text text-muted">
+                                        This option sets the duration until the firewall rules are restored from a
+                                        backup. The default value is 120 and we recommend a number higher than this.
                                     </small>
                                 </div>
 
@@ -145,10 +112,24 @@
 
                                 <div class="form-group">
                                     <label for="loglevel">Log Level</label>
-                                    <input type="text" class="form-control" id="loglevel" name="level"
-                                        aria-describedby="loglevelHelp" placeholder="Example: info"
-                                        {% if vars.config.get_value("LOG", "level") != "" %}
-                                        value={{vars.config.get_value("LOG", "level")}} {% endif %}>
+
+                                    <select class="custom-select" id="loglevel" name="level">
+                                        <option
+                                            {% if vars.config.get_value("LOG", "level").lower() == "debug" %}selected{% endif %}>
+                                            debug</option>
+                                        <option
+                                            {% if vars.config.get_value("LOG", "level").lower() == "info" %}selected{% endif %}>
+                                            info</option>
+                                        <option
+                                            {% if vars.config.get_value("LOG", "level").lower() == "warning" %}selected{% endif %}>
+                                            warning</option>
+                                        <option
+                                            {% if vars.config.get_value("LOG", "level").lower() == "error" %}selected{% endif %}>
+                                            error</option>
+                                        <option
+                                            {% if vars.config.get_value("LOG", "level").lower() == "critical" %}selected{% endif %}>
+                                            critical</option>
+                                    </select>
                                     <small id="loglevelHelp" class="form-text text-muted">
                                         Please specify the log directory. We recommend using the local
                                         <code>../log/</code> directory. The use of the global <code>/log</code>
@@ -162,12 +143,25 @@
                                         <input type="checkbox" id="to_files" name="to_files"
                                             {% if vars.config.get_value("LOG", "to_files") == true %} checked
                                             {% endif %} aria-describedby="to_files_help">
-                                        Log to Files
+                                        Write log to Logfile
                                     </label>
                                     <small id="to_files_help" class="form-text text-muted">
-                                        Please only activate the function if <strong>IPv6</strong> is <strong>configured
-                                            and activated</strong> on the server. If you disable the feature, easywall
-                                        will disable IPv6 entirely on the server for security reasons.
+                                        If activated the config parameters filepath and filename will be read and the
+                                        log will be written to the logfile.
+                                    </small>
+                                </div>
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="to_stdout">
+                                        <input type="hidden" value="off" name="checkbox_to_stdout">
+                                        <input type="checkbox" id="to_stdout" name="to_stdout"
+                                            {% if vars.config.get_value("LOG", "to_stdout") == true %} checked
+                                            {% endif %} aria-describedby="to_stdout_help">
+                                        Write log to Stdout
+                                    </label>
+                                    <small id="to_stdout_help" class="form-text text-muted">
+                                        When this is activated the log will be written to stdout. This is recommended!
+                                        When the log is written to stdout it is mostly written to syslog.
                                     </small>
                                 </div>
 
@@ -178,22 +172,20 @@
                                         {% if vars.config.get_value("LOG", "filepath") != "" %}
                                         value={{vars.config.get_value("LOG", "filepath")}} {% endif %}>
                                     <small id="log_filepath_help" class="form-text text-muted">
-                                        Please specify the log directory. We recommend using the local
-                                        <code>../log/</code> directory. The use of the global <code>/log</code>
-                                        directory is also possible.
+                                        Please specify the log directory. You can use a relative or absolute path to the
+                                        directory. Logfiles on Linux are normally stored in <code>/var/log</code>
                                     </small>
                                 </div>
 
                                 <div class="form-group">
                                     <label for="log_filename">Log filename</label>
                                     <input type="text" class="form-control" id="log_filename" name="filename"
-                                        aria-describedby="log_filename_help" placeholder="Example: /var/log/easywall"
+                                        aria-describedby="log_filename_help" placeholder="Example: easywall.log"
                                         {% if vars.config.get_value("LOG", "filename") != "" %}
                                         value={{vars.config.get_value("LOG", "filename")}} {% endif %}>
                                     <small id="log_filename_help" class="form-text text-muted">
-                                        Please specify the log directory. We recommend using the local
-                                        <code>../log/</code> directory. The use of the global <code>/log</code>
-                                        directory is also possible.
+                                        This option sets the logfile name. The logfile should have a normal file
+                                        extension like <code>.log</code> or <code>.txt</code>
                                     </small>
                                 </div>
 

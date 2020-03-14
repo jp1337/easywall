@@ -9,7 +9,7 @@ def options(saved=False):
     utils = Webutils()
     if utils.check_login() is True:
         payload = utils.get_default_payload("Options")
-        payload.config = utils.cfg
+        payload.config = utils.cfg_easywall
         payload.saved = saved
         return render_template('options.html', vars=payload)
     return login("", None)
@@ -26,9 +26,10 @@ def options_save():
         for key, value in request.form.items():
             if key != "section":
                 if key.startswith("checkbox"):
+                    key = key.replace("checkbox_", "")
                     value = correct_value_checkbox(key)
                 if value != "on":
-                    utils.cfg.set_value(section, key, value)
+                    utils.cfg_easywall.set_value(section, key, value)
         return options(True)
     return login("", None)
 
