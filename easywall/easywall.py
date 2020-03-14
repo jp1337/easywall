@@ -7,8 +7,8 @@ from logging import debug, info
 from easywall.acceptance import Acceptance
 from easywall.config import Config
 from easywall.iptables_handler import Iptables
-from easywall.utility import rename_file
 from easywall.rules_handler import RulesHandler
+from easywall.utility import file_exists, rename_file
 
 
 class Easywall(object):
@@ -183,4 +183,5 @@ class Easywall(object):
         """
         old_filename = "{}/{}".format(self.filepath, self.filename)
         new_filename = "{}/{}_{}".format(self.filepath, self.date, self.filename)
-        rename_file(old_filename, new_filename)
+        if file_exists(old_filename):
+            rename_file(old_filename, new_filename)
