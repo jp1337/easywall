@@ -96,8 +96,8 @@ ExecStart=/bin/bash easywall_web/easywall_web.sh
 WorkingDirectory=${HOMEPATH}
 Restart=always
 RestartSec=10
-StandardOutput=none
-StandardError=none
+StandardOutput=syslog
+StandardError=syslog
 SyslogIdentifier=easywall-web
 User=easywall
 Group=easywall
@@ -108,7 +108,6 @@ EOF
 echo "$SERVICECONTENT" >$SERVICEFILE
 systemctl daemon-reload
 systemctl enable easywall-web
-systemctl start easywall-web
 
 # Step 8
 echo "" && echo "($STEP/$STEPS) please set a username and password for login into the webinterface" && ((STEP++))
