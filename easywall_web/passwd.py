@@ -4,6 +4,7 @@ import hashlib
 import platform
 
 from easywall.config import Config
+from easywall_web.__main__ import CONFIG_PATH
 
 
 class Passwd(object):
@@ -11,7 +12,7 @@ class Passwd(object):
 
     def __init__(self):
         """the init function creates the config variable and calls the user input"""
-        self.config = Config("config/web.ini")
+        self.config = Config(CONFIG_PATH)
         self.ask_user()
 
     def savepasswd(self, password):

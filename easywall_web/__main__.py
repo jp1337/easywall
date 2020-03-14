@@ -18,6 +18,7 @@ from easywall_web.whitelist import whitelist, whitelist_save
 
 
 APP = Flask(__name__)
+CONFIG_PATH = "config/web.ini"
 
 
 @APP.route('/')
@@ -123,7 +124,7 @@ class Main(object):
 
     def __init__(self, debug=False):
         APP.secret_key = os.urandom(12)
-        self.cfg = Config("config/web.ini")
+        self.cfg = Config(CONFIG_PATH)
 
         loglevel = self.cfg.get_value("LOG", "level")
         to_stdout = self.cfg.get_value("LOG", "to_stdout")
@@ -137,7 +138,6 @@ class Main(object):
         if debug is True:
             port = self.cfg.get_value("WEB", "bindport")
             host = self.cfg.get_value("WEB", "bindip")
-            debug = True
             APP.run(host, port, debug)
 
 

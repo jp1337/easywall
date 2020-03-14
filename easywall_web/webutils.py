@@ -6,6 +6,9 @@ import urllib
 from datetime import datetime, timezone
 
 from flask import session
+
+import easywall.__main__
+import easywall_web.__main__
 from easywall.config import Config
 from easywall.utility import file_exists, file_get_contents, time_duration_diff
 from easywall_web.defaultpayload import DefaultPayload
@@ -15,8 +18,8 @@ class Webutils(object):
     """the class is called in the route modules and contains non route-specific functions"""
 
     def __init__(self):
-        self.cfg = Config("config/web.ini")
-        self.cfg_easywall = Config("config/easywall.ini")
+        self.cfg = Config(easywall_web.__main__.CONFIG_PATH)
+        self.cfg_easywall = Config(easywall.__main__.CONFIG_PATH)
 
     def check_login(self):
         """the function checks if the user/session is logged in"""
