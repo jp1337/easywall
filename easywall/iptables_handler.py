@@ -5,9 +5,10 @@ from enum import Enum
 from logging import debug, info
 
 from easywall.config import Config
-from easywall.utility import (create_folder_if_not_exists,
+from easywall.utility import (create_file_if_not_exists,
+                              create_folder_if_not_exists,
                               delete_file_if_exists, execute_os_command,
-                              file_get_contents, create_file_if_not_exists)
+                              file_get_contents)
 
 
 class Target(Enum):
