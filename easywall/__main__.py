@@ -99,5 +99,6 @@ class Main(object):
         self.log.close_logging()
 
 
-MAIN = Main()
-MAIN.start_observer()
+if __name__ == "__main__":
+    MAIN = Main()
+    MAIN.start_observer()
