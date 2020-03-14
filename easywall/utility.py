@@ -1,11 +1,13 @@
 """
-this module exports useful functions which are not implemented in python by default
+TODO: Doku
 """
 from csv import reader
 from datetime import datetime
 from io import StringIO
 from math import floor
-from os import R_OK, access, chmod, makedirs, path, remove, rename, system
+from os import R_OK, access, chmod, makedirs, path, remove, rename
+from shutil import rmtree
+from subprocess import run
 from traceback import TracebackException
 from urllib import parse
 
@@ -31,6 +33,12 @@ def delete_file_if_exists(fullpath: str):
     """The function checks if a file exists in a directory and deletes it if it exists."""
     if path.isfile(fullpath):
         remove(fullpath)
+
+
+def delete_folder_if_exists(fullpath: str):
+    """The function checks if a folder exists and deletes it afterwards"""
+    if path.isdir(fullpath):
+        rmtree(fullpath)
 
 
 def file_get_contents(filepath: str) -> str:
@@ -144,7 +152,7 @@ def time_duration_diff(date1: datetime, date2: datetime):
         ending = ""
         if number_of_units > 1:
             ending = "s"
-        result = str(number_of_units) + " " + text + ending
+        result = "{} {}{}".format(number_of_units, text, ending)
 
     return result
 
@@ -153,7 +161,12 @@ def time_duration_diff(date1: datetime, date2: datetime):
 
 
 def execute_os_command(command: str) -> bool:
-    """this function executes a command on the operating system"""
-    if system(command) > 0:
+    """
+    this function executes a command on the operating system
+    """
+    proc = run(command, shell=True, check=False)
+    # proc.stderr
+    # proc.stdout
+    if proc.returncode > 0:
         return False
     return True
