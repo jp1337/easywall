@@ -1,4 +1,6 @@
-"""the module contains the core functions of easywall"""
+"""
+TODO: Doku
+"""
 from logging import info
 from time import sleep
 
@@ -15,7 +17,9 @@ CONFIG_PATH = "config/easywall.ini"
 
 
 class ModifiedHandler(FileSystemEventHandler):
-    """the class contains a event handler which listens on specified file types"""
+    """
+    TODO: Doku
+    """
 
     def __init__(self, apply: object) -> None:
         self.apply = apply
@@ -53,10 +57,11 @@ class Main(object):
         self.easywall = Easywall(self.cfg)
         self.event_handler = ModifiedHandler(self.apply)
         self.observer = Observer()
+        self.stop_flag = False
 
         info("easywall has been started")
 
-    def apply(self, filename: str):
+    def apply(self, filename: str) -> None:
         """
         TODO: Doku
         """
@@ -64,7 +69,7 @@ class Main(object):
         delete_file_if_exists(filename)
         self.easywall.apply()
 
-    def start_observer(self):
+    def start_observer(self) -> None:
         """
         this function is called to keep the main process running
         if someone is pressing ctrl + C the software will initiate the stop process
@@ -73,14 +78,14 @@ class Main(object):
         self.observer.start()
 
         try:
-            while True:
+            while not self.stop_flag:
                 sleep(2)
         except KeyboardInterrupt:
             info("KeyboardInterrupt received, starting shutdown")
         finally:
             self.shutdown()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """
         the function stops all threads and shuts the software down gracefully
         """
@@ -92,9 +97,7 @@ class Main(object):
 
         info("shutdown completed")
         self.log.close_logging()
-        exit(0)
 
 
-if __name__ == "__main__":
-    MAIN = Main()
-    MAIN.start_observer()
+MAIN = Main()
+MAIN.start_observer()
