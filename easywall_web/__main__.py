@@ -1,8 +1,11 @@
 """the app module contains all information of the Flask app"""
 import os
+from logging import info
 
 from flask import Flask
+
 from easywall.config import Config
+from easywall.log import Log
 from easywall_web.apply import apply, apply_save
 from easywall_web.blacklist import blacklist, blacklist_save
 from easywall_web.custom import custom, custom_save
@@ -120,8 +123,18 @@ class Main(object):
 
     def __init__(self, debug=False):
         APP.secret_key = os.urandom(12)
+        self.cfg = Config("config/web.ini")
+
+        loglevel = self.cfg.get_value("LOG", "level")
+        to_stdout = self.cfg.get_value("LOG", "to_stdout")
+        to_files = self.cfg.get_value("LOG", "to_files")
+        logpath = self.cfg.get_value("LOG", "filepath")
+        logfile = self.cfg.get_value("LOG", "filename")
+        self.log = Log(loglevel, to_stdout, to_files, logpath, logfile)
+
+        info("starting easywall-web")
+
         if debug is True:
-            self.cfg = Config("config/web.ini")
             port = self.cfg.get_value("WEB", "bindport")
             host = self.cfg.get_value("WEB", "bindip")
             debug = True
