@@ -20,6 +20,17 @@ Set up a firewall! But which one? **IPTables** is the strongest firewall in **Li
 - Allow incoming Traffic from a **TCP or UDP Port range**
 - **Automatic Reset of Firewall Settings** on connection loss or bad firewall settings
 
+## Demo
+
+You can visit our Online Demo on the following URL:
+
+https://dev01vt.wdkro.de:12227/ (Certificate is valid by Let's Encrypt)
+
+- Username: demo
+- Password: demo
+
+The demo is resetting every 30 minutes and the data is erased. The demo only contains the web frontend, so the configuration made is not applied.
+
 ## Roadmap for the next release
 
 Most of you noticed that there are a lot of changes made at the moment, but the release status is still in "development" and there are no minor releases. This is because I currently enhance the project until the next release. The reason for this is because I learned a lot of Python 3 coding the last year in my main job. I want to use this knowledge and clean this project up so everyone can use it and there are less bugs than before (there were a lot of bugs). If you want to support me and improve the development speed you can send me a beer on beerpay :beers:
@@ -44,10 +55,6 @@ These are long-term planned features. If you want to have more features listed h
 - :x: finish all `TODO: Docs` documentations
 - :x: set up a demo server
 - :x: create a ansible role for easy installing
-
-## Demo
-
-:hourglass: We have planned to set up a demo server in later releases.
 
 <!-- ## Install
 
