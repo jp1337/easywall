@@ -1,9 +1,9 @@
 #!/bin/bash
 
-BOOTSTRAP="4.3.1"
+BOOTSTRAP="4.1.3"
 FONTAWESOME="4.7.0"
 JQUERY="3.3.1"
-POPPER="1.14.7"
+POPPER="1.14.3"
 SCRIPTNAME=$(basename "$0")
 SCRIPTPATH=$(dirname "$(readlink -f "$0")")
 HOMEPATH="$(dirname "$SCRIPTPATH")"
