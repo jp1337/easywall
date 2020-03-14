@@ -80,9 +80,9 @@ chmod -R 750 "$SCRIPTPATH"/"$CONFIGFOLDER"
 
 # Step 7
 echo "" && echo "($STEP/$STEPS) installing systemd process for easywall-web" && ((STEP++))
-function installDaemon() {
-    SERVICEFILE="/lib/systemd/system/easywall-web.service"
-    read -r -d '' SERVICECONTENT <<EOF
+SERVICEFILE="/lib/systemd/system/easywall-web.service"
+
+read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=easywall-web - web interface to control the easywall core application.
 Wants=network-online.target
@@ -102,18 +102,12 @@ Group=easywall
 [Install]
 WantedBy=multi-user.target
 EOF
-    echo "$SERVICECONTENT" >$SERVICEFILE
-    systemctl daemon-reload
-    systemctl enable easywall-web
-}
-
-read -r -n1 -p "Do you want to install easywall-web as a self-starting daemon? [y,n]" DAEMON
-case $DAEMON in
-y | Y) printf "\\ninstalling daemon ...\\n" && installDaemon ;;
-n | N) printf "\\nnot installing daemon.\\n" ;;
-*) printf "\\nnot installing daemon.\\n" ;;
-esac
+echo "$SERVICECONTENT" >$SERVICEFILE
+systemctl daemon-reload
+systemctl enable easywall-web
+systemctl start easywall-web
 
 # Step 8
 echo "" && echo "($STEP/$STEPS) please set a username and password for login into the webinterface" && ((STEP++))
-/usr/bin/env python3 easywall_web/passwd.py
+echo "execute the following command:"
+echo "/usr/bin/env python3 easywall_web/passwd.py"

@@ -34,7 +34,7 @@ Most of you noticed that there are a lot of changes made at the moment, but the 
 - :x: rework all classes in web folder
 - :x: SSL Implementation for web application
 - :x: write documentation for installing and uninstalling
-- :x: write documentation for contributing
+- :x: write documentation for development setup
 
 ## Roadmap for later version
 
