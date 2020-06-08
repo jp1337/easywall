@@ -4,7 +4,7 @@ TODO: Doku
 from easywall.utility import (create_file_if_not_exists,
                               delete_folder_if_exists, file_exists,
                               rename_file, write_into_file)
-from easywall_web.__main__ import Main, CONFIG_PATH
+
 
 from tests import unittest
 
@@ -16,8 +16,10 @@ class TestMain(unittest.TestCase):
 
     def setUp(self):
         self.config_backup_path = "config/web.ini.backup"
-        if file_exists(CONFIG_PATH):
-            rename_file(CONFIG_PATH, self.config_backup_path)
+        from easywall_web.__main__ import CONFIG_PATH
+        self.config_path = CONFIG_PATH
+        if file_exists(self.config_path):
+            rename_file(self.config_path, self.config_backup_path)
 
         content = """[LOG]
 level = info
@@ -47,16 +49,17 @@ master = false
 wsgi-file = easywall_web/__main__.py
 need-plugin = python3
 """
-        create_file_if_not_exists(CONFIG_PATH)
-        write_into_file(CONFIG_PATH, content)
+        create_file_if_not_exists(self.config_path)
+        write_into_file(self.config_path, content)
         delete_folder_if_exists("rules")
 
     def tearDown(self):
         if file_exists(self.config_backup_path):
-            rename_file(self.config_backup_path, CONFIG_PATH)
+            rename_file(self.config_backup_path, self.config_path)
 
     def test_init(self):
         """
         TODO: Doku
         """
+        from easywall_web.__main__ import Main
         Main(debug=True)
