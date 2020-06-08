@@ -16,8 +16,7 @@ class TestMain(unittest.TestCase):
 
     def setUp(self):
         self.config_backup_path = "config/web.ini.backup"
-        from easywall_web.__main__ import CONFIG_PATH
-        self.config_path = CONFIG_PATH
+        self.config_path = "config/web.ini"
         if file_exists(self.config_path):
             rename_file(self.config_path, self.config_backup_path)
 
