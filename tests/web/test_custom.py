@@ -34,3 +34,20 @@ class TestCustom(unittest.TestCase):
         self.login.log_in(self.client)
         response = self.client.get('/custom')
         self.assertIn(b"Custom", response.data)
+
+    def test_custom_save_logged_out(self):
+        """
+        TODO: Doku
+        """
+        response = self.client.post('/custom-save')
+        self.assertIn(b"Please sign in", response.data)
+
+    def test_custom_save_logged_in(self):
+        """
+        TODO: Doku
+        """
+        self.login.log_in(self.client)
+        response = self.client.post('/custom-save', data=dict(
+            test="test"
+        ), follow_redirects=True)
+        self.assertIn(b"The Configuration was saved successfully", response.data)

@@ -20,9 +20,44 @@ class TestBlacklist(unittest.TestCase):
     def tearDown(self):
         restore_configuration()
 
-    def test_blacklist(self):
+    def test_blacklist_logged_out(self):
+        """
+        TODO: Doku
+        """
+        response = self.client.get('/blacklist')
+        self.assertIn(b"Please sign in", response.data)
+
+    def test_blacklist_logged_in(self):
         """
         TODO: Doku
         """
         self.login.log_in(self.client)
-        self.client.get('/blacklist')
+        response = self.client.get('/blacklist')
+        self.assertIn(b"Blacklist", response.data)
+
+    def test_blacklist_save_logged_out(self):
+        """
+        TODO: Doku
+        """
+        response = self.client.post('/blacklist-save')
+        self.assertIn(b"Please sign in", response.data)
+
+    def test_blacklist_save_logged_in_new(self):
+        """
+        TODO: Doku
+        """
+        self.login.log_in(self.client)
+        response = self.client.post('/blacklist-save', data=dict(
+            ipadr="abc"
+        ), follow_redirects=True)
+        self.assertIn(b"The Configuration was saved successfully", response.data)
+
+    def test_blacklist_save_logged_in_remove(self):
+        """
+        TODO: Doku
+        """
+        self.login.log_in(self.client)
+        response = self.client.post('/blacklist-save', data=dict(
+            abc=""
+        ), follow_redirects=True)
+        self.assertIn(b"The Configuration was saved successfully", response.data)

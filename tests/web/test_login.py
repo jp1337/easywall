@@ -40,7 +40,8 @@ class TestLogin(unittest.TestCase):
         """
         TODO: Doku
         """
-        self.client.get('/logout')
+        self.log_in(self.client)
+        self.client.get('/logout', follow_redirects=True)
 
     def set_username_password(self):
         """
