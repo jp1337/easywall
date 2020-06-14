@@ -17,8 +17,8 @@ class TestLogin(unittest.TestCase):
     """
 
     def setUp(self):
-        self.client = prepare_client()
         prepare_configuration()
+        self.client = prepare_client()
         self.config = Config(CONFIG_PATH)
 
     def tearDown(self):

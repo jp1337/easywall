@@ -12,8 +12,8 @@ class TestMain(unittest.TestCase):
     """
 
     def setUp(self):
-        self.client = prepare_client()
         prepare_configuration()
+        self.client = prepare_client()
 
     def tearDown(self):
         restore_configuration()

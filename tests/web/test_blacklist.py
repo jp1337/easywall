@@ -13,8 +13,8 @@ class TestBlacklist(unittest.TestCase):
     """
 
     def setUp(self):
-        self.client = prepare_client()
         prepare_configuration()
+        self.client = prepare_client()
         self.login = TestLogin()
 
     def tearDown(self):
