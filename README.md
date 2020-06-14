@@ -1,7 +1,7 @@
 # easywall
 
 [![GitHub Actions Build](https://img.shields.io/github/workflow/status/jp1337/easywall/python-testing)](https://github.com/jp1337/easywall/actions)
-[![CodeCov Coverage](https://img.shields.io/codecov/c/gh/jp1337/easywall)](https://codecov.io/gh/jp1337/easywall)
+[![Coveralls github](https://img.shields.io/coveralls/github/jp1337/easywall)](https://coveralls.io/github/jp1337/easywall)
 [![GitHub license](https://img.shields.io/github/license/jp1337/easywall)](https://github.com/jp1337/easywall/blob/master/LICENSE)
 [![GitHub repo size](https://img.shields.io/github/repo-size/jp1337/easywall.svg)](https://github.com/jp1337/easywall)
 [![Project Version](https://img.shields.io/badge/release-development-red.svg)](https://github.com/jp1337/easywall)
@@ -24,7 +24,7 @@ Set up a firewall! But which one? **IPTables** is the strongest firewall in **Li
 
 You can visit our Online Demo on the following URL:
 
-https://dev01vt.wdkro.de:12227/ (Certificate is valid by Let's Encrypt)
+<https://dev01vt.wdkro.de:12227/> (Certificate is valid by Let's Encrypt)
 
 - Username: demo
 - Password: demo
