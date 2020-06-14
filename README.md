@@ -40,9 +40,9 @@ Most of you noticed that there are a lot of changes made at the moment, but the 
 - :heavy_check_mark: create github actions testing and linting
 - :heavy_check_mark: implement custom rules feature
 - :heavy_check_mark: create unit tests for all classes in easywall folder
-- :x: create unit tests for all classes in web folder
-- :x: rework all classes in easywall folder
-- :x: rework all classes in web folder
+- :heavy_check_mark: create unit tests for all classes in web folder
+- :heavy_check_mark: rework all classes in easywall folder
+- :heavy_check_mark: rework all classes in web folder
 - :x: SSL Implementation for web application
 - :x: write documentation for installing and uninstalling
 - :x: write documentation for development setup
