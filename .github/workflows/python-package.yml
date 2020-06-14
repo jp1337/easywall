@@ -46,3 +46,8 @@ jobs:
           coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+
+      - name: Run markdownlint (mdl)
+        uses: bewuethr/mdl-action@master
+        with:
+          style-file: .github/workflows/markdownlint.rb
