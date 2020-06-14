@@ -4,8 +4,8 @@ the module contains functions for the user management routes
 import hashlib
 import platform
 
-from flask import redirect, render_template, request, session
 from easywall_web.webutils import Webutils
+from flask import redirect, render_template, request, session
 
 
 def login(message, messagetype):
