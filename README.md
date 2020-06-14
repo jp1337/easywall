@@ -43,6 +43,7 @@ Most of you noticed that there are a lot of changes made at the moment, but the 
 - :heavy_check_mark: create unit tests for all classes in web folder
 - :heavy_check_mark: rework all classes in easywall folder
 - :heavy_check_mark: rework all classes in web folder
+- :heavy_check_mark: set up a demo server
 - :x: SSL Implementation for web application
 - :x: write documentation for installing and uninstalling
 - :x: write documentation for development setup
@@ -53,7 +54,6 @@ These are long-term planned features. If you want to have more features listed h
 
 - :x: create a `pydoc` documentation
 - :x: finish all `TODO: Docs` documentations
-- :x: set up a demo server
 - :x: create a ansible role for easy installing
 
 <!-- ## Install
