@@ -1,10 +1,10 @@
 """
 TODO: Doku
 """
-from unittest.mock import patch
+import hashlib
+import platform
 
 from easywall.config import Config
-from easywall_web.passwd import Passwd
 
 from tests import unittest
 from tests.web.utils import (CONFIG_PATH, prepare_client,
@@ -19,6 +19,7 @@ class TestLogin(unittest.TestCase):
     def setUp(self):
         self.client = prepare_client()
         prepare_configuration()
+        self.config = Config(CONFIG_PATH)
 
     def tearDown(self):
         restore_configuration()
@@ -41,21 +42,22 @@ class TestLogin(unittest.TestCase):
         """
         self.client.get('/logout')
 
-    @patch("builtins.input")
-    @patch("getpass.getpass")
-    def set_username_password(self, input, getpass):
+    def set_username_password(self):
         """
         TODO: Doku
         """
-        input.return_value = "test"
-        getpass.return_value = "test"
-        Passwd()
+        self.config = Config(CONFIG_PATH)
+        self.config.set_value("WEB", "username", "test")
+        hostname = platform.node().encode("utf-8")
+        salt = hashlib.sha512(hostname).hexdigest()
+        pw_hash = hashlib.sha512(
+            str(salt + "test").encode("utf-8")).hexdigest()
+        self.config.set_value("WEB", "password", pw_hash)
 
     def log_in(self, client):
         """
         TODO: Doku
         """
-        self.config = Config(CONFIG_PATH)
         self.set_username_password()
         return client.post('/login', data=dict(
             username="test",
