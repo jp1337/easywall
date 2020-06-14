@@ -1,7 +1,7 @@
 # How to update easywall
 
 Keeping EasyWall up-to-date is very important in order not to compromise the security of your server.
-But, how do I update EasyWall at all?  
+But, how do I update EasyWall at all?
 You can follow the simple steps that we show you now.
 
 ## Updating with Git
