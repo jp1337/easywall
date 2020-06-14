@@ -4,7 +4,7 @@ name: python-testing
 on: [push, pull_request]
 
 jobs:
-  test:
+  python-testing:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -47,7 +47,16 @@ jobs:
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
 
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
       - name: Run markdownlint (mdl)
         uses: bewuethr/mdl-action@master
         with:
           style-file: .github/workflows/markdownlint.rb
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
