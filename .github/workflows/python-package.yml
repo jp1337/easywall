@@ -4,7 +4,7 @@ name: python-testing
 on: [push, pull_request]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,17 +40,28 @@ jobs:
         run: |
           python3 setup.py pytest
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@master
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-github
-          yml: ./codecov.yml
-          fail_ci_if_error: true
+      # - name: Upload coverage to Codecov
+      #   uses: codecov/codecov-action@master
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     file: ./coverage.xml
+      #     flags: unittests
+      #     name: codecov-github
+      #     yml: ./codecov.yml
+      #     fail_ci_if_error: true
 
       - name: Coveralls Python
-        uses: AndreMiras/coveralls-python-action@v20200413
+        uses: AndreMiras/coveralls-python-action@develop
         with:
           github-token: ${{ secrets.COVERALLS_TOKEN }}
+          parallel: true
+
+  coveralls-finish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Coveralls Finished
+        uses: AndreMiras/coveralls-python-action@develop
+        with:
+          github-token: ${{ secrets.COVERALLS_TOKEN }}
+          parallel-finished: true
