@@ -20,9 +20,17 @@ class TestCustom(unittest.TestCase):
     def tearDown(self):
         restore_configuration()
 
-    def test_custom(self):
+    def test_custom_logged_out(self):
+        """
+        TODO: Doku
+        """
+        response = self.client.get('/custom')
+        self.assertIn(b"Please sign in", response.data)
+
+    def test_custom_logged_in(self):
         """
         TODO: Doku
         """
         self.login.log_in(self.client)
-        self.client.get('/custom')
+        response = self.client.get('/custom')
+        self.assertIn(b"Custom", response.data)
