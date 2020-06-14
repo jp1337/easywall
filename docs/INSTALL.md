@@ -7,12 +7,12 @@ You just need three simple steps for installing easywall on your system.
 1. [Check Requirements](#require)
 2. [Download and Install easywall](#easywall)
 
-## <a name="require"></a> 1. Check Requirements
+## 1. Check Requirements
 
 - ssh (root access) on the server
 - Currently we only support Debian based Servers
 
-## <a name="easywall"></a> 2. Download and Install easywall
+## 2. Download and Install easywall
 
 ```sh
 cd /usr/local
