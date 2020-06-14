@@ -51,6 +51,6 @@ jobs:
           fail_ci_if_error: true
 
       - name: Coveralls Python
-        uses: AndreMiras/coveralls-python-action@master
+        uses: AndreMiras/coveralls-python-action@v20200413
         with:
           github-token: ${{ secrets.COVERALLS_TOKEN }}
