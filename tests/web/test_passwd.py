@@ -4,7 +4,6 @@ TODO: Doku
 from unittest.mock import patch
 
 from easywall.config import Config
-from easywall_web.passwd import Passwd
 
 from tests import unittest
 from tests.web.utils import (CONFIG_PATH, prepare_configuration,
@@ -30,6 +29,7 @@ class TestPasswd(unittest.TestCase):
         """
         input.return_value = "test"
         getpass.return_value = "test"
+        from easywall_web.passwd import Passwd
         Passwd()
         self.config = Config(CONFIG_PATH)
         self.assertEqual(self.config.get_value("WEB", "username"), "test")
