@@ -22,14 +22,14 @@ Set up a firewall! But which one? **IPTables** is the strongest firewall in **Li
 
 ## Demo
 
-You can visit our Online Demo on the following URL:
+You can view an online version of the program as a demo under the following link:
 
-<https://dev01vt.wdkro.de:12227/> (Certificate is valid by Let's Encrypt)
+<https://dev01vt.wdkro.de:12227/> (Certificate is provided by Let's Encrypt)
 
-- Username: demo
-- Password: demo
+- **Username**: demo
+- **Password**: demo
 
-The demo is resetting every 30 minutes and the data is erased. The demo only contains the web frontend, so the configuration made is not applied.
+The online demo version is reset every 30 minutes and all data is deleted. The demo has only the frontend installed without the backend. Configuration changes are therefore not saved or applied.
 
 ## Roadmap for the next release
 
@@ -44,9 +44,9 @@ Most of you noticed that there are a lot of changes made at the moment, but the 
 - :heavy_check_mark: rework all classes in easywall folder
 - :heavy_check_mark: rework all classes in web folder
 - :heavy_check_mark: set up a demo server
+- :heavy_check_mark: write documentation for development setup
 - :x: SSL Implementation for web application
 - :x: write documentation for installing and uninstalling
-- :x: write documentation for development setup
 
 ## Roadmap for later version
 
@@ -57,14 +57,14 @@ These are long-term planned features. If you want to have more features listed h
 - :x: create a ansible role for easy installing
 - :x: fill the `Help` button in the web-app with content
 
-<!-- ## Install
+## Install
 
-We provide extensive instructions on our [installation](https://github.com/jp1337/easywall/blob/master/INSTALL.md) page.
-You can find a script for automatic downloading and installation. -->
+We provide extensive instructions on our [installation](https://github.com/jp1337/easywall/blob/master/docs/INSTALL.md) page.
+You can find a script for automatic downloading and installation.
 
-<!-- ## Documentation
+## Documentation
 
-Check the **[easywall wiki](https://github.com/jp1337/easywall/wiki)**. -->
+Check the **[docs folder](https://github.com/jp1337/easywall/tree/master/docs)**.
 
 ## License
 
@@ -72,16 +72,12 @@ easywall is GNU General Public License v3.0.
 
 ## Screenshots
 
-![Screenshot 1: Home Page on Mobile](https://i.imgur.com/vEneFWK.png)
-![Screenshot 2: Main Menu on Mobile](https://i.imgur.com/zxCcPQW.png)
-![Screenshot 3: Ports Page Upper Part](https://i.imgur.com/qYjxXNZ.png)
-![Screenshot 4: Ports Page Lower Part](https://i.imgur.com/zdN0oRu.png)
-![Screenshot 5: Apply Page with Automatic Timeout Reset](https://i.imgur.com/BaWMkZD.png)
-
-## DEV Environment
-
-To create a development environment you have to execute the following command after cloning the repository:
-
-```bash
-python3 setup.py develop
-```
+![Screenshot 1](https://i.imgur.com/eQAHOUc.png)
+![Screenshot 2](https://i.imgur.com/N2cdm0h.png)
+![Screenshot 3](https://i.imgur.com/pjtJuq5.png)
+![Screenshot 4](https://i.imgur.com/SSTPaXO.png)
+![Screenshot 5](https://i.imgur.com/EPHUjI3.png)
+![Screenshot 6](https://i.imgur.com/X3sdFO3.png)
+![Screenshot 7](https://i.imgur.com/5kd2Nql.png)
+![Screenshot 8](https://i.imgur.com/jjZTxrV.png)
+![Screenshot 9](https://i.imgur.com/owPACSx.png)
