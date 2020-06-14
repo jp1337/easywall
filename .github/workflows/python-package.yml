@@ -77,3 +77,4 @@ jobs:
         uses: chabad360/htmlproofer@master
         with:
           directory: "./easywall_web/templates"
+          arguments: "--allow-missing-href --check_html --enforce_https --log_level warn"
