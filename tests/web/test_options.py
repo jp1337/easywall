@@ -1,10 +1,10 @@
 """
 TODO: Doku
 """
-from easywall_web.__main__ import APP
-
 from tests import unittest
 from tests.web.test_login import TestLogin
+from tests.web.utils import (prepare_client, prepare_configuration,
+                             restore_configuration)
 
 
 class TestOptions(unittest.TestCase):
@@ -13,16 +13,16 @@ class TestOptions(unittest.TestCase):
     """
 
     def setUp(self):
-        APP.config['TESTING'] = True
-        with APP.test_client() as self.client:
-            pass
+        self.client = prepare_client()
+        prepare_configuration()
+        self.login = TestLogin()
+
+    def tearDown(self):
+        restore_configuration()
 
     def test_options(self):
         """
         TODO: Doku
         """
-        login = TestLogin()
-        login.setUp()
-        login.log_in()
-        login.client.get('/options')
-        login.tearDown()
+        self.login.log_in(self.client)
+        self.client.get('/options')
