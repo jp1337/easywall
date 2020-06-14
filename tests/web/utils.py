@@ -9,6 +9,7 @@ from easywall.utility import (create_file_if_not_exists, file_exists,
                               rename_file, write_into_file)
 from easywall_web.__main__ import APP, CONFIG_PATH
 
+CONFIG_PATH = "config/web.ini"
 CONFIG_BACKUP_PATH = "config/web.ini.backup"
 
 

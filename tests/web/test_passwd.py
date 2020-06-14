@@ -4,11 +4,11 @@ TODO: Doku
 from unittest.mock import patch
 
 from easywall.config import Config
-from easywall_web.__main__ import CONFIG_PATH
 from easywall_web.passwd import Passwd
 
 from tests import unittest
-from tests.web.utils import prepare_configuration, restore_configuration
+from tests.web.utils import (CONFIG_PATH, prepare_configuration,
+                             restore_configuration)
 
 
 class TestPasswd(unittest.TestCase):
