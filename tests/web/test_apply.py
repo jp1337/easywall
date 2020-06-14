@@ -7,6 +7,7 @@ from easywall.utility import (create_file_if_not_exists, file_exists,
 from easywall_web.__main__ import APP, CONFIG_PATH
 
 from tests import unittest
+from tests.web.test_login import TestLogin
 
 
 class TestApply(unittest.TestCase):
@@ -63,4 +64,8 @@ need-plugin = python3
         """
         TODO: Doku
         """
-        self.client.get('/apply')
+        login = TestLogin()
+        login.setUp()
+        login.log_in()
+        login.client.get('/apply')
+        login.tearDown()

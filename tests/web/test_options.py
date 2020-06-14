@@ -4,6 +4,7 @@ TODO: Doku
 from easywall_web.__main__ import APP
 
 from tests import unittest
+from tests.web.test_login import TestLogin
 
 
 class TestOptions(unittest.TestCase):
@@ -20,4 +21,8 @@ class TestOptions(unittest.TestCase):
         """
         TODO: Doku
         """
-        self.client.get('/options')
+        login = TestLogin()
+        login.setUp()
+        login.log_in()
+        login.client.get('/options')
+        login.tearDown()
