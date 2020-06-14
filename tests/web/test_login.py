@@ -55,6 +55,10 @@ need-plugin = python3
         with APP.test_client() as self.client:
             pass
 
+    def tearDown(self):
+        if file_exists(self.config_backup_path):
+            rename_file(self.config_backup_path, CONFIG_PATH)
+
     def test_login(self):
         """
         TODO: Doku
