@@ -55,6 +55,7 @@ These are long-term planned features. If you want to have more features listed h
 - :x: create a `pydoc` documentation
 - :x: finish all `TODO: Docs` documentations
 - :x: create a ansible role for easy installing
+- :x: fill the `Help` button in the web-app with content
 
 <!-- ## Install
 
