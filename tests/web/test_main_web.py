@@ -4,7 +4,7 @@ TODO: Doku
 from easywall.utility import (create_file_if_not_exists,
                               delete_folder_if_exists, file_exists,
                               rename_file, write_into_file)
-
+from easywall_web.__main__ import Main
 
 from tests import unittest
 
@@ -60,5 +60,4 @@ need-plugin = python3
         """
         TODO: Doku
         """
-        from easywall_web.__main__ import Main
-        Main(debug=True)
+        Main(debug=False)
