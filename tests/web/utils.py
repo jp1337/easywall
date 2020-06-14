@@ -20,7 +20,7 @@ def prepare_configuration():
     if file_exists(CONFIG_PATH):
         rename_file(CONFIG_PATH, CONFIG_BACKUP_PATH)
 
-        content = """[LOG]
+    content = """[LOG]
 level = info
 to_files = no
 to_stdout = yes
