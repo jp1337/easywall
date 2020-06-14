@@ -50,8 +50,7 @@ jobs:
           yml: ./codecov.yml
           fail_ci_if_error: true
 
-      - name: Coveralls GitHub Action
-        uses: coverallsapp/github-action@master
+      - name: Coveralls Python
+        uses: AndreMiras/coveralls-python-action@master
         with:
           github-token: ${{ secrets.COVERALLS_TOKEN }}
-          path-to-lcov: ./coverage.xml
