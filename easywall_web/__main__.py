@@ -148,7 +148,7 @@ class Main(object):
             APP.run(host, port, debug)
 
 
-if __name__ == '__main__':
-    Main(debug=True)
-else:
-    Main()
+# if __name__ == '__main__':
+    # Main(debug=True)
+# else:
+    # Main()
