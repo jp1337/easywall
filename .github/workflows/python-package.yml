@@ -66,3 +66,14 @@ jobs:
 
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
+
+  htmlcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the Repository
+        uses: actions/checkout@master
+
+      - name: Check HTML
+        uses: chabad360/htmlproofer@master
+        with:
+          directory: "./easywall_web/templates"
