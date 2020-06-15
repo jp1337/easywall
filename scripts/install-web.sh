@@ -90,9 +90,11 @@ usermod -g easywall easywall
 
 # Step 7
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Set permissions on files and folders \e[39m" && ((STEP++))
+chown -Rv easywall:easywall "${HOMEPATH}"
 chown -Rv easywall:easywall "$WEBDIR"
 chown -Rv easywall:easywall "${HOMEPATH}/${CONFIGFOLDER}"
 chown -Rv easywall:easywall "${HOMEPATH}/${RULESFOLDER}"
+chmod -v 750 "${HOMEPATH}"
 chmod -Rv 750 "${HOMEPATH}/${CONFIGFOLDER}"
 chmod -Rv 750 "${HOMEPATH}/${RULESFOLDER}"
 
