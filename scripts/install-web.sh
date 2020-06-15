@@ -17,7 +17,7 @@ HOMEPATH="$(dirname "$SCRIPTSPATH")"
 WEBDIR="$HOMEPATH/easywall_web"
 TMPDIR="$WEBDIR/tmp"
 
-STEPS=9
+STEPS=10
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
@@ -126,19 +126,18 @@ fi
 systemctl restart easywall-web
 echo "daemon started."
 
-# Step 9
+# Step 10
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create a self-signed SSL certificate \e[39m" && ((STEP++))
-if [ ! -f "${CERTFILE}" ]; then
+if [ ! -f "${HOMEPATH}/ssl/${CERTFILE}" ]; then
     DOMAIN="$(hostname -f)"
-
-    # Generate a passphrase#
+    echo "generating passphrase..."
     export PASSPHRASE
     PASSPHRASE=$(
         head -c 500 /dev/urandom | tr -dc a-z0-9A-Z | head -c 128
         echo
     )
 
-    subj="
+    SUBJECT="
 C=DE
 ST=Berlin
 O=easywall
@@ -147,16 +146,25 @@ commonName=$DOMAIN
 organizationalUnitName=IT
 emailAddress=admin@example.com
 "
+    echo "generating private key..."
     openssl genrsa -des3 -out easywall.key -passout env:PASSPHRASE 4096
+
+    echo "generating certificate sign request..."
     openssl req \
         -new \
         -batch \
-        -subj "$(echo -n "$subj" | tr "\n" "/")" \
+        -subj "$(echo -n "$SUBJECT" | tr "\n" "/")" \
         -key easywall.key \
         -out easywall.csr \
         -passin env:PASSPHRASE
+
+    echo "change des3 private key to rsa private key"
     openssl rsa -in easywall.key -out easywall.key -passin env:PASSPHRASE
+
+    echo "sign certificate sign request using openssl"
     openssl x509 -req -days 3650 -in easywall.csr -signkey easywall.key -out easywall.crt
+
+    echo "moving certificates in place..."
     mv -v easywall.crt "${HOMEPATH}/ssl/"
     mv -v easywall.key "${HOMEPATH}/ssl/"
     chown -Rv easywall:easywall "${HOMEPATH}/ssl/"
