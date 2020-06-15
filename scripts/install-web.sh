@@ -5,6 +5,7 @@ FONTAWESOME="4.7.0"
 JQUERY="3.3.1"
 POPPER="1.14.3"
 CONFIGFOLDER="config"
+RULESFOLDER="rules"
 CONFIGFILE="web.ini"
 SAMPLEFILE="web.sample.ini"
 SERVICEFILE="/lib/systemd/system/easywall-web.service"
@@ -64,20 +65,20 @@ echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Download of several libraries req
 mkdir "$TMPDIR" && cd "$TMPDIR" || exit 1
 
 # Bootstrap
-wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css" && cp -v "bootstrap.min.css" "$WEBDIR/static/css/"
-wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/js/bootstrap.min.js" && cp -v "bootstrap.min.js" "$WEBDIR/static/js/"
+wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css" && cp -v "bootstrap.min.css" "$WEBDIR/static/css/"
+wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/js/bootstrap.min.js" && cp -v "bootstrap.min.js" "$WEBDIR/static/js/"
 
 # Font Awesome
-wget -q --show-progress "https://fontawesome.com/v$FONTAWESOME/assets/font-awesome-$FONTAWESOME.zip"
+wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://fontawesome.com/v$FONTAWESOME/assets/font-awesome-$FONTAWESOME.zip"
 unzip -q "font-awesome-$FONTAWESOME.zip"
 cp -rv "font-awesome-$FONTAWESOME/css/"* "$WEBDIR/static/css/"
 cp -rv "font-awesome-$FONTAWESOME/fonts/"* "$WEBDIR/static/fonts/"
 
 # JQuery Slim (for Bootstrap)
-wget -q --show-progress "https://code.jquery.com/jquery-$JQUERY.slim.min.js" && cp -v jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
+wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://code.jquery.com/jquery-$JQUERY.slim.min.js" && cp -v jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
 
 # Popper (for Bootstrap)
-wget -q --show-progress "https://cdnjs.cloudflare.com/ajax/libs/popper.js/$POPPER/umd/popper.min.js" && cp -v popper.min.js "$WEBDIR/static/js/"
+wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://cdnjs.cloudflare.com/ajax/libs/popper.js/$POPPER/umd/popper.min.js" && cp -v popper.min.js "$WEBDIR/static/js/"
 
 cd "$HOMEPATH" || exit 1
 rm -rf "$TMPDIR"
@@ -90,8 +91,10 @@ usermod -g easywall easywall
 # Step 7
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Set permissions on files and folders \e[39m" && ((STEP++))
 chown -Rv easywall:easywall "$WEBDIR"
-chown -Rv easywall:easywall "$HOMEPATH"/"$CONFIGFOLDER"
-chmod -Rv 750 "$HOMEPATH"/"$CONFIGFOLDER"
+chown -Rv easywall:easywall "${HOMEPATH}/${CONFIGFOLDER}"
+chown -Rv easywall:easywall "${HOMEPATH}/${RULESFOLDER}"
+chmod -Rv 750 "${HOMEPATH}/${CONFIGFOLDER}"
+chmod -Rv 750 "${HOMEPATH}/${RULESFOLDER}"
 
 # Step 8
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the systemd service \e[39m" && ((STEP++))
@@ -119,14 +122,6 @@ systemctl enable easywall-web
 echo "daemon installed."
 
 # Step 9
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
-if [ -f "${SERVICEFILE_EASYWALL}" ]; then
-    systemctl restart easywall
-fi
-systemctl restart easywall-web
-echo "daemon started."
-
-# Step 10
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create a self-signed SSL certificate \e[39m" && ((STEP++))
 if [ ! -f "${HOMEPATH}/ssl/${CERTFILE}" ]; then
     DOMAIN="$(hostname -f)"
@@ -167,12 +162,21 @@ emailAddress=admin@example.com
     echo "moving certificates in place..."
     mv -v easywall.crt "${HOMEPATH}/ssl/"
     mv -v easywall.key "${HOMEPATH}/ssl/"
+    rm -v easywall.csr
     chown -Rv easywall:easywall "${HOMEPATH}/ssl/"
-    chmod 700 "${HOMEPATH}/ssl/"
-    chmod 600 "${HOMEPATH}/ssl/*"
+    chmod -v 700 "${HOMEPATH}"/ssl
+    chmod -Rv 600 "${HOMEPATH}"/ssl/*
 else
     echo "The certificate already exists and does not need to be created."
 fi
+
+# Step 10
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
+if [ -f "${SERVICEFILE_EASYWALL}" ]; then
+    systemctl restart easywall
+fi
+systemctl restart easywall-web
+echo "daemon started."
 
 # Finished.
 echo "" && echo ""
