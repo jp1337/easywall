@@ -60,7 +60,7 @@ Wants=network-online.target
 After=syslog.target time-sync.target network.target network-online.target
 
 [Service]
-ExecStart=/usr/bin/env python3 -m easywall
+ExecStart=python3 -m easywall
 KillMode=mixed
 KillSignal=SIGINT
 WorkingDirectory=${HOMEPATH}
@@ -74,13 +74,13 @@ Group=easywall
 WantedBy=multi-user.target
 EOF
 echo "${SERVICECONTENT}" >"${SERVICEFILE}"
-/usr/bin/systemctl daemon-reload
-/usr/bin/systemctl enable easywall
+systemctl daemon-reload
+systemctl enable easywall
 echo "daemon installed."
 
 # Step 6
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
-/usr/bin/systemctl restart easywall
+systemctl restart easywall
 echo "daemon started."
 
 # Finished.
@@ -96,4 +96,4 @@ Daemon Status:
 
 EOF
 echo -e "${INTRODUCTION}"
-/usr/bin/systemctl -l status easywall
+systemctl -l status easywall

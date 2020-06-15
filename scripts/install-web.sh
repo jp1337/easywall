@@ -113,16 +113,16 @@ Group=easywall
 WantedBy=multi-user.target
 EOF
 echo "${SERVICECONTENT}" >"${SERVICEFILE}"
-/usr/bin/systemctl daemon-reload
-/usr/bin/systemctl enable easywall-web
+systemctl daemon-reload
+systemctl enable easywall-web
 echo "daemon installed."
 
 # Step 9
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
 if [ -f "${SERVICEFILE_EASYWALL}" ]; then
-    /usr/bin/systemctl restart easywall
+    systemctl restart easywall
 fi
-/usr/bin/systemctl restart easywall-web
+systemctl restart easywall-web
 echo "daemon started."
 
 # Finished.
@@ -138,4 +138,4 @@ Daemon Status:
 
 EOF
 echo -e "${INTRODUCTION}"
-/usr/bin/systemctl -l status easywall-web
+systemctl -l status easywall-web
