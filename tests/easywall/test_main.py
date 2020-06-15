@@ -53,6 +53,7 @@ ipv6filename = iptables_v6_backup
 
     def tearDown(self):
         delete_file_if_exists("test.log")
+        delete_file_if_exists(".acceptance_status")
         if file_exists(self.config_backup_path):
             rename_file(self.config_backup_path, CONFIG_PATH)
 
