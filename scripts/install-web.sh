@@ -9,6 +9,7 @@ CONFIGFILE="web.ini"
 SAMPLEFILE="web.sample.ini"
 SERVICEFILE="/lib/systemd/system/easywall-web.service"
 SERVICEFILE_EASYWALL="/lib/systemd/system/easywall.service"
+CERTFILE="easywall.crt"
 
 SCRIPTNAME=$(basename "$0")
 SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
@@ -35,7 +36,7 @@ fi
 # Step 1
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required programs from the operating system \e[39m" && ((STEP++))
 apt -qqq update
-apt -y install python3 python3-pip uwsgi uwsgi-plugin-python3 wget unzip
+apt -y install python3 python3-pip uwsgi uwsgi-plugin-python3 wget unzip openssl
 
 # Step 2
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
@@ -124,6 +125,46 @@ if [ -f "${SERVICEFILE_EASYWALL}" ]; then
 fi
 systemctl restart easywall-web
 echo "daemon started."
+
+# Step 9
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create a self-signed SSL certificate \e[39m" && ((STEP++))
+if [ ! -f "${CERTFILE}" ]; then
+    DOMAIN="$(hostname -f)"
+
+    # Generate a passphrase#
+    export PASSPHRASE
+    PASSPHRASE=$(
+        head -c 500 /dev/urandom | tr -dc a-z0-9A-Z | head -c 128
+        echo
+    )
+
+    subj="
+C=DE
+ST=Berlin
+O=easywall
+localityName=Berlin
+commonName=$DOMAIN
+organizationalUnitName=IT
+emailAddress=admin@example.com
+"
+    openssl genrsa -des3 -out easywall.key -passout env:PASSPHRASE 4096
+    openssl req \
+        -new \
+        -batch \
+        -subj "$(echo -n "$subj" | tr "\n" "/")" \
+        -key easywall.key \
+        -out easywall.csr \
+        -passin env:PASSPHRASE
+    openssl rsa -in easywall.key -out easywall.key -passin env:PASSPHRASE
+    openssl x509 -req -days 3650 -in easywall.csr -signkey easywall.key -out easywall.crt
+    mv -v easywall.crt "${HOMEPATH}/ssl/"
+    mv -v easywall.key "${HOMEPATH}/ssl/"
+    chown -Rv easywall:easywall "${HOMEPATH}/ssl/"
+    chmod 700 "${HOMEPATH}/ssl/"
+    chmod 600 "${HOMEPATH}/ssl/*"
+else
+    echo "The certificate already exists and does not need to be created."
+fi
 
 # Finished.
 echo "" && echo ""
