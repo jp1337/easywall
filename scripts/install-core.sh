@@ -1,10 +1,13 @@
 #!/bin/bash
 
 SCRIPTNAME=$(basename "$0")
-SCRIPTPATH=$(dirname "$(readlink -f "$0")")
+SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
+HOMEPATH="$(dirname "$SCRIPTSPATH")"
 CONFIGFOLDER="config"
 CONFIGFILE="easywall.ini"
-STEPS=5
+SAMPLEFILE="easywall.sample.ini"
+SERVICEFILE="/lib/systemd/system/easywall.service"
+STEPS=6
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
@@ -21,42 +24,46 @@ EOF
 fi
 
 # Step 1
-echo "" && echo "($STEP/$STEPS) install required operating system packages" && ((STEP++))
-apt update
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m install required operating system packages \e[39m" && ((STEP++))
+apt -qqq update
 apt -y install python3 python3-pip
 
 # Step 2
-echo "" && echo "($STEP/$STEPS) install required python 3 packages using pip" && ((STEP++))
-pip3 install -r requirements.txt
-pip3 install "$SCRIPTPATH"
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m install required python 3 packages using pip \e[39m" && ((STEP++))
+pip3 install "${HOMEPATH}"
 
 # Step 3
-echo "" && echo "($STEP/$STEPS) creating configuration file from example" && ((STEP++))
-cp "$SCRIPTPATH"/"$CONFIGFOLDER"/"$CONFIGFILE".example "$SCRIPTPATH"/"$CONFIGFOLDER"/"$CONFIGFILE"
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m creating configuration file from example \e[39m" && ((STEP++))
+if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}" ]; then
+    echo -e "\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\e[39m"
+else
+    cp -v "${HOMEPATH}/${CONFIGFOLDER}/${SAMPLEFILE}" "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}"
+fi
 
 # Step 4
-echo "" && echo "($STEP/$STEPS) create group for configuration file access" && ((STEP++))
-addgroup easywall
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m create group for configuration file access \e[39m" && ((STEP++))
+if [ "$(getent group easywall)" ]; then
+    echo "The easywall group is already present."
+else
+    groupadd easywall
+    echo "The easywall group was created."
+fi
 
 # Step 5
-echo "" && echo "($STEP/$STEPS) installing systemd process for easywall" && ((STEP++))
-function installDaemon() {
-    SERVICEFILE="/lib/systemd/system/easywall.service"
-    read -r -d '' SERVICECONTENT <<EOF
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m installing systemd process for easywall \e[39m" && ((STEP++))
+read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=easywall - software for simple control of Linux firewalls
 Wants=network-online.target
 After=syslog.target time-sync.target network.target network-online.target
 
 [Service]
-ExecStart=/usr/bin/env python3 easywall/__init__.py
+ExecStart=/usr/bin/env python3 -m easywall
 KillMode=mixed
 KillSignal=SIGINT
-WorkingDirectory=${SCRIPTPATH}
-Restart=always
-RestartSec=10
-StandardOutput=none
-StandardError=none
+WorkingDirectory=${HOMEPATH}
+StandardOutput=syslog
+StandardError=syslog
 SyslogIdentifier=easywall
 User=root
 Group=easywall
@@ -64,37 +71,27 @@ Group=easywall
 [Install]
 WantedBy=multi-user.target
 EOF
-    echo "$SERVICECONTENT" >$SERVICEFILE
-    systemctl daemon-reload
-    systemctl enable easywall
-}
+echo "${SERVICECONTENT}" >"${SERVICEFILE}"
+/usr/bin/systemctl daemon-reload
+/usr/bin/systemctl enable easywall
+echo "daemon installed."
 
-read -r -n1 -p "Do you want to install easywall as a self-starting daemon? [y,n]" DAEMON
-case $DAEMON in
-y | Y) printf "\\ninstalling daemon ...\\n" && installDaemon ;;
-n | N) printf "\\nnot installing daemon.\\n" ;;
-*) printf "\\nnot installing daemon.\\n" ;;
-esac
+# Step 6
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m starting easywall process \e[39m" && ((STEP++))
+/usr/bin/systemctl restart easywall
+echo "daemon started."
 
-# Finished. Printing Introduction
-echo ""
+# Finished.
+echo "" && echo ""
 read -r -d '' INTRODUCTION <<EOF
-------------------------------
-Wow! Wasn't that easy?
-You successfully installed easywall on your linux system.
+\e[33m------------------------------\e[39m
+You have successfully installed the easywall core on your Linux system.
 
-So what now?
+For the next steps, please follow our installation instructions on GitHub.
+https://github.com/jp1337/easywall/blob/master/docs/INSTALL.md
 
-If you have installed easywall as a daemon you can type the following commands:
-# systemctl start easywall
-or
-# service easywall start
+Daemon Status:
 
-If you want to run easywall manually you can execute:
-# sudo python3 easywall/__init__.py
-
-If you have any questions on starting easywall, just create a new GitHub Issue:
-https://github.com/jp1337/easywall/issues/new
 EOF
-
-echo "$INTRODUCTION"
+echo -e "${INTRODUCTION}"
+/usr/bin/systemctl -l status easywall
