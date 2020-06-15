@@ -6,7 +6,7 @@ JQUERY="3.3.1"
 POPPER="1.14.3"
 CONFIGFOLDER="config"
 CONFIGFILE="web.ini"
-SAMPLEFILE="easywall.sample.ini"
+SAMPLEFILE="web.sample.ini"
 SERVICEFILE="/lib/systemd/system/easywall-web.service"
 SERVICEFILE_EASYWALL="/lib/systemd/system/easywall.service"
 
@@ -16,7 +16,7 @@ HOMEPATH="$(dirname "$SCRIPTSPATH")"
 WEBDIR="$HOMEPATH/easywall_web"
 TMPDIR="$WEBDIR/tmp"
 
-STEPS=8
+STEPS=9
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
@@ -33,16 +33,16 @@ EOF
 fi
 
 # Step 1
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Install the required programs from the operating system \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required programs from the operating system \e[39m" && ((STEP++))
 apt -qqq update
 apt -y install python3 python3-pip uwsgi uwsgi-plugin-python3 wget unzip
 
 # Step 2
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
 pip3 install "${HOMEPATH}"
 
 # Step 3
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Create the configuration from the example configuration \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the configuration from the example configuration \e[39m" && ((STEP++))
 if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}" ]; then
     echo -e "\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\e[39m"
 else
@@ -59,14 +59,12 @@ else
 fi
 
 # Step 5
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Download of several libraries required for easywall-web \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Download of several libraries required for easywall-web \e[39m" && ((STEP++))
 mkdir "$TMPDIR" && cd "$TMPDIR" || exit 1
 
 # Bootstrap
-wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css"
-cp -v "bootstrap.min.css" "$WEBDIR/static/css/"
-wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/js/bootstrap.min.js"
-cp -v "bootstrap.min.js" "$WEBDIR/static/js/"
+wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css" && cp -v "bootstrap.min.css" "$WEBDIR/static/css/"
+wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/js/bootstrap.min.js" && cp -v "bootstrap.min.js" "$WEBDIR/static/js/"
 
 # Font Awesome
 wget -q --show-progress "https://fontawesome.com/v$FONTAWESOME/assets/font-awesome-$FONTAWESOME.zip"
@@ -75,29 +73,27 @@ cp -rv "font-awesome-$FONTAWESOME/css/"* "$WEBDIR/static/css/"
 cp -rv "font-awesome-$FONTAWESOME/fonts/"* "$WEBDIR/static/fonts/"
 
 # JQuery Slim (for Bootstrap)
-wget -q --show-progress "https://code.jquery.com/jquery-$JQUERY.slim.min.js"
-cp -v jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
+wget -q --show-progress "https://code.jquery.com/jquery-$JQUERY.slim.min.js" && cp -v jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
 
 # Popper (for Bootstrap)
-wget -q --show-progress "https://cdnjs.cloudflare.com/ajax/libs/popper.js/$POPPER/umd/popper.min.js"
-cp -v popper.min.js "$WEBDIR/static/js/"
+wget -q --show-progress "https://cdnjs.cloudflare.com/ajax/libs/popper.js/$POPPER/umd/popper.min.js" && cp -v popper.min.js "$WEBDIR/static/js/"
 
 cd "$HOMEPATH" || exit 1
-rm -rvf "$TMPDIR"
+rm -rf "$TMPDIR"
 
 # Step 6
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Create the application user and add it to the application group. \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the application user and add it to the application group. \e[39m" && ((STEP++))
 adduser --system --debug easywall
 usermod -g easywall easywall
 
 # Step 7
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Set permissions on files and folders \e[39m" && ((STEP++))
-chown -R easywall:easywall "$WEBDIR"
-chown -R easywall:easywall "$HOMEPATH"/"$CONFIGFOLDER"
-chmod -R 750 "$HOMEPATH"/"$CONFIGFOLDER"
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Set permissions on files and folders \e[39m" && ((STEP++))
+chown -Rv easywall:easywall "$WEBDIR"
+chown -Rv easywall:easywall "$HOMEPATH"/"$CONFIGFOLDER"
+chmod -Rv 750 "$HOMEPATH"/"$CONFIGFOLDER"
 
 # Step 8
-echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Create the systemd service \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the systemd service \e[39m" && ((STEP++))
 read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=easywall-web - web interface to control the easywall core application.
@@ -119,6 +115,7 @@ EOF
 echo "${SERVICECONTENT}" >"${SERVICEFILE}"
 /usr/bin/systemctl daemon-reload
 /usr/bin/systemctl enable easywall-web
+echo "daemon installed."
 
 # Step 9
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
