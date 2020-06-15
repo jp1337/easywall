@@ -45,7 +45,7 @@ Most of you noticed that there are a lot of changes made at the moment, but the 
 - :heavy_check_mark: rework all classes in web folder
 - :heavy_check_mark: set up a demo server
 - :heavy_check_mark: write documentation for development setup
-- :x: SSL Implementation for web application
+- :heavy_check_mark: SSL Implementation for web application
 - :x: write documentation for installing and uninstalling
 
 ## Roadmap for later version
