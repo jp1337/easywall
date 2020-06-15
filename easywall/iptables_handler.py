@@ -48,6 +48,10 @@ class Iptables(object):
         if self.ipv6 is True:
             debug("IPV6 is enabled")
 
+        self.backup_path = "backup"
+        self.backup_file_ipv4 = "iptables_v4_backup"
+        self.backup_file_ipv6 = "iptables_v6_backup"
+
     def add_policy(self, chain: Chain, target: Target) -> None:
         """
         the function creates a new policy in iptables firewall by using the os command
@@ -133,22 +137,17 @@ class Iptables(object):
         """
         the function saves the current iptables state into a file
         """
-        backup_path = self.cfg.get_value("BACKUP", "filepath")
-        create_folder_if_not_exists(backup_path)
+        create_folder_if_not_exists(self.backup_path)
 
-        backup_file = self.cfg.get_value("BACKUP", "ipv4filename")
-        create_file_if_not_exists("{}/{}".format(backup_path, backup_file))
-
-        execute_os_command("{} >> {}/{}".format(
-            self.iptables_bin_save, backup_path, backup_file))
+        create_file_if_not_exists("{}/{}".format(self.backup_path, self.backup_file_ipv4))
+        execute_os_command("{} >> {}/{}".format(self.iptables_bin_save,
+                                                self.backup_path, self.backup_file_ipv4))
         debug("backup for ipv4 rules created")
 
         if self.ipv6 is True:
-            backup_file = self.cfg.get_value("BACKUP", "ipv6filename")
-            create_file_if_not_exists("{}/{}".format(backup_path, backup_file))
-
-            execute_os_command("{} >> {}/{}".format(
-                self.ip6tables_bin_save, backup_path, backup_file))
+            create_file_if_not_exists("{}/{}".format(self.backup_path, self.backup_file_ipv6))
+            execute_os_command("{} >> {}/{}".format(self.ip6tables_bin_save,
+                                                    self.backup_path, self.backup_file_ipv6))
             debug("backup of ipv6 rules created")
 
         info("backup of iptables configuration created")
@@ -157,17 +156,15 @@ class Iptables(object):
         """
         the function restores a backup of a previously saved backup
         """
-        backup_path = self.cfg.get_value("BACKUP", "filepath")
-        create_folder_if_not_exists(backup_path)
+        create_folder_if_not_exists(self.backup_path)
 
-        backup_file = self.cfg.get_value("BACKUP", "ipv4filename")
-        execute_os_command("{} < {}/{}".format(self.iptables_bin_restore, backup_path, backup_file))
+        execute_os_command("{} < {}/{}".format(self.iptables_bin_restore,
+                                               self.backup_path, self.backup_file_ipv4))
         debug("ipv4 rules restored")
 
         if self.ipv6 is True:
-            backup_file = self.cfg.get_value("BACKUP", "ipv6filename")
-            execute_os_command(
-                "{} < {}/{}".format(self.ip6tables_bin_restore, backup_path, backup_file))
+            execute_os_command("{} < {}/{}".format(self.ip6tables_bin_restore,
+                                                   self.backup_path, self.backup_file_ipv6))
             debug("ipv6 rules restored")
 
         info("restores iptables state from previous created backup")
