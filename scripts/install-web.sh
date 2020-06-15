@@ -4,87 +4,100 @@ BOOTSTRAP="4.1.3"
 FONTAWESOME="4.7.0"
 JQUERY="3.3.1"
 POPPER="1.14.3"
-SCRIPTNAME=$(basename "$0")
-SCRIPTPATH=$(dirname "$(readlink -f "$0")")
-HOMEPATH="$(dirname "$SCRIPTPATH")"
 CONFIGFOLDER="config"
 CONFIGFILE="web.ini"
-EXAMPLECONFIGFILE="web.sample.ini"
+SAMPLEFILE="easywall.sample.ini"
+SERVICEFILE="/lib/systemd/system/easywall-web.service"
+SERVICEFILE_EASYWALL="/lib/systemd/system/easywall.service"
+
+SCRIPTNAME=$(basename "$0")
+SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
+HOMEPATH="$(dirname "$SCRIPTSPATH")"
 WEBDIR="$HOMEPATH/easywall_web"
 TMPDIR="$WEBDIR/tmp"
+
 STEPS=8
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
     read -r -d '' NOROOT <<EOF
-Heya! To install easywall-web you need to have a privileged user.
-So you can try these:
+To install easywall-web, you need administration rights.
+You can use the following commands:
 
-# sudo -H bash $SCRIPTNAME
+# sudo -H bash ${SCRIPTSPATH}/${SCRIPTNAME}
 or
-# su root -c "$SCRIPTNAME"
+# su root -c "${SCRIPTSPATH}/${SCRIPTNAME}"
 EOF
     echo "$NOROOT"
     exit 1
 fi
 
 # Step 1
-echo "" && echo "($STEP/$STEPS) install required operating system packages" && ((STEP++))
-apt update
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Install the required programs from the operating system \e[39m" && ((STEP++))
+apt -qqq update
 apt -y install python3 python3-pip uwsgi uwsgi-plugin-python3 wget unzip
 
 # Step 2
-echo "" && echo "($STEP/$STEPS) install required python 3 packages using pip" && ((STEP++))
-pip3 install -r "${HOMEPATH}"/requirements.txt
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
 pip3 install "${HOMEPATH}"
 
 # Step 3
-echo "" && echo "($STEP/$STEPS) creating configuration file from example" && ((STEP++))
-cp "$HOMEPATH"/"$CONFIGFOLDER"/"$EXAMPLECONFIGFILE" "$HOMEPATH"/"$CONFIGFOLDER"/"$CONFIGFILE"
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Create the configuration from the example configuration \e[39m" && ((STEP++))
+if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}" ]; then
+    echo -e "\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\e[39m"
+else
+    cp -v "${HOMEPATH}/${CONFIGFOLDER}/${SAMPLEFILE}" "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}"
+fi
 
 # Step 4
-echo "" && echo "($STEP/$STEPS) installing 3rd party files for easywall-web" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the group under which the software should run \e[39m" && ((STEP++))
+if [ "$(getent group easywall)" ]; then
+    echo "The easywall group is already present."
+else
+    groupadd easywall
+    echo "The easywall group was created."
+fi
+
+# Step 5
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Download of several libraries required for easywall-web \e[39m" && ((STEP++))
 mkdir "$TMPDIR" && cd "$TMPDIR" || exit 1
 
 # Bootstrap
 wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css"
-cp "bootstrap.min.css" "$WEBDIR/static/css/"
+cp -v "bootstrap.min.css" "$WEBDIR/static/css/"
 wget -q --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/js/bootstrap.min.js"
-cp "bootstrap.min.js" "$WEBDIR/static/js/"
+cp -v "bootstrap.min.js" "$WEBDIR/static/js/"
 
 # Font Awesome
 wget -q --show-progress "https://fontawesome.com/v$FONTAWESOME/assets/font-awesome-$FONTAWESOME.zip"
 unzip -q "font-awesome-$FONTAWESOME.zip"
-cp -r "font-awesome-$FONTAWESOME/css/"* "$WEBDIR/static/css/"
-cp -r "font-awesome-$FONTAWESOME/fonts/"* "$WEBDIR/static/fonts/"
+cp -rv "font-awesome-$FONTAWESOME/css/"* "$WEBDIR/static/css/"
+cp -rv "font-awesome-$FONTAWESOME/fonts/"* "$WEBDIR/static/fonts/"
 
 # JQuery Slim (for Bootstrap)
 wget -q --show-progress "https://code.jquery.com/jquery-$JQUERY.slim.min.js"
-cp jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
+cp -v jquery-$JQUERY.slim.min.js "$WEBDIR/static/js/"
 
 # Popper (for Bootstrap)
-wget -q --show-progress "https://unpkg.com/popper.js@$POPPER/dist/umd/popper.min.js"
-cp popper.min.js "$WEBDIR/static/js/"
+wget -q --show-progress "https://cdnjs.cloudflare.com/ajax/libs/popper.js/$POPPER/umd/popper.min.js"
+cp -v popper.min.js "$WEBDIR/static/js/"
 
 cd "$HOMEPATH" || exit 1
-rm -rf "$TMPDIR"
-
-# Step 5
-echo "" && echo "($STEP/$STEPS) creating easywall-web system user and creating permission for file modification" && ((STEP++))
-adduser --system easywall
-addgroup easywall
-usermod -g easywall easywall
+rm -rvf "$TMPDIR"
 
 # Step 6
-echo "" && echo "($STEP/$STEPS) setting folder permission for easywall-web application user" && ((STEP++))
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Create the application user and add it to the application group. \e[39m" && ((STEP++))
+adduser --system --debug easywall
+usermod -g easywall easywall
+
+# Step 7
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Set permissions on files and folders \e[39m" && ((STEP++))
 chown -R easywall:easywall "$WEBDIR"
 chown -R easywall:easywall "$HOMEPATH"/"$CONFIGFOLDER"
 chmod -R 750 "$HOMEPATH"/"$CONFIGFOLDER"
 
-# Step 7
-echo "" && echo "($STEP/$STEPS) installing systemd process for easywall-web" && ((STEP++))
-SERVICEFILE="/lib/systemd/system/easywall-web.service"
-
+# Step 8
+echo "" && echo "\e[33m($STEP/$STEPS)\e[32m Create the systemd service \e[39m" && ((STEP++))
 read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=easywall-web - web interface to control the easywall core application.
@@ -94,8 +107,6 @@ After=syslog.target time-sync.target network.target network-online.target
 [Service]
 ExecStart=/bin/bash easywall_web/easywall_web.sh
 WorkingDirectory=${HOMEPATH}
-Restart=always
-RestartSec=10
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=easywall-web
@@ -105,11 +116,29 @@ Group=easywall
 [Install]
 WantedBy=multi-user.target
 EOF
-echo "$SERVICECONTENT" >$SERVICEFILE
-systemctl daemon-reload
-systemctl enable easywall-web
+echo "${SERVICECONTENT}" >"${SERVICEFILE}"
+/usr/bin/systemctl daemon-reload
+/usr/bin/systemctl enable easywall-web
 
-# Step 8
-echo "" && echo "($STEP/$STEPS) please set a username and password for login into the webinterface" && ((STEP++))
-echo "execute the following command:"
-echo "/usr/bin/env python3 easywall_web/passwd.py"
+# Step 9
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
+if [ -f "${SERVICEFILE_EASYWALL}" ]; then
+    /usr/bin/systemctl restart easywall
+fi
+/usr/bin/systemctl restart easywall-web
+echo "daemon started."
+
+# Finished.
+echo "" && echo ""
+read -r -d '' INTRODUCTION <<EOF
+\e[33m------------------------------\e[39m
+You have successfully installed the easywall web interface.
+
+For the next steps, please follow our installation instructions on GitHub.
+https://github.com/jp1337/easywall/blob/master/docs/INSTALL.md
+
+Daemon Status:
+
+EOF
+echo -e "${INTRODUCTION}"
+/usr/bin/systemctl -l status easywall-web

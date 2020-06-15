@@ -1,39 +1,41 @@
 #!/bin/bash
 
-SCRIPTNAME=$(basename "$0")
-SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
-HOMEPATH="$(dirname "$SCRIPTSPATH")"
 CONFIGFOLDER="config"
 CONFIGFILE="easywall.ini"
 SAMPLEFILE="easywall.sample.ini"
 SERVICEFILE="/lib/systemd/system/easywall.service"
+
+SCRIPTNAME=$(basename "$0")
+SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
+HOMEPATH="$(dirname "$SCRIPTSPATH")"
+
 STEPS=6
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
     read -r -d '' NOROOT <<EOF
-Heya! To install easywall you need to have a privileged user.
-So you can try these:
+To install easywall, you need administration rights.
+You can use the following commands:
 
-# sudo -H bash ${SCRIPTNAME}
+# sudo -H bash ${SCRIPTSPATH}/${SCRIPTNAME}
 or
-# su root -c "{$SCRIPTNAME}"
+# su root -c "${SCRIPTSPATH}/${SCRIPTNAME}"
 EOF
     echo "$NOROOT"
     exit 1
 fi
 
 # Step 1
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m install required operating system packages \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required programs from the operating system \e[39m" && ((STEP++))
 apt -qqq update
 apt -y install python3 python3-pip
 
 # Step 2
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m install required python 3 packages using pip \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
 pip3 install "${HOMEPATH}"
 
 # Step 3
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m creating configuration file from example \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the configuration from the example configuration \e[39m" && ((STEP++))
 if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}" ]; then
     echo -e "\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\e[39m"
 else
@@ -41,7 +43,7 @@ else
 fi
 
 # Step 4
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m create group for configuration file access \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the group under which the software should run \e[39m" && ((STEP++))
 if [ "$(getent group easywall)" ]; then
     echo "The easywall group is already present."
 else
@@ -50,7 +52,7 @@ else
 fi
 
 # Step 5
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m installing systemd process for easywall \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the systemd service \e[39m" && ((STEP++))
 read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=easywall - software for simple control of Linux firewalls
@@ -77,7 +79,7 @@ echo "${SERVICECONTENT}" >"${SERVICEFILE}"
 echo "daemon installed."
 
 # Step 6
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m starting easywall process \e[39m" && ((STEP++))
+echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
 /usr/bin/systemctl restart easywall
 echo "daemon started."
 
