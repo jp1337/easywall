@@ -2,7 +2,7 @@
 TODO: Doku
 """
 from easywall.__main__ import CONFIG_PATH, Main, ModifiedHandler
-from easywall.utility import (create_file_if_not_exists,
+from easywall.utility import (create_file_if_not_exists, delete_file_if_exists,
                               delete_folder_if_exists, file_exists,
                               rename_file, write_into_file)
 
@@ -52,6 +52,7 @@ ipv6filename = iptables_v6_backup
         delete_folder_if_exists("rules")
 
     def tearDown(self):
+        delete_file_if_exists("test.log")
         if file_exists(self.config_backup_path):
             rename_file(self.config_backup_path, CONFIG_PATH)
 

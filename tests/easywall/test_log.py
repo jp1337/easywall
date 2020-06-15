@@ -14,11 +14,12 @@ class TestLog(unittest.TestCase):
     """
 
     def setUp(self):
+        delete_file_if_exists("./test.log")
         self.log = Log("INFO", True, True, ".", "test.log")
 
     def tearDown(self):
-        delete_file_if_exists("test.log")
         self.log.close_logging()
+        delete_file_if_exists("./test.log")
 
     def test_correct_level_debug(self):
         """
