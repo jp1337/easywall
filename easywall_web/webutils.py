@@ -17,9 +17,7 @@ class Webutils(object):
     """the class is called in the route modules and contains non route-specific functions"""
 
     def __init__(self):
-        self.cfg_file = "config/web.ini"
-        self.cfg_sample_file = "config/web.sample.ini"
-        self.cfg = Config(self.cfg_file)
+        self.cfg = Config("config/web.ini")
         self.cfg_easywall = Config(CONFIG_PATH)
 
     def check_login(self, request):
@@ -66,8 +64,8 @@ class Webutils(object):
         """
         TODO: Docu
         """
-        cfg1 = Config(self.cfg_file)
-        cfg2 = Config(self.cfg_sample_file)
+        cfg1 = Config("config/easywall.ini")
+        cfg2 = Config("config/easywall.sample.ini")
         for section in cfg1.get_sections():
             if section not in cfg2.get_sections():
                 return True
