@@ -1,19 +1,45 @@
 # How to update easywall
 
-Keeping EasyWall up-to-date is very important in order not to compromise the security of your server.
-But, how do I update EasyWall at all?
-You can follow the simple steps that we show you now.
+Always keep easywall up to date to eliminate errors and security gaps as quickly as possible.
 
-## Updating with Git
+You can see the current software status in the web interface.
 
-1. Please save your **config** and **rules** Folder.
-2. `cd /usr/local/EasyWall && git pull`
-3. Merge files in **config** and **rules** Folder with the newer Versions and check if the files have major changes.
+There you will be notified with an exclamation mark when a new version is available.
 
-## Update manually
+To update easywall, follow the simple steps below. Please read the documentation carefully to avoid errors.
 
-1. Please save your **config** and **rules** Folder.
-2. Delete all Files and Folders except **config** and **rules** directory
-3. Download the latest version of EasyWall from [GitHub Download](https://github.com/KingJP/EasyWall/archive/master.zip).
-4. Upload all Files and Folders except **config** and **rules** Folder.
-5. Merge files in **config** and **rules** Folder with the newer Versions and check if the files have major changes.
+## Update with Git
+
+- Change to the directory where you have installed easywall.
+
+```sh
+# for instance:
+cd /opt/easywall
+```
+
+- Download the latest version of GitHub by running the Git command
+
+```sh
+git pull
+```
+
+## Update through our script
+
+**Please note** that after an update through our script, you can no longer update your installation via Git, as the Git folder will be deleted.
+
+Our update script creates an automatic backup of your previous installation. Nevertheless we recommend to backup the operating system regularly to avoid problems.
+
+If you have installed easywall manually or still want to update through our script, please follow these steps:
+
+- Change to the directory where you have installed easywall.
+
+```sh
+# for instance:
+cd /opt/easywall
+```
+
+- Run our automatic update script and carefully check the output for errors.
+
+```sh
+bash scripts/update.sh
+```
