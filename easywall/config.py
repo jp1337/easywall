@@ -88,3 +88,9 @@ class Config(object):
         [Data Types] list
         """
         return self.configlib.sections()
+
+    def get_keys(self, section) -> list:
+        """
+        TODO: Docu
+        """
+        return self.configlib[section].keys()
