@@ -1,31 +1,93 @@
-# How to Install easywall
+# How to install easywall
 
-You just need three simple steps for installing easywall on your system.
+The installation of easywall can be done with the following simple steps.
 
-## Index
+Please check first whether your operating system is already supported by easywall.
 
-1. [Check Requirements](#require)
-2. [Download and Install easywall](#easywall)
+Please read the text carefully to avoid errors.
 
-## 1. Check Requirements
+## Check requirements
 
-- ssh (root access) on the server
-- Currently we only support Debian based Servers
+- SSH access to the system
+- root access on the system either as user or via sudo
 
-## 2. Download and Install easywall
+## Supported operating systems
+
+We currently only support Debian based operating systems like Debian or Ubuntu.
+
+## Install easywall
+
+If the requirements apply to your operating system, you can perform the following installation steps.
+
+## Installation by using Git
+
+- Change to the directory where you want to install easywall. We recommend the directories listed below.
 
 ```sh
+cd /opt
+# or
 cd /usr/local
+```
+
+- Clone the easywall installation of GitHub and change to the newly created directory.
+
+```sh
 git clone https://github.com/jp1337/easywall.git
 cd easywall
 ```
 
-You can **clone** the repository to get the **latest version** of easywall. You also can **download** the repository from GitHub and **unzip** it on your system.
-We suggest to use the directories **/usr/local** or **/opt** for easywall Installation.
+- To install the easywall core, run the installation script for the core.
 
 ```sh
-sudo chmod +x install.sh
-sudo -H bash install.sh
+# optional:
+# cd /opt/easywall
+bash scripts/install-core.sh
 ```
 
-We suggest to use the installer for proper installation. **You have to execute the installer as root user!** For manual installation execute the steps in the installer file on your own.
+- Optional: To install the web interface, run the installation script for the web interface.
+
+```sh
+# optional:
+# cd /opt/easywall
+bash scripts/install-web.sh
+```
+
+## Manual installation
+
+- Change to the directory where you want to install easywall. We recommend the directories listed below.
+
+```sh
+cd /opt
+# or
+cd /usr/local
+```
+
+- Download the latest version of easywall from GitHub
+
+```sh
+wget https://github.com/jp1337/easywall/archive/master.zip
+```
+
+- Unzip the file and rename the folder. Then change to the newly created directory.
+
+```sh
+unzip master.zip
+mv easywall-master easywall
+cd easywall
+```
+
+- To install the easywall core, run the installation script for the core.
+
+```sh
+# optional:
+# cd /opt/easywall
+bash scripts/install-core.sh
+```
+
+- Optional: To install the web interface, run the installation script for the web interface.
+
+```sh
+# optional:
+# cd /opt/easywall
+bash scripts/install-web.sh
+```
