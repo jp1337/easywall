@@ -4,7 +4,7 @@
 [![Coveralls github](https://img.shields.io/coveralls/github/jp1337/easywall)](https://coveralls.io/github/jp1337/easywall)
 [![GitHub license](https://img.shields.io/github/license/jp1337/easywall)](https://github.com/jp1337/easywall/blob/master/LICENSE)
 [![GitHub repo size](https://img.shields.io/github/repo-size/jp1337/easywall.svg)](https://github.com/jp1337/easywall)
-[![Project Version](https://img.shields.io/badge/release-development-red.svg)](https://github.com/jp1337/easywall)
+[![Project Version](https://img.shields.io/badge/release-beta-yellow.svg)](https://github.com/jp1337/easywall)
 [![Discord Support](https://img.shields.io/discord/333980251921186818)](https://discord.gg/CUj2sFb)
 [![Beerpay](https://img.shields.io/beerpay/jp1337/easywall)](https://beerpay.io/jp1337/easywall)
 
@@ -31,31 +31,18 @@ You can view an online version of the program as a demo under the following link
 
 The online demo version is reset every 30 minutes and all data is deleted. The demo has only the frontend installed without the backend. Configuration changes are therefore not saved or applied.
 
+## Support me
+
+The project easywall was created in a time when I did not have any knowledge about Linux. Today I work as an administrator for Linux systems and would not need this project anymore. Nevertheless it is important to me to support the introduction to Linux and the use and simplification of firewalls. To continue the project, I need your support! Please donate some money so that I can continue the project in my spare time. Every dollar counts! You can find a donation link on [GitHub](https://github.com/jp1337/easywall).
+
 ## Roadmap for the next release
 
-Most of you noticed that there are a lot of changes made at the moment, but the release status is still in "development" and there are no minor releases. This is because I currently enhance the project until the next release. The reason for this is because I learned a lot of Python 3 coding the last year in my main job. I want to use this knowledge and clean this project up so everyone can use it and there are less bugs than before (there were a lot of bugs). If you want to support me and improve the development speed you can send me a beer on beerpay :beers:
+The following features will be implemented in one of the next versions. If you need a feature, simply create a GitHub issue, and we'll include it here.
 
-- :heavy_check_mark: create a setup.py and setup.cfg file for publishing
-- :heavy_check_mark: create a requirements.txt file with all the requirements
-- :heavy_check_mark: create github actions testing and linting
-- :heavy_check_mark: implement custom rules feature
-- :heavy_check_mark: create unit tests for all classes in easywall folder
-- :heavy_check_mark: create unit tests for all classes in web folder
-- :heavy_check_mark: rework all classes in easywall folder
-- :heavy_check_mark: rework all classes in web folder
-- :heavy_check_mark: set up a demo server
-- :heavy_check_mark: write documentation for development setup
-- :heavy_check_mark: SSL Implementation for web application
-- :heavy_check_mark: write documentation for installing and uninstalling
-
-## Roadmap for later version
-
-These are long-term planned features. If you want to have more features listed here you just have to create a issue and we can discuss the feature.
-
+- :x: create documentation in the Web interface for using `custom rules`
 - :x: create a `pydoc` documentation
 - :x: finish all `TODO: Docs` documentations
 - :x: create a ansible role for easy installing
-- :x: fill the `Help` button in the web-app with content
 
 ## Install
 
