@@ -102,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
 [unreleased]: https://github.com/jp1337/easywall/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jp1337/easywall/compare/v0.4.0...v0.1.0
+[0.1.0]: https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0
 [0.0.4]: https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2
