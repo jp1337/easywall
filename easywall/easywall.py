@@ -70,6 +70,9 @@ class Easywall(object):
         # Apply ICMP Rules
         self.apply_icmp()
 
+        # Apply Broadcast, Multicast and Anycast Rules
+        self.apply_cast()
+
         # Block IP-addresses from blacklist
         self.apply_blacklist()
 
@@ -86,7 +89,7 @@ class Easywall(object):
         self.apply_custom_rules()
 
         # log all dropped connections when enabled
-        if self.cfg.get_value("LOG", "log_blocked_connections"):
+        if self.cfg.get_value("IPTABLES", "log_blocked_connections"):
             self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
 
         # reject all packages which not match the rules
@@ -105,6 +108,26 @@ class Easywall(object):
                 self.iptables.add_append(
                     "INPUT", "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
 
+    def apply_cast(self):
+        """
+        TODO: Docu
+        """
+        if self.cfg.get_value("IPTABLES", "drop_broadcast_packets"):
+            self.iptables.add_append(
+                "INPUT", "-m addrtype --dst-type BROADCAST -j DROP", onlyv4=True)
+
+        if self.cfg.get_value("IPTABLES", "drop_multicast_packets"):
+            self.iptables.add_append(
+                "INPUT", "-m addrtype --dst-type MULTICAST -j DROP", onlyv4=True)
+            self.iptables.add_append("INPUT", "-d 224.0.0.0/4 -j DROP", onlyv4=True)
+            if self.ipv6 is True:
+                self.iptables.add_append("INPUT", "-m addrtype --dst-type MULTICAST -j DROP", True)
+
+        if self.cfg.get_value("IPTABLES", "drop_anycast_packets"):
+            self.iptables.add_append("INPUT", "-m addrtype --dst-type ANYCAST -j DROP", onlyv4=True)
+            if self.ipv6 is True:
+                self.iptables.add_append("INPUT", "-m addrtype --dst-type ANYCAST -j DROP", True)
+
     def apply_blacklist(self) -> None:
         """
         this function adds rules to iptables which block incoming traffic
@@ -112,14 +135,14 @@ class Easywall(object):
         """
         for ipaddr in self.rules.get_current_rules("blacklist"):
             if ":" in ipaddr:
-                if self.cfg.get_value("LOG", "log_blacklist_connections"):
+                if self.cfg.get_value("IPTABLES", "log_blacklist_connections"):
                     self.iptables.add_append(
                         chain="INPUT",
                         rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
                         onlyv6=True)
                 self.iptables.add_append("INPUT", "-s {} -j DROP".format(ipaddr), onlyv6=True)
             else:
-                if self.cfg.get_value("LOG", "log_blacklist_connections"):
+                if self.cfg.get_value("IPTABLES", "log_blacklist_connections"):
                     self.iptables.add_append(
                         chain="INPUT",
                         rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),

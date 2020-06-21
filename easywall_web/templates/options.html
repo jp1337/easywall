@@ -37,7 +37,10 @@
                 <div class="card-header">
                     <ul class="nav nav-tabs card-header-tabs">
                         <li class="nav-item">
-                            <a class="nav-link active" data-toggle="tab" href="#ipv6" role="tab">IPv6</a>
+                            <a class="nav-link active" data-toggle="tab" href="#iptables" role="tab">iptables</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="tab" href="#ipv6" role="tab">IPv6</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="tab" href="#acceptance" role="tab">Acceptance</a>
@@ -54,7 +57,88 @@
                 <div class="card-body">
                     <div class="tab-content">
 
-                        <div class="tab-pane active" id="ipv6" role="tabpanel">
+                        <div class="tab-pane active" id="iptables" role="tabpanel">
+                            <form action="/options-save" method="post">
+
+                                <input type="hidden" value="LOG" name="section">
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="log_blocked_connections">
+                                        <input type="hidden" value="off" name="checkbox_log_blocked_connections">
+                                        <input type="checkbox" id="log_blocked_connections"
+                                            name="log_blocked_connections"
+                                            {% if vars.config.get_value("IPTABLES", "log_blocked_connections") == true %}
+                                            checked {% endif %} aria-describedby="log_blocked_connections_help">
+                                        Log all blocked connections to syslog
+                                    </label>
+                                    <small id="log_blocked_connections_help" class="form-text text-muted">
+                                        If the configuration is enabled, all blocked incoming connections are logged in
+                                        the syslog. Please make sure that the syslog is rotated regularly to avoid large
+                                        logfiles.
+                                    </small>
+                                </div>
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="log_blacklist_connections">
+                                        <input type="hidden" value="off" name="checkbox_log_blacklist_connections">
+                                        <input type="checkbox" id="log_blacklist_connections"
+                                            name="log_blacklist_connections"
+                                            {% if vars.config.get_value("IPTABLES", "log_blacklist_connections") == true %}
+                                            checked {% endif %} aria-describedby="log_blacklist_connections_help">
+                                        Log all blocked connections from blocked IP addresses
+                                    </label>
+                                    <small id="log_blacklist_connections_help" class="form-text text-muted">
+                                        To check if IP addresses on the blacklist are still trying to connect to your
+                                        system, you can enable this checkbox. All incoming connections from blocked IP
+                                        addresses are then logged in the syslog.
+                                    </small>
+                                </div>
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="drop_broadcast_packets">
+                                        <input type="hidden" value="off" name="checkbox_drop_broadcast_packets">
+                                        <input type="checkbox" id="drop_broadcast_packets" name="drop_broadcast_packets"
+                                            {% if vars.config.get_value("IPTABLES", "drop_broadcast_packets") == true %}
+                                            checked {% endif %} aria-describedby="drop_broadcast_packets_help">
+                                        Reject broadcast packets
+                                    </label>
+                                    <small id="drop_broadcast_packets_help" class="form-text text-muted">
+                                        If this field is activated, all incoming packets of type Broadcast are rejected.
+                                        This can cause problems with DHCP servers or clients.
+                                    </small>
+                                </div>
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="drop_multicast_packets">
+                                        <input type="hidden" value="off" name="checkbox_drop_multicast_packets">
+                                        <input type="checkbox" id="drop_multicast_packets" name="drop_multicast_packets"
+                                            {% if vars.config.get_value("IPTABLES", "drop_multicast_packets") == true %}
+                                            checked {% endif %} aria-describedby="drop_multicast_packets_help">
+                                        Reject multicast packets
+                                    </label>
+                                    <small id="drop_multicast_packets_help" class="form-text text-muted">
+                                        If this field is activated, all incoming packets of type Multicast are rejected.
+                                    </small>
+                                </div>
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="drop_anycast_packets">
+                                        <input type="hidden" value="off" name="checkbox_drop_anycast_packets">
+                                        <input type="checkbox" id="drop_anycast_packets" name="drop_anycast_packets"
+                                            {% if vars.config.get_value("IPTABLES", "drop_anycast_packets") == true %}
+                                            checked {% endif %} aria-describedby="drop_anycast_packets_help">
+                                        Reject anycast packets
+                                    </label>
+                                    <small id="drop_anycast_packets_help" class="form-text text-muted">
+                                        If this field is activated, all incoming packets of type Anycast are rejected.
+                                    </small>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary">Save</button>
+                            </form>
+                        </div>
+
+                        <div class="tab-pane" id="ipv6" role="tabpanel">
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="IPV6" name="section">
@@ -194,38 +278,6 @@
                                     <small id="log_filename_help" class="form-text text-muted">
                                         This option sets the logfile name. The logfile should have a normal file
                                         extension like <code>.log</code> or <code>.txt</code>
-                                    </small>
-                                </div>
-
-                                <div class="form-group checkbox">
-                                    <label class="form-check-label" for="log_blocked_connections">
-                                        <input type="hidden" value="off" name="checkbox_log_blocked_connections">
-                                        <input type="checkbox" id="log_blocked_connections"
-                                            name="log_blocked_connections"
-                                            {% if vars.config.get_value("LOG", "log_blocked_connections") == true %}
-                                            checked {% endif %} aria-describedby="log_blocked_connections_help">
-                                        Log all blocked connections to syslog
-                                    </label>
-                                    <small id="log_blocked_connections_help" class="form-text text-muted">
-                                        If the configuration is enabled, all blocked incoming connections are logged in
-                                        the syslog. Please make sure that the syslog is rotated regularly to avoid large
-                                        logfiles.
-                                    </small>
-                                </div>
-
-                                <div class="form-group checkbox">
-                                    <label class="form-check-label" for="log_blacklist_connections">
-                                        <input type="hidden" value="off" name="checkbox_log_blacklist_connections">
-                                        <input type="checkbox" id="log_blacklist_connections"
-                                            name="log_blacklist_connections"
-                                            {% if vars.config.get_value("LOG", "log_blacklist_connections") == true %}
-                                            checked {% endif %} aria-describedby="log_blacklist_connections_help">
-                                        Log all blocked connections from blocked IP addresses
-                                    </label>
-                                    <small id="log_blacklist_connections_help" class="form-text text-muted">
-                                        To check if IP addresses on the blacklist are still trying to connect to your
-                                        system, you can enable this checkbox. All incoming connections from blocked IP
-                                        addresses are then logged in the syslog.
                                     </small>
                                 </div>
 
