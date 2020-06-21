@@ -10,8 +10,24 @@
                 </button>
             </div>
             <div class="modal-body">
-                We have found differences between the sample configuration and the active configuration.<br />
-                This will cause problems when activating the firewall rules.
+                We have found differences between the <code>sample configuration</code> and the
+                <code>active configuration</code>.<br />
+                This will cause problems when activating the firewall rules.<br />
+                <br />
+                Please compare the two configuration files in your easywall installation folder.<br />
+                <br />
+                <ul>
+                    <li>config/easywall.ini</li>
+                    <li>config/easywall.sample.ini</li>
+                </ul>
+                Add the missing entries to the configuration file and then restart easywall.<br />
+                You can use the following commands to compare the files:<br />
+                <br />
+                <code>diff config/easywall.ini easywall.sample.ini</code><br />
+                <br />
+                To restart easywall use the following command:<br />
+                <br />
+                <code>systemctl restart easywall</code>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
