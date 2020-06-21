@@ -6,6 +6,7 @@ JQUERY="3.3.1"
 POPPER="1.14.3"
 CONFIGFOLDER="config"
 RULESFOLDER="rules"
+SSLFOLDER="ssl"
 CONFIGFILE="web.ini"
 SAMPLEFILE="web.sample.ini"
 SERVICEFILE="/lib/systemd/system/easywall-web.service"
@@ -125,7 +126,7 @@ echo "daemon installed."
 
 # Step 9
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create a self-signed SSL certificate \e[39m" && ((STEP++))
-if [ ! -f "${HOMEPATH}/ssl/${CERTFILE}" ]; then
+if [ ! -f "${HOMEPATH}/${SSLFOLDER}/${CERTFILE}" ]; then
     DOMAIN="$(hostname -f)"
     echo "generating passphrase..."
     export PASSPHRASE
@@ -162,12 +163,12 @@ emailAddress=admin@example.com
     openssl x509 -req -days 3650 -in easywall.csr -signkey easywall.key -out easywall.crt
 
     echo "moving certificates in place..."
-    mv -v easywall.crt "${HOMEPATH}/ssl/"
-    mv -v easywall.key "${HOMEPATH}/ssl/"
+    mv -v easywall.crt "${HOMEPATH}/${SSLFOLDER}/"
+    mv -v easywall.key "${HOMEPATH}/${SSLFOLDER}/"
     rm -v easywall.csr
-    chown -Rv easywall:easywall "${HOMEPATH}/ssl/"
-    chmod -v 700 "${HOMEPATH}"/ssl
-    chmod -Rv 600 "${HOMEPATH}"/ssl/*
+    chown -Rv easywall:easywall "${HOMEPATH}/${SSLFOLDER}/"
+    chmod -v 700 "${HOMEPATH}/${SSLFOLDER}"
+    chmod -Rv 600 "${HOMEPATH}/${SSLFOLDER}/*"
 else
     echo "The certificate already exists and does not need to be created."
 fi
