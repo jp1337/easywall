@@ -42,8 +42,7 @@ class Webutils(object):
         payload.current_version = file_get_contents(".version")
         payload.commit_sha = self.cfg.get_value("VERSION", "sha")
         payload.commit_date = self.get_commit_date(self.cfg.get_value("VERSION", "date"))
-        if self.get_config_version_mismatch:
-            payload.config_mismatch = True
+        payload.config_mismatch = self.get_config_version_mismatch()
         return payload
 
     def get_machine_infos(self):
@@ -64,8 +63,8 @@ class Webutils(object):
         """
         TODO: Docu
         """
-        cfg1 = Config("config/easywall.ini")
-        cfg2 = Config("config/easywall.sample.ini")
+        cfg1 = Config("config/easywall.sample.ini")
+        cfg2 = Config("config/easywall.ini")
         for section in cfg1.get_sections():
             if section not in cfg2.get_sections():
                 return True
