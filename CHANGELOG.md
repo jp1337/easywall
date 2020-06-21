@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The installation, uninstallation and an update can now be carried out via scripts.
 - The web interface installation now creates self-signed SSL certificates and can only be used over HTTPS.
 
+### Changed
+
+- create a setup.py and setup.cfg file for publishing
+- create a requirements.txt file with all the requirements
+- create github actions testing and linting
+- implement custom rules feature
+- create unit tests for all classes in easywall folder
+- create unit tests for all classes in web folder
+- rework all classes in easywall folder
+- rework all classes in web folder
+- set up a demo server
+- write documentation for development setup
+- SSL Implementation for web application
+- write documentation for installing and uninstalling
+
 ## [0.0.4] - 2019-10-04
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4)
