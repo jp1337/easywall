@@ -119,13 +119,43 @@ def page_not_found_route(error):
     return page_not_found(error)
 
 
+class DefaultConfig(object):
+    """
+    TODO: Docu
+    """
+    DEBUG = False
+    TESTING = False
+    SECRET_KEY = os.urandom(265)
+    ENV = "production"
+    SESSION_COOKIE_NAME = "easywall"
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = 600
+    PREFERRED_URL_SCHEME = "https"
+    MAX_CONTENT_LENGTH = 10240
+
+
+class ProductionConfig(DefaultConfig):
+    """
+    TODO: Docu
+    """
+
+
+class DevelopmentConfig(DefaultConfig):
+    """
+    TODO: Docu
+    """
+    DEBUG = True
+    ENV = "development"
+
+
 class Main(object):
     """
     TODO: Doku
     """
 
     def __init__(self, debug=False):
-        APP.secret_key = os.urandom(12)
         self.cfg = Config(CONFIG_PATH)
 
         loglevel = self.cfg.get_value("LOG", "level")
@@ -145,7 +175,10 @@ class Main(object):
         if debug is True:
             port = self.cfg.get_value("WEB", "bindport")
             host = self.cfg.get_value("WEB", "bindip")
-            APP.run(host, port, debug)
+            APP.config.from_object('easywall_web.__main__.DevelopmentConfig')
+            APP.run(host, port)
+        else:
+            APP.config.from_object('easywall_web.__main__.ProductionConfig')
 
 
 if __name__ == '__main__':
