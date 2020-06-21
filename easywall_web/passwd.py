@@ -2,6 +2,7 @@
 import getpass
 import hashlib
 import platform
+import argparse
 
 from easywall.config import Config
 from easywall_web.__main__ import CONFIG_PATH
@@ -13,7 +14,17 @@ class Passwd(object):
     def __init__(self):
         """the init function creates the config variable and calls the user input"""
         self.config = Config(CONFIG_PATH)
-        self.ask_user()
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--username", "-u", help="set username")
+        parser.add_argument("--password", "-p", help="set password")
+        args = parser.parse_args()
+
+        if args.username and args.password:
+            self.saveuser(args.username)
+            self.savepasswd(args.password)
+        else:
+            self.ask_user()
 
     def savepasswd(self, password):
         """the function saves the password into the config file using the config class"""
