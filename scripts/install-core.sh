@@ -32,6 +32,7 @@ apt -y install python3 python3-pip
 
 # Step 2
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
+pip3 install setuptools wheel
 pip3 install "${HOMEPATH}"
 
 # Step 3
