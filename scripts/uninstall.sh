@@ -1,20 +1,16 @@
 #!/bin/bash
 
 SCRIPTNAME=$(basename "$0")
-SCRIPTPATH=$(dirname "$(readlink -f "$0")")
-RED="\\e[31m"
-GREEN="\\e[32m"
-YELLOW="\\e[33m"
-NOCOLOR="\\e[0m"
+SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
 
 if [ "$EUID" -ne 0 ]; then
     read -r -d '' NOROOT <<EOF
-Heya! To remove easywall you need to have a privileged user.
-So you can try these:
+To remove easywall, you need administration rights.
+You can use the following commands:
 
-# sudo bash ${SCRIPTNAME}
+# sudo -H bash ${SCRIPTSPATH}/${SCRIPTNAME}
 or
-# su root -c "{$SCRIPTNAME}"
+# su root -c "${SCRIPTSPATH}/${SCRIPTNAME}"
 EOF
     echo "$NOROOT"
     exit 1
@@ -38,27 +34,14 @@ if id "easywall" >/dev/null 2>&1; then
     deluser easywall
 fi
 
-read -r -d '' MANUALSTEPS <<EOF
-$GREEN
-Successfully uninstalled easywall!
-$NOCOLOR
-The script removed all automatically installed files and removed the linux daemons.
-$RED
-Now you have to do two things:
-$NOCOLOR
-1)  Carefully remove the following packages which have been installed by easywall.
-    The packages may be used by other software which has not been installed by linux packages.
-$YELLOW
-    Packages:
-    - python3
-    - python3-pip
-    - curl
-    - uwsgi
-    - uwsgi-plugin-python3
-    - wget
-    - unzip
-$NOCOLOR
-2)  Remove the installation folder itself using:
-$RED    'rm -r $SCRIPTPATH'
+# Finished.
+echo "" && echo ""
+read -r -d '' INSTRUCTIONS <<EOF
+\e[33m------------------------------\e[39m
+easywall was successfully uninstalled!
+
+For the next steps, please follow our uninstallation instructions on GitHub.
+https://github.com/jp1337/easywall/blob/master/docs/UNINSTALL.md
+
 EOF
-echo -e "$MANUALSTEPS"
+echo -e "${INSTRUCTIONS}"
