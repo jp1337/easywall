@@ -189,6 +189,38 @@
                                     </small>
                                 </div>
 
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="log_blocked_connections">
+                                        <input type="hidden" value="off" name="checkbox_log_blocked_connections">
+                                        <input type="checkbox" id="log_blocked_connections"
+                                            name="log_blocked_connections"
+                                            {% if vars.config.get_value("LOG", "log_blocked_connections") == true %}
+                                            checked {% endif %} aria-describedby="log_blocked_connections_help">
+                                        Log all blocked connections to syslog
+                                    </label>
+                                    <small id="log_blocked_connections_help" class="form-text text-muted">
+                                        If the configuration is enabled, all blocked incoming connections are logged in
+                                        the syslog. Please make sure that the syslog is rotated regularly to avoid large
+                                        logfiles.
+                                    </small>
+                                </div>
+
+                                <div class="form-group checkbox">
+                                    <label class="form-check-label" for="log_blacklist_connections">
+                                        <input type="hidden" value="off" name="checkbox_log_blacklist_connections">
+                                        <input type="checkbox" id="log_blacklist_connections"
+                                            name="log_blacklist_connections"
+                                            {% if vars.config.get_value("LOG", "log_blacklist_connections") == true %}
+                                            checked {% endif %} aria-describedby="log_blacklist_connections_help">
+                                        Log all blocked connections from blocked IP addresses
+                                    </label>
+                                    <small id="log_blacklist_connections_help" class="form-text text-muted">
+                                        To check if IP addresses on the blacklist are still trying to connect to your
+                                        system, you can enable this checkbox. All incoming connections from blocked IP
+                                        addresses are then logged in the syslog.
+                                    </small>
+                                </div>
+
                                 <button type="submit" class="btn btn-primary">Save</button>
                             </form>
                         </div>
