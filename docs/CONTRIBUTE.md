@@ -17,7 +17,7 @@ To build a development environment for easywall, you must enter the following co
 ```bash
 git clone git@github.com:jp1337/easywall.git
 or
-https://github.com/jp1337/easywall.git
+git clone https://github.com/jp1337/easywall.git
 
 cd easywall
 python3 setup.py develop
