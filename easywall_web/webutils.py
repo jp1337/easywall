@@ -17,7 +17,9 @@ class Webutils(object):
     """the class is called in the route modules and contains non route-specific functions"""
 
     def __init__(self):
-        self.cfg = Config("config/web.ini")
+        self.cfg_file = "config/web.ini"
+        self.cfg_sample_file = "config/web.sample.ini"
+        self.cfg = Config(self.cfg_file)
         self.cfg_easywall = Config(CONFIG_PATH)
 
     def check_login(self, request):
@@ -42,6 +44,8 @@ class Webutils(object):
         payload.current_version = file_get_contents(".version")
         payload.commit_sha = self.cfg.get_value("VERSION", "sha")
         payload.commit_date = self.get_commit_date(self.cfg.get_value("VERSION", "date"))
+        if self.get_config_version_mismatch:
+            payload.config_mismatch = True
         return payload
 
     def get_machine_infos(self):
@@ -57,6 +61,20 @@ class Webutils(object):
         infos["Release"] = platform.release()
         infos["Libc Version"] = platform.libc_ver()
         return infos
+
+    def get_config_version_mismatch(self):
+        """
+        TODO: Docu
+        """
+        cfg1 = Config(self.cfg_file)
+        cfg2 = Config(self.cfg_sample_file)
+        for section in cfg1.get_sections():
+            if section not in cfg2.get_sections():
+                return True
+            for key in cfg1.get_keys(section):
+                if key not in cfg2.get_keys(section):
+                    return True
+        return False
 
     # -------------------------
     # Update Info Operations

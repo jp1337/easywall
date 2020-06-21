@@ -35,10 +35,18 @@
 
         <ul class="navbar-nav mr-right my-2 my-lg-0">
             <li class="nav-item">
+                <a class="nav-link btn" title="Configuration Mismatch!" href="#" data-toggle="modal"
+                    data-target="#configModal">
+                    {% if vars.config_mismatch %}
+                    <span class="badge badge-pill badge-error">!</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link btn" title="Need help?" href="#" data-toggle="modal" data-target="#helpModal">
                     <i class="fa fa-support" aria-hidden="true"></i>&nbsp;
-                    <span class="d-none d-sm-inline">Help</span>
-                    <span class="d-lg-none">Need help?</span>
+                    <span class="d-none d-sm-inline">Configuration</span>
+                    <span class="d-lg-none">Configuration</span>
                 </a>
             </li>
             <li class="nav-item">
