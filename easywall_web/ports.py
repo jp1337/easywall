@@ -9,7 +9,7 @@ def ports(saved=False):
     """the function returns the ports page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         payload = utils.get_default_payload("Ports")
         payload.tcp = rules.get_rules_for_web("tcp")
         payload.udp = rules.get_rules_for_web("udp")
@@ -24,7 +24,7 @@ def ports(saved=False):
 def ports_save():
     """the function saves the tcp and udp rules into the corresponding rulesfiles"""
     utils = Webutils()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         action = "add"
         ruletype = "tcp"
         port = ""

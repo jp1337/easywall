@@ -4,8 +4,8 @@ the module contains functions for the user management routes
 import hashlib
 import platform
 
-from easywall_web.webutils import Webutils
 from flask import redirect, render_template, request, session
+from easywall_web.webutils import Webutils
 
 
 def login(message, messagetype):
@@ -36,7 +36,10 @@ def login_post():
     if request.form['username'] == utils.cfg.get_value(
             "WEB", "username") and pw_hash == utils.cfg.get_value(
                 "WEB", "password"):
+        session.clear()
         session['logged_in'] = True
+        session['ip_address'] = request.remote_addr
+        session.permanent = True
         return redirect("/")
     return login("Incorrect username or password.", "danger")
 
@@ -46,7 +49,7 @@ def logout():
     the function removes the logged_in session variable if the user is logged in
     """
     utils = Webutils()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         session['logged_in'] = False
         return redirect("/")
     else:

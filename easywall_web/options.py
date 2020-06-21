@@ -7,7 +7,7 @@ from easywall_web.webutils import Webutils
 def options(saved=False):
     """the function returns the options page when the user is logged in"""
     utils = Webutils()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         payload = utils.get_default_payload("Options")
         payload.config = utils.cfg_easywall
         payload.saved = saved
@@ -21,7 +21,7 @@ def options_save():
     for example the Enabled flag in the IPv6 section is saved to the config file
     """
     utils = Webutils()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         section = request.form['section']
         for key, value in request.form.items():
             if key != "section":

@@ -12,7 +12,7 @@ def apply(saved=False, step=1):
     the function returns the apply page when the user is logged in
     """
     utils = Webutils()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         payload = utils.get_default_payload("Apply")
         payload.saved = saved
         payload.step = step
@@ -29,7 +29,7 @@ def apply_save():
     """
     utils = Webutils()
     step = 0
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         for key, value in request.form.items():
             if key == "step_1":
                 apply_step_one()

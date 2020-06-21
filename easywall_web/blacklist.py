@@ -9,7 +9,7 @@ def blacklist(saved=False):
     """the function returns the blacklist page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         payload = utils.get_default_payload("Blacklist")
         payload.addresses = rules.get_rules_for_web("blacklist")
         payload.custom = rules.diff_new_current("blacklist")
@@ -24,7 +24,7 @@ def blacklist_save():
     """
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         ipaddress = ""
         rulelist = rules.get_rules_for_web("blacklist")
 

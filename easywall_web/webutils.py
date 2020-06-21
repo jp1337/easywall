@@ -20,9 +20,11 @@ class Webutils(object):
         self.cfg = Config("config/web.ini")
         self.cfg_easywall = Config(CONFIG_PATH)
 
-    def check_login(self):
+    def check_login(self, request):
         """the function checks if the user/session is logged in"""
         if not session.get('logged_in'):
+            return False
+        if request.remote_addr != session.get('ip_address'):
             return False
         return True
 

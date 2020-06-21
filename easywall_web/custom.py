@@ -9,7 +9,7 @@ def custom(saved=False):
     """the function returns the custom rules page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         payload = utils.get_default_payload("Custom")
         payload.rules = rules.get_rules_for_web("custom")
         payload.custom = rules.diff_new_current("custom")
@@ -22,7 +22,7 @@ def custom_save():
     """the function saves the custom rules into the corresponding rulesfile"""
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         for key, value in request.form.items():
             key = str(key) + ""  # just for ignoring the warning
             rulelist = value.split("\n")

@@ -9,7 +9,7 @@ def whitelist(saved=False):
     """the function returns the whitelist page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         payload = utils.get_default_payload("Whitelist")
         payload.addresses = rules.get_rules_for_web("whitelist")
         payload.custom = rules.diff_new_current("whitelist")
@@ -24,7 +24,7 @@ def whitelist_save():
     """
     utils = Webutils()
     rules = RulesHandler()
-    if utils.check_login() is True:
+    if utils.check_login(request) is True:
         ipaddress = ""
         rulelist = rules.get_rules_for_web("whitelist")
 
