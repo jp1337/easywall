@@ -23,6 +23,13 @@ cd /opt/easywall
 git pull
 ```
 
+- Restart the services to apply the changes.
+
+```sh
+systemctl restart easywall
+systemctl restart easywall-web
+```
+
 ## Update through our script
 
 **Please note** that after an update through our script, you can no longer update your installation via Git, as the Git folder will be deleted.
