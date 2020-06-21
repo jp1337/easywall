@@ -85,8 +85,11 @@ class Easywall(object):
         # Apply Custom Rules
         self.apply_custom_rules()
 
-        # log and reject all other packages
-        self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
+        # log all dropped connections when enabled
+        if self.cfg.get_value("LOG", "log_blocked_connections"):
+            self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
+
+        # reject all packages which not match the rules
         self.iptables.add_append("INPUT", "-j REJECT")
 
     def apply_icmp(self) -> None:
@@ -109,16 +112,18 @@ class Easywall(object):
         """
         for ipaddr in self.rules.get_current_rules("blacklist"):
             if ":" in ipaddr:
-                self.iptables.add_append(
-                    chain="INPUT",
-                    rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
-                    onlyv6=True)
+                if self.cfg.get_value("LOG", "log_blacklist_connections"):
+                    self.iptables.add_append(
+                        chain="INPUT",
+                        rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
+                        onlyv6=True)
                 self.iptables.add_append("INPUT", "-s {} -j DROP".format(ipaddr), onlyv6=True)
             else:
-                self.iptables.add_append(
-                    chain="INPUT",
-                    rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
-                    onlyv4=True)
+                if self.cfg.get_value("LOG", "log_blacklist_connections"):
+                    self.iptables.add_append(
+                        chain="INPUT",
+                        rule="-s {} -j LOG --log-prefix \" easywall[blacklist]: \"".format(ipaddr),
+                        onlyv4=True)
                 self.iptables.add_append("INPUT", "-s {} -j DROP".format(ipaddr), onlyv4=True)
 
     def apply_whitelist(self) -> None:
