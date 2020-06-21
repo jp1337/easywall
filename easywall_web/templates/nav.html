@@ -38,7 +38,7 @@
                 <a class="nav-link btn" title="Configuration Mismatch!" href="#" data-toggle="modal"
                     data-target="#configModal">
                     {% if vars.config_mismatch %}
-                    <span class="badge badge-pill badge-error">!</span>
+                    <span class="badge badge-pill badge-danger">!</span>
                     {% endif %}
                 </a>
             </li>
@@ -56,7 +56,7 @@
                     <span class="d-none d-sm-inline">Update</span>
                     <span class="d-lg-none">Version and Update</span>
                     {% if vars.current_version != vars.latest_version %}
-                    <span class="badge badge-pill badge-danger">!</span>
+                    <span class="badge badge-pill badge-warning">!</span>
                     {% endif %}
                 </a>
             </li>
