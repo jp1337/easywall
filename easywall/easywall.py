@@ -57,10 +57,13 @@ class Easywall(object):
         self.iptables.add_policy("INPUT", "DROP")
         self.iptables.add_policy("OUTPUT", "ACCEPT")
 
-        # allow loopback access
+        # accept traffic from loopback interface (localhost)
         self.iptables.add_append("INPUT", "-i lo -j ACCEPT")
 
-        # allow established or related connections
+        # forewarded ports
+        self.apply_forewarding()
+
+        # accept established or related connections
         self.iptables.add_append("INPUT", "-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
 
         # Block remote packets claiming to be from a loopback address.
@@ -76,13 +79,13 @@ class Easywall(object):
         # Block IP-addresses from blacklist
         self.apply_blacklist()
 
-        # Allow IP-addresses from whitelist
+        # accept IP-addresses from whitelist
         self.apply_whitelist()
 
-        # Allow TCP Ports
+        # accept TCP Ports
         self.apply_rules("tcp")
 
-        # Allow UDP Ports
+        # accept UDP Ports
         self.apply_rules("udp")
 
         # Apply Custom Rules
@@ -95,16 +98,32 @@ class Easywall(object):
         # reject all packages which not match the rules
         self.iptables.add_append("INPUT", "-j REJECT")
 
+    def apply_forewarding(self) -> None:
+        """
+        TODO: Docu
+        """
+        for ipaddr in self.rules.get_current_rules("forewarding"):
+            proto = ipaddr.split(":")[0]
+            source = ipaddr.split(":")[1]
+            dest = ipaddr.split(":")[2]
+            self.iptables.insert(
+                table="nat",
+                chain="PREROUTING",
+                rule="-p {} --dport {} -j REDIRECT --to-port {}".format(proto, source, dest))
+            self.iptables.insert(
+                table="nat",
+                chain="OUTPUT",
+                rule="-p {} -o lo --dport {} -j REDIRECT --to-port {}".format(proto, source, dest))
+
     def apply_icmp(self) -> None:
         """
         this function adds rules to iptables for incoming ICMP requests
         """
-        for icmptype in [0, 3, 8, 11]:
+        for icmptype in ["echo-request", "echo-reply"]:
             self.iptables.add_append(
                 "INPUT", "-p icmp --icmp-type {} -m conntrack --ctstate NEW -j ACCEPT".format(
                     icmptype), False, True)
-        if self.ipv6 is True:
-            for icmptype in [1, 2, 3, 4, 128, 133, 134, 135, 136, 137, 141, 142, 151, 152, 153]:
+            if self.ipv6 is True:
                 self.iptables.add_append(
                     "INPUT", "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
 
@@ -151,7 +170,7 @@ class Easywall(object):
 
     def apply_whitelist(self) -> None:
         """
-        this function adds rules to iptables which explicitly allows a connection
+        this function adds rules to iptables which explicitly accepts a connection
         from this list ip addresses
         """
         for ipaddr in self.rules.get_current_rules("whitelist"):
@@ -163,7 +182,7 @@ class Easywall(object):
     def apply_rules(self, ruletype) -> None:
         """
         this function adds rules for incoming tcp and udp connections to iptables
-        which allow a connection to this list of ports
+        which accept a connection to this list of ports
 
         [INFO] the function also processes port ranges split by ":" separator.
         """
