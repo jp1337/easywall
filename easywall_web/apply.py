@@ -1,6 +1,8 @@
 """
 the module contains functions for the apply rules route
 """
+from datetime import datetime
+
 from flask import render_template, request
 from easywall.utility import create_file_if_not_exists, write_into_file
 from easywall_web.login import login
@@ -51,3 +53,5 @@ def apply_step_one() -> None:
 def apply_step_two() -> None:
     """the function writes true into the accept file from easywall core"""
     write_into_file(".acceptance", "true")
+    utils = Webutils()
+    utils.cfg_easywall.set_value("ACCEPTANCE", "timestamp", datetime.now())
