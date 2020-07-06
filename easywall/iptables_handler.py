@@ -117,6 +117,9 @@ class Iptables(object):
         self.add_policy("INPUT", "ACCEPT")
         self.add_policy("OUTPUT", "ACCEPT")
         self.add_policy("FORWARD", "ACCEPT")
+        self.flush(table="raw")
+        self.flush(table="nat")
+        self.flush(table="mangle")
         self.flush()
         self.delete_chain()
 
