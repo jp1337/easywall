@@ -75,7 +75,8 @@ systemctl stop easywall_web
 
 # Step 8
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m move previous installation into a backup directory \e[39m" && ((STEP++))
-mv -v "${OLDPATH}" "${BACKUPPATH}"
+cp -arv "${OLDPATH}" "${BACKUPPATH}"
+rm -rv "${OLDPATH}"
 
 # Step 9
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m move new installation to the productive directory \e[39m" && ((STEP++))
