@@ -84,13 +84,25 @@ class Iptables(object):
             execute_os_command("{} -A {} {}".format(self.ip6tables_bin, chain, rule))
             info("append for ipv6, chain: {}, rule: {} added".format(chain, rule))
 
-    def flush(self, chain: str = "") -> None:
+    def insert(self, table: str, chain: str, rule: str, onlyv6=False, onlyv4=False) -> None:
+        """
+        TODO: Docu
+        """
+        if onlyv4 is True or (onlyv6 is False and onlyv4 is False):
+            execute_os_command("{} {} -I {} {}".format(self.iptables_bin, table, chain, rule))
+            info("append for ipv4, chain: {}, rule: {} added".format(chain, rule))
+
+        if self.ipv6 is True and (onlyv6 is True or (onlyv6 is False and onlyv4 is False)):
+            execute_os_command("{} {} -I {} {}".format(self.ip6tables_bin, table, chain, rule))
+            info("append for ipv6, chain: {}, rule: {} added".format(chain, rule))
+
+    def flush(self, chain: str = "", table: str = "") -> None:
         """
         the function flushes chain or all chains in iptables firewall
         """
-        execute_os_command("{} -F {}".format(self.iptables_bin, chain))
+        execute_os_command("{} {} -F {}".format(self.iptables_bin, table, chain))
         if self.ipv6 is True:
-            execute_os_command("{} -F {}".format(self.ip6tables_bin, chain))
+            execute_os_command("{} {} -F {}".format(self.ip6tables_bin, table, chain))
 
         if chain != "":
             info("iptables chain {} flushed".format(chain))
