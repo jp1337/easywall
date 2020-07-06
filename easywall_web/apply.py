@@ -54,4 +54,5 @@ def apply_step_two() -> None:
     """the function writes true into the accept file from easywall core"""
     write_into_file(".acceptance", "true")
     utils = Webutils()
-    utils.cfg_easywall.set_value("ACCEPTANCE", "timestamp", datetime.now())
+    utils.cfg_easywall.set_value("ACCEPTANCE", "timestamp",
+                                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
