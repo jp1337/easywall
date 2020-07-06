@@ -5,29 +5,9 @@ This module exports a generic class for configuration
 """
 from configparser import ParsingError, RawConfigParser
 from logging import error, info
-from time import sleep
 from typing import Union
 
-from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
-
 from easywall.utility import file_exists, format_exception, is_float, is_int
-
-
-class ConfigFileUpdateHandler(FileSystemEventHandler):
-    """
-    TODO: Doku
-    """
-
-    def __init__(self, read_config_file: object) -> None:
-        self.read_config_file = read_config_file
-
-    def on_modified(self, event) -> None:
-        """
-        TODO: Doku
-        """
-        info("config file was modified: {}".format(event.src_path))
-        self.read_config_file()
 
 
 class Config(object):
@@ -48,33 +28,7 @@ class Config(object):
     def __init__(self, config_file_path: str) -> None:
         self.config_file_path = config_file_path
         self.configlib = RawConfigParser()
-        self.event_handler = ConfigFileUpdateHandler(self.read_config_file)
-        self.observer = Observer()
-        self.stop_flag = False
         self.read_config_file()
-        self.start_observer()
-
-    def start_observer(self) -> None:
-        """
-        TODO: Doku
-        """
-        self.observer.schedule(self.event_handler, self.config_file_path)
-        self.observer.start()
-
-        try:
-            while not self.stop_flag:
-                sleep(2)
-        except KeyboardInterrupt:
-            info("KeyboardInterrupt received, starting shutdown")
-        finally:
-            self.shutdown()
-
-    def shutdown(self) -> None:
-        """
-        the function stops all threads and shuts the software down gracefully
-        """
-        self.observer.stop()
-        self.observer.join()
 
     def read_config_file(self) -> None:
         """
@@ -95,6 +49,7 @@ class Config(object):
 
         [Data Types] String, Float, Integer, Boolean
         """
+        self.read_config_file()
         value = ""
         try:
             value = self.configlib[section][key]
