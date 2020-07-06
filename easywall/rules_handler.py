@@ -13,7 +13,7 @@ class RulesHandler(object):
 
     def __init__(self) -> None:
         self.rulesfolder = "rules"
-        self.types = ["blacklist", "whitelist", "tcp", "udp", "custom"]
+        self.types = ["blacklist", "whitelist", "tcp", "udp", "custom", "forewarding"]
         self.states = ["current", "new", "backup"]
 
     def get_current_rules(self, ruletype: str) -> list:
@@ -62,7 +62,7 @@ class RulesHandler(object):
             content = file_get_contents("{}/{}/{}".format(self.rulesfolder, source, ruletype))
             write_into_file("{}/{}/{}".format(self.rulesfolder, dest, ruletype), content)
 
-    def rules_firstrun(self) -> None:
+    def ensure_files_exist(self) -> None:
         """
         TODO: Doku
         """

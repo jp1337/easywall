@@ -11,7 +11,7 @@ from easywall.config import Config
 from easywall.easywall import Easywall
 from easywall.log import Log
 from easywall.rules_handler import RulesHandler
-from easywall.utility import delete_file_if_exists, folder_exists
+from easywall.utility import delete_file_if_exists
 
 CONFIG_PATH = "config/easywall.ini"
 
@@ -50,10 +50,8 @@ class Main(object):
 
         info("starting easywall")
 
-        self.is_first_run = not folder_exists("rules")
         self.rules_handler = RulesHandler()
-        if self.is_first_run:
-            self.rules_handler.rules_firstrun()
+        self.rules_handler.ensure_files_exist()
         self.easywall = Easywall(self.cfg)
         self.event_handler = ModifiedHandler(self.apply)
         self.observer = Observer()
