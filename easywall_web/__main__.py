@@ -170,7 +170,7 @@ class Main(object):
         self.is_first_run = not folder_exists("rules")
         self.rules_handler = RulesHandler()
         if self.is_first_run:
-            self.rules_handler.rules_firstrun()
+            self.rules_handler.ensure_files_exist()
 
         if debug is True:
             port = self.cfg.get_value("WEB", "bindport")
