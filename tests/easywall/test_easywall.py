@@ -47,7 +47,7 @@ ipv6filename = iptables_v6_backup
         write_into_file(self.config_file, content)
         self.cfg = Config(self.config_file)
         self.easywall = Easywall(self.cfg)
-        self.easywall.rules.rules_firstrun()
+        self.easywall.rules.ensure_files_exist()
 
     def tearDown(self):
         delete_file_if_exists(self.config_file)
