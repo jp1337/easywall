@@ -13,13 +13,13 @@ class TestRulesHandler(unittest.TestCase):
 
     def setUp(self):
         self.rules = RulesHandler()
-        self.rules.rules_firstrun()
+        self.rules.ensure_files_exist()
 
     def test_firstrun(self):
         """
         TODO: Doku
         """
-        self.rules.rules_firstrun()
+        self.rules.ensure_files_exist()
 
     def test_get_current_rules(self):
         """
