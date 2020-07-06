@@ -71,7 +71,7 @@ cp -av "${OLDPATH}"/${SSLFOLDER}/* "${NEWPATH}/${SSLFOLDER}/"
 # Step 7
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m the services are stopped \e[39m" && ((STEP++))
 systemctl stop easywall
-systemctl stop easywall_web
+systemctl stop easywall-web
 
 # Step 8
 echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m move previous installation into a backup directory \e[39m" && ((STEP++))
