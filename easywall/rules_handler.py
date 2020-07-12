@@ -13,7 +13,7 @@ class RulesHandler(object):
 
     def __init__(self) -> None:
         self.rulesfolder = "rules"
-        self.types = ["blacklist", "whitelist", "tcp", "udp", "custom", "forewarding"]
+        self.types = ["blacklist", "whitelist", "tcp", "udp", "custom", "forwarding"]
         self.states = ["current", "new", "backup"]
 
     def get_current_rules(self, ruletype: str) -> list:

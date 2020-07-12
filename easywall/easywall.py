@@ -71,7 +71,7 @@ class Easywall(object):
         self.apply_icmp()
 
         # forewarded ports
-        self.apply_forewarding()
+        self.apply_forwarding()
 
         # SSH Brute Force Prevention
         self.apply_ssh_brute()
@@ -113,11 +113,11 @@ class Easywall(object):
         # reject all packages which not match the rules
         self.iptables.add_append("INPUT", "-j DROP")
 
-    def apply_forewarding(self) -> None:
+    def apply_forwarding(self) -> None:
         """
         TODO: Docu
         """
-        for ipaddr in self.rules.get_current_rules("forewarding"):
+        for ipaddr in self.rules.get_current_rules("forwarding"):
             proto = ipaddr.split(":")[0]
             source = ipaddr.split(":")[1]
             dest = ipaddr.split(":")[2]
