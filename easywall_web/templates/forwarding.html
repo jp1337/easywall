@@ -44,6 +44,7 @@
             {% endif %}
 
             <form action="/forwarding-save" method="post">
+                <input type="hidden" name="remove" value="">
                 <ul class="list-group">
                     {% for forwarding in vars.forwardings %}
                     <li class="list-group-item justify-content-between">

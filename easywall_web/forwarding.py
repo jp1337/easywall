@@ -45,7 +45,12 @@ def forwarding_save():
             elif key == "source-port":
                 source_port = str(value)
             elif key == "destination-port":
-                source_port = str(value)
+                dest_port = str(value)
+            else:
+                if ":" in key:
+                    ruletype = key.split(":")[0]
+                    source_port = key.split(":")[1]
+                    dest_port = key.split(":")[2]
 
         if action == "add":
             add_forwarding(source_port, dest_port, ruletype)
