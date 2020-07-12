@@ -246,8 +246,9 @@ class Easywall(object):
             if log_enable:
                 self.iptables.add_append(
                     "ICMPFLOOD", "-m recent --update --seconds 1 --hitcount " +
-                    "{} --name ICMP --rsource --rttl -m limit --limit {}/minute -j LOG --log-prefix \"{}\"".
-                    format(connection_limit, log_limit, log_prefix))
+                    "{} --name ICMP --rsource --rttl -m limit ".format(connection_limit) +
+                    "--limit {}/minute -j LOG --log-prefix \"{}\"".
+                    format(log_limit, log_prefix))
             self.iptables.add_append(
                 "ICMPFLOOD",
                 "-m recent --update --seconds 1 --hitcount {} --name ICMP --rsource --rttl -j DROP".
