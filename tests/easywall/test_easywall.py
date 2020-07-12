@@ -18,17 +18,43 @@ class TestRulesHandler(unittest.TestCase):
         self.config_file = "test_easywall.ini"
         content = """[LOG]
 level = info
-to_files = false
-to_stdout = true
-filepath =
-filename =
+to_files = no
+to_stdout = yes
+filepath = /var/log
+filename = easywall.log
+
+[IPTABLES]
+log_blocked_connections = yes
+log_blocked_connections_log_limit = 60
+log_blacklist_connections = yes
+log_blacklist_connections_log_limit = 60
+drop_broadcast_packets = yes
+drop_multicast_packets = yes
+drop_anycast_packets = yes
+ssh_brute_force_prevention = yes
+ssh_brute_force_prevention_log = yes
+ssh_brute_force_prevention_connection_limit = 5
+ssh_brute_force_prevention_log_limit = 60
+icmp_flood_prevention = yes
+icmp_flood_prevention_log = yes
+icmp_flood_prevention_connection_limit = 5
+icmp_flood_prevention_log_limit = 60
+drop_invalid_packets = yes
+drop_invalid_packets_log = yes
+drop_invalid_packets_log_limit = 60
+port_scan_prevention = yes
+port_scan_prevention_log = yes
+port_scan_prevention_log_limit = 60
 
 [IPV6]
 enabled = true
+icmp_allow_router_advertisement = yes
+icmp_allow_neighbor_advertisement = yes
 
 [ACCEPTANCE]
-enabled = true
+enabled = yes
 duration = 1
+timestamp =
 
 [EXEC]
 iptables = /sbin/iptables
@@ -38,11 +64,7 @@ ip6tables-save = /sbin/ip6tables-save
 iptables-restore = /sbin/iptables-restore
 ip6tables-restore = /sbin/ip6tables-restore
 
-[BACKUP]
-filepath = ./backup
-ipv4filename = iptables_v4_backup
-ipv6filename = iptables_v6_backup
-        """
+"""
         create_file_if_not_exists(self.config_file)
         write_into_file(self.config_file, content)
         self.cfg = Config(self.config_file)
