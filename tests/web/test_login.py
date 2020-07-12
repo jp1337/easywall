@@ -43,12 +43,12 @@ class TestLogin(unittest.TestCase):
         self.log_in(self.client)
         self.client.get('/logout', follow_redirects=True)
 
-    def test_failed_log_in(self, client):
+    def test_failed_log_in(self):
         """
         TODO: Doku
         """
         self.set_username_password()
-        return client.post('/login', data=dict(
+        return self.client.post('/login', data=dict(
             username="max",
             password="mustermann"
         ), follow_redirects=True)
