@@ -57,11 +57,11 @@ class Easywall(object):
         self.iptables.add_policy("INPUT", "DROP")
         self.iptables.add_policy("OUTPUT", "ACCEPT")
 
-        # accept traffic from loopback interface (localhost)
-        self.iptables.add_append("INPUT", "-i lo -j ACCEPT")
-
         # forewarded ports
         self.apply_forewarding()
+
+        # accept traffic from loopback interface (localhost)
+        self.iptables.add_append("INPUT", "-i lo -j ACCEPT")
 
         # accept established or related connections
         self.iptables.add_append("INPUT", "-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
