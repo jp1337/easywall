@@ -56,9 +56,11 @@ class Iptables(object):
         """
         the function creates a new policy in iptables firewall by using the os command
         """
-        execute_os_command("{} -P {} {}".format(self.iptables_bin, chain, target))
+        option = "-P"
+
+        execute_os_command("{} {} {} {}".format(self.iptables_bin, option, chain, target))
         if self.ipv6 is True:
-            execute_os_command("{} -P {} {}".format(self.ip6tables_bin, chain, target))
+            execute_os_command("{} {} {} {}".format(self.ip6tables_bin, option, chain, target))
 
         info("iptables policy added for chain {} and target {}".format(chain, target))
 
@@ -66,9 +68,11 @@ class Iptables(object):
         """
         the function creates a new custom chain in iptables
         """
-        execute_os_command("{} -N {}".format(self.iptables_bin, chain))
+        option = "-N"
+
+        execute_os_command("{} {} {}".format(self.iptables_bin, option, chain))
         if self.ipv6 is True:
-            execute_os_command("{} -N {}".format(self.ip6tables_bin, chain))
+            execute_os_command("{} {} {}".format(self.ip6tables_bin, option, chain))
 
         info("iptables chain {} added".format(chain))
 
