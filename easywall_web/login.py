@@ -41,7 +41,7 @@ def login_post():
         session['logged_in'] = True
         session['ip_address'] = request.remote_addr
         session.permanent = True
-        info("Successful login for the user {}.".format(request.form['username']) +
+        info("Successful login for the user {}. ".format(request.form['username']) +
              "IP address of the remote device: {}".format(request.remote_addr))
         return redirect("/")
     else:
