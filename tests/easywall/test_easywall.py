@@ -130,3 +130,19 @@ ip6tables-restore = /sbin/ip6tables-restore
         """
         write_into_file("{}/current/custom".format(self.easywall.rules.rulesfolder), "1234")
         self.easywall.apply_custom_rules()
+
+    def test_apply_ssh_port(self):
+        """
+        TODO: Doku
+        """
+        write_into_file("{}/current/tcp".format(self.easywall.rules.rulesfolder), "22#ssh")
+        self.easywall.apply_rules("tcp")
+
+    def test_apply_forewarding(self):
+        """
+        TODO: Doku
+        """
+        write_into_file(
+            "{}/current/forewarding".format(self.easywall.rules.rulesfolder),
+            "tcp:1234:1235")
+        self.easywall.apply_forewarding()
