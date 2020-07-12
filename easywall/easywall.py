@@ -106,6 +106,7 @@ class Easywall(object):
             proto = ipaddr.split(":")[0]
             source = ipaddr.split(":")[1]
             dest = ipaddr.split(":")[2]
+
             self.iptables.insert(
                 table="nat",
                 chain="PREROUTING",
@@ -114,6 +115,10 @@ class Easywall(object):
                 table="nat",
                 chain="OUTPUT",
                 rule="-p {} -o lo --dport {} -j REDIRECT --to-port {}".format(proto, source, dest))
+            self.iptables.add_append(
+                chain="INPUT",
+                rule="-p {} --dport {} -m conntrack --ctstate NEW -j ACCEPT".format(proto, dest)
+            )
 
     def apply_icmp(self) -> None:
         """
