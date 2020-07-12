@@ -72,8 +72,8 @@ class Iptables(object):
 
         info("iptables chain {} added".format(chain))
 
-    def add_append(self, chain: str, rule: str, table: str = "",
-                   onlyv6=False, onlyv4=False) -> None:
+    def add_append(self, chain: str, rule: str,
+                   onlyv6=False, onlyv4=False, table: str = "") -> None:
         """
         the function creates a new append in iptables
         """
@@ -93,7 +93,7 @@ class Iptables(object):
                 self.ip6tables_bin, table, option, chain, rule))
             info("append for ipv6: table: {}, chain: {}, rule: {} added".format(table, chain, rule))
 
-    def insert(self, chain: str, rule: str, table: str = "", onlyv6=False, onlyv4=False) -> None:
+    def insert(self, chain: str, rule: str, onlyv6=False, onlyv4=False, table: str = "") -> None:
         """
         TODO: Docu
         """
