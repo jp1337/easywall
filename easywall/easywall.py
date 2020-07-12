@@ -96,7 +96,7 @@ class Easywall(object):
             self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
 
         # reject all packages which not match the rules
-        self.iptables.add_append("INPUT", "-j REJECT")
+        self.iptables.add_append("INPUT", "-j DROP")
 
     def apply_forewarding(self) -> None:
         """
