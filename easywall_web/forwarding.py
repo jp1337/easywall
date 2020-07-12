@@ -63,7 +63,7 @@ def add_forwarding(source_port: str, dest_port: str, ruletype: str):
     rules = RulesHandler()
     rulelist = rules.get_rules_for_web("forwarding")
     rulelist.append("{}:{}:{}".format(ruletype, source_port, dest_port))
-    rules.save_new_rules(ruletype, rulelist)
+    rules.save_new_rules("forwarding", rulelist)
 
 
 def remove_forwarding(source_port: str, dest_port: str, ruletype: str):
@@ -73,4 +73,4 @@ def remove_forwarding(source_port: str, dest_port: str, ruletype: str):
     rules = RulesHandler()
     rulelist = rules.get_rules_for_web("forwarding")
     rulelist.remove("{}:{}:{}".format(ruletype, source_port, dest_port))
-    rules.save_new_rules(ruletype, rulelist)
+    rules.save_new_rules("forwarding", rulelist)

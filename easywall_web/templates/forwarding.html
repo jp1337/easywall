@@ -56,30 +56,9 @@
             </form>
         </div>
         <div class="col">
-
-            {% if vars.custom %}
-            <div class="alert alert-warning" role="alert">
-                <strong>Unsaved!</strong> Differences between the current configuration and the active configuration
-                found.
-            </div>
-            {% endif %}
-
-            {% if vars.saved %}
-            <div class="alert alert-success" role="alert">
-                <strong>Well done!</strong> The Configuration was saved successfully.
-            </div>
-            {% endif %}
-
-            {% if vars.error %}
-            <div class="alert alert-danger" role="alert">
-                <strong>Oh snap!</strong> There was an error saving the configuration... Please review WebServer
-                Logfile!
-            </div>
-            {% endif %}
-
             <div class="card w-100">
                 <div class="card-header">
-                    Open port in firewall for incoming connections
+                    Select the ports to be forwarded from the local system to the Internet
                 </div>
                 <div class="card-body">
                     <form action="/forwarding-save" method="post">
