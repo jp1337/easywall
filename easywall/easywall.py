@@ -110,11 +110,11 @@ class Easywall(object):
             self.iptables.insert(
                 table="nat",
                 chain="PREROUTING",
-                rule="-p {} --dport {} -j REDIRECT --to-port {}".format(proto, source, dest))
+                rule="-p {} --dport {} -j REDIRECT --to-port {}".format(proto, dest, source))
             self.iptables.insert(
                 table="nat",
                 chain="OUTPUT",
-                rule="-p {} -o lo --dport {} -j REDIRECT --to-port {}".format(proto, source, dest))
+                rule="-p {} -o lo --dport {} -j REDIRECT --to-port {}".format(proto, dest, source))
             self.iptables.add_append(
                 chain="INPUT",
                 rule="-p {} --dport {} -m conntrack --ctstate NEW -j ACCEPT".format(proto, dest)
