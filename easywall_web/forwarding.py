@@ -15,7 +15,7 @@ def forwarding(saved=False):
     rules = RulesHandler()
     if utils.check_login(request):
         payload = utils.get_default_payload("Forwarding")
-        payload.forwarding = rules.get_rules_for_web("forwarding")
+        payload.forwardings = rules.get_rules_for_web("forwarding")
         payload.custom = False
         if rules.diff_new_current("forwarding"):
             payload.custom = True
