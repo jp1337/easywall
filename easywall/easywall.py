@@ -284,12 +284,14 @@ class Easywall(object):
         # 129 = echo-reply
 
         if self.cfg.get_value("IPV6", "icmp_allow_router_advertisement"):
-            icmpv6types.extend(133, 134)
+            icmpv6types.append(133)
+            icmpv6types.append(134)
             # 133 = router solicitation
             # 134 = router advertisement
 
         if self.cfg.get_value("IPV6", "icmp_allow_neighbor_advertisement"):
-            icmpv6types.extend(135, 136)
+            icmpv6types.append(135)
+            icmpv6types.append(136)
             # 135 = neighbor solicitation
             # 136 = neighbor advertisement
 
