@@ -96,7 +96,7 @@ chown -Rv easywall:easywall "$WEBDIR"
 chown -Rv easywall:easywall "${HOMEPATH}/${CONFIGFOLDER}"
 chown -Rv easywall:easywall "${HOMEPATH}/${RULESFOLDER}"
 chmod -v 750 "${HOMEPATH}"
-chmod -Rv 750 "${HOMEPATH}/${CONFIGFOLDER}"
+chmod -v 750 "${HOMEPATH}/${CONFIGFOLDER}"
 chmod -Rv 750 "${HOMEPATH}/${RULESFOLDER}"
 
 # Step 8
