@@ -215,10 +215,7 @@ class Easywall(object):
         TODO: Doku
         """
         for rule in self.rules.get_current_rules("custom"):
-            self.iptables.add_append(
-                chain="INPUT",
-                rule=rule
-            )
+            self.iptables.add_custom(rule=rule)
 
     def rotate_backup(self) -> None:
         """

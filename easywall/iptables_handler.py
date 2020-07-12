@@ -113,6 +113,16 @@ class Iptables(object):
                 self.ip6tables_bin, table, option, chain, rule))
             info("insert for ipv6, table: {}, chain: {}, rule: {} added".format(table, chain, rule))
 
+    def add_custom(self, rule: str) -> None:
+        """
+        TODO: Docu
+        """
+        execute_os_command("{} {}".format(self.iptables_bin, rule))
+        if self.ipv6 is True:
+            execute_os_command("{} {}".format(self.ip6tables_bin, rule))
+
+        info("iptables custom rule added: {}".format(rule))
+
     def flush(self, chain: str = "", table: str = "") -> None:
         """
         the function flushes chain or all chains in iptables firewall
