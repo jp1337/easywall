@@ -72,19 +72,28 @@ class Iptables(object):
 
         info("iptables chain {} added".format(chain))
 
-    def add_append(self, chain: str, rule: str, onlyv6=False, onlyv4=False) -> None:
+    def add_append(self, chain: str, rule: str, table: str = "",
+                   onlyv6=False, onlyv4=False) -> None:
         """
         the function creates a new append in iptables
         """
+        option = "-A"
+
+        if table != "":
+            if not table.startswith("-t"):
+                table = "-t " + table
+
         if onlyv4 is True or (onlyv6 is False and onlyv4 is False):
-            execute_os_command("{} -A {} {}".format(self.iptables_bin, chain, rule))
-            info("append for ipv4, chain: {}, rule: {} added".format(chain, rule))
+            execute_os_command("{} {} {} {} {}".format(
+                self.iptables_bin, table, option, chain, rule))
+            info("append for ipv4: table: {}, chain: {}, rule: {} added".format(table, chain, rule))
 
         if self.ipv6 is True and (onlyv6 is True or (onlyv6 is False and onlyv4 is False)):
-            execute_os_command("{} -A {} {}".format(self.ip6tables_bin, chain, rule))
-            info("append for ipv6, chain: {}, rule: {} added".format(chain, rule))
+            execute_os_command("{} {} {} {} {}".format(
+                self.ip6tables_bin, table, option, chain, rule))
+            info("append for ipv6: table: {}, chain: {}, rule: {} added".format(table, chain, rule))
 
-    def insert(self, table: str, chain: str, rule: str, onlyv6=False, onlyv4=False) -> None:
+    def insert(self, chain: str, rule: str, table: str = "", onlyv6=False, onlyv4=False) -> None:
         """
         TODO: Docu
         """
