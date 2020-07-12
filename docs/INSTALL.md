@@ -52,6 +52,14 @@ bash scripts/install-core.sh
 bash scripts/install-web.sh
 ```
 
+- Optional: Set the username and password for the web interface.
+
+```sh
+# optional:
+# cd /opt/easywall
+python3 easywall_web/passwd.py
+```
+
 ## Manual installation
 
 - Change to the directory where you want to install easywall. We recommend the directories listed below.
@@ -90,4 +98,12 @@ bash scripts/install-core.sh
 # optional:
 # cd /opt/easywall
 bash scripts/install-web.sh
+```
+
+- Optional: Set the username and password for the web interface.
+
+```sh
+# optional:
+# cd /opt/easywall
+python3 easywall_web/passwd.py
 ```
