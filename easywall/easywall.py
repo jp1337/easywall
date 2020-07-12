@@ -93,7 +93,10 @@ class Easywall(object):
 
         # log all dropped connections when enabled
         if self.cfg.get_value("IPTABLES", "log_blocked_connections"):
-            self.iptables.add_append("INPUT", "-j LOG --log-prefix \" easywall[other]: \"")
+            self.iptables.add_append(
+                "INPUT",
+                "-m limit --limit {}/minute -j LOG --log-prefix \"easywall blocked: \"".
+                format(self.cfg.get_value("IPTABLES", "log_blocked_connections_log_limit")))
 
         # reject all packages which not match the rules
         self.iptables.add_append("INPUT", "-j DROP")
