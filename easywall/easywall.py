@@ -399,6 +399,7 @@ class Easywall(object):
         [INFO] the function also processes port ranges split by ":" separator.
         """
         for port in self.rules.get_current_rules(ruletype):
+            options = ""
             if "#" in port:
                 port = port.split("#")[0]
                 options = port.split("#")[0]
