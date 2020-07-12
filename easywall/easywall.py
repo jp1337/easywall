@@ -404,8 +404,8 @@ class Easywall(object):
         for port in self.rules.get_current_rules(ruletype):
             options = ""
             if "#" in port:
-                port = port.split("#")[0]
                 options = port.split("#")[1]
+                port = port.split("#")[0]
 
             if ":" in port:
                 rule = "-p {} --match multiport --dports {}".format(
