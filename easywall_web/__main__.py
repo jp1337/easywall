@@ -3,7 +3,6 @@ import os
 from logging import info
 
 from flask import Flask
-
 from easywall.config import Config
 from easywall.log import Log
 from easywall.rules_handler import RulesHandler
@@ -12,6 +11,7 @@ from easywall_web.apply import apply, apply_save
 from easywall_web.blacklist import blacklist, blacklist_save
 from easywall_web.custom import custom, custom_save
 from easywall_web.error import page_not_found
+from easywall_web.forwarding import forwarding, forwarding_save
 from easywall_web.index import index
 from easywall_web.login import login_post, logout
 from easywall_web.options import options, options_save
@@ -63,6 +63,18 @@ def whitelist_route():
 def whitelist_save_route():
     """The function calls the corresponding function from the appropriate module"""
     return whitelist_save()
+
+
+@APP.route('/forwarding')
+def forwarding_route():
+    """The function calls the corresponding function from the appropriate module"""
+    return forwarding()
+
+
+@APP.route('/forwarding-save', methods=['POST'])
+def forwarding_save_route():
+    """The function calls the corresponding function from the appropriate module"""
+    return forwarding_save()
 
 
 @APP.route('/ports')
