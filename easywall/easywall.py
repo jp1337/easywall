@@ -117,6 +117,10 @@ class Easywall(object):
                 rule="-p {} -o lo --dport {} -j REDIRECT --to-port {}".format(proto, dest, source))
             self.iptables.add_append(
                 chain="INPUT",
+                rule="-p {} --dport {} -m conntrack --ctstate NEW -j ACCEPT".format(proto, source)
+            )
+            self.iptables.add_append(
+                chain="INPUT",
                 rule="-p {} --dport {} -m conntrack --ctstate NEW -j ACCEPT".format(proto, dest)
             )
 
