@@ -4,6 +4,7 @@ the module contains functions for the user management routes
 import hashlib
 import platform
 
+from logging import warning, info
 from flask import redirect, render_template, request, session
 from easywall_web.webutils import Webutils
 
@@ -40,7 +41,12 @@ def login_post():
         session['logged_in'] = True
         session['ip_address'] = request.remote_addr
         session.permanent = True
+        info("Successful login for the user {}.".format(request.form['username']) +
+             "IP address of the remote device: {}".format(request.remote_addr))
         return redirect("/")
+    else:
+        warning("Failed login attempt for the user {} detected. ".format(request.form['username']) +
+                "IP address of the remote device: {}".format(request.remote_addr))
     return login("Incorrect username or password.", "danger")
 
 
