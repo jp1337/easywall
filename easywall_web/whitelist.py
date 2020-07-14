@@ -12,7 +12,7 @@ def whitelist(saved=False):
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Whitelist")
         payload.lead = """
-            On this page you can list IP addresses that are always allowed to connect to all 
+            On this page you can list IP addresses that are always allowed to connect to all
             ports of the system.<br />
             Please check the IP addresses carefully, as they are not checked by easywall.<br />
             You can add IPv4 and IPv6 addresses to the list.
