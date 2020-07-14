@@ -57,12 +57,14 @@
                                 Port Range: <code>25017:25020</code>.
                             </small>
                         </div>
-                        <div class="form-check">
-                            <label class="form-check-label">
-                                <input type="checkbox" id="ssh" name="ssh" aria-describedby="sshHelp"
-                                    class="form-check-input">
-                                SSH
-                            </label>
+                        <div class="form-group">
+                            <div class="form-check-inline">
+                                <label class="form-check-label">
+                                    <input type="checkbox" id="ssh" name="ssh" aria-describedby="sshHelp"
+                                        class="form-check-input">
+                                    SSH
+                                </label>
+                            </div>
                             <small id="sshHelp" class="form-text text-muted">
                                 Check the checkbox if the port is the SSH port.<br />
                                 If you have activated SSH Brute Force Prevention, this port is specially monitored.
@@ -91,10 +93,10 @@
                 <ul class="list-group">
                     {% for port in vars.tcp %}
                     <li class="list-group-item d-flex justify-content-between">
-                        {% if ';' in port %}
-                        {% set templist = port.split(';') %}
+                        {% if '#' in port %}
+                        {% set templist = port.split('#') %}
                         <span class="badge badge-secondary badge-pill align-self-center">tcp -
-                            {{ templist[1] }}</span>';
+                            {{ templist[1] }}</span>'#
                         {{ templist[0] }}
                         {% else %}
                         <span class="badge badge-secondary badge-pill align-self-center">tcp</span>
@@ -122,10 +124,10 @@
                 <ul class="list-group">
                     {% for port in vars.udp %}
                     <li class="list-group-item d-flex justify-content-between">
-                        {% if ';' in port %}
-                        {% set templist = port.split(';') %}
+                        {% if '#' in port %}
+                        {% set templist = port.split('#') %}
                         <span class="badge badge-secondary badge-pill align-self-center">udp -
-                            {{ templist[1] }}</span>';
+                            {{ templist[1] }}</span>'#
                         {{ templist[0] }}
                         {% else %}
                         <span class="badge badge-secondary badge-pill align-self-center">udp</span>
