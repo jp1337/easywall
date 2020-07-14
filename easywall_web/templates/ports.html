@@ -32,38 +32,35 @@
                     <form action="/ports-save" method="post">
                         <div class="form-group">
                             <div class="form-check form-check-inline">
-                                <label class="form-check-label">
-                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio"
-                                        name="tcpudp" id="tcpudp1" value="tcp" checked="checked"> TCP
-                                </label>
+                                <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp"
+                                    id="tcpudp1" value="tcp" checked="checked">
+                                <label class="form-check-label">TCP</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <label class="form-check-label">
-                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio"
-                                        name="tcpudp" id="tcpudp2" value="udp"> UDP
-                                </label>
+                                <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp"
+                                    id="tcpudp2" value="udp">
+                                <label class="form-check-label">UDP</label>
                             </div>
-                            <small id="tcpudpHelp" class="form-text text-muted">Choose between a TCP or UDP port
-                                here.</small>
+                            <small id="tcpudpHelp" class="form-text text-muted">
+                                Select whether the port to be opened is a TCP or UDP port.
+                            </small>
                         </div>
                         <div class="form-group">
-                            <label for="port">Port Number</label>
+                            <label for="port">port number</label>
                             <input type="text" class="form-control" id="port" name="port" aria-describedby="portHelp">
                             <small id="portHelp" class="form-text text-muted">
-                                Please enter the numeric Port you want to open on this server.
+                                Please enter the numeric Port you want to open on this server.<br />
                                 You can enter a single port or a port range.<br />
-                                <strong>Example:</strong>
-                                Single Port: <code>22</code>
+                                <strong>Example:</strong><br />
+                                Single Port: <code>22</code><br />
                                 Port Range: <code>25017:25020</code>.
                             </small>
                         </div>
                         <div class="form-group">
                             <div class="form-check-inline">
-                                <label class="form-check-label">
-                                    <input type="checkbox" id="ssh" name="ssh" aria-describedby="sshHelp"
-                                        class="form-check-input">
-                                    SSH
-                                </label>
+                                <input type="checkbox" id="ssh" name="ssh" aria-describedby="sshHelp"
+                                    class="form-check-input">
+                                <label class="form-check-label">SSH</label>
                             </div>
                             <small id="sshHelp" class="form-text text-muted">
                                 Check the checkbox if the port is the SSH port.<br />
@@ -83,7 +80,7 @@
             {% if vars.tcp|length == 0 %}
             <ul class="list-group">
                 <li class="list-group-item justify-content-between">
-                    No opened TCP Ports found.
+                    No open TCP ports found.
                 </li>
             </ul>
             {% endif %}
@@ -95,8 +92,9 @@
                     <li class="list-group-item d-flex justify-content-between">
                         {% if '#' in port %}
                         {% set templist = port.split('#') %}
-                        <span class="badge badge-secondary badge-pill align-self-center">tcp -
-                            {{ templist[1] }}</span>'#
+                        <span class="badge badge-info badge-pill align-self-center">
+                            tcp - {{ templist[1] }}
+                        </span>
                         {{ templist[0] }}
                         {% else %}
                         <span class="badge badge-secondary badge-pill align-self-center">tcp</span>
@@ -114,7 +112,7 @@
             {% if vars.udp|length == 0 %}
             <ul class="list-group">
                 <li class="list-group-item justify-content-between">
-                    No opened UDP Ports found.
+                    No open UDP ports found.
                 </li>
             </ul>
             {% endif %}
@@ -126,8 +124,9 @@
                     <li class="list-group-item d-flex justify-content-between">
                         {% if '#' in port %}
                         {% set templist = port.split('#') %}
-                        <span class="badge badge-secondary badge-pill align-self-center">udp -
-                            {{ templist[1] }}</span>'#
+                        <span class="badge badge-info badge-pill align-self-center">
+                            udp - {{ templist[1] }}
+                        </span>
                         {{ templist[0] }}
                         {% else %}
                         <span class="badge badge-secondary badge-pill align-self-center">udp</span>
