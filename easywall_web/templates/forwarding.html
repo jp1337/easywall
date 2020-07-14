@@ -36,12 +36,16 @@
                 <ul class="list-group">
                     {% for forwarding in vars.forwardings %}
                     {% set templist = forwarding.split(':') %}
-                    <li class="list-group-item justify-content-between">
+                    <li class="list-group-item d-flex justify-content-between">
                         <span class="badge badge-secondary badge-pill align-self-center">
                             {{ templist[0] }}
                         </span>
-                        <span class="badge badge-info align-self-center">
-                            {{ templist[1] }} to {{ templist[2] }}
+                        <span class="badge badge-info align-self-center text-center">
+                            {{ templist[1] }}
+                        </span>
+                        <span class="text-center">to</span>
+                        <span class="badge badge-info align-self-center text-center">
+                            {{ templist[2] }}
                         </span>
                         <button type="submit" name="{{ forwarding }}"
                             class="btn btn-danger btn-sm float-right">Remove</button>
