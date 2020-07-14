@@ -1,8 +1,9 @@
 """the module contains functions for the ports route"""
 from flask import render_template, request
+from natsort import natsorted
+from easywall.rules_handler import RulesHandler
 from easywall_web.login import login
 from easywall_web.webutils import Webutils
-from easywall.rules_handler import RulesHandler
 
 
 def ports(saved=False):
@@ -18,8 +19,8 @@ def ports(saved=False):
             remove old entries if they are no longer needed.<br />
             To list all open ports under Linux use the command <code>netstat -ln</code>
         """
-        payload.tcp = sorted(rules.get_rules_for_web("tcp"))
-        payload.udp = sorted(rules.get_rules_for_web("udp"))
+        payload.tcp = natsorted(rules.get_rules_for_web("tcp"))
+        payload.udp = natsorted(rules.get_rules_for_web("udp"))
         payload.custom = False
         if rules.diff_new_current("tcp") is True or rules.diff_new_current("udp") is True:
             payload.custom = True
