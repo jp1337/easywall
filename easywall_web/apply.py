@@ -19,7 +19,8 @@ def apply(saved=False, step=1):
         payload.lead = """
             The defined firewall rules were not automatically activated for security reasons.<br>
             On this page, you can safely apply the defined rules.<br>
-            The activation takes place in two steps and an exclusion from the server should be prevented.
+            The activation takes place in two steps and an exclusion from the server
+            should be prevented.
             """
         payload.saved = saved
         payload.step = step

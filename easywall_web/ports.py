@@ -14,7 +14,8 @@ def ports(saved=False):
         payload.lead = """
             On this page you can open ports for incoming connections.<br />
             You can add tcp and udp ports.<br />
-            Please check whether the entries in the list are needed in the future and remove old entries if they are no longer needed.<br />
+            Please check whether the entries in the list are needed in the future and
+            remove old entries if they are no longer needed.<br />
             To list all open ports under Linux use the command <code>netstat -ln</code>
         """
         payload.tcp = rules.get_rules_for_web("tcp")
