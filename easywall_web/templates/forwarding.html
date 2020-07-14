@@ -3,7 +3,6 @@
 <div class="container pt-0 mb-3">
     <div class="row mb-3">
         <div class="col pb-3">
-
             {% if vars.custom %}
             <div class="alert alert-warning" role="alert">
                 <strong>Unsaved!</strong> Differences between the current configuration and the active configuration
@@ -36,8 +35,14 @@
                 <input type="hidden" name="remove" value="">
                 <ul class="list-group">
                     {% for forwarding in vars.forwardings %}
+                    {% set templist = forwarding.split(':') %}
                     <li class="list-group-item justify-content-between">
-                        {{ forwarding }}
+                        <span class="badge badge-secondary badge-pill align-self-center">
+                            {{ templist[0] }}
+                        </span>
+                        <span class="badge badge-info align-self-center">
+                            {{ templist[1] }} to {{ templist[2] }}
+                        </span>
                         <button type="submit" name="{{ forwarding }}"
                             class="btn btn-danger btn-sm float-right">Remove</button>
                     </li>
@@ -54,31 +59,30 @@
                     <form action="/forwarding-save" method="post">
                         <div class="form-group">
                             <div class="form-check form-check-inline">
-                                <label class="form-check-label">
-                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio"
-                                        name="tcpudp" id="tcpudp1" value="tcp" checked="checked"> TCP
-                                </label>
+                                <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp"
+                                    id="tcpudp1" value="tcp" checked="checked">
+                                <label class="form-check-label">TCP</label>
                             </div>
                             <div class="form-check form-check-inline">
-                                <label class="form-check-label">
-                                    <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio"
-                                        name="tcpudp" id="tcpudp2" value="udp"> UDP
-                                </label>
+                                <input class="form-check-input" aria-describedby="tcpudpHelp" type="radio" name="tcpudp"
+                                    id="tcpudp2" value="udp">
+                                <label class="form-check-label">UDP</label>
                             </div>
-                            <small id="tcpudpHelp" class="form-text text-muted">Select whether it is a TCP or UDP
-                                port.</small>
+                            <small id="tcpudpHelp" class="form-text text-muted">
+                                Select whether the port to be opened is a TCP or UDP port.
+                            </small>
                         </div>
                         <div class="form-group">
-                            <label for="source-port">Port Number</label>
+                            <label for="source-port">Local port</label>
                             <input type="text" class="form-control" id="source-port" name="source-port"
                                 aria-describedby="source-port-help">
                             <small id="source-port-help" class="form-text text-muted">
-                                Select the internal /source port number.
+                                Select the internal / source port number.
                                 You can only select one port and not a range of ports.<br />
                             </small>
                         </div>
                         <div class="form-group">
-                            <label for="destination-port">Port Number</label>
+                            <label for="destination-port">Remote port</label>
                             <input type="text" class="form-control" id="destination-port" name="destination-port"
                                 aria-describedby="destination-port-help">
                             <small id="destination-port-help" class="form-text text-muted">
