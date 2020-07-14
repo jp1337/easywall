@@ -5,7 +5,8 @@ It supports the simple configuration of the outputs.
 import logging
 from sys import stdout
 
-from easywall.utility import create_folder_if_not_exists
+from easywall.utility import (create_file_if_not_exists,
+                              create_folder_if_not_exists)
 
 
 class Log(object):
@@ -36,10 +37,11 @@ class Log(object):
         # create file handler if enabled in configuration
         if to_files:
             # create log filepath if not exists
+            fullpath = "{}/{}".format(logpath, logfile)
             create_folder_if_not_exists(logpath)
+            create_file_if_not_exists(fullpath)
 
-            file_handler = logging.FileHandler(
-                "{}/{}".format(logpath, logfile))
+            file_handler = logging.FileHandler(fullpath)
             file_handler.setLevel(self.loglevel)
             file_handler.setFormatter(formatter)
             root.addHandler(file_handler)
