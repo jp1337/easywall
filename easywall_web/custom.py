@@ -11,6 +11,14 @@ def custom(saved=False):
     rules = RulesHandler()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Custom")
+        payload.lead = """
+            On this page you can add your own firewall rules.<br />
+            Please check the rules for accuracy, as these are not tested by easywall.<br />
+            <br />
+            To add your own rule, simply copy the rule into the text box. One rule per line.<br />
+            It is important to omit the iptables command.<br />
+            Example: <code>-P FORWARD DROP</code>
+        """
         payload.rules = rules.get_rules_for_web("custom")
         payload.custom = rules.diff_new_current("custom")
         payload.saved = saved

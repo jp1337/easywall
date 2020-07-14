@@ -16,6 +16,11 @@ def apply(saved=False, step=1):
     utils = Webutils()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Apply")
+        payload.lead = """
+            The defined firewall rules were not automatically activated for security reasons.<br>
+            On this page, you can safely apply the defined rules.<br>
+            The activation takes place in two steps and an exclusion from the server should be prevented.
+            """
         payload.saved = saved
         payload.step = step
         payload.lastapplied = utils.get_last_accept_time()

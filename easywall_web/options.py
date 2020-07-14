@@ -9,6 +9,10 @@ def options(saved=False):
     utils = Webutils()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Options")
+        payload.lead = """
+            On this page you can configure the easywall core.<br />
+            We offer a variety of configuration options.
+        """
         payload.config = utils.cfg_easywall
         payload.saved = saved
         return render_template('options.html', vars=payload)

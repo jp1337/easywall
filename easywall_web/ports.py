@@ -10,7 +10,13 @@ def ports(saved=False):
     utils = Webutils()
     rules = RulesHandler()
     if utils.check_login(request) is True:
-        payload = utils.get_default_payload("Ports")
+        payload = utils.get_default_payload("Open Ports")
+        payload.lead = """
+            On this page you can open ports for incoming connections.<br />
+            You can add tcp and udp ports.<br />
+            Please check whether the entries in the list are needed in the future and remove old entries if they are no longer needed.<br />
+            To list all open ports under Linux use the command <code>netstat -ln</code>
+        """
         payload.tcp = rules.get_rules_for_web("tcp")
         payload.udp = rules.get_rules_for_web("udp")
         payload.custom = False

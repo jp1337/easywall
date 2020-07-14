@@ -11,6 +11,11 @@ def blacklist(saved=False):
     rules = RulesHandler()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Blacklist")
+        payload.lead = """
+            On this page you can add IP-addresses that are not allowed to connect to this server.<br />
+            Use this carefully because there is no validation of IP-adresses.<br/>
+            You can add IPv4 and IPv6 adresses here.
+            """
         payload.addresses = rules.get_rules_for_web("blacklist")
         payload.custom = rules.diff_new_current("blacklist")
         payload.saved = saved

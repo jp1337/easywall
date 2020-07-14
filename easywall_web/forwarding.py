@@ -14,7 +14,13 @@ def forwarding(saved=False):
     utils = Webutils()
     rules = RulesHandler()
     if utils.check_login(request):
-        payload = utils.get_default_payload("Forwarding")
+        payload = utils.get_default_payload("Port Forwarding")
+        payload.lead = """
+            This page allows you to forward ports from the local system to ports on the Internet.<br />
+            This is especially useful if the port of an application cannot be changed.<br />
+            Enter the port type, source and destination.<br />
+            You do not have to release the public port separately, easywall will do that for you.
+        """
         payload.forwardings = rules.get_rules_for_web("forwarding")
         payload.custom = False
         if rules.diff_new_current("forwarding"):
