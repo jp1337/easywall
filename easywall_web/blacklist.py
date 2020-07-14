@@ -12,10 +12,10 @@ def blacklist(saved=False):
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Blacklist")
         payload.lead = """
-            On this page you can add IP-addresses that are not allowed to connect to this
-            server.<br />
-            Use this carefully because there is no validation of IP-adresses.<br/>
-            You can add IPv4 and IPv6 adresses here.
+            On this page you can list IP addresses that are not allowed to connect to this machine.
+            <br />
+            Please check the IP addresses carefully, as they are not checked by easywall.<br />
+            You can add IPv4 and IPv6 addresses to the list.
         """
         payload.addresses = rules.get_rules_for_web("blacklist")
         payload.custom = rules.diff_new_current("blacklist")

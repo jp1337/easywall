@@ -48,21 +48,21 @@
         <div class="col">
             <div class="card w-100">
                 <div class="card-header">
-                    Whitelist IP-Address
+                    Add new IP address to the whitelist
                 </div>
                 <div class="card-body">
                     <form action="/whitelist-save" method="post">
                         <div class="form-group">
-                            <label for="ipadr">IP-Address</label>
+                            <label for="ipadr">IP address</label>
                             <input type="text" class="form-control" id="ipadr" name="ipadr"
                                 aria-describedby="ipadrHelp">
                             <small id="ipadrHelp" class="form-text text-muted">
-                                Please enter the IP-Adress to whitelist.
-                                If you enter an IPv6-Address it <strong>has to be expanded</strong>.
-                                Please do not add hostnames here.<br><br>
-                                <strong>Examples:</strong><br>
-                                IPV4: 192.168.178.44<br>
-                                IPV6: 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+                                Please select the IP address you wish to add to the list.<br />
+                                Please enter only IP addresses and no hostnames.<br />
+                                <br />
+                                <strong>Examples:</strong><br />
+                                IPV4: 134.164.12.5<br />
+                                IPV6: 240e:00d9:d800:0200::::d4
                             </small>
                         </div>
                         <button type="submit" class="btn btn-primary"
