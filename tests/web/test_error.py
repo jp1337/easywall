@@ -25,7 +25,7 @@ class TestError(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/nonexistent')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_non_existent_logged_in(self):
         """

@@ -25,7 +25,7 @@ class TestPorts(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/ports')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_ports_logged_in(self):
         """
@@ -40,7 +40,7 @@ class TestPorts(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.post('/ports-save')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_ports_save_logged_in_add(self):
         """

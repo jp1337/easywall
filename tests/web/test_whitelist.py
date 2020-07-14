@@ -25,7 +25,7 @@ class TestWhitelist(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/whitelist')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_whitelist_logged_in(self):
         """
@@ -40,7 +40,7 @@ class TestWhitelist(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.post('/whitelist-save')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_whitelist_save_logged_in_new(self):
         """

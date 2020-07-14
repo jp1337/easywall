@@ -25,7 +25,7 @@ class TestBlacklist(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/blacklist')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_blacklist_logged_in(self):
         """
@@ -40,7 +40,7 @@ class TestBlacklist(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.post('/blacklist-save')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_blacklist_save_logged_in_new(self):
         """

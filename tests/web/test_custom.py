@@ -25,7 +25,7 @@ class TestCustom(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/custom')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_custom_logged_in(self):
         """
@@ -40,7 +40,7 @@ class TestCustom(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.post('/custom-save')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_custom_save_logged_in(self):
         """

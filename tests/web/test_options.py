@@ -25,7 +25,7 @@ class TestOptions(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/options')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_options_logged_in(self):
         """
@@ -40,7 +40,7 @@ class TestOptions(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.post('/options-save')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_options_save_logged_in(self):
         """

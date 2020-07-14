@@ -29,7 +29,7 @@ class TestApply(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/apply')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_apply_logged_in(self):
         """
@@ -61,4 +61,4 @@ class TestApply(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.post('/apply-save')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)

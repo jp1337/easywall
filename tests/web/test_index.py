@@ -25,7 +25,7 @@ class TestIndex(unittest.TestCase):
         TODO: Doku
         """
         response = self.client.get('/')
-        self.assertIn(b"Please sign in", response.data)
+        self.assertIn(b"Please log in", response.data)
 
     def test_index_logged_in(self):
         """
