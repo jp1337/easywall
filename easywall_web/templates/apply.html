@@ -1,13 +1,4 @@
-{% include 'head.html' %} {% include 'nav.html' %}
-
-<div class="jumbotron text-center">
-    <div class="container">
-        <h1>Apply Configuration</h1>
-        <p class="lead">The defined firewall rules were not automatically activated for security reasons.<br>
-            On this page, you can safely apply the defined rules.<br>
-            The activation takes place in two steps and an exclusion from the server should be prevented.</p>
-    </div>
-</div>
+{% include 'head.html' %} {% include 'nav.html' %} {% include 'jumbotron.html' %}
 
 <div class="container pt-0 mb-3">
     <div class="row">
@@ -88,20 +79,20 @@
                 now = new Date().getTime();
                 distance = target - now;
                 seconds = Math.floor((distance % (1000 * {{ vars.accepttime }})) / 1000);
-                countdown.innerHTML = seconds;
-            }, 1000);
+            countdown.innerHTML = seconds;
+        }, 1000);
 
-            setInterval(function () {
-                var form = document.createElement('form');
-                form.method = 'post';
-                form.action = '/apply-save';
-                var input = document.createElement('input');
-                input.type = 'text';
-                input.name = 'step_timeout';
-                form.appendChild(input);
-                document.body.appendChild(form);
-                form.submit();
-            }, {{ vars.accepttime * 1000 }});
+        setInterval(function () {
+            var form = document.createElement('form');
+            form.method = 'post';
+            form.action = '/apply-save';
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.name = 'step_timeout';
+            form.appendChild(input);
+            document.body.appendChild(form);
+            form.submit();
+        }, {{ vars.accepttime * 1000 }});
         }
     </script>
 
