@@ -18,8 +18,8 @@ def ports(saved=False):
             remove old entries if they are no longer needed.<br />
             To list all open ports under Linux use the command <code>netstat -ln</code>
         """
-        payload.tcp = rules.get_rules_for_web("tcp")
-        payload.udp = rules.get_rules_for_web("udp")
+        payload.tcp = rules.get_rules_for_web("tcp").sort()
+        payload.udp = rules.get_rules_for_web("udp").sort()
         payload.custom = False
         if rules.diff_new_current("tcp") is True or rules.diff_new_current("udp") is True:
             payload.custom = True
