@@ -33,4 +33,4 @@ class TestIndex(unittest.TestCase):
         """
         self.login.log_in(self.client)
         response = self.client.get('/')
-        self.assertIn(b"Configure Ports", response.data)
+        self.assertIn(b"easywall for iptables", response.data)
