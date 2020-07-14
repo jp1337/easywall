@@ -35,6 +35,7 @@ def ports_save():
         action = "add"
         ruletype = "tcp"
         port = ""
+        ssh = False
 
         for key, value in request.form.items():
             if key == "remove":
@@ -45,8 +46,13 @@ def ports_save():
                 ruletype = value
             elif key == "port":
                 port = str(value)
+            elif key == "ssh":
+                ssh = True
             else:
                 port = str(key)
+
+        if ssh:
+            port = "{}#ssh".format(port)
 
         if action == "add":
             add_port(port, ruletype)
@@ -57,16 +63,20 @@ def ports_save():
     return login("", None)
 
 
-def add_port(port, ruletype):
-    """the function adds a port to the opened port rules file"""
+def add_port(port: str, ruletype: str):
+    """
+    The function adds a port to the list of open ports.
+    """
     rules = RulesHandler()
     rulelist = rules.get_rules_for_web(ruletype)
     rulelist.append(port)
     rules.save_new_rules(ruletype, rulelist)
 
 
-def remove_port(port, ruletype):
-    """the function removes a port from the opened port rules file"""
+def remove_port(port: str, ruletype: str):
+    """
+    The function deletes a port from the list of open ports.
+    """
     rules = RulesHandler()
     rulelist = rules.get_rules_for_web(ruletype)
     rulelist.remove(port)
