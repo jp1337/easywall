@@ -1,8 +1,8 @@
 <div class="jumbotron text-center">
     <div class="container">
-        <h1>{{ vars.title }}</h1>
+        <h1>{{ vars.title|safe }}</h1>
         <p class="lead">
-            {{ vars.lead }}
+            {{ vars.lead|safe }}
         </p>
     </div>
 </div>
