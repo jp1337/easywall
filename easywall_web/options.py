@@ -58,12 +58,12 @@ def options_save() -> str:
                             saved=False,
                             error="The configuration could not be saved due to invalid parameters.")
 
-        if password1:
+        if password1 and password2:
             if password1 == password2:
                 hostname = node().encode("utf-8")
                 salt = sha512(hostname).hexdigest()
                 pw_hash = sha512(str(salt + password1).encode("utf-8")).hexdigest()
-                utils.cfg_easywall.set_value("WEB", "password", pw_hash)
+                utils.cfg.set_value("WEB", "password", pw_hash)
             else:
                 return options(saved=False, error="The entered passwords are not identical.")
 
