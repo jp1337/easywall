@@ -63,9 +63,10 @@ class Iptables(object):
         """
         option = "-P"
 
-        execute_os_command("{} {} {} {}".format(self.iptables_bin, option, chain, target))
+        execute_os_command("{} {} {} {}".format(self.iptables_bin, option, chain.value, target))
         if self.ipv6 is True:
-            execute_os_command("{} {} {} {}".format(self.ip6tables_bin, option, chain, target))
+            execute_os_command("{} {} {} {}".format(
+                self.ip6tables_bin, option, chain.value, target))
 
         info("iptables policy added for chain {} and target {}".format(chain, target))
 
@@ -94,13 +95,15 @@ class Iptables(object):
 
         if onlyv4 is True or (onlyv6 is False and onlyv4 is False):
             execute_os_command("{} {} {} {} {}".format(
-                self.iptables_bin, table, option, chain, rule))
-            info("append for ipv4: table: {}, chain: {}, rule: {} added".format(table, chain, rule))
+                self.iptables_bin, table, option, chain.value, rule))
+            info("append for ipv4: table: {}, chain: {}, rule: {} added".format(
+                table, chain.value, rule))
 
         if self.ipv6 is True and (onlyv6 is True or (onlyv6 is False and onlyv4 is False)):
             execute_os_command("{} {} {} {} {}".format(
-                self.ip6tables_bin, table, option, chain, rule))
-            info("append for ipv6: table: {}, chain: {}, rule: {} added".format(table, chain, rule))
+                self.ip6tables_bin, table, option, chain.value, rule))
+            info("append for ipv6: table: {}, chain: {}, rule: {} added".format(
+                table, chain.value, rule))
 
     def insert(self, chain: Chain, rule: str,
                onlyv6: bool = False, onlyv4: bool = False, table: str = "") -> None:
@@ -115,13 +118,15 @@ class Iptables(object):
 
         if onlyv4 is True or (onlyv6 is False and onlyv4 is False):
             execute_os_command("{} {} {} {} {}".format(
-                self.iptables_bin, table, option, chain, rule))
-            info("insert for ipv4, table: {}, chain: {}, rule: {} added".format(table, chain, rule))
+                self.iptables_bin, table, option, chain.value, rule))
+            info("insert for ipv4, table: {}, chain: {}, rule: {} added".format(
+                table, chain.value, rule))
 
         if self.ipv6 is True and (onlyv6 is True or (onlyv6 is False and onlyv4 is False)):
             execute_os_command("{} {} {} {} {}".format(
-                self.ip6tables_bin, table, option, chain, rule))
-            info("insert for ipv6, table: {}, chain: {}, rule: {} added".format(table, chain, rule))
+                self.ip6tables_bin, table, option, chain.value, rule))
+            info("insert for ipv6, table: {}, chain: {}, rule: {} added".format(
+                table, chain.value, rule))
 
     def add_custom(self, rule: str) -> None:
         """
