@@ -118,7 +118,7 @@
                                     </small>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary">Save</button>
+                                <button type="submit" class="btn btn-primary">Submit</button>
                             </form>
                         </div>
 
@@ -141,7 +141,7 @@
                                         server for security reasons.</small>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary">Save</button>
+                                <button type="submit" class="btn btn-primary">Submit</button>
                             </form>
                         </div>
 
@@ -177,7 +177,7 @@
                                     </small>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary">Save</button>
+                                <button type="submit" class="btn btn-primary">Submit</button>
                             </form>
                         </div>
 
@@ -265,7 +265,7 @@
                                     </small>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary">Save</button>
+                                <button type="submit" class="btn btn-primary">Submit</button>
                             </form>
                         </div>
 
@@ -275,90 +275,90 @@
                                 <input type="hidden" value="EXEC" name="section">
 
                                 <div class="form-group">
-                                    <label for="iptablesbin">IPTables Binary</label>
+                                    <label for="iptablesbin">File path to executable file for iptables</label>
                                     <input type="text" class="form-control" id="iptablesbin" name="iptables"
                                         aria-describedby="iptablesbinHelp" placeholder="Example: /sbin/iptables"
                                         {% if vars.config.get_value("EXEC", "iptables") != "" %}
                                         value={{vars.config.get_value("EXEC", "iptables")}} {% endif %}>
                                     <small id="iptablesbinHelp" class="form-text text-muted">
-                                        Please enter the full path to the IPTables Binary.<br />You can read out the
-                                        path in the command line with the command <code>whereis iptables</code>.
+                                        Please provide the full path to the iptables executable binary.<br />
+                                        You can read the path from the command line using the following command:
+                                        <code>whereis iptables</code>.
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="iptablessavebin">IPTables-Save Binary</label>
+                                    <label for="iptablessavebin">File path to executable file for iptables-save</label>
                                     <input type="text" class="form-control" id="iptablessavebin" name="iptables-save"
                                         aria-describedby="iptablessavebinHelp"
                                         placeholder="Example: /sbin/iptables-save"
                                         {% if vars.config.get_value("EXEC", "iptables-save") != "" %}
                                         value={{vars.config.get_value("EXEC", "iptables-save")}} {% endif %}>
                                     <small id="iptablessavebinHelp" class="form-text text-muted">
-                                        Please enter the full path to the IPTables-Save Binary.<br />This is needed for
-                                        saving the current iptables rules. You can read out the path in the command line
-                                        with the command <code>whereis iptables-save</code>.
+                                        Please provide the full path to the iptables-save executable binary.<br />
+                                        You can read the path from the command line using the following command:
+                                        <code>whereis iptables-save</code>.
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="iptablesrestorebin">IPTables-Restore Binary</label>
+                                    <label for="iptablesrestorebin">File path to executable file for
+                                        iptables-restore</label>
                                     <input type="text" class="form-control" id="iptablesrestorebin"
                                         name="iptables-restore" aria-describedby="iptablesrestorebinHelp"
-                                        placeholder="Example: /sbin//sbin/iptables-restore"
+                                        placeholder="Example: /sbin/iptables-restore"
                                         {% if vars.config.get_value("EXEC", "iptables-restore") != "" %}
                                         value={{vars.config.get_value("EXEC", "iptables-restore")}} {% endif %}>
                                     <small id="iptablesrestorebinHelp" class="form-text text-muted">
-                                        Please enter the full path to the IPTables-Restore Binary.<br />This is needed
-                                        for
-                                        saving the current iptables rules. You can read out the path in the command line
-                                        with the command <code>whereis iptables-restore</code>.
+                                        Please provide the full path to the iptables-restore executable binary.<br />
+                                        You can read the path from the command line using the following command:
+                                        <code>whereis iptables-restore</code>.
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="ip6tablesbin">IP6Tables Binary</label>
+                                    <label for="ip6tablesbin">File path to executable file for ip6tables</label>
                                     <input type="text" class="form-control" id="ip6tablesbin" name="ip6tables"
                                         aria-describedby="ip6tablesbinHelp" placeholder="Example: /sbin/ip6tables"
                                         {% if vars.config.get_value("EXEC", "ip6tables") != "" %}
                                         value={{vars.config.get_value("EXEC", "ip6tables")}} {% endif %}>
                                     <small id="ip6tablesbinHelp" class="form-text text-muted">
-                                        Please enter the full path to the IP6Tables Binary.<br />You can read out the
-                                        path in the command line with the command <code>whereis ip6tables</code>.
+                                        Please provide the full path to the ip6tables executable binary.<br />
+                                        You can read the path from the command line using the following command:
+                                        <code>whereis ip6tables</code>.
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="ip6tablessavebin">IP6Tables-Save Binary</label>
+                                    <label for="ip6tablessavebin">File path to executable file for iptables-save</label>
                                     <input type="text" class="form-control" id="ip6tablessavebin" name="ip6tables-save"
                                         aria-describedby="ip6tablessavebinHelp"
                                         placeholder="Example: /sbin/ip6tables-save"
                                         {% if vars.config.get_value("EXEC", "ip6tables-save") != "" %}
                                         value={{vars.config.get_value("EXEC", "ip6tables-save")}} {% endif %}>
                                     <small id="ip6tablessavebinHelp" class="form-text text-muted">
-                                        Please enter the full path to the IP6Tables-Save Binary.<br />This is needed for
-                                        saving the current ip6tables rules. You can read out the path in the command
-                                        line
-                                        with the command <code>whereis ip6tables-save</code>.
+                                        Please provide the full path to the ip6tables-save executable binary.<br />
+                                        You can read the path from the command line using the following command:
+                                        <code>whereis ip6tables-save</code>.
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="ip6tablesrestorebin">IP6Tables-Restore Binary</label>
+                                    <label for="ip6tablesrestorebin">File path to executable file for
+                                        iptables-restore</label>
                                     <input type="text" class="form-control" id="ip6tablesrestorebin"
                                         name="ip6tables-restore" aria-describedby="ip6tablesrestorebinHelp"
-                                        placeholder="Example: /sbin//sbin/ip6tables-restore"
+                                        placeholder="Example: /sbin/ip6tables-restore"
                                         {% if vars.config.get_value("EXEC", "ip6tables-restore") != "" %}
                                         value={{vars.config.get_value("EXEC", "ip6tables-restore")}} {% endif %}>
                                     <small id="ip6tablesrestorebinHelp" class="form-text text-muted">
-                                        Please enter the full path to the IP6Tables-Restore Binary.<br />This is needed
-                                        for
-                                        saving the current ip6tables rules. You can read out the path in the command
-                                        line
-                                        with the command <code>whereis ip6tables-restore</code>.
+                                        Please provide the full path to the ip6tables-restore executable binary.<br />
+                                        You can read the path from the command line using the following command:
+                                        <code>whereis ip6tables-restore</code>.
                                     </small>
                                 </div>
 
-                                <button type="submit" class="btn btn-primary">Save</button>
+                                <button type="submit" class="btn btn-primary">Submit</button>
                             </form>
                         </div>
 
