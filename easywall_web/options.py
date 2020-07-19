@@ -4,22 +4,26 @@ from easywall_web.login import login
 from easywall_web.webutils import Webutils
 
 
-def options(saved=False):
+def options(saved: bool = False, error: str = "") -> str:
     """the function returns the options page when the user is logged in"""
     utils = Webutils()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Options")
         payload.lead = """
-            On this page you can configure the easywall core.<br />
-            We offer a variety of configuration options.
+            On this page you can configure easywall.<br />
+            All entries from the configuration files for the core
+            and the web interface are available.<br />
+            Some entries require a restart of the respective program part.
         """
         payload.config = utils.cfg_easywall
+        payload.config_web = utils.cfg
         payload.saved = saved
+        payload.error = error
         return render_template('options.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def options_save():
+def options_save() -> str:
     """
     the function saves the options from a section using the config class
     for example the Enabled flag in the IPv6 section is saved to the config file
@@ -27,18 +31,28 @@ def options_save():
     utils = Webutils()
     if utils.check_login(request) is True:
         section = request.form['section']
+        cfgtype = request.form['cfgtype']
+
         for key, value in request.form.items():
-            if key != "section":
+            if key != "section" and key != "cfgtype":
                 if key.startswith("checkbox"):
                     key = key.replace("checkbox_", "")
                     value = correct_value_checkbox(key)
                 if value != "on":
-                    utils.cfg_easywall.set_value(section, key, value)
-        return options(True)
-    return login("", None)
+                    if cfgtype == "easywall":
+                        utils.cfg_easywall.set_value(section, key, value)
+                    elif cfgtype == "web":
+                        utils.cfg.set_value(section, key, value)
+                    else:
+                        return options(
+                            saved=False,
+                            error="The configuration could not be saved due to invalid parameters.")
+
+        return options(saved=True)
+    return login()
 
 
-def correct_value_checkbox(key):
+def correct_value_checkbox(key: str) -> str:
     """the function corrects the value of a checkbox"""
     key = key.replace("checkbox_", "")
     if key in request.form:
