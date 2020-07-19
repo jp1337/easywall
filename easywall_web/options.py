@@ -1,5 +1,9 @@
 """the module contains functions for the options route"""
+from hashlib import sha512
+from platform import node
+
 from flask import render_template, request
+
 from easywall_web.login import login
 from easywall_web.webutils import Webutils
 
@@ -32,13 +36,19 @@ def options_save() -> str:
     if utils.check_login(request) is True:
         section = request.form['section']
         cfgtype = request.form['cfgtype']
+        password1 = ""
+        password2 = ""
 
         for key, value in request.form.items():
             if key != "section" and key != "cfgtype":
                 if key.startswith("checkbox"):
                     key = key.replace("checkbox_", "")
                     value = correct_value_checkbox(key)
-                if value != "on":
+                if key.startswith("password1"):
+                    password1 = value
+                if key.startswith("password2"):
+                    password2 = value
+                if value != "on" and not key.startswith("password"):
                     if cfgtype == "easywall":
                         utils.cfg_easywall.set_value(section, key, value)
                     elif cfgtype == "web":
@@ -47,6 +57,15 @@ def options_save() -> str:
                         return options(
                             saved=False,
                             error="The configuration could not be saved due to invalid parameters.")
+
+        if password1:
+            if password1 == password2:
+                hostname = node().encode("utf-8")
+                salt = sha512(hostname).hexdigest()
+                pw_hash = sha512(str(salt + password1).encode("utf-8")).hexdigest()
+                utils.cfg_easywall.set_value("WEB", "password", pw_hash)
+            else:
+                return options(saved=False, error="The entered passwords are not identical.")
 
         return options(saved=True)
     return login()
