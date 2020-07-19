@@ -45,8 +45,9 @@
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="IPTABLES" name="section">
+                                <input type="hidden" value="easywall" name="cfgtype">
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="log_blocked_connections">
                                         <input type="hidden" value="off" name="checkbox_log_blocked_connections">
                                         <input type="checkbox" id="log_blocked_connections"
@@ -62,7 +63,7 @@
                                     </small>
                                 </div>
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="log_blacklist_connections">
                                         <input type="hidden" value="off" name="checkbox_log_blacklist_connections">
                                         <input type="checkbox" id="log_blacklist_connections"
@@ -78,7 +79,7 @@
                                     </small>
                                 </div>
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="drop_broadcast_packets">
                                         <input type="hidden" value="off" name="checkbox_drop_broadcast_packets">
                                         <input type="checkbox" id="drop_broadcast_packets" name="drop_broadcast_packets"
@@ -92,7 +93,7 @@
                                     </small>
                                 </div>
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="drop_multicast_packets">
                                         <input type="hidden" value="off" name="checkbox_drop_multicast_packets">
                                         <input type="checkbox" id="drop_multicast_packets" name="drop_multicast_packets"
@@ -105,7 +106,7 @@
                                     </small>
                                 </div>
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="drop_anycast_packets">
                                         <input type="hidden" value="off" name="checkbox_drop_anycast_packets">
                                         <input type="checkbox" id="drop_anycast_packets" name="drop_anycast_packets"
@@ -126,8 +127,9 @@
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="IPV6" name="section">
+                                <input type="hidden" value="easywall" name="cfgtype">
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="IPV6">
                                         <input type="hidden" value="off" name="checkbox_enabled">
                                         <input type="checkbox" id="IPV6" name="enabled"
@@ -149,15 +151,14 @@
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="ACCEPTANCE" name="section">
+                                <input type="hidden" value="easywall" name="cfgtype">
 
-                                <div class="form-group checkbox">
-                                    <label class="form-check-label" for="enabled">
-                                        <input type="hidden" value="off" name="checkbox_enabled">
-                                        <input type="checkbox" id="enabled" name="enabled"
-                                            {% if vars.config.get_value("ACCEPTANCE", "enabled") == true %} checked
-                                            {% endif %} aria-describedby="enabledHelp">
-                                        Enable Acceptance
-                                    </label>
+                                <div class="form-group">
+                                    <input type="hidden" value="off" name="checkbox_enabled">
+                                    <input type="checkbox" id="enabled" name="enabled" aria-describedby="enabledHelp"
+                                        {% if vars.config.get_value("ACCEPTANCE", "enabled") == true %} checked
+                                        {% endif %}>
+                                    <label class="form-check-label" for="enabled">Enable Acceptance</label>
                                     <small id="enabledHelp" class="form-text text-muted">
                                         Enable this feature to activate a timer which automatically resets the firewall
                                         to the last state when the firewall state is not accepted. This is highly
@@ -185,6 +186,7 @@
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="LOG" name="section">
+                                <input type="hidden" value="easywall" name="cfgtype">
 
                                 <div class="form-group">
                                     <label for="loglevel">Log Level</label>
@@ -213,7 +215,7 @@
                                     </small>
                                 </div>
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="to_files">
                                         <input type="hidden" value="off" name="checkbox_to_files">
                                         <input type="checkbox" id="to_files" name="to_files"
@@ -227,7 +229,7 @@
                                     </small>
                                 </div>
 
-                                <div class="form-group checkbox">
+                                <div class="form-group">
                                     <label class="form-check-label" for="to_stdout">
                                         <input type="hidden" value="off" name="checkbox_to_stdout">
                                         <input type="checkbox" id="to_stdout" name="to_stdout"
@@ -273,6 +275,7 @@
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="EXEC" name="section">
+                                <input type="hidden" value="easywall" name="cfgtype">
 
                                 <div class="form-group">
                                     <label for="iptablesbin">File path to executable file for iptables</label>
@@ -330,7 +333,8 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="ip6tablessavebin">File path to executable file for iptables-save</label>
+                                    <label for="ip6tablessavebin">File path to executable file for
+                                        ip6tables-save</label>
                                     <input type="text" class="form-control" id="ip6tablessavebin" name="ip6tables-save"
                                         aria-describedby="ip6tablessavebinHelp"
                                         placeholder="Example: /sbin/ip6tables-save"
@@ -345,7 +349,7 @@
 
                                 <div class="form-group">
                                     <label for="ip6tablesrestorebin">File path to executable file for
-                                        iptables-restore</label>
+                                        ip6tables-restore</label>
                                     <input type="text" class="form-control" id="ip6tablesrestorebin"
                                         name="ip6tables-restore" aria-describedby="ip6tablesrestorebinHelp"
                                         placeholder="Example: /sbin/ip6tables-restore"

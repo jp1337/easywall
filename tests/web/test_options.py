@@ -49,6 +49,7 @@ class TestOptions(unittest.TestCase):
         self.login.log_in(self.client)
         response = self.client.post('/options-save', data=dict(
             section="VERSION",
+            cfgtype="web",
             version="0.0.0"
         ), follow_redirects=True)
         self.assertIn(b"The Configuration was saved successfully", response.data)
@@ -60,6 +61,7 @@ class TestOptions(unittest.TestCase):
         self.login.log_in(self.client)
         response = self.client.post('/options-save', data=dict(
             section="LOG",
+            cfgtype="web",
             checkbox_to_stdout="on"
         ), follow_redirects=True)
         self.assertIn(b"The Configuration was saved successfully", response.data)
