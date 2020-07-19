@@ -19,7 +19,7 @@ class TestUtility(unittest.TestCase):
     this class contains all test functions for the utility module
     """
 
-    def test_folder(self):
+    def test_folder(self) -> None:
         """
         TODO: Doku
         """
@@ -32,7 +32,7 @@ class TestUtility(unittest.TestCase):
         sleep(1)
         self.assertFalse(folder_exists(foldername))
 
-    def test_file(self):
+    def test_file(self) -> None:
         """
         TODO: Doku
         """
@@ -49,7 +49,7 @@ class TestUtility(unittest.TestCase):
         assert not file_exists("testfile")
         assert not file_exists("testfilenew")
 
-    def test_float_int(self):
+    def test_float_int(self) -> None:
         """
         TODO: Doku
         """
@@ -62,19 +62,19 @@ class TestUtility(unittest.TestCase):
         assert not is_int(1.1)
         assert not is_int("test")
 
-    def test_csv(self):
+    def test_csv(self) -> None:
         """
         TODO: Doku
         """
         self.assertListEqual(csv_to_array("var1;var2", ";"), ["var1", "var2"])
 
-    def test_urlencode(self):
+    def test_urlencode(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(urlencode("asd asd +"), "asd%20asd%20%2B")
 
-    def test_time_duration_diff(self):
+    def test_time_duration_diff(self) -> None:
         """
         TODO: Doku
         """
@@ -85,7 +85,7 @@ class TestUtility(unittest.TestCase):
         date2 = datetime.now()
         self.assertEqual(time_duration_diff(date1, date2), "1 second")
 
-    def test_execute_os_command(self):
+    def test_execute_os_command(self) -> None:
         """
         TODO: Doku
         """
@@ -93,7 +93,7 @@ class TestUtility(unittest.TestCase):
         self.assertTrue(file_exists("testfile"))
         delete_file_if_exists("testfile")
 
-    def test_execute_os_command_error(self):
+    def test_execute_os_command_error(self) -> None:
         """
         TODO: Doku
         """

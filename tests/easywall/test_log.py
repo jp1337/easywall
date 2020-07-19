@@ -13,45 +13,45 @@ class TestLog(unittest.TestCase):
     this class contains all test functions for the log module
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         delete_file_if_exists("./test.log")
         self.log = Log("INFO", True, True, ".", "test.log")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.log.close_logging()
         delete_file_if_exists("./test.log")
 
-    def test_correct_level_debug(self):
+    def test_correct_level_debug(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.log.correct_level("DEBUG"), DEBUG)
 
-    def test_correct_level_info(self):
+    def test_correct_level_info(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.log.correct_level("INFO"), INFO)
 
-    def test_correct_level_warning(self):
+    def test_correct_level_warning(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.log.correct_level("WARNING"), WARNING)
 
-    def test_correct_level_error(self):
+    def test_correct_level_error(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.log.correct_level("ERROR"), ERROR)
 
-    def test_correct_level_critical(self):
+    def test_correct_level_critical(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.log.correct_level("CRITICAL"), CRITICAL)
 
-    def test_correct_level_unknown(self):
+    def test_correct_level_unknown(self) -> None:
         """
         TODO: Doku
         """

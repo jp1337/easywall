@@ -11,17 +11,17 @@ class TestRulesHandler(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.rules = RulesHandler()
         self.rules.ensure_files_exist()
 
-    def test_firstrun(self):
+    def test_firstrun(self) -> None:
         """
         TODO: Doku
         """
         self.rules.ensure_files_exist()
 
-    def test_get_current_rules(self):
+    def test_get_current_rules(self) -> None:
         """
         TODO: Doku
         """
@@ -30,7 +30,7 @@ class TestRulesHandler(unittest.TestCase):
 """)
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
-    def test_get_new_rules(self):
+    def test_get_new_rules(self) -> None:
         """
         TODO: Doku
         """
@@ -39,7 +39,7 @@ class TestRulesHandler(unittest.TestCase):
 """)
         self.assertEqual(self.rules.get_new_rules("tcp"), ["80", "443"])
 
-    def test_backup_current_rules(self):
+    def test_backup_current_rules(self) -> None:
         """
         TODO: Doku
         """
@@ -52,7 +52,7 @@ class TestRulesHandler(unittest.TestCase):
 443
 """)
 
-    def test_apply_new_rules(self):
+    def test_apply_new_rules(self) -> None:
         """
         TODO: Doku
         """
@@ -64,7 +64,7 @@ class TestRulesHandler(unittest.TestCase):
         self.rules.apply_new_rules()
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
-    def test_rollback_from_backup(self):
+    def test_rollback_from_backup(self) -> None:
         """
         TODO: Doku
         """
@@ -76,7 +76,7 @@ class TestRulesHandler(unittest.TestCase):
         self.rules.rollback_from_backup()
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
-    def test_get_rules_for_web(self):
+    def test_get_rules_for_web(self) -> None:
         """
         TODO: Doku
         """
@@ -90,7 +90,7 @@ class TestRulesHandler(unittest.TestCase):
 """)
         self.assertEqual(self.rules.get_rules_for_web("tcp"), ["80", "443", "8080"])
 
-    def test_save_new_rules(self):
+    def test_save_new_rules(self) -> None:
         """
         TODO: Doku
         """

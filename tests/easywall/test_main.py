@@ -14,7 +14,7 @@ class TestMain(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.config_backup_path = "config/easywall.ini.backup"
         if file_exists(CONFIG_PATH):
             rename_file(CONFIG_PATH, self.config_backup_path)
@@ -51,19 +51,19 @@ ipv6filename = iptables_v6_backup
         write_into_file(CONFIG_PATH, content)
         delete_folder_if_exists("rules")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         delete_file_if_exists("test.log")
         delete_file_if_exists(".acceptance_status")
         if file_exists(self.config_backup_path):
             rename_file(self.config_backup_path, CONFIG_PATH)
 
-    def test_init(self):
+    def test_init(self) -> None:
         """
         TODO: Doku
         """
         Main()
 
-    def test_start_observer(self):
+    def test_start_observer(self) -> None:
         """
         TODO: Doku
         """
@@ -71,7 +71,7 @@ ipv6filename = iptables_v6_backup
         main.stop_flag = True
         main.start_observer()
 
-    def test_shutdown(self):
+    def test_shutdown(self) -> None:
         """
         TODO: Doku
         """
@@ -79,14 +79,14 @@ ipv6filename = iptables_v6_backup
         main.observer.start()
         main.shutdown()
 
-    def test_apply(self):
+    def test_apply(self) -> None:
         """
         TODO: Doku
         """
         main = Main()
         main.apply(".apply")
 
-    def test_modify_handler(self):
+    def test_modify_handler(self) -> None:
         """
         TODO: Doku
         """

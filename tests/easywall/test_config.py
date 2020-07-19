@@ -14,7 +14,7 @@ class TestConfig(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         content = """[TEST]
         teststring = string
         testboolean = true
@@ -26,17 +26,17 @@ class TestConfig(unittest.TestCase):
 
         self.config = Config("test.ini")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         delete_file_if_exists("test.ini")
 
-    def test_constructor_file_not_found(self):
+    def test_constructor_file_not_found(self) -> None:
         """
         TODO: Doku
         """
         with self.assertRaises(FileNotFoundError):
             Config("test2.ini")
 
-    def test_constructor_file_not_read(self):
+    def test_constructor_file_not_read(self) -> None:
         """
         TODO: Doku
         """
@@ -49,45 +49,45 @@ class TestConfig(unittest.TestCase):
         with self.assertRaises(ParsingError):
             Config("test.ini")
 
-    def test_get_value_error(self):
+    def test_get_value_error(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.config.get_value("TEST", "notexistent"), "")
 
-    def test_get_value_bool(self):
+    def test_get_value_bool(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.config.get_value("TEST", "testboolean"), True)
 
-    def test_get_value_int(self):
+    def test_get_value_int(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.config.get_value("TEST", "testint"), 1)
 
-    def test_get_value_float(self):
+    def test_get_value_float(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.config.get_value(
             "TEST", "testfloat"), float(1.1))
 
-    def test_get_sections(self):
+    def test_get_sections(self) -> None:
         """
         TODO: Doku
         """
         self.assertIn("TEST", self.config.get_sections())
 
-    def test_set_value_success(self):
+    def test_set_value_success(self) -> None:
         """
         TODO: Doku
         """
         self.assertEqual(self.config.set_value(
             "TEST", "teststring", "erfolg"), True)
 
-    def test_set_value_fail_section(self):
+    def test_set_value_fail_section(self) -> None:
         """
         TODO: Doku
         """

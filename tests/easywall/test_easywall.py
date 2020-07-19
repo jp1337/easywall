@@ -14,7 +14,7 @@ class TestRulesHandler(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.config_file = "test_easywall.ini"
         content = """[LOG]
 level = info
@@ -71,29 +71,29 @@ ip6tables-restore = /sbin/ip6tables-restore
         self.easywall = Easywall(self.cfg)
         self.easywall.rules.ensure_files_exist()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         delete_file_if_exists(self.config_file)
 
-    def test_init(self):
+    def test_init(self) -> None:
         """
         TODO: Doku
         """
         self.easywall = Easywall(self.cfg)
 
-    def test_apply_not_accepted(self):
+    def test_apply_not_accepted(self) -> None:
         """
         TODO: Doku
         """
         self.easywall.apply()
 
-    def test_apply_accepted(self):
+    def test_apply_accepted(self) -> None:
         """
         TODO: Doku
         """
         write_into_file(self.easywall.acceptance.filename, "true")
         self.easywall.apply()
 
-    def test_apply_blacklist(self):
+    def test_apply_blacklist(self) -> None:
         """
         TODO: Doku
         """
@@ -105,7 +105,7 @@ ip6tables-restore = /sbin/ip6tables-restore
 """)
         self.easywall.apply_blacklist()
 
-    def test_apply_whitelist(self):
+    def test_apply_whitelist(self) -> None:
         """
         TODO: Doku
         """
@@ -117,28 +117,28 @@ ip6tables-restore = /sbin/ip6tables-restore
 """)
         self.easywall.apply_whitelist()
 
-    def test_apply_rules_port_range(self):
+    def test_apply_rules_port_range(self) -> None:
         """
         TODO: Doku
         """
         write_into_file("{}/current/udp".format(self.easywall.rules.rulesfolder), "1234:1237")
         self.easywall.apply_rules("udp")
 
-    def test_apply_custom_rules(self):
+    def test_apply_custom_rules(self) -> None:
         """
         TODO: Doku
         """
         write_into_file("{}/current/custom".format(self.easywall.rules.rulesfolder), "1234")
         self.easywall.apply_custom_rules()
 
-    def test_apply_ssh_port(self):
+    def test_apply_ssh_port(self) -> None:
         """
         TODO: Doku
         """
         write_into_file("{}/current/tcp".format(self.easywall.rules.rulesfolder), "22#ssh")
         self.easywall.apply_rules("tcp")
 
-    def test_apply_forwarding(self):
+    def test_apply_forwarding(self) -> None:
         """
         TODO: Doku
         """

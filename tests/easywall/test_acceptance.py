@@ -13,7 +13,7 @@ class TestAcceptance(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         content = """[ACCEPTANCE]
         enabled = true
         duration = 1
@@ -24,10 +24,10 @@ class TestAcceptance(unittest.TestCase):
         self.config = Config("acceptance.ini")
         self.acceptance = Acceptance(self.config)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         delete_file_if_exists("acceptance.ini")
 
-    def test_disabled(self):
+    def test_disabled(self) -> None:
         """
         TODO: Doku
         """
@@ -41,7 +41,7 @@ class TestAcceptance(unittest.TestCase):
         self.acceptance = Acceptance(self.config)
         self.assertEqual(self.acceptance.status(), "disabled")
 
-    def test_not_accepted(self):
+    def test_not_accepted(self) -> None:
         """
         TODO: Doku
         """
@@ -49,7 +49,7 @@ class TestAcceptance(unittest.TestCase):
         self.acceptance.wait()
         self.assertEqual(self.acceptance.status(), "not accepted")
 
-    def test_accepted(self):
+    def test_accepted(self) -> None:
         """
         TODO: Doku
         """
@@ -58,7 +58,7 @@ class TestAcceptance(unittest.TestCase):
         write_into_file(self.acceptance.filename, "true")
         self.assertEqual(self.acceptance.status(), "accepted")
 
-    def test_accepted_early(self):
+    def test_accepted_early(self) -> None:
         """
         TODO: Doku
         """

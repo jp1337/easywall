@@ -13,7 +13,7 @@ class TestIPTablesHandler(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         content = """[EXEC]
 iptables = /sbin/iptables
 ip6tables = /sbin/ip6tables
@@ -36,44 +36,44 @@ ipv6filename = iptables_v6_backup
         self.config = Config("iptables.ini")
         self.iptables = Iptables(self.config)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.iptables.reset()
         delete_file_if_exists("iptables.ini")
 
-    def test_policy(self):
+    def test_policy(self) -> None:
         """
         TODO: Doku
         """
         self.iptables.add_policy(Chain.FORWARD, Target.ACCEPT)
 
-    def test_chain(self):
+    def test_chain(self) -> None:
         """
         TODO: Doku
         """
-        self.iptables.add_chain("TESTCHAIN")
-        self.iptables.delete_chain("TESTCHAIN")
+        self.iptables.add_chain("PORTSCAN")
+        self.iptables.delete_chain("PORTSCAN")
 
-    def test_append(self):
+    def test_append(self) -> None:
         """
         TODO: Doku
         """
-        self.iptables.add_chain("TESTCHAIN")
-        self.iptables.add_append("TESTCHAIN", "-i lo -j ACCEPT")
-        self.iptables.flush("TESTCHAIN")
+        self.iptables.add_chain("PORTSCAN")
+        self.iptables.add_append(Chain.PORTSCAN, "-i lo -j ACCEPT")
+        self.iptables.flush("PORTSCAN")
 
-    def test_status(self):
+    def test_status(self) -> None:
         """
         TODO: Doku
         """
         self.iptables.status()
 
-    def test_save(self):
+    def test_save(self) -> None:
         """
         TODO: Doku
         """
         self.iptables.save()
 
-    def test_restore(self):
+    def test_restore(self) -> None:
         """
         TODO: Doku
         """
