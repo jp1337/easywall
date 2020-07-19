@@ -12,22 +12,22 @@ class TestPorts(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         prepare_configuration()
         self.client = prepare_client()
         self.login = TestLogin()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         restore_configuration()
 
-    def test_ports_logged_out(self):
+    def test_ports_logged_out(self) -> None:
         """
         TODO: Doku
         """
         response = self.client.get('/ports')
         self.assertIn(b"Please log in", response.data)
 
-    def test_ports_logged_in(self):
+    def test_ports_logged_in(self) -> None:
         """
         TODO: Doku
         """
@@ -35,14 +35,14 @@ class TestPorts(unittest.TestCase):
         response = self.client.get('/ports')
         self.assertIn(b"Ports", response.data)
 
-    def test_ports_save_logged_out(self):
+    def test_ports_save_logged_out(self) -> None:
         """
         TODO: Doku
         """
         response = self.client.post('/ports-save')
         self.assertIn(b"Please log in", response.data)
 
-    def test_ports_save_logged_in_add(self):
+    def test_ports_save_logged_in_add(self) -> None:
         """
         TODO: Doku
         """
@@ -53,7 +53,7 @@ class TestPorts(unittest.TestCase):
         ), follow_redirects=True)
         self.assertIn(b"The Configuration was saved successfully", response.data)
 
-    def test_ports_save_logged_in_remove(self):
+    def test_ports_save_logged_in_remove(self) -> None:
         """
         TODO: Doku
         """

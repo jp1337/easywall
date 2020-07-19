@@ -12,22 +12,22 @@ class TestOptions(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         prepare_configuration()
         self.client = prepare_client()
         self.login = TestLogin()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         restore_configuration()
 
-    def test_options_logged_out(self):
+    def test_options_logged_out(self) -> None:
         """
         TODO: Doku
         """
         response = self.client.get('/options')
         self.assertIn(b"Please log in", response.data)
 
-    def test_options_logged_in(self):
+    def test_options_logged_in(self) -> None:
         """
         TODO: Doku
         """
@@ -35,14 +35,14 @@ class TestOptions(unittest.TestCase):
         response = self.client.get('/options')
         self.assertIn(b"Options", response.data)
 
-    def test_options_save_logged_out(self):
+    def test_options_save_logged_out(self) -> None:
         """
         TODO: Doku
         """
         response = self.client.post('/options-save')
         self.assertIn(b"Please log in", response.data)
 
-    def test_options_save_logged_in(self):
+    def test_options_save_logged_in(self) -> None:
         """
         TODO: Doku
         """
@@ -54,7 +54,7 @@ class TestOptions(unittest.TestCase):
         ), follow_redirects=True)
         self.assertIn(b"The Configuration was saved successfully", response.data)
 
-    def test_options_save_logged_in_checkbox(self):
+    def test_options_save_logged_in_checkbox(self) -> None:
         """
         TODO: Doku
         """

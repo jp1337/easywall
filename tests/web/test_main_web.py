@@ -11,14 +11,14 @@ class TestMain(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         prepare_configuration()
         self.client = prepare_client()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         restore_configuration()
 
-    def test_init(self):
+    def test_init(self) -> None:
         """
         TODO: Doku
         """

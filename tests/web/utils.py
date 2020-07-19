@@ -4,6 +4,8 @@ TODO: Doku
 from os import urandom
 from time import time
 
+from flask.testing import FlaskClient
+
 from easywall.config import Config
 from easywall.utility import (create_file_if_not_exists, file_exists,
                               rename_file, write_into_file)
@@ -12,7 +14,7 @@ CONFIG_PATH = "config/web.ini"
 CONFIG_BACKUP_PATH = "config/web.ini.backup"
 
 
-def prepare_configuration():
+def prepare_configuration() -> None:
     """
     TODO: Doku
     """
@@ -55,21 +57,21 @@ need-plugin = python3
     config.set_value("VERSION", "timestamp", str(int(time())))
 
 
-def restore_configuration():
+def restore_configuration() -> bool:
     """
     TODO: Doku
     """
     if file_exists(CONFIG_BACKUP_PATH):
         rename_file(CONFIG_BACKUP_PATH, CONFIG_PATH)
+        return True
+    return False
 
 
-def prepare_client() -> object:
+def prepare_client() -> FlaskClient:
     """
     TODO: Doku
     """
     from easywall_web.__main__ import APP
     APP.config['TESTING'] = True
     APP.secret_key = urandom(12)
-    with APP.test_client() as client:
-        pass
-    return client
+    return APP.test_client()

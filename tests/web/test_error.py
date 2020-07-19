@@ -12,22 +12,22 @@ class TestError(unittest.TestCase):
     TODO: Doku
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         prepare_configuration()
         self.client = prepare_client()
         self.login = TestLogin()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         restore_configuration()
 
-    def test_non_existent_logged_out(self):
+    def test_non_existent_logged_out(self) -> None:
         """
         TODO: Doku
         """
         response = self.client.get('/nonexistent')
         self.assertIn(b"Please log in", response.data)
 
-    def test_non_existent_logged_in(self):
+    def test_non_existent_logged_in(self) -> None:
         """
         TODO: Doku
         """
