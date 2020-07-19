@@ -675,8 +675,8 @@
                                     <label for="bindip">IP address to listen to</label>
                                     <input type="text" class="form-control" id="bindip" name="bindip"
                                         aria-describedby="bindip_help" placeholder="Example: 0.0.0.0"
-                                        {% if vars.config.get_value("EXEC", "bindip") != "" %}
-                                        value={{vars.config.get_value("EXEC", "bindip")}} {% endif %}>
+                                        {% if vars.config_web.get_value("EXEC", "bindip") != "" %}
+                                        value={{vars.config_web.get_value("EXEC", "bindip")}} {% endif %}>
                                     <small id="bindip_help" class="form-text text-muted">
                                         Please enter the IP address to which the web interface should listen.<br />
                                         This setting can be used to operate easywall with a reverse proxy.
@@ -687,8 +687,8 @@
                                     <label for="bindport">Port to listen to</label>
                                     <input type="text" class="form-control" id="bindport" name="bindport"
                                         aria-describedby="bindport_help" placeholder="Example: 12227"
-                                        {% if vars.config.get_value("EXEC", "bindport") != "" %}
-                                        value={{vars.config.get_value("EXEC", "bindport")}} {% endif %}>
+                                        {% if vars.config_web.get_value("EXEC", "bindport") != "" %}
+                                        value={{vars.config_web.get_value("EXEC", "bindport")}} {% endif %}>
                                     <small id="bindport_help" class="form-text text-muted">
                                         Please enter the Port to which the web interface should listen.<br />
                                         This setting can be used to operate easywall on a non-default port.
@@ -709,8 +709,8 @@
                                     <label for="username">Username for the web interface</label>
                                     <input type="text" class="form-control" id="username" name="username"
                                         aria-describedby="username_help" placeholder="enter username here"
-                                        {% if vars.config.get_value("EXEC", "username") != "" %}
-                                        value={{vars.config.get_value("EXEC", "username")}} {% endif %}>
+                                        {% if vars.config_web.get_value("EXEC", "username") != "" %}
+                                        value={{vars.config_web.get_value("EXEC", "username")}} {% endif %}>
                                     <small id="username_help" class="form-text text-muted">
                                         Please enter the username for the web interface.
                                     </small>
