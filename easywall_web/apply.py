@@ -9,7 +9,7 @@ from easywall_web.login import login
 from easywall_web.webutils import Webutils
 
 
-def apply(saved=False, step=1):
+def apply(saved: bool = False, step: int = 1) -> str:
     """
     the function returns the apply page when the user is logged in
     """
@@ -26,12 +26,12 @@ def apply(saved=False, step=1):
         payload.step = step
         payload.lastapplied = utils.get_last_accept_time()
         payload.running = step > 1
-        payload.accepttime = utils.cfg_easywall.get_value("ACCEPTANCE", "duration")
+        payload.accepttime = str(utils.cfg_easywall.get_value("ACCEPTANCE", "duration"))
         return render_template('apply.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def apply_save():
+def apply_save() -> str:
     """
     the function applies the configuration and copies the rules to easywall core
     """
@@ -46,7 +46,7 @@ def apply_save():
                 apply_step_two()
                 step = 3
         return apply(True, step)
-    return login("", None)
+    return login()
 
 
 def apply_step_one() -> None:

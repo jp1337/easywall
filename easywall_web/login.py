@@ -3,13 +3,16 @@ the module contains functions for the user management routes
 """
 import hashlib
 import platform
+from logging import info, warning
+from typing import Union
 
-from logging import warning, info
 from flask import redirect, render_template, request, session
+from werkzeug.wrappers import Response
+
 from easywall_web.webutils import Webutils
 
 
-def login(message, messagetype):
+def login(message: Union[None, str] = None, messagetype: Union[None, str] = None) -> str:
     """
     the function returns the login page which shows messages
     also the function updates the last commit informations in the config file
@@ -24,7 +27,7 @@ def login(message, messagetype):
     return render_template('login.html', vars=payload)
 
 
-def login_post():
+def login_post() -> Union[Response, str]:
     """
     the function handles the login post request and if all information are correct
     a session variable is set to store the login information
@@ -47,16 +50,16 @@ def login_post():
     else:
         warning("Failed login attempt for the user {} detected. ".format(request.form['username']) +
                 "IP address of the remote device: {}".format(request.remote_addr))
-    return login("Incorrect username or password.", "danger")
+    return login("Wrong username or password.", "danger")
 
 
-def logout():
+def logout() -> str:
     """
     the function removes the logged_in session variable if the user is logged in
     """
     utils = Webutils()
     if utils.check_login(request) is True:
         session['logged_in'] = False
-        return redirect("/")
+        return login("You have been logged off successfully.", "success")
     else:
-        return login("", None)
+        return login()

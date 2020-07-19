@@ -5,7 +5,7 @@ from easywall_web.webutils import Webutils
 from easywall.rules_handler import RulesHandler
 
 
-def custom(saved=False):
+def custom(saved: bool = False) -> str:
     """the function returns the custom rules page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
@@ -23,10 +23,10 @@ def custom(saved=False):
         payload.custom = rules.diff_new_current("custom")
         payload.saved = saved
         return render_template('custom.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def custom_save():
+def custom_save() -> str:
     """the function saves the custom rules into the corresponding rulesfile"""
     utils = Webutils()
     rules = RulesHandler()
@@ -36,4 +36,4 @@ def custom_save():
             rulelist = value.split("\n")
             rules.save_new_rules("custom", rulelist)
         return custom(True)
-    return login("", None)
+    return login()

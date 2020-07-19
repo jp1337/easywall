@@ -11,7 +11,7 @@ from easywall_web.__main__ import CONFIG_PATH
 class Passwd(object):
     """the class contains the password generation and saving"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """the init function creates the config variable and calls the user input"""
         self.config = Config(CONFIG_PATH)
 
@@ -26,7 +26,7 @@ class Passwd(object):
         else:
             self.ask_user()
 
-    def savepasswd(self, password):
+    def savepasswd(self, password: str) -> None:
         """the function saves the password into the config file using the config class"""
         hostname = platform.node().encode("utf-8")
         salt = hashlib.sha512(hostname).hexdigest()
@@ -35,12 +35,12 @@ class Passwd(object):
         self.config.set_value("WEB", "password", pw_hash)
         print("Password successfully saved.")
 
-    def saveuser(self, username):
+    def saveuser(self, username: str) -> None:
         """the function saves the username into the config file using the config class"""
         self.config.set_value("WEB", "username", username)
         print("Username successfully saved.")
 
-    def ask_user(self):
+    def ask_user(self) -> None:
         """the function asks the user for the username and password"""
         username = input("easywall Web Username: ")
         self.saveuser(username)

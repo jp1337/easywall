@@ -5,7 +5,7 @@ from easywall_web.webutils import Webutils
 from easywall.rules_handler import RulesHandler
 
 
-def blacklist(saved=False):
+def blacklist(saved: bool = False) -> str:
     """the function returns the blacklist page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
@@ -21,10 +21,10 @@ def blacklist(saved=False):
         payload.custom = rules.diff_new_current("blacklist")
         payload.saved = saved
         return render_template('blacklist.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def blacklist_save():
+def blacklist_save() -> str:
     """
     the function saves the blacklist rules into the corresponding rulesfile
     """
@@ -46,4 +46,4 @@ def blacklist_save():
                 rulelist.remove(ipaddress)
                 rules.save_new_rules("blacklist", rulelist)
         return blacklist(True)
-    return login("", None)
+    return login()

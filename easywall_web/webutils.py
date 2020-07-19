@@ -4,8 +4,9 @@ import platform
 import time
 import urllib
 from datetime import datetime, timezone
+from typing import Any
 
-from flask import session
+from flask import Request, session
 
 from easywall.__main__ import CONFIG_PATH
 from easywall.config import Config
@@ -16,11 +17,11 @@ from easywall_web.defaultpayload import DefaultPayload
 class Webutils(object):
     """the class is called in the route modules and contains non route-specific functions"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cfg = Config("config/web.ini")
         self.cfg_easywall = Config(CONFIG_PATH)
 
-    def check_login(self, request):
+    def check_login(self, request: Request) -> bool:
         """the function checks if the user/session is logged in"""
         if not session.get('logged_in'):
             return False
@@ -31,35 +32,35 @@ class Webutils(object):
     # -------------------------
     # Payload Operations
 
-    def get_default_payload(self, title, css="easywall"):
+    def get_default_payload(self, title: str, css: str = "easywall") -> DefaultPayload:
         """the function creates a object of information that are needed on every page"""
         payload = DefaultPayload()
         payload.year = datetime.today().year
         payload.title = title
         payload.customcss = css
         payload.machine = self.get_machine_infos()
-        payload.latest_version = self.cfg.get_value("VERSION", "version")
+        payload.latest_version = str(self.cfg.get_value("VERSION", "version"))
         payload.current_version = file_get_contents(".version")
-        payload.commit_sha = self.cfg.get_value("VERSION", "sha")
-        payload.commit_date = self.get_commit_date(self.cfg.get_value("VERSION", "date"))
+        payload.commit_sha = str(self.cfg.get_value("VERSION", "sha"))
+        payload.commit_date = self.get_commit_date(str(self.cfg.get_value("VERSION", "date")))
         payload.config_mismatch = self.get_config_version_mismatch()
         return payload
 
-    def get_machine_infos(self):
+    def get_machine_infos(self) -> dict:
         """the function retrieves some information about the host and returns them as a list"""
         infos = {}
         infos["Machine"] = platform.machine()
         infos["Hostname"] = platform.node()
         infos["Platform"] = platform.platform()
-        infos["Python Build"] = platform.python_build()
+        infos["Python Build"] = "".join(platform.python_build())
         infos["Python Compiler"] = platform.python_compiler()
         infos["Python Implementation"] = platform.python_implementation()
         infos["Python Version"] = platform.python_version()
         infos["Release"] = platform.release()
-        infos["Libc Version"] = platform.libc_ver()
+        infos["Libc Version"] = "".join(platform.libc_ver())
         return infos
 
-    def get_config_version_mismatch(self):
+    def get_config_version_mismatch(self) -> bool:
         """
         TODO: Docu
         """
@@ -76,7 +77,7 @@ class Webutils(object):
     # -------------------------
     # Update Info Operations
 
-    def get_commit_date(self, datestring):
+    def get_commit_date(self, datestring: str) -> str:
         """
         the function compares a datetime with the current date
         for comparing the datestring parameter is in UTC timezone
@@ -89,13 +90,13 @@ class Webutils(object):
         date2 = datetime.now()
         return time_duration_diff(date1, date2)
 
-    def update_last_commit_infos(self):
+    def update_last_commit_infos(self) -> None:
         """
         the function retrieves the last commit information after a specific waiting time
         after retrieving the information they are saved into the config file
         """
         currtime = int(time.time())
-        lasttime = self.cfg.get_value("VERSION", "timestamp")
+        lasttime = int(self.cfg.get_value("VERSION", "timestamp"))
         waitseconds = 3600  # 60 minutes × 60 seconds
         if currtime > (lasttime + waitseconds):
             commit = self.get_latest_commit()
@@ -104,7 +105,7 @@ class Webutils(object):
             self.cfg.set_value("VERSION", "date", commit["commit"]["author"]["date"])
             self.cfg.set_value("VERSION", "timestamp", str(currtime))
 
-    def get_latest_commit(self):
+    def get_latest_commit(self) -> Any:
         """
         retrieves the informations of the last commit from github as json
         and converts the information into a python object
@@ -136,24 +137,24 @@ class Webutils(object):
         )
         response = urllib.request.urlopen(req)
         data = response.read()
-        return data.decode('utf-8')
+        return str(data.decode('utf-8'))
 
     # -------------------------
     # Acceptance Operations
 
-    def get_last_accept_time(self):
+    def get_last_accept_time(self) -> str:
         """
         the function retrieves the modify time of the acceptance file
         and compares the time to the current time
         """
-        timestamp = self.cfg_easywall.get_value("ACCEPTANCE", "timestamp")
+        timestamp = str(self.cfg_easywall.get_value("ACCEPTANCE", "timestamp"))
         if timestamp == "":
             return "never"
-        timestamp = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
+        timestamp_datetime = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
         now = datetime.now()
-        return time_duration_diff(timestamp, now)
+        return time_duration_diff(timestamp_datetime, now)
 
-    def get_acceptance_status(self):
+    def get_acceptance_status(self) -> str:
         """
         get the status of the current acceptance
         """

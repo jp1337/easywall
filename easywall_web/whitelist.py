@@ -5,7 +5,7 @@ from easywall_web.webutils import Webutils
 from easywall.rules_handler import RulesHandler
 
 
-def whitelist(saved=False):
+def whitelist(saved: bool = False) -> str:
     """the function returns the whitelist page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
@@ -21,10 +21,10 @@ def whitelist(saved=False):
         payload.custom = rules.diff_new_current("whitelist")
         payload.saved = saved
         return render_template('whitelist.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def whitelist_save():
+def whitelist_save() -> str:
     """
     the function saves the whitelist rules into the corresponding rulesfile
     """
@@ -46,4 +46,4 @@ def whitelist_save():
                 rulelist.remove(ipaddress)
                 rules.save_new_rules("whitelist", rulelist)
         return whitelist(True)
-    return login("", None)
+    return login()

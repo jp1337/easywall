@@ -1,22 +1,34 @@
 """the module contains a empty class which is used as object"""
+from easywall.config import Config
 
 
 class DefaultPayload(object):
     """the class is a empty skeleton for generating objects"""
 
-    def __init__(self):
-        self.config = None
-        self.saved = None
-        self.addresses = None
-        self.tcp = None
-        self.udp = None
-        self.messagetype = None
-        self.message = None
-        self.year = None
-        self.title = None
-        self.customcss = None
-        self.machine = None
-        self.latest_version = None
-        self.current_version = None
-        self.commit_sha = None
-        self.commit_date = None
+    def __init__(self) -> None:
+        self.config: Config
+        self.config_web: Config
+        self.saved: bool
+        self.addresses: list
+        self.tcp: list
+        self.udp: list
+        self.forwardings: list
+        self.rules: list
+        self.messagetype: str
+        self.message: str
+        self.year: int
+        self.title: str
+        self.custom: bool
+        self.lead: str
+        self.customcss: str
+        self.machine: dict
+        self.latest_version: str
+        self.current_version: str
+        self.commit_sha: str
+        self.commit_date: str
+        self.config_mismatch: bool
+        self.error: str
+        self.step: int
+        self.lastapplied: str
+        self.running: bool
+        self.accepttime: str

@@ -7,7 +7,7 @@ from easywall_web.webutils import Webutils
 from easywall.rules_handler import RulesHandler
 
 
-def forwarding(saved=False):
+def forwarding(saved: bool = False) -> str:
     """
     TODO: Docu
     """
@@ -28,10 +28,10 @@ def forwarding(saved=False):
             payload.custom = True
         payload.saved = saved
         return render_template('forwarding.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def forwarding_save():
+def forwarding_save() -> str:
     """
     TODO: Docu
     """
@@ -65,10 +65,10 @@ def forwarding_save():
             remove_forwarding(source_port, dest_port, ruletype)
 
         return forwarding(True)
-    return login("", None)
+    return login()
 
 
-def add_forwarding(source_port: str, dest_port: str, ruletype: str):
+def add_forwarding(source_port: str, dest_port: str, ruletype: str) -> None:
     """
     TODO: Docu
     """
@@ -78,7 +78,7 @@ def add_forwarding(source_port: str, dest_port: str, ruletype: str):
     rules.save_new_rules("forwarding", rulelist)
 
 
-def remove_forwarding(source_port: str, dest_port: str, ruletype: str):
+def remove_forwarding(source_port: str, dest_port: str, ruletype: str) -> None:
     """
     TODO: Docu
     """

@@ -6,7 +6,7 @@ from easywall_web.login import login
 from easywall_web.webutils import Webutils
 
 
-def ports(saved=False):
+def ports(saved: bool = False) -> str:
     """the function returns the ports page when the user is logged in"""
     utils = Webutils()
     rules = RulesHandler()
@@ -26,10 +26,10 @@ def ports(saved=False):
             payload.custom = True
         payload.saved = saved
         return render_template('ports.html', vars=payload)
-    return login("", None)
+    return login()
 
 
-def ports_save():
+def ports_save() -> str:
     """the function saves the tcp and udp rules into the corresponding rulesfiles"""
     utils = Webutils()
     if utils.check_login(request) is True:
@@ -61,10 +61,10 @@ def ports_save():
             remove_port(port, ruletype)
 
         return ports(True)
-    return login("", None)
+    return login()
 
 
-def add_port(port: str, ruletype: str):
+def add_port(port: str, ruletype: str) -> None:
     """
     The function adds a port to the list of open ports.
     """
@@ -74,7 +74,7 @@ def add_port(port: str, ruletype: str):
     rules.save_new_rules(ruletype, rulelist)
 
 
-def remove_port(port: str, ruletype: str):
+def remove_port(port: str, ruletype: str) -> None:
     """
     The function deletes a port from the list of open ports.
     """
