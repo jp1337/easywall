@@ -26,6 +26,11 @@ class Chain(Enum):
     INPUT = "INPUT"
     FORWARD = "FORWARD"
     OUTPUT = "OUTPUT"
+    PREROUTING = "PREROUTING"
+    SSHBRUTE = "SSHBRUTE"
+    INVALIDDROP = "INVALIDDROP"
+    PORTSCAN = "PORTSCAN"
+    ICMPFLOOD = "ICMPFLOOD"
 
 
 class Iptables(object):
@@ -76,8 +81,8 @@ class Iptables(object):
 
         info("iptables chain {} added".format(chain))
 
-    def add_append(self, chain: str, rule: str,
-                   onlyv6=False, onlyv4=False, table: str = "") -> None:
+    def add_append(self, chain: Chain, rule: str,
+                   onlyv6: bool = False, onlyv4: bool = False, table: str = "") -> None:
         """
         the function creates a new append in iptables
         """
@@ -97,7 +102,8 @@ class Iptables(object):
                 self.ip6tables_bin, table, option, chain, rule))
             info("append for ipv6: table: {}, chain: {}, rule: {} added".format(table, chain, rule))
 
-    def insert(self, chain: str, rule: str, onlyv6=False, onlyv4=False, table: str = "") -> None:
+    def insert(self, chain: Chain, rule: str,
+               onlyv6: bool = False, onlyv4: bool = False, table: str = "") -> None:
         """
         TODO: Docu
         """
@@ -146,7 +152,7 @@ class Iptables(object):
         else:
             info("all iptables chains flushed")
 
-    def delete_chain(self, chain: str = ""):
+    def delete_chain(self, chain: str = "") -> None:
         """
         the function deletes a chain or all chains in iptables firewall
         """
@@ -159,13 +165,13 @@ class Iptables(object):
         else:
             info("all iptables chains deleted")
 
-    def reset(self):
+    def reset(self) -> None:
         """
         the function resets iptables and allows all connections to the system and from the system
         """
-        self.add_policy("INPUT", "ACCEPT")
-        self.add_policy("OUTPUT", "ACCEPT")
-        self.add_policy("FORWARD", "ACCEPT")
+        self.add_policy(Chain.INPUT, Target.ACCEPT)
+        self.add_policy(Chain.OUTPUT, Target.ACCEPT)
+        self.add_policy(Chain.FORWARD, Target.ACCEPT)
         self.flush(table="raw")
         self.flush(table="nat")
         self.flush(table="mangle")

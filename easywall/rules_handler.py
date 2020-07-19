@@ -1,6 +1,8 @@
 """
 TODO: Doku
 """
+from typing import List
+
 from easywall.utility import (create_file_if_not_exists,
                               create_folder_if_not_exists, file_get_contents,
                               write_into_file)
@@ -16,19 +18,19 @@ class RulesHandler(object):
         self.types = ["blacklist", "whitelist", "tcp", "udp", "custom", "forwarding"]
         self.states = ["current", "new", "backup"]
 
-    def get_current_rules(self, ruletype: str) -> list:
+    def get_current_rules(self, ruletype: str) -> List[str]:
         """
         TODO: Doku
         """
         return file_get_contents("{}/current/{}".format(self.rulesfolder, ruletype)).splitlines()
 
-    def get_new_rules(self, ruletype: str) -> list:
+    def get_new_rules(self, ruletype: str) -> List[str]:
         """
         TODO: Doku
         """
         return file_get_contents("{}/new/{}".format(self.rulesfolder, ruletype)).splitlines()
 
-    def get_rules_for_web(self, ruletype: str) -> list:
+    def get_rules_for_web(self, ruletype: str) -> List[str]:
         """
         TODO: Doku
         """

@@ -28,7 +28,7 @@ class Acceptance(object):
         self.cfg = cfg
         self.filename = ".acceptance"
         self.enabled = self.cfg.get_value("ACCEPTANCE", "enabled")
-        self.duration = self.cfg.get_value("ACCEPTANCE", "duration")
+        self.duration = int(self.cfg.get_value("ACCEPTANCE", "duration"))
 
         self.set_status("ready")
         if not self.enabled:

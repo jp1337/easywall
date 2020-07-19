@@ -6,7 +6,7 @@ from logging import debug, info
 
 from easywall.acceptance import Acceptance
 from easywall.config import Config
-from easywall.iptables_handler import Iptables
+from easywall.iptables_handler import Chain, Iptables, Target
 from easywall.rules_handler import RulesHandler
 from easywall.utility import file_exists, rename_file
 
@@ -22,9 +22,9 @@ class Easywall(object):
         self.iptables = Iptables(self.cfg)
         self.acceptance = Acceptance(self.cfg)
         self.ipv6 = self.cfg.get_value("IPV6", "enabled")
-        self.filepath = None
-        self.filename = None
-        self.date = None
+        self.filepath = ""
+        self.filename = ""
+        self.date = ""
         self.rules = RulesHandler()
 
     def apply(self) -> None:
@@ -54,18 +54,19 @@ class Easywall(object):
         self.iptables.reset()
 
         # drop intbound traffic and allow outbound traffic
-        self.iptables.add_policy("INPUT", "DROP")
-        self.iptables.add_policy("OUTPUT", "ACCEPT")
+        self.iptables.add_policy(Chain.INPUT, Target.DROP)
+        self.iptables.add_policy(Chain.OUTPUT, Target.ACCEPT)
 
         # accept traffic from loopback interface (localhost)
-        self.iptables.add_append("INPUT", "-i lo -j ACCEPT")
+        self.iptables.add_append(Chain.INPUT, "-i lo -j ACCEPT")
 
         # accept established or related connections
-        self.iptables.add_append("INPUT", "-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
+        self.iptables.add_append(
+            Chain.INPUT, "-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT")
 
         # Block remote packets claiming to be from a loopback address.
-        self.iptables.add_append("INPUT", "-s 127.0.0.0/8 ! -i lo -j DROP", False, True)
-        self.iptables.add_append("INPUT", "-s ::1/128 ! -i lo -j DROP", True)
+        self.iptables.add_append(Chain.INPUT, "-s 127.0.0.0/8 ! -i lo -j DROP", False, True)
+        self.iptables.add_append(Chain.INPUT, "-s ::1/128 ! -i lo -j DROP", True)
 
         # Apply ICMP Rules
         self.apply_icmp()
@@ -106,12 +107,12 @@ class Easywall(object):
         # log all dropped connections when enabled
         if self.cfg.get_value("IPTABLES", "log_blocked_connections"):
             self.iptables.add_append(
-                "INPUT",
+                Chain.INPUT,
                 "-m limit --limit {}/minute -j LOG --log-prefix \"easywall blocked: \"".
                 format(self.cfg.get_value("IPTABLES", "log_blocked_connections_log_limit")))
 
         # reject all packages which not match the rules
-        self.iptables.add_append("INPUT", "-j DROP")
+        self.iptables.add_append(Chain.INPUT, "-j DROP")
 
     def apply_forwarding(self) -> None:
         """
@@ -124,18 +125,18 @@ class Easywall(object):
 
             self.iptables.insert(
                 table="nat",
-                chain="PREROUTING",
+                chain=Chain.PREROUTING,
                 rule="-p {} --dport {} -j REDIRECT --to-port {}".format(proto, dest, source))
             self.iptables.insert(
                 table="nat",
-                chain="OUTPUT",
+                chain=Chain.OUTPUT,
                 rule="-p {} -o lo --dport {} -j REDIRECT --to-port {}".format(proto, dest, source))
             self.iptables.add_append(
-                chain="INPUT",
+                chain=Chain.INPUT,
                 rule="-p {} --dport {} -m conntrack --ctstate NEW -j ACCEPT".format(proto, source)
             )
             self.iptables.add_append(
-                chain="INPUT",
+                chain=Chain.INPUT,
                 rule="-p {} --dport {} -m conntrack --ctstate NEW -j ACCEPT".format(proto, dest)
             )
 
@@ -151,19 +152,19 @@ class Easywall(object):
             log_prefix = "easywall ssh-brute blocked: "
 
             self.iptables.add_chain("SSHBRUTE")
-            self.iptables.add_append("SSHBRUTE", "-m recent --name SSH --set")
+            self.iptables.add_append(Chain.SSHBRUTE, "-m recent --name SSH --set")
             if log_enable:
                 self.iptables.add_append(
-                    "SSHBRUTE",
+                    Chain.SSHBRUTE,
                     "-m recent --name SSH --update --seconds 60 --hitcount " +
                     "{} -m limit --limit {}/minute -j LOG --log-prefix \"{}\"".format(
                         connection_limit, log_limit, log_prefix))
             self.iptables.add_append(
-                "SSHBRUTE",
+                Chain.SSHBRUTE,
                 "-m recent --name SSH --update --seconds 60 --hitcount {} -j DROP".format(
                     connection_limit)
             )
-            self.iptables.add_append("SSHBRUTE", "-j ACCEPT")
+            self.iptables.add_append(Chain.SSHBRUTE, "-j ACCEPT")
 
     def apply_invalid_packets_drop(self) -> None:
         """
@@ -178,14 +179,14 @@ class Easywall(object):
 
             if log_enable:
                 self.iptables.add_append(
-                    "INVALIDDROP",
+                    Chain.INVALIDDROP,
                     "-m state --state INVALID -m limit --limit {}/m -j LOG --log-prefix \"{}\"".
                     format(log_limit, log_prefix))
 
-            self.iptables.add_append("INVALIDDROP", "-m state --state INVALID -j DROP")
+            self.iptables.add_append(Chain.INVALIDDROP, "-m state --state INVALID -j DROP")
 
             self.iptables.add_append(
-                "INPUT", "-m state --state INVALID -j INVALIDDROP",
+                Chain.INPUT, "-m state --state INVALID -j INVALIDDROP",
             )
 
     def apply_port_scan_prevention(self) -> None:
@@ -201,34 +202,34 @@ class Easywall(object):
 
             if log_enable:
                 self.iptables.add_append(
-                    "PORTSCAN",
+                    Chain.PORTSCAN,
                     "-m limit --limit {}/m -j LOG --log-prefix \"{}\"".format(
                         log_limit, log_prefix)
                 )
 
-            self.iptables.add_append("PORTSCAN", "-j DROP")
+            self.iptables.add_append(Chain.PORTSCAN, "-j DROP")
 
             # nmap Null scans / no flags
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ALL NONE -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ALL NONE -j PORTSCAN")
             # nmap FIN stealth scan
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ALL FIN -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ALL FIN -j PORTSCAN")
             # SYN + FIN
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags SYN,FIN SYN,FIN -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags SYN,FIN SYN,FIN -j PORTSCAN")
             # SYN + RST
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags SYN,RST SYN,RST -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags SYN,RST SYN,RST -j PORTSCAN")
             # FIN + RST
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags FIN,RST FIN,RST -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags FIN,RST FIN,RST -j PORTSCAN")
             # FIN + URG + PSH
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ALL FIN,URG,PSH -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ALL FIN,URG,PSH -j PORTSCAN")
             # XMAS
             self.iptables.add_append(
-                "INPUT", "-p tcp --tcp-flags ALL URG,ACK,PSH,RST,SYN,FIN -j PORTSCAN")
+                Chain.INPUT, "-p tcp --tcp-flags ALL URG,ACK,PSH,RST,SYN,FIN -j PORTSCAN")
             # ALL
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ALL ALL -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ALL ALL -j PORTSCAN")
             # FIN/PSH/URG without ACK
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ACK,FIN FIN -j PORTSCAN")
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ACK,PSH PSH -j PORTSCAN")
-            self.iptables.add_append("INPUT", "-p tcp --tcp-flags ACK,URG URG -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ACK,FIN FIN -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ACK,PSH PSH -j PORTSCAN")
+            self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ACK,URG URG -j PORTSCAN")
 
     def apply_icmp_flood(self) -> None:
         """
@@ -242,27 +243,27 @@ class Easywall(object):
             log_prefix = "easywall icmp-flood blocked: "
 
             self.iptables.add_chain("ICMPFLOOD")
-            self.iptables.add_append("ICMPFLOOD", "-m recent --set --name ICMP --rsource")
+            self.iptables.add_append(Chain.ICMPFLOOD, "-m recent --set --name ICMP --rsource")
             if log_enable:
                 self.iptables.add_append(
-                    "ICMPFLOOD", "-m recent --update --seconds 1 --hitcount " +
+                    Chain.ICMPFLOOD, "-m recent --update --seconds 1 --hitcount " +
                     "{} --name ICMP --rsource --rttl -m limit ".format(connection_limit) +
                     "--limit {}/minute -j LOG --log-prefix \"{}\"".
                     format(log_limit, log_prefix))
             self.iptables.add_append(
-                "ICMPFLOOD",
+                Chain.ICMPFLOOD,
                 "-m recent --update --seconds 1 --hitcount {} --name ICMP --rsource --rttl -j DROP".
                 format(connection_limit)
             )
-            self.iptables.add_append("ICMPFLOOD", "-j ACCEPT")
+            self.iptables.add_append(Chain.ICMPFLOOD, "-j ACCEPT")
 
             self.iptables.add_append(
-                "INPUT", "-p icmp --icmp-type 8  -m conntrack --ctstate NEW -j ICMPFLOOD",
+                Chain.INPUT, "-p icmp --icmp-type 8  -m conntrack --ctstate NEW -j ICMPFLOOD",
                 onlyv4=True
             )
             if self.ipv6:
                 self.iptables.add_append(
-                    "INPUT", "-p ipv6-icmp --icmpv6-type 128 -j ICMPFLOOD",
+                    Chain.INPUT, "-p ipv6-icmp --icmpv6-type 128 -j ICMPFLOOD",
                     onlyv6=True
                 )
 
@@ -298,52 +299,52 @@ class Easywall(object):
 
         for icmptype in icmpv4types:
             self.iptables.add_append(
-                "INPUT", "-p icmp --icmp-type {} -m conntrack --ctstate NEW -j ACCEPT".format(
+                Chain.INPUT, "-p icmp --icmp-type {} -m conntrack --ctstate NEW -j ACCEPT".format(
                     icmptype), False, True)
 
         if self.ipv6 is True:
             for icmptype in icmpv6types:
                 self.iptables.add_append(
-                    "INPUT", "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
+                    Chain.INPUT, "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
 
-    def apply_cast(self):
+    def apply_cast(self) -> None:
         """
         TODO: Docu
         """
         if self.cfg.get_value("IPTABLES", "drop_broadcast_packets"):
             self.iptables.add_append(
-                "INPUT",
+                Chain.INPUT,
                 "-m addrtype --dst-type BROADCAST -j DROP",
                 onlyv4=True
             )
 
         if self.cfg.get_value("IPTABLES", "drop_multicast_packets"):
             self.iptables.add_append(
-                "INPUT",
+                Chain.INPUT,
                 "-m addrtype --dst-type MULTICAST -j DROP",
                 onlyv4=True
             )
             self.iptables.add_append(
-                "INPUT",
+                Chain.INPUT,
                 "-d 224.0.0.0/4 -j DROP",
                 onlyv4=True
             )
             if self.ipv6 is True:
                 self.iptables.add_append(
-                    "INPUT",
+                    Chain.INPUT,
                     "-m addrtype --dst-type MULTICAST -j DROP",
                     onlyv6=True
                 )
 
         if self.cfg.get_value("IPTABLES", "drop_anycast_packets"):
             self.iptables.add_append(
-                "INPUT",
+                Chain.INPUT,
                 "-m addrtype --dst-type ANYCAST -j DROP",
                 onlyv4=True
             )
             if self.ipv6 is True:
                 self.iptables.add_append(
-                    "INPUT",
+                    Chain.INPUT,
                     "-m addrtype --dst-type ANYCAST -j DROP",
                     onlyv6=True
                 )
@@ -361,24 +362,24 @@ class Easywall(object):
             if ":" in ipaddr:
                 if log_enable:
                     self.iptables.add_append(
-                        chain="INPUT",
+                        chain=Chain.INPUT,
                         rule="-s {} -m limit --limit {}/m -j LOG --log-prefix \"{}\"".
                         format(ipaddr, log_limit, log_prefix),
                         onlyv6=True)
                 self.iptables.add_append(
-                    "INPUT",
+                    Chain.INPUT,
                     "-s {} -j DROP".format(ipaddr),
                     onlyv6=True
                 )
             else:
                 if log_enable:
                     self.iptables.add_append(
-                        chain="INPUT",
+                        chain=Chain.INPUT,
                         rule="-s {} -m limit --limit {}/m -j LOG --log-prefix \"{}\"".
                         format(ipaddr, log_limit, log_prefix),
                         onlyv4=True)
                 self.iptables.add_append(
-                    "INPUT",
+                    Chain.INPUT,
                     "-s {} -j DROP".format(ipaddr),
                     onlyv4=True
                 )
@@ -390,11 +391,11 @@ class Easywall(object):
         """
         for ipaddr in self.rules.get_current_rules("whitelist"):
             if ":" in ipaddr:
-                self.iptables.add_append("INPUT", "-s {} -j ACCEPT".format(ipaddr), onlyv6=True)
+                self.iptables.add_append(Chain.INPUT, "-s {} -j ACCEPT".format(ipaddr), onlyv6=True)
             else:
-                self.iptables.add_append("INPUT", "-s {} -j ACCEPT".format(ipaddr), onlyv4=True)
+                self.iptables.add_append(Chain.INPUT, "-s {} -j ACCEPT".format(ipaddr), onlyv4=True)
 
-    def apply_rules(self, ruletype) -> None:
+    def apply_rules(self, ruletype: str) -> None:
         """
         this function adds rules for incoming tcp and udp connections to iptables
         which accept a connection to this list of ports
@@ -418,7 +419,7 @@ class Easywall(object):
                 jail = "SSHBRUTE"
 
             self.iptables.add_append(
-                chain="INPUT",
+                chain=Chain.INPUT,
                 rule="{} -m conntrack --ctstate NEW -j {}".format(rule, jail)
             )
 

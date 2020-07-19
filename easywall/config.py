@@ -5,7 +5,7 @@ This module exports a generic class for configuration
 """
 from configparser import ParsingError, RawConfigParser
 from logging import error, info
-from typing import Union
+from typing import AbstractSet, Union
 
 from easywall.utility import file_exists, format_exception, is_float, is_int
 
@@ -96,7 +96,7 @@ class Config(object):
         """
         return self.configlib.sections()
 
-    def get_keys(self, section) -> list:
+    def get_keys(self, section: str) -> AbstractSet[str]:
         """
         TODO: Docu
         """

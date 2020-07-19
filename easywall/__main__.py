@@ -3,8 +3,9 @@ TODO: Doku
 """
 from logging import info
 from time import sleep
+from typing import Callable
 
-from watchdog.events import FileSystemEventHandler
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from easywall.config import Config
@@ -21,10 +22,10 @@ class ModifiedHandler(FileSystemEventHandler):
     TODO: Doku
     """
 
-    def __init__(self, apply: object) -> None:
+    def __init__(self, apply: Callable) -> None:
         self.apply = apply
 
-    def on_created(self, event) -> None:
+    def on_created(self, event: FileSystemEvent) -> None:
         """
         TODO: Doku
         """
@@ -38,7 +39,7 @@ class Main(object):
     TODO: Doku
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cfg = Config(CONFIG_PATH)
 
         loglevel = self.cfg.get_value("LOG", "level")
@@ -46,7 +47,7 @@ class Main(object):
         to_files = self.cfg.get_value("LOG", "to_files")
         logpath = self.cfg.get_value("LOG", "filepath")
         logfile = self.cfg.get_value("LOG", "filename")
-        self.log = Log(loglevel, to_stdout, to_files, logpath, logfile)
+        self.log = Log(str(loglevel), bool(to_stdout), bool(to_files), str(logpath), str(logfile))
 
         info("starting easywall")
 

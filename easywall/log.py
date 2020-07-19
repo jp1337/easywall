@@ -46,14 +46,14 @@ class Log(object):
             file_handler.setFormatter(formatter)
             root.addHandler(file_handler)
 
-    def close_logging(self):
+    def close_logging(self) -> None:
         """This function gently closes all handlers before exiting the software"""
         root = logging.getLogger()
         for handler in root.handlers:
             handler.close()
-            root.removeFilter(handler)
+            root.removeHandler(handler)
 
-    def correct_level(self, loglevel):
+    def correct_level(self, loglevel: str) -> int:
         """This internal function determines the loglevel of the logging class"""
         level = logging.NOTSET
         loglevel = loglevel.lower()
