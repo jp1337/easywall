@@ -53,442 +53,528 @@
                                 <input type="hidden" value="IPTABLES" name="section">
                                 <input type="hidden" value="easywall" name="cfgtype">
 
-                                <div class="card">
-                                    <div class="card-header">
-                                        Blocked Connections
-                                    </div>
-                                    <div class="card-body">
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
+                                                Blocked Connections
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_log_blocked_connections">
+                                                    <input type="checkbox" id="log_blocked_connections"
+                                                        name="log_blocked_connections"
+                                                        {% if vars.config.get_value("IPTABLES", "log_blocked_connections") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="log_blocked_connections_help">
+                                                    <label class="form-check-label" for="log_blocked_connections">
+                                                        Log all blocked connections to syslog
+                                                    </label>
+                                                    <small id="log_blocked_connections_help"
+                                                        class="form-text text-muted">
+                                                        If the configuration is enabled, all blocked incoming
+                                                        connections are
+                                                        logged in
+                                                        the syslog. Please make sure that the syslog is rotated
+                                                        regularly to
+                                                        avoid large
+                                                        logfiles.
+                                                    </small>
+                                                </div>
 
-                                    </div>
-                                </div>
-
-                                <div class="card">
-                                    <div class="card-header">
-                                        Blocked Connections
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_log_blocked_connections">
-                                            <input type="checkbox" id="log_blocked_connections"
-                                                name="log_blocked_connections"
-                                                {% if vars.config.get_value("IPTABLES", "log_blocked_connections") == true %}
-                                                checked {% endif %} aria-describedby="log_blocked_connections_help">
-                                            <label class="form-check-label" for="log_blocked_connections">
-                                                Log all blocked connections to syslog
-                                            </label>
-                                            <small id="log_blocked_connections_help" class="form-text text-muted">
-                                                If the configuration is enabled, all blocked incoming connections are
-                                                logged in
-                                                the syslog. Please make sure that the syslog is rotated regularly to
-                                                avoid large
-                                                logfiles.
-                                            </small>
-                                        </div>
-
-                                        <div class="form-group">
-                                            <label for="log_blocked_connections_log_limit">
-                                                Limit of entries in the log to blocked connections per minute
-                                            </label>
-                                            <input type="text" class="form-control"
-                                                id="log_blocked_connections_log_limit"
-                                                name="log_blocked_connections_log_limit"
-                                                aria-describedby="log_blocked_connections_log_limit_help"
-                                                placeholder="Example: 60"
-                                                {% if vars.config.get_value("IPTABLES", "log_blocked_connections_log_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "log_blocked_connections_log_limit")}}
-                                                {% endif %}>
-                                            <small id="log_blocked_connections_log_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of entries to be stored per minute in the log
-                                                file.<br />The configuration is needed to avoid log file flooding.
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="card">
-                                    <div class="card-header">
-                                        Blacklisted Connections
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_log_blacklist_connections">
-                                            <input type="checkbox" id="log_blacklist_connections"
-                                                name="log_blacklist_connections"
-                                                {% if vars.config.get_value("IPTABLES", "log_blacklist_connections") == true %}
-                                                checked {% endif %} aria-describedby="log_blacklist_connections_help">
-                                            <label class="form-check-label" for="log_blacklist_connections">
-                                                Log all blocked connections from blocked IP addresses
-                                            </label>
-                                            <small id="log_blacklist_connections_help" class="form-text text-muted">
-                                                To check if IP addresses on the blacklist are still trying to connect to
-                                                your
-                                                system, you can enable this checkbox. All incoming connections from
-                                                blocked IP
-                                                addresses are then logged in the syslog.
-                                            </small>
-                                        </div>
-
-                                        <div class="form-group">
-                                            <label for="log_blacklist_connections_log_limit">
-                                                Limit of entries in the log to blacklisted connections per minute
-                                            </label>
-                                            <input type="text" class="form-control"
-                                                id="log_blacklist_connections_log_limit"
-                                                name="log_blacklist_connections_log_limit"
-                                                aria-describedby="log_blacklist_connections_log_limit_help"
-                                                placeholder="Example: 60"
-                                                {% if vars.config.get_value("IPTABLES", "log_blacklist_connections_log_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "log_blacklist_connections_log_limit")}}
-                                                {% endif %}>
-                                            <small id="log_blacklist_connections_log_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of entries to be stored per minute in the log
-                                                file.<br />The configuration is needed to avoid log file flooding.
-                                            </small>
+                                                <div class="form-group">
+                                                    <label for="log_blocked_connections_log_limit">
+                                                        Limit of entries in the log to blocked connections per minute
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="log_blocked_connections_log_limit"
+                                                        name="log_blocked_connections_log_limit"
+                                                        aria-describedby="log_blocked_connections_log_limit_help"
+                                                        placeholder="Example: 60"
+                                                        {% if vars.config.get_value("IPTABLES", "log_blocked_connections_log_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "log_blocked_connections_log_limit")}}
+                                                        {% endif %}>
+                                                    <small id="log_blocked_connections_log_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of entries to be stored per minute in
+                                                        the log
+                                                        file.<br />The configuration is needed to avoid log file
+                                                        flooding.
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
+                                                Blacklisted Connections
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_log_blacklist_connections">
+                                                    <input type="checkbox" id="log_blacklist_connections"
+                                                        name="log_blacklist_connections"
+                                                        {% if vars.config.get_value("IPTABLES", "log_blacklist_connections") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="log_blacklist_connections_help">
+                                                    <label class="form-check-label" for="log_blacklist_connections">
+                                                        Log all blocked connections from blocked IP addresses
+                                                    </label>
+                                                    <small id="log_blacklist_connections_help"
+                                                        class="form-text text-muted">
+                                                        To check if IP addresses on the blacklist are still trying to
+                                                        connect to
+                                                        your
+                                                        system, you can enable this checkbox. All incoming connections
+                                                        from
+                                                        blocked IP
+                                                        addresses are then logged in the syslog.
+                                                    </small>
+                                                </div>
 
-                                <div class="card">
-                                    <div class="card-header">
-                                        Broadcast, Multicast, Anycast
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_drop_broadcast_packets">
-                                            <input type="checkbox" id="drop_broadcast_packets"
-                                                name="drop_broadcast_packets"
-                                                {% if vars.config.get_value("IPTABLES", "drop_broadcast_packets") == true %}
-                                                checked {% endif %} aria-describedby="drop_broadcast_packets_help">
-                                            <label class="form-check-label" for="drop_broadcast_packets">
-                                                Reject broadcast packets
-                                            </label>
-                                            <small id="drop_broadcast_packets_help" class="form-text text-muted">
-                                                If this field is activated, all incoming packets of type Broadcast are
-                                                rejected.<br />
-                                                This can cause problems with DHCP servers or clients.
-                                            </small>
-                                        </div>
-
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_drop_multicast_packets">
-                                            <input type="checkbox" id="drop_multicast_packets"
-                                                name="drop_multicast_packets"
-                                                {% if vars.config.get_value("IPTABLES", "drop_multicast_packets") == true %}
-                                                checked {% endif %} aria-describedby="drop_multicast_packets_help">
-                                            <label class="form-check-label" for="drop_multicast_packets">
-                                                Reject multicast packets
-                                            </label>
-                                            <small id="drop_multicast_packets_help" class="form-text text-muted">
-                                                If this field is activated, all incoming packets of type Multicast are
-                                                rejected.
-                                            </small>
-                                        </div>
-
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_drop_anycast_packets">
-                                            <input type="checkbox" id="drop_anycast_packets" name="drop_anycast_packets"
-                                                {% if vars.config.get_value("IPTABLES", "drop_anycast_packets") == true %}
-                                                checked {% endif %} aria-describedby="drop_anycast_packets_help">
-                                            <label class="form-check-label" for="drop_anycast_packets">
-                                                Reject anycast packets
-                                            </label>
-                                            <small id="drop_anycast_packets_help" class="form-text text-muted">
-                                                If this field is activated, all incoming packets of type Anycast are
-                                                rejected.
-                                            </small>
+                                                <div class="form-group">
+                                                    <label for="log_blacklist_connections_log_limit">
+                                                        Limit of entries in the log to blacklisted connections per
+                                                        minute
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="log_blacklist_connections_log_limit"
+                                                        name="log_blacklist_connections_log_limit"
+                                                        aria-describedby="log_blacklist_connections_log_limit_help"
+                                                        placeholder="Example: 60"
+                                                        {% if vars.config.get_value("IPTABLES", "log_blacklist_connections_log_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "log_blacklist_connections_log_limit")}}
+                                                        {% endif %}>
+                                                    <small id="log_blacklist_connections_log_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of entries to be stored per minute in
+                                                        the log
+                                                        file.<br />The configuration is needed to avoid log file
+                                                        flooding.
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="card">
-                                    <div class="card-header">
-                                        SSH brute force Prevention
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
+                                                Broadcast, Multicast, Anycast
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_drop_broadcast_packets">
+                                                    <input type="checkbox" id="drop_broadcast_packets"
+                                                        name="drop_broadcast_packets"
+                                                        {% if vars.config.get_value("IPTABLES", "drop_broadcast_packets") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="drop_broadcast_packets_help">
+                                                    <label class="form-check-label" for="drop_broadcast_packets">
+                                                        Reject broadcast packets
+                                                    </label>
+                                                    <small id="drop_broadcast_packets_help"
+                                                        class="form-text text-muted">
+                                                        If this field is activated, all incoming packets of type
+                                                        Broadcast are
+                                                        rejected.<br />
+                                                        This can cause problems with DHCP servers or clients.
+                                                    </small>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_drop_multicast_packets">
+                                                    <input type="checkbox" id="drop_multicast_packets"
+                                                        name="drop_multicast_packets"
+                                                        {% if vars.config.get_value("IPTABLES", "drop_multicast_packets") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="drop_multicast_packets_help">
+                                                    <label class="form-check-label" for="drop_multicast_packets">
+                                                        Reject multicast packets
+                                                    </label>
+                                                    <small id="drop_multicast_packets_help"
+                                                        class="form-text text-muted">
+                                                        If this field is activated, all incoming packets of type
+                                                        Multicast are
+                                                        rejected.
+                                                    </small>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_drop_anycast_packets">
+                                                    <input type="checkbox" id="drop_anycast_packets"
+                                                        name="drop_anycast_packets"
+                                                        {% if vars.config.get_value("IPTABLES", "drop_anycast_packets") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="drop_anycast_packets_help">
+                                                    <label class="form-check-label" for="drop_anycast_packets">
+                                                        Reject anycast packets
+                                                    </label>
+                                                    <small id="drop_anycast_packets_help" class="form-text text-muted">
+                                                        If this field is activated, all incoming packets of type
+                                                        Anycast are
+                                                        rejected.
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_ssh_brute_force_prevention">
-                                            <input type="checkbox" id="ssh_brute_force_prevention"
-                                                name="ssh_brute_force_prevention"
-                                                {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention") == true %}
-                                                checked {% endif %} aria-describedby="ssh_brute_force_prevention_help">
-                                            <label class="form-check-label" for="ssh_brute_force_prevention">
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
                                                 SSH brute force Prevention
-                                            </label>
-                                            <small id="ssh_brute_force_prevention_help" class="form-text text-muted">
-                                                If you check this box, the SSH port is specially protected.<br />
-                                                To do this, you must mark the SSH port with the "SSH" option under
-                                                Ports.
-                                            </small>
-                                        </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_ssh_brute_force_prevention">
+                                                    <input type="checkbox" id="ssh_brute_force_prevention"
+                                                        name="ssh_brute_force_prevention"
+                                                        {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="ssh_brute_force_prevention_help">
+                                                    <label class="form-check-label" for="ssh_brute_force_prevention">
+                                                        SSH brute force Prevention
+                                                    </label>
+                                                    <small id="ssh_brute_force_prevention_help"
+                                                        class="form-text text-muted">
+                                                        If you check this box, the SSH port is specially
+                                                        protected.<br />
+                                                        To do this, you must mark the SSH port with the "SSH" option
+                                                        under
+                                                        Ports.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <input type="hidden" value="off"
-                                                name="checkbox_ssh_brute_force_prevention_log">
-                                            <input type="checkbox" id="ssh_brute_force_prevention_log"
-                                                name="ssh_brute_force_prevention_log"
-                                                {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_log") == true %}
-                                                checked {% endif %}
-                                                aria-describedby="ssh_brute_force_prevention_log_help">
-                                            <label class="form-check-label" for="ssh_brute_force_prevention_log">
-                                                Log all blocked connections from SSH brute force prevention
-                                            </label>
-                                            <small id="ssh_brute_force_prevention_log_help"
-                                                class="form-text text-muted">
-                                                If you check this box, SSH brute force prevention will record the
-                                                blocked
-                                                connections in syslog.<br />
-                                                Please make sure that the syslog is rotated regularly to avoid large
-                                                logfiles.
-                                            </small>
-                                        </div>
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_ssh_brute_force_prevention_log">
+                                                    <input type="checkbox" id="ssh_brute_force_prevention_log"
+                                                        name="ssh_brute_force_prevention_log"
+                                                        {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_log") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="ssh_brute_force_prevention_log_help">
+                                                    <label class="form-check-label"
+                                                        for="ssh_brute_force_prevention_log">
+                                                        Log all blocked connections from SSH brute force prevention
+                                                    </label>
+                                                    <small id="ssh_brute_force_prevention_log_help"
+                                                        class="form-text text-muted">
+                                                        If you check this box, SSH brute force prevention will
+                                                        record the
+                                                        blocked
+                                                        connections in syslog.<br />
+                                                        Please make sure that the syslog is rotated regularly to
+                                                        avoid large
+                                                        logfiles.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <label for="ssh_brute_force_prevention_connection_limit">
-                                                Number of connections to the SSH port until the sender is blocked
-                                            </label>
-                                            <input type="text" class="form-control"
-                                                id="ssh_brute_force_prevention_connection_limit"
-                                                name="ssh_brute_force_prevention_connection_limit"
-                                                aria-describedby="ssh_brute_force_prevention_connection_limit_help"
-                                                placeholder="Example: 5"
-                                                {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_connection_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_connection_limit")}}
-                                                {% endif %}>
-                                            <small id="ssh_brute_force_prevention_connection_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of connections per minute on the SSH port until
-                                                the
-                                                sender address is blocked.
-                                            </small>
-                                        </div>
+                                                <div class="form-group">
+                                                    <label for="ssh_brute_force_prevention_connection_limit">
+                                                        Number of connections to the SSH port until the sender is
+                                                        blocked
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="ssh_brute_force_prevention_connection_limit"
+                                                        name="ssh_brute_force_prevention_connection_limit"
+                                                        aria-describedby="ssh_brute_force_prevention_connection_limit_help"
+                                                        placeholder="Example: 5"
+                                                        {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_connection_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_connection_limit")}}
+                                                        {% endif %}>
+                                                    <small id="ssh_brute_force_prevention_connection_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of connections per minute on the SSH
+                                                        port until
+                                                        the
+                                                        sender address is blocked.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <label for="ssh_brute_force_prevention_log_limit">
-                                                Limit of entries in the log to blocked connections per minute
-                                            </label>
-                                            <input type="text" class="form-control"
-                                                id="ssh_brute_force_prevention_log_limit"
-                                                name="ssh_brute_force_prevention_log_limit"
-                                                aria-describedby="ssh_brute_force_prevention_log_limit_help"
-                                                placeholder="Example: 5"
-                                                {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_log_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_log_limit")}}
-                                                {% endif %}>
-                                            <small id="ssh_brute_force_prevention_log_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of entries created by the ssh brute force
-                                                prevention to
-                                                be stored per minute in the log file.<br />
-                                                The configuration is needed to avoid log file flooding.
-                                            </small>
+                                                <div class="form-group">
+                                                    <label for="ssh_brute_force_prevention_log_limit">
+                                                        Limit of entries in the log to blocked connections per
+                                                        minute
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="ssh_brute_force_prevention_log_limit"
+                                                        name="ssh_brute_force_prevention_log_limit"
+                                                        aria-describedby="ssh_brute_force_prevention_log_limit_help"
+                                                        placeholder="Example: 5"
+                                                        {% if vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_log_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "ssh_brute_force_prevention_log_limit")}}
+                                                        {% endif %}>
+                                                    <small id="ssh_brute_force_prevention_log_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of entries created by the ssh brute
+                                                        force
+                                                        prevention to
+                                                        be stored per minute in the log file.<br />
+                                                        The configuration is needed to avoid log file flooding.
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="card">
-                                    <div class="card-header">
-                                        ICMP flood Prevention
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_icmp_flood_prevention">
-                                            <input type="checkbox" id="icmp_flood_prevention"
-                                                name="icmp_flood_prevention"
-                                                {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention") == true %}
-                                                checked {% endif %} aria-describedby="icmp_flood_prevention_help">
-                                            <label class="form-check-label" for="icmp_flood_prevention">
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
                                                 ICMP flood Prevention
-                                            </label>
-                                            <small id="icmp_flood_prevention_help" class="form-text text-muted">
-                                                If you activate this setting, the ICMP protocol is specially monitored
-                                                and
-                                                incoming connections are limited.
-                                            </small>
-                                        </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_icmp_flood_prevention">
+                                                    <input type="checkbox" id="icmp_flood_prevention"
+                                                        name="icmp_flood_prevention"
+                                                        {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="icmp_flood_prevention_help">
+                                                    <label class="form-check-label" for="icmp_flood_prevention">
+                                                        ICMP flood Prevention
+                                                    </label>
+                                                    <small id="icmp_flood_prevention_help" class="form-text text-muted">
+                                                        If you activate this setting, the ICMP protocol is
+                                                        specially monitored
+                                                        and
+                                                        incoming connections are limited.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_icmp_flood_prevention_log">
-                                            <input type="checkbox" id="icmp_flood_prevention_log"
-                                                name="icmp_flood_prevention_log"
-                                                {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention_log") == true %}
-                                                checked {% endif %} aria-describedby="icmp_flood_prevention_log_help">
-                                            <label class="form-check-label" for="icmp_flood_prevention_log">
-                                                Log all blocked connections from ICMP flood prevention
-                                            </label>
-                                            <small id="icmp_flood_prevention_log_help" class="form-text text-muted">
-                                                If you check this box, ICMP flood prevention will record the blocked
-                                                connections in syslog.<br />
-                                                Please make sure that the syslog is rotated regularly to avoid large
-                                                logfiles.
-                                            </small>
-                                        </div>
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_icmp_flood_prevention_log">
+                                                    <input type="checkbox" id="icmp_flood_prevention_log"
+                                                        name="icmp_flood_prevention_log"
+                                                        {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention_log") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="icmp_flood_prevention_log_help">
+                                                    <label class="form-check-label" for="icmp_flood_prevention_log">
+                                                        Log all blocked connections from ICMP flood prevention
+                                                    </label>
+                                                    <small id="icmp_flood_prevention_log_help"
+                                                        class="form-text text-muted">
+                                                        If you check this box, ICMP flood prevention will record
+                                                        the blocked
+                                                        connections in syslog.<br />
+                                                        Please make sure that the syslog is rotated regularly to
+                                                        avoid large
+                                                        logfiles.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <label for="icmp_flood_prevention_connection_limit">
-                                                Number of connections to the ICMP protocol until the sender is blocked
-                                            </label>
-                                            <input type="text" class="form-control"
-                                                id="icmp_flood_prevention_connection_limit"
-                                                name="icmp_flood_prevention_connection_limit"
-                                                aria-describedby="icmp_flood_prevention_connection_limit_help"
-                                                placeholder="Example: 60"
-                                                {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention_connection_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "icmp_flood_prevention_connection_limit")}}
-                                                {% endif %}>
-                                            <small id="icmp_flood_prevention_connection_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of connections per minute on the ICMP protocol
-                                                until the
-                                                sender address is blocked.
-                                            </small>
-                                        </div>
+                                                <div class="form-group">
+                                                    <label for="icmp_flood_prevention_connection_limit">
+                                                        Number of connections to the ICMP protocol until the
+                                                        sender is blocked
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="icmp_flood_prevention_connection_limit"
+                                                        name="icmp_flood_prevention_connection_limit"
+                                                        aria-describedby="icmp_flood_prevention_connection_limit_help"
+                                                        placeholder="Example: 60"
+                                                        {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention_connection_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "icmp_flood_prevention_connection_limit")}}
+                                                        {% endif %}>
+                                                    <small id="icmp_flood_prevention_connection_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of connections per minute on the
+                                                        ICMP protocol
+                                                        until the
+                                                        sender address is blocked.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <label for="icmp_flood_prevention_log_limit">
-                                                Limit of entries in the log to blocked connections per minute
-                                            </label>
-                                            <input type="text" class="form-control" id="icmp_flood_prevention_log_limit"
-                                                name="icmp_flood_prevention_log_limit"
-                                                aria-describedby="icmp_flood_prevention_log_limit_help"
-                                                placeholder="Example: 5"
-                                                {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention_log_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "icmp_flood_prevention_log_limit")}}
-                                                {% endif %}>
-                                            <small id="icmp_flood_prevention_log_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of entries created by the ICMP flood prevention
-                                                to
-                                                be stored per minute in the log file.<br />
-                                                The configuration is needed to avoid log file flooding.
-                                            </small>
+                                                <div class="form-group">
+                                                    <label for="icmp_flood_prevention_log_limit">
+                                                        Limit of entries in the log to blocked connections per
+                                                        minute
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="icmp_flood_prevention_log_limit"
+                                                        name="icmp_flood_prevention_log_limit"
+                                                        aria-describedby="icmp_flood_prevention_log_limit_help"
+                                                        placeholder="Example: 5"
+                                                        {% if vars.config.get_value("IPTABLES", "icmp_flood_prevention_log_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "icmp_flood_prevention_log_limit")}}
+                                                        {% endif %}>
+                                                    <small id="icmp_flood_prevention_log_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of entries created by the ICMP
+                                                        flood prevention
+                                                        to
+                                                        be stored per minute in the log file.<br />
+                                                        The configuration is needed to avoid log file flooding.
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                <div class="card">
-                                    <div class="card-header">
-                                        Reject invalid packages
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_drop_invalid_packets">
-                                            <input type="checkbox" id="drop_invalid_packets" name="drop_invalid_packets"
-                                                {% if vars.config.get_value("IPTABLES", "drop_invalid_packets") == true %}
-                                                checked {% endif %} aria-describedby="drop_invalid_packets_help">
-                                            <label class="form-check-label" for="drop_invalid_packets">
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
                                                 Reject invalid packages
-                                            </label>
-                                            <small id="drop_invalid_packets_help" class="form-text text-muted">
-                                                If you enable the setting, invalid packets are rejected before they
-                                                reach the
-                                                application.
-                                            </small>
-                                        </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_drop_invalid_packets">
+                                                    <input type="checkbox" id="drop_invalid_packets"
+                                                        name="drop_invalid_packets"
+                                                        {% if vars.config.get_value("IPTABLES", "drop_invalid_packets") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="drop_invalid_packets_help">
+                                                    <label class="form-check-label" for="drop_invalid_packets">
+                                                        Reject invalid packages
+                                                    </label>
+                                                    <small id="drop_invalid_packets_help" class="form-text text-muted">
+                                                        If you enable the setting, invalid packets are rejected
+                                                        before they
+                                                        reach the
+                                                        application.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_drop_invalid_packets_log">
-                                            <input type="checkbox" id="drop_invalid_packets_log"
-                                                name="drop_invalid_packets_log"
-                                                {% if vars.config.get_value("IPTABLES", "drop_invalid_packets_log") == true %}
-                                                checked {% endif %} aria-describedby="drop_invalid_packets_log_help">
-                                            <label class="form-check-label" for="drop_invalid_packets_log">
-                                                Log all dropped invalid packages
-                                            </label>
-                                            <small id="drop_invalid_packets_log_help" class="form-text text-muted">
-                                                If you check this box, dropped invalid packages will be recorded in
-                                                syslog.<br />
-                                                Please make sure that the syslog is rotated regularly to avoid large
-                                                logfiles.
-                                            </small>
-                                        </div>
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_drop_invalid_packets_log">
+                                                    <input type="checkbox" id="drop_invalid_packets_log"
+                                                        name="drop_invalid_packets_log"
+                                                        {% if vars.config.get_value("IPTABLES", "drop_invalid_packets_log") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="drop_invalid_packets_log_help">
+                                                    <label class="form-check-label" for="drop_invalid_packets_log">
+                                                        Log all dropped invalid packages
+                                                    </label>
+                                                    <small id="drop_invalid_packets_log_help"
+                                                        class="form-text text-muted">
+                                                        If you check this box, dropped invalid packages will be
+                                                        recorded in
+                                                        syslog.<br />
+                                                        Please make sure that the syslog is rotated regularly to
+                                                        avoid large
+                                                        logfiles.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <label for="drop_invalid_packets_log_limit">
-                                                Limit of entries in the log to dropped packages per minute
-                                            </label>
-                                            <input type="text" class="form-control" id="drop_invalid_packets_log_limit"
-                                                name="drop_invalid_packets_log_limit"
-                                                aria-describedby="drop_invalid_packets_log_limit_help"
-                                                placeholder="Example: 5"
-                                                {% if vars.config.get_value("IPTABLES", "drop_invalid_packets_log_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "drop_invalid_packets_log_limit")}}
-                                                {% endif %}>
-                                            <small id="drop_invalid_packets_log_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of entries created by the dropped packages to
-                                                be stored per minute in the log file.<br />
-                                                The configuration is needed to avoid log file flooding.
-                                            </small>
+                                                <div class="form-group">
+                                                    <label for="drop_invalid_packets_log_limit">
+                                                        Limit of entries in the log to dropped packages per
+                                                        minute
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="drop_invalid_packets_log_limit"
+                                                        name="drop_invalid_packets_log_limit"
+                                                        aria-describedby="drop_invalid_packets_log_limit_help"
+                                                        placeholder="Example: 5"
+                                                        {% if vars.config.get_value("IPTABLES", "drop_invalid_packets_log_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "drop_invalid_packets_log_limit")}}
+                                                        {% endif %}>
+                                                    <small id="drop_invalid_packets_log_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of entries created by the
+                                                        dropped packages to
+                                                        be stored per minute in the log file.<br />
+                                                        The configuration is needed to avoid log file flooding.
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="card">
-                                    <div class="card-header">
-                                        port scan Prevention
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_port_scan_prevention">
-                                            <input type="checkbox" id="port_scan_prevention" name="port_scan_prevention"
-                                                {% if vars.config.get_value("IPTABLES", "port_scan_prevention") == true %}
-                                                checked {% endif %} aria-describedby="port_scan_prevention_help">
-                                            <label class="form-check-label" for="port_scan_prevention">
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <div class="card border-secondary">
+                                            <div class="card-header">
                                                 port scan Prevention
-                                            </label>
-                                            <small id="port_scan_prevention_help" class="form-text text-muted">
-                                                If you activate this setting, incoming connections are checked
-                                                separately.<br />
-                                                If there are a large number of connections to different ports from one
-                                                sender in
-                                                a short time, the sender is blocked.
-                                            </small>
-                                        </div>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_port_scan_prevention">
+                                                    <input type="checkbox" id="port_scan_prevention"
+                                                        name="port_scan_prevention"
+                                                        {% if vars.config.get_value("IPTABLES", "port_scan_prevention") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="port_scan_prevention_help">
+                                                    <label class="form-check-label" for="port_scan_prevention">
+                                                        port scan Prevention
+                                                    </label>
+                                                    <small id="port_scan_prevention_help" class="form-text text-muted">
+                                                        If you activate this setting, incoming connections
+                                                        are checked
+                                                        separately.<br />
+                                                        If there are a large number of connections to
+                                                        different ports from one
+                                                        sender in
+                                                        a short time, the sender is blocked.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <input type="hidden" value="off" name="checkbox_port_scan_prevention_log">
-                                            <input type="checkbox" id="port_scan_prevention_log"
-                                                name="port_scan_prevention_log"
-                                                {% if vars.config.get_value("IPTABLES", "port_scan_prevention_log") == true %}
-                                                checked {% endif %} aria-describedby="port_scan_prevention_log_help">
-                                            <label class="form-check-label" for="port_scan_prevention_log">
-                                                Log all blocked connections from port scan prevention
-                                            </label>
-                                            <small id="port_scan_prevention_log_help" class="form-text text-muted">
-                                                If you check this box, SSH brute force prevention will record the
-                                                blocked
-                                                connections in syslog.<br />
-                                                Please make sure that the syslog is rotated regularly to avoid large
-                                                logfiles.
-                                            </small>
-                                        </div>
+                                                <div class="form-group">
+                                                    <input type="hidden" value="off"
+                                                        name="checkbox_port_scan_prevention_log">
+                                                    <input type="checkbox" id="port_scan_prevention_log"
+                                                        name="port_scan_prevention_log"
+                                                        {% if vars.config.get_value("IPTABLES", "port_scan_prevention_log") == true %}
+                                                        checked {% endif %}
+                                                        aria-describedby="port_scan_prevention_log_help">
+                                                    <label class="form-check-label" for="port_scan_prevention_log">
+                                                        Log all blocked connections from port scan
+                                                        prevention
+                                                    </label>
+                                                    <small id="port_scan_prevention_log_help"
+                                                        class="form-text text-muted">
+                                                        If you check this box, SSH brute force prevention
+                                                        will record the
+                                                        blocked
+                                                        connections in syslog.<br />
+                                                        Please make sure that the syslog is rotated
+                                                        regularly to avoid large
+                                                        logfiles.
+                                                    </small>
+                                                </div>
 
-                                        <div class="form-group">
-                                            <label for="port_scan_prevention_log_limit">
-                                                Limit of entries in the log to blocked connections per minute
-                                            </label>
-                                            <input type="text" class="form-control" id="port_scan_prevention_log_limit"
-                                                name="port_scan_prevention_log_limit"
-                                                aria-describedby="port_scan_prevention_log_limit_help"
-                                                placeholder="Example: 5"
-                                                {% if vars.config.get_value("IPTABLES", "port_scan_prevention_log_limit") != "" %}
-                                                value={{vars.config.get_value("IPTABLES", "port_scan_prevention_log_limit")}}
-                                                {% endif %}>
-                                            <small id="port_scan_prevention_log_limit_help"
-                                                class="form-text text-muted">
-                                                Please enter the number of entries created by the port scan prevention
-                                                to
-                                                be stored per minute in the log file.<br />
-                                                The configuration is needed to avoid log file flooding.
-                                            </small>
+                                                <div class="form-group">
+                                                    <label for="port_scan_prevention_log_limit">
+                                                        Limit of entries in the log to blocked connections
+                                                        per minute
+                                                    </label>
+                                                    <input type="text" class="form-control"
+                                                        id="port_scan_prevention_log_limit"
+                                                        name="port_scan_prevention_log_limit"
+                                                        aria-describedby="port_scan_prevention_log_limit_help"
+                                                        placeholder="Example: 5"
+                                                        {% if vars.config.get_value("IPTABLES", "port_scan_prevention_log_limit") != "" %}
+                                                        value={{vars.config.get_value("IPTABLES", "port_scan_prevention_log_limit")}}
+                                                        {% endif %}>
+                                                    <small id="port_scan_prevention_log_limit_help"
+                                                        class="form-text text-muted">
+                                                        Please enter the number of entries created by the
+                                                        port scan prevention
+                                                        to
+                                                        be stored per minute in the log file.<br />
+                                                        The configuration is needed to avoid log file
+                                                        flooding.
+                                                    </small>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-
-
-
 
                                 <button type="submit" class="btn btn-primary">Submit</button>
                             </form>
