@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2020-07-20
+
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
+
+### Added
+
+- GitHub sponsorship was activated for the project
+- A large number of configuration entries have been added
+- Blocked connections can be logged by iptables
+- Connections from blacklisted senders can be logged
+- Broadcast, multicast and anycast packets can be blocked
+- SSH brute force prevention was added. Attention! The feature is in alpha state and untested
+- ICMP flood prevention has been implemented. The feature is also in alpha state
+- Drop Invalid Packages was implemented. This is also an Alpa version
+- Port Scan Prevention has been implemented. The feature is currently unstable in my tests
+- IPv6 Router Advertisement connections can be allowed or prohibited
+- IPv6 Neighbor Advertisement packets can also be allowed or prohibited
+- Installation and update documentation has been improved
+- easywall is now programmed completely typed thanks to mypy
+- Ports can now be forwarded from the local system. Note that both the source and destination ports must be opened. This is because this is only a nat forwarding and not a FORWARDING forwarding
+- The translations have been significantly improved thanks to deepl.com
+- Username and password for the web interface can be changed directly in the web interface
+- It is recognized if configuration entries are missing. This is especially important in this version, because we have added some variables. You will be notified about the differences in the web interface
+- The start page of the web interface has been completely reworked. In the future I imagine a tag cloud from the open ports
+- The options page in the web interface now contains almost all settings from the files
+
+### Changed
+
+- Python 3.5 is no longer supported, because no typing of variables is possible
+- The detection from the first start has now been changed to a detection at every start. This has proven to be useful, as more rule types may be added in the future.
+- The configuration files are reloaded each time a variable is called. This is needed to activate changes from the web interface immediately.
+- An additional Python package "natsort" is required. The package offers the possibility to sort the ports naturally.
+- The allowed ICMPv4/v6 types are now strongly restricted.
+
+Allowed ICMPv4 types:
+
+- 0 echo-reply
+- 3 destination-unreachable
+- 11 time-exceeded
+- 12 parameter problem
+
+Allowed ICMPv6 types:
+
+- 1 destination-unreachable
+- 2 packet-too-big
+- 3 time-exceeded
+- 4 parameter problem
+- 128 echo request
+- 129 echo-reply
+
+After explicit configuration the following ICMPv6 types are allowed additionally:
+
+- 133 router solicitation
+- 134 router advertisement
+- 135 neighbor solicitation
+- 136 neighbor advertisement
+
 ## [0.1.0] - 2020-06-21
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0)
@@ -101,7 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0
 [0.0.4]: https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3
