@@ -98,8 +98,7 @@
                                                     <small id="log_blocked_connections_log_limit_help"
                                                         class="form-text text-muted">
                                                         Please enter the number of entries to be stored per minute in
-                                                        the log
-                                                        file.<br />The configuration is needed to avoid log file
+                                                        the log file. The configuration is needed to avoid log file
                                                         flooding.
                                                     </small>
                                                 </div>
@@ -151,8 +150,7 @@
                                                     <small id="log_blacklist_connections_log_limit_help"
                                                         class="form-text text-muted">
                                                         Please enter the number of entries to be stored per minute in
-                                                        the log
-                                                        file.<br />The configuration is needed to avoid log file
+                                                        the log file. The configuration is needed to avoid log file
                                                         flooding.
                                                     </small>
                                                 </div>
@@ -179,9 +177,8 @@
                                                     <small id="drop_broadcast_packets_help"
                                                         class="form-text text-muted">
                                                         If this field is activated, all incoming packets of type
-                                                        Broadcast are
-                                                        rejected.<br />
-                                                        This can cause problems with DHCP servers or clients.
+                                                        Broadcast are rejected. This can cause problems with DHCP
+                                                        servers or clients.
                                                     </small>
                                                 </div>
 
@@ -246,10 +243,8 @@
                                                     </label>
                                                     <small id="ssh_brute_force_prevention_help"
                                                         class="form-text text-muted">
-                                                        If you check this box, the SSH port is specially
-                                                        protected.<br />
-                                                        To do this, you must mark the SSH port with the "SSH" option
-                                                        under
+                                                        If you check this box, the SSH port is specially protected. To
+                                                        do this, you must mark the SSH port with the "SSH" option under
                                                         Ports.
                                                     </small>
                                                 </div>
@@ -268,13 +263,9 @@
                                                     </label>
                                                     <small id="ssh_brute_force_prevention_log_help"
                                                         class="form-text text-muted">
-                                                        If you check this box, SSH brute force prevention will
-                                                        record the
-                                                        blocked
-                                                        connections in syslog.<br />
-                                                        Please make sure that the syslog is rotated regularly to
-                                                        avoid large
-                                                        logfiles.
+                                                        If you check this box, SSH brute force prevention will record
+                                                        the blocked connections in syslog. Please make sure that the
+                                                        syslog is rotated regularly to avoid large logfiles.
                                                     </small>
                                                 </div>
 
@@ -316,10 +307,8 @@
                                                     <small id="ssh_brute_force_prevention_log_limit_help"
                                                         class="form-text text-muted">
                                                         Please enter the number of entries created by the ssh brute
-                                                        force
-                                                        prevention to
-                                                        be stored per minute in the log file.<br />
-                                                        The configuration is needed to avoid log file flooding.
+                                                        force prevention to be stored per minute in the log file. The
+                                                        configuration is needed to avoid log file flooding.
                                                     </small>
                                                 </div>
                                             </div>
@@ -363,12 +352,9 @@
                                                     </label>
                                                     <small id="icmp_flood_prevention_log_help"
                                                         class="form-text text-muted">
-                                                        If you check this box, ICMP flood prevention will record
-                                                        the blocked
-                                                        connections in syslog.<br />
-                                                        Please make sure that the syslog is rotated regularly to
-                                                        avoid large
-                                                        logfiles.
+                                                        If you check this box, ICMP flood prevention will record the
+                                                        blocked connections in syslog. Please make sure that the syslog
+                                                        is rotated regularly to avoid large logfiles.
                                                     </small>
                                                 </div>
 
@@ -409,11 +395,9 @@
                                                         {% endif %}>
                                                     <small id="icmp_flood_prevention_log_limit_help"
                                                         class="form-text text-muted">
-                                                        Please enter the number of entries created by the ICMP
-                                                        flood prevention
-                                                        to
-                                                        be stored per minute in the log file.<br />
-                                                        The configuration is needed to avoid log file flooding.
+                                                        Please enter the number of entries created by the ICMP flood
+                                                        prevention to be stored per minute in the log file. The
+                                                        configuration is needed to avoid log file flooding.
                                                     </small>
                                                 </div>
                                             </div>
@@ -460,12 +444,9 @@
                                                     </label>
                                                     <small id="drop_invalid_packets_log_help"
                                                         class="form-text text-muted">
-                                                        If you check this box, dropped invalid packages will be
-                                                        recorded in
-                                                        syslog.<br />
-                                                        Please make sure that the syslog is rotated regularly to
-                                                        avoid large
-                                                        logfiles.
+                                                        If you check this box, dropped invalid packages will be recorded
+                                                        in syslog. Please make sure that the syslog is rotated regularly
+                                                        to avoid large logfiles.
                                                     </small>
                                                 </div>
 
@@ -484,10 +465,9 @@
                                                         {% endif %}>
                                                     <small id="drop_invalid_packets_log_limit_help"
                                                         class="form-text text-muted">
-                                                        Please enter the number of entries created by the
-                                                        dropped packages to
-                                                        be stored per minute in the log file.<br />
-                                                        The configuration is needed to avoid log file flooding.
+                                                        Please enter the number of entries created by the dropped
+                                                        packages to be stored per minute in the log file. The
+                                                        configuration is needed to avoid log file flooding.
                                                     </small>
                                                 </div>
                                             </div>
@@ -511,13 +491,10 @@
                                                         port scan Prevention
                                                     </label>
                                                     <small id="port_scan_prevention_help" class="form-text text-muted">
-                                                        If you activate this setting, incoming connections
-                                                        are checked
-                                                        separately.<br />
-                                                        If there are a large number of connections to
-                                                        different ports from one
-                                                        sender in
-                                                        a short time, the sender is blocked.
+                                                        If you activate this setting, incoming connections are checked
+                                                        separately. If there are a large number of connections to
+                                                        different ports from one sender in a short time, the sender is
+                                                        blocked.
                                                     </small>
                                                 </div>
 
@@ -535,13 +512,9 @@
                                                     </label>
                                                     <small id="port_scan_prevention_log_help"
                                                         class="form-text text-muted">
-                                                        If you check this box, SSH brute force prevention
-                                                        will record the
-                                                        blocked
-                                                        connections in syslog.<br />
-                                                        Please make sure that the syslog is rotated
-                                                        regularly to avoid large
-                                                        logfiles.
+                                                        If you check this box, SSH brute force prevention will record
+                                                        the blocked connections in syslog. Please make sure that the
+                                                        syslog is rotated regularly to avoid large logfiles.
                                                     </small>
                                                 </div>
 
@@ -560,12 +533,9 @@
                                                         {% endif %}>
                                                     <small id="port_scan_prevention_log_limit_help"
                                                         class="form-text text-muted">
-                                                        Please enter the number of entries created by the
-                                                        port scan prevention
-                                                        to
-                                                        be stored per minute in the log file.<br />
-                                                        The configuration is needed to avoid log file
-                                                        flooding.
+                                                        Please enter the number of entries created by the port scan
+                                                        prevention to be stored per minute in the log file. The
+                                                        configuration is needed to avoid log file flooding.
                                                     </small>
                                                 </div>
                                             </div>
