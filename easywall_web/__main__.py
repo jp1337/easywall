@@ -3,7 +3,7 @@ import os
 from logging import info
 from typing import Tuple, Union
 
-from flask import Flask
+from flask import Flask, wrappers
 from werkzeug.wrappers import Response
 
 from easywall.config import Config
@@ -26,7 +26,7 @@ CONFIG_PATH = "config/web.ini"
 
 
 @APP.after_request
-def apply_headers(response: Response) -> Response:
+def apply_headers(response: wrappers.Response) -> wrappers.Response:
     """
     TODO: Docu
     """
