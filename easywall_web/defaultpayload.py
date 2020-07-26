@@ -27,6 +27,7 @@ class DefaultPayload(object):
         self.commit_sha: str
         self.commit_date: str
         self.config_mismatch: bool
+        self.web_config_mismatch: bool
         self.error: str
         self.step: int
         self.lastapplied: str

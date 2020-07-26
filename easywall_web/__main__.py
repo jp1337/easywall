@@ -26,7 +26,7 @@ CONFIG_PATH = "config/web.ini"
 
 
 @APP.after_request
-def apply_headers(response):
+def apply_headers(response: Response):
     """
     TODO: Docu
     """
