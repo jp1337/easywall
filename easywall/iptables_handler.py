@@ -63,12 +63,13 @@ class Iptables(object):
         """
         option = "-P"
 
-        execute_os_command("{} {} {} {}".format(self.iptables_bin, option, chain.value, target))
+        execute_os_command("{} {} {} {}".format(
+            self.iptables_bin, option, chain.value, target.value))
         if self.ipv6 is True:
             execute_os_command("{} {} {} {}".format(
-                self.ip6tables_bin, option, chain.value, target))
+                self.ip6tables_bin, option, chain.value, target.value))
 
-        info("iptables policy added for chain {} and target {}".format(chain, target))
+        info("iptables policy added for chain {} and target {}".format(chain.value, target.value))
 
     def add_chain(self, chain: str) -> None:
         """
