@@ -25,6 +25,15 @@ APP = Flask(__name__)
 CONFIG_PATH = "config/web.ini"
 
 
+@APP.after_request
+def apply_headers(response):
+    """
+    TODO: Docu
+    """
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
 @APP.route('/')
 def index_route() -> str:
     """The function calls the corresponding function from the appropriate module"""
