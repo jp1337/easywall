@@ -39,8 +39,16 @@
         <ul class="navbar-nav mr-right my-2 my-lg-0">
             <li class="nav-item">
                 <a class="nav-link btn" title="Configuration Mismatch!" href="#" data-toggle="modal"
-                    data-target="#configModal">
+                    data-target="#config-modal">
                     {% if vars.config_mismatch %}
+                    <span class="badge badge-pill badge-danger">!</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link btn" title="Web Configuration Mismatch!" href="#" data-toggle="modal"
+                    data-target="#web-config-modal">
+                    {% if vars.web_config_mismatch %}
                     <span class="badge badge-pill badge-danger">!</span>
                     {% endif %}
                 </a>
