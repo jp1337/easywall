@@ -29,7 +29,8 @@ def create_file_if_not_exists(fullpath: str) -> bool:
     if not path.isfile(fullpath) or not access(fullpath, R_OK):
         with open(fullpath, 'w+'):
             pass
-        chmod(fullpath, 0o770)
+        if file_exists(fullpath):
+            chmod(fullpath, 0o770)
         return True
     return False
 
