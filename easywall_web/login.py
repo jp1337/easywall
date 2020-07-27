@@ -49,9 +49,9 @@ def login_post(ip_ban: IpBan) -> Union[Response, str]:
              "IP address of the remote device: {}".format(request.remote_addr))
         return redirect("/")
     else:
-        ip_ban.add(ip=request.remote_addr)
         warning("Failed login attempt for the user {} detected. ".format(request.form['username']) +
                 "IP address of the remote device: {}".format(request.remote_addr))
+    ip_ban.add(ip=request.remote_addr)
     return login("Wrong username or password.", "danger")
 
 
