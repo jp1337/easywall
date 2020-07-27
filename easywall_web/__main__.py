@@ -13,7 +13,7 @@ from easywall.rules_handler import RulesHandler
 from easywall_web.apply import apply, apply_save
 from easywall_web.blacklist import blacklist, blacklist_save
 from easywall_web.custom import custom, custom_save
-from easywall_web.error import page_not_found
+from easywall_web.error import forbidden, page_not_found
 from easywall_web.forwarding import forwarding, forwarding_save
 from easywall_web.index import index
 from easywall_web.login import login_post, logout
@@ -143,6 +143,12 @@ def logout_route() -> str:
 def page_not_found_route(error: int) -> Union[str, Tuple[str, int]]:
     """The function calls the corresponding function from the appropriate module"""
     return page_not_found(error)
+
+
+@APP.errorhandler(403)
+def forbidden_route(error: int) -> Union[str, Tuple[str, int]]:
+    """The function calls the corresponding function from the appropriate module"""
+    return forbidden(error)
 
 
 class DefaultConfig(object):

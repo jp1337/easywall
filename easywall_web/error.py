@@ -11,6 +11,15 @@ def page_not_found(error: int) -> Union[str, Tuple[str, int]]:
     """the function returns the 404 error page when the user is logged in"""
     utils = Webutils()
     if utils.check_login(request) is True:
-        return render_template(
-            '404.html', vars=utils.get_default_payload("404 Error", "error")), 404
+        payload = utils.get_default_payload("404 Error", "error")
+        payload.error_code = error
+        return render_template('error.html', vars=payload), 404
     return login()
+
+
+def forbidden(error: int) -> Union[str, Tuple[str, int]]:
+    """the function returns the 403 error page when the user is logged in"""
+    utils = Webutils()
+    payload = utils.get_default_payload("403 Error", "error")
+    payload.error_code = error
+    return render_template('error.html', vars=payload), 404
