@@ -34,6 +34,8 @@ username = demo
 password = xxx
 bindip = 0.0.0.0
 bindport = 12227
+login_attempts = 10
+login_bantime = 1800
 
 [VERSION]
 version = 0.0.0
