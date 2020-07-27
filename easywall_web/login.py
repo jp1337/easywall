@@ -7,6 +7,7 @@ from logging import info, warning
 from typing import Union
 
 from flask import redirect, render_template, request, session
+from flask_ipban import IpBan
 from werkzeug.wrappers import Response
 
 from easywall_web.webutils import Webutils
@@ -27,7 +28,7 @@ def login(message: Union[None, str] = None, messagetype: Union[None, str] = None
     return render_template('login.html', vars=payload)
 
 
-def login_post() -> Union[Response, str]:
+def login_post(ip_ban: IpBan) -> Union[Response, str]:
     """
     the function handles the login post request and if all information are correct
     a session variable is set to store the login information
@@ -48,6 +49,7 @@ def login_post() -> Union[Response, str]:
              "IP address of the remote device: {}".format(request.remote_addr))
         return redirect("/")
     else:
+        ip_ban.add(ip=request.remote_addr)
         warning("Failed login attempt for the user {} detected. ".format(request.form['username']) +
                 "IP address of the remote device: {}".format(request.remote_addr))
     return login("Wrong username or password.", "danger")

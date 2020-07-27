@@ -4,12 +4,12 @@ from logging import info
 from typing import Tuple, Union
 
 from flask import Flask, wrappers
+from flask_ipban import IpBan
 from werkzeug.wrappers import Response
 
 from easywall.config import Config
 from easywall.log import Log
 from easywall.rules_handler import RulesHandler
-from easywall.utility import folder_exists
 from easywall_web.apply import apply, apply_save
 from easywall_web.blacklist import blacklist, blacklist_save
 from easywall_web.custom import custom, custom_save
@@ -130,7 +130,7 @@ def apply_save_route() -> str:
 @APP.route('/login', methods=['POST'])
 def login_post_route() -> Union[Response, str]:
     """The function calls the corresponding function from the appropriate module"""
-    return login_post()
+    return login_post(MAIN.ip_ban)
 
 
 @APP.route("/logout")
@@ -191,12 +191,14 @@ class Main(object):
         logfile = self.cfg.get_value("LOG", "filename")
         self.log = Log(str(loglevel), bool(to_stdout), bool(to_files), str(logpath), str(logfile))
 
+        self.login_attempts = self.cfg.get_value("WEB", "login_attempts")
+        self.login_bantime = self.cfg.get_value("WEB", "login_bantime")
+        self.ip_ban = IpBan(app=APP, ban_count=self.login_attempts, ban_seconds=self.login_bantime)
+
         info("starting easywall-web")
 
-        self.is_first_run = not folder_exists("rules")
         self.rules_handler = RulesHandler()
-        if self.is_first_run:
-            self.rules_handler.ensure_files_exist()
+        self.rules_handler.ensure_files_exist()
 
         if debug is True:
             port = self.cfg.get_value("WEB", "bindport")
@@ -208,6 +210,6 @@ class Main(object):
 
 
 if __name__ == '__main__':
-    Main(debug=True)
+    MAIN = Main(debug=True)
 else:
     Main()
