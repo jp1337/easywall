@@ -212,4 +212,4 @@ class Main(object):
 if __name__ == '__main__':
     MAIN = Main(debug=True)
 else:
-    Main()
+    MAIN = Main()
