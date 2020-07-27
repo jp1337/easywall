@@ -33,7 +33,7 @@ def apply_headers(response: wrappers.Response) -> wrappers.Response:
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Content-Security-Policy"] = "script-src 'self'"
+    response.headers["Content-Security-Policy"] = "script-src 'self' ; frame-ancestors 'none'"
     return response
 
 
