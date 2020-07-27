@@ -29,6 +29,8 @@ class DefaultPayload(object):
         self.config_mismatch: bool
         self.web_config_mismatch: bool
         self.error: str
+        self.error_code: int
+        self.error_desc: str
         self.step: int
         self.lastapplied: str
         self.running: bool

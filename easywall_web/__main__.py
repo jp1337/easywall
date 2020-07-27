@@ -140,13 +140,13 @@ def logout_route() -> str:
 
 
 @APP.errorhandler(404)
-def page_not_found_route(error: int) -> Union[str, Tuple[str, int]]:
+def page_not_found_route(error: str) -> Union[str, Tuple[str, int]]:
     """The function calls the corresponding function from the appropriate module"""
     return page_not_found(error)
 
 
 @APP.errorhandler(403)
-def forbidden_route(error: int) -> Union[str, Tuple[str, int]]:
+def forbidden_route(error: str) -> Union[str, Tuple[str, int]]:
     """The function calls the corresponding function from the appropriate module"""
     return forbidden(error)
 
