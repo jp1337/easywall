@@ -200,6 +200,7 @@ class Main(object):
         self.login_attempts = self.cfg.get_value("WEB", "login_attempts")
         self.login_bantime = self.cfg.get_value("WEB", "login_bantime")
         self.ip_ban = IpBan(app=APP, ban_count=self.login_attempts, ban_seconds=self.login_bantime)
+        self.ip_ban.url_pattern_add('/static', match_type='string')
 
         info("starting easywall-web")
 
