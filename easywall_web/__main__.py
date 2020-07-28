@@ -151,6 +151,14 @@ def forbidden_route(error: str) -> Union[str, Tuple[str, int]]:
     return forbidden(error)
 
 
+@APP.before_request
+def before_request_func() -> None:
+    """
+    TODO: Docu
+    """
+    MAIN.ip_ban.ip_record.read_updates(True)
+
+
 class DefaultConfig(object):
     """
     TODO: Docu
@@ -199,8 +207,9 @@ class Main(object):
 
         self.login_attempts = self.cfg.get_value("WEB", "login_attempts")
         self.login_bantime = self.cfg.get_value("WEB", "login_bantime")
-        self.ip_ban = IpBan(app=APP, ban_count=self.login_attempts, ban_seconds=self.login_bantime)
-        self.ip_ban.url_pattern_add('/static', match_type='string')
+        self.ip_ban = IpBan(app=APP, ban_count=self.login_attempts,
+                            ban_seconds=self.login_bantime, ipc=True)
+        self.ip_ban.url_pattern_add('^/static.*$', match_type='regex')
 
         info("starting easywall-web")
 
