@@ -24,4 +24,4 @@ def forbidden(error: str) -> Union[str, Tuple[str, int]]:
     payload = utils.get_default_payload("403 Error", "error")
     payload.error_code = 403
     payload.error_desc = error
-    return render_template('error.html', vars=payload), 404
+    return render_template('error.html', vars=payload), 403
