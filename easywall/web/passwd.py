@@ -5,7 +5,7 @@ import platform
 import argparse
 
 from easywall.config import Config
-from easywall_web.__main__ import CONFIG_PATH
+from easywall.web.__main__ import CONFIG_PATH
 
 
 class Passwd(object):

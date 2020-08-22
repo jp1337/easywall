@@ -39,7 +39,7 @@ while true; do
 done
 
 if [[ $DEBUG == true ]]; then
-    /usr/bin/env python3 -m easywall_web
+    /usr/bin/env python3 -m easywall.web
 else
     uwsgi config/web.ini
 fi

@@ -5,8 +5,8 @@ from datetime import datetime
 
 from flask import render_template, request
 from easywall.utility import create_file_if_not_exists, write_into_file
-from easywall_web.login import login
-from easywall_web.webutils import Webutils
+from easywall.web.login import login
+from easywall.web.webutils import Webutils
 
 
 def apply(saved: bool = False, step: int = 1) -> str:

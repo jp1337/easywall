@@ -10,7 +10,7 @@ from flask import redirect, render_template, request, session
 from flask_ipban import IpBan
 from werkzeug.wrappers import Response
 
-from easywall_web.webutils import Webutils
+from easywall.web.webutils import Webutils
 
 
 def login(message: Union[None, str] = None, messagetype: Union[None, str] = None) -> str:

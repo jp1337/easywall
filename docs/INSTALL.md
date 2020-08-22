@@ -57,7 +57,7 @@ bash scripts/install-web.sh
 ```sh
 # optional:
 # cd /opt/easywall
-python3 easywall_web/passwd.py
+python3 easywall/web/passwd.py
 ```
 
 ## Manual installation
@@ -105,5 +105,5 @@ bash scripts/install-web.sh
 ```sh
 # optional:
 # cd /opt/easywall
-python3 easywall_web/passwd.py
+python3 easywall/web/passwd.py
 ```

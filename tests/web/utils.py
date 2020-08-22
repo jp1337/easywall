@@ -49,7 +49,7 @@ processes = 5
 threads = 2
 callable = APP
 master = false
-wsgi-file = easywall_web/__main__.py
+wsgi-file = easywall/web/__main__.py
 need-plugin = python3
 """
 
@@ -73,7 +73,7 @@ def prepare_client() -> FlaskClient:
     """
     TODO: Doku
     """
-    from easywall_web.__main__ import APP
+    from easywall.web.__main__ import APP
     APP.config['TESTING'] = True
     APP.secret_key = urandom(12)
     return APP.test_client()

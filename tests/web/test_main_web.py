@@ -22,5 +22,5 @@ class TestMain(unittest.TestCase):
         """
         TODO: Doku
         """
-        from easywall_web.__main__ import Main
+        from easywall.web.__main__ import Main
         Main(debug=False)

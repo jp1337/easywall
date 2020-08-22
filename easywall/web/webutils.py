@@ -11,7 +11,7 @@ from flask import Request, session
 from easywall.__main__ import CONFIG_PATH
 from easywall.config import Config
 from easywall.utility import file_exists, file_get_contents, time_duration_diff
-from easywall_web.defaultpayload import DefaultPayload
+from easywall.web.defaultpayload import DefaultPayload
 
 
 class Webutils(object):

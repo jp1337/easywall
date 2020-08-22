@@ -10,16 +10,16 @@ from werkzeug.wrappers import Response
 from easywall.config import Config
 from easywall.log import Log
 from easywall.rules_handler import RulesHandler
-from easywall_web.apply import apply, apply_save
-from easywall_web.blacklist import blacklist, blacklist_save
-from easywall_web.custom import custom, custom_save
-from easywall_web.error import forbidden, page_not_found
-from easywall_web.forwarding import forwarding, forwarding_save
-from easywall_web.index import index
-from easywall_web.login import login_post, logout
-from easywall_web.options import options, options_save
-from easywall_web.ports import ports, ports_save
-from easywall_web.whitelist import whitelist, whitelist_save
+from easywall.web.apply import apply, apply_save
+from easywall.web.blacklist import blacklist, blacklist_save
+from easywall.web.custom import custom, custom_save
+from easywall.web.error import forbidden, page_not_found
+from easywall.web.forwarding import forwarding, forwarding_save
+from easywall.web.index import index
+from easywall.web.login import login_post, logout
+from easywall.web.options import options, options_save
+from easywall.web.ports import ports, ports_save
+from easywall.web.whitelist import whitelist, whitelist_save
 
 APP = Flask(__name__)
 CONFIG_PATH = "config/web.ini"
@@ -219,10 +219,10 @@ class Main(object):
         if debug is True:
             port = self.cfg.get_value("WEB", "bindport")
             host = self.cfg.get_value("WEB", "bindip")
-            APP.config.from_object('easywall_web.__main__.DevelopmentConfig')
+            APP.config.from_object('easywall.web.__main__.DevelopmentConfig')
             APP.run(str(host), str(port))
         else:
-            APP.config.from_object('easywall_web.__main__.ProductionConfig')
+            APP.config.from_object('easywall.web.__main__.ProductionConfig')
 
 
 if __name__ == '__main__':

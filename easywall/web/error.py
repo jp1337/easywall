@@ -3,8 +3,8 @@ from typing import Tuple, Union
 
 from flask import render_template, request
 
-from easywall_web.login import login
-from easywall_web.webutils import Webutils
+from easywall.web.login import login
+from easywall.web.webutils import Webutils
 
 
 def page_not_found(error: str) -> Union[str, Tuple[str, int]]:

@@ -2,8 +2,8 @@
 from flask import render_template, request
 from natsort import natsorted
 from easywall.rules_handler import RulesHandler
-from easywall_web.login import login
-from easywall_web.webutils import Webutils
+from easywall.web.login import login
+from easywall.web.webutils import Webutils
 
 
 def ports(saved: bool = False) -> str:

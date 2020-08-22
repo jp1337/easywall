@@ -16,7 +16,7 @@ CERTFILE="easywall.crt"
 SCRIPTNAME=$(basename "$0")
 SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
 HOMEPATH="$(dirname "$SCRIPTSPATH")"
-WEBDIR="$HOMEPATH/easywall_web"
+WEBDIR="$HOMEPATH/easywall/web"
 TMPDIR="$WEBDIR/tmp"
 
 STEPS=10
@@ -108,7 +108,7 @@ Wants=network-online.target
 After=syslog.target time-sync.target network.target network-online.target
 
 [Service]
-ExecStart=/bin/bash easywall_web/easywall_web.sh
+ExecStart=/bin/bash easywall/web/easywall_web.sh
 WorkingDirectory=${HOMEPATH}
 StandardOutput=syslog
 StandardError=syslog
