@@ -1,36 +1,30 @@
-"""
-TODO: Doku
-"""
+"""TODO: Doku."""
 from tests import unittest
+from tests.utils import (prepare_client, prepare_configuration,
+                         restore_configuration)
 from tests.web.test_login import TestLogin
-from tests.web.utils import (prepare_client, prepare_configuration,
-                             restore_configuration)
 
 
 class TestIndex(unittest.TestCase):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
 
     def setUp(self) -> None:
+        """TODO: Doku."""
         prepare_configuration()
         self.client = prepare_client()
         self.login = TestLogin()
 
     def tearDown(self) -> None:
+        """TODO: Doku."""
         restore_configuration()
 
     def test_index_logged_out(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         response = self.client.get('/')
         self.assertIn(b"Please log in", response.data)
 
     def test_index_logged_in(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         self.login.log_in(self.client)
         response = self.client.get('/')
         self.assertIn(b"easywall for iptables", response.data)

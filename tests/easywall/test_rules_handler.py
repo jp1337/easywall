@@ -1,48 +1,37 @@
-"""
-TODO: Doku
-"""
+"""TODO: Doku."""
 from easywall.rules_handler import RulesHandler
 from easywall.utility import file_get_contents, write_into_file
 from tests import unittest
 
 
 class TestRulesHandler(unittest.TestCase):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
 
     def setUp(self) -> None:
+        """TODO: Doku."""
         self.rules = RulesHandler()
         self.rules.ensure_files_exist()
 
     def test_firstrun(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         self.rules.ensure_files_exist()
 
     def test_get_current_rules(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         write_into_file("{}/current/tcp".format(self.rules.rulesfolder), """80
 443
 """)
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
     def test_get_new_rules(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         write_into_file("{}/new/tcp".format(self.rules.rulesfolder), """80
 443
 """)
         self.assertEqual(self.rules.get_new_rules("tcp"), ["80", "443"])
 
     def test_backup_current_rules(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         write_into_file("{}/current/tcp".format(self.rules.rulesfolder), """80
 443
 """)
@@ -53,9 +42,7 @@ class TestRulesHandler(unittest.TestCase):
 """)
 
     def test_apply_new_rules(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         write_into_file("{}/new/tcp".format(self.rules.rulesfolder), """80
 443
 """)
@@ -65,9 +52,7 @@ class TestRulesHandler(unittest.TestCase):
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
     def test_rollback_from_backup(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         write_into_file("{}/backup/tcp".format(self.rules.rulesfolder), """80
 443
 """)
@@ -77,9 +62,7 @@ class TestRulesHandler(unittest.TestCase):
         self.assertEqual(self.rules.get_current_rules("tcp"), ["80", "443"])
 
     def test_get_rules_for_web(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         write_into_file("{}/current/tcp".format(self.rules.rulesfolder), """80
 443
 """)
@@ -91,8 +74,6 @@ class TestRulesHandler(unittest.TestCase):
         self.assertEqual(self.rules.get_rules_for_web("tcp"), ["80", "443", "8080"])
 
     def test_save_new_rules(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         self.rules.save_new_rules("tcp", ["80", "443"])
         self.assertEqual(file_get_contents("{}/new/tcp".format(self.rules.rulesfolder)), "80\n443")

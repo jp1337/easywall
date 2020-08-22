@@ -1,6 +1,4 @@
-"""
-this is the init file of the tests module
-"""
+"""this is the init file of the tests module."""
 import unittest
 
 import pytest
