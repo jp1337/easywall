@@ -1,0 +1,5 @@
+easywall (0.2.0) unstable; urgency=low
+
+  * b'095b468 remove object from classes and pydoc\n'
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Sat, 22 Aug 2020 18:45:27 +0000
