@@ -36,11 +36,14 @@ jobs:
           pip install --upgrade setuptools
           pip install --upgrade coveralls
           pip install -r requirements.txt
-          pip install .
+
+      - name: Prepare logfile
+        run: |
+          sudo touch /var/log/easywall.log
+          sudo chown $(whoami): /var/log/easywall.log
 
       - name: Test using pytest
         run: |
-          sudo touch /var/log/easywall.log
           python3 setup.py pytest
 
       - name: Coveralls coverage upload
