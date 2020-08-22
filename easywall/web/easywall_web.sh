@@ -1,13 +1,5 @@
 #!/bin/bash
 
-# CONFIGFOLDER="config"
-# CONFIGFILE="web.ini"
-# SCRIPTPATH=$(dirname "$(readlink -f "$0")")
-# CONFIGPATH="$SCRIPTPATH"/../"$CONFIGFOLDER"
-# BINDIP=$(awk -F "=" '/bindip/ {print $2}' "$CONFIGPATH"/"$CONFIGFILE")
-# BINDPORT=$(awk -F "=" '/bindport/ {print $2}' "$CONFIGPATH"/"$CONFIGFILE")
-DEBUG=false
-
 function print_help() {
     read -r -d '' HELP <<EOF
 easywall Web
@@ -19,6 +11,8 @@ EOF
 
     echo "$HELP"
 }
+
+DEBUG=false
 
 while true; do
     case "$1" in
