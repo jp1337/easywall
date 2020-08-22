@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# SCRIPTNAME=$(basename "$0")
+set -e # exit when any command fails
+
 SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
 HOMEPATH="$(dirname "$SCRIPTSPATH")"
 BUILD_DIR="${HOMEPATH}/deb"
@@ -11,7 +12,7 @@ ARCHITECTURE="amd64"
 RELEASE="0"
 PACKAGE_NAME="${PACKAGE}_${VERSION}-${RELEASE}_${ARCHITECTURE}.deb"
 
-STEPS=6
+STEPS=7
 STEP=1
 
 # Step 1
@@ -50,11 +51,15 @@ rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.otf*
 rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/js/*.min.js
 
 # Step 5
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m fix permissions in build directory \\e[39m" && ((STEP++))
+chmod -v 755 "${BUILD_DIR}"/DEBIAN/postinst
+
+# Step 6
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m build the debian project \\e[39m" && ((STEP++))
 dpkg-deb --build "${BUILD_DIR}" "${PACKAGE_NAME}"
 mkdir -pv "${OUTPUT_DIR}"
 [ -f "${PACKAGE_NAME}" ] && mv "${PACKAGE_NAME}" "${OUTPUT_DIR}"
 
-# Step 6
+# Step 7
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m cleanup build directory \\e[39m" && ((STEP++))
 rm -rfv "${BUILD_DIR}"
