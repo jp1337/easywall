@@ -19,6 +19,28 @@ We currently only support Debian based operating systems like Debian or Ubuntu.
 
 If the requirements apply to your operating system, you can perform the following installation steps.
 
+## Installation by Package
+
+- Download the package from the [latest release](https://github.com/jp1337/easywall/releases/latest)
+
+```sh
+wget https://github.com/jp1337/easywall/releases/download/v0.2.1/easywall_0.2.1-1_amd64.deb
+```
+
+- Install the package using Debian Package Manager
+
+```sh
+dpkg -i easywall_0.2.1-1_amd64.deb
+```
+
+- Optional: Set the username and password for the web interface.
+
+```sh
+# optional:
+# cd /opt/easywall
+python3 easywall/web/passwd.py
+```
+
 ## Installation by using Git
 
 - Change to the directory where you want to install easywall. We recommend the directories listed below.
