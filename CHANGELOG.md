@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2020-08-22
+
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
+
+### Added
+
+- easywall is now also available as installable Debian package
+- easywall is now also available on pypi and can be installed over it
+- Massive improvement of GitHub workflows
+- Improve automated testing through GitHub workflows
+- There is now an FAQ documentation, which will be filled with time
+- The web server now sends headers to harden the application such as no permission for frames
+- 403 Error page added and web errors generally improved
+- The web configuration is now also checked for missing entries
+- flask-ipban dependency added
+- pypi package information improved and completed
+- Unit Tests significantly improved and the tools for Core and Web Tests combined
+
+### Changed
+
+- After 10 incorrect login attempts on the web interface by default, the attacker address is blocked
+- The log settings were moved to a separate configuration file "log.ini" in the "config" folder
+- The SSL settings were hardened - only current browsers can be used
+- The easywall_web folder was moved to the easywall folder as "easywall/web
+
 ## [0.2.0] - 2020-07-20
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
@@ -158,7 +183,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0
 [0.0.4]: https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4
