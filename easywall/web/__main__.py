@@ -28,9 +28,7 @@ LOG_CONFIG_PATH = "config/log.ini"
 
 @APP.after_request
 def apply_headers(response: wrappers.Response) -> wrappers.Response:
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -154,16 +152,12 @@ def forbidden_route(error: str) -> Union[str, Tuple[str, int]]:
 
 @APP.before_request
 def before_request_func() -> None:
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     MAIN.ip_ban.ip_record.read_updates(True)
 
 
 class DefaultConfig(object):
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     DEBUG = False
     TESTING = False
     SECRET_KEY = os.urandom(265)
@@ -178,23 +172,17 @@ class DefaultConfig(object):
 
 
 class ProductionConfig(DefaultConfig):
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
 
 
 class DevelopmentConfig(DefaultConfig):
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     DEBUG = True
     ENV = "development"
 
 
 class Main(object):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
 
     def __init__(self, debug: bool = False) -> None:
         self.cfg = Config(CONFIG_PATH)

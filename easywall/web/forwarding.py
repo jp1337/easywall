@@ -1,6 +1,4 @@
-"""
-TODO: Docu
-"""
+"""TODO: Doku."""
 from flask import render_template, request
 from easywall.web.login import login
 from easywall.web.webutils import Webutils
@@ -8,9 +6,7 @@ from easywall.rules_handler import RulesHandler
 
 
 def forwarding(saved: bool = False) -> str:
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     utils = Webutils()
     rules = RulesHandler()
     if utils.check_login(request):
@@ -32,9 +28,7 @@ def forwarding(saved: bool = False) -> str:
 
 
 def forwarding_save() -> str:
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     utils = Webutils()
     if utils.check_login(request) is True:
         action = "add"
@@ -69,9 +63,7 @@ def forwarding_save() -> str:
 
 
 def add_forwarding(source_port: str, dest_port: str, ruletype: str) -> None:
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     rules = RulesHandler()
     rulelist = rules.get_rules_for_web("forwarding")
     rulelist.append("{}:{}:{}".format(ruletype, source_port, dest_port))
@@ -79,9 +71,7 @@ def add_forwarding(source_port: str, dest_port: str, ruletype: str) -> None:
 
 
 def remove_forwarding(source_port: str, dest_port: str, ruletype: str) -> None:
-    """
-    TODO: Docu
-    """
+    """TODO: Doku."""
     rules = RulesHandler()
     rulelist = rules.get_rules_for_web("forwarding")
     rulelist.remove("{}:{}:{}".format(ruletype, source_port, dest_port))

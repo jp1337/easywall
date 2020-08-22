@@ -63,9 +63,7 @@ class Webutils(object):
         return infos
 
     def get_config_version_mismatch(self, cfgtype: str) -> bool:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         if cfgtype == "core":
             cfg1 = Config("config/easywall.sample.ini")
             cfg2 = Config("config/easywall.ini")
