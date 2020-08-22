@@ -1,6 +1,4 @@
-"""
-TODO: Doku
-"""
+"""TODO: Doku."""
 from csv import reader
 from datetime import datetime
 from io import StringIO
@@ -17,7 +15,7 @@ from urllib import parse
 
 
 def create_folder_if_not_exists(filepath: str) -> bool:
-    """Checks if a folder exists and creates if it does not exist"""
+    """Check if a folder exists and creates if it does not exist."""
     if not path.exists(filepath):
         makedirs(filepath)
         return True
@@ -25,7 +23,7 @@ def create_folder_if_not_exists(filepath: str) -> bool:
 
 
 def create_file_if_not_exists(fullpath: str) -> bool:
-    """The function creates a file if it does not already exist."""
+    """Create a file if it does not already exist."""
     if not path.isfile(fullpath) or not access(fullpath, R_OK):
         with open(fullpath, 'w+'):
             pass
@@ -36,7 +34,7 @@ def create_file_if_not_exists(fullpath: str) -> bool:
 
 
 def delete_file_if_exists(fullpath: str) -> bool:
-    """The function checks if a file exists in a directory and deletes it if it exists."""
+    """Check if a file exists in a directory and deletes it if it exists."""
     if path.isfile(fullpath):
         remove(fullpath)
         return True
@@ -44,7 +42,7 @@ def delete_file_if_exists(fullpath: str) -> bool:
 
 
 def delete_folder_if_exists(fullpath: str) -> bool:
-    """The function checks if a folder exists and deletes it afterwards"""
+    """Check if a folder exists and deletes it afterwards."""
     if path.isdir(fullpath):
         rmtree(fullpath)
         return True
@@ -52,32 +50,32 @@ def delete_folder_if_exists(fullpath: str) -> bool:
 
 
 def file_get_contents(filepath: str) -> str:
-    """A wrapper function to easily read the contents of a file."""
+    """Read the content of a file."""
     with open(filepath) as filehandler:
         return filehandler.read()
 
 
 def write_into_file(filepath: str, content: str) -> bool:
-    """a wrapper around the os functions to easily write text into a file"""
+    """Write text into a file as a wrapper around the os functions."""
     with open(filepath, 'w') as tmpfile:
         tmpfile.write(content)
     return True
 
 
 def get_abs_path_of_filepath(filepath: str) -> str:
-    """returns the absolute path of a path containing a filename"""
+    """Return the absolute path of a path containing a filename."""
     return path.dirname(path.realpath(filepath))
 
 
 def rename_file(oldpath: str, newpath: str) -> bool:
-    """renames a the file from the absolute path oldpath into the file from newpath"""
+    """Rename a the file from the absolute path oldpath into the file from newpath."""
     rename(oldpath, newpath)
     return True
 
 
 def file_exists(filepath: str) -> bool:
     """
-    the function checks if a fiven file exists on the system.
+    Check if a fiven file exists on the system.
 
     [Data Types] boolean
     """
@@ -86,7 +84,7 @@ def file_exists(filepath: str) -> bool:
 
 def folder_exists(folder_path: str) -> bool:
     """
-    the function checks if a given folder exists on the system.
+    Check if a given folder exists on the system.
 
     [Data Types] bool
     """
@@ -98,7 +96,9 @@ def folder_exists(folder_path: str) -> bool:
 
 def is_float(value: Any) -> bool:
     """
-    tries to convert input value into a float value. Returns Boolean
+    Try to convert input value into a float value.
+
+    [Data Types] bool
     """
     try:
         float(value)
@@ -109,7 +109,9 @@ def is_float(value: Any) -> bool:
 
 def is_int(value: Any) -> bool:
     """
-    tries to convert the input value into a int value
+    Try to convert the input value into a int value.
+
+    [Data Types] bool
     """
     if is_float(value):
         if float(value) % 1 == 0:
@@ -119,7 +121,9 @@ def is_int(value: Any) -> bool:
 
 def csv_to_array(inputstr: str, delimiter: str) -> List[str]:
     """
-    Convert a CSV string into a Python compatible array
+    Convert a CSV string into a Python compatible array.
+
+    [Data Types] List[str]
     """
     results = []
     strio = StringIO(inputstr)
@@ -132,7 +136,9 @@ def csv_to_array(inputstr: str, delimiter: str) -> List[str]:
 
 def urlencode(inputstr: str) -> str:
     """
-    Convert a String to a URL Encoded String
+    Convert a String to a URL Encoded String.
+
+    [Data Types] str
     """
     inputstr = parse.quote_plus(inputstr)
     return inputstr.replace("+", "%20")
@@ -140,7 +146,9 @@ def urlencode(inputstr: str) -> str:
 
 def format_exception(exc: Exception) -> str:
     """
-    Converts a exception object to a readable string
+    Convert a exception object to a readable string.
+
+    [Data Types] str
     """
     return "".join(TracebackException.from_exception(exc).format())
 
@@ -150,7 +158,9 @@ def format_exception(exc: Exception) -> str:
 
 def time_duration_diff(date1: datetime, date2: datetime) -> str:
     """
-    The function calculates the difference between two dates and returns them as a string.
+    Calculate the difference between two dates and returns them as a string.
+
+    [Data Types] str
     """
     result = ""
     diff_delta = date2 - date1
@@ -186,7 +196,9 @@ def time_duration_diff(date1: datetime, date2: datetime) -> str:
 
 def execute_os_command(command: str) -> bool:
     """
-    this function executes a command on the operating system
+    Execute a command on the operating system.
+
+    [Data Types] bool
     """
     proc = run(command, shell=True, check=False)
     # proc.stderr

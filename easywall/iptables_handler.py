@@ -1,6 +1,4 @@
-"""
-TODO: Doku
-"""
+"""TODO: Doku."""
 from enum import Enum
 from logging import debug, info
 
@@ -12,17 +10,13 @@ from easywall.utility import (create_file_if_not_exists,
 
 
 class Target(Enum):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
     ACCEPT = "ACCEPT"
     DROP = "DROP"
 
 
 class Chain(Enum):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
     INPUT = "INPUT"
     FORWARD = "FORWARD"
     OUTPUT = "OUTPUT"
@@ -34,9 +28,7 @@ class Chain(Enum):
 
 
 class Iptables(object):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
 
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
@@ -108,9 +100,7 @@ class Iptables(object):
 
     def insert(self, chain: Chain, rule: str,
                onlyv6: bool = False, onlyv4: bool = False, table: str = "") -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         option = "-I"
 
         if table != "":
@@ -130,9 +120,7 @@ class Iptables(object):
                 table, chain.value, rule))
 
     def add_custom(self, rule: str) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         execute_os_command("{} {}".format(self.iptables_bin, rule))
         if self.ipv6 is True:
             execute_os_command("{} {}".format(self.ip6tables_bin, rule))

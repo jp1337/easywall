@@ -1,5 +1,5 @@
 """
-this module exports a class for checking the user acceptance of a process using a acceptance file
+this module exports a class for checking the user acceptance of a process using a acceptance file.
 """
 from copy import deepcopy
 from logging import info
@@ -25,6 +25,7 @@ class Acceptance(object):
     """
 
     def __init__(self, cfg: Config) -> None:
+        """TODO: Doku."""
         self.cfg = cfg
         self.filename = ".acceptance"
         self.enabled = self.cfg.get_value("ACCEPTANCE", "enabled")
@@ -109,9 +110,7 @@ class Acceptance(object):
         return self.mystatus
 
     def set_status(self, status: str) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         filename = ".acceptance_status"
         create_file_if_not_exists(filename)
         write_into_file(filename, status)

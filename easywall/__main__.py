@@ -1,6 +1,4 @@
-"""
-TODO: Doku
-"""
+"""TODO: Doku."""
 from logging import info
 from time import sleep
 from typing import Callable
@@ -19,28 +17,24 @@ LOG_CONFIG_PATH = "config/log.ini"
 
 
 class ModifiedHandler(FileSystemEventHandler):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
 
     def __init__(self, apply: Callable) -> None:
+        """TODO: Doku."""
         self.apply = apply
 
     def on_created(self, event: FileSystemEvent) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         if event.src_path.endswith("apply"):
             info("file was created. filename: {}".format(event.src_path))
             self.apply(event.src_path)
 
 
 class Main(object):
-    """
-    TODO: Doku
-    """
+    """TODO: Doku."""
 
     def __init__(self) -> None:
+        """TODO: Doku."""
         self.cfg = Config(CONFIG_PATH)
         self.cfg_log = Config(LOG_CONFIG_PATH)
 
@@ -63,16 +57,15 @@ class Main(object):
         info("easywall has been started")
 
     def apply(self, filename: str) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         info("starting apply process from easywall")
         delete_file_if_exists(filename)
         self.easywall.apply()
 
     def start_observer(self) -> None:
         """
-        this function is called to keep the main process running
+        This function is called to keep the main process running.
+
         if someone is pressing ctrl + C the software will initiate the stop process
         """
         self.observer.schedule(self.event_handler, ".")
@@ -87,9 +80,7 @@ class Main(object):
             self.shutdown()
 
     def shutdown(self) -> None:
-        """
-        the function stops all threads and shuts the software down gracefully
-        """
+        """The function stops all threads and shuts the software down gracefully."""
         info("starting shutdown")
 
         self.observer.stop()

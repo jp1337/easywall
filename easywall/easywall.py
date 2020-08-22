@@ -1,6 +1,4 @@
-"""
-TODO: Doku
-"""
+"""TODO: Doku."""
 from datetime import datetime
 from logging import debug, info
 
@@ -18,6 +16,7 @@ class Easywall(object):
     """
 
     def __init__(self, config: Config) -> None:
+        """TODO: Doku."""
         self.cfg = config
         self.iptables = Iptables(self.cfg)
         self.acceptance = Acceptance(self.cfg)
@@ -28,9 +27,7 @@ class Easywall(object):
         self.rules = RulesHandler()
 
     def apply(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         self.acceptance.start()
         self.rotate_backup()
         self.iptables.save()
@@ -47,9 +44,7 @@ class Easywall(object):
             info("New configuration was applied.")
 
     def apply_iptables(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         # and reset iptables for clean setup
         self.iptables.reset()
 
@@ -115,9 +110,7 @@ class Easywall(object):
         self.iptables.add_append(Chain.INPUT, "-j DROP")
 
     def apply_forwarding(self) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         for ipaddr in self.rules.get_current_rules("forwarding"):
             proto = ipaddr.split(":")[0]
             source = ipaddr.split(":")[1]
@@ -141,9 +134,7 @@ class Easywall(object):
             )
 
     def apply_ssh_brute(self) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         if self.cfg.get_value("IPTABLES", "ssh_brute_force_prevention"):
             connection_limit = self.cfg.get_value(
                 "IPTABLES", "ssh_brute_force_prevention_connection_limit")
@@ -167,9 +158,7 @@ class Easywall(object):
             self.iptables.add_append(Chain.SSHBRUTE, "-j ACCEPT")
 
     def apply_invalid_packets_drop(self) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         if self.cfg.get_value("IPTABLES", "drop_invalid_packets"):
             log_enable = self.cfg.get_value("IPTABLES", "drop_invalid_packets_log")
             log_limit = self.cfg.get_value("IPTABLES", "drop_invalid_packets_log_limit")
@@ -190,9 +179,7 @@ class Easywall(object):
             )
 
     def apply_port_scan_prevention(self) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         if self.cfg.get_value("IPTABLES", "port_scan_prevention"):
             log_enable = self.cfg.get_value("IPTABLES", "port_scan_prevention_log")
             log_limit = self.cfg.get_value("IPTABLES", "port_scan_prevention_log_limit")
@@ -232,9 +219,7 @@ class Easywall(object):
             self.iptables.add_append(Chain.INPUT, "-p tcp --tcp-flags ACK,URG URG -j PORTSCAN")
 
     def apply_icmp_flood(self) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         if self.cfg.get_value("IPTABLES", "icmp_flood_prevention"):
             connection_limit = self.cfg.get_value(
                 "IPTABLES", "icmp_flood_prevention_connection_limit")
@@ -308,9 +293,7 @@ class Easywall(object):
                     Chain.INPUT, "-p ipv6-icmp --icmpv6-type {} -j ACCEPT".format(icmptype), True)
 
     def apply_cast(self) -> None:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         if self.cfg.get_value("IPTABLES", "drop_broadcast_packets"):
             self.iptables.add_append(
                 Chain.INPUT,
@@ -424,18 +407,14 @@ class Easywall(object):
             )
 
     def apply_custom_rules(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         for rule in self.rules.get_current_rules("custom"):
             if rule != "":
                 if not rule.startswith("#"):
                     self.iptables.add_custom(rule=rule)
 
     def rotate_backup(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         self.filepath = "backup"
         self.filename = "iptables_v4_backup"
         self.date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -449,9 +428,7 @@ class Easywall(object):
             self.filepath, self.date))
 
     def rename_backup_file(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         old_filename = "{}/{}".format(self.filepath, self.filename)
         new_filename = "{}/{}_{}".format(self.filepath, self.date, self.filename)
         if file_exists(old_filename):

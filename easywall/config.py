@@ -31,9 +31,7 @@ class Config(object):
         self.read_config_file()
 
     def read_config_file(self) -> None:
-        """
-        TODO: Doku
-        """
+        """TODO: Doku."""
         if not file_exists(self.config_file_path):
             raise FileNotFoundError("config file '{}' not found".format(self.config_file_path))
         try:
@@ -97,7 +95,5 @@ class Config(object):
         return self.configlib.sections()
 
     def get_keys(self, section: str) -> AbstractSet[str]:
-        """
-        TODO: Docu
-        """
+        """TODO: Doku."""
         return self.configlib[section].keys()
