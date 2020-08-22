@@ -12,7 +12,7 @@ SCRIPTNAME=$(basename "$0")
 SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
 HOMEPATH="$(dirname "$SCRIPTSPATH")"
 
-STEPS=7
+STEPS=6
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
@@ -29,16 +29,11 @@ EOF
 fi
 
 # Step 1
-echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Install the required programs from the operating system \\e[39m" && ((STEP++))
-apt -qqq update
-apt -y install python3 python3-pip
-
-# Step 2
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Install the required Python3 packages using pip3 \\e[39m" && ((STEP++))
 pip3 install setuptools wheel
 pip3 install "${HOMEPATH}"
 
-# Step 3
+# Step 2
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the configuration from the example configuration \\e[39m" && ((STEP++))
 if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}" ]; then
     echo -e "\\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\\e[39m"
@@ -51,7 +46,7 @@ else
     cp -v "${HOMEPATH}/${CONFIGFOLDER}/${SAMPLEFILELOG}" "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILELOG}"
 fi
 
-# Step 4
+# Step 3
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the group under which the software should run \\e[39m" && ((STEP++))
 if [ "$(getent group easywall)" ]; then
     echo "The easywall group is already present."
@@ -60,7 +55,7 @@ else
     echo "The easywall group was created."
 fi
 
-# Step 5
+# Step 4
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the systemd service \\e[39m" && ((STEP++))
 read -r -d '' SERVICECONTENT <<EOF
 [Unit]
@@ -87,12 +82,12 @@ systemctl daemon-reload
 systemctl enable easywall
 echo "daemon installed."
 
-# Step 6
+# Step 5
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the logfile \\e[39m" && ((STEP++))
 touch "${LOGFILE}"
 echo "logfile created."
 
-# Step 7
+# Step 6
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Start the services \\e[39m" && ((STEP++))
 systemctl restart easywall
 echo "daemon started."
