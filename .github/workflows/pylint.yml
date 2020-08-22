@@ -1,9 +1,9 @@
-name: Pylint
+name: pylint
 
-on: [push]
+on: ["push", "pull_request"]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,6 +19,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install pylint
 
-      - name: Test with pytest
+      - name: Test with pylint
         run: |
           pylint easywall

@@ -1,0 +1,15 @@
+name: markdownlint
+
+on: ["push", "pull_request"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the Repository
+        uses: actions/checkout@v2
+
+      - name: Run markdownlint (mdl)
+        uses: bewuethr/mdl-action@master
+        with:
+          style-file: .github/workflows/markdownlint.rb

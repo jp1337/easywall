@@ -1,6 +1,4 @@
-# documentation on https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
-
-name: Upload Python Package
+name: pypi
 
 on:
   release:

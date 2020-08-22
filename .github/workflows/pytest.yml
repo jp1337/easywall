@@ -1,16 +1,9 @@
-# documentation on https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
-# python versions can be found here: https://raw.githubusercontent.com/actions/python-versions/master/versions-manifest.json
+name: pytest
 
-name: Testing
-
-on:
-  push:
-    branches: [$default-branch]
-  pull_request:
-    branches: [$default-branch]
+on: ["push", "pull_request"]
 
 jobs:
-  python-testing:
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -53,23 +46,3 @@ jobs:
           coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-
-  markdownlint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out the Repository
-        uses: actions/checkout@v2
-
-      - name: Run markdownlint (mdl)
-        uses: bewuethr/mdl-action@master
-        with:
-          style-file: .github/workflows/markdownlint.rb
-
-  shellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out the Repository
-        uses: actions/checkout@v2
-
-      - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@0.3.0
