@@ -1,0 +1,4 @@
+#!/bin/bash
+
+/bin/bash /opt/easywall/scripts/install-core.sh
+/bin/bash /opt/easywall/scripts/install-web.sh
