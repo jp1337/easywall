@@ -151,3 +151,5 @@ easywall/web/static/js/*.min.js
 *.key
 .acceptance_status
 .apply
+debian/.debhelper/
+debian/easywall/
