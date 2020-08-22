@@ -17,7 +17,7 @@ STEP=1
 
 # Step 1
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m remove build directory if present \\e[39m" && ((STEP++))
-[ -d "${BUILD_DIR}" ] && rm -rfv "${BUILD_DIR}"
+[ -d "${BUILD_DIR}" ] && rm -rvf "${BUILD_DIR}"
 
 # Step 2
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m create build directory structure \\e[39m" && ((STEP++))
@@ -39,16 +39,16 @@ cp -rav setup* "${BUILD_DIR}"/opt/$PACKAGE/
 
 # Step 4
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m clean up build folder before packaging \\e[39m" && ((STEP++))
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/__pycache__
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/__pycache__
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/css/*.min.css
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/css/font-awesome*
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.woff*
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.ttf*
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.eot*
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.svg*
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.otf*
-rm -rv "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/js/*.min.js
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/__pycache__
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/__pycache__
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/css/*.min.css
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/css/font-awesome*
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.woff*
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.ttf*
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.eot*
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.svg*
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/fonts/*.otf*
+rm -rvf "${BUILD_DIR}"/opt/$PACKAGE/easywall/web/static/js/*.min.js
 
 # Step 5
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m fix permissions in build directory \\e[39m" && ((STEP++))
@@ -62,4 +62,4 @@ mkdir -pv "${OUTPUT_DIR}"
 
 # Step 7
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m cleanup build directory \\e[39m" && ((STEP++))
-rm -rfv "${BUILD_DIR}"
+rm -rvf "${BUILD_DIR}"
