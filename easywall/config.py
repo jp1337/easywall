@@ -1,5 +1,5 @@
 """
-This module exports a generic class for configuration
+This module exports a generic class for configuration.
 
 [Classes] Config
 """
@@ -10,9 +10,10 @@ from typing import AbstractSet, Union
 from easywall.utility import file_exists, format_exception, is_float, is_int
 
 
-class Config(object):
+class Config():
     """
-    This class is a generic class for configuration
+    This class is a generic class for configuration.
+
     It is a wrapper around the default configparser and contains basic functionality.
 
     [Methods]
@@ -26,6 +27,7 @@ class Config(object):
     """
 
     def __init__(self, config_file_path: str) -> None:
+        """TODO: Doku."""
         self.config_file_path = config_file_path
         self.configlib = RawConfigParser()
         self.read_config_file()
@@ -43,7 +45,7 @@ class Config(object):
 
     def get_value(self, section: str, key: str) -> Union[bool, int, float, str]:
         """
-        Returns a value from a given section of the configuration.
+        Return a value from a given section of the configuration.
 
         [Data Types] String, Float, Integer, Boolean
         """
@@ -65,7 +67,7 @@ class Config(object):
 
     def set_value(self, section: str, key: str, value: str) -> bool:
         """
-        Writes a key, value pair into memory configuration and writes it to config file
+        Write a key, value pair into memory configuration and writes it to config file.
 
         [Data Types] bool
         """
@@ -87,7 +89,8 @@ class Config(object):
 
     def get_sections(self) -> list:
         """
-        Return a list of the configuration section names/keys
+        Return a list of the configuration section names/keys.
+
         [WARNING] The name [DEFAULT] is excluded here if used!
 
         [Data Types] list

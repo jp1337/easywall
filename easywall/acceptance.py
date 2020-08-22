@@ -10,7 +10,7 @@ from easywall.utility import (create_file_if_not_exists, delete_file_if_exists,
                               file_get_contents, write_into_file)
 
 
-class Acceptance(object):
+class Acceptance():
     """
     the Acceptance class exports functions to check the user acceptance.
 

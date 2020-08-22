@@ -11,12 +11,14 @@ from easywall.utility import (create_file_if_not_exists,
 
 class Target(Enum):
     """TODO: Doku."""
+
     ACCEPT = "ACCEPT"
     DROP = "DROP"
 
 
 class Chain(Enum):
     """TODO: Doku."""
+
     INPUT = "INPUT"
     FORWARD = "FORWARD"
     OUTPUT = "OUTPUT"
@@ -27,10 +29,11 @@ class Chain(Enum):
     ICMPFLOOD = "ICMPFLOOD"
 
 
-class Iptables(object):
+class Iptables():
     """TODO: Doku."""
 
     def __init__(self, cfg: Config) -> None:
+        """TODO: Doku."""
         self.cfg = cfg
 
         self.iptables_bin = self.cfg.get_value("EXEC", "iptables")
@@ -50,9 +53,7 @@ class Iptables(object):
         self.backup_file_ipv6 = "iptables_v6_backup"
 
     def add_policy(self, chain: Chain, target: Target) -> None:
-        """
-        the function creates a new policy in iptables firewall by using the os command
-        """
+        """Create a new policy in iptables firewall by using the os command."""
         option = "-P"
 
         execute_os_command("{} {} {} {}".format(
@@ -64,9 +65,7 @@ class Iptables(object):
         info("iptables policy added for chain {} and target {}".format(chain.value, target.value))
 
     def add_chain(self, chain: str) -> None:
-        """
-        the function creates a new custom chain in iptables
-        """
+        """Create a new custom chain in iptables."""
         option = "-N"
 
         execute_os_command("{} {} {}".format(self.iptables_bin, option, chain))
@@ -77,9 +76,7 @@ class Iptables(object):
 
     def add_append(self, chain: Chain, rule: str,
                    onlyv6: bool = False, onlyv4: bool = False, table: str = "") -> None:
-        """
-        the function creates a new append in iptables
-        """
+        """Create a new append in iptables."""
         option = "-A"
 
         if table != "":
@@ -128,9 +125,7 @@ class Iptables(object):
         info("iptables custom rule added: {}".format(rule))
 
     def flush(self, chain: str = "", table: str = "") -> None:
-        """
-        the function flushes chain or all chains in iptables firewall
-        """
+        """Flush chain or all chains in iptables firewall."""
         option = "-F"
 
         if table != "":
@@ -147,9 +142,7 @@ class Iptables(object):
             info("all iptables chains flushed")
 
     def delete_chain(self, chain: str = "") -> None:
-        """
-        the function deletes a chain or all chains in iptables firewall
-        """
+        """Delete a chain or all chains in iptables firewall."""
         execute_os_command("{} -X {}".format(self.iptables_bin, chain))
         if self.ipv6 is True:
             execute_os_command("{} -X {}".format(self.ip6tables_bin, chain))
@@ -160,9 +153,7 @@ class Iptables(object):
             info("all iptables chains deleted")
 
     def reset(self) -> None:
-        """
-        the function resets iptables and allows all connections to the system and from the system
-        """
+        """Reset iptables and allows all connections to the system and from the system."""
         self.add_policy(Chain.INPUT, Target.ACCEPT)
         self.add_policy(Chain.OUTPUT, Target.ACCEPT)
         self.add_policy(Chain.FORWARD, Target.ACCEPT)
@@ -175,9 +166,9 @@ class Iptables(object):
         info("incoming and outgoing connections have been opened and chains have been deleted")
 
     def status(self) -> str:
-        """
-        the function lists the iptables configuration as string
-        this is not machine readable!
+        """List the iptables configuration as string.
+
+        [WARNING] this is not machine readable!
         """
         tmpfile = ".iptables_list"
         execute_os_command("{} -L > {}".format(self.iptables_bin, tmpfile))
@@ -186,9 +177,7 @@ class Iptables(object):
         return content
 
     def save(self) -> None:
-        """
-        the function saves the current iptables state into a file
-        """
+        """Save the current iptables state into a file."""
         create_folder_if_not_exists(self.backup_path)
 
         create_file_if_not_exists("{}/{}".format(self.backup_path, self.backup_file_ipv4))
@@ -205,9 +194,7 @@ class Iptables(object):
         info("backup of iptables configuration created")
 
     def restore(self) -> None:
-        """
-        the function restores a backup of a previously saved backup
-        """
+        """Restore a backup of a previously saved backup."""
         create_folder_if_not_exists(self.backup_path)
 
         execute_os_command("{} < {}/{}".format(self.iptables_bin_restore,

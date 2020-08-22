@@ -9,7 +9,7 @@ from easywall.rules_handler import RulesHandler
 from easywall.utility import file_exists, rename_file
 
 
-class Easywall(object):
+class Easywall():
     """
     the class contains the main functions for the easywall core
     such as applying a new configuration or listening on rule file changes

@@ -30,7 +30,7 @@ class ModifiedHandler(FileSystemEventHandler):
             self.apply(event.src_path)
 
 
-class Main(object):
+class Main():
     """TODO: Doku."""
 
     def __init__(self) -> None:

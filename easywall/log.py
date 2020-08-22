@@ -1,5 +1,6 @@
 """
-This is a wrapper around the logging module.
+Wrapper around the logging module.
+
 It supports the simple configuration of the outputs.
 """
 import logging
@@ -9,13 +10,15 @@ from easywall.utility import (create_file_if_not_exists,
                               create_folder_if_not_exists)
 
 
-class Log(object):
+class Log():
     """
     This class is the main class of the log module.
+
     All logging information is required as inputs.
     """
 
     def __init__(self, loglevel: str, to_stdout: bool, to_files: bool, logpath: str, logfile: str):
+        """TODO: Docu."""
         self.loglevel = self.correct_level(loglevel)
 
         # create logger
@@ -47,14 +50,14 @@ class Log(object):
             root.addHandler(file_handler)
 
     def close_logging(self) -> None:
-        """This function gently closes all handlers before exiting the software"""
+        """Gently closes all handlers before exiting the software."""
         root = logging.getLogger()
         for handler in root.handlers:
             handler.close()
             root.removeHandler(handler)
 
     def correct_level(self, loglevel: str) -> int:
-        """This internal function determines the loglevel of the logging class"""
+        """Determine the loglevel of the logging class."""
         level = logging.NOTSET
         loglevel = loglevel.lower()
         if loglevel == "debug":

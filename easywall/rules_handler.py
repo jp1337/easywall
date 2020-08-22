@@ -6,7 +6,7 @@ from easywall.utility import (create_file_if_not_exists,
                               write_into_file)
 
 
-class RulesHandler(object):
+class RulesHandler():
     """TODO: Doku."""
 
     def __init__(self) -> None:
