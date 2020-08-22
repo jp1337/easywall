@@ -19,20 +19,26 @@ fi
 FILE="/lib/systemd/system/easywall.service"
 if test -f "$FILE"; then
     systemctl stop easywall.service
-    rm $FILE
+    rm -vf $FILE
+    rm -vf /etc/systemd/system/multi-user.target.wants/easywall.service
     systemctl daemon-reload
 fi
 
 FILE="/lib/systemd/system/easywall-web.service"
 if test -f "$FILE"; then
     systemctl stop easywall-web.service
-    rm $FILE
+    rm -vf $FILE
+    rm -vf /etc/systemd/system/multi-user.target.wants/easywall-web.service
     systemctl daemon-reload
 fi
 
 if id "easywall" >/dev/null 2>&1; then
     deluser easywall
+    rm -rvf /home/easywall
 fi
+
+rm -rvf /var/log/easywall*
+rm -rvf /opt/easywall-backup
 
 # Finished.
 echo "" && echo ""
