@@ -37,7 +37,7 @@ fi
 # Finished.
 echo "" && echo ""
 read -r -d '' INSTRUCTIONS <<EOF
-\e[33m------------------------------\e[39m
+\\e[33m------------------------------\\e[39m
 easywall was successfully uninstalled!
 
 For the next steps, please follow our uninstallation instructions on GitHub.
