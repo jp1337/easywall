@@ -1,8 +1,13 @@
 # documentation on https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
 # python versions can be found here: https://raw.githubusercontent.com/actions/python-versions/master/versions-manifest.json
-name: python-testing
 
-on: [push, pull_request]
+name: Testing
+
+on:
+  push:
+    branches: [$default-branch]
+  pull_request:
+    branches: [$default-branch]
 
 jobs:
   python-testing:
@@ -20,22 +25,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python --version
-          python -m pip install --upgrade pip
-
-      - name: Prepare Python Environment
-        run: |
-          pip install virtualenv
-          virtualenv venv
-          source venv/bin/activate
-
-      - name: Install Software Requirements
-        run: |
-          pip install --upgrade setuptools
-          pip install --upgrade coveralls
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip setuptools wheel
+          pip install --upgrade coveralls pytest-cov pytest-flake8 pytest-mypy pytest
+          pip install --upgrade -r requirements.txt
 
       - name: Prepare logfile
         run: |
@@ -45,6 +40,13 @@ jobs:
       - name: Test using pytest
         run: |
           python3 setup.py pytest
+
+      - name: Upload pytest test results
+        uses: actions/upload-artifact@v2
+        with:
+          name: pytest-results-${{ matrix.python-version }}
+          path: coverage.xml
+        if: ${{ always() }}
 
       - name: Coveralls coverage upload
         run: |
