@@ -1,0 +1,24 @@
+name: package
+
+# on:
+#   release:
+#     types: [created]
+
+on: ["push"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the Repository
+        uses: actions/checkout@v2
+
+      - name: Build package
+        run: |
+          bash scripts/build-package.sh
+
+      - name: Upload package to GitHub
+        uses: actions/upload-artifact@v2
+        with:
+          name: debian-package
+          path: artifacts/
