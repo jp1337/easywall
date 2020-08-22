@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+
+DISTRIBUTION = $(shell sed -n "s/^VERSION_CODENAME=//p" /etc/os-release)
+VERSION = 0.2.0
+PACKAGEVERSION = $(VERSION)-0~$(DISTRIBUTION)0
+TARBALL = v$(VERSION).tar.gz
+URL = https://github.com/jp1337/easywall/archive/$(TARBALL)
+BUILD_DIR = ./build
+
+%:
+	dh $@
+
+override_dh_auto_clean:
+override_dh_auto_test:
+override_dh_auto_build:
+override_dh_auto_install:
+	if [ -d $(BUILD_DIR) ]; then rm -Rf $(BUILD_DIR); fi
+	mkdir $(BUILD_DIR)
+	wget -N --progress=dot:mega $(URL) -P $(BUILD_DIR)
+	tar --strip-components=1 -xf $(BUILD_DIR)/$(TARBALL) -C $(BUILD_DIR)
+
+override_dh_gencontrol:
+	dh_gencontrol -- -v$(PACKAGEVERSION)
+

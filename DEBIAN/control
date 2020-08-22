@@ -1,11 +1,10 @@
 Source: easywall
 Maintainer: JP <12394156+jp1337@users.noreply.github.com>
+Build-Depends: debhelper (>= 11), tar
 Section: admin
 Priority: optional
-Build-Depends: debhelper (>= 11), wget, ca-certificates
 Standards-Version: 3.9.5
-
 Package: easywall
-Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Architecture: all
+Version: 0.2.0
 Description: Web interface for easy use of the IPTables firewall on Linux systems written in Python3
