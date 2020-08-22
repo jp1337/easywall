@@ -9,9 +9,12 @@ RULESFOLDER="rules"
 SSLFOLDER="ssl"
 CONFIGFILE="web.ini"
 SAMPLEFILE="web.sample.ini"
+CONFIGFILELOG="log.ini"
+SAMPLEFILELOG="log.sample.ini"
 SERVICEFILE="/lib/systemd/system/easywall-web.service"
 SERVICEFILE_EASYWALL="/lib/systemd/system/easywall.service"
 CERTFILE="easywall.crt"
+LOGFILE="/var/log/easywall.log"
 
 SCRIPTNAME=$(basename "$0")
 SCRIPTSPATH=$(dirname "$(readlink -f "$0")")
@@ -19,7 +22,7 @@ HOMEPATH="$(dirname "$SCRIPTSPATH")"
 WEBDIR="$HOMEPATH/easywall/web"
 TMPDIR="$WEBDIR/tmp"
 
-STEPS=10
+STEPS=11
 STEP=1
 
 if [ "$EUID" -ne 0 ]; then
@@ -36,24 +39,29 @@ EOF
 fi
 
 # Step 1
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required programs from the operating system \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Install the required programs from the operating system \\e[39m" && ((STEP++))
 apt -qqq update
 apt -y install python3 python3-pip uwsgi uwsgi-plugin-python3 wget unzip openssl
 
 # Step 2
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Install the required Python3 packages using pip3 \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Install the required Python3 packages using pip3 \\e[39m" && ((STEP++))
 pip3 install "${HOMEPATH}"
 
 # Step 3
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the configuration from the example configuration \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the configuration from the example configuration \\e[39m" && ((STEP++))
 if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}" ]; then
-    echo -e "\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\e[39m"
+    echo -e "\\e[33mThe configuration file is not overwritten because it already exists and adjustments may have been made.\\e[39m"
 else
     cp -v "${HOMEPATH}/${CONFIGFOLDER}/${SAMPLEFILE}" "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILE}"
 fi
+if [ -f "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILELOG}" ]; then
+    echo -e "\\e[33mThe log configuration file is not overwritten because it already exists and adjustments may have been made.\\e[39m"
+else
+    cp -v "${HOMEPATH}/${CONFIGFOLDER}/${SAMPLEFILELOG}" "${HOMEPATH}/${CONFIGFOLDER}/${CONFIGFILELOG}"
+fi
 
 # Step 4
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the group under which the software should run \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the group under which the software should run \\e[39m" && ((STEP++))
 if [ "$(getent group easywall)" ]; then
     echo "The easywall group is already present."
 else
@@ -62,7 +70,7 @@ else
 fi
 
 # Step 5
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Download of several libraries required for easywall-web \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Download of several libraries required for easywall-web \\e[39m" && ((STEP++))
 mkdir "$TMPDIR" && cd "$TMPDIR" || exit 1
 
 # Bootstrap
@@ -85,12 +93,12 @@ cd "$HOMEPATH" || exit 1
 rm -rf "$TMPDIR"
 
 # Step 6
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the application user and add it to the application group. \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the application user and add it to the application group. \\e[39m" && ((STEP++))
 adduser --system --debug easywall
 usermod -g easywall easywall
 
 # Step 7
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Set permissions on files and folders \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Set permissions on files and folders \\e[39m" && ((STEP++))
 chown -Rv easywall:easywall "${HOMEPATH}"
 chown -Rv easywall:easywall "$WEBDIR"
 chown -Rv easywall:easywall "${HOMEPATH}/${CONFIGFOLDER}"
@@ -100,7 +108,7 @@ chmod -v 750 "${HOMEPATH}/${CONFIGFOLDER}"
 chmod -Rv 750 "${HOMEPATH}/${RULESFOLDER}"
 
 # Step 8
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create the systemd service \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the systemd service \\e[39m" && ((STEP++))
 read -r -d '' SERVICECONTENT <<EOF
 [Unit]
 Description=easywall-web - web interface to control the easywall core application.
@@ -125,7 +133,7 @@ systemctl enable easywall-web
 echo "daemon installed."
 
 # Step 9
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Create a self-signed SSL certificate \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create a self-signed SSL certificate \\e[39m" && ((STEP++))
 if [ ! -f "${HOMEPATH}/${SSLFOLDER}/${CERTFILE}" ]; then
     DOMAIN="$(hostname -f)"
     echo "generating passphrase..."
@@ -151,7 +159,7 @@ emailAddress=admin@example.com
     openssl req \
         -new \
         -batch \
-        -subj "$(echo -n "$SUBJECT" | tr "\n" "/")" \
+        -subj "$(echo -n "$SUBJECT" | tr "\\n" "/")" \
         -key easywall.key \
         -out easywall.csr \
         -passin env:PASSPHRASE
@@ -173,8 +181,13 @@ else
     echo "The certificate already exists and does not need to be created."
 fi
 
+# Step 6
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the logfile \\e[39m" && ((STEP++))
+touch "${LOGFILE}"
+echo "logfile created."
+
 # Step 10
-echo "" && echo -e "\e[33m($STEP/$STEPS)\e[32m Start the services \e[39m" && ((STEP++))
+echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Start the services \\e[39m" && ((STEP++))
 if [ -f "${SERVICEFILE_EASYWALL}" ]; then
     systemctl restart easywall
 fi
@@ -184,7 +197,7 @@ echo "daemon started."
 # Finished.
 echo "" && echo ""
 read -r -d '' INTRODUCTION <<EOF
-\e[33m------------------------------\e[39m
+\\e[33m------------------------------\\e[39m
 You have successfully installed the easywall web interface.
 
 For the next steps, please follow our installation instructions on GitHub.
