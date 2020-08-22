@@ -40,7 +40,7 @@ jobs:
 
       - name: Test using pytest
         run: |
-          touch /var/log/easywall.log
+          sudo touch /var/log/easywall.log
           python3 setup.py pytest
 
       - name: Coveralls coverage upload
