@@ -15,6 +15,7 @@ from easywall.rules_handler import RulesHandler
 from easywall.utility import delete_file_if_exists
 
 CONFIG_PATH = "config/easywall.ini"
+LOG_CONFIG_PATH = "config/log.ini"
 
 
 class ModifiedHandler(FileSystemEventHandler):
@@ -41,12 +42,13 @@ class Main(object):
 
     def __init__(self) -> None:
         self.cfg = Config(CONFIG_PATH)
+        self.cfg_log = Config(LOG_CONFIG_PATH)
 
-        loglevel = self.cfg.get_value("LOG", "level")
-        to_stdout = self.cfg.get_value("LOG", "to_stdout")
-        to_files = self.cfg.get_value("LOG", "to_files")
-        logpath = self.cfg.get_value("LOG", "filepath")
-        logfile = self.cfg.get_value("LOG", "filename")
+        loglevel = self.cfg_log.get_value("LOG", "level")
+        to_stdout = self.cfg_log.get_value("LOG", "to_stdout")
+        to_files = self.cfg_log.get_value("LOG", "to_files")
+        logpath = self.cfg_log.get_value("LOG", "filepath")
+        logfile = self.cfg_log.get_value("LOG", "filename")
         self.log = Log(str(loglevel), bool(to_stdout), bool(to_files), str(logpath), str(logfile))
 
         info("starting easywall")

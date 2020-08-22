@@ -134,6 +134,7 @@ rules/
 *.log
 config/easywall.ini
 config/web.ini
+config/log.ini
 .acceptance
 .running
 apply

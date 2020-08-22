@@ -643,26 +643,26 @@
                             <form action="/options-save" method="post">
 
                                 <input type="hidden" value="LOG" name="section">
-                                <input type="hidden" value="easywall" name="cfgtype">
+                                <input type="hidden" value="log" name="cfgtype">
 
                                 <div class="form-group">
                                     <label for="loglevel">Log Level</label>
 
                                     <select class="custom-select" id="loglevel" name="level">
                                         <option
-                                            {% if vars.config.get_value("LOG", "level").lower() == "debug" %}selected{% endif %}>
+                                            {% if vars.config_log.get_value("LOG", "level").lower() == "debug" %}selected{% endif %}>
                                             debug</option>
                                         <option
-                                            {% if vars.config.get_value("LOG", "level").lower() == "info" %}selected{% endif %}>
+                                            {% if vars.config_log.get_value("LOG", "level").lower() == "info" %}selected{% endif %}>
                                             info</option>
                                         <option
-                                            {% if vars.config.get_value("LOG", "level").lower() == "warning" %}selected{% endif %}>
+                                            {% if vars.config_log.get_value("LOG", "level").lower() == "warning" %}selected{% endif %}>
                                             warning</option>
                                         <option
-                                            {% if vars.config.get_value("LOG", "level").lower() == "error" %}selected{% endif %}>
+                                            {% if vars.config_log.get_value("LOG", "level").lower() == "error" %}selected{% endif %}>
                                             error</option>
                                         <option
-                                            {% if vars.config.get_value("LOG", "level").lower() == "critical" %}selected{% endif %}>
+                                            {% if vars.config_log.get_value("LOG", "level").lower() == "critical" %}selected{% endif %}>
                                             critical</option>
                                     </select>
                                     <small id="loglevelHelp" class="form-text text-muted">
@@ -676,7 +676,7 @@
                                     <label class="form-check-label" for="to_files">
                                         <input type="hidden" value="off" name="checkbox_to_files">
                                         <input type="checkbox" id="to_files" name="to_files"
-                                            {% if vars.config.get_value("LOG", "to_files") == true %} checked
+                                            {% if vars.config_log.get_value("LOG", "to_files") == true %} checked
                                             {% endif %} aria-describedby="to_files_help">
                                         Write log to Logfile
                                     </label>
@@ -690,7 +690,7 @@
                                     <label class="form-check-label" for="to_stdout">
                                         <input type="hidden" value="off" name="checkbox_to_stdout">
                                         <input type="checkbox" id="to_stdout" name="to_stdout"
-                                            {% if vars.config.get_value("LOG", "to_stdout") == true %} checked
+                                            {% if vars.config_log.get_value("LOG", "to_stdout") == true %} checked
                                             {% endif %} aria-describedby="to_stdout_help">
                                         Write log to Stdout
                                     </label>
@@ -704,8 +704,8 @@
                                     <label for="log_filepath">Log filepath</label>
                                     <input type="text" class="form-control" id="log_filepath" name="filepath"
                                         aria-describedby="log_filepath_help" placeholder="Example: /var/log/easywall"
-                                        {% if vars.config.get_value("LOG", "filepath") != "" %}
-                                        value={{vars.config.get_value("LOG", "filepath")}} {% endif %}>
+                                        {% if vars.config_log.get_value("LOG", "filepath") != "" %}
+                                        value={{vars.config_log.get_value("LOG", "filepath")}} {% endif %}>
                                     <small id="log_filepath_help" class="form-text text-muted">
                                         Please specify the log directory. You can use a relative or absolute path to the
                                         directory. Logfiles on Linux are normally stored in <code>/var/log</code>
@@ -716,8 +716,8 @@
                                     <label for="log_filename">Log filename</label>
                                     <input type="text" class="form-control" id="log_filename" name="filename"
                                         aria-describedby="log_filename_help" placeholder="Example: easywall.log"
-                                        {% if vars.config.get_value("LOG", "filename") != "" %}
-                                        value={{vars.config.get_value("LOG", "filename")}} {% endif %}>
+                                        {% if vars.config_log.get_value("LOG", "filename") != "" %}
+                                        value={{vars.config_log.get_value("LOG", "filename")}} {% endif %}>
                                     <small id="log_filename_help" class="form-text text-muted">
                                         This option sets the logfile name. The logfile should have a normal file
                                         extension like <code>.log</code> or <code>.txt</code>

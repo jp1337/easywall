@@ -21,6 +21,7 @@ def options(saved: bool = False, error: str = "") -> str:
         """
         payload.config = utils.cfg_easywall
         payload.config_web = utils.cfg
+        payload.config_log = utils.cfg_log
         payload.saved = saved
         payload.error = error
         return render_template('options.html', vars=payload)
@@ -53,6 +54,8 @@ def options_save() -> str:
                         utils.cfg_easywall.set_value(section, key, value)
                     elif cfgtype == "web":
                         utils.cfg.set_value(section, key, value)
+                    elif cfgtype == "log":
+                        utils.cfg_log.set_value(section, key, value)
                     else:
                         return options(
                             saved=False,

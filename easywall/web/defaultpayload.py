@@ -8,6 +8,7 @@ class DefaultPayload(object):
     def __init__(self) -> None:
         self.config: Config
         self.config_web: Config
+        self.config_log: Config
         self.saved: bool
         self.addresses: list
         self.tcp: list

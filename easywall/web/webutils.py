@@ -8,7 +8,7 @@ from typing import Any
 
 from flask import Request, session
 
-from easywall.__main__ import CONFIG_PATH
+from easywall.__main__ import CONFIG_PATH, LOG_CONFIG_PATH
 from easywall.config import Config
 from easywall.utility import file_exists, file_get_contents, time_duration_diff
 from easywall.web.defaultpayload import DefaultPayload
@@ -20,6 +20,7 @@ class Webutils(object):
     def __init__(self) -> None:
         self.cfg = Config("config/web.ini")
         self.cfg_easywall = Config(CONFIG_PATH)
+        self.cfg_log = Config(LOG_CONFIG_PATH)
 
     def check_login(self, request: Request) -> bool:
         """the function checks if the user/session is logged in"""
