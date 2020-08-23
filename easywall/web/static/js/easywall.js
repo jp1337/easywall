@@ -1,20 +1,17 @@
-// set the date we're counting down to
-var target = new Date();
-var accepttime = document.getElementById("accepttime");
-if (accepttime != null) {
-  accepttime = accepttime.getAttribute("data");
-}
-target.setSeconds(target.getSeconds() + accepttime);
-var target = target.getTime();
-
-// variables for time units
-var seconds, now, distance;
-
-// get tag element
 var countdown = document.getElementById("countdown");
 
-// update the tag with id "countdown" every 1 second
 if (countdown != null) {
+  var accepttime = document.getElementById("accepttime");
+  if (accepttime != null) {
+    accepttime = accepttime.getAttribute("data");
+  }
+
+  var target = new Date();
+  target.setSeconds(target.getSeconds() + accepttime);
+  target = target.getTime();
+
+  var seconds, now, distance;
+
   setInterval(function () {
     now = new Date().getTime();
     distance = target - now;
