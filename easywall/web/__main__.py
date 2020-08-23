@@ -1,5 +1,6 @@
-"""the app module contains all information of the Flask app"""
+"""The app module contains all information of the Flask app."""
 import os
+from datetime import datetime, timezone
 from logging import info
 from typing import Tuple, Union
 
@@ -29,124 +30,144 @@ LOG_CONFIG_PATH = "config/log.ini"
 @APP.after_request
 def apply_headers(response: wrappers.Response) -> wrappers.Response:
     """TODO: Doku."""
+    response.headers["Connection"] = "keep-alive"
+    response.headers["Transfer-Encoding"] = "chunked"
+    response.headers["Date"] = datetime.now(tz=timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
+
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Content-Security-Policy"] = "script-src 'self' ; frame-ancestors 'none'"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Feature-Policy"] = (
+        "accelerometer 'none'; "
+        "camera 'none'; "
+        "geolocation 'none'; "
+        "gyroscope 'none'; "
+        "magnetometer 'none'; "
+        "microphone 'none'; "
+        "payment 'none'; "
+        "usb 'none'"
+    )
+    response.headers["Expect-CT"] = (
+        "max-age=0, "
+        "report-uri=\"https://wdkro.de/expect-ct/csp-report/create\""
+    )
     return response
 
 
 @APP.route('/')
 def index_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return index()
 
 
 @APP.route('/options')
 def options_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return options()
 
 
 @APP.route('/options-save', methods=['POST'])
 def options_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return options_save()
 
 
 @APP.route('/blacklist')
 def blacklist_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return blacklist()
 
 
 @APP.route('/blacklist-save', methods=['POST'])
 def blacklist_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return blacklist_save()
 
 
 @APP.route('/whitelist')
 def whitelist_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return whitelist()
 
 
 @APP.route('/whitelist-save', methods=['POST'])
 def whitelist_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return whitelist_save()
 
 
 @APP.route('/forwarding')
 def forwarding_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return forwarding()
 
 
 @APP.route('/forwarding-save', methods=['POST'])
 def forwarding_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return forwarding_save()
 
 
 @APP.route('/ports')
 def ports_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return ports()
 
 
 @APP.route('/ports-save', methods=['POST'])
 def ports_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return ports_save()
 
 
 @APP.route('/custom')
 def custom_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return custom()
 
 
 @APP.route('/custom-save', methods=['POST'])
 def custom_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return custom_save()
 
 
 @APP.route('/apply')
 def apply_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return apply()
 
 
 @APP.route('/apply-save', methods=['POST'])
 def apply_save_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return apply_save()
 
 
 @APP.route('/login', methods=['POST'])
 def login_post_route() -> Union[Response, str]:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return login_post(MAIN.ip_ban)
 
 
 @APP.route("/logout")
 def logout_route() -> str:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return logout()
 
 
 @APP.errorhandler(404)
 def page_not_found_route(error: str) -> Union[str, Tuple[str, int]]:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return page_not_found(error)
 
 
 @APP.errorhandler(403)
 def forbidden_route(error: str) -> Union[str, Tuple[str, int]]:
-    """The function calls the corresponding function from the appropriate module"""
+    """Call the corresponding function from the appropriate module."""
     return forbidden(error)
 
 
@@ -158,6 +179,7 @@ def before_request_func() -> None:
 
 class DefaultConfig(object):
     """TODO: Doku."""
+
     DEBUG = False
     TESTING = False
     SECRET_KEY = os.urandom(265)
@@ -177,6 +199,7 @@ class ProductionConfig(DefaultConfig):
 
 class DevelopmentConfig(DefaultConfig):
     """TODO: Doku."""
+
     DEBUG = True
     ENV = "development"
 
@@ -185,6 +208,7 @@ class Main(object):
     """TODO: Doku."""
 
     def __init__(self, debug: bool = False) -> None:
+        """TODO: Doku."""
         self.cfg = Config(CONFIG_PATH)
         self.cfg_log = Config(LOG_CONFIG_PATH)
 

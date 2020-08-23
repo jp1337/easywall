@@ -64,7 +64,7 @@ class Main():
 
     def start_observer(self) -> None:
         """
-        This function is called to keep the main process running.
+        Keep the main process running until it should be stopped.
 
         if someone is pressing ctrl + C the software will initiate the stop process
         """
@@ -80,7 +80,7 @@ class Main():
             self.shutdown()
 
     def shutdown(self) -> None:
-        """The function stops all threads and shuts the software down gracefully."""
+        """Stop all threads and shut the software down gracefully."""
         info("starting shutdown")
 
         self.observer.stop()
