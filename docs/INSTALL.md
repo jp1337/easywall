@@ -19,18 +19,39 @@ We currently only support Debian based operating systems like Debian or Ubuntu.
 
 If the requirements apply to your operating system, you can perform the following installation steps.
 
+## Installation by APT Package Manager
+
+- Add a new repository to APT sources
+
+```sh
+echo "deb https://apt.wdkro.de/ stable main" > /etc/apt/sources.list.d/easywall.list
+```
+
+- Import the GPG Key used for signing the release
+
+```sh
+apt-key adv --keyserver keyserver.ubuntu.com --recv-keys D88D7689C1624EE3
+```
+
+- Install the easywall package as other software package
+
+```sh
+apt update
+apt install easywall
+```
+
 ## Installation by Package
 
 - Download the package from the [latest release](https://github.com/jp1337/easywall/releases/latest)
 
 ```sh
-wget https://github.com/jp1337/easywall/releases/download/v0.2.1/easywall_0.2.1-1_amd64.deb
+wget https://github.com/jp1337/easywall/releases/download/vX.X.X/easywall_X.X.X-1_amd64.deb
 ```
 
 - Install the package using Debian Package Manager
 
 ```sh
-dpkg -i easywall_0.2.1-1_amd64.deb
+dpkg -i easywall_X.X.X-1_amd64.deb
 ```
 
 - Optional: Set the username and password for the web interface.
