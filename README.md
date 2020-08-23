@@ -72,9 +72,10 @@ The following features will be implemented in one of the next versions. If you n
 
 - :x: create a `pydoc` documentation
 - :x: finish all `TODO: Docs` documentations
-- :x: create a linux / debian package for installation
 - :x: improve testing by using multiple os
 - :x: first run wizard in the web interface for setting username and password after installing
+- :x: After the options have been saved, the user should get to the tab he has saved
+- :x: Making preparations for Python 3.9
 
 ---
 
