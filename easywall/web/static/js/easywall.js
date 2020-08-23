@@ -1,6 +1,9 @@
 // set the date we're counting down to
 var target = new Date();
-var accepttime = document.getElementById("accepttime").getAttribute("data");
+var accepttime = document.getElementById("accepttime");
+if (accepttime != null) {
+  accepttime = accepttime.getAttribute("data");
+}
 target.setSeconds(target.getSeconds() + accepttime);
 var target = target.getTime();
 
