@@ -31,7 +31,6 @@ LOG_CONFIG_PATH = "config/log.ini"
 def apply_headers(response: wrappers.Response) -> wrappers.Response:
     """TODO: Doku."""
     response.headers["Connection"] = "keep-alive"
-    response.headers["Transfer-Encoding"] = "chunked"
     response.headers["Date"] = datetime.now(tz=timezone.utc).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
     response.headers["X-Frame-Options"] = "DENY"
