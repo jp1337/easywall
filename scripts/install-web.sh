@@ -70,6 +70,7 @@ mkdir "$TMPDIR" && cd "$TMPDIR" || exit 1
 
 # Bootstrap
 wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css" && cp -v "bootstrap.min.css" "$WEBDIR/static/css/"
+wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/css/bootstrap.min.css.map" && cp -v "bootstrap.min.css.map" "$WEBDIR/static/css/"
 wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress "https://stackpath.bootstrapcdn.com/bootstrap/$BOOTSTRAP/js/bootstrap.min.js" && cp -v "bootstrap.min.js" "$WEBDIR/static/js/"
 
 # Font Awesome
