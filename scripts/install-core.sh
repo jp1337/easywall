@@ -78,8 +78,8 @@ Group=easywall
 WantedBy=multi-user.target
 EOF
 echo "${SERVICECONTENT}" >"${SERVICEFILE}"
-systemctl daemon-reload
-systemctl enable easywall
+systemctl --no-pager daemon-reload
+systemctl --no-pager enable easywall
 echo "daemon installed."
 
 # Step 5
@@ -89,7 +89,7 @@ echo "logfile created."
 
 # Step 6
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Start the services \\e[39m" && ((STEP++))
-systemctl restart easywall
+systemctl --no-pager restart easywall
 echo "daemon started."
 
 # Finished.
@@ -105,4 +105,4 @@ Daemon Status:
 
 EOF
 echo -e "${INTRODUCTION}"
-systemctl -l status easywall
+systemctl --no-pager status easywall

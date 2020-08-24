@@ -18,18 +18,18 @@ fi
 
 FILE="/lib/systemd/system/easywall.service"
 if test -f "$FILE"; then
-    systemctl stop easywall.service
+    systemctl --no-pager stop easywall.service
     rm -vf $FILE
     rm -vf /etc/systemd/system/multi-user.target.wants/easywall.service
-    systemctl daemon-reload
+    systemctl --no-pager daemon-reload
 fi
 
 FILE="/lib/systemd/system/easywall-web.service"
 if test -f "$FILE"; then
-    systemctl stop easywall-web.service
+    systemctl --no-pager stop easywall-web.service
     rm -vf $FILE
     rm -vf /etc/systemd/system/multi-user.target.wants/easywall-web.service
-    systemctl daemon-reload
+    systemctl --no-pager daemon-reload
 fi
 
 if id "easywall" >/dev/null 2>&1; then
