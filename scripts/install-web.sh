@@ -182,6 +182,7 @@ fi
 # Step 9
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Create the logfile \\e[39m" && ((STEP++))
 touch "${LOGFILE}"
+chown easywall:easywall "${LOGFILE}"
 echo "logfile created."
 
 # Step 10
