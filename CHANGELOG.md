@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2020-08-24
+
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2)
+
+### Added
+
+- Readme and documentation improved
+- Added quick start guide to documentation
+- APT package and repository guide added to installation documentation
+- New security and general HTTP headers added
+- Installation shellscripts strongly improved
+
+### Changed
+
+- Inline Javascript moved to separate file
+
 ## [0.2.1] - 2020-08-22
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
@@ -183,7 +199,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.1...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0
