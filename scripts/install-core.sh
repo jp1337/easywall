@@ -64,7 +64,7 @@ Wants=network-online.target
 After=syslog.target time-sync.target network.target network-online.target
 
 [Service]
-ExecStart=python3 -m easywall
+ExecStart=/usr/bin/env python3 -m easywall
 KillMode=mixed
 KillSignal=SIGINT
 WorkingDirectory=${HOMEPATH}
