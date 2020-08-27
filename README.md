@@ -118,19 +118,11 @@ To continue the project, I need your support! Please donate so that I can contin
 ## What does it look like
 
 ![Screenshot 1](https://i.imgur.com/eQAHOUc.png)
-
 ![Screenshot 2](https://i.imgur.com/N2cdm0h.png)
-
 ![Screenshot 3](https://i.imgur.com/pjtJuq5.png)
-
 ![Screenshot 4](https://i.imgur.com/SSTPaXO.png)
-
 ![Screenshot 5](https://i.imgur.com/EPHUjI3.png)
-
 ![Screenshot 6](https://i.imgur.com/X3sdFO3.png)
-
 ![Screenshot 7](https://i.imgur.com/5kd2Nql.png)
-
 ![Screenshot 8](https://i.imgur.com/jjZTxrV.png)
-
 ![Screenshot 9](https://i.imgur.com/owPACSx.png)
