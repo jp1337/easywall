@@ -21,6 +21,13 @@ If the requirements apply to your operating system, you can perform the followin
 
 ## Installation by APT Package Manager
 
+- Install the package requirements for adding a apt repository
+
+```sh
+apt update
+apt install -y apt-transport-https gnupg
+```
+
 - Add a new repository to APT sources
 
 ```sh
