@@ -15,11 +15,13 @@ from easywall.web.apply import apply, apply_save
 from easywall.web.blacklist import blacklist, blacklist_save
 from easywall.web.custom import custom, custom_save
 from easywall.web.error import forbidden, page_not_found
+from easywall.web.firstrun import firstrun, firstrun_save
 from easywall.web.forwarding import forwarding, forwarding_save
 from easywall.web.index import index
 from easywall.web.login import login_post, logout
 from easywall.web.options import options, options_save
 from easywall.web.ports import ports, ports_save
+from easywall.web.webutils import Webutils
 from easywall.web.whitelist import whitelist, whitelist_save
 
 APP = Flask(__name__)
@@ -57,8 +59,11 @@ def apply_headers(response: wrappers.Response) -> wrappers.Response:
 
 
 @APP.route('/')
-def index_route() -> str:
+def index_route() -> Union[Response, str]:
     """Call the corresponding function from the appropriate module."""
+    utils = Webutils()
+    if utils.check_first_run() is True:
+        return firstrun()
     return index()
 
 
@@ -158,6 +163,18 @@ def logout_route() -> str:
     return logout()
 
 
+@APP.route("/firstrun")
+def firstrun_route() -> Union[Response, str]:
+    """Call the corresponding function from the appropriate module."""
+    return firstrun()
+
+
+@APP.route("/firstrun", methods=['POST'])
+def firstrun_save_route() -> Union[Response, str]:
+    """Call the corresponding function from the appropriate module."""
+    return firstrun_save()
+
+
 @APP.errorhandler(404)
 def page_not_found_route(error: str) -> Union[str, Tuple[str, int]]:
     """Call the corresponding function from the appropriate module."""
@@ -242,9 +259,9 @@ class Main(object):
 
     def run_debug(self) -> None:
         """TODO: Doku."""
-            port = self.cfg.get_value("WEB", "bindport")
-            host = self.cfg.get_value("WEB", "bindip")
-            APP.run(str(host), str(port))
+        port = self.cfg.get_value("WEB", "bindport")
+        host = self.cfg.get_value("WEB", "bindip")
+        APP.run(str(host), str(port))
 
 
 if __name__ == '__main__':

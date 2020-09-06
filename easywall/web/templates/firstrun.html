@@ -1,0 +1,37 @@
+{% include 'head.html' %}
+
+<div class="text-center w-100">
+    <form class="form-signin" action="/firstrun" method="POST">
+
+        <img class="mb-4" src="/static/img/logo.png" alt="" width="72" height="72">
+        <h1 class="h3 mb-3 font-weight-normal">{{ vars.title }}</h1>
+
+        <p>To use the webinterface you have to set the username and password.</p>
+
+        {% if vars.message and vars.messagetype %}
+        <div class="alert alert-{{vars.messagetype}}" role="alert">
+            {{vars.message}}
+        </div>
+        {% endif %}
+
+        <label for="username" class="sr-only">Username</label>
+        <input type="text" id="username" name="username" class="form-control" placeholder="Username"
+            style="border-bottom-left-radius: 0; border-bottom-right-radius: 0;" required autofocus>
+
+        <label for="password" class="sr-only">Password</label>
+        <input type="password" AUTOCOMPLETE="off" id="password" name="password" class="form-control"
+            placeholder="Password"
+            style="margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0;" required>
+
+        <label for="password-confirm" class="sr-only">Confirm password</label>
+        <input type="password" AUTOCOMPLETE="off" id="password-confirm" name="password-confirm" class="form-control"
+            placeholder="Confirm password" required>
+
+        <button class="btn btn-lg btn-primary btn-block" type="submit">Submit</button>
+
+        <p class="mt-5 mb-3 text-muted">&copy; 2017-{{vars.year}} easywall</p>
+    </form>
+</div>
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-"""the module contains a class webutils which is called in the route modules"""
+"""Create a helper class for all web routes which contains shared functions."""
 import json
 import platform
 import time
@@ -15,26 +15,35 @@ from easywall.web.defaultpayload import DefaultPayload
 
 
 class Webutils(object):
-    """the class is called in the route modules and contains non route-specific functions"""
+    """Create a couple of shared functions used in the route functions."""
 
     def __init__(self) -> None:
+        """TODO: Doku."""
         self.cfg = Config("config/web.ini")
         self.cfg_easywall = Config(CONFIG_PATH)
         self.cfg_log = Config(LOG_CONFIG_PATH)
 
     def check_login(self, request: Request) -> bool:
-        """the function checks if the user/session is logged in"""
+        """Check if the user/session is logged in."""
         if not session.get('logged_in'):
             return False
         if request.remote_addr != session.get('ip_address'):
             return False
         return True
 
+    def check_first_run(self) -> bool:
+        """Check if the webinterface is run for the first time."""
+        username = self.cfg.get_value("WEB", "username")
+        password = self.cfg.get_value("WEB", "password")
+        if username == "" or password == "":
+            return True
+        return False
+
     # -------------------------
     # Payload Operations
 
     def get_default_payload(self, title: str, css: str = "easywall") -> DefaultPayload:
-        """the function creates a object of information that are needed on every page"""
+        """Create a object of information that are needed on every page."""
         payload = DefaultPayload()
         payload.year = datetime.today().year
         payload.title = title
@@ -49,7 +58,7 @@ class Webutils(object):
         return payload
 
     def get_machine_infos(self) -> dict:
-        """the function retrieves some information about the host and returns them as a list"""
+        """Retrieve some information about the host and returns them as a list."""
         infos = {}
         infos["Machine"] = platform.machine()
         infos["Hostname"] = platform.node()
@@ -83,7 +92,8 @@ class Webutils(object):
 
     def get_commit_date(self, datestring: str) -> str:
         """
-        the function compares a datetime with the current date
+        Compare a datetime with the current date.
+
         for comparing the datestring parameter is in UTC timezone
         """
         date1 = datetime.strptime(str(datestring), "%Y-%m-%dT%H:%M:%SZ")
@@ -96,7 +106,8 @@ class Webutils(object):
 
     def update_last_commit_infos(self) -> None:
         """
-        the function retrieves the last commit information after a specific waiting time
+        Retrieve the last commit information after a specific waiting time.
+
         after retrieving the information they are saved into the config file
         """
         currtime = int(time.time())
@@ -111,8 +122,9 @@ class Webutils(object):
 
     def get_latest_commit(self) -> Any:
         """
-        retrieves the informations of the last commit from github as json
-        and converts the information into a python object
+        Retrieve the informations of the last commit from github as json.
+
+        also converts the information into a python object
         for example the object contains the last commit date and the last commit sha
         This function should not be called very often, because GitHub has a rate limit implemented
         """
@@ -125,15 +137,13 @@ class Webutils(object):
             }
         )
         if req.get_full_url().lower().startswith("https"):
-        response = urllib.request.urlopen(req)
+            response = urllib.request.urlopen(req)
         else:
             raise ValueError from None
         return json.loads(response.read().decode('utf-8'))
 
     def get_latest_version(self) -> str:
-        """
-        the function retrieves the latest version from github and returns the version string
-        """
+        """Retrieve the latest version from github and returns the version string."""
         url = "https://raw.githubusercontent.com/jp1337/easywall/master/.version"
         req = urllib.request.Request(
             url,
@@ -143,7 +153,7 @@ class Webutils(object):
             }
         )
         if req.get_full_url().lower().startswith("https"):
-        response = urllib.request.urlopen(req)
+            response = urllib.request.urlopen(req)
         else:
             raise ValueError from None
         data = response.read()
@@ -154,8 +164,9 @@ class Webutils(object):
 
     def get_last_accept_time(self) -> str:
         """
-        the function retrieves the modify time of the acceptance file
-        and compares the time to the current time
+        Retrieve the modify time of the acceptance file.
+
+        also compares the time to the current time
         """
         timestamp = str(self.cfg_easywall.get_value("ACCEPTANCE", "timestamp"))
         if timestamp == "":
@@ -165,9 +176,7 @@ class Webutils(object):
         return time_duration_diff(timestamp_datetime, now)
 
     def get_acceptance_status(self) -> str:
-        """
-        get the status of the current acceptance
-        """
+        """Get the status of the current acceptance."""
         filepath = ".acceptance_status"
         if file_exists(filepath):
             return file_get_contents(filepath)
