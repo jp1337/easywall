@@ -15,3 +15,6 @@ exclude_rule 'MD033'
 
 # Allow heading increase
 exclude_rule 'MD001'
+
+# Allow "Multiple top level headers in the same document"
+exclude_rule 'MD025'
