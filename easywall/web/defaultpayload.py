@@ -1,11 +1,12 @@
-"""the module contains a empty class which is used as object"""
+"""The module contains a empty class which is used as object."""
 from easywall.config import Config
 
 
 class DefaultPayload(object):
-    """the class is a empty skeleton for generating objects"""
+    """The class is a empty skeleton for generating objects."""
 
     def __init__(self) -> None:
+        """TODO: Doku."""
         self.config: Config
         self.config_web: Config
         self.config_log: Config
