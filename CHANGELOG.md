@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2020-09-06
+
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
+
+### Added
+
+- Security headers of the demo page are checked for correctness and actuality.
+- Information about what to do after the installation of easywall to adjust the access data.
+- Class documentation automatically generated and added to the dosc folder
+- If no user name and password is set in the configuration file, the First Run Wizard is automatically displayed in the web interface
+- After saving the options in the web interface, the tab you saved will be displayed.
+- Login attempts and the lockout time for too many failed logins can now be configured under "Web Interface".
+- bindip and bindport option with the info that these are debug variables
+
+### Changed
+
+- The bindip and bindport options have been replaced by the UWSGI start parameters
+- Error messages when saving the options are now displayed correctly
+- Fixed several errors when starting the web interface in debug mode
+
 ## [0.2.3] - 2020-08-28
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3)
@@ -209,7 +229,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.3...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1
