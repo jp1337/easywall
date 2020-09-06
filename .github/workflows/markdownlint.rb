@@ -9,3 +9,6 @@ exclude_rule 'MD029'
 
 # exclude "Multiple headers with the same content"
 exclude_rule 'MD024'
+
+# exclude "Inline HTML"
+exclude_rule 'MD033'
