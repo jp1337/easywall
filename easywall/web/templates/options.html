@@ -12,8 +12,7 @@
 
             {% if vars.error %}
             <div class="alert alert-danger" role="alert">
-                <strong>Oh snap!</strong> There was an error saving the configuration... Please review WebServer
-                Logfile!
+                <strong>Oops!</strong> {{ vars.error }}
             </div>
             {% endif %}
 
@@ -21,25 +20,32 @@
                 <div class="card-header">
                     <ul class="nav nav-tabs card-header-tabs">
                         <li class="nav-item">
-                            <a class="nav-link active" data-toggle="tab" href="#iptables" role="tab">iptables</a>
+                            <a class="nav-link {% if vars.active_tab == 'iptables' %}active{% endif %}"
+                                data-toggle="tab" href="#iptables" role="tab">iptables</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#ipv6" role="tab">IPv6</a>
+                            <a class="nav-link {% if vars.active_tab == 'ipv6' %}active{% endif %}" data-toggle="tab"
+                                href="#ipv6" role="tab">IPv6</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#acceptance" role="tab">Acceptance</a>
+                            <a class="nav-link {% if vars.active_tab == 'acceptance' %}active{% endif %}"
+                                data-toggle="tab" href="#acceptance" role="tab">Acceptance</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#logging" role="tab">Logging</a>
+                            <a class="nav-link {% if vars.active_tab == 'logging' %}active{% endif %}" data-toggle="tab"
+                                href="#logging" role="tab">Logging</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#binaries" role="tab">Binaries</a>
+                            <a class="nav-link {% if vars.active_tab == 'binaries' %}active{% endif %}"
+                                data-toggle="tab" href="#binaries" role="tab">Binaries</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#webinterface" role="tab">Webinterface</a>
+                            <a class="nav-link {% if vars.active_tab == 'webinterface' %}active{% endif %}"
+                                data-toggle="tab" href="#webinterface" role="tab">Webinterface</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" data-toggle="tab" href="#user" role="tab">User</a>
+                            <a class="nav-link {% if vars.active_tab == 'user' %}active{% endif %}" data-toggle="tab"
+                                href="#user" role="tab">User</a>
                         </li>
                     </ul>
                 </div>
@@ -47,11 +53,13 @@
                 <div class="card-body">
                     <div class="tab-content">
 
-                        <div class="tab-pane active" id="iptables" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'iptables' %}active{% endif %}" id="iptables"
+                            role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="IPTABLES" name="section">
-                                <input type="hidden" value="easywall" name="cfgtype">
+                                <input type="hidden" name="section" value="IPTABLES">
+                                <input type="hidden" name="cfgtype" value="easywall">
+                                <input type="hidden" name="active_tab" value="iptables">
 
                                 <div class="row">
                                     <div class="col-sm-4 mb-5">
@@ -547,11 +555,13 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="ipv6" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'ipv6' %}active{% endif %}" id="ipv6"
+                            role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="IPV6" name="section">
-                                <input type="hidden" value="easywall" name="cfgtype">
+                                <input type="hidden" name="section" value="IPV6">
+                                <input type="hidden" name="cfgtype" value="easywall">
+                                <input type="hidden" name="active_tab" value="ipv6">
 
                                 <div class="form-group">
                                     <input type="hidden" value="off" name="checkbox_enabled">
@@ -604,11 +614,13 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="acceptance" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'acceptance' %}active{% endif %}" id="acceptance"
+                            role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="ACCEPTANCE" name="section">
-                                <input type="hidden" value="easywall" name="cfgtype">
+                                <input type="hidden" name="section" value="ACCEPTANCE">
+                                <input type="hidden" name="cfgtype" value="easywall">
+                                <input type="hidden" name="active_tab" value="acceptance">
 
                                 <div class="form-group">
                                     <input type="hidden" value="off" name="checkbox_enabled">
@@ -639,11 +651,13 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="logging" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'logging' %}active{% endif %}" id="logging"
+                            role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="LOG" name="section">
-                                <input type="hidden" value="log" name="cfgtype">
+                                <input type="hidden" name="section" value="LOG">
+                                <input type="hidden" name="cfgtype" value="log">
+                                <input type="hidden" name="active_tab" value="logging">
 
                                 <div class="form-group">
                                     <label for="loglevel">Log Level</label>
@@ -728,11 +742,13 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="binaries" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'binaries' %}active{% endif %}" id="binaries"
+                            role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="EXEC" name="section">
-                                <input type="hidden" value="easywall" name="cfgtype">
+                                <input type="hidden" name="section" value="EXEC">
+                                <input type="hidden" name="cfgtype" value="easywall">
+                                <input type="hidden" name="active_tab" value="binaries">
 
                                 <div class="form-group">
                                     <label for="iptablesbin">File path to executable file for iptables</label>
@@ -823,33 +839,48 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="webinterface" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'webinterface' %}active{% endif %}"
+                            id="webinterface" role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="WEB" name="section">
-                                <input type="hidden" value="web" name="cfgtype">
+                                <input type="hidden" name="section" value="uwsgi">
+                                <input type="hidden" name="cfgtype" value="web">
+                                <input type="hidden" name="active_tab" value="webinterface">
 
                                 <div class="form-group">
-                                    <label for="bindip">IP address to listen to</label>
-                                    <input type="text" class="form-control" id="bindip" name="bindip"
-                                        aria-describedby="bindip_help" placeholder="Example: 0.0.0.0"
-                                        {% if vars.config_web.get_value("WEB", "bindip") != "" %}
-                                        value={{vars.config_web.get_value("WEB", "bindip")}} {% endif %}>
-                                    <small id="bindip_help" class="form-text text-muted">
-                                        Please enter the IP address to which the web interface should listen.<br />
-                                        This setting can be used to operate easywall with a reverse proxy.
+                                    <label for="https-socket">Options to start the web server</label>
+                                    <input type="text" class="form-control" id="https-socket" name="https-socket"
+                                        aria-describedby="https-socket_help"
+                                        placeholder="0.0.0.0:12227,ssl/easywall.crt,ssl/easywall.key,HIGH"
+                                        {% if vars.config_web.get_value("uwsgi", "https-socket") != "" %}
+                                        value={{vars.config_web.get_value("uwsgi", "https-socket")}} {% endif %}>
+                                    <small id="https-socket_help" class="form-text text-muted">
+                                        Please enter here the HTTPS information to start the UWSGI web server.<br />
+                                        The string is built from IP address, port, path to the SSL certificate,
+                                        path to the SSL key, and the SSL cipher strength.
                                     </small>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="bindport">Port to listen to</label>
-                                    <input type="text" class="form-control" id="bindport" name="bindport"
-                                        aria-describedby="bindport_help" placeholder="Example: 12227"
-                                        {% if vars.config_web.get_value("WEB", "bindport") != "" %}
-                                        value={{vars.config_web.get_value("WEB", "bindport")}} {% endif %}>
-                                    <small id="bindport_help" class="form-text text-muted">
-                                        Please enter the Port to which the web interface should listen.<br />
-                                        This setting can be used to operate easywall on a non-default port.
+                                    <label for="login_attempts">Login attempts</label>
+                                    <input type="text" class="form-control" id="login_attempts" name="login_attempts"
+                                        aria-describedby="login_attempts_help" placeholder="10"
+                                        {% if vars.config_web.get_value("WEB", "login_attempts") != "" %}
+                                        value={{vars.config_web.get_value("WEB", "login_attempts")}} {% endif %}>
+                                    <small id="login_attempts_help" class="form-text text-muted">
+                                        Please enter the number of login attempts until the sender IP address is blocked
+                                        for the time configured below.
+                                    </small>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="login_bantime">Login bantime in seconds</label>
+                                    <input type="text" class="form-control" id="login_bantime" name="login_bantime"
+                                        aria-describedby="login_bantime_help" placeholder="10"
+                                        {% if vars.config_web.get_value("WEB", "login_bantime") != "" %}
+                                        value={{vars.config_web.get_value("WEB", "login_bantime")}} {% endif %}>
+                                    <small id="login_bantime_help" class="form-text text-muted">
+                                        Time in seconds that the sender is blocked if there are too many failed logins.
                                     </small>
                                 </div>
 
@@ -857,11 +888,13 @@
                             </form>
                         </div>
 
-                        <div class="tab-pane" id="user" role="tabpanel">
+                        <div class="tab-pane {% if vars.active_tab == 'user' %}active{% endif %}" id="user"
+                            role="tabpanel">
                             <form action="/options-save" method="post">
 
-                                <input type="hidden" value="WEB" name="section">
-                                <input type="hidden" value="web" name="cfgtype">
+                                <input type="hidden" name="section" value="WEB">
+                                <input type="hidden" name="cfgtype" value="web">
+                                <input type="hidden" name="active_tab" value="user">
 
                                 <div class="form-group">
                                     <label for="username">Username for the web interface</label>

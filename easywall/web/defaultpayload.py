@@ -36,3 +36,4 @@ class DefaultPayload(object):
         self.lastapplied: str
         self.running: bool
         self.accepttime: str
+        self.active_tab: str

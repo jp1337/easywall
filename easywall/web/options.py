@@ -1,4 +1,4 @@
-"""the module contains functions for the options route"""
+"""The module contains functions for the options route."""
 from hashlib import sha512
 from platform import node
 
@@ -8,8 +8,8 @@ from easywall.web.login import login
 from easywall.web.webutils import Webutils
 
 
-def options(saved: bool = False, error: str = "") -> str:
-    """the function returns the options page when the user is logged in"""
+def options(saved: bool = False, error: str = "", active_tab: str = "iptables") -> str:
+    """Return the options page when the user is logged in."""
     utils = Webutils()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("Options")
@@ -24,19 +24,22 @@ def options(saved: bool = False, error: str = "") -> str:
         payload.config_log = utils.cfg_log
         payload.saved = saved
         payload.error = error
+        payload.active_tab = active_tab
         return render_template('options.html', vars=payload)
     return login()
 
 
 def options_save() -> str:
     """
-    the function saves the options from a section using the config class
+    Save the options from a section using the config class.
+
     for example the Enabled flag in the IPv6 section is saved to the config file
     """
     utils = Webutils()
     if utils.check_login(request) is True:
         section = request.form['section']
         cfgtype = request.form['cfgtype']
+        active_tab = request.form['active_tab']
         password1 = ""
         password2 = ""
 
@@ -59,7 +62,8 @@ def options_save() -> str:
                     else:
                         return options(
                             saved=False,
-                            error="The configuration could not be saved due to invalid parameters.")
+                            error="The configuration could not be saved due to invalid parameters.",
+                            active_tab=active_tab)
 
         if password1 and password2:
             if password1 == password2:
@@ -68,14 +72,16 @@ def options_save() -> str:
                 pw_hash = sha512(str(salt + password1).encode("utf-8")).hexdigest()
                 utils.cfg.set_value("WEB", "password", pw_hash)
             else:
-                return options(saved=False, error="The entered passwords are not identical.")
+                return options(saved=False,
+                               error="The entered passwords are not identical.",
+                               active_tab=active_tab)
 
-        return options(saved=True)
+        return options(saved=True, active_tab=active_tab)
     return login()
 
 
 def correct_value_checkbox(key: str) -> str:
-    """the function corrects the value of a checkbox"""
+    """Correct the value of a checkbox."""
     key = key.replace("checkbox_", "")
     if key in request.form:
         return "yes"
