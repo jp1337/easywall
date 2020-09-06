@@ -10,5 +10,8 @@ exclude_rule 'MD029'
 # exclude "Multiple headers with the same content"
 exclude_rule 'MD024'
 
-# exclude "Inline HTML"
+# Allow inline HTML
 exclude_rule 'MD033'
+
+# Allow heading increase
+exclude_rule 'MD001'
