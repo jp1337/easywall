@@ -47,6 +47,16 @@ apt update
 apt install easywall
 ```
 
+- Optional: Set the username and password for the web interface.
+
+```sh
+# optional:
+# cd /opt/easywall
+python3 easywall/web/passwd.py
+```
+
+- Open the web interface at the following URL: <https://hostname-or-ip-address:12227>
+
 ## Installation by Package
 
 - Download the package from the [latest release](https://github.com/jp1337/easywall/releases/latest)
@@ -68,6 +78,8 @@ dpkg -i easywall_X.X.X-1_amd64.deb
 # cd /opt/easywall
 python3 easywall/web/passwd.py
 ```
+
+- Open the web interface at the following URL: <https://hostname-or-ip-address:12227>
 
 ## Installation by using Git
 
@@ -94,7 +106,7 @@ cd easywall
 bash scripts/install-core.sh
 ```
 
-- Optional: To install the web interface, run the installation script for the web interface.
+- To install the web interface, run the installation script for the web interface.
 
 ```sh
 # optional:
@@ -109,6 +121,8 @@ bash scripts/install-web.sh
 # cd /opt/easywall
 python3 easywall/web/passwd.py
 ```
+
+- Open the web interface at the following URL: <https://hostname-or-ip-address:12227>
 
 ## Manual installation
 
@@ -157,3 +171,5 @@ bash scripts/install-web.sh
 # cd /opt/easywall
 python3 easywall/web/passwd.py
 ```
+
+- Open the web interface at the following URL: <https://hostname-or-ip-address:12227>

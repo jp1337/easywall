@@ -4,6 +4,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/easywall)](https://github.com/jp1337/easywall)
 [![Repo Size](https://img.shields.io/github/repo-size/jp1337/easywall.svg)](https://github.com/jp1337/easywall)
 [![Release Status](https://img.shields.io/pypi/status/easywall)](https://github.com/jp1337/easywall)
+[![Security Headers](https://img.shields.io/security-headers?url=https%3A%2F%2Fdev01vt.wdkro.de%3A12227)](https://github.com/jp1337/easywall)
 [![Discord Support](https://img.shields.io/discord/333980251921186818)](https://discord.gg/CUj2sFb)
 [![Beerpay](https://img.shields.io/beerpay/jp1337/easywall)](https://beerpay.io/jp1337/easywall)
 
@@ -47,7 +48,7 @@ apt update
 apt install easywall
 ```
 
-After installation, the web interface can be accessed in the browser at <https://myserver:12227>.
+After installation, the web interface can be accessed in the browser at <https://hostname-or-ip-address:12227>.
 
 ---
 
@@ -70,11 +71,8 @@ After installation, the web interface can be accessed in the browser at <https:/
 
 The following features will be implemented in one of the next versions. If you need a feature, simply create a GitHub issue, and we'll include it here.
 
-- :x: create a `pydoc` documentation
 - :x: finish all `TODO: Docs` documentations
 - :x: improve testing by using multiple os
-- :x: first run wizard in the web interface for setting username and password after installing
-- :x: After the options have been saved, the user should get to the tab he has saved
 - :x: Making preparations for Python 3.9
 
 ---
