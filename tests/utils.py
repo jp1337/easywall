@@ -102,7 +102,7 @@ need-plugin = python3
 
     content = """[LOG]
 level = info
-to_files = yes
+to_files = no
 to_stdout = yes
 filepath = /var/log
 filename = easywall.log
