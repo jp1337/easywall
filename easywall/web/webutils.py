@@ -124,7 +124,10 @@ class Webutils(object):
                 'User-Agent': 'easywall by github.com/jp1337/easywall'
             }
         )
+        if req.get_full_url().lower().startswith("https"):
         response = urllib.request.urlopen(req)
+        else:
+            raise ValueError from None
         return json.loads(response.read().decode('utf-8'))
 
     def get_latest_version(self) -> str:
@@ -139,7 +142,10 @@ class Webutils(object):
                 'User-Agent': 'easywall by github.com/jp1337/easywall'
             }
         )
+        if req.get_full_url().lower().startswith("https"):
         response = urllib.request.urlopen(req)
+        else:
+            raise ValueError from None
         data = response.read()
         return str(data.decode('utf-8'))
 
