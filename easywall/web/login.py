@@ -1,6 +1,4 @@
-"""
-the module contains functions for the user management routes
-"""
+"""Create functions for user login and logout."""
 import hashlib
 import platform
 from logging import info, warning
@@ -15,7 +13,8 @@ from easywall.web.webutils import Webutils
 
 def login(message: Union[None, str] = None, messagetype: Union[None, str] = None) -> str:
     """
-    the function returns the login page which shows messages
+    Return the login page which shows messages.
+
     also the function updates the last commit informations in the config file
     """
     utils = Webutils()
@@ -30,7 +29,8 @@ def login(message: Union[None, str] = None, messagetype: Union[None, str] = None
 
 def login_post(ip_ban: IpBan) -> Union[Response, str]:
     """
-    the function handles the login post request and if all information are correct
+    Handle the login post request and if all information are correct.
+
     a session variable is set to store the login information
     """
     utils = Webutils()
@@ -56,9 +56,7 @@ def login_post(ip_ban: IpBan) -> Union[Response, str]:
 
 
 def logout() -> str:
-    """
-    the function removes the logged_in session variable if the user is logged in
-    """
+    """Remove the logged_in session variable if the user is logged in."""
     utils = Webutils()
     if utils.check_login(request) is True:
         session['logged_in'] = False
