@@ -71,6 +71,7 @@ After installation, the web interface can be accessed in the browser at <https:/
 
 The following features will be implemented in one of the next versions. If you need a feature, simply create a GitHub issue, and we'll include it here.
 
+- :x: It should be possible to give the (opened) ports names or descriptions for a better overview.
 - :x: finish all `TODO: Docs` documentations
 - :x: improve testing by using multiple os
 - :x: Making preparations for Python 3.9
