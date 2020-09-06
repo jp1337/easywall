@@ -200,7 +200,11 @@ class DevelopmentConfig(DefaultConfig):
     """TODO: Doku."""
 
     DEBUG = True
+    TESTING = True
     ENV = "development"
+    SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_HTTPONLY = False
+    PREFERRED_URL_SCHEME = "http"
 
 
 class Main(object):
@@ -208,9 +212,7 @@ class Main(object):
 
     def __init__(self, debug: bool = False) -> None:
         """TODO: Doku."""
-        self.cfg = Config(CONFIG_PATH)
         self.cfg_log = Config(LOG_CONFIG_PATH)
-
         loglevel = self.cfg_log.get_value("LOG", "level")
         to_stdout = self.cfg_log.get_value("LOG", "to_stdout")
         to_files = self.cfg_log.get_value("LOG", "to_files")
@@ -218,27 +220,35 @@ class Main(object):
         logfile = self.cfg_log.get_value("LOG", "filename")
         self.log = Log(str(loglevel), bool(to_stdout), bool(to_files), str(logpath), str(logfile))
 
+        info("starting easywall-web")
+
+        self.cfg = Config(CONFIG_PATH)
+
+        if debug is True:
+            info("loading Flask debug configuration")
+            APP.config.from_object('easywall.web.__main__.DevelopmentConfig')
+        else:
+            info("loading Flask production configuration")
+            APP.config.from_object('easywall.web.__main__.ProductionConfig')
+
+        self.rules_handler = RulesHandler()
+        self.rules_handler.ensure_files_exist()
+
         self.login_attempts = self.cfg.get_value("WEB", "login_attempts")
         self.login_bantime = self.cfg.get_value("WEB", "login_bantime")
         self.ip_ban = IpBan(app=APP, ban_count=self.login_attempts,
                             ban_seconds=self.login_bantime, ipc=True)
         self.ip_ban.url_pattern_add('^/static.*$', match_type='regex')
 
-        info("starting easywall-web")
-
-        self.rules_handler = RulesHandler()
-        self.rules_handler.ensure_files_exist()
-
-        if debug is True:
+    def run_debug(self) -> None:
+        """TODO: Doku."""
             port = self.cfg.get_value("WEB", "bindport")
             host = self.cfg.get_value("WEB", "bindip")
-            APP.config.from_object('easywall.web.__main__.DevelopmentConfig')
             APP.run(str(host), str(port))
-        else:
-            APP.config.from_object('easywall.web.__main__.ProductionConfig')
 
 
 if __name__ == '__main__':
     MAIN = Main(debug=True)
+    MAIN.run_debug()
 else:
     MAIN = Main()
