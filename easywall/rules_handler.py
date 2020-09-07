@@ -10,6 +10,7 @@ class RulesHandler():
     """TODO: Doku."""
 
     def __init__(self) -> None:
+        """TODO: Doku."""
         self.rulesfolder = "rules"
         self.types = ["blacklist", "whitelist", "tcp", "udp", "custom", "forwarding"]
         self.states = ["current", "new", "backup"]
@@ -58,7 +59,7 @@ class RulesHandler():
 
     def diff_new_current(self, ruletype: str) -> bool:
         """
-        TODO: Doku
+        TODO: Doku.
 
         True = There are differences between new and current
         False = There are no differences between new and current

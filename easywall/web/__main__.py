@@ -41,7 +41,7 @@ def apply_headers(response: wrappers.Response) -> wrappers.Response:
     response.headers["Content-Security-Policy"] = "script-src 'self' ; frame-ancestors 'none'"
     response.headers["Strict-Transport-Security"] = "max-age=31536000"
     response.headers["Referrer-Policy"] = "same-origin"
-    response.headers["Feature-Policy"] = (
+    response.headers["Permissions-Policy"] = (
         "accelerometer 'none'; "
         "camera 'none'; "
         "geolocation 'none'; "
