@@ -249,7 +249,6 @@ class Main(object):
             APP.config.from_object('easywall.web.__main__.ProductionConfig')
 
         self.rules_handler = RulesHandler()
-        self.rules_handler.ensure_files_exist()
 
         self.login_attempts = self.cfg.get_value("WEB", "login_attempts")
         self.login_bantime = self.cfg.get_value("WEB", "login_bantime")

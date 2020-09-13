@@ -48,7 +48,6 @@ class Main():
         info("starting easywall")
 
         self.rules_handler = RulesHandler()
-        self.rules_handler.ensure_files_exist()
         self.easywall = Easywall(self.cfg)
         self.event_handler = ModifiedHandler(self.apply)
         self.observer = Observer()

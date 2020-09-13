@@ -10,11 +10,6 @@ class TestRulesHandler(unittest.TestCase):
     def setUp(self) -> None:
         """TODO: Doku."""
         self.rules = RulesHandler()
-        self.rules.ensure_files_exist()
-
-    def test_firstrun(self) -> None:
-        """TODO: Doku."""
-        self.rules.ensure_files_exist()
 
     def test_get_current_rules(self) -> None:
         """TODO: Doku."""

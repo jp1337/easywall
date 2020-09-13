@@ -16,7 +16,6 @@ class TestRulesHandler(unittest.TestCase):
         prepare_configuration()
         self.cfg = Config(CONFIG_PATH)
         self.easywall = Easywall(self.cfg)
-        self.easywall.rules.ensure_files_exist()
 
     def tearDown(self) -> None:
         """TODO: Doku."""
