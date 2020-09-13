@@ -1,4 +1,5 @@
 """TODO: Doku."""
+from copy import deepcopy
 from logging import error
 
 from yaml import Dumper, Loader, dump, load
@@ -69,17 +70,17 @@ class RulesHandler():
 
     def backup_current_rules(self) -> None:
         """TODO: Doku."""
-        self.rules["backup"] = self.rules["current"].copy()
+        self.rules["backup"] = deepcopy(self.rules["current"])
         self.save()
 
     def apply_new_rules(self) -> None:
         """TODO: Doku."""
-        self.rules["current"] = self.rules["new"].copy()
+        self.rules["current"] = deepcopy(self.rules["new"])
         self.save()
 
     def rollback_from_backup(self) -> None:
         """TODO: Doku."""
-        self.rules["current"] = self.rules["backup"].copy()
+        self.rules["current"] = deepcopy(self.rules["backup"])
         self.save()
 
     def diff_new_current(self, ruletype: str) -> bool:
