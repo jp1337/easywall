@@ -130,11 +130,11 @@ dmypy.json
 
 # easywall specials
 backup/
-rules/
 *.log
 config/easywall.ini
 config/web.ini
 config/log.ini
+config/rules.yml
 .acceptance
 .running
 apply
