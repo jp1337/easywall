@@ -57,6 +57,10 @@ class RulesHandler():
         """TODO: Doku."""
         return list(self.rules["new"][ruletype])
 
+    def get_backup_rules(self, ruletype: str) -> list:
+        """TODO: Doku."""
+        return list(self.rules["backup"][ruletype])
+
     def get_rules_for_web(self, ruletype: str) -> list:
         """TODO: Doku."""
         if self.diff_new_current(ruletype):
@@ -65,17 +69,17 @@ class RulesHandler():
 
     def backup_current_rules(self) -> None:
         """TODO: Doku."""
-        self.rules["backup"] = self.rules["current"]
+        self.rules["backup"] = self.rules["current"].copy()
         self.save()
 
     def apply_new_rules(self) -> None:
         """TODO: Doku."""
-        self.rules["current"] = self.rules["new"]
+        self.rules["current"] = self.rules["new"].copy()
         self.save()
 
     def rollback_from_backup(self) -> None:
         """TODO: Doku."""
-        self.rules["current"] = self.rules["backup"]
+        self.rules["current"] = self.rules["backup"].copy()
         self.save()
 
     def diff_new_current(self, ruletype: str) -> bool:
