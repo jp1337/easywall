@@ -1,4 +1,4 @@
-"""the module contains functions for custom error routes"""
+"""The module contains functions for custom error routes."""
 from typing import Tuple, Union
 
 from flask import render_template, request
@@ -8,7 +8,7 @@ from easywall.web.webutils import Webutils
 
 
 def page_not_found(error: str) -> Union[str, Tuple[str, int]]:
-    """the function returns the 404 error page when the user is logged in"""
+    """Return the 404 error page when the user is logged in."""
     utils = Webutils()
     if utils.check_login(request) is True:
         payload = utils.get_default_payload("404 Error", "error")
@@ -19,7 +19,7 @@ def page_not_found(error: str) -> Union[str, Tuple[str, int]]:
 
 
 def forbidden(error: str) -> Union[str, Tuple[str, int]]:
-    """the function returns the 403 error page when the user is logged in"""
+    """Return the 403 error page."""
     utils = Webutils()
     payload = utils.get_default_payload("403 Error", "error")
     payload.error_code = 403
