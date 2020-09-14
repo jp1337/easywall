@@ -1,8 +1,7 @@
 """TODO: Doku."""
 from tests import unittest
-from tests.utils import (prepare_client, prepare_configuration,
-                         restore_configuration, WEB_CONFIG_PATH)
-from tests.web.test_login import TestLogin
+from tests.utils import (WEB_CONFIG_PATH, prepare_client,
+                         prepare_configuration, restore_configuration)
 
 from easywall.config import Config
 
@@ -17,7 +16,6 @@ class TestFirstrun(unittest.TestCase):
         self.config.set_value("WEB", "username", "")
         self.config.set_value("WEB", "password", "")
         self.client = prepare_client()
-        self.login = TestLogin()
 
     def tearDown(self) -> None:
         """TODO: Doku."""
@@ -30,10 +28,9 @@ class TestFirstrun(unittest.TestCase):
 
     def test_firstrun_save_logged_out(self) -> None:
         """TODO: Doku."""
-        self.login.log_in(self.client)
-        response = self.client.post('/firstrun-save', data={
+        response = self.client.post('/firstrun', data={
             "username": "demo",
             "password": "demo",
             "password-confirm": "demo"
         }, follow_redirects=True)
-        self.assertIn(b"The Configuration was saved successfully", response.data)
+        self.assertIn(b"Username and password have been successfully saved", response.data)
