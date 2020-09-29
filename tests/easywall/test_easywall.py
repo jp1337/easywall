@@ -9,7 +9,7 @@ from easywall.rules_handler import RulesHandler
 from easywall.utility import write_into_file
 
 
-class TestRulesHandler(unittest.TestCase):
+class TestEasywall(unittest.TestCase):
     """TODO: Doku."""
 
     def setUp(self) -> None:
@@ -52,7 +52,12 @@ class TestRulesHandler(unittest.TestCase):
 
     def test_apply_rules_port_range(self) -> None:
         """TODO: Doku."""
-        udp = ["1234:1237"]
+        udp: list = []
+        entry: dict = {}
+        entry["description"] = "test"
+        entry["port"] = "8080:8085"
+        entry["ssh"] = False
+        udp.append(entry)
         self.rules.save_new_rules("udp", udp)
         self.rules.apply_new_rules()
         self.easywall.apply_rules("udp")
@@ -66,7 +71,12 @@ class TestRulesHandler(unittest.TestCase):
 
     def test_apply_ssh_port(self) -> None:
         """TODO: Doku."""
-        tcp = ["22#ssh"]
+        tcp: list = []
+        entry: dict = {}
+        entry["description"] = "SSH"
+        entry["port"] = "22"
+        entry["ssh"] = True
+        tcp.append(entry)
         self.rules.save_new_rules("tcp", tcp)
         self.rules.apply_new_rules()
         self.easywall.apply_rules("tcp")
