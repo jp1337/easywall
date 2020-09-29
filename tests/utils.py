@@ -93,6 +93,7 @@ master = yes
 die-on-term = yes
 wsgi-file = easywall/web/__main__.py
 need-plugin = python3
+buffer-size = 16384
 """
 
     create_file_if_not_exists(WEB_CONFIG_PATH)

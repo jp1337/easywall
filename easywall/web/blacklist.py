@@ -1,12 +1,12 @@
-"""the module contains functions for the blacklist route"""
-from flask import render_template, request
+"""The module contains functions for the blacklist route."""
+from easywall.rules_handler import RulesHandler
 from easywall.web.login import login
 from easywall.web.webutils import Webutils
-from easywall.rules_handler import RulesHandler
+from flask import render_template, request
 
 
 def blacklist(saved: bool = False) -> str:
-    """the function returns the blacklist page when the user is logged in"""
+    """Return the blacklist page when the user is logged in."""
     utils = Webutils()
     rules = RulesHandler()
     if utils.check_login(request) is True:
@@ -25,9 +25,7 @@ def blacklist(saved: bool = False) -> str:
 
 
 def blacklist_save() -> str:
-    """
-    the function saves the blacklist rules into the corresponding rulesfile
-    """
+    """Save the blacklist rules into the corresponding rulesfile."""
     utils = Webutils()
     rules = RulesHandler()
     if utils.check_login(request) is True:
