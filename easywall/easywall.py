@@ -386,20 +386,15 @@ class Easywall():
         [INFO] the function also processes port ranges split by ":" separator.
         """
         for port in self.rules.get_current_rules(ruletype):
-            options = ""
-            if "#" in port:
-                options = port.split("#")[1]
-                port = port.split("#")[0]
-
-            if ":" in port:
-                rule = "-p {} --match multiport --dports {}".format(
-                    ruletype, port)
-            else:
-                rule = "-p {} --dport {}".format(ruletype, port)
-
             jail = "ACCEPT"
-            if options == "ssh":
+            if port["ssh"]:
                 jail = "SSHBRUTE"
+
+            if ":" in port["port"]:
+                rule = "-p {} --match multiport --dports {}".format(
+                    ruletype, port["port"])
+            else:
+                rule = "-p {} --dport {}".format(ruletype, port["port"])
 
             self.iptables.add_append(
                 chain=Chain.INPUT,
