@@ -57,7 +57,7 @@ class Config():
             error("Could not find key {} in section {}".format(key, section))
             info("Valid sections are: ")
             info("{}".format(self.get_sections()))
-        if value in ["yes", "no", "true", "false", "on", "off"]:
+        if value.lower() in ["yes", "no", "true", "false", "on", "off"]:
             return self.configlib.getboolean(section, key)
         if is_int(value):
             return self.configlib.getint(section, key)
