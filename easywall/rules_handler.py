@@ -101,6 +101,6 @@ class RulesHandler():
 
     def save_new_rules(self, ruletype: str, rules: list) -> None:
         """TODO: Doku."""
-        rules = list(filter(None, rules))
+        rules = deepcopy(list(filter(None, rules)))
         self.rules["new"][ruletype] = rules
         self.save()
