@@ -52,7 +52,7 @@ unzip "${NEWPATH}/${GIT_FILE}" -d "${NEWPATH}"
 # Step 4
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Move the unzipped files into the correct directory \\e[39m" && ((STEP++))
 shopt -s dotglob nullglob
-mv -v "${NEWPATH}"/${ZIP_FOLDER}/* "${NEWPATH}"
+mv -v "${NEWPATH}"/"${ZIP_FOLDER}"/* "${NEWPATH}"
 
 # Step 5
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Clean up the new installation directory \\e[39m" && ((STEP++))
