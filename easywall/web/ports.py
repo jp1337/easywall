@@ -1,13 +1,15 @@
-"""the module contains functions for the ports route"""
-from flask import render_template, request
-from natsort import natsorted
+"""Contains functions for the ports route."""
+from operator import itemgetter
+
 from easywall.rules_handler import RulesHandler
 from easywall.web.login import login
 from easywall.web.webutils import Webutils
+from flask import render_template, request
+from natsort import natsorted
 
 
 def ports(saved: bool = False) -> str:
-    """the function returns the ports page when the user is logged in"""
+    """Return the ports page when the user is logged in."""
     utils = Webutils()
     rules = RulesHandler()
     if utils.check_login(request) is True:
@@ -19,8 +21,8 @@ def ports(saved: bool = False) -> str:
             remove old entries if they are no longer needed.<br />
             To list all open ports under Linux use the command <code>netstat -ln</code>
         """
-        payload.tcp = natsorted(rules.get_rules_for_web("tcp"))
-        payload.udp = natsorted(rules.get_rules_for_web("udp"))
+        payload.tcp = natsorted(rules.get_rules_for_web("tcp"), key=itemgetter(*['port']))
+        payload.udp = natsorted(rules.get_rules_for_web("udp"), key=itemgetter(*['port']))
         payload.custom = False
         if rules.diff_new_current("tcp") is True or rules.diff_new_current("udp") is True:
             payload.custom = True
@@ -30,55 +32,68 @@ def ports(saved: bool = False) -> str:
 
 
 def ports_save() -> str:
-    """the function saves the tcp and udp rules into the corresponding rulesfiles"""
+    """Save the tcp and udp rules into the corresponding rulesfiles."""
     utils = Webutils()
     if utils.check_login(request) is True:
         action = "add"
-        ruletype = "tcp"
-        port = ""
-        ssh = False
+
+        entry: dict = {}
+        entry["ruletype"] = "tcp"
+        entry["port"] = ""
+        entry["description"] = ""
+        entry["ssh"] = False
 
         for key, value in request.form.items():
             if key == "remove":
                 action = "remove"
-                ruletype = value
+                entry["ruletype"] = value
             elif key == "tcpudp":
                 action = "add"
-                ruletype = value
+                entry["ruletype"] = value
             elif key == "port":
-                port = str(value)
+                entry["port"] = value
+            elif key == "description":
+                entry["description"] = value
             elif key == "ssh":
-                ssh = True
+                entry["ssh"] = True
             else:
-                port = str(key)
+                entry["port"] = key
 
-        if ssh:
-            port = "{}#ssh".format(port)
-
+        result = True
         if action == "add":
-            add_port(port, ruletype)
+            result = add_port(entry)
         else:
-            remove_port(port, ruletype)
+            result = remove_port(entry)
 
-        return ports(True)
+        return ports(result)
     return login()
 
 
-def add_port(port: str, ruletype: str) -> None:
-    """
-    The function adds a port to the list of open ports.
-    """
+def add_port(entry: dict) -> bool:
+    """Add a port to the list of open ports."""
     rules = RulesHandler()
+    ruletype = entry["ruletype"]
     rulelist = rules.get_rules_for_web(ruletype)
-    rulelist.append(port)
-    rules.save_new_rules(ruletype, rulelist)
+    entry.pop("ruletype", None)  # we dont't want the ruletype to be saved
+    duplicate = False
+    for i in range(len(rulelist)):
+        if rulelist[i]['port'] == entry["port"]:
+            duplicate = True
+            break
+    if duplicate is False:
+        rulelist.append(entry)
+        rules.save_new_rules(ruletype, rulelist)
+        return True
+    return False
 
 
-def remove_port(port: str, ruletype: str) -> None:
-    """
-    The function deletes a port from the list of open ports.
-    """
+def remove_port(entry: dict) -> bool:
+    """Delete a port from the list of open ports."""
     rules = RulesHandler()
-    rulelist = rules.get_rules_for_web(ruletype)
-    rulelist.remove(port)
-    rules.save_new_rules(ruletype, rulelist)
+    rulelist = rules.get_rules_for_web(entry["ruletype"])
+    for i in range(len(rulelist)):
+        if rulelist[i]['port'] == entry["port"]:
+            del rulelist[i]
+            break
+    rules.save_new_rules(entry["ruletype"], rulelist)
+    return True
