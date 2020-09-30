@@ -52,14 +52,17 @@ class RulesHandler():
 
     def get_current_rules(self, ruletype: str) -> list:
         """TODO: Doku."""
+        self.rules = self.load()
         return list(self.rules["current"][ruletype])
 
     def get_new_rules(self, ruletype: str) -> list:
         """TODO: Doku."""
+        self.rules = self.load()
         return list(self.rules["new"][ruletype])
 
     def get_backup_rules(self, ruletype: str) -> list:
         """TODO: Doku."""
+        self.rules = self.load()
         return list(self.rules["backup"][ruletype])
 
     def get_rules_for_web(self, ruletype: str) -> list:
@@ -70,16 +73,19 @@ class RulesHandler():
 
     def backup_current_rules(self) -> None:
         """TODO: Doku."""
+        self.rules = self.load()
         self.rules["backup"] = deepcopy(self.rules["current"])
         self.save()
 
     def apply_new_rules(self) -> None:
         """TODO: Doku."""
+        self.rules = self.load()
         self.rules["current"] = deepcopy(self.rules["new"])
         self.save()
 
     def rollback_from_backup(self) -> None:
         """TODO: Doku."""
+        self.rules = self.load()
         self.rules["current"] = deepcopy(self.rules["backup"])
         self.save()
 
@@ -101,6 +107,6 @@ class RulesHandler():
 
     def save_new_rules(self, ruletype: str, rules: list) -> None:
         """TODO: Doku."""
-        rules = deepcopy(list(filter(None, rules)))
-        self.rules["new"][ruletype] = rules
+        self.rules = self.load()
+        self.rules["new"][ruletype] = deepcopy(list(filter(None, rules)))
         self.save()

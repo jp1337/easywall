@@ -9,7 +9,6 @@ from watchdog.observers import Observer
 from easywall.config import Config
 from easywall.easywall import Easywall
 from easywall.log import Log
-from easywall.rules_handler import RulesHandler
 from easywall.utility import delete_file_if_exists
 
 CONFIG_PATH = "config/easywall.ini"
@@ -47,7 +46,6 @@ class Main():
 
         info("starting easywall")
 
-        self.rules_handler = RulesHandler()
         self.easywall = Easywall(self.cfg)
         self.event_handler = ModifiedHandler(self.apply)
         self.observer = Observer()
