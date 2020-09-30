@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2020-09-30
+
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)
+
+### Added
+
+- Ports can now have a description. In future versions you will be able to edit this description. Currently you can only delete the port and add a new description.
+- CodeQL analysis of GitHub enabled. This is a beta test of Github.
+- Python tests prepared for Python 3.9
+- It is now recognized when adding a port, if it is already present.
+- A new pip3 module pyyaml is now required. This should be installed automatically during the update.
+
+### Changed
+
+- Ports page in the web interface visually redesigned for the new port description
+- The update script no longer updates to the master branch, but to the last release
+- The Feature-Policy HTTP Header is deprecated and was replaced by Permissions-Policy.
+- Buffer overflow problem solved with very large HTTP header in request
+- Problem solved, if values were written in capital letters in the configuration
+- Tests rewritten for use with the new Rules Handler
+
+### Removed
+
+- Rules are no longer stored in the rules folder but in config/rules.yml. The folder structure under rules can therefore be deleted. There is no import of old rules, because easywall is still in beta status.
+
 ## [0.2.4] - 2020-09-06
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
@@ -229,7 +254,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v0.2.4...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2
