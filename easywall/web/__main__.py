@@ -42,14 +42,14 @@ def apply_headers(response: wrappers.Response) -> wrappers.Response:
     response.headers["Strict-Transport-Security"] = "max-age=31536000"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = (
-        "accelerometer 'none'; "
-        "camera 'none'; "
-        "geolocation 'none'; "
-        "gyroscope 'none'; "
-        "magnetometer 'none'; "
-        "microphone 'none'; "
-        "payment 'none'; "
-        "usb 'none'"
+        "accelerometer=(), "
+        "camera=(), "
+        "geolocation=(), "
+        "gyroscope=(), "
+        "magnetometer=(), "
+        "microphone=(), "
+        "payment=(), "
+        "usb=()"
     )
     response.headers["Expect-CT"] = (
         "max-age=0, "
