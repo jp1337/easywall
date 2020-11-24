@@ -18,8 +18,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt install -y shellcheck
-          shellcheck --version
+          sudo apt install -y wget
+          wget -qO- https://github.com/koalaman/shellcheck/releases/download/latest/shellcheck-latest.linux.x86_64.tar.xz | tar -xJf -
+          cd shellcheck-latest
+          sudo cp -v shellcheck /usr/local/bin
 
       - name: Test using shellcheck
         run: |
