@@ -1,4 +1,4 @@
-name: pypi
+name: "pypi"
 
 on:
   release:
@@ -6,7 +6,9 @@ on:
 
 jobs:
   deploy:
+    name: "Deploy to PyPi"
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out the Repository
         uses: actions/checkout@v2

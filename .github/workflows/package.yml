@@ -1,4 +1,4 @@
-name: package
+name: "package"
 
 on:
   release:
@@ -6,7 +6,9 @@ on:
 
 jobs:
   build:
+    name: "Build Package"
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out the Repository
         uses: actions/checkout@v2
