@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2021-02-17
+
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1)
+
+### Changed
+
+- Remove `--show-progress` from shell scripts and fix issue #26
+
 ## [0.3.0] - 2020-09-30
 
 [Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)

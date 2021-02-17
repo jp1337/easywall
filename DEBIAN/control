@@ -1,5 +1,5 @@
 Package: easywall
-Version: 0.3.0
+Version: 0.3.1
 Maintainer: JP <12394156+jp1337@users.noreply.github.com>
 Description: Web interface for easy use of the IPTables firewall on Linux systems written in Python3
 Homepage: https://github.com/jp1337/easywall
