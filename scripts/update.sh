@@ -43,7 +43,7 @@ rm -rf "${NEWPATH}"
 # Step 2
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Download the new program version into a new folder \\e[39m" && ((STEP++))
 mkdir -p "${NEWPATH}"
-wget -q --timeout=10 --tries=5 --retry-connrefused --show-progress -P "${NEWPATH}" "${GIT_URL}"
+wget -q --timeout=10 --tries=5 --retry-connrefused -P "${NEWPATH}" "${GIT_URL}"
 
 # Step 3
 echo "" && echo -e "\\e[33m($STEP/$STEPS)\\e[32m Unpack the new program version \\e[39m" && ((STEP++))
