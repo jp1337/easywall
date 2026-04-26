@@ -2,6 +2,7 @@
 
 [![Build](https://github.com/jp1337/easywall/actions/workflows/test.yml/badge.svg)](https://github.com/jp1337/easywall/actions)
 [![Security](https://github.com/jp1337/easywall/actions/workflows/security.yml/badge.svg)](https://github.com/jp1337/easywall/actions)
+[![codecov](https://codecov.io/gh/jp1337/easywall/graph/badge.svg)](https://codecov.io/gh/jp1337/easywall)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://go.dev)
 
