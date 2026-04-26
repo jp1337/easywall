@@ -11,21 +11,19 @@ theme:
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: blue
-      accent: blue
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: blue
-      accent: blue
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-  font:
-    text: IBM Plex Sans
-    code: IBM Plex Mono
+  font: false
   features:
     - navigation.instant
     - navigation.sections
@@ -33,6 +31,9 @@ theme:
     - toc.integrate
     - content.code.copy
     - content.action.edit
+
+extra_css:
+  - stylesheets/extra.css
 
 plugins:
   - search
