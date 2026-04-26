@@ -245,6 +245,22 @@ func TestBuildRouter_RegistersRoutes(t *testing.T) {
 	}
 }
 
+func TestBuildRouter_CSRFDenyHandler(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	// A POST with Sec-Fetch-Site: cross-site is rejected by CrossOriginProtection.
+	req := httptest.NewRequest("POST", "/login", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	rec := httptest.NewRecorder()
+	s.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for cross-origin POST, got %d", rec.Code)
+	}
+}
+
 func TestConfigLocalesDir(t *testing.T) {
 	cfg := &Config{}
 	if d := cfg.LocalesDir(); d != "locales" {
