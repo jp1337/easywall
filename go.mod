@@ -6,7 +6,6 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/google/nftables v0.3.0
-	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/sessions v1.4.0
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	golang.org/x/crypto v0.50.0

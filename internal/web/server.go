@@ -18,7 +18,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
@@ -26,7 +25,6 @@ import (
 // PageData is passed to every template render call.
 type PageData struct {
 	T     func(id string, args ...interface{}) string
-	CSRF  template.HTML
 	Flash string
 	User  string
 	Page  string // current page for nav active state
@@ -125,16 +123,12 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Use(SecurityHeaders)
 	r.Use(MaxBodySize(64 * 1024))
 
-	// CSRF protection (applied to all routes; token injected into templates)
-	csrfKey := make([]byte, 32)
-	copy(csrfKey, []byte(cfg.CSRFKey))
-	r.Use(csrf.Protect(csrfKey,
-		csrf.Secure(true),
-		csrf.SameSite(csrf.SameSiteLaxMode),
-		csrf.ErrorHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "CSRF token mismatch", http.StatusForbidden)
-		})),
-	))
+	// CSRF protection via Go 1.25 net/http.CrossOriginProtection (Origin/Sec-Fetch-Site header check)
+	cop := http.NewCrossOriginProtection()
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Cross-origin request rejected", http.StatusForbidden)
+	}))
+	r.Use(func(next http.Handler) http.Handler { return cop.Handler(next) })
 
 	// Static assets
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir(cfg.StaticDir()))))
@@ -208,7 +202,6 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 
 	pd := PageData{
 		T:     func(id string, args ...interface{}) string { return T(loc, id, args...) },
-		CSRF:  csrf.TemplateField(r),
 		Flash: flash,
 		User:  user,
 		Page:  page,
