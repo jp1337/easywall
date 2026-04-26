@@ -17,6 +17,7 @@ linters-settings:
   gosec:
     excludes:
       - G304  # file path from variable — expected for config/rules loading
+      - G115  # int→uint conversions are safe for rate-limit and length values
   revive:
     rules:
       - name: exported

@@ -54,9 +54,13 @@ func (s *Server) handleApplyStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		if encErr := json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}); encErr != nil {
+			slog.Warn("encode status error response", "error", encErr)
+		}
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	if encErr := json.NewEncoder(w).Encode(status); encErr != nil {
+		slog.Warn("encode status response", "error", encErr)
+	}
 }
