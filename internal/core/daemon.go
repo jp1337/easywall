@@ -1,12 +1,14 @@
 package core
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -144,6 +146,8 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdApplyRules:
+		// Apply runs asynchronously to avoid blocking the socket.
+		// The caller must poll CmdGetStatus to track acceptance progress.
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -154,7 +158,8 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 				slog.Error("apply error", "error", err)
 			}
 		}()
-		return shared.Response{Success: true}
+		data, _ := json.Marshal(map[string]string{"status": "started"})
+		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdAccept:
 		d.firewall.Accept()
@@ -197,22 +202,19 @@ func errResp(err error) shared.Response {
 // groupFilePath is the path to the system group file; overridden in tests.
 var groupFilePath = "/etc/group"
 
-// lookupGroup returns the numeric GID for a group name.
+// lookupGroup returns the numeric GID for a group name by parsing /etc/group.
+// Uses bufio.Scanner to avoid loading the entire file into memory.
 func lookupGroup(name string) (int, error) {
-	// Simple /etc/group parser to avoid cgo dependency on os/user
 	f, err := os.Open(groupFilePath)
 	if err != nil {
 		return 0, err
 	}
 	defer f.Close()
 
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return 0, err
-	}
-
-	for _, line := range splitLines(string(data)) {
-		fields := splitFields(line, ":")
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		// /etc/group format: name:password:gid:members
+		fields := strings.SplitN(scanner.Text(), ":", 4)
 		if len(fields) >= 3 && fields[0] == name {
 			var gid int
 			if _, err := fmt.Sscanf(fields[2], "%d", &gid); err == nil {
@@ -221,29 +223,4 @@ func lookupGroup(name string) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("group %q not found", name)
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	return lines
-}
-
-func splitFields(s, sep string) []string {
-	var fields []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep[0] {
-			fields = append(fields, s[start:i])
-			start = i + 1
-		}
-	}
-	fields = append(fields, s[start:])
-	return fields
 }

@@ -7,10 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-26
+
+### Added
+
+- Complete rewrite of easywall from Python to Go (requires Go 1.25, no Python dependency)
+- Two-process architecture: `easywall-core` (root, nftables via netlink) and `easywall-web` (unprivileged HTTPS UI)
+- Unix socket IPC between core and web processes with typed JSON commands
+- Three-state rules system (current / staged / backup) to prevent administrator lockouts
+- Two-step activation safety window: rules auto-rollback if not confirmed within configurable timeout
+- Argon2id password hashing
+- HTTPS-only web interface with auto-generated ECDSA P-256 self-signed certificates (auto-renewed 30 days before expiry)
+- Per-IP login rate limiting (5 attempts per 10 minutes)
+- Comprehensive security headers (HSTS, CSP, X-Frame-Options, Permissions-Policy)
+- CSRF protection via Go 1.25 `net/http.CrossOriginProtection`
+- nftables backend via netlink — only touches `table inet easywall`, Docker chains are not modified
+- Protection modules: SSH brute-force, SYN flood, ICMP flood, port scan detection, invalid packet drop, bogon filter, connection limit, TCP RST flood, broadcast/multicast/anycast drop, and logging
+- IPv6 support with configurable ICMPv6 type allowlist
+- Docker bridge network auto-detection and whitelisting
+- Structured audit log of all rule changes
+- Rule import/export as JSON
+- i18n support (English and German)
+- Docker Compose and systemd deployment support
+
 ### Changed
 
-- Python 3.6 support discontinued as the version is no longer officially supported
-- Python 3.10 support prepared, since the version was released a few months ago
+- Configuration format changed from INI/YAML to TOML
+- Rules storage changed from YAML files to a single JSON file with three-state versioning
+- nftables replaces iptables as the kernel firewall backend
 
 ## [0.3.1] - 2021-02-17
 
@@ -267,7 +291,9 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0
+[0.3.1]: https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3

@@ -37,7 +37,9 @@ func NewNftablesManager() (*NftablesManager, error) {
 	return &NftablesManager{conn: conn}, nil
 }
 
-// Snapshot serialises the current kernel nftables state to JSON for backup.
+// Snapshot captures the current kernel nftables state as structured JSON.
+// For each table it records chain names and rule counts, providing a meaningful
+// diagnostic snapshot for post-incident analysis.
 func (m *NftablesManager) Snapshot() ([]byte, error) {
 	if m.conn == nil {
 		return nil, fmt.Errorf("nftables connection not available")
@@ -47,11 +49,66 @@ func (m *NftablesManager) Snapshot() ([]byte, error) {
 		return nil, fmt.Errorf("list tables: %w", err)
 	}
 
-	snapshot := map[string]interface{}{
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"tables":    len(tables),
+	type chainSnap struct {
+		Name  string `json:"name"`
+		Rules int    `json:"rules"`
 	}
-	return json.Marshal(snapshot)
+	type tableSnap struct {
+		Name   string      `json:"name"`
+		Family string      `json:"family"`
+		Chains []chainSnap `json:"chains"`
+	}
+
+	tableSnaps := make([]tableSnap, 0, len(tables))
+	for _, tbl := range tables {
+		var chainSnaps []chainSnap
+		if chains, err := m.conn.ListChains(); err == nil {
+			for _, ch := range chains {
+				if ch.Table == nil || ch.Table.Name != tbl.Name {
+					continue
+				}
+				ruleCount := 0
+				if rules, err := m.conn.GetRules(tbl, ch); err == nil {
+					ruleCount = len(rules)
+				}
+				chainSnaps = append(chainSnaps, chainSnap{Name: ch.Name, Rules: ruleCount})
+			}
+		}
+		tableSnaps = append(tableSnaps, tableSnap{
+			Name:   tbl.Name,
+			Family: tableFamilyName(tbl.Family),
+			Chains: chainSnaps,
+		})
+	}
+
+	snap := struct {
+		Timestamp string      `json:"timestamp"`
+		Tables    []tableSnap `json:"tables"`
+	}{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Tables:    tableSnaps,
+	}
+	return json.Marshal(snap)
+}
+
+// tableFamilyName maps a nftables TableFamily constant to its canonical string name.
+func tableFamilyName(f nftables.TableFamily) string {
+	switch f {
+	case nftables.TableFamilyINet:
+		return "inet"
+	case nftables.TableFamilyIPv4:
+		return "ip"
+	case nftables.TableFamilyIPv6:
+		return "ip6"
+	case nftables.TableFamilyARP:
+		return "arp"
+	case nftables.TableFamilyNetdev:
+		return "netdev"
+	case nftables.TableFamilyBridge:
+		return "bridge"
+	default:
+		return "unspecified"
+	}
 }
 
 // Reset deletes and recreates the easywall table, giving us a clean slate.

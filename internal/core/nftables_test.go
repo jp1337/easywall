@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -309,5 +310,36 @@ func TestSaveSnapshot_MultipleCalls(t *testing.T) {
 	// Should have 3 files (less than keep=10)
 	if len(entries) < 1 {
 		t.Error("expected at least 1 snapshot file")
+	}
+}
+
+// --- tableFamilyName ---
+
+func TestTableFamilyName_AllBranches(t *testing.T) {
+	cases := []struct {
+		family nftables.TableFamily
+		want   string
+	}{
+		{nftables.TableFamilyINet, "inet"},
+		{nftables.TableFamilyIPv4, "ip"},
+		{nftables.TableFamilyIPv6, "ip6"},
+		{nftables.TableFamilyARP, "arp"},
+		{nftables.TableFamilyNetdev, "netdev"},
+		{nftables.TableFamilyBridge, "bridge"},
+		{nftables.TableFamilyUnspecified, "unspecified"},
+	}
+	for _, tc := range cases {
+		got := tableFamilyName(tc.family)
+		if got != tc.want {
+			t.Errorf("tableFamilyName(%v) = %q, want %q", tc.family, got, tc.want)
+		}
+	}
+}
+
+func TestTableFamilyName_UnknownValue(t *testing.T) {
+	// A family value not listed in the switch falls through to "unspecified".
+	got := tableFamilyName(nftables.TableFamily(255))
+	if got != "unspecified" {
+		t.Errorf("expected 'unspecified' for unknown family, got %q", got)
 	}
 }
