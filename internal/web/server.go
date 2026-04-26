@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"log/slog"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -24,7 +25,6 @@ import (
 
 // PageData is passed to every template render call.
 type PageData struct {
-	T     func(id string, args ...interface{}) string
 	Flash string
 	User  string
 	Page  string // current page for nav active state
@@ -199,9 +199,19 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 
 	user, _ := sess.Values[SessionUserKey].(string)
 	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+
+	// Clone template and inject the per-request T function.
+	// The clone shares the parsed AST but gets its own FuncMap entry for T.
+	tmpl, err := s.tmpl.Clone()
+	if err != nil {
+		slog.Error("template clone error", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	tmpl.Funcs(template.FuncMap{"T": tFunc})
 
 	pd := PageData{
-		T:     func(id string, args ...interface{}) string { return T(loc, id, args...) },
 		Flash: flash,
 		User:  user,
 		Page:  page,
@@ -209,7 +219,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, name, pd); err != nil {
+	if err := tmpl.ExecuteTemplate(w, name, pd); err != nil {
 		slog.Error("template render error", "template", name, "error", err)
 	}
 }
@@ -222,9 +232,14 @@ func (s *Server) setFlash(w http.ResponseWriter, r *http.Request, msg string) {
 }
 
 // loadTemplates parses all .html files in dir as a single template set.
+// A stub T function is registered so that the HTML escape context is established at parse time;
+// the actual per-request T is injected via a cloned template in render().
 func loadTemplates(dir string) (*template.Template, error) {
 	pattern := dir + "/*.html"
-	tmpl := template.New("").Funcs(templateFuncs())
+	stub := func(id string, args ...interface{}) string { return id }
+	funcs := templateFuncs()
+	funcs["T"] = stub
+	tmpl := template.New("").Funcs(funcs)
 	_, err := tmpl.ParseGlob(pattern)
 	if err != nil {
 		return nil, err
@@ -298,10 +313,13 @@ func generateSelfSignedCert(dir string) error {
 			Organization: []string{"easywall"},
 			CommonName:   "easywall",
 		},
-		NotBefore:             time.Now().Add(-time.Minute),
-		NotAfter:              time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		NotBefore: time.Now().Add(-time.Minute),
+		NotAfter:  time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		// SANs are required by modern browsers — CN alone is not trusted since Chrome 58.
+		DNSNames:              []string{"localhost", "easywall"},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
 		BasicConstraintsValid: true,
 	}
 
