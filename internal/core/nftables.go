@@ -337,9 +337,9 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain) {
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
-		"100.64.0.0/10",  // CGNAT
-		"169.254.0.0/16", // link-local
-		"192.0.2.0/24",   // TEST-NET-1
+		"100.64.0.0/10",   // CGNAT
+		"169.254.0.0/16",  // link-local
+		"192.0.2.0/24",    // TEST-NET-1
 		"198.51.100.0/24", // TEST-NET-2
 		"203.0.113.0/24",  // TEST-NET-3
 		"240.0.0.0/4",     // reserved
@@ -404,13 +404,13 @@ func (m *NftablesManager) addPortScanPrevention(t *nftables.Table, c *nftables.C
 		flags uint8
 		mask  uint8
 	}{
-		{0x00, 0xff},                     // NULL scan
-		{0x01, 0xff},                     // FIN only
-		{0x03, 0x03},                     // SYN+FIN
-		{0x05, 0x05},                     // RST+FIN
-		{0x06, 0x06},                     // SYN+RST
-		{0x29, 0x29},                     // FIN+PSH+URG (Xmas)
-		{0xff, 0xff},                     // ALL flags
+		{0x00, 0xff}, // NULL scan
+		{0x01, 0xff}, // FIN only
+		{0x03, 0x03}, // SYN+FIN
+		{0x05, 0x05}, // RST+FIN
+		{0x06, 0x06}, // SYN+RST
+		{0x29, 0x29}, // FIN+PSH+URG (Xmas)
+		{0xff, 0xff}, // ALL flags
 	}
 
 	for _, combo := range scanCombos {
@@ -843,8 +843,8 @@ func (m *NftablesManager) addFinalLog(t *nftables.Table, c *nftables.Chain, opts
 				Burst: uint32(limit),
 			},
 			&expr.Log{
-				Key:   unix.NFTA_LOG_PREFIX,
-				Data:  []byte("easywall blocked: "),
+				Key:  unix.NFTA_LOG_PREFIX,
+				Data: []byte("easywall blocked: "),
 			},
 		},
 	})

@@ -3,7 +3,6 @@ package web
 import (
 	"strings"
 	"testing"
-
 )
 
 func TestHashPassword_ProducesArgon2idFormat(t *testing.T) {
@@ -77,7 +76,7 @@ func TestDecodeArgon2Hash_InvalidFormat(t *testing.T) {
 	cases := []string{
 		"",
 		"$bcrypt$...",
-		"$argon2id$v=19$m=65536,t=3,p=4$salt",   // too few parts
+		"$argon2id$v=19$m=65536,t=3,p=4$salt",    // too few parts
 		"$argon2id$v=99$m=65536,t=3,p=4$abc$xyz", // wrong version
 	}
 	for _, c := range cases {

@@ -19,9 +19,9 @@ func TestSecurityHeaders(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	headers := map[string]string{
-		"X-Frame-Options":        "DENY",
-		"X-Content-Type-Options": "nosniff",
-		"Referrer-Policy":        "same-origin",
+		"X-Frame-Options":           "DENY",
+		"X-Content-Type-Options":    "nosniff",
+		"Referrer-Policy":           "same-origin",
 		"Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 	}
 	for name, expected := range headers {
