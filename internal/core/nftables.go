@@ -39,6 +39,9 @@ func NewNftablesManager() (*NftablesManager, error) {
 
 // Snapshot serialises the current kernel nftables state to JSON for backup.
 func (m *NftablesManager) Snapshot() ([]byte, error) {
+	if m.conn == nil {
+		return nil, fmt.Errorf("nftables connection not available")
+	}
 	tables, err := m.conn.ListTables()
 	if err != nil {
 		return nil, fmt.Errorf("list tables: %w", err)
@@ -54,6 +57,9 @@ func (m *NftablesManager) Snapshot() ([]byte, error) {
 // Reset deletes and recreates the easywall table, giving us a clean slate.
 // All other tables (filter, nat, docker, etc.) are untouched.
 func (m *NftablesManager) Reset() error {
+	if m.conn == nil {
+		return fmt.Errorf("nftables connection not available")
+	}
 	m.conn.DelTable(&nftables.Table{
 		Name:   tableName,
 		Family: nftables.TableFamilyINet,
@@ -147,10 +153,13 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	}
 
 	// Docker bridge whitelisting
-	if docker.Enabled && docker.AllowBridgeNetworks {
-		bridges := detectDockerBridges()
-		bridges = append(bridges, docker.CustomNetworks...)
-		for _, cidr := range bridges {
+	if docker.Enabled {
+		var cidrs []string
+		if docker.AllowBridgeNetworks {
+			cidrs = append(cidrs, detectDockerBridges()...)
+		}
+		cidrs = append(cidrs, docker.CustomNetworks...)
+		for _, cidr := range cidrs {
 			m.addCIDRAccept(table, inputChain, cidr)
 		}
 	}

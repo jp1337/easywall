@@ -94,6 +94,7 @@ func (f *Firewall) Apply(user string) error {
 	}
 
 	accepted := f.acceptance.Wait()
+	defer f.acceptance.Reset()
 
 	if !accepted {
 		slog.Warn("acceptance timeout — rolling back")

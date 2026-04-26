@@ -145,6 +145,11 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 
 	case shared.CmdApplyRules:
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("apply panic recovered", "error", r)
+				}
+			}()
 			if err := d.firewall.Apply("web"); err != nil {
 				slog.Error("apply error", "error", err)
 			}
@@ -189,10 +194,13 @@ func errResp(err error) shared.Response {
 	return shared.Response{Success: false, Error: err.Error()}
 }
 
+// groupFilePath is the path to the system group file; overridden in tests.
+var groupFilePath = "/etc/group"
+
 // lookupGroup returns the numeric GID for a group name.
 func lookupGroup(name string) (int, error) {
 	// Simple /etc/group parser to avoid cgo dependency on os/user
-	f, err := os.Open("/etc/group")
+	f, err := os.Open(groupFilePath)
 	if err != nil {
 		return 0, err
 	}
