@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Acceptance manages the two-step activation safety mechanism.

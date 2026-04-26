@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 type portsData struct {

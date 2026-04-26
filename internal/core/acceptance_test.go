@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func TestAcceptance_InitialStatus(t *testing.T) {

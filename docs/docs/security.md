@@ -60,7 +60,7 @@ input validation and privilege separation. v2.0 addresses the root cause:
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Report via [GitHub Security Advisories](https://github.com/jpylypiw/easywall/security/advisories/new)
+Report via [GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new)
 (private disclosure).
 
 - Initial response: ≤ 48 hours

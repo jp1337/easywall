@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/sys/unix"
 )
 

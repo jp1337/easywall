@@ -6,7 +6,7 @@ started and what we expect from contributions.
 ## Development Setup
 
 ```bash
-git clone https://github.com/jpylypiw/easywall.git
+git clone https://github.com/jp1337/easywall.git
 cd easywall
 
 # Install Go 1.25+

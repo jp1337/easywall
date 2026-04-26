@@ -5,7 +5,7 @@ export CGO_ENABLED = 0
 export GOFLAGS = -mod=readonly
 
 VERSION := $(shell dpkg-parsechangelog --show-field Version)
-LDFLAGS := -s -w -X github.com/jpylypiw/easywall/internal/shared.CurrentVersion=$(VERSION)
+LDFLAGS := -s -w -X github.com/jp1337/easywall/internal/shared.CurrentVersion=$(VERSION)
 
 %:
 	dh $@

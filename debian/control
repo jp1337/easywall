@@ -4,9 +4,9 @@ Priority: optional
 Maintainer: Jochen Pylypiw <jochen.pylypiw@googlemail.com>
 Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21)
 Standards-Version: 4.6.2
-Homepage: https://jpylypiw.github.io/easywall
-Vcs-Browser: https://github.com/jpylypiw/easywall
-Vcs-Git: https://github.com/jpylypiw/easywall.git
+Homepage: https://jp1337.github.io/easywall
+Vcs-Browser: https://github.com/jp1337/easywall
+Vcs-Git: https://github.com/jp1337/easywall.git
 Rules-Requires-Root: no
 
 Package: easywall

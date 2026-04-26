@@ -11,10 +11,10 @@ RUN go mod download
 COPY . .
 ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build \
-      -ldflags "-s -w -X github.com/jpylypiw/easywall/internal/shared.CurrentVersion=${VERSION}" \
+      -ldflags "-s -w -X github.com/jp1337/easywall/internal/shared.CurrentVersion=${VERSION}" \
       -o /out/easywall-core ./cmd/easywall-core && \
     CGO_ENABLED=0 GOOS=linux go build \
-      -ldflags "-s -w -X github.com/jpylypiw/easywall/internal/shared.CurrentVersion=${VERSION}" \
+      -ldflags "-s -w -X github.com/jp1337/easywall/internal/shared.CurrentVersion=${VERSION}" \
       -o /out/easywall-web ./cmd/easywall-web
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────

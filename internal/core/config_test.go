@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func writeTempCoreConfig(t *testing.T, content string) string {

@@ -1,5 +1,5 @@
 # easywall core configuration
-# See documentation at https://jpylypiw.github.io/easywall/configuration
+# See documentation at https://jp1337.github.io/easywall/configuration
 
 socket_path = "/run/easywall/core.sock"
 data_dir    = "/var/lib/easywall"

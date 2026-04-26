@@ -9,7 +9,7 @@ See [Requirements](requirements.md) first.
 ## Build from Source
 
 ```bash
-git clone https://github.com/jpylypiw/easywall.git
+git clone https://github.com/jp1337/easywall.git
 cd easywall
 
 # Build both binaries

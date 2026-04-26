@@ -13,7 +13,7 @@ const (
 	// CurrentVersion is updated at build time via -ldflags.
 	CurrentVersion = "2.0.0-dev"
 
-	githubReleasesURL = "https://api.github.com/repos/jpylypiw/easywall/releases/latest"
+	githubReleasesURL = "https://api.github.com/repos/jp1337/easywall/releases/latest"
 	cacheMaxAge       = 24 * time.Hour
 )
 

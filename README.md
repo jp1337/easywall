@@ -1,7 +1,7 @@
 # easywall
 
-[![Build](https://github.com/jpylypiw/easywall/actions/workflows/test.yml/badge.svg)](https://github.com/jpylypiw/easywall/actions)
-[![Security](https://github.com/jpylypiw/easywall/actions/workflows/security.yml/badge.svg)](https://github.com/jpylypiw/easywall/actions)
+[![Build](https://github.com/jp1337/easywall/actions/workflows/test.yml/badge.svg)](https://github.com/jp1337/easywall/actions)
+[![Security](https://github.com/jp1337/easywall/actions/workflows/security.yml/badge.svg)](https://github.com/jp1337/easywall/actions)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8.svg)](https://go.dev)
 
@@ -48,26 +48,26 @@ Browser  ──HTTPS──►  easywall-web  (user: easywall, unprivileged)
 
 **Debian / Ubuntu:**
 ```bash
-wget https://github.com/jpylypiw/easywall/releases/latest/download/easywall_amd64.deb
+wget https://github.com/jp1337/easywall/releases/latest/download/easywall_amd64.deb
 sudo dpkg -i easywall_amd64.deb && sudo apt-get install -f
 xdg-open https://localhost:12227
 ```
 
 **Docker:**
 ```bash
-git clone https://github.com/jpylypiw/easywall.git && cd easywall
+git clone https://github.com/jp1337/easywall.git && cd easywall
 docker compose up -d
 xdg-open https://localhost:12227
 ```
 
 ## Documentation
 
-Full documentation at **[jpylypiw.github.io/easywall](https://jpylypiw.github.io/easywall)**
+Full documentation at **[jp1337.github.io/easywall](https://jp1337.github.io/easywall)**
 
 ## Security
 
 Please report vulnerabilities via
-[GitHub Security Advisories](https://github.com/jpylypiw/easywall/security/advisories/new)
+[GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new)
 — not as public issues. See [SECURITY.md](SECURITY.md).
 
 ## Contributing

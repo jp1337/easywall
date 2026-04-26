@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Config is the runtime configuration for easywall-core.
@@ -102,7 +102,7 @@ func (c *Config) VersionCachePath() string {
 // Used during installation / first run.
 func WriteDefaultCoreConfig(path string) error {
 	const defaultConfig = `# easywall core configuration
-# See documentation at https://jpylypiw.github.io/easywall/configuration
+# See documentation at https://jp1337.github.io/easywall/configuration
 
 socket_path = "/run/easywall/core.sock"
 data_dir    = "/var/lib/easywall"

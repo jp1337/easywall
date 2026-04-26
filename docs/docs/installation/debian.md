@@ -2,10 +2,10 @@
 
 ## From the GitHub Release
 
-1. **Download the package** from the [latest release](https://github.com/jpylypiw/easywall/releases/latest):
+1. **Download the package** from the [latest release](https://github.com/jp1337/easywall/releases/latest):
 
     ```bash
-    wget https://github.com/jpylypiw/easywall/releases/latest/download/easywall_amd64.deb
+    wget https://github.com/jp1337/easywall/releases/latest/download/easywall_amd64.deb
     ```
 
 2. **Install:**

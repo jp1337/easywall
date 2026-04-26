@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Config is the runtime configuration for easywall-web.
@@ -135,7 +135,7 @@ func WriteDefaultWebConfig(path string) error {
 	}
 
 	content := fmt.Sprintf(`# easywall web configuration
-# See documentation at https://jpylypiw.github.io/easywall/configuration
+# See documentation at https://jp1337.github.io/easywall/configuration
 
 bind_addr    = "0.0.0.0:12227"
 socket_path  = "/run/easywall/core.sock"

@@ -63,7 +63,7 @@ The first-run wizard will ask you to set a username and password.
 ## Quick Start (Docker)
 
 ```bash
-git clone https://github.com/jpylypiw/easywall.git
+git clone https://github.com/jp1337/easywall.git
 cd easywall
 docker compose up -d
 xdg-open https://localhost:12227

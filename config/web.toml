@@ -1,5 +1,5 @@
 # easywall web configuration
-# See documentation at https://jpylypiw.github.io/easywall/configuration
+# See documentation at https://jp1337.github.io/easywall/configuration
 
 bind_addr   = "0.0.0.0:12227"
 socket_path = "/run/easywall/core.sock"

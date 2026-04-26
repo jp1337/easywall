@@ -1,5 +1,5 @@
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS     := -s -w -X github.com/jpylypiw/easywall/internal/shared.CurrentVersion=$(VERSION)
+LDFLAGS     := -s -w -X github.com/jp1337/easywall/internal/shared.CurrentVersion=$(VERSION)
 BUILD_FLAGS := -ldflags "$(LDFLAGS)"
 
 BINARIES := easywall-core easywall-web

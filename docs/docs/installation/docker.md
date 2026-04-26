@@ -9,7 +9,7 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/jpylypiw/easywall.git
+git clone https://github.com/jp1337/easywall.git
 cd easywall
 docker compose up -d
 ```

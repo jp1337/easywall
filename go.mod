@@ -1,4 +1,4 @@
-module github.com/jpylypiw/easywall
+module github.com/jp1337/easywall
 
 go 1.25.0
 

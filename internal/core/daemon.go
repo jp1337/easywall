@@ -9,7 +9,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/jpylypiw/easywall/internal/shared"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Daemon listens on a Unix socket and dispatches typed commands to the Firewall.

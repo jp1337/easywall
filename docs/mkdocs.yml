@@ -1,9 +1,9 @@
 site_name: easywall
-site_url: https://jpylypiw.github.io/easywall
+site_url: https://jp1337.github.io/easywall
 site_description: Linux firewall management with a web interface
 site_author: Jochen Pylypiw
-repo_url: https://github.com/jpylypiw/easywall
-repo_name: jpylypiw/easywall
+repo_url: https://github.com/jp1337/easywall
+repo_name: jp1337/easywall
 edit_uri: edit/main/docs/docs/
 
 theme:

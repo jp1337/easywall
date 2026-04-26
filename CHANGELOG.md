@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.1] - 2021-02-17
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.3.0...v0.3.1)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1)
 
 ### Changed
 
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0] - 2020-09-30
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.2.4...v0.3.0)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)
 
 ### Added
 
@@ -47,7 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.4] - 2020-09-06
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.2.3...v0.2.4)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
 
 ### Added
 
@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.3] - 2020-08-28
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.2.2...v0.2.3)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3)
 
 ### Changed
 
@@ -77,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.2] - 2020-08-24
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.2.1...v0.2.2)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2)
 
 ### Added
 
@@ -93,7 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.1] - 2020-08-22
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.2.0...v0.2.1)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
 
 ### Added
 
@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2020-07-20
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.1.0...v0.2.0)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
 
 ### Added
 
@@ -175,7 +175,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.1.0] - 2020-06-21
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.0.4...v0.1.0)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0)
 
 ### Added
 
@@ -202,7 +202,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.0.4] - 2019-10-04
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.0.3...v0.0.4)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4)
 
 ### Added
 
@@ -221,7 +221,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.0.3] - 2019-06-30
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.0.2...v0.0.3)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3)
 
 ### Added
 
@@ -244,7 +244,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.0.2] - 2019-06-08
 
-[Full Changelog](https://github.com/jpylypiw/easywall/compare/v0.0.1...v0.0.2)
+[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2)
 
 ### Added
 
@@ -267,15 +267,15 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jpylypiw/easywall/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/jpylypiw/easywall/compare/v0.2.4...v0.3.0
-[0.2.4]: https://github.com/jpylypiw/easywall/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/jpylypiw/easywall/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/jpylypiw/easywall/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/jpylypiw/easywall/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/jpylypiw/easywall/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/jpylypiw/easywall/compare/v0.0.4...v0.1.0
-[0.0.4]: https://github.com/jpylypiw/easywall/compare/v0.0.3...v0.0.4
-[0.0.3]: https://github.com/jpylypiw/easywall/compare/v0.0.2...v0.0.3
-[0.0.2]: https://github.com/jpylypiw/easywall/compare/v0.0.1...v0.0.2
-[0.0.1]: https://github.com/jpylypiw/easywall/releases/tag/v0.0.1
+[unreleased]: https://github.com/jp1337/easywall/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0
+[0.2.4]: https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0
+[0.0.4]: https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4
+[0.0.3]: https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2
+[0.0.1]: https://github.com/jp1337/easywall/releases/tag/v0.0.1

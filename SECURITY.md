@@ -11,7 +11,7 @@
 
 **Please do not report security vulnerabilities via public GitHub issues.**
 
-Use **[GitHub Security Advisories](https://github.com/jpylypiw/easywall/security/advisories/new)**
+Use **[GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new)**
 for private, coordinated disclosure.
 
 ### What to include
