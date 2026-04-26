@@ -36,7 +36,7 @@ jobs:
       - name: Build
         run: go build ./...
 
-      - name: Test with race detector
+      - name: Unit tests with race detector
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
 
       - name: Upload coverage
@@ -45,6 +45,31 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
           fail_ci_if_error: true
+
+  test-integration:
+    name: Integration tests (nftables / CAP_NET_ADMIN)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Install nftables
+        run: sudo apt-get install -y nftables
+
+      # Integration tests run in an isolated network namespace created by
+      # TestMain via CLONE_NEWNET (requires CAP_SYS_ADMIN = root via sudo).
+      # They verify that actual nftables rules are applied correctly to the
+      # kernel — something unit-test mocking cannot achieve.
+      - name: Integration tests (kernel nftables)
+        run: sudo go test -tags integration -v -count=1 -timeout 120s ./internal/core/...
 
   lint:
     name: Lint

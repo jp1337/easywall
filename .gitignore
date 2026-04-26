@@ -9,10 +9,11 @@ dist/
 build/
 
 # Go test & coverage
-coverage.out
-coverage.html
+coverage*.out
+coverage*.html
 *.test
 *.out
+*.prof
 
 # GoReleaser
 /dist
