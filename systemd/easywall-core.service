@@ -1,0 +1,39 @@
+[Unit]
+Description=easywall Core Daemon (nftables firewall backend)
+Documentation=https://jpylypiw.github.io/easywall
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/sbin/easywall-core --config /etc/easywall/easywall.toml
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Runtime socket directory (owned root, group easywall, mode 750)
+RuntimeDirectory=easywall
+RuntimeDirectoryMode=0750
+RuntimeDirectoryGroup=easywall
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=easywall-core
+
+# Restart on failure with back-off
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Security hardening
+PrivateTmp=yes
+ProtectHome=yes
+ReadWritePaths=/var/lib/easywall /var/log/easywall /run/easywall
+# nftables requires CAP_NET_ADMIN + direct kernel access
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,105 @@
+version: 2
+
+project_name: easywall
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: easywall-core
+    main: ./cmd/easywall-core
+    binary: easywall-core
+    goos: [linux]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/jpylypiw/easywall/internal/shared.CurrentVersion={{.Version}}
+
+  - id: easywall-web
+    main: ./cmd/easywall-web
+    binary: easywall-web
+    goos: [linux]
+    goarch: [amd64, arm64]
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/jpylypiw/easywall/internal/shared.CurrentVersion={{.Version}}
+
+archives:
+  - id: default
+    name_template: "easywall_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - web/**
+      - locales/**
+      - config/*.toml
+      - systemd/*.service
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^chore(deps)"
+      - "^docs"
+      - "Merge pull request"
+      - "Merge branch"
+  groups:
+    - title: "Security"
+      regexp: "^security"
+      order: 0
+    - title: "Features"
+      regexp: "^feat"
+      order: 1
+    - title: "Bug Fixes"
+      regexp: "^fix"
+      order: 2
+    - title: "Other"
+      order: 999
+
+dockers:
+  - image_templates:
+      - "ghcr.io/jpylypiw/easywall:{{ .Tag }}-amd64"
+    goarch: amd64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--platform=linux/amd64"
+    extra_files:
+      - web/
+      - locales/
+      - config/
+      - docker/
+
+  - image_templates:
+      - "ghcr.io/jpylypiw/easywall:{{ .Tag }}-arm64"
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=VERSION={{ .Version }}"
+      - "--platform=linux/arm64"
+    extra_files:
+      - web/
+      - locales/
+      - config/
+      - docker/
+
+docker_manifests:
+  - name_template: "ghcr.io/jpylypiw/easywall:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/jpylypiw/easywall:{{ .Tag }}-amd64"
+      - "ghcr.io/jpylypiw/easywall:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/jpylypiw/easywall:latest"
+    image_templates:
+      - "ghcr.io/jpylypiw/easywall:{{ .Tag }}-amd64"
+      - "ghcr.io/jpylypiw/easywall:{{ .Tag }}-arm64"

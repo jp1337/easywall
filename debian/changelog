@@ -1,0 +1,17 @@
+easywall (2.0.0) unstable; urgency=medium
+
+  * Complete rewrite in Go (nftables via netlink, no Python dependency)
+  * Two-process architecture: privileged core daemon + unprivileged web process
+  * Direct nftables netlink API — no subprocess, no injection risk
+  * Argon2id password hashing (replaces SHA512 with hostname salt)
+  * Two-step activation with auto-rollback prevents SSH lockouts
+  * Docker coexistence: own nftables table inet easywall
+  * i18n: English and German
+  * Light/Dark mode with OS preference detection
+  * Export/Import rules as JSON
+  * Auto-renewing self-signed TLS certificate
+  * Debian package: only depends on nftables and openssl
+  * logrotate config for audit log
+  * CI: GitHub Actions, Dependabot, CodeQL, govulncheck
+
+ -- Jochen Pylypiw <jochen.pylypiw@googlemail.com>  Fri, 25 Apr 2026 00:00:00 +0000

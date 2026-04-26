@@ -1,0 +1,13 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+  remove|upgrade|deconfigure)
+    if [ -d /run/systemd/system ]; then
+      systemctl stop    easywall-core.service easywall-web.service 2>/dev/null || true
+      systemctl disable easywall-core.service easywall-web.service 2>/dev/null || true
+    fi
+    ;;
+esac
+
+exit 0

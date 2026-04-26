@@ -1,0 +1,27 @@
+Source: easywall
+Section: net
+Priority: optional
+Maintainer: Jochen Pylypiw <jochen.pylypiw@googlemail.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21)
+Standards-Version: 4.6.2
+Homepage: https://jpylypiw.github.io/easywall
+Vcs-Browser: https://github.com/jpylypiw/easywall
+Vcs-Git: https://github.com/jpylypiw/easywall.git
+Rules-Requires-Root: no
+
+Package: easywall
+Architecture: any
+Depends: ${misc:Depends}, nftables, openssl
+Recommends: logrotate
+Description: Linux firewall management with a web interface
+ easywall provides a secure web interface for managing nftables firewall rules
+ on Linux. It uses a two-process architecture: a privileged core daemon
+ communicates with the kernel via netlink, while an unprivileged web process
+ serves the UI. Communication happens over a Unix socket.
+ .
+ Features include TCP/UDP port management, IP blacklists and whitelists,
+ port forwarding, custom nftables rules, protection against SSH brute-force,
+ SYN floods, ICMP floods, port scans, and more.
+ .
+ A two-step activation mechanism prevents accidental lockouts: rules can be
+ automatically rolled back if connectivity is not confirmed.

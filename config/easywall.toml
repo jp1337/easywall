@@ -1,0 +1,74 @@
+# easywall core configuration
+# See documentation at https://jpylypiw.github.io/easywall/configuration
+
+socket_path = "/run/easywall/core.sock"
+data_dir    = "/var/lib/easywall"
+log_dir     = "/var/log/easywall"
+
+[acceptance]
+enabled  = true
+duration = 120  # seconds before auto-rollback if not confirmed
+
+[ipv6]
+enabled                           = true
+icmp_allow_router_advertisement   = true
+icmp_allow_neighbor_advertisement = true
+
+[docker]
+enabled              = false  # set to true to auto-detect Docker bridge networks
+allow_bridge_networks = true
+custom_networks      = []
+
+[firewall]
+# ─── SSH brute-force prevention ─────────────────────────────────────────────
+ssh_brute_force                  = true
+ssh_brute_force_log              = false
+ssh_brute_force_connection_limit = 5
+ssh_brute_force_log_limit        = 60
+
+# ─── ICMP flood prevention ──────────────────────────────────────────────────
+icmp_flood                       = true
+icmp_flood_log                   = false
+icmp_flood_connection_limit      = 10
+icmp_flood_log_limit             = 60
+
+# ─── SYN flood prevention ───────────────────────────────────────────────────
+syn_flood                        = true
+syn_flood_log                    = false
+syn_flood_limit                  = 100
+
+# ─── Port scan detection ────────────────────────────────────────────────────
+port_scan                        = true
+port_scan_log                    = false
+
+# ─── Invalid packet drop ────────────────────────────────────────────────────
+drop_invalid_packets             = true
+drop_invalid_packets_log         = false
+
+# ─── IP fragment drop ───────────────────────────────────────────────────────
+drop_fragments                   = false
+drop_fragments_log               = false
+
+# ─── Bogon filter (RFC-1918 from external interfaces) ───────────────────────
+bogon_filter                     = false
+bogon_filter_log                 = false
+
+# ─── Connection limit per source IP ─────────────────────────────────────────
+connection_limit_per_ip          = false
+connection_limit_max             = 100
+
+# ─── TCP RST flood ──────────────────────────────────────────────────────────
+tcp_rst_flood                    = false
+tcp_rst_flood_log                = false
+tcp_rst_flood_limit              = 100
+
+# ─── Broadcast / multicast / anycast drop ───────────────────────────────────
+drop_broadcast                   = false
+drop_multicast                   = false
+drop_anycast                     = false
+
+# ─── Logging ────────────────────────────────────────────────────────────────
+log_blocked_connections          = false
+log_blocked_connections_limit    = 60
+log_blacklist_connections        = false
+log_blacklist_connections_limit  = 60

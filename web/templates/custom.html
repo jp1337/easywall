@@ -1,0 +1,43 @@
+{{define "custom.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{.T "custom_title"}}</h1>
+    </div>
+
+    {{with .Data}}
+    <form method="POST" action="/custom">
+      {{$.CSRF}}
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Raw nftables Rules</span>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning" style="margin-bottom:16px">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            <span>{{$.T "custom_hint"}} Rules are inserted into the <code style="font-family:var(--font-mono);background:var(--surface-3);padding:1px 4px;border-radius:3px">inet easywall</code> table.</span>
+          </div>
+          <div class="form-group">
+            <textarea name="rules" rows="16" placeholder="# Example: allow a specific port&#10;tcp dport 8443 accept&#10;&#10;# Allow traffic from specific IP&#10;ip saddr 203.0.113.1 accept">{{range .Rules}}{{.}}
+{{end}}</textarea>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:16px">
+        <button type="submit" class="btn btn-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          {{$.T "save"}}
+        </button>
+        <span class="form-hint">Changes are staged until you <a href="/apply">apply rules</a>.</span>
+      </div>
+    </form>
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}

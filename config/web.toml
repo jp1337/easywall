@@ -1,0 +1,23 @@
+# easywall web configuration
+# See documentation at https://jpylypiw.github.io/easywall/configuration
+
+bind_addr   = "0.0.0.0:12227"
+socket_path = "/run/easywall/core.sock"
+ssl_dir     = "/etc/easywall/ssl"
+data_dir    = "/var/lib/easywall"
+language    = "en"
+
+# ─── Secrets — CHANGE THESE before first use ────────────────────────────────
+# Generate with: openssl rand -hex 32
+session_key = "CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX"
+csrf_key    = "CHANGE_ME_32_BYTES_HEX_ENCODED_CSRF_SECRET_HERE_XXXXXXXXXX"
+
+# ─── Credentials — set via first-run wizard or fill in manually ─────────────
+username = ""
+password = ""  # argon2id hash, set by the first-run wizard
+
+[tls]
+# Leave empty to use an auto-generated self-signed certificate in ssl_dir.
+# For Let's Encrypt or custom certs, set paths here:
+cert = ""
+key  = ""

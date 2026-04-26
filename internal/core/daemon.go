@@ -1,0 +1,241 @@
+package core
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net"
+	"os"
+	"sync"
+
+	"github.com/jpylypiw/easywall/internal/shared"
+)
+
+// Daemon listens on a Unix socket and dispatches typed commands to the Firewall.
+// The socket is owned by root:easywall with mode 0660 so the web process
+// (running as user easywall) can connect without root privileges.
+type Daemon struct {
+	cfg      *Config
+	firewall *Firewall
+	listener net.Listener
+	wg       sync.WaitGroup
+	quit     chan struct{}
+}
+
+// NewDaemon initialises the daemon. Call Start() to begin accepting connections.
+func NewDaemon(cfg *Config) (*Daemon, error) {
+	if err := os.MkdirAll(cfg.DataDir, 0750); err != nil {
+		return nil, fmt.Errorf("create data dir: %w", err)
+	}
+	if err := os.MkdirAll(cfg.LogDir, 0750); err != nil {
+		return nil, fmt.Errorf("create log dir: %w", err)
+	}
+
+	fw, err := NewFirewall(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("init firewall: %w", err)
+	}
+
+	return &Daemon{
+		cfg:      cfg,
+		firewall: fw,
+		quit:     make(chan struct{}),
+	}, nil
+}
+
+// Start creates the Unix socket and begins accepting connections.
+// Blocks until Stop() is called.
+func (d *Daemon) Start() error {
+	// Remove stale socket file if it exists
+	_ = os.Remove(d.cfg.SocketPath)
+
+	var err error
+	d.listener, err = net.Listen("unix", d.cfg.SocketPath)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", d.cfg.SocketPath, err)
+	}
+
+	// Set socket permissions: root:easywall 0660
+	if err := os.Chmod(d.cfg.SocketPath, 0660); err != nil {
+		slog.Warn("could not chmod socket", "error", err)
+	}
+	if gid, err := lookupGroup("easywall"); err == nil {
+		if err := os.Chown(d.cfg.SocketPath, 0, gid); err != nil {
+			slog.Warn("could not chown socket to easywall group", "error", err)
+		}
+	}
+
+	slog.Info("daemon listening", "socket", d.cfg.SocketPath)
+
+	for {
+		conn, err := d.listener.Accept()
+		if err != nil {
+			select {
+			case <-d.quit:
+				return nil
+			default:
+				slog.Error("accept error", "error", err)
+				continue
+			}
+		}
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			d.handleConn(conn)
+		}()
+	}
+}
+
+// Stop gracefully shuts down the daemon.
+func (d *Daemon) Stop() {
+	close(d.quit)
+	if d.listener != nil {
+		_ = d.listener.Close()
+	}
+	d.wg.Wait()
+	_ = os.Remove(d.cfg.SocketPath)
+}
+
+func (d *Daemon) handleConn(conn net.Conn) {
+	defer conn.Close()
+
+	data, err := io.ReadAll(io.LimitReader(conn, 1<<20)) // 1MB max
+	if err != nil {
+		slog.Warn("read command error", "error", err)
+		return
+	}
+
+	var cmd shared.Command
+	if err := json.Unmarshal(data, &cmd); err != nil {
+		d.sendError(conn, "invalid JSON command")
+		return
+	}
+
+	resp := d.dispatch(cmd)
+	out, _ := json.Marshal(resp)
+	_, _ = conn.Write(out)
+}
+
+func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
+	switch cmd.Type {
+	case shared.CmdGetStatus:
+		status := d.firewall.Status()
+		data, _ := json.Marshal(status)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdGetRules:
+		state, err := d.firewall.RulesStore().GetState()
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(state)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdSaveRules:
+		var payload shared.SaveRulesPayload
+		if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		if err := d.firewall.RulesStore().SaveStaged(payload.RuleType, payload.Rules); err != nil {
+			return errResp(err)
+		}
+		WriteAuditLog(d.cfg.AuditLogPath(), "rules_saved", payload.RuleType, "", "web")
+		return shared.Response{Success: true}
+
+	case shared.CmdApplyRules:
+		go func() {
+			if err := d.firewall.Apply("web"); err != nil {
+				slog.Error("apply error", "error", err)
+			}
+		}()
+		return shared.Response{Success: true}
+
+	case shared.CmdAccept:
+		d.firewall.Accept()
+		return shared.Response{Success: true}
+
+	case shared.CmdGetOptions:
+		opts := d.firewall.Options()
+		data, _ := json.Marshal(opts)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdExportRules:
+		data, err := d.firewall.RulesStore().ExportCurrent()
+		if err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdImportRules:
+		if err := d.firewall.RulesStore().ImportRules(cmd.Payload); err != nil {
+			return errResp(err)
+		}
+		WriteAuditLog(d.cfg.AuditLogPath(), "rules_imported", "all", "", "web")
+		return shared.Response{Success: true}
+
+	default:
+		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}
+	}
+}
+
+func (d *Daemon) sendError(conn net.Conn, msg string) {
+	resp := shared.Response{Success: false, Error: msg}
+	out, _ := json.Marshal(resp)
+	_, _ = conn.Write(out)
+}
+
+func errResp(err error) shared.Response {
+	return shared.Response{Success: false, Error: err.Error()}
+}
+
+// lookupGroup returns the numeric GID for a group name.
+func lookupGroup(name string) (int, error) {
+	// Simple /etc/group parser to avoid cgo dependency on os/user
+	f, err := os.Open("/etc/group")
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return 0, err
+	}
+
+	for _, line := range splitLines(string(data)) {
+		fields := splitFields(line, ":")
+		if len(fields) >= 3 && fields[0] == name {
+			var gid int
+			if _, err := fmt.Sscanf(fields[2], "%d", &gid); err == nil {
+				return gid, nil
+			}
+		}
+	}
+	return 0, fmt.Errorf("group %q not found", name)
+}
+
+func splitLines(s string) []string {
+	var lines []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\n' {
+			lines = append(lines, s[start:i])
+			start = i + 1
+		}
+	}
+	return lines
+}
+
+func splitFields(s, sep string) []string {
+	var fields []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep[0] {
+			fields = append(fields, s[start:i])
+			start = i + 1
+		}
+	}
+	fields = append(fields, s[start:])
+	return fields
+}

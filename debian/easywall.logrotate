@@ -1,0 +1,15 @@
+/var/log/easywall/audit.log
+/var/log/easywall/supervisord.log
+{
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 root easywall
+    sharedscripts
+    postrotate
+        systemctl kill -s HUP easywall-core.service 2>/dev/null || true
+    endscript
+}

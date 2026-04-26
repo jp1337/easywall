@@ -1,0 +1,38 @@
+services:
+  easywall:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-dev}
+    image: ghcr.io/jpylypiw/easywall:${VERSION:-latest}
+    container_name: easywall
+    restart: unless-stopped
+
+    # nftables requires host networking and NET_ADMIN capability
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:false
+
+    volumes:
+      # Persistent config — edit web.toml and easywall.toml here
+      - ./config:/etc/easywall
+
+      # Persistent state (rules.json, version cache)
+      - easywall_data:/var/lib/easywall
+
+      # Audit and application logs
+      - easywall_logs:/var/log/easywall
+
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -S /run/easywall/core.sock"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  easywall_data:
+  easywall_logs:

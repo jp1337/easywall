@@ -1,0 +1,113 @@
+{{define "apply.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{.T "apply_title"}}</h1>
+    </div>
+
+    {{with .Data}}
+
+    {{if .CoreErr}}
+    <div class="alert alert-error">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+      <span>Core daemon unreachable: {{.CoreErr}}</span>
+    </div>
+    {{end}}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:800px">
+
+      <!-- Acceptance status card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Acceptance Status</span>
+        </div>
+        <div class="apply-status-card">
+          <div id="apply-status">
+            {{if .Status}}
+            {{if eq (printf "%s" .Status.Acceptance) "pending"}}
+            <span class="status-dot pending">{{$.T "apply_waiting"}}</span>
+            {{else if eq (printf "%s" .Status.Acceptance) "accepted"}}
+            <span class="status-dot active">Accepted</span>
+            {{else if eq (printf "%s" .Status.Acceptance) "rolled_back"}}
+            <span class="status-dot error">Rolled Back</span>
+            {{else}}
+            <span class="status-dot inactive">Idle</span>
+            {{end}}
+            {{end}}
+          </div>
+
+          <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;align-items:center">
+            {{if .Status}}
+            {{if eq (printf "%s" .Status.Acceptance) "pending"}}
+            <form method="POST" action="/apply/confirm" id="confirm-form">
+              {{$.CSRF}}
+              <button type="submit" id="confirm-btn" class="btn btn-success btn-lg">
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                {{$.T "apply_confirm"}}
+              </button>
+            </form>
+            {{else}}
+            <form method="POST" action="/apply/start">
+              {{$.CSRF}}
+              <button type="submit" id="start-btn" class="btn btn-primary btn-lg"
+                {{if not .Status.HasPending}}title="No pending changes"{{end}}>
+                <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
+                {{$.T "apply_start"}}
+              </button>
+            </form>
+            {{end}}
+            {{end}}
+          </div>
+        </div>
+      </div>
+
+      <!-- Info card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">How it works</span>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="width:28px;height:28px;background:var(--accent-dim);color:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">1</div>
+              <div>
+                <div style="font-size:13px;font-weight:500">Apply rules</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">New rules are pushed to the kernel immediately.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="width:28px;height:28px;background:var(--warning-dim);color:var(--warning);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">2</div>
+              <div>
+                <div style="font-size:13px;font-weight:500">Verify connectivity</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Test that SSH and other services still work.</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="width:28px;height:28px;background:var(--success-dim);color:var(--success);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0">3</div>
+              <div>
+                <div style="font-size:13px;font-weight:500">Confirm or auto-rollback</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:2px">{{$.T "apply_rollback"}}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{if .Status}}{{if .Status.HasPending}}
+    <div class="alert alert-warning" style="margin-top:20px;max-width:800px">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+      <span>You have pending rule changes that have not been applied yet.</span>
+    </div>
+    {{end}}{{end}}
+
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}

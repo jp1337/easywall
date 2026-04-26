@@ -1,0 +1,131 @@
+{{define "dashboard.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    {{if .Data}}{{with .Data}}
+
+    {{if .Version}}{{if .Version.UpdateAvailable}}
+    <div class="update-banner">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+      <span>Update available: <strong>{{.Version.Latest}}</strong></span>
+      <a href="{{.Version.ReleaseURL}}" target="_blank" rel="noopener">View release →</a>
+    </div>
+    {{end}}{{end}}
+
+    {{if .CoreErr}}
+    <div class="alert alert-error">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+      <span>Core daemon unreachable: {{.CoreErr}}</span>
+    </div>
+    {{end}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{$.T "dashboard_title"}}</h1>
+      <div class="page-actions">
+        <form method="POST" action="/import" enctype="multipart/form-data" style="display:inline">
+          {{$.CSRF}}
+          <label class="btn btn-secondary" style="cursor:pointer">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.5 2.25a.75.75 0 000 1.5V5h.5a.75.75 0 000-1.5H9.5V2.25zm1 9V10a.75.75 0 00-1.5 0v2.19l-.72-.72a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0l2-2a.75.75 0 10-1.06-1.06l-.72.72V11.25zm2.5-5.5a.75.75 0 01.75-.75h3.75a.75.75 0 010 1.5H13.75a.75.75 0 01-.75-.75zm.75 3.25a.75.75 0 000 1.5H18a.75.75 0 000-1.5h-4.25zm0 3.5a.75.75 0 000 1.5H18a.75.75 0 000-1.5h-4.25z" clip-rule="evenodd"/></svg>
+            {{$.T "dashboard_import_rules"}}
+            <input type="file" name="rules_file" accept=".json" style="display:none" onchange="this.form.submit()">
+          </label>
+        </form>
+        <a class="btn btn-secondary" href="/export">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.25 2.25a.75.75 0 000 1.5H9.5v1.5H9.25a.75.75 0 000 1.5H9.5V8H2a.75.75 0 000 1.5h7.5V11H9.25a.75.75 0 000 1.5H9.5v1.75a.75.75 0 001.5 0V12.5h.25a.75.75 0 000-1.5H11V9.5h6a.75.75 0 000-1.5h-6V6.75h.25a.75.75 0 000-1.5H11V3.75h.25a.75.75 0 000-1.5h-2z" clip-rule="evenodd"/></svg>
+          {{$.T "dashboard_export_rules"}}
+        </a>
+      </div>
+    </div>
+
+    {{if .Status}}
+    <div class="cards-grid">
+      <div class="stat-card">
+        <div class="stat-label">{{$.T "dashboard_status"}}</div>
+        <div class="stat-value">
+          {{if .Status.Active}}
+          <span class="status-dot active">{{$.T "dashboard_active"}}</span>
+          {{else}}
+          <span class="status-dot inactive">Inactive</span>
+          {{end}}
+        </div>
+        <div class="stat-sub">Firewall daemon running</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">{{$.T "dashboard_acceptance"}}</div>
+        <div class="stat-value" style="font-size:18px">
+          {{if eq (printf "%s" .Status.Acceptance) "pending"}}
+          <span class="status-dot pending">Pending</span>
+          {{else if eq (printf "%s" .Status.Acceptance) "accepted"}}
+          <span class="status-dot active">Accepted</span>
+          {{else if eq (printf "%s" .Status.Acceptance) "rolled_back"}}
+          <span class="status-dot error">Rolled Back</span>
+          {{else}}
+          <span class="status-dot inactive">Idle</span>
+          {{end}}
+        </div>
+        {{if eq (printf "%s" .Status.Acceptance) "pending"}}
+        <div class="stat-sub" style="margin-top:8px">
+          <a href="/apply" class="btn btn-success btn-sm">Confirm Rules →</a>
+        </div>
+        {{end}}
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">{{$.T "dashboard_pending"}}</div>
+        <div class="stat-value" style="font-size:18px">
+          {{if .Status.HasPending}}
+          <span class="badge badge-warning">Yes</span>
+          {{else}}
+          <span class="badge badge-muted">None</span>
+          {{end}}
+        </div>
+        {{if .Status.HasPending}}
+        <div class="stat-sub" style="margin-top:8px">
+          <a href="/apply" class="btn btn-primary btn-sm">Apply Changes →</a>
+        </div>
+        {{end}}
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">{{$.T "dashboard_last_apply"}}</div>
+        <div class="stat-value" style="font-size:14px;font-family:var(--font-mono);font-weight:500">
+          {{if .Status.LastApply}}{{.Status.LastApply}}{{else}}—{{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Quick Actions</span>
+      </div>
+      <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="/ports" class="btn btn-secondary">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 014.25 2h11.5A2.25 2.25 0 0118 4.25v8.5A2.25 2.25 0 0115.75 15h-3.105a3.501 3.501 0 001.1 1.677A.75.75 0 0113.26 18H6.74a.75.75 0 01-.484-1.323A3.501 3.501 0 007.355 15H4.25A2.25 2.25 0 012 12.75v-8.5z" clip-rule="evenodd"/></svg>
+          Manage Ports
+        </a>
+        <a href="/blacklist" class="btn btn-secondary">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+          Blacklist IPs
+        </a>
+        <a href="/whitelist" class="btn btn-secondary">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          Whitelist IPs
+        </a>
+        <a href="/apply" class="btn btn-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
+          Apply Rules
+        </a>
+      </div>
+    </div>
+
+    {{end}}{{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}

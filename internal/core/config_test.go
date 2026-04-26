@@ -1,0 +1,178 @@
+package core
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jpylypiw/easywall/internal/shared"
+)
+
+func writeTempCoreConfig(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "easywall.toml")
+	if err := os.WriteFile(path, []byte(content), 0640); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+const validCoreConfig = `
+socket_path = "/run/easywall/core.sock"
+data_dir    = "/var/lib/easywall"
+log_dir     = "/var/log/easywall"
+
+[acceptance]
+enabled  = true
+duration = 120
+
+[firewall]
+ssh_brute_force = false
+`
+
+func TestLoadCoreConfig_Valid(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.SocketPath != "/run/easywall/core.sock" {
+		t.Errorf("unexpected socket_path: %s", cfg.SocketPath)
+	}
+}
+
+func TestLoadCoreConfig_FileNotFound(t *testing.T) {
+	_, err := LoadConfig("/nonexistent/path.toml")
+	if err == nil {
+		t.Error("expected error for non-existent file")
+	}
+}
+
+func TestLoadCoreConfig_InvalidTOML(t *testing.T) {
+	path := writeTempCoreConfig(t, "this = [is not valid toml }")
+	_, err := LoadConfig(path)
+	if err == nil {
+		t.Error("expected error for invalid TOML")
+	}
+}
+
+func newCoreCfgWith(socketPath, dataDir, logDir string, acceptanceDuration int) *Config {
+	return &Config{
+		CoreConfig: shared.CoreConfig{
+			SocketPath: socketPath,
+			DataDir:    dataDir,
+			LogDir:     logDir,
+			Acceptance: shared.AcceptanceConfig{
+				Enabled:  true,
+				Duration: acceptanceDuration,
+			},
+		},
+	}
+}
+
+func TestValidateCoreConfig_MissingSocketPath(t *testing.T) {
+	cfg := newCoreCfgWith("", "/data", "/log", 120)
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "socket_path") {
+		t.Errorf("expected socket_path error, got: %v", err)
+	}
+}
+
+func TestValidateCoreConfig_MissingDataDir(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "", "/log", 120)
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "data_dir") {
+		t.Errorf("expected data_dir error, got: %v", err)
+	}
+}
+
+func TestValidateCoreConfig_MissingLogDir(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "", 120)
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "log_dir") {
+		t.Errorf("expected log_dir error, got: %v", err)
+	}
+}
+
+func TestValidateCoreConfig_InvalidAcceptanceDuration(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 0)
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "acceptance") {
+		t.Errorf("expected acceptance error, got: %v", err)
+	}
+}
+
+func TestValidateCoreConfig_SetsSSHDefaults(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
+	cfg.Firewall.SSHBruteForce = true
+	cfg.Firewall.SSHBruteForceConnectionLimit = 0
+	_ = cfg.Validate()
+	if cfg.Firewall.SSHBruteForceConnectionLimit != 5 {
+		t.Errorf("expected SSHBruteForceConnectionLimit default 5, got %d", cfg.Firewall.SSHBruteForceConnectionLimit)
+	}
+}
+
+func TestValidateCoreConfig_SetsICMPDefaults(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
+	cfg.Firewall.ICMPFlood = true
+	cfg.Firewall.ICMPFloodConnectionLimit = 0
+	_ = cfg.Validate()
+	if cfg.Firewall.ICMPFloodConnectionLimit != 10 {
+		t.Errorf("expected ICMPFloodConnectionLimit default 10, got %d", cfg.Firewall.ICMPFloodConnectionLimit)
+	}
+}
+
+func TestValidateCoreConfig_SetsSYNDefaults(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
+	cfg.Firewall.SYNFlood = true
+	cfg.Firewall.SYNFloodLimit = 0
+	_ = cfg.Validate()
+	if cfg.Firewall.SYNFloodLimit != 100 {
+		t.Errorf("expected SYNFloodLimit default 100, got %d", cfg.Firewall.SYNFloodLimit)
+	}
+}
+
+func TestAcceptanceDuration(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 60)
+	if d := cfg.AcceptanceDuration(); d != 60*time.Second {
+		t.Errorf("unexpected duration: %v", d)
+	}
+}
+
+func TestRulesPath(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/var/lib/easywall", "/log", 120)
+	if p := cfg.RulesPath(); p != "/var/lib/easywall/rules.json" {
+		t.Errorf("unexpected rules path: %s", p)
+	}
+}
+
+func TestAuditLogPath(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/var/log/easywall", 120)
+	if p := cfg.AuditLogPath(); p != "/var/log/easywall/audit.log" {
+		t.Errorf("unexpected audit log path: %s", p)
+	}
+}
+
+func TestVersionCachePath_Core(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/var/lib/easywall", "/log", 120)
+	if p := cfg.VersionCachePath(); p != "/var/lib/easywall/version_cache.json" {
+		t.Errorf("unexpected version cache path: %s", p)
+	}
+}
+
+func TestWriteDefaultCoreConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "easywall.toml")
+	if err := WriteDefaultCoreConfig(path); err != nil {
+		t.Fatalf("WriteDefaultCoreConfig: %v", err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig after WriteDefault: %v", err)
+	}
+	if cfg.SocketPath != "/run/easywall/core.sock" {
+		t.Errorf("unexpected socket_path: %s", cfg.SocketPath)
+	}
+	if cfg.Acceptance.Duration != 120 {
+		t.Errorf("unexpected acceptance duration: %d", cfg.Acceptance.Duration)
+	}
+}

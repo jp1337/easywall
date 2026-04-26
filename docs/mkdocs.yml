@@ -1,0 +1,67 @@
+site_name: easywall
+site_url: https://jpylypiw.github.io/easywall
+site_description: Linux firewall management with a web interface
+site_author: Jochen Pylypiw
+repo_url: https://github.com/jpylypiw/easywall
+repo_name: jpylypiw/easywall
+edit_uri: edit/main/docs/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.expand
+    - toc.integrate
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Installation:
+    - Requirements: installation/requirements.md
+    - Debian / Ubuntu: installation/debian.md
+    - Docker: installation/docker.md
+    - Manual: installation/manual.md
+  - Configuration: configuration.md
+  - Features:
+    - Ports: features/ports.md
+    - Blacklist & Whitelist: features/blacklist.md
+    - Firewall Filters: features/filters.md
+    - Docker Coexistence: features/docker.md
+    - Export & Import: features/export-import.md
+  - Security: security.md
+  - Contributing: contributing.md
