@@ -23,24 +23,30 @@ description: easywall's layered security architecture — two-process isolation,
 
 ## Process Isolation
 
-```
-┌─────────────────────────────────────────────┐
-│ easywall-core (root)                        │
-│  • Owns /run/easywall/core.sock (mode 0660) │
-│  • CAP_NET_ADMIN only                       │
-│  • Reads/writes /var/lib/easywall only      │
-│  • No network access                        │
-└───────────────┬─────────────────────────────┘
-                │ Unix socket — typed JSON only
-┌───────────────▼─────────────────────────────┐
-│ easywall-web (user: easywall)               │
-│  • No root privileges                       │
-│  • No direct kernel access                  │
-│  • Reads /etc/easywall (TLS cert, config)   │
-│  • Writes /var/lib/easywall (version cache) │
-│  • Binds 0.0.0.0:12227 (HTTPS)             │
-└─────────────────────────────────────────────┘
-```
+<div class="mermaid">
+flowchart TB
+    Browser["🌐 Browser\nHTTPS :12227"]
+
+    subgraph web["easywall-web  (user: easywall)"]
+        W1["• No root privileges"]
+        W2["• No direct kernel access"]
+        W3["• Reads /etc/easywall (TLS, config)"]
+        W4["• Binds 0.0.0.0:12227 (HTTPS)"]
+    end
+
+    subgraph core["easywall-core  (root)"]
+        C1["• Owns core.sock (mode 0660)"]
+        C2["• CAP_NET_ADMIN only"]
+        C3["• Reads/writes /var/lib/easywall"]
+        C4["• No network access"]
+    end
+
+    Kernel["🐧 nftables kernel\nvia direct netlink"]
+
+    Browser -->|HTTPS| web
+    web -->|"Unix socket\nTyped JSON protocol"| core
+    core -->|"netlink syscalls\n(no nft subprocess)"| Kernel
+</div>
 
 ## IPC Protocol Security
 

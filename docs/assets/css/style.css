@@ -631,6 +631,19 @@ tr:last-child td { border-bottom: none; }
   margin-bottom: 1.5rem;
 }
 
+/* ── Mermaid diagrams ───────────────────────────────────────────────── */
+.mermaid {
+  margin: 1.5rem 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 /* ── Mobile ─────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .topbar { display: flex; }

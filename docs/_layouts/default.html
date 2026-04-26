@@ -129,12 +129,44 @@
       var body=document.querySelector('.content-body');
       if(!body)return;
       body.querySelectorAll('table,pre').forEach(function(el){
+        if(el.querySelector('.mermaid')||el.classList.contains('mermaid'))return;
         var w=document.createElement('div');
         w.className='scroll-wrapper';
         el.parentNode.insertBefore(w,el);
         w.appendChild(el);
       });
     })();
+
+    // Mermaid
+    (function(){
+      var theme=document.documentElement.getAttribute('data-theme')==='light'?'default':'dark';
+      window.mermaid_theme=theme;
+    })();
+  </script>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    var theme=window.mermaid_theme||'dark';
+    mermaid.initialize({
+      startOnLoad:true,
+      theme:theme,
+      themeVariables: theme==='dark' ? {
+        primaryColor:'#111a2e',
+        primaryTextColor:'#d8e8f8',
+        primaryBorderColor:'#253d5e',
+        lineColor:'#8ab4d4',
+        secondaryColor:'#172138',
+        tertiaryColor:'#0f1828',
+        noteBkgColor:'#172138',
+        noteTextColor:'#d8e8f8',
+        fontFamily:'IBM Plex Sans, sans-serif'
+      } : {
+        primaryColor:'#e8f1fb',
+        primaryTextColor:'#0a1628',
+        primaryBorderColor:'#b8cfe8',
+        lineColor:'#466080',
+        fontFamily:'IBM Plex Sans, sans-serif'
+      }
+    });
   </script>
 
 </body>
