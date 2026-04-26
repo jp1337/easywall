@@ -158,3 +158,198 @@ func TestSaveCache_Roundtrip(t *testing.T) {
 		t.Errorf("roundtrip mismatch: got %s", loaded.Latest)
 	}
 }
+
+func TestSaveCache_InvalidPath(t *testing.T) {
+	info := &VersionInfo{
+		Current:   CurrentVersion,
+		Latest:    "v1.0.0",
+		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	err := saveCache("/nonexistent/directory/cache.json", info)
+	if err == nil {
+		t.Error("expected error writing to nonexistent directory")
+	}
+}
+
+func TestFetchLatestRelease_Non200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	old := githubReleasesURL
+	githubReleasesURL = srv.URL
+	defer func() { githubReleasesURL = old }()
+
+	_, err := fetchLatestRelease()
+	if err == nil {
+		t.Error("expected error for non-200 response")
+	}
+}
+
+func TestFetchLatestRelease_InvalidJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("not valid json"))
+	}))
+	defer srv.Close()
+
+	old := githubReleasesURL
+	githubReleasesURL = srv.URL
+	defer func() { githubReleasesURL = old }()
+
+	_, err := fetchLatestRelease()
+	if err == nil {
+		t.Error("expected error for invalid JSON response")
+	}
+}
+
+func TestFetchLatestRelease_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(githubRelease{
+			TagName: "v3.0.0",
+			HTMLURL: "https://example.com/releases/v3.0.0",
+		})
+	}))
+	defer srv.Close()
+
+	old := githubReleasesURL
+	githubReleasesURL = srv.URL
+	defer func() { githubReleasesURL = old }()
+
+	rel, err := fetchLatestRelease()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rel.TagName != "v3.0.0" {
+		t.Errorf("expected TagName=v3.0.0, got: %s", rel.TagName)
+	}
+}
+
+func TestCheckLatestVersion_FetchAndCache(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "version_cache.json")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(githubRelease{
+			TagName: "v5.0.0",
+			HTMLURL: "https://example.com/releases/v5.0.0",
+		})
+	}))
+	defer srv.Close()
+
+	old := githubReleasesURL
+	githubReleasesURL = srv.URL
+	defer func() { githubReleasesURL = old }()
+
+	info, err := CheckLatestVersion(cachePath)
+	if err != nil {
+		t.Fatalf("CheckLatestVersion: %v", err)
+	}
+	if info.Latest != "v5.0.0" {
+		t.Errorf("expected Latest=v5.0.0, got: %s", info.Latest)
+	}
+	if !info.UpdateAvailable {
+		t.Error("expected UpdateAvailable=true for v5.0.0 vs dev version")
+	}
+}
+
+func TestCheckLatestVersion_CacheWriteFailDoesNotError(t *testing.T) {
+	// Cache write path: saveCache fails if dir doesn't exist, but
+	// CheckLatestVersion ignores the save error (_ = saveCache(...))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(githubRelease{TagName: "v4.0.0", HTMLURL: "https://example.com"})
+	}))
+	defer srv.Close()
+
+	old := githubReleasesURL
+	githubReleasesURL = srv.URL
+	defer func() { githubReleasesURL = old }()
+
+	// nonexistent path so saveCache fails silently
+	info, err := CheckLatestVersion("/nonexistent/dir/cache.json")
+	if err != nil {
+		t.Fatalf("CheckLatestVersion should not error even if cache write fails: %v", err)
+	}
+	if info.Latest != "v4.0.0" {
+		t.Errorf("expected Latest=v4.0.0, got: %s", info.Latest)
+	}
+}
+
+func TestLoadCache_InvalidTimestamp(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cache.json")
+	info := &VersionInfo{
+		Current:   "1.0.0",
+		CheckedAt: "not-a-timestamp",
+	}
+	data, _ := json.Marshal(info)
+	_ = os.WriteFile(path, data, 0644)
+	_, ok := loadCache(path)
+	if ok {
+		t.Error("expected ok=false for invalid timestamp")
+	}
+}
+
+func TestFetchLatestRelease_NewRequestError(t *testing.T) {
+	old := githubReleasesURL
+	// Null byte in URL causes http.NewRequest to fail.
+	githubReleasesURL = "http://invalid\x00host"
+	defer func() { githubReleasesURL = old }()
+
+	_, err := fetchLatestRelease()
+	if err == nil {
+		t.Error("expected error for URL with null byte")
+	}
+}
+
+func TestCheckLatestVersion_FetchError_Fallback(t *testing.T) {
+	dir := t.TempDir()
+	cachePath := filepath.Join(dir, "version_cache.json")
+
+	old := githubReleasesURL
+	// Port 1 is not listening — client.Do returns "connection refused".
+	githubReleasesURL = "http://127.0.0.1:1"
+	defer func() { githubReleasesURL = old }()
+
+	info, err := CheckLatestVersion(cachePath)
+	if err != nil {
+		t.Fatalf("CheckLatestVersion should not return error on fetch failure: %v", err)
+	}
+	if info.Current != CurrentVersion {
+		t.Errorf("expected Current=%s, got: %s", CurrentVersion, info.Current)
+	}
+	// On network error, Latest should be empty (graceful degradation).
+	if info.Latest != "" {
+		t.Errorf("expected empty Latest on fetch error, got: %s", info.Latest)
+	}
+}
+
+func TestFetchLatestRelease_ReadBodyError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Claim large content-length but close connection immediately — io.ReadAll will fail.
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Error("ResponseWriter does not implement Hijacker")
+			return
+		}
+		conn, bufw, err := hj.Hijack()
+		if err != nil {
+			return
+		}
+		// Write a partial HTTP response: content-length says 1000 bytes but we send 10.
+		_, _ = bufw.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n{\"partial\"")
+		_ = bufw.Flush()
+		conn.Close()
+	}))
+	defer srv.Close()
+
+	old := githubReleasesURL
+	githubReleasesURL = srv.URL
+	defer func() { githubReleasesURL = old }()
+
+	_, err := fetchLatestRelease()
+	if err == nil {
+		t.Error("expected error when connection closed mid-body")
+	}
+}
