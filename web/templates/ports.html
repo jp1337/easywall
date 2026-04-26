@@ -7,13 +7,13 @@
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{.T "ports_title"}}</h1>
+      <h1 class="page-title">{{T "ports_title"}}</h1>
     </div>
 
     {{with .Data}}
     <div class="tabs">
-      <a class="tab {{if eq .RuleType "tcp"}}active{{end}}" href="/ports?type=tcp">{{$.T "ports_tcp"}}</a>
-      <a class="tab {{if eq .RuleType "udp"}}active{{end}}" href="/ports?type=udp">{{$.T "ports_udp"}}</a>
+      <a class="tab {{if eq .RuleType "tcp"}}active{{end}}" href="/ports?type=tcp">{{T "ports_tcp"}}</a>
+      <a class="tab {{if eq .RuleType "udp"}}active{{end}}" href="/ports?type=udp">{{T "ports_udp"}}</a>
     </div>
 
     <form method="POST" action="/ports" id="ports-form">
@@ -22,19 +22,19 @@
 
       <div class="card rule-editor">
         <div class="card-header">
-          <span class="card-title">{{$.T "ports_tcp"}}{{if eq .RuleType "udp"}}/{{$.T "ports_udp"}}{{end}} Port Rules</span>
+          <span class="card-title">{{T "ports_tcp"}}{{if eq .RuleType "udp"}}/{{T "ports_udp"}}{{end}} Port Rules</span>
           <button type="button" id="add-rule-btn" class="btn btn-secondary btn-sm">
             <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
-            {{$.T "ports_add"}}
+            {{T "ports_add"}}
           </button>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>{{$.T "ports_port"}}</th>
-                <th>{{$.T "ports_description"}}</th>
-                <th style="text-align:center">{{$.T "ports_ssh"}}</th>
+                <th>{{T "ports_port"}}</th>
+                <th>{{T "ports_description"}}</th>
+                <th style="text-align:center">{{T "ports_ssh"}}</th>
                 <th style="text-align:right">Actions</th>
               </tr>
             </thead>
@@ -66,7 +66,7 @@
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
           <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-          {{$.T "ports_save"}}
+          {{T "ports_save"}}
         </button>
         <span class="form-hint">Changes are staged until you <a href="/apply">apply rules</a>.</span>
       </div>

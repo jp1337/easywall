@@ -6,85 +6,157 @@ description: All TOML configuration keys for easywall-core and easywall-web expl
 
 # Configuration
 
-easywall uses two TOML configuration files — one for each process.
+easywall uses two TOML configuration files — one for each process. Both files are installed to `/etc/easywall/` and read at startup. A configuration error causes a clean exit with a descriptive message, never a silent fallback.
+
+---
 
 ## easywall-core (`/etc/easywall/easywall.toml`)
 
-Controls the firewall daemon and all protection modules.
-
-### `[firewall]`
+### Top-Level Keys
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `ssh_brute_force` | bool | `true` | Rate-limit new SSH connections per source IP |
-| `icmp_flood` | bool | `true` | Rate-limit ICMP echo requests |
-| `syn_flood` | bool | `true` | Rate-limit new TCP SYN packets |
-| `port_scan` | bool | `true` | Drop packets with suspicious TCP flag combos (NULL, FIN, XMAS) |
-| `drop_invalid_packets` | bool | `true` | Drop packets in INVALID conntrack state |
-| `drop_fragments` | bool | `false` | Drop IP fragments |
-| `bogon_filter` | bool | `false` | Drop RFC-1918 traffic arriving from external interfaces |
-| `connection_limit_per_ip` | bool | `false` | Limit simultaneous connections per source IP |
-| `tcp_rst_flood` | bool | `false` | Rate-limit TCP RST packets |
-| `drop_broadcast` | bool | `true` | Drop broadcast packets |
-| `drop_multicast` | bool | `false` | Drop multicast packets |
-| `log_blocked_connections` | bool | `false` | Log traffic before the final DROP rule |
-
-Each `_log` variant (e.g. `ssh_brute_force_log`) toggles logging for that module.
-Numeric `_limit` variants control rate thresholds (packets per second or max connections).
+| `socket_path` | string | `/run/easywall/core.sock` | Unix socket path — must be accessible to the `easywall` group |
+| `data_dir` | string | `/var/lib/easywall` | Directory for `rules.json` and version cache |
+| `log_dir` | string | `/var/log/easywall` | Directory for audit log and rule snapshots |
 
 ### `[acceptance]`
+
+The two-step activation safety mechanism. When a ruleset is applied, the core waits up to `duration` seconds for an explicit acceptance signal. If no signal arrives, the previous ruleset is automatically restored.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable two-step activation safety |
-| `duration` | int | `30` | Seconds before auto-rollback if not confirmed |
+| `duration` | int | `120` | Seconds before auto-rollback if not confirmed |
+
+Set `duration` to a value long enough for you to verify connectivity from a second terminal after applying rules.
 
 ### `[ipv6]`
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `true` | Enable IPv6 rules |
-| `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 RA (required for SLAAC) |
-| `icmp_allow_neighbor_advertisement` | bool | `true` | Allow ICMPv6 NA (required for NDP) |
+| `enabled` | bool | `true` | Compile IPv6 rules into the inet table |
+| `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 type 134 — required for SLAAC address autoconfiguration |
+| `icmp_allow_neighbor_advertisement` | bool | `true` | Allow ICMPv6 types 135/136 — required for Neighbor Discovery Protocol |
+
+Disable `enabled` only on servers with no IPv6 addressing. Disabling individual ICMPv6 RA/NA types will break IPv6 connectivity.
 
 ### `[docker]`
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `false` | Auto-detect Docker bridge interfaces |
-| `allow_bridge_networks` | bool | `true` | Whitelist detected bridge networks |
-| `custom_networks` | list | `[]` | Additional CIDRs to whitelist |
+| `enabled` | bool | `false` | Auto-detect Docker bridge interfaces and whitelist them |
+| `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
+| `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
+
+See [Docker Coexistence]({{ '/features/docker/' | relative_url }}) for the full setup guide.
+
+### `[firewall]` — Protection Modules
+
+Each module has a matching `_log` boolean and one or more numeric threshold keys. The table shows the primary on/off toggle; see [Firewall Filters]({{ '/features/filters/' | relative_url }}) for details on each module.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `ssh_brute_force` | bool | `true` | Rate-limit new connections to SSH-tagged ports |
+| `ssh_brute_force_log` | bool | `false` | Log rate-limited SSH attempts |
+| `ssh_brute_force_connection_limit` | int | `5` | Max new connections per IP in the rate window |
+| `ssh_brute_force_log_limit` | int | `60` | Log entries per minute |
+| `icmp_flood` | bool | `true` | Rate-limit ICMP echo requests per source IP |
+| `icmp_flood_log` | bool | `false` | Log rate-limited ICMP |
+| `icmp_flood_connection_limit` | int | `10` | Max ICMP requests per second per source IP |
+| `icmp_flood_log_limit` | int | `60` | Log entries per minute |
+| `syn_flood` | bool | `true` | Rate-limit new TCP SYN packets per source IP |
+| `syn_flood_log` | bool | `false` | Log rate-limited SYN packets |
+| `syn_flood_limit` | int | `100` | Max new SYN packets per second per source IP |
+| `port_scan` | bool | `true` | Drop TCP packets with suspicious flag combos |
+| `port_scan_log` | bool | `false` | Log dropped port scan packets |
+| `drop_invalid_packets` | bool | `true` | Drop packets in INVALID conntrack state |
+| `drop_invalid_packets_log` | bool | `false` | Log dropped invalid packets |
+| `drop_fragments` | bool | `false` | Drop IP-fragmented packets |
+| `drop_fragments_log` | bool | `false` | Log dropped fragments |
+| `bogon_filter` | bool | `false` | Drop RFC-1918 source IPs arriving on external interfaces |
+| `bogon_filter_log` | bool | `false` | Log bogon-filtered packets |
+| `connection_limit_per_ip` | bool | `false` | Limit simultaneous connections per source IP |
+| `connection_limit_max` | int | `100` | Max simultaneous connections per source IP |
+| `tcp_rst_flood` | bool | `false` | Rate-limit TCP RST packets per source IP |
+| `tcp_rst_flood_log` | bool | `false` | Log rate-limited RST packets |
+| `tcp_rst_flood_limit` | int | `100` | Max RST packets per second per source IP |
+| `drop_broadcast` | bool | `false` | Drop broadcast-destination packets |
+| `drop_multicast` | bool | `false` | Drop multicast-destination packets |
+| `drop_anycast` | bool | `false` | Drop anycast packets |
+| `log_blocked_connections` | bool | `false` | Add rate-limited log rule before the final DROP |
+| `log_blocked_connections_limit` | int | `60` | Log entries per minute for the final DROP log |
+| `log_blacklist_connections` | bool | `false` | Log packets matched by the blacklist |
+| `log_blacklist_connections_limit` | int | `60` | Log entries per minute for blacklist drops |
 
 ---
 
 ## easywall-web (`/etc/easywall/web.toml`)
 
-Controls the web frontend.
+### Top-Level Keys
 
 | Key | Type | Description |
 |---|---|---|
-| `bind_addr` | string | Listen address, e.g. `"0.0.0.0:12227"` |
-| `socket_path` | string | Path to core Unix socket |
-| `ssl_dir` | string | Directory for auto-generated TLS certificates |
-| `language` | string | Default locale (`"en"` or `"de"`) |
-| `session_key` | string | HMAC secret for session cookies — keep private |
-| `username` | string | Login username (set via first-run wizard) |
-| `password` | string | Argon2id password hash (set via first-run wizard) |
+| `bind_addr` | string | Listen address and port — e.g. `"0.0.0.0:12227"` or `"127.0.0.1:12227"` |
+| `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
+| `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
+| `data_dir` | string | Directory for the version cache file |
+| `language` | string | Default UI locale — `"en"` (English) or `"de"` (German) |
+| `session_key` | string | 32-byte hex secret for HMAC-signed session cookies |
+| `csrf_key` | string | 32-byte hex secret for CSRF token generation |
+| `username` | string | Login username — set via the first-run wizard |
+| `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
+
+Generate the required secrets:
+```bash
+SESSION_KEY=$(openssl rand -hex 32)
+CSRF_KEY=$(openssl rand -hex 32)
+```
+
+**Keep `session_key` and `csrf_key` private.** Anyone with these values can forge valid session cookies and CSRF tokens.
 
 ### `[tls]`
 
-Leave both fields empty to use the auto-generated self-signed certificate.
+Leave both keys empty to use an auto-generated self-signed certificate in `ssl_dir`.
 
 | Key | Description |
 |---|---|
-| `cert` | Path to custom TLS certificate (e.g. Let's Encrypt) |
-| `key` | Path to corresponding private key |
+| `cert` | Absolute path to a custom TLS certificate PEM file (e.g. Let's Encrypt fullchain) |
+| `key` | Absolute path to the matching private key PEM file |
+
+The auto-generated certificate has a one-year validity and is renewed automatically on startup when it expires within 30 days.
 
 ---
 
-## JSON Schema
+## Writing Default Configs
 
-TOML configs are validated by JSON Schema — copy `taplo.toml` to your project root and your editor will show inline validation and autocomplete.
+Both binaries can write a default config file to a given path:
+
+```bash
+sudo easywall-core --write-config /etc/easywall/easywall.toml
+sudo easywall-web  --write-config /etc/easywall/web.toml
+```
+
+---
+
+## JSON Schema and Editor Validation
+
+Both config files have JSON Schema definitions that can be used with the
+[Taplo](https://taplo.tamasfe.dev/) TOML language server to get inline
+validation and autocompletion in VS Code, Neovim, and other editors:
+
+```toml
+# taplo.toml (project root)
+[[rule]]
+include = ["config/easywall.toml"]
+url = "https://jp1337.github.io/easywall/schemas/easywall.schema.json"
+
+[[rule]]
+include = ["config/web.toml"]
+url = "https://jp1337.github.io/easywall/schemas/web.schema.json"
+```
+
+Direct schema links:
 
 - [easywall.schema.json]({{ '/schemas/easywall.schema.json' | relative_url }})
 - [web.schema.json]({{ '/schemas/web.schema.json' | relative_url }})
