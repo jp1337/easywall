@@ -68,14 +68,17 @@ changelog:
       order: 999
 
 dockers_v2:
-  - use: buildx
-    dockerfile: Dockerfile
-    image_templates:
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}"
-      - "ghcr.io/jp1337/easywall:latest"
-    build_flag_templates:
-      - "--build-arg=VERSION={{ .Version }}"
-      - "--platform=linux/amd64,linux/arm64"
+  - dockerfile: Dockerfile
+    images:
+      - "ghcr.io/jp1337/easywall"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    build_args:
+      VERSION: "{{ .Version }}"
     extra_files:
       - go.mod
       - go.sum
