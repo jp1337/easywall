@@ -688,28 +688,54 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 	}
 
 	ip4 := ipNet.IP.To4()
-	if ip4 == nil {
-		return // IPv6 CIDR not handled in this path
+	if ip4 != nil {
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: c,
+			Exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+				&expr.Payload{
+					DestRegister: 1,
+					Base:         expr.PayloadBaseNetworkHeader,
+					Offset:       12, // src IP
+					Len:          4,
+				},
+				&expr.Bitwise{
+					SourceRegister: 1,
+					DestRegister:   1,
+					Len:            4,
+					Mask:           []byte(ipNet.Mask),
+					Xor:            []byte{0, 0, 0, 0},
+				},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+		})
+		return
 	}
-
+	// IPv6 CIDR
+	ip6 := ipNet.IP.To16()
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
 			&expr.Payload{
 				DestRegister: 1,
 				Base:         expr.PayloadBaseNetworkHeader,
-				Offset:       12, // src IP
-				Len:          4,
+				Offset:       8, // src IP in IPv6 header
+				Len:          16,
 			},
 			&expr.Bitwise{
 				SourceRegister: 1,
 				DestRegister:   1,
-				Len:            4,
+				Len:            16,
 				Mask:           []byte(ipNet.Mask),
-				Xor:            []byte{0, 0, 0, 0},
+				Xor:            make([]byte, 16),
 			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip6},
 			&expr.Verdict{Kind: expr.VerdictAccept},
 		},
 	})
@@ -729,6 +755,8 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
 				&expr.Payload{
 					DestRegister: 1,
 					Base:         expr.PayloadBaseNetworkHeader,
@@ -745,6 +773,8 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
 				&expr.Payload{
 					DestRegister: 1,
 					Base:         expr.PayloadBaseNetworkHeader,
@@ -764,27 +794,54 @@ func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr
 		return
 	}
 	ip4 := ipNet.IP.To4()
-	if ip4 == nil {
+	if ip4 != nil {
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: c,
+			Exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+				&expr.Payload{
+					DestRegister: 1,
+					Base:         expr.PayloadBaseNetworkHeader,
+					Offset:       12,
+					Len:          4,
+				},
+				&expr.Bitwise{
+					SourceRegister: 1,
+					DestRegister:   1,
+					Len:            4,
+					Mask:           []byte(ipNet.Mask),
+					Xor:            []byte{0, 0, 0, 0},
+				},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+				&expr.Verdict{Kind: expr.VerdictDrop},
+			},
+		})
 		return
 	}
+	// IPv6 CIDR
+	ip6 := ipNet.IP.To16()
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
 			&expr.Payload{
 				DestRegister: 1,
 				Base:         expr.PayloadBaseNetworkHeader,
-				Offset:       12,
-				Len:          4,
+				Offset:       8, // src IP in IPv6 header
+				Len:          16,
 			},
 			&expr.Bitwise{
 				SourceRegister: 1,
 				DestRegister:   1,
-				Len:            4,
+				Len:            16,
 				Mask:           []byte(ipNet.Mask),
-				Xor:            []byte{0, 0, 0, 0},
+				Xor:            make([]byte, 16),
 			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip6},
 			&expr.Verdict{Kind: expr.VerdictDrop},
 		},
 	})
@@ -802,6 +859,8 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
 				&expr.Payload{
 					DestRegister: 1,
 					Base:         expr.PayloadBaseNetworkHeader,
@@ -812,7 +871,26 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 				&expr.Verdict{Kind: expr.VerdictAccept},
 			},
 		})
+		return
 	}
+	// IPv6 single address
+	ip6 := parsed.To16()
+	m.conn.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: c,
+		Exprs: []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       8, // src IP in IPv6 header
+				Len:          16,
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip6},
+			&expr.Verdict{Kind: expr.VerdictAccept},
+		},
+	})
 }
 
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {

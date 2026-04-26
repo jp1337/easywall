@@ -1,6 +1,10 @@
 package web
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -11,18 +15,34 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type ctxKey string
+
+const nonceCtxKey ctxKey = "csp-nonce"
+
+func generateNonce() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return base64.StdEncoding.EncodeToString(b)
+}
+
 // SecurityHeaders adds hardened HTTP security headers to every response.
+// A per-request CSP nonce is generated and stored in the request context so
+// templates can reference it for the theme-init inline script.
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nonce := generateNonce()
 		h := w.Header()
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		h.Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'")
-		next.ServeHTTP(w, r)
+		h.Set("Content-Security-Policy", fmt.Sprintf(
+			"default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
+			nonce,
+		))
+		ctx := context.WithValue(r.Context(), nonceCtxKey, nonce)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
