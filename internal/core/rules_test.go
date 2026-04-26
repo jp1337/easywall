@@ -138,6 +138,54 @@ func TestSaveStaged_UnknownType(t *testing.T) {
 	}
 }
 
+// Tests for json.Unmarshal type-mismatch errors in each SaveStaged case.
+// Passing a plain string marshals to a JSON string, which cannot be
+// unmarshaled into a slice type — exercises the return-err branch in each case.
+
+func TestSaveStaged_TCP_TypeMismatch(t *testing.T) {
+	store, _ := newTempStore(t)
+	// "not a list" marshals to JSON string, can't unmarshal into []PortRule
+	if err := store.SaveStaged("tcp", "not a list"); err == nil {
+		t.Error("expected error for wrong type in tcp case")
+	}
+}
+
+func TestSaveStaged_UDP_TypeMismatch(t *testing.T) {
+	store, _ := newTempStore(t)
+	if err := store.SaveStaged("udp", "not a list"); err == nil {
+		t.Error("expected error for wrong type in udp case")
+	}
+}
+
+func TestSaveStaged_Blacklist_TypeMismatch(t *testing.T) {
+	store, _ := newTempStore(t)
+	// []int{1,2,3} marshals to [1,2,3], can't unmarshal into []string
+	if err := store.SaveStaged("blacklist", []int{1, 2, 3}); err == nil {
+		t.Error("expected error for wrong type in blacklist case")
+	}
+}
+
+func TestSaveStaged_Whitelist_TypeMismatch(t *testing.T) {
+	store, _ := newTempStore(t)
+	if err := store.SaveStaged("whitelist", []int{1, 2, 3}); err == nil {
+		t.Error("expected error for wrong type in whitelist case")
+	}
+}
+
+func TestSaveStaged_Forwarding_TypeMismatch(t *testing.T) {
+	store, _ := newTempStore(t)
+	if err := store.SaveStaged("forwarding", "not a list"); err == nil {
+		t.Error("expected error for wrong type in forwarding case")
+	}
+}
+
+func TestSaveStaged_Custom_TypeMismatch(t *testing.T) {
+	store, _ := newTempStore(t)
+	if err := store.SaveStaged("custom", []int{1, 2, 3}); err == nil {
+		t.Error("expected error for wrong type in custom case")
+	}
+}
+
 func TestHasPendingChanges_False(t *testing.T) {
 	store, _ := newTempStore(t)
 	pending, err := store.HasPendingChanges()
@@ -319,7 +367,187 @@ func TestValidateRules_InvalidForwardingPort(t *testing.T) {
 	}
 }
 
+// --- Error paths in store operations ---
+
+func TestNewRulesStore_InvalidDir(t *testing.T) {
+	_, err := NewRulesStore("/nonexistent/dir/rules.json")
+	if err == nil {
+		t.Error("expected error when directory does not exist")
+	}
+}
+
+func TestGetState_MissingFile(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	_, err := store.GetState()
+	if err == nil {
+		t.Error("expected error for missing file")
+	}
+}
+
+func TestGetState_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rules.json")
+	_ = os.WriteFile(path, []byte("not valid json"), 0600)
+	store := &RulesStore{path: path}
+	_, err := store.GetState()
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestHasPendingChanges_ReadError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	_, err := store.HasPendingChanges()
+	if err == nil {
+		t.Error("expected error when rules file is missing")
+	}
+}
+
+func TestSaveStagedGetStateError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	err := store.SaveStaged("tcp", []shared.PortRule{{Port: "80"}})
+	if err == nil {
+		t.Error("expected error when file is missing")
+	}
+}
+
+func TestBackupCurrent_GetStateError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	err := store.BackupCurrent()
+	if err == nil {
+		t.Error("expected error when file is missing")
+	}
+}
+
+func TestPromoteStaged_GetStateError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	err := store.PromoteStaged()
+	if err == nil {
+		t.Error("expected error when file is missing")
+	}
+}
+
+func TestRollback_GetStateError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	err := store.Rollback()
+	if err == nil {
+		t.Error("expected error when file is missing")
+	}
+}
+
+func TestExportCurrent_GetStateError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	_, err := store.ExportCurrent()
+	if err == nil {
+		t.Error("expected error when file is missing")
+	}
+}
+
+func TestImportRules_GetStateError(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/rules.json"}
+	err := store.ImportRules([]byte(`{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`))
+	if err == nil {
+		t.Error("expected error when file is missing")
+	}
+}
+
+func TestSaveInvalidDir(t *testing.T) {
+	store := &RulesStore{path: "/nonexistent/path/rules.json"}
+	err := store.save(emptyState())
+	if err == nil {
+		t.Error("expected error for nonexistent directory")
+	}
+}
+
+// TestSave_RenameError triggers the atomic-rename failure path by creating a
+// directory at the target path so os.Rename(tmp, dir) returns EISDIR.
+func TestSave_RenameError(t *testing.T) {
+	baseDir := t.TempDir()
+	// Create a directory with the same name as the target file — Rename will fail.
+	targetPath := filepath.Join(baseDir, "rules.json")
+	if err := os.Mkdir(targetPath, 0755); err != nil {
+		t.Fatalf("mkdir target: %v", err)
+	}
+	store := &RulesStore{path: targetPath}
+	err := store.save(emptyState())
+	if err == nil {
+		t.Error("expected error when rename target is a directory")
+	}
+}
+
+func TestValidateRules_InvalidDestPort(t *testing.T) {
+	r := shared.Rules{
+		TCP: []shared.PortRule{}, UDP: []shared.PortRule{},
+		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Forwarding: []shared.ForwardingRule{{Protocol: "tcp", SourcePort: 8080, DestPort: 0}},
+	}
+	if err := validateRules(r); err == nil {
+		t.Error("expected error for dest port 0")
+	}
+}
+
+func TestValidateRules_InvalidTCPPort(t *testing.T) {
+	r := shared.Rules{
+		TCP:        []shared.PortRule{{Port: "99999"}},
+		UDP:        []shared.PortRule{},
+		Blacklist:  []string{},
+		Whitelist:  []string{},
+		Custom:     []string{},
+		Forwarding: []shared.ForwardingRule{},
+	}
+	if err := validateRules(r); err == nil {
+		t.Error("expected error for invalid TCP port")
+	}
+}
+
+func TestValidateRules_InvalidUDPPort(t *testing.T) {
+	r := shared.Rules{
+		TCP:        []shared.PortRule{},
+		UDP:        []shared.PortRule{{Port: "0"}},
+		Blacklist:  []string{},
+		Whitelist:  []string{},
+		Custom:     []string{},
+		Forwarding: []shared.ForwardingRule{},
+	}
+	if err := validateRules(r); err == nil {
+		t.Error("expected error for invalid UDP port 0")
+	}
+}
+
+func TestValidateRules_InvalidBlacklistIP(t *testing.T) {
+	r := shared.Rules{
+		TCP:        []shared.PortRule{},
+		UDP:        []shared.PortRule{},
+		Blacklist:  []string{"not-an-ip"},
+		Whitelist:  []string{},
+		Custom:     []string{},
+		Forwarding: []shared.ForwardingRule{},
+	}
+	if err := validateRules(r); err == nil {
+		t.Error("expected error for invalid blacklist IP")
+	}
+}
+
+func TestValidateRules_InvalidWhitelistCIDR(t *testing.T) {
+	r := shared.Rules{
+		TCP:        []shared.PortRule{},
+		UDP:        []shared.PortRule{},
+		Blacklist:  []string{},
+		Whitelist:  []string{"300.300.300.300"},
+		Custom:     []string{},
+		Forwarding: []shared.ForwardingRule{},
+	}
+	if err := validateRules(r); err == nil {
+		t.Error("expected error for invalid whitelist IP")
+	}
+}
+
 // --- WriteAuditLog ---
+
+func TestWriteAuditLog_InvalidPath(t *testing.T) {
+	// Should silently fail without panic
+	WriteAuditLog("/nonexistent/path/audit.log", "apply", "tcp", "", "admin")
+}
 
 func TestWriteAuditLog(t *testing.T) {
 	dir := t.TempDir()

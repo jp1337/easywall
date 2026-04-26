@@ -1,6 +1,9 @@
 package core
 
 import (
+	"fmt"
+	"net"
+	"os"
 	"testing"
 )
 
@@ -52,4 +55,170 @@ func TestIsDockerRunning(t *testing.T) {
 	// Result depends on test environment — just ensure no panic and returns bool.
 	running := isDockerRunning()
 	_ = running
+}
+
+func TestIsDockerRunning_SocketExists(t *testing.T) {
+	dir := t.TempDir()
+	sockPath := dir + "/docker.sock"
+	f, err := os.Create(sockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	old := dockerSocketPaths
+	dockerSocketPaths = []string{sockPath}
+	defer func() { dockerSocketPaths = old }()
+
+	if !isDockerRunning() {
+		t.Error("expected isDockerRunning=true when socket file exists")
+	}
+}
+
+func TestIsDockerRunning_NoSocket(t *testing.T) {
+	old := dockerSocketPaths
+	dockerSocketPaths = []string{"/nonexistent/docker.sock"}
+	defer func() { dockerSocketPaths = old }()
+
+	if isDockerRunning() {
+		t.Error("expected isDockerRunning=false when socket does not exist")
+	}
+}
+
+func TestReadProcNetDev_NotFound(t *testing.T) {
+	old := procNetDevPath
+	procNetDevPath = "/nonexistent/proc/net/dev"
+	defer func() { procNetDevPath = old }()
+
+	names := readProcNetDev()
+	if names != nil {
+		t.Errorf("expected nil when file not found, got %v", names)
+	}
+}
+
+func TestDetectDockerBridges_InterfaceError(t *testing.T) {
+	old := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return nil, fmt.Errorf("mock error")
+	}
+	defer func() { netInterfacesFn = old }()
+
+	cidrs := detectDockerBridges()
+	if cidrs != nil {
+		t.Errorf("expected nil on interfaces error, got %v", cidrs)
+	}
+}
+
+func TestDetectDockerBridges_WithIPv4(t *testing.T) {
+	_, ipnet, _ := net.ParseCIDR("172.17.0.1/16")
+	fakeIface := net.Interface{Name: "docker0", Index: 99}
+
+	oldIfaces := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{fakeIface}, nil
+	}
+	defer func() { netInterfacesFn = oldIfaces }()
+
+	oldAddrs := ifaceAddrsFn
+	ifaceAddrsFn = func(_ net.Interface) ([]net.Addr, error) {
+		return []net.Addr{ipnet}, nil
+	}
+	defer func() { ifaceAddrsFn = oldAddrs }()
+
+	cidrs := detectDockerBridges()
+	if len(cidrs) != 1 {
+		t.Fatalf("expected 1 CIDR, got %d: %v", len(cidrs), cidrs)
+	}
+	if cidrs[0] != "172.17.0.0/16" {
+		t.Errorf("unexpected CIDR: %s", cidrs[0])
+	}
+}
+
+func TestDetectDockerBridges_IPv6Skipped(t *testing.T) {
+	_, ipnet6, _ := net.ParseCIDR("fe80::1/64")
+	fakeIface := net.Interface{Name: "br-abc123", Index: 99}
+
+	oldIfaces := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{fakeIface}, nil
+	}
+	defer func() { netInterfacesFn = oldIfaces }()
+
+	oldAddrs := ifaceAddrsFn
+	ifaceAddrsFn = func(_ net.Interface) ([]net.Addr, error) {
+		return []net.Addr{ipnet6}, nil
+	}
+	defer func() { ifaceAddrsFn = oldAddrs }()
+
+	cidrs := detectDockerBridges()
+	if len(cidrs) != 0 {
+		t.Errorf("expected no CIDRs for IPv6-only interface, got %v", cidrs)
+	}
+}
+
+func TestDetectDockerBridges_AddrsError(t *testing.T) {
+	fakeIface := net.Interface{Name: "docker0", Index: 99}
+
+	oldIfaces := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{fakeIface}, nil
+	}
+	defer func() { netInterfacesFn = oldIfaces }()
+
+	oldAddrs := ifaceAddrsFn
+	ifaceAddrsFn = func(_ net.Interface) ([]net.Addr, error) {
+		return nil, fmt.Errorf("addrs error")
+	}
+	defer func() { ifaceAddrsFn = oldAddrs }()
+
+	cidrs := detectDockerBridges()
+	if len(cidrs) != 0 {
+		t.Errorf("expected empty CIDRs on Addrs error, got %v", cidrs)
+	}
+}
+
+func TestDetectDockerBridges_NonDockerSkipped(t *testing.T) {
+	fakeIface := net.Interface{Name: "eth0", Index: 1}
+
+	oldIfaces := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{fakeIface}, nil
+	}
+	defer func() { netInterfacesFn = oldIfaces }()
+
+	called := false
+	oldAddrs := ifaceAddrsFn
+	ifaceAddrsFn = func(_ net.Interface) ([]net.Addr, error) {
+		called = true
+		return nil, nil
+	}
+	defer func() { ifaceAddrsFn = oldAddrs }()
+
+	detectDockerBridges()
+	if called {
+		t.Error("ifaceAddrsFn should not be called for non-Docker interface")
+	}
+}
+
+func TestDetectDockerBridges_NonIPNetAddr(t *testing.T) {
+	fakeIface := net.Interface{Name: "docker0", Index: 99}
+
+	oldIfaces := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{fakeIface}, nil
+	}
+	defer func() { netInterfacesFn = oldIfaces }()
+
+	oldAddrs := ifaceAddrsFn
+	ifaceAddrsFn = func(_ net.Interface) ([]net.Addr, error) {
+		// Return a *net.TCPAddr (not *net.IPNet) — should be silently skipped
+		addr, _ := net.ResolveTCPAddr("tcp", "172.17.0.1:80")
+		return []net.Addr{addr}, nil
+	}
+	defer func() { ifaceAddrsFn = oldAddrs }()
+
+	cidrs := detectDockerBridges()
+	if len(cidrs) != 0 {
+		t.Errorf("expected no CIDRs for non-IPNet addr, got %v", cidrs)
+	}
 }
