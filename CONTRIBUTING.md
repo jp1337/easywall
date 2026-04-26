@@ -9,7 +9,7 @@ started and what we expect from contributions.
 git clone https://github.com/jpylypiw/easywall.git
 cd easywall
 
-# Install Go 1.21+
+# Install Go 1.25+
 # https://go.dev/dl/
 
 # Download dependencies
@@ -55,7 +55,7 @@ feat(core): add TCP RST flood protection
 fix(web): correct flash message key for import errors
 security(auth): increase argon2id memory parameter
 docs(docker): clarify coexistence setup options
-chore(deps): update gorilla/csrf to v1.7.4
+chore(deps): update golang.org/x/crypto to latest
 ```
 
 Breaking changes: add `BREAKING CHANGE:` in the footer.
