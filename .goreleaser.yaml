@@ -67,14 +67,15 @@ changelog:
     - title: "Other"
       order: 999
 
-dockers:
-  - image_templates:
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}-amd64"
-    goarch: amd64
+dockers_v2:
+  - use: buildx
     dockerfile: Dockerfile
+    image_templates:
+      - "ghcr.io/jp1337/easywall:{{ .Tag }}"
+      - "ghcr.io/jp1337/easywall:latest"
     build_flag_templates:
       - "--build-arg=VERSION={{ .Version }}"
-      - "--platform=linux/amd64"
+      - "--platform=linux/amd64,linux/arm64"
     extra_files:
       - go.mod
       - go.sum
@@ -84,30 +85,3 @@ dockers:
       - locales/
       - config/
       - docker/
-
-  - image_templates:
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}-arm64"
-    goarch: arm64
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--build-arg=VERSION={{ .Version }}"
-      - "--platform=linux/arm64"
-    extra_files:
-      - go.mod
-      - go.sum
-      - cmd/
-      - internal/
-      - web/
-      - locales/
-      - config/
-      - docker/
-
-docker_manifests:
-  - name_template: "ghcr.io/jp1337/easywall:{{ .Tag }}"
-    image_templates:
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}-amd64"
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}-arm64"
-  - name_template: "ghcr.io/jp1337/easywall:latest"
-    image_templates:
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}-amd64"
-      - "ghcr.io/jp1337/easywall:{{ .Tag }}-arm64"
