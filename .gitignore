@@ -1,0 +1,48 @@
+# Binaries
+easywall-core
+easywall-web
+*.exe
+
+# Build artifacts
+bin/
+dist/
+build/
+
+# Go test & coverage
+coverage.out
+coverage.html
+*.test
+*.out
+
+# GoReleaser
+/dist
+
+# SSL certificates (generated at runtime)
+ssl/
+
+# Runtime data (generated at runtime)
+data/rules.json
+data/version_cache.json
+backup/*
+!backup/.gitkeep
+
+
+# Editor & OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Debian packaging artifacts
+debian/.debhelper/
+debian/easywall/
+debian/files
+debian/*.substvars
+debian/*.debhelper
+*.deb
+*.changes
+
+# Logs
+*.log

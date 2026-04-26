@@ -1,0 +1,36 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - gosec
+    - bodyclose
+    - noctx
+    - revive
+
+linters-settings:
+  gosec:
+    excludes:
+      - G304  # file path from variable — expected for config/rules loading
+  revive:
+    rules:
+      - name: exported
+        disabled: true  # we don't require godoc on every exported symbol yet
+
+issues:
+  exclude-rules:
+    # Test files: relax some rules
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+  max-issues-per-linter: 0
+  max-same-issues: 0

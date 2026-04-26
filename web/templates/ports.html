@@ -1,0 +1,81 @@
+{{define "ports.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{.T "ports_title"}}</h1>
+    </div>
+
+    {{with .Data}}
+    <div class="tabs">
+      <a class="tab {{if eq .RuleType "tcp"}}active{{end}}" href="/ports?type=tcp">{{$.T "ports_tcp"}}</a>
+      <a class="tab {{if eq .RuleType "udp"}}active{{end}}" href="/ports?type=udp">{{$.T "ports_udp"}}</a>
+    </div>
+
+    <form method="POST" action="/ports" id="ports-form">
+      {{$.CSRF}}
+      <input type="hidden" name="type" value="{{.RuleType}}">
+      <input type="hidden" name="rules" id="rules-json" value="">
+
+      <div class="card rule-editor">
+        <div class="card-header">
+          <span class="card-title">{{$.T "ports_tcp"}}{{if eq .RuleType "udp"}}/{{$.T "ports_udp"}}{{end}} Port Rules</span>
+          <button type="button" id="add-rule-btn" class="btn btn-secondary btn-sm">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
+            {{$.T "ports_add"}}
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>{{$.T "ports_port"}}</th>
+                <th>{{$.T "ports_description"}}</th>
+                <th style="text-align:center">{{$.T "ports_ssh"}}</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="rules-tbody">
+              {{range $i, $r := .Rules}}
+              <tr data-idx="{{$i}}">
+                <td><input class="f-port" type="text" value="{{$r.Port}}" placeholder="80 or 8000:9000" style="width:140px"></td>
+                <td><input class="f-desc" type="text" value="{{$r.Description}}" placeholder="Description" style="width:200px"></td>
+                <td style="text-align:center"><input class="f-ssh" type="checkbox" {{if $r.SSH}}checked{{end}}></td>
+                <td class="td-actions">
+                  <button type="button" class="btn btn-ghost btn-sm del-rule" title="Remove">
+                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                  </button>
+                </td>
+              </tr>
+              {{else}}
+              {{end}}
+            </tbody>
+          </table>
+          {{if not .Rules}}
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3"/></svg>
+            <p>No {{.RuleType}} port rules yet. Click <strong>Add Port</strong> to create one.</p>
+          </div>
+          {{end}}
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          {{$.T "ports_save"}}
+        </button>
+        <span class="form-hint">Changes are staged until you <a href="/apply">apply rules</a>.</span>
+      </div>
+    </form>
+
+    <input type="hidden" id="rule-type" value="{{.RuleType}}">
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}

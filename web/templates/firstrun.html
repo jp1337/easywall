@@ -1,0 +1,69 @@
+{{define "firstrun.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>easywall — First Run Setup</title>
+  <script>(function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+        </svg>
+        <span class="auth-logo-name">easywall</span>
+      </div>
+      <p class="auth-subtitle">{{.T "firstrun_subtitle"}}</p>
+    </div>
+
+    <div class="auth-body">
+      {{if .Flash}}
+      <div class="alert {{flashClass .Flash}}">
+        {{flashIcon .Flash}}
+        <span>{{.T .Flash}}</span>
+      </div>
+      {{end}}
+
+      <div class="alert alert-info" style="margin-bottom:20px">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+        <span>Welcome! Set up your administrator account to get started.</span>
+      </div>
+
+      <form method="POST" action="/firstrun">
+        {{.CSRF}}
+        <div class="form-group">
+          <label for="username">{{.T "firstrun_username"}}</label>
+          <input id="username" name="username" type="text" autocomplete="username" autofocus required>
+        </div>
+        <div class="form-group">
+          <label for="password">{{.T "firstrun_password"}}</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" required minlength="12">
+          <div class="form-hint">Minimum 12 characters</div>
+        </div>
+        <div class="form-group">
+          <label for="password_confirm">{{.T "firstrun_confirm"}}</label>
+          <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="12">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          {{.T "firstrun_submit"}}
+        </button>
+      </form>
+    </div>
+
+    <div class="auth-footer">easywall v2 · Linux firewall management</div>
+  </div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
+{{end}}

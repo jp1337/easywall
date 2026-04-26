@@ -1,0 +1,46 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+  configure)
+    # ── Create easywall system user/group ────────────────────────────────
+    if ! getent group easywall > /dev/null 2>&1; then
+      addgroup --system easywall
+    fi
+    if ! getent passwd easywall > /dev/null 2>&1; then
+      adduser --system --ingroup easywall --no-create-home --shell /usr/sbin/nologin \
+              --gecos "easywall web service" easywall
+    fi
+
+    # ── Runtime and data directories ─────────────────────────────────────
+    install -d -m 0750 -o root    -g easywall /run/easywall
+    install -d -m 0750 -o root    -g root     /etc/easywall
+    install -d -m 0750 -o root    -g root     /etc/easywall/ssl
+    install -d -m 0750 -o easywall -g easywall /var/lib/easywall
+    install -d -m 0750 -o root    -g easywall /var/log/easywall
+
+    # ── Generate web.toml from template if not already present ───────────
+    if [ ! -f /etc/easywall/web.toml ]; then
+      SESSION_KEY=$(openssl rand -hex 32)
+      CSRF_KEY=$(openssl rand -hex 32)
+      sed -e "s/CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX/$SESSION_KEY/" \
+          -e "s/CHANGE_ME_32_BYTES_HEX_ENCODED_CSRF_SECRET_HERE_XXXXXXXXXX/$CSRF_KEY/" \
+          /etc/easywall/web.toml.template > /etc/easywall/web.toml
+      chmod 0640 /etc/easywall/web.toml
+      chown root:easywall /etc/easywall/web.toml
+    fi
+
+    # ── Fix config file ownership ─────────────────────────────────────────
+    chown root:easywall /etc/easywall/easywall.toml 2>/dev/null || true
+    chmod 0640 /etc/easywall/easywall.toml 2>/dev/null || true
+
+    # ── Enable and start services ─────────────────────────────────────────
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload || true
+      systemctl enable easywall-core.service easywall-web.service || true
+      systemctl start  easywall-core.service easywall-web.service || true
+    fi
+    ;;
+esac
+
+exit 0

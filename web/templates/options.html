@@ -1,0 +1,182 @@
+{{define "options.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{.T "options_title"}}</h1>
+    </div>
+
+    <div class="alert alert-info" style="margin-bottom:20px">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+      <span>{{.T "options_readonly"}}</span>
+    </div>
+
+    {{with .Data}}
+    {{if .CoreErr}}
+    <div class="alert alert-error">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+      <span>{{.CoreErr}}</span>
+    </div>
+    {{end}}
+
+    {{if .Options}}
+    {{$o := .Options}}
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><span class="card-title">Attack Protection</span></div>
+      <div class="card-body">
+        <div class="options-grid">
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.SSHBruteForce}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">SSH Brute-Force</div>
+              <div class="option-desc">Limit new SSH connections</div>
+            </div>
+            <span class="badge {{if $o.SSHBruteForce}}badge-success{{else}}badge-muted{{end}}">{{if $o.SSHBruteForce}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.ICMPFlood}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3.505 2.365A41.369 41.369 0 019 2c1.863 0 3.697.124 5.495.365 1.247.167 2.18 1.108 2.435 2.268a4.45 4.45 0 00-.577-.069 43.141 43.141 0 00-4.706 0C9.229 4.696 7.5 6.727 7.5 9v.695A2.86 2.86 0 016 9.5c-.609 0-1.182.13-1.695.364A3.009 3.009 0 012 7c0-2.09 1.715-3.427 3.505-3.635z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">ICMP Flood</div>
+              <div class="option-desc">Rate-limit ICMP ping requests</div>
+            </div>
+            <span class="badge {{if $o.ICMPFlood}}badge-success{{else}}badge-muted{{end}}">{{if $o.ICMPFlood}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.SYNFlood}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.79 11.59A7.001 7.001 0 002.41 8.41 7 7 0 1013 2.93l-4.12 4.12 3.79 4.54zM7 4a1 1 0 110 2A1 1 0 017 4z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">SYN Flood</div>
+              <div class="option-desc">Limit new TCP connections per IP</div>
+            </div>
+            <span class="badge {{if $o.SYNFlood}}badge-success{{else}}badge-muted{{end}}">{{if $o.SYNFlood}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.PortScan}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Port Scan Detection</div>
+              <div class="option-desc">Block NULL/FIN/XMAS scans</div>
+            </div>
+            <span class="badge {{if $o.PortScan}}badge-success{{else}}badge-muted{{end}}">{{if $o.PortScan}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.InvalidPackets}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Invalid Packets</div>
+              <div class="option-desc">Drop packets with invalid conntrack state</div>
+            </div>
+            <span class="badge {{if $o.InvalidPackets}}badge-success{{else}}badge-muted{{end}}">{{if $o.InvalidPackets}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.Bogons}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Bogon Filter</div>
+              <div class="option-desc">Drop RFC-1918 from external interfaces</div>
+            </div>
+            <span class="badge {{if $o.Bogons}}badge-success{{else}}badge-muted{{end}}">{{if $o.Bogons}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.Fragments}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9.653 16.915l-.005-.003-.019-.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-2.046c-1.101-1.245-2.055-2.828-2.055-4.674 0-1.19.925-2.121 2.064-2.121.51 0 .98.199 1.345.526.332-.327.785-.526 1.285-.526.5 0 .954.199 1.285.526.365-.327.836-.526 1.346-.526 1.139 0 2.063.931 2.063 2.121 0 1.846-.954 3.429-2.055 4.674a22.047 22.047 0 01-2.582 2.046 20.758 20.758 0 01-1.162.682l-.019.01-.005.003z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Fragment Drop</div>
+              <div class="option-desc">Drop IP-fragmented packets</div>
+            </div>
+            <span class="badge {{if $o.Fragments}}badge-success{{else}}badge-muted{{end}}">{{if $o.Fragments}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.ConnectionLimit}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.374 1.5a8.5 8.5 0 100 17 8.5 8.5 0 000-17zm-2 4.5a2 2 0 114 0 2 2 0 01-4 0zm2 4.5a4.5 4.5 0 00-4.416 3.647.75.75 0 01-1.475-.286A6 6 0 019.374 9a6 6 0 015.892 4.861.75.75 0 01-1.476.287A4.5 4.5 0 009.374 10.5z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Connection Limit</div>
+              <div class="option-desc">Max {{if gt $o.ConnectionLimitMax 0}}{{$o.ConnectionLimitMax}}{{else}}100{{end}} connections per source IP</div>
+            </div>
+            <span class="badge {{if $o.ConnectionLimit}}badge-success{{else}}badge-muted{{end}}">{{if $o.ConnectionLimit}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.TCPRSTFlood}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M13 3a1 1 0 011 1v3a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1h6zM5 9a1 1 0 011 1v3a1 1 0 01-1 1H2a1 1 0 01-1-1v-3a1 1 0 011-1h3zm9 0a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-3a1 1 0 011-1h3z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">TCP RST Flood</div>
+              <div class="option-desc">Rate-limit RST packets</div>
+            </div>
+            <span class="badge {{if $o.TCPRSTFlood}}badge-success{{else}}badge-muted{{end}}">{{if $o.TCPRSTFlood}}On{{else}}Off{{end}}</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Traffic Filtering</span></div>
+      <div class="card-body">
+        <div class="options-grid">
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.DropBroadcast}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M3.75 4a.75.75 0 01.75-.75h11a.75.75 0 010 1.5h-11A.75.75 0 013.75 4zM3 7.75A.75.75 0 013.75 7h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 7.75zM3.75 11a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5h-7.5zM3 15.25a.75.75 0 01.75-.75h5a.75.75 0 010 1.5h-5a.75.75 0 01-.75-.75z"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Drop Broadcast</div>
+              <div class="option-desc">Drop broadcast packets</div>
+            </div>
+            <span class="badge {{if $o.DropBroadcast}}badge-success{{else}}badge-muted{{end}}">{{if $o.DropBroadcast}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.DropMulticast}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 014.25 2h11.5A2.25 2.25 0 0118 4.25v8.5A2.25 2.25 0 0115.75 15h-3.105a3.501 3.501 0 001.1 1.677A.75.75 0 0113.26 18H6.74a.75.75 0 01-.484-1.323A3.501 3.501 0 007.355 15H4.25A2.25 2.25 0 012 12.75v-8.5z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Drop Multicast</div>
+              <div class="option-desc">Drop multicast packets</div>
+            </div>
+            <span class="badge {{if $o.DropMulticast}}badge-success{{else}}badge-muted{{end}}">{{if $o.DropMulticast}}On{{else}}Off{{end}}</span>
+          </div>
+
+          <div class="option-item">
+            <div class="option-icon {{if $o.LogBlocked}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h9A1.5 1.5 0 0114 3.5v11.75A2.75 2.75 0 0016.75 18h-12A2.75 2.75 0 012 15.25V3.5zm3.75 7a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-4.5zm0 3a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-4.5zM5 5.75A.75.75 0 015.75 5h4.5a.75.75 0 010 1.5h-4.5A.75.75 0 015 5.75z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">Log Blocked</div>
+              <div class="option-desc">Log blocked connections</div>
+            </div>
+            <span class="badge {{if $o.LogBlocked}}badge-success{{else}}badge-muted{{end}}">{{if $o.LogBlocked}}On{{else}}Off{{end}}</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    {{end}}
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}
