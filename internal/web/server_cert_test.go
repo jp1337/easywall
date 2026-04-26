@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -98,6 +99,44 @@ func TestGenerateSelfSignedCert_ValidCert(t *testing.T) {
 	}
 }
 
+func TestGenerateSelfSignedCert_HasSANs(t *testing.T) {
+	dir := t.TempDir()
+	if err := generateSelfSignedCert(dir); err != nil {
+		t.Fatal(err)
+	}
+	certData, err := os.ReadFile(filepath.Join(dir, "cert.pem"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(certData)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Modern browsers require SANs (CN alone rejected since Chrome 58).
+	if len(cert.DNSNames) == 0 && len(cert.IPAddresses) == 0 {
+		t.Error("cert has no SANs — browsers will reject it")
+	}
+	foundLocalhost := false
+	for _, dns := range cert.DNSNames {
+		if dns == "localhost" {
+			foundLocalhost = true
+		}
+	}
+	if !foundLocalhost {
+		t.Errorf("expected 'localhost' in DNSNames, got: %v", cert.DNSNames)
+	}
+	found127 := false
+	for _, ip := range cert.IPAddresses {
+		if ip.String() == "127.0.0.1" {
+			found127 = true
+		}
+	}
+	if !found127 {
+		t.Errorf("expected 127.0.0.1 in IPAddresses, got: %v", cert.IPAddresses)
+	}
+}
+
 func TestGenerateSelfSignedCert_NotRenewedIfFresh(t *testing.T) {
 	dir := t.TempDir()
 	if err := generateSelfSignedCert(dir); err != nil {
@@ -106,6 +145,39 @@ func TestGenerateSelfSignedCert_NotRenewedIfFresh(t *testing.T) {
 	certPath := filepath.Join(dir, "cert.pem")
 	if certNeedsRenewal(certPath) {
 		t.Error("freshly generated cert should not need renewal")
+	}
+}
+
+func TestCertNeedsRenewal_InvalidCertDER(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cert.pem")
+	// Write a PEM block with invalid DER content — pem.Decode succeeds, x509.ParseCertificate fails
+	var pemBuf bytes.Buffer
+	block := &pem.Block{Type: "CERTIFICATE", Bytes: []byte("not valid DER bytes")}
+	_ = pem.Encode(&pemBuf, block)
+	_ = os.WriteFile(path, pemBuf.Bytes(), 0644)
+	if !certNeedsRenewal(path) {
+		t.Error("expected renewal=true for PEM with invalid DER")
+	}
+}
+
+func TestGenerateSelfSignedCert_InvalidDir(t *testing.T) {
+	// Non-existent directory — should fail when creating cert file
+	err := generateSelfSignedCert("/nonexistent/directory/that/does/not/exist")
+	if err == nil {
+		t.Error("expected error for non-existent directory")
+	}
+}
+
+func TestGenerateSelfSignedCert_KeyFileError(t *testing.T) {
+	dir := t.TempDir()
+	// Create a directory at key.pem — os.OpenFile will fail with EISDIR
+	if err := os.Mkdir(filepath.Join(dir, "key.pem"), 0755); err != nil {
+		t.Fatalf("mkdir key.pem: %v", err)
+	}
+	err := generateSelfSignedCert(dir)
+	if err == nil {
+		t.Error("expected error when key.pem is a directory")
 	}
 }
 

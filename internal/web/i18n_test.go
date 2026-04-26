@@ -110,6 +110,58 @@ func TestNewLocalizer_UsesFallback(t *testing.T) {
 	}
 }
 
+func TestT_WithTemplateData(t *testing.T) {
+	dir := t.TempDir()
+	bundle := NewBundle(dir) // no locale files
+	req := httptest.NewRequest("GET", "/", nil)
+	l := NewLocalizer(bundle, req, "en")
+	// Pass map[string]interface{} as args[0] — should set TemplateData on config
+	// Translation key doesn't exist, so result falls back to the key
+	result := T(l, "some_key_with_data", map[string]interface{}{"Name": "World"})
+	if result != "some_key_with_data" {
+		t.Errorf("expected key fallback when no translation exists, got: %s", result)
+	}
+}
+
+func TestT_WithTemplateDataAndTranslation(t *testing.T) {
+	dir := t.TempDir()
+	// go-i18n v2 format with template variable
+	content := `[{"id":"greeting","translation":"Hello {{.Name}}!"}]`
+	_ = os.WriteFile(filepath.Join(dir, "en.json"), []byte(content), 0644)
+	bundle := NewBundle(dir)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept-Language", "en")
+	l := NewLocalizer(bundle, req, "en")
+	result := T(l, "greeting", map[string]interface{}{"Name": "World"})
+	if result != "Hello World!" {
+		t.Errorf("expected 'Hello World!', got: %s", result)
+	}
+}
+
+func TestT_NonMapArg_NotUsedAsTemplateData(t *testing.T) {
+	dir := t.TempDir()
+	bundle := NewBundle(dir)
+	req := httptest.NewRequest("GET", "/", nil)
+	l := NewLocalizer(bundle, req, "en")
+	// A non-map arg — the type assertion fails, TemplateData stays nil
+	result := T(l, "some_key", "not a map")
+	if result != "some_key" {
+		t.Errorf("expected key fallback, got: %s", result)
+	}
+}
+
+func TestNewBundle_InvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	// Valid filename suffix .json, but invalid content for go-i18n
+	_ = os.WriteFile(filepath.Join(dir, "en.json"), []byte("this is not json at all"), 0644)
+	bundle := NewBundle(dir)
+	if bundle == nil {
+		t.Error("expected non-nil bundle even with invalid locale JSON")
+	}
+	// The bundle should be usable (falls back gracefully)
+}
+
 func TestNewLocalizer_ReadsHeader(t *testing.T) {
 	dir := t.TempDir()
 	content := `[{"id":"hello","translation":"Hallo!"}]`
