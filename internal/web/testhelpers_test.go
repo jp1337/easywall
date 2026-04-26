@@ -18,12 +18,12 @@ import (
 
 // fakeCore is a minimal Unix socket server that returns canned responses.
 type fakeCore struct {
-	socketPath string
-	listener   net.Listener
-	mu         sync.Mutex
-	responses  map[shared.CommandType]shared.Response
+	socketPath  string
+	listener    net.Listener
+	mu          sync.Mutex
+	responses   map[shared.CommandType]shared.Response
 	defaultResp shared.Response
-	lastCmd    *shared.Command
+	lastCmd     *shared.Command
 }
 
 func newFakeCore(t *testing.T) *fakeCore {
@@ -105,72 +105,6 @@ func (fc *fakeCore) handleConn(conn net.Conn) {
 
 	out, _ := json.Marshal(resp)
 	_, _ = conn.Write(out)
-}
-
-// defaultStatus returns a typical FirewallStatus response data.
-func defaultStatusData(t *testing.T) json.RawMessage {
-	t.Helper()
-	status := shared.FirewallStatus{
-		Active:     true,
-		Acceptance: shared.AcceptanceIdle,
-		HasPending: false,
-		LastApply:  "",
-	}
-	data, err := json.Marshal(status)
-	if err != nil {
-		t.Fatalf("marshal status: %v", err)
-	}
-	return data
-}
-
-// defaultRulesData returns a typical RulesState response data.
-func defaultRulesData(t *testing.T) json.RawMessage {
-	t.Helper()
-	state := shared.RulesState{
-		Current: shared.Rules{
-			TCP: []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}},
-			UDP: []shared.PortRule{},
-			Blacklist: []string{},
-			Whitelist: []string{},
-			Forwarding: []shared.ForwardingRule{},
-			Custom: []string{},
-		},
-		Staged: shared.Rules{
-			TCP: []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}},
-			UDP: []shared.PortRule{},
-			Blacklist: []string{"192.168.1.100"},
-			Whitelist: []string{"10.0.0.1"},
-			Forwarding: []shared.ForwardingRule{{Protocol: "tcp", SourcePort: 8080, DestPort: 80}},
-			Custom: []string{"# custom rule"},
-		},
-		Backup: shared.Rules{
-			TCP: []shared.PortRule{},
-			UDP: []shared.PortRule{},
-			Blacklist: []string{},
-			Whitelist: []string{},
-			Forwarding: []shared.ForwardingRule{},
-			Custom: []string{},
-		},
-	}
-	data, err := json.Marshal(state)
-	if err != nil {
-		t.Fatalf("marshal rules: %v", err)
-	}
-	return data
-}
-
-// defaultOptionsData returns a FirewallOptions response data.
-func defaultOptionsData(t *testing.T) json.RawMessage {
-	t.Helper()
-	opts := shared.FirewallOptions{
-		SSHBruteForce: true,
-		ICMPFlood:     true,
-	}
-	data, err := json.Marshal(opts)
-	if err != nil {
-		t.Fatalf("marshal options: %v", err)
-	}
-	return data
 }
 
 // newTestServer creates a Server backed by a fake core for handler testing.
@@ -380,18 +314,6 @@ func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, expected int) {
 	if rec.Code != expected {
 		t.Errorf("expected status %d, got %d", expected, rec.Code)
 	}
-}
-
-// newFormBody returns an io.Reader for URL-encoded form data.
-func newFormBody(data string) io.Reader {
-	return strings.NewReader(data)
-}
-
-// newFormRequest creates a POST request with URL-encoded form data.
-func newFormRequest(method, url, body string) *http.Request {
-	req := httptest.NewRequest(method, url, strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return req
 }
 
 // successResp creates a success Response with JSON data.
