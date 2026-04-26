@@ -3,10 +3,12 @@
 
 /* ── Light theme ────────────────────────────────────────────────────────── */
 [data-md-color-scheme="default"] {
+  /* primary-fg-color = header/nav background; primary-bg-color = header text */
   --md-primary-fg-color:          #0f4c75;
   --md-primary-fg-color--light:   #1b6ca8;
   --md-primary-fg-color--dark:    #0a3357;
   --md-primary-bg-color:          #ffffff;
+
   --md-accent-fg-color:           #0ea5e9;
   --md-accent-fg-color--transparent: rgba(14,165,233,.1);
 
@@ -26,10 +28,12 @@
 
 /* ── Dark theme ─────────────────────────────────────────────────────────── */
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color:          #0ea5e9;
-  --md-primary-fg-color--light:   #38bdf8;
-  --md-primary-fg-color--dark:    #0284c7;
-  --md-primary-bg-color:          #0d1117;
+  /* Dark surface as header bg, light text on top */
+  --md-primary-fg-color:          #161b22;
+  --md-primary-fg-color--light:   #21262d;
+  --md-primary-fg-color--dark:    #0d1117;
+  --md-primary-bg-color:          #e6edf3;
+
   --md-accent-fg-color:           #22d3ee;
   --md-accent-fg-color--transparent: rgba(34,211,238,.1);
 
@@ -45,9 +49,6 @@
 
   --md-code-bg-color:             #161b22;
   --md-code-fg-color:             #e6edf3;
-
-  /* Sidebar and header surfaces */
-  --md-sidebar-bg-color:          #161b22;
 }
 
 /* ── Typography ─────────────────────────────────────────────────────────── */
@@ -64,7 +65,6 @@ body,
   font-size: .82em;
 }
 
-/* Slightly tighter heading tracking */
 .md-typeset h1,
 .md-typeset h2,
 .md-typeset h3 {
@@ -73,14 +73,14 @@ body,
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
+/* Material uses --md-primary-fg-color as header bg automatically.
+   We only suppress the box-shadow. */
 .md-header {
-  background: var(--md-primary-bg-color);
-  border-bottom: 1px solid var(--md-default-bg-color--lightest);
   box-shadow: none;
+  border-bottom: 1px solid rgba(0,0,0,.12);
 }
 
 [data-md-color-scheme="slate"] .md-header {
-  background: #161b22;
   border-bottom-color: #30363d;
 }
 
@@ -91,15 +91,12 @@ body,
 }
 
 /* ── Nav sidebar ────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] .md-sidebar__scrollwrap,
 [data-md-color-scheme="slate"] .md-nav {
-  background: #161b22;
+  background: #0d1117;
 }
 
-[data-md-color-scheme="slate"] .md-sidebar__scrollwrap {
-  background: #161b22;
-}
-
-/* Active nav item accent */
+/* Active nav item */
 .md-nav__link--active {
   color: var(--md-accent-fg-color) !important;
   font-weight: 600;
