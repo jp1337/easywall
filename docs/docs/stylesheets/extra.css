@@ -1,0 +1,138 @@
+/* ── Fonts ──────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+/* ── Light theme ────────────────────────────────────────────────────────── */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color:          #0f4c75;
+  --md-primary-fg-color--light:   #1b6ca8;
+  --md-primary-fg-color--dark:    #0a3357;
+  --md-primary-bg-color:          #ffffff;
+  --md-accent-fg-color:           #0ea5e9;
+  --md-accent-fg-color--transparent: rgba(14,165,233,.1);
+
+  --md-default-bg-color:          #f8fafc;
+  --md-default-bg-color--light:   #f1f5f9;
+  --md-default-bg-color--lighter: #e2e8f0;
+  --md-default-bg-color--lightest:#cbd5e1;
+
+  --md-default-fg-color:          #0f172a;
+  --md-default-fg-color--light:   #334155;
+  --md-default-fg-color--lighter: #64748b;
+  --md-default-fg-color--lightest:#94a3b8;
+
+  --md-code-bg-color:             #f1f5f9;
+  --md-code-fg-color:             #0f172a;
+}
+
+/* ── Dark theme ─────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:          #0ea5e9;
+  --md-primary-fg-color--light:   #38bdf8;
+  --md-primary-fg-color--dark:    #0284c7;
+  --md-primary-bg-color:          #0d1117;
+  --md-accent-fg-color:           #22d3ee;
+  --md-accent-fg-color--transparent: rgba(34,211,238,.1);
+
+  --md-default-bg-color:          #0d1117;
+  --md-default-bg-color--light:   #161b22;
+  --md-default-bg-color--lighter: #21262d;
+  --md-default-bg-color--lightest:#30363d;
+
+  --md-default-fg-color:          #e6edf3;
+  --md-default-fg-color--light:   #b1bac4;
+  --md-default-fg-color--lighter: #8b949e;
+  --md-default-fg-color--lightest:#6e7681;
+
+  --md-code-bg-color:             #161b22;
+  --md-code-fg-color:             #e6edf3;
+
+  /* Sidebar and header surfaces */
+  --md-sidebar-bg-color:          #161b22;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────────── */
+body,
+.md-typeset {
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+  font-size: .9rem;
+  letter-spacing: -.01em;
+}
+
+.md-typeset code,
+.md-typeset pre {
+  font-family: 'IBM Plex Mono', 'Fira Code', monospace;
+  font-size: .82em;
+}
+
+/* Slightly tighter heading tracking */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.md-header {
+  background: var(--md-primary-bg-color);
+  border-bottom: 1px solid var(--md-default-bg-color--lightest);
+  box-shadow: none;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  background: #161b22;
+  border-bottom-color: #30363d;
+}
+
+.md-header__title {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+/* ── Nav sidebar ────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] .md-nav {
+  background: #161b22;
+}
+
+[data-md-color-scheme="slate"] .md-sidebar__scrollwrap {
+  background: #161b22;
+}
+
+/* Active nav item accent */
+.md-nav__link--active {
+  color: var(--md-accent-fg-color) !important;
+  font-weight: 600;
+}
+
+/* ── Code blocks ────────────────────────────────────────────────────────── */
+.md-typeset pre > code {
+  border-radius: 6px;
+}
+
+[data-md-color-scheme="slate"] .md-typeset pre {
+  background: #161b22;
+  border: 1px solid #30363d;
+}
+
+/* ── Admonitions ────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] .md-typeset .admonition,
+[data-md-color-scheme="slate"] .md-typeset details {
+  border-color: #30363d;
+  background: #161b22;
+}
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
+  background: #21262d;
+}
+
+[data-md-color-scheme="slate"] .md-typeset table:not([class]) tr:nth-child(even) {
+  background: #161b22;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] .md-footer {
+  background: #0d1117;
+  border-top: 1px solid #21262d;
+}
