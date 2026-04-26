@@ -443,3 +443,17 @@ func TestCoreClient_ExportRules_SendError(t *testing.T) {
 		t.Error("expected error when socket doesn't exist")
 	}
 }
+
+// TestCoreClient_SaveRules_MarshalError passes an unmarshalable value (channel)
+// to SaveRules, triggering the json.Marshal error path before any socket dial.
+func TestCoreClient_SaveRules_MarshalError(t *testing.T) {
+	client := NewCoreClient("/nonexistent/socket.sock")
+	// channels cannot be JSON-marshaled
+	err := client.SaveRules("tcp", make(chan int))
+	if err == nil {
+		t.Error("expected error when rules cannot be JSON-marshaled")
+	}
+	if !strings.Contains(err.Error(), "marshal payload") {
+		t.Errorf("expected 'marshal payload' in error, got: %v", err)
+	}
+}
