@@ -110,9 +110,12 @@ jobs:
           DEB_BUILD_OPTIONS: nocheck
         run: dpkg-buildpackage -us -uc -b -d
 
+      - name: Collect .deb
+        run: mkdir -p dist && mv ../*.deb dist/
+
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: debian-package
-          path: ../*.deb
+          path: dist/*.deb
           retention-days: 7
