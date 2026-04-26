@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -323,5 +324,98 @@ func TestSaveConfig_AtomicWrite(t *testing.T) {
 	// Verify the file was created
 	if _, err := os.Stat(cfgPath); err != nil {
 		t.Errorf("config file not created: %v", err)
+	}
+}
+
+func TestServer_Stop_NeverStarted(t *testing.T) {
+	fc := newFakeCore(t)
+	dir := t.TempDir()
+	sslDir := dir + "/ssl"
+	_ = os.MkdirAll(sslDir, 0750)
+	if err := generateSelfSignedCert(sslDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+
+	cfg := &Config{}
+	cfg.configPath = dir + "/web.toml"
+	cfg.BindAddr = "127.0.0.1:0"
+	cfg.SocketPath = fc.socketPath
+	cfg.SSLDir = sslDir
+	cfg.SessionKey = "test-key-32bytes-padding-padding!"
+
+	s, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// Stop without ever calling Start — must not panic
+	s.Stop()
+}
+
+func TestServer_StartStop(t *testing.T) {
+	fc := newFakeCore(t)
+	dir := t.TempDir()
+	sslDir := dir + "/ssl"
+	_ = os.MkdirAll(sslDir, 0750)
+	if err := generateSelfSignedCert(sslDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+
+	cfg := &Config{}
+	cfg.configPath = dir + "/web.toml"
+	cfg.BindAddr = "127.0.0.1:0"
+	cfg.SocketPath = fc.socketPath
+	cfg.SSLDir = sslDir
+	cfg.SessionKey = "test-key-32bytes-padding-padding!"
+
+	s, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.Start() }()
+
+	// Give the server time to bind the port before stopping
+	time.Sleep(50 * time.Millisecond)
+	s.Stop()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("Start returned unexpected error after Stop: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("Start did not return within 3s after Stop")
+	}
+}
+
+func TestServer_Start_MissingCert(t *testing.T) {
+	fc := newFakeCore(t)
+	dir := t.TempDir()
+	sslDir := dir + "/ssl"
+	_ = os.MkdirAll(sslDir, 0750)
+	// Generate cert so NewServer doesn't fail
+	if err := generateSelfSignedCert(sslDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+
+	cfg := &Config{}
+	cfg.configPath = dir + "/web.toml"
+	cfg.BindAddr = "127.0.0.1:0"
+	cfg.SocketPath = fc.socketPath
+	cfg.SSLDir = sslDir
+	cfg.SessionKey = "test-key-32bytes-padding-padding!"
+
+	s, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	// Override cert path to nonexistent file after NewServer succeeds
+	s.cfg.TLS.CertFile = dir + "/nonexistent.pem"
+
+	err = s.Start()
+	if err == nil {
+		t.Error("expected error when TLS cert file doesn't exist")
 	}
 }

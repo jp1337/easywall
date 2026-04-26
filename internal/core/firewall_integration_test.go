@@ -3,6 +3,8 @@
 package core
 
 import (
+	"encoding/json"
+	"net"
 	"os"
 	"os/exec"
 	"testing"
@@ -319,5 +321,72 @@ func TestIntegration_DetectDockerBridges_WithInterface(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected 172.17.0.0/16 in detected bridges, got: %v", cidrs)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// NewDaemon + Daemon.Start lifecycle
+// ---------------------------------------------------------------------------
+
+func TestIntegration_NewDaemon_Start_Stop(t *testing.T) {
+	// Confirm nftables is reachable before creating the daemon (NewDaemon → NewFirewall).
+	_ = newIntegrationManager(t)
+
+	cfg := newTestConfig(t)
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon: %v", err)
+	}
+
+	// Start the daemon in a goroutine — it blocks until Stop is called.
+	errCh := make(chan error, 1)
+	go func() { errCh <- d.Start() }()
+
+	// Wait for the socket to appear (Start calls net.Listen and then loops on Accept).
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(cfg.SocketPath); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := os.Stat(cfg.SocketPath); err != nil {
+		t.Fatalf("socket not created by Start: %v", err)
+	}
+
+	// Send a real GetStatus command to the running daemon over the socket.
+	conn, err := net.DialTimeout("unix", cfg.SocketPath, 5*time.Second)
+	if err != nil {
+		t.Fatalf("dial daemon socket: %v", err)
+	}
+	cmd := shared.Command{Type: shared.CmdGetStatus}
+	out, _ := json.Marshal(cmd)
+	_, _ = conn.Write(out)
+	if uc, ok := conn.(*net.UnixConn); ok {
+		_ = uc.CloseWrite()
+	}
+	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	respData := make([]byte, 4096)
+	n, _ := conn.Read(respData)
+	conn.Close()
+
+	var resp shared.Response
+	if err := json.Unmarshal(respData[:n], &resp); err != nil {
+		t.Fatalf("parse daemon response: %v", err)
+	}
+	if !resp.Success {
+		t.Errorf("GetStatus returned failure: %s", resp.Error)
+	}
+
+	// Stop the daemon gracefully and verify Start returned nil.
+	d.Stop()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("Start returned unexpected error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("Start did not return within 5s after Stop")
 	}
 }
