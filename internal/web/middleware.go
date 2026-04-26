@@ -43,6 +43,7 @@ func RequireAuth(store sessions.Store) func(http.Handler) http.Handler {
 // loginLimiter holds per-IP rate limiters for the login endpoint.
 var loginLimiter = struct {
 	mu      sync.Mutex
+	once    sync.Once
 	buckets map[string]*rateBucket
 }{buckets: make(map[string]*rateBucket)}
 
@@ -53,20 +54,23 @@ type rateBucket struct {
 
 // LoginRateLimit limits login attempts to 5 requests per 10 minutes per source IP.
 func LoginRateLimit(next http.Handler) http.Handler {
-	// Background cleanup of stale limiters every 5 minutes
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			loginLimiter.mu.Lock()
-			for ip, b := range loginLimiter.buckets {
-				if time.Since(b.lastSeen) > 15*time.Minute {
-					delete(loginLimiter.buckets, ip)
+	// Start the cleanup goroutine exactly once for the process lifetime,
+	// regardless of how many times this middleware factory is called (e.g. in tests).
+	loginLimiter.once.Do(func() {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				loginLimiter.mu.Lock()
+				for ip, b := range loginLimiter.buckets {
+					if time.Since(b.lastSeen) > 15*time.Minute {
+						delete(loginLimiter.buckets, ip)
+					}
 				}
+				loginLimiter.mu.Unlock()
 			}
-			loginLimiter.mu.Unlock()
-		}
-	}()
+		}()
+	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _, err := net.SplitHostPort(r.RemoteAddr)

@@ -509,3 +509,99 @@ func TestLookupGroup_OpenError(t *testing.T) {
 		t.Error("expected error when group file does not exist")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// NewDaemon error paths (no nftables required — errors happen before NewFirewall)
+// ---------------------------------------------------------------------------
+
+func TestNewDaemon_DataDirCreationError(t *testing.T) {
+	cfg := newTestConfig(t)
+	// /proc is not writable — MkdirAll fails before NewFirewall is ever called.
+	cfg.DataDir = "/proc/easywall-unit-test-data"
+	_, err := NewDaemon(cfg)
+	if err == nil {
+		t.Error("expected error when data dir cannot be created")
+	}
+}
+
+func TestNewDaemon_LogDirCreationError(t *testing.T) {
+	cfg := newTestConfig(t)
+	// DataDir already exists (created by newTestConfig), but LogDir points to /proc.
+	cfg.LogDir = "/proc/easywall-unit-test-log"
+	_, err := NewDaemon(cfg)
+	if err == nil {
+		t.Error("expected error when log dir cannot be created")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Daemon.Start lifecycle (no nftables required — uses stub firewall)
+// ---------------------------------------------------------------------------
+
+func TestDaemonStart_ListenError(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	// /proc sub-path is not writable — net.Listen("unix", ...) fails.
+	d.cfg.SocketPath = "/proc/nonexistent/easywall.sock"
+
+	err := d.Start()
+	if err == nil {
+		t.Error("expected error when socket path is invalid")
+	}
+}
+
+func TestDaemonStart_Stop(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- d.Start() }()
+
+	// Wait for the socket file to appear (Start → net.Listen → Accept loop).
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(cfg.SocketPath); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := os.Stat(cfg.SocketPath); err != nil {
+		t.Fatalf("socket not created within 2s: %v", err)
+	}
+
+	d.Stop()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("Start returned unexpected error after Stop: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("Start did not return within 3s after Stop")
+	}
+}
+
+func TestDaemonStart_AcceptsAndResponds(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+	t.Cleanup(d.Stop)
+
+	// Wait for socket
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(cfg.SocketPath); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	resp := sendDaemonCmd(t, cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
+	if !resp.Success {
+		t.Fatalf("GetStatus via running Start: %s", resp.Error)
+	}
+}

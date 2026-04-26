@@ -685,24 +685,128 @@ func TestIntegration_Snapshot_ReturnsValidJSON(t *testing.T) {
 func TestIntegration_Snapshot_TablesCountReflectsState(t *testing.T) {
 	m := newIntegrationManager(t)
 
-	snap, err := m.Snapshot()
-	if err != nil {
-		t.Fatalf("Snapshot before Apply: %v", err)
-	}
-	var before map[string]interface{}
-	_ = json.Unmarshal(snap, &before)
-
 	applyEmpty(t, m, shared.FirewallOptions{})
 
-	snap, err = m.Snapshot()
+	snap, err := m.Snapshot()
 	if err != nil {
 		t.Fatalf("Snapshot after Apply: %v", err)
 	}
-	var after map[string]interface{}
-	_ = json.Unmarshal(snap, &after)
-
-	// After Apply the easywall table exists → tables count must be >= 1.
-	if after["tables"].(float64) < 1 {
-		t.Error("expected at least 1 table after Apply")
+	var data map[string]interface{}
+	if err := json.Unmarshal(snap, &data); err != nil {
+		t.Fatalf("snapshot is not valid JSON: %v", err)
 	}
+
+	// tables is now a JSON array, not a count.
+	tables, ok := data["tables"].([]interface{})
+	if !ok {
+		t.Fatalf("expected 'tables' to be an array, got %T", data["tables"])
+	}
+	if len(tables) == 0 {
+		t.Error("expected at least 1 table entry after Apply")
+	}
+}
+
+func TestIntegration_Snapshot_ContainsEasywallTable(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{})
+
+	snap, err := m.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal(snap, &data); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	tables, _ := data["tables"].([]interface{})
+	var easywallEntry map[string]interface{}
+	for _, raw := range tables {
+		entry, _ := raw.(map[string]interface{})
+		if entry["name"] == tableName {
+			easywallEntry = entry
+			break
+		}
+	}
+	if easywallEntry == nil {
+		t.Fatalf("easywall table not found in snapshot; tables: %v", tables)
+	}
+	if easywallEntry["family"] != "inet" {
+		t.Errorf("expected family 'inet', got %v", easywallEntry["family"])
+	}
+}
+
+func TestIntegration_Snapshot_ChainsPopulated(t *testing.T) {
+	m := newIntegrationManager(t)
+	// Apply with a known set so we have deterministic chains.
+	applyEmpty(t, m, shared.FirewallOptions{})
+
+	snap, err := m.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	var data map[string]interface{}
+	_ = json.Unmarshal(snap, &data)
+
+	tables, _ := data["tables"].([]interface{})
+	for _, raw := range tables {
+		entry, _ := raw.(map[string]interface{})
+		if entry["name"] == tableName {
+			chains, _ := entry["chains"].([]interface{})
+			// A minimal Apply creates input, output, forward.
+			if len(chains) < 3 {
+				t.Errorf("expected at least 3 chains in easywall table, got %d", len(chains))
+			}
+			// Verify each chain entry has a name field.
+			for _, c := range chains {
+				chain, _ := c.(map[string]interface{})
+				if chain["name"] == "" {
+					t.Error("chain entry missing 'name' field")
+				}
+			}
+			return
+		}
+	}
+	t.Fatal("easywall table not found in snapshot")
+}
+
+func TestIntegration_Snapshot_RuleCountsPresent(t *testing.T) {
+	m := newIntegrationManager(t)
+	// Apply with some rules so the input chain has a non-trivial rule count.
+	state := emptyState()
+	state.Current.TCP = []shared.PortRule{{Port: "80"}, {Port: "443"}}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	snap, err := m.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	var data map[string]interface{}
+	_ = json.Unmarshal(snap, &data)
+
+	tables, _ := data["tables"].([]interface{})
+	for _, raw := range tables {
+		entry, _ := raw.(map[string]interface{})
+		if entry["name"] != tableName {
+			continue
+		}
+		chains, _ := entry["chains"].([]interface{})
+		for _, c := range chains {
+			chain, _ := c.(map[string]interface{})
+			if chain["name"] == "input" {
+				// rules count must be a number and > 0 (loopback+established+ICMP+2 ports)
+				rules, ok := chain["rules"].(float64)
+				if !ok {
+					t.Fatalf("rules field is not a number: %T", chain["rules"])
+				}
+				if rules < 1 {
+					t.Errorf("input chain should have rules, got %v", rules)
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("input chain not found in snapshot")
 }

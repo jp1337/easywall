@@ -1,70 +1,145 @@
 package core
 
 import (
+	"os"
 	"testing"
 )
 
-func TestSplitLines_Empty(t *testing.T) {
-	lines := splitLines("")
-	if len(lines) != 0 {
-		t.Errorf("expected empty result, got: %v", lines)
+// TestLookupGroup_WithCustomFile verifies that lookupGroup correctly parses
+// a synthetic /etc/group file, covering multi-field lines and GID extraction.
+func TestLookupGroup_WithCustomFile(t *testing.T) {
+	f, err := os.CreateTemp("", "group-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	_, _ = f.WriteString("root:x:0:root\n")
+	_, _ = f.WriteString("daemon:x:1:daemon\n")
+	_, _ = f.WriteString("testgroup:x:1234:user1,user2\n")
+	f.Close()
+
+	old := groupFilePath
+	groupFilePath = f.Name()
+	defer func() { groupFilePath = old }()
+
+	gid, err := lookupGroup("testgroup")
+	if err != nil {
+		t.Fatalf("lookupGroup: %v", err)
+	}
+	if gid != 1234 {
+		t.Errorf("expected GID 1234, got %d", gid)
 	}
 }
 
-func TestSplitLines_Single(t *testing.T) {
-	lines := splitLines("hello")
-	// no newline → no lines returned (terminates before adding last segment)
-	_ = lines // splitLines only splits on \n, returns segments before each \n
-}
-
-func TestSplitLines_WithNewlines(t *testing.T) {
-	lines := splitLines("line1\nline2\nline3\n")
-	if len(lines) != 3 {
-		t.Errorf("expected 3 lines, got %d: %v", len(lines), lines)
+func TestLookupGroup_FirstEntry(t *testing.T) {
+	f, err := os.CreateTemp("", "group-test-*")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if lines[0] != "line1" || lines[1] != "line2" || lines[2] != "line3" {
-		t.Errorf("unexpected lines: %v", lines)
-	}
-}
+	defer os.Remove(f.Name())
 
-func TestSplitLines_TrailingNewline(t *testing.T) {
-	lines := splitLines("a\nb\n")
-	if len(lines) != 2 {
-		t.Errorf("expected 2 lines, got %d: %v", len(lines), lines)
-	}
-}
+	_, _ = f.WriteString("root:x:0:\n")
+	_, _ = f.WriteString("wheel:x:10:\n")
+	f.Close()
 
-func TestSplitFields_Empty(t *testing.T) {
-	fields := splitFields("", ":")
-	// Should return [""] (one empty field)
-	if len(fields) != 1 || fields[0] != "" {
-		t.Errorf("expected [\"\"], got: %v", fields)
+	old := groupFilePath
+	groupFilePath = f.Name()
+	defer func() { groupFilePath = old }()
+
+	gid, err := lookupGroup("root")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gid != 0 {
+		t.Errorf("expected GID 0, got %d", gid)
 	}
 }
 
-func TestSplitFields_Single(t *testing.T) {
-	fields := splitFields("hello", ":")
-	if len(fields) != 1 || fields[0] != "hello" {
-		t.Errorf("expected [\"hello\"], got: %v", fields)
+func TestLookupGroup_LastEntry(t *testing.T) {
+	f, err := os.CreateTemp("", "group-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	_, _ = f.WriteString("root:x:0:\n")
+	_, _ = f.WriteString("last:x:999:\n")
+	// no trailing newline — scanner must still find this line
+	f.Close()
+
+	old := groupFilePath
+	groupFilePath = f.Name()
+	defer func() { groupFilePath = old }()
+
+	gid, err := lookupGroup("last")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gid != 999 {
+		t.Errorf("expected GID 999, got %d", gid)
 	}
 }
 
-func TestSplitFields_Multiple(t *testing.T) {
-	fields := splitFields("root:x:0:0", ":")
-	if len(fields) != 4 {
-		t.Errorf("expected 4 fields, got %d: %v", len(fields), fields)
+func TestLookupGroup_NotFound_CustomFile(t *testing.T) {
+	f, err := os.CreateTemp("", "group-test-*")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if fields[0] != "root" || fields[1] != "x" || fields[2] != "0" || fields[3] != "0" {
-		t.Errorf("unexpected fields: %v", fields)
+	defer os.Remove(f.Name())
+
+	_, _ = f.WriteString("root:x:0:root\n")
+	f.Close()
+
+	old := groupFilePath
+	groupFilePath = f.Name()
+	defer func() { groupFilePath = old }()
+
+	_, err = lookupGroup("nonexistent")
+	if err == nil {
+		t.Error("expected error for missing group")
 	}
 }
 
-func TestSplitFields_TrailingSep(t *testing.T) {
-	fields := splitFields("a:b:", ":")
-	if len(fields) != 3 {
-		t.Errorf("expected 3 fields (trailing empty), got %d: %v", len(fields), fields)
+func TestLookupGroup_EmptyFile(t *testing.T) {
+	f, err := os.CreateTemp("", "group-test-*")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if fields[2] != "" {
-		t.Errorf("expected empty trailing field, got: %q", fields[2])
+	defer os.Remove(f.Name())
+	f.Close()
+
+	old := groupFilePath
+	groupFilePath = f.Name()
+	defer func() { groupFilePath = old }()
+
+	_, err = lookupGroup("root")
+	if err == nil {
+		t.Error("expected error for empty group file")
+	}
+}
+
+func TestLookupGroup_MalformedLine(t *testing.T) {
+	f, err := os.CreateTemp("", "group-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	// Line with only 2 colon-separated fields — too few to extract GID
+	_, _ = f.WriteString("badline:x\n")
+	_, _ = f.WriteString("goodgroup:x:42:\n")
+	f.Close()
+
+	old := groupFilePath
+	groupFilePath = f.Name()
+	defer func() { groupFilePath = old }()
+
+	gid, err := lookupGroup("goodgroup")
+	if err != nil {
+		t.Fatalf("should find goodgroup despite preceding malformed line: %v", err)
+	}
+	if gid != 42 {
+		t.Errorf("expected GID 42, got %d", gid)
 	}
 }
