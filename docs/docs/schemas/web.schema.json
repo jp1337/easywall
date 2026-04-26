@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://jp1337.github.io/easywall/schemas/web.schema.json",
+  "title": "easywall web configuration",
+  "description": "Configuration for the easywall-web daemon. See https://jp1337.github.io/easywall/configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bind_addr", "socket_path", "ssl_dir", "session_key"],
+  "properties": {
+    "bind_addr": {
+      "type": "string",
+      "description": "Address and port for the HTTPS web interface.",
+      "pattern": "^.+:\\d{1,5}$",
+      "default": "0.0.0.0:12227",
+      "examples": ["0.0.0.0:12227", "127.0.0.1:12227", "[::]:12227"]
+    },
+    "socket_path": {
+      "type": "string",
+      "description": "Path to the Unix socket of easywall-core. Must match socket_path in easywall.toml.",
+      "default": "/run/easywall/core.sock",
+      "examples": ["/run/easywall/core.sock"]
+    },
+    "ssl_dir": {
+      "type": "string",
+      "description": "Directory for TLS certificates. Auto-generated self-signed cert is stored here if no custom cert is configured.",
+      "default": "/etc/easywall/ssl",
+      "examples": ["/etc/easywall/ssl"]
+    },
+    "data_dir": {
+      "type": "string",
+      "description": "Writable directory for caches (e.g. version check). Defaults to /var/lib/easywall if empty.",
+      "default": "/var/lib/easywall",
+      "examples": ["/var/lib/easywall"]
+    },
+    "language": {
+      "type": "string",
+      "description": "Default UI language. Can be overridden per-session via Accept-Language header.",
+      "enum": ["en", "de"],
+      "default": "en"
+    },
+    "session_key": {
+      "type": "string",
+      "description": "Secret key for signing session cookies. Must be at least 32 bytes (64 hex characters). Generate with: openssl rand -hex 32",
+      "minLength": 64,
+      "examples": ["a3f8c2d1e4b5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"]
+    },
+    "username": {
+      "type": "string",
+      "description": "Login username. Set via the first-run wizard — do not edit manually.",
+      "default": ""
+    },
+    "password": {
+      "type": "string",
+      "description": "Argon2id password hash. Set via the first-run wizard — do not edit manually.",
+      "default": ""
+    },
+    "tls": {
+      "type": "object",
+      "description": "Custom TLS certificate settings. Leave both fields empty to use an auto-generated self-signed certificate.",
+      "additionalProperties": false,
+      "properties": {
+        "cert": {
+          "type": "string",
+          "description": "Path to a PEM-encoded TLS certificate file. Leave empty for auto-generated cert.",
+          "default": "",
+          "examples": ["/etc/letsencrypt/live/example.com/fullchain.pem"]
+        },
+        "key": {
+          "type": "string",
+          "description": "Path to a PEM-encoded TLS private key file. Leave empty for auto-generated key.",
+          "default": "",
+          "examples": ["/etc/letsencrypt/live/example.com/privkey.pem"]
+        }
+      }
+    }
+  }
+}
