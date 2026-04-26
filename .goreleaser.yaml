@@ -76,6 +76,10 @@ dockers:
       - "--build-arg=VERSION={{ .Version }}"
       - "--platform=linux/amd64"
     extra_files:
+      - go.mod
+      - go.sum
+      - cmd/
+      - internal/
       - web/
       - locales/
       - config/
@@ -89,6 +93,10 @@ dockers:
       - "--build-arg=VERSION={{ .Version }}"
       - "--platform=linux/arm64"
     extra_files:
+      - go.mod
+      - go.sum
+      - cmd/
+      - internal/
       - web/
       - locales/
       - config/
