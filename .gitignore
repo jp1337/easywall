@@ -1,6 +1,6 @@
 # Binaries
-easywall-core
-easywall-web
+/easywall-core
+/easywall-web
 *.exe
 
 # Build artifacts

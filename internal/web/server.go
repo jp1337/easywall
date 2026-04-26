@@ -313,9 +313,9 @@ func generateSelfSignedCert(dir string) error {
 			Organization: []string{"easywall"},
 			CommonName:   "easywall",
 		},
-		NotBefore: time.Now().Add(-time.Minute),
-		NotAfter:  time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		NotBefore:   time.Now().Add(-time.Minute),
+		NotAfter:    time.Now().Add(365 * 24 * time.Hour),
+		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		// SANs are required by modern browsers — CN alone is not trusted since Chrome 58.
 		DNSNames:              []string{"localhost", "easywall"},
