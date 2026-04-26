@@ -24,6 +24,8 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   font: false
+  logo: icon.svg
+  favicon: icon.svg
   features:
     - navigation.instant
     - navigation.sections
