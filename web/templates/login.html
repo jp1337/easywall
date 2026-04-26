@@ -34,7 +34,6 @@
       {{end}}
 
       <form method="POST" action="/login">
-        {{.CSRF}}
         <div class="form-group">
           <label for="username">{{.T "login_username"}}</label>
           <input id="username" name="username" type="text" autocomplete="username" autofocus required>

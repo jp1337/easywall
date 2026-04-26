@@ -49,12 +49,6 @@ func (c *Config) Validate() error {
 	if c.SessionKey == "" {
 		return fmt.Errorf("session_key is required")
 	}
-	if c.CSRFKey == "" {
-		return fmt.Errorf("csrf_key is required")
-	}
-	if len(c.CSRFKey) < 32 {
-		return fmt.Errorf("csrf_key must be at least 32 characters")
-	}
 	if c.Language == "" {
 		c.Language = "en"
 	}
@@ -122,12 +116,12 @@ func (c *Config) save() error {
 
 	enc := toml.NewEncoder(tmp)
 	if err := enc.Encode(c.WebConfig); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("encode config: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 		return err
 	}
 	return os.Rename(tmpPath, c.configPath)
@@ -136,10 +130,6 @@ func (c *Config) save() error {
 // WriteDefaultWebConfig writes a default web.toml to path.
 func WriteDefaultWebConfig(path string) error {
 	sessionKey, err := generateSecret(32)
-	if err != nil {
-		return err
-	}
-	csrfKey, err := generateSecret(32)
 	if err != nil {
 		return err
 	}
@@ -152,9 +142,8 @@ socket_path  = "/run/easywall/core.sock"
 ssl_dir      = "/etc/easywall/ssl"
 language     = "en"
 
-# Auto-generated secrets — keep these private!
+# Auto-generated secret — keep this private!
 session_key = %q
-csrf_key    = %q
 
 # Set via first-run wizard — do not edit manually
 username = ""
@@ -165,7 +154,7 @@ password = ""
 # Set to paths of your own certificate/key for custom TLS (e.g. Let's Encrypt).
 cert = ""
 key  = ""
-`, sessionKey, csrfKey)
+`, sessionKey)
 
 	return os.WriteFile(path, []byte(content), 0600)
 }

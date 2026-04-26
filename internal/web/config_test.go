@@ -24,7 +24,6 @@ bind_addr    = "0.0.0.0:12227"
 socket_path  = "/run/easywall/core.sock"
 ssl_dir      = "/tmp/ssl"
 session_key  = "a-session-key-that-is-long-enough"
-csrf_key     = "a-csrf-key-that-is-at-least-32bytes!"
 language     = "en"
 username     = ""
 password     = ""
@@ -59,43 +58,35 @@ func TestLoadConfig_InvalidTOML(t *testing.T) {
 	}
 }
 
-func newCfgWith(bindAddr, socketPath, sslDir, sessionKey, csrfKey string) *Config {
+func newCfgWith(bindAddr, socketPath, sslDir, sessionKey string) *Config {
 	return &Config{
 		WebConfig: shared.WebConfig{
 			BindAddr:   bindAddr,
 			SocketPath: socketPath,
 			SSLDir:     sslDir,
 			SessionKey: sessionKey,
-			CSRFKey:    csrfKey,
 		},
 	}
 }
 
 func TestValidate_MissingBindAddr(t *testing.T) {
-	cfg := newCfgWith("", "/run/x", "/tmp", "key", "12345678901234567890123456789012")
+	cfg := newCfgWith("", "/run/x", "/tmp", "key")
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "bind_addr") {
 		t.Errorf("expected bind_addr error, got: %v", err)
 	}
 }
 
 func TestValidate_MissingSocketPath(t *testing.T) {
-	cfg := newCfgWith("0.0.0.0:12227", "", "/tmp", "key", "12345678901234567890123456789012")
+	cfg := newCfgWith("0.0.0.0:12227", "", "/tmp", "key")
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "socket_path") {
 		t.Errorf("expected socket_path error, got: %v", err)
 	}
 }
 
 func TestValidate_MissingSSLDir(t *testing.T) {
-	cfg := newCfgWith("0.0.0.0:12227", "/run/x", "", "key", "12345678901234567890123456789012")
+	cfg := newCfgWith("0.0.0.0:12227", "/run/x", "", "key")
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "ssl_dir") {
 		t.Errorf("expected ssl_dir error, got: %v", err)
-	}
-}
-
-func TestValidate_ShortCSRFKey(t *testing.T) {
-	cfg := newCfgWith("0.0.0.0:12227", "/run/x", "/tmp", "key", "tooshort")
-	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "csrf_key") {
-		t.Errorf("expected csrf_key error, got: %v", err)
 	}
 }
 
@@ -186,9 +177,6 @@ func TestWriteDefaultWebConfig(t *testing.T) {
 	}
 	if len(cfg.SessionKey) == 0 {
 		t.Error("session_key must be set in default config")
-	}
-	if len(cfg.CSRFKey) < 32 {
-		t.Errorf("csrf_key too short: len=%d", len(cfg.CSRFKey))
 	}
 }
 

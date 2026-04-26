@@ -39,7 +39,6 @@
       </div>
 
       <form method="POST" action="/firstrun">
-        {{.CSRF}}
         <div class="form-group">
           <label for="username">{{.T "firstrun_username"}}</label>
           <input id="username" name="username" type="text" autocomplete="username" autofocus required>

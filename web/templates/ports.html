@@ -17,7 +17,6 @@
     </div>
 
     <form method="POST" action="/ports" id="ports-form">
-      {{$.CSRF}}
       <input type="hidden" name="type" value="{{.RuleType}}">
       <input type="hidden" name="rules" id="rules-json" value="">
 

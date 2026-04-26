@@ -12,7 +12,6 @@
 
     {{with .Data}}
     <form method="POST" action="/forwarding" id="fwd-form">
-      {{$.CSRF}}
       <input type="hidden" name="rules" id="fwd-json" value="">
 
       <div class="card rule-editor">

@@ -27,7 +27,6 @@
       <h1 class="page-title">{{$.T "dashboard_title"}}</h1>
       <div class="page-actions">
         <form method="POST" action="/import" enctype="multipart/form-data" style="display:inline">
-          {{$.CSRF}}
           <label class="btn btn-secondary" style="cursor:pointer">
             <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.5 2.25a.75.75 0 000 1.5V5h.5a.75.75 0 000-1.5H9.5V2.25zm1 9V10a.75.75 0 00-1.5 0v2.19l-.72-.72a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0l2-2a.75.75 0 10-1.06-1.06l-.72.72V11.25zm2.5-5.5a.75.75 0 01.75-.75h3.75a.75.75 0 010 1.5H13.75a.75.75 0 01-.75-.75zm.75 3.25a.75.75 0 000 1.5H18a.75.75 0 000-1.5h-4.25zm0 3.5a.75.75 0 000 1.5H18a.75.75 0 000-1.5h-4.25z" clip-rule="evenodd"/></svg>
             {{$.T "dashboard_import_rules"}}

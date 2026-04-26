@@ -136,7 +136,6 @@ type WebConfig struct {
 	TLS        TLSConfig `toml:"tls"`
 	Language   string    `toml:"language"`    // default locale, e.g. "en"
 	SessionKey string    `toml:"session_key"` // HMAC key for gorilla/sessions
-	CSRFKey    string    `toml:"csrf_key"`    // 32-byte CSRF secret
 	Username   string    `toml:"username"`
 	Password   string    `toml:"password"` // argon2id hash
 }
