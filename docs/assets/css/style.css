@@ -22,21 +22,21 @@
 
 /* ── Dark theme ─────────────────────────────────────────────────────── */
 [data-theme="dark"] {
-  --bg:          #070b13;
-  --bg-surf:     #0c1422;
-  --bg-elev:     #111e32;
-  --bg-code:     #0e1828;
-  --border:      #1c3050;
-  --text:        #ccd8ec;
-  --muted:       #4572a0;
-  --accent:      #00bcd8;
-  --accent-glow: rgba(0, 188, 216, .12);
-  --warn-bg:     rgba(180, 100, 0, .12);
+  --bg:          #0c1220;
+  --bg-surf:     #111a2e;
+  --bg-elev:     #172138;
+  --bg-code:     #0f1828;
+  --border:      #253d5e;
+  --text:        #d8e8f8;
+  --muted:       #8ab4d4;
+  --accent:      #00c8e8;
+  --accent-glow: rgba(0, 200, 232, .13);
+  --warn-bg:     rgba(180, 100, 0, .15);
   --warn-border: #c07800;
-  --warn-text:   #e8b050;
-  --code-fg:     #ccd8ec;
-  --sidebar-bg:  #0c1422;
-  --sidebar-border: #1c3050;
+  --warn-text:   #f0c060;
+  --code-fg:     #d8e8f8;
+  --sidebar-bg:  #0d1525;
+  --sidebar-border: #1e3050;
 }
 
 /* ── Reset ──────────────────────────────────────────────────────────── */
