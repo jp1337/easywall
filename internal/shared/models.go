@@ -35,14 +35,14 @@ type RulesState struct {
 // FirewallOptions controls which optional protection modules are enabled.
 type FirewallOptions struct {
 	// SSH brute-force prevention (rate-limits new connections to SSH port)
-	SSHBruteForce               bool `toml:"ssh_brute_force"`
-	SSHBruteForceLog            bool `toml:"ssh_brute_force_log"`
+	SSHBruteForce                bool `toml:"ssh_brute_force"`
+	SSHBruteForceLog             bool `toml:"ssh_brute_force_log"`
 	SSHBruteForceConnectionLimit int  `toml:"ssh_brute_force_connection_limit"`
 	SSHBruteForceLogLimit        int  `toml:"ssh_brute_force_log_limit"`
 
 	// ICMP flood prevention
-	ICMPFlood               bool `toml:"icmp_flood"`
-	ICMPFloodLog            bool `toml:"icmp_flood_log"`
+	ICMPFlood                bool `toml:"icmp_flood"`
+	ICMPFloodLog             bool `toml:"icmp_flood_log"`
 	ICMPFloodConnectionLimit int  `toml:"icmp_flood_connection_limit"`
 	ICMPFloodLogLimit        int  `toml:"icmp_flood_log_limit"`
 
@@ -68,8 +68,8 @@ type FirewallOptions struct {
 	BogonsLog bool `toml:"bogon_filter_log"`
 
 	// Connection limit per source IP
-	ConnectionLimit     bool `toml:"connection_limit_per_ip"`
-	ConnectionLimitMax  int  `toml:"connection_limit_max"`
+	ConnectionLimit    bool `toml:"connection_limit_per_ip"`
+	ConnectionLimitMax int  `toml:"connection_limit_max"`
 
 	// TCP RST flood prevention
 	TCPRSTFlood      bool `toml:"tcp_rst_flood"`
@@ -98,8 +98,8 @@ type AcceptanceConfig struct {
 
 // IPv6Config controls IPv6 support.
 type IPv6Config struct {
-	Enabled                     bool `toml:"enabled"`
-	ICMPAllowRouterAdvertisement bool `toml:"icmp_allow_router_advertisement"`
+	Enabled                        bool `toml:"enabled"`
+	ICMPAllowRouterAdvertisement   bool `toml:"icmp_allow_router_advertisement"`
 	ICMPAllowNeighborAdvertisement bool `toml:"icmp_allow_neighbor_advertisement"`
 }
 
@@ -129,16 +129,16 @@ type TLSConfig struct {
 
 // WebConfig is the full configuration for easywall-web.
 type WebConfig struct {
-	BindAddr   string    `toml:"bind_addr"`   // e.g. "0.0.0.0:12227"
+	BindAddr   string    `toml:"bind_addr"` // e.g. "0.0.0.0:12227"
 	SocketPath string    `toml:"socket_path"`
 	SSLDir     string    `toml:"ssl_dir"`
-	DataDir    string    `toml:"data_dir"`    // writable dir for caches (e.g. version check)
+	DataDir    string    `toml:"data_dir"` // writable dir for caches (e.g. version check)
 	TLS        TLSConfig `toml:"tls"`
 	Language   string    `toml:"language"`    // default locale, e.g. "en"
 	SessionKey string    `toml:"session_key"` // HMAC key for gorilla/sessions
 	CSRFKey    string    `toml:"csrf_key"`    // 32-byte CSRF secret
 	Username   string    `toml:"username"`
-	Password   string    `toml:"password"`    // argon2id hash
+	Password   string    `toml:"password"` // argon2id hash
 }
 
 // AcceptanceStatus represents the current state of a two-step activation cycle.
