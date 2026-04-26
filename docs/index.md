@@ -27,14 +27,13 @@ description: easywall — Linux firewall management with a web interface. Built 
 
 ## Architecture
 
-<div class="arch-diagram">Browser  ──HTTPS──►  easywall-web   (user: easywall, unprivileged)
-                           │
-                    Unix socket (mode 0660, group easywall)
-                    Typed JSON protocol
-                           │
-                     easywall-core  (root, CAP_NET_ADMIN only)
-                           │
-                    nftables kernel (via direct netlink — no nft subprocess)</div>
+<div class="mermaid">
+flowchart LR
+    Browser["🌐 Browser"] -->|HTTPS :12227| Web
+    Web["easywall-web\nunprivileged"] -->|"Unix socket\nTyped JSON"| Core
+    Core["easywall-core\nroot / CAP_NET_ADMIN"] -->|"direct netlink\nno subprocess"| NFT
+    NFT["🐧 nftables\nkernel"]
+</div>
 
 The web process **never touches the firewall directly**. All changes go through a typed socket protocol to a privileged core daemon. Privilege escalation from the web process is structurally impossible.
 
