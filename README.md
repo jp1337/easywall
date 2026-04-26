@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/static/icon.svg" alt="easywall logo" width="96" height="96">
+</p>
+
 # 🔥 easywall
 
 [![Build](https://github.com/jp1337/easywall/actions/workflows/test.yml/badge.svg)](https://github.com/jp1337/easywall/actions/workflows/test.yml)

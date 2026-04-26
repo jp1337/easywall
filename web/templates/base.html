@@ -6,6 +6,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>easywall — {{.T (printf "nav_%s" .Page)}}</title>
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta property="og:title" content="easywall">
+  <meta property="og:description" content="Linux firewall management with a web interface. Go, nftables, security-first.">
+  <meta property="og:image" content="/static/og-image.png">
+  <meta property="og:type" content="website">
   <script>
     // Apply theme before paint to prevent flash
     (function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();

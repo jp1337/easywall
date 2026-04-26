@@ -2,6 +2,10 @@ site_name: easywall
 site_url: https://jp1337.github.io/easywall
 site_description: Linux firewall management with a web interface
 site_author: Jochen Pylypiw
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jp1337/easywall
 repo_url: https://github.com/jp1337/easywall
 repo_name: jp1337/easywall
 edit_uri: edit/main/docs/docs/
