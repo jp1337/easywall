@@ -184,14 +184,13 @@ func TestIntegration_Apply_FinalLog_DefaultLimit(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// addCIDRAccept IPv6 early-return path (Docker custom network with IPv6 CIDR)
+// addCIDRAccept IPv6 path (Docker custom network with IPv6 CIDR)
 // ---------------------------------------------------------------------------
 
-func TestIntegration_Apply_Docker_IPv6CIDR_SkippedGracefully(t *testing.T) {
+func TestIntegration_Apply_Docker_IPv6CIDR(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
-	// IPv6 CIDR → addCIDRAccept returns early without adding a rule (not implemented).
 	docker := shared.DockerConfig{
 		Enabled:             true,
 		AllowBridgeNetworks: false,
@@ -201,10 +200,10 @@ func TestIntegration_Apply_Docker_IPv6CIDR_SkippedGracefully(t *testing.T) {
 		t.Fatalf("Apply with IPv6 Docker CIDR: %v", err)
 	}
 
-	// No rule should be added because IPv6 CIDRs are silently skipped.
+	// IPv6 CIDR accept rule should be added.
 	count := ruleCount(t, m, "input")
-	if count != base {
-		t.Errorf("IPv6 Docker CIDR should be skipped: expected %d rules, got %d", base, count)
+	if count != base+1 {
+		t.Errorf("expected %d rules (base + 1 IPv6 Docker CIDR), got %d", base+1, count)
 	}
 }
 
@@ -228,23 +227,23 @@ func TestIntegration_Apply_Docker_IPv4CustomNetwork(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// addCIDRDrop IPv6 CIDR path (blacklist with IPv6 CIDR — silently skipped)
+// addCIDRDrop IPv6 CIDR path (blacklist with IPv6 CIDR)
 // ---------------------------------------------------------------------------
 
-func TestIntegration_Apply_Blacklist_IPv6CIDR_SkippedGracefully(t *testing.T) {
+func TestIntegration_Apply_Blacklist_IPv6CIDR(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
-	// IPv6 CIDR in blacklist → addCIDRDrop returns early without a rule.
 	state := emptyState()
 	state.Current.Blacklist = []string{"2001:db8::/32"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
+	// IPv6 CIDR drop rule should be added.
 	count := ruleCount(t, m, "input")
-	if count != base {
-		t.Errorf("IPv6 CIDR blacklist should be skipped: expected %d rules, got %d", base, count)
+	if count != base+1 {
+		t.Errorf("expected %d rules (base + 1 IPv6 CIDR blacklist), got %d", base+1, count)
 	}
 }
 
@@ -269,20 +268,20 @@ func TestIntegration_Apply_Whitelist_PlainIPv4(t *testing.T) {
 	}
 }
 
-func TestIntegration_Apply_Whitelist_PlainIPv6_SkippedGracefully(t *testing.T) {
+func TestIntegration_Apply_Whitelist_PlainIPv6(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
-	// IPv6 plain address → addWhitelistRule has no IPv6 implementation, silently skipped.
 	state := emptyState()
 	state.Current.Whitelist = []string{"2001:db8::1"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
+	// IPv6 single-address accept rule should be added.
 	count := ruleCount(t, m, "input")
-	if count != base {
-		t.Errorf("IPv6 plain whitelist should be skipped: expected %d rules, got %d", base, count)
+	if count != base+1 {
+		t.Errorf("expected %d rules (base + 1 IPv6 whitelist), got %d", base+1, count)
 	}
 }
 
