@@ -28,6 +28,7 @@ type PageData struct {
 	Flash string
 	User  string
 	Page  string // current page for nav active state
+	Nonce string // CSP nonce for the theme-init inline script
 	Data  interface{}
 }
 
@@ -211,10 +212,12 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 	}
 	tmpl.Funcs(template.FuncMap{"T": tFunc})
 
+	nonce, _ := r.Context().Value(nonceCtxKey).(string)
 	pd := PageData{
 		Flash: flash,
 		User:  user,
 		Page:  page,
+		Nonce: nonce,
 		Data:  data,
 	}
 

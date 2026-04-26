@@ -982,3 +982,32 @@ tbody td {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
+/* ─── CSP-safe utility classes (replaces inline styles) ────────────────── */
+.icon-theme {
+  width: 14px;
+  height: 14px;
+  display: inline;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+.icon-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.td-center { text-align: center; }
+
+.mt-3 { margin-top: 12px; }
+
+/* Rule editor column widths */
+.w-port     { width: 140px; }
+.w-desc     { width: 200px; }
+.w-port-num { width: 110px; }
+
+.f-proto-select {
+  width: 80px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}

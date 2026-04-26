@@ -14,10 +14,13 @@ const applyTheme = (t) => {
 // Apply immediately to prevent flash
 applyTheme(getTheme());
 
-window.toggleTheme = () => applyTheme(getTheme() === 'dark' ? 'light' : 'dark');
+const toggleTheme = () => applyTheme(getTheme() === 'dark' ? 'light' : 'dark');
 
 /* ── Mobile sidebar ──────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
   const menuBtn = document.getElementById('menu-btn');
@@ -99,11 +102,11 @@ function initRuleEditor() {
 
 function ruleRowHTML(idx, r) {
   return `
-    <td><input class="f-port" type="text" value="${esc(r.port)}"
-         placeholder="80 or 8000:9000" style="width:140px"></td>
-    <td><input class="f-desc" type="text" value="${esc(r.description)}"
-         placeholder="Description" style="width:200px"></td>
-    <td style="text-align:center">
+    <td><input class="f-port w-port" type="text" value="${esc(r.port)}"
+         placeholder="80 or 8000:9000"></td>
+    <td><input class="f-desc w-desc" type="text" value="${esc(r.description)}"
+         placeholder="Description"></td>
+    <td class="td-center">
       <input class="f-ssh" type="checkbox" ${r.ssh ? 'checked' : ''}>
     </td>
     <td class="td-actions">
@@ -161,15 +164,15 @@ function fwdRowHTML(idx, r) {
   const udpSel = r.protocol === 'udp' ? 'selected' : '';
   return `
     <td>
-      <select class="f-proto" style="width:80px;font-family:var(--font-mono);font-size:13px">
+      <select class="f-proto f-proto-select">
         <option value="tcp" ${tcpSel}>tcp</option>
         <option value="udp" ${udpSel}>udp</option>
       </select>
     </td>
-    <td><input class="f-src" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
-         placeholder="1–65535" style="width:110px"></td>
-    <td><input class="f-dst" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
-         placeholder="1–65535" style="width:110px"></td>
+    <td><input class="f-src w-port-num" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
+         placeholder="1–65535"></td>
+    <td><input class="f-dst w-port-num" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
+         placeholder="1–65535"></td>
     <td class="td-actions">
       <button type="button" class="btn btn-ghost btn-sm del-rule" title="Remove">
         <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
@@ -213,7 +216,7 @@ function initApplyStatus() {
       if (timer) { clearInterval(timer); timer = null; }
       if (data.acceptance === 'rolled_back') {
         statusEl.insertAdjacentHTML('afterend',
-          '<div class="alert alert-error" style="margin-top:12px">Rules were rolled back — acceptance timeout.</div>');
+          '<div class="alert alert-error mt-3">Rules were rolled back — acceptance timeout.</div>');
       }
     }
   };
