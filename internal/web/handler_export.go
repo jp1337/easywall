@@ -22,7 +22,9 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	if _, writeErr := w.Write(data); writeErr != nil {
+		slog.Warn("write export response", "error", writeErr)
+	}
 }
 
 // handleImport reads an uploaded JSON file and passes it to the core for validation and import.

@@ -1,8 +1,6 @@
 package core
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -172,14 +170,5 @@ log_blocked_connections_limit        = 60
 log_blacklist_connections            = false
 log_blacklist_connections_limit      = 60
 `
-	return os.WriteFile(path, []byte(defaultConfig), 0640)
-}
-
-// generateSecret generates a cryptographically random hex string of byteLen bytes.
-func generateSecret(byteLen int) (string, error) {
-	b := make([]byte, byteLen)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
+	return os.WriteFile(path, []byte(defaultConfig), 0600)
 }

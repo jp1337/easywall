@@ -118,5 +118,5 @@ func saveCache(path string, info *VersionInfo) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }

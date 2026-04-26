@@ -167,7 +167,7 @@ cert = ""
 key  = ""
 `, sessionKey, csrfKey)
 
-	return os.WriteFile(path, []byte(content), 0640)
+	return os.WriteFile(path, []byte(content), 0600)
 }
 
 // generateSecret generates a cryptographically random hex string of byteLen bytes.
