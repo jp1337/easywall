@@ -9,13 +9,15 @@ edit_uri: edit/main/docs/docs/
 theme:
   name: material
   palette:
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: blue
       accent: blue
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
-    - scheme: slate
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: blue
       accent: blue
       toggle:
