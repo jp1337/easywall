@@ -13,9 +13,11 @@ const (
 	// CurrentVersion is updated at build time via -ldflags.
 	CurrentVersion = "2.0.0-dev"
 
-	githubReleasesURL = "https://api.github.com/repos/jp1337/easywall/releases/latest"
-	cacheMaxAge       = 24 * time.Hour
+	cacheMaxAge = 24 * time.Hour
 )
+
+// githubReleasesURL is a var so tests can override it with an httptest server URL.
+var githubReleasesURL = "https://api.github.com/repos/jp1337/easywall/releases/latest"
 
 // VersionInfo holds the result of a version check.
 type VersionInfo struct {
