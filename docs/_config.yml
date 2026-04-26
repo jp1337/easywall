@@ -1,0 +1,75 @@
+title: easywall
+description: Linux firewall management with a web interface — built for 2026.
+baseurl: "/easywall"
+url: "https://jp1337.github.io"
+
+author:
+  name: jp1337
+  url: https://github.com/jp1337
+
+lang: en
+timezone: Europe/Berlin
+
+tagline: "Your firewall. Your rules. No surprises."
+logo: /easywall/assets/img/icon.svg
+
+social:
+  name: jp1337
+  links:
+    - https://github.com/jp1337/easywall
+
+theme: null
+layouts_dir: _layouts
+
+permalink: pretty
+
+markdown: kramdown
+highlighter: rouge
+
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+plugins:
+  - jekyll-seo-tag
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - _site
+  - .jekyll-cache
+  - vendor
+
+nav:
+  - title: Home
+    path: /
+  - title: Installation
+    group: true
+    children:
+      - title: Requirements
+        path: /installation/requirements/
+      - title: Debian / Ubuntu
+        path: /installation/debian/
+      - title: Docker
+        path: /installation/docker/
+      - title: Manual (Source)
+        path: /installation/manual/
+  - title: Configuration
+    path: /configuration/
+  - title: Features
+    group: true
+    children:
+      - title: Ports
+        path: /features/ports/
+      - title: Blacklist & Whitelist
+        path: /features/blacklist/
+      - title: Firewall Filters
+        path: /features/filters/
+      - title: Docker Coexistence
+        path: /features/docker/
+      - title: Export & Import
+        path: /features/export-import/
+  - title: Security
+    path: /security/
+  - title: Contributing
+    path: /contributing/

@@ -1,3 +1,9 @@
+---
+layout: default
+title: Debian / Ubuntu Installation
+description: Install easywall on Debian or Ubuntu using the .deb package.
+---
+
 # Debian / Ubuntu Installation
 
 ## From the GitHub Release

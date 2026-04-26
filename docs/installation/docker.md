@@ -1,3 +1,9 @@
+---
+layout: default
+title: Docker Installation
+description: Run easywall with Docker Compose — network_mode host, NET_ADMIN capability.
+---
+
 # Docker Installation
 
 ## Prerequisites

@@ -1,3 +1,9 @@
+---
+layout: default
+title: Firewall Filters
+description: Optional protection modules in easywall — SYN flood, port scan, bogon filter, and more.
+---
+
 # Firewall Filters
 
 easywall includes a set of optional protection modules, configured in `/etc/easywall/easywall.toml` under `[firewall]`.

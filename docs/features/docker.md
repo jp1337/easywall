@@ -1,3 +1,9 @@
+---
+layout: default
+title: Docker Coexistence
+description: How easywall and Docker coexist — own nftables table, bridge auto-detection, three setup options.
+---
+
 # Docker Coexistence
 
 ## The Problem (v1)
@@ -63,10 +69,13 @@ Add to `/etc/docker/daemon.json`:
 
 Restart Docker, then manage all container port exposure via easywall rules.
 
-!!! warning
-    With `iptables: false`, published ports (`-p 80:80`) are no longer
-    automatically exposed. You must manually create TCP/UDP rules in easywall
-    for every container port you want to reach from outside.
+<div class="callout callout-warning">
+  <svg class="callout-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+  <div class="callout-content">
+    <strong>Warning</strong>
+    <p>With <code>iptables: false</code>, published ports (<code>-p 80:80</code>) are no longer automatically exposed. You must manually create TCP/UDP rules in easywall for every container port you want to reach from outside.</p>
+  </div>
+</div>
 
 ### Option 3: easywall only for host, Docker manages its own networking
 
