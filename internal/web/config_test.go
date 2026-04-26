@@ -217,3 +217,85 @@ func TestGenerateSecret_Unique(t *testing.T) {
 		t.Error("two generateSecret calls should produce different results")
 	}
 }
+
+func TestSave_CreateTempError(t *testing.T) {
+	// Directly test save() with a nonexistent directory — os.CreateTemp fails
+	cfg := &Config{
+		WebConfig: shared.WebConfig{
+			BindAddr:   "0.0.0.0:12227",
+			SocketPath: "/run/x",
+			SSLDir:     "/tmp",
+			SessionKey: "key",
+		},
+		configPath: "/nonexistent/directory/web.toml",
+	}
+	err := cfg.save()
+	if err == nil {
+		t.Error("expected error when directory doesn't exist")
+	}
+	if !strings.Contains(err.Error(), "create temp config") {
+		t.Errorf("expected 'create temp config' in error, got: %v", err)
+	}
+}
+
+func TestSave_AtomicRenameToSameDir(t *testing.T) {
+	// Test successful save — os.Rename works within same directory
+	dir := t.TempDir()
+	path := filepath.Join(dir, "web.toml")
+	// Write initial file so save can rename over it
+	_ = os.WriteFile(path, []byte(""), 0600)
+	cfg := &Config{
+		WebConfig: shared.WebConfig{
+			BindAddr:   "0.0.0.0:12227",
+			SocketPath: "/run/x",
+			SSLDir:     dir,
+			SessionKey: "secret",
+		},
+		configPath: path,
+	}
+	if err := cfg.save(); err != nil {
+		t.Fatalf("save should succeed in writable dir: %v", err)
+	}
+}
+
+func TestWriteDefaultWebConfig_InvalidPath(t *testing.T) {
+	err := WriteDefaultWebConfig("/nonexistent/directory/web.toml")
+	if err == nil {
+		t.Error("expected error for nonexistent directory")
+	}
+}
+
+func TestSave_RenameError(t *testing.T) {
+	dir := t.TempDir()
+	// Create a directory at the target path — os.Rename(tmp, dir) returns EISDIR
+	targetPath := filepath.Join(dir, "web.toml")
+	if err := os.Mkdir(targetPath, 0755); err != nil {
+		t.Fatalf("mkdir target: %v", err)
+	}
+	cfg := &Config{
+		WebConfig: shared.WebConfig{
+			BindAddr:   "0.0.0.0:12227",
+			SocketPath: "/run/x",
+			SSLDir:     dir,
+			SessionKey: "secret",
+		},
+		configPath: targetPath,
+	}
+	err := cfg.save()
+	if err == nil {
+		t.Error("expected error when rename target is a directory")
+	}
+}
+
+func TestVersionCachePath_NoDataDir(t *testing.T) {
+	cfg := &Config{
+		WebConfig: shared.WebConfig{
+			SSLDir: "/etc/easywall/ssl",
+		},
+	}
+	// DataDir is empty — should use SSLDir + "/../version_cache.json"
+	vcp := cfg.VersionCachePath()
+	if !strings.Contains(vcp, "version_cache.json") {
+		t.Errorf("unexpected VersionCachePath: %s", vcp)
+	}
+}

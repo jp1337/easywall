@@ -87,6 +87,38 @@ func TestDecodeArgon2Hash_InvalidFormat(t *testing.T) {
 	}
 }
 
+func TestDecodeArgon2Hash_ParseVersionError(t *testing.T) {
+	// "v=bad" causes fmt.Sscanf to fail parsing the version number
+	_, _, _, err := decodeArgon2Hash("$argon2id$v=bad$m=65536,t=3,p=4$abc$def")
+	if err == nil {
+		t.Error("expected error for invalid version format")
+	}
+}
+
+func TestDecodeArgon2Hash_ParseParamsError(t *testing.T) {
+	// "invalid_params" can't be scanned as "m=%d,t=%d,p=%d"
+	_, _, _, err := decodeArgon2Hash("$argon2id$v=19$invalid_params$abc$def")
+	if err == nil {
+		t.Error("expected error for invalid params format")
+	}
+}
+
+func TestDecodeArgon2Hash_InvalidBase64Salt(t *testing.T) {
+	// "!!!" is not valid base64 (raw std encoding)
+	_, _, _, err := decodeArgon2Hash("$argon2id$v=19$m=65536,t=3,p=4$!!!$def")
+	if err == nil {
+		t.Error("expected error for invalid base64 salt")
+	}
+}
+
+func TestDecodeArgon2Hash_InvalidBase64Hash(t *testing.T) {
+	// Valid salt but invalid hash base64
+	_, _, _, err := decodeArgon2Hash("$argon2id$v=19$m=65536,t=3,p=4$abc$!!!")
+	if err == nil {
+		t.Error("expected error for invalid base64 hash")
+	}
+}
+
 func TestHashPassword_Empty(t *testing.T) {
 	hash, err := HashPassword("")
 	if err != nil {

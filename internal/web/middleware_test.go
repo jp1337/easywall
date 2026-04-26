@@ -163,3 +163,40 @@ func TestLoginRateLimit_Allows(t *testing.T) {
 		t.Errorf("first request should pass rate limit, got status %d", rec.Code)
 	}
 }
+
+func TestLoginRateLimit_RateExceeded(t *testing.T) {
+	// Use a unique IP not used by any other test to avoid interference
+	const ip = "10.99.200.201"
+	handler := LoginRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	var lastCode int
+	for i := 0; i < 7; i++ {
+		req := httptest.NewRequest("POST", "/login", nil)
+		req.RemoteAddr = ip + ":9999"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		lastCode = rec.Code
+	}
+	// After exhausting 5 tokens, request 6+ should be rate-limited
+	if lastCode != http.StatusTooManyRequests {
+		t.Errorf("expected 429 TooManyRequests after 7 requests, got %d", lastCode)
+	}
+}
+
+func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
+	// RemoteAddr without port — SplitHostPort fails, falls back to full addr
+	handler := LoginRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("POST", "/login", nil)
+	req.RemoteAddr = "192.0.2.200" // no port — triggers the err != nil branch
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	// Should still allow (first request for this "IP")
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for first request from addr without port, got %d", rec.Code)
+	}
+}
