@@ -1,3 +1,9 @@
+---
+layout: default
+title: Security Model
+description: easywall's layered security architecture — two-process isolation, Argon2id auth, nftables netlink API.
+---
+
 # Security Model
 
 ## Architecture Security

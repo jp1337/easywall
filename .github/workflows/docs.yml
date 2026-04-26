@@ -22,20 +22,27 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install MkDocs Material
-        run: pip install mkdocs-material
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: docs
 
       - name: Build docs
         working-directory: docs
-        run: mkdocs build
+        run: bundle exec jekyll build
+        env:
+          JEKYLL_ENV: production
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/site
+          path: docs/_site
 
       - name: Deploy to GitHub Pages
         id: deploy

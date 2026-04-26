@@ -1,3 +1,9 @@
+---
+layout: default
+title: Requirements
+description: System requirements, supported distributions, and kernel prerequisites for easywall.
+---
+
 # Requirements
 
 ## System Requirements

@@ -1,10 +1,16 @@
+---
+layout: default
+title: Manual Installation
+description: Build easywall from source and install manually on any Linux distribution.
+---
+
 # Manual Installation
 
 Use this method if you want full control over the installation or are on a non-Debian Linux distribution.
 
 ## Requirements
 
-See [Requirements](requirements.md) first.
+See [Requirements]({{ '/installation/requirements/' | relative_url }}) first.
 
 ## Build from Source
 

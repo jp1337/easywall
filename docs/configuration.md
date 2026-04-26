@@ -1,3 +1,9 @@
+---
+layout: default
+title: Configuration
+description: All TOML configuration keys for easywall-core and easywall-web explained.
+---
+
 # Configuration
 
 easywall uses two TOML configuration files — one for each process.
@@ -73,3 +79,12 @@ Leave both fields empty to use the auto-generated self-signed certificate.
 |---|---|
 | `cert` | Path to custom TLS certificate (e.g. Let's Encrypt) |
 | `key` | Path to corresponding private key |
+
+---
+
+## JSON Schema
+
+TOML configs are validated by JSON Schema — copy `taplo.toml` to your project root and your editor will show inline validation and autocomplete.
+
+- [easywall.schema.json]({{ '/schemas/easywall.schema.json' | relative_url }})
+- [web.schema.json]({{ '/schemas/web.schema.json' | relative_url }})

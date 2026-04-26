@@ -1,3 +1,9 @@
+---
+layout: default
+title: Contributing
+description: How to contribute to easywall — setup, commit conventions, PR process.
+---
+
 # Contributing
 
 Thank you for your interest in contributing to easywall!

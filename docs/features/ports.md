@@ -1,3 +1,9 @@
+---
+layout: default
+title: Port Management
+description: Open TCP and UDP ports in easywall — single ports, ranges, and SSH brute-force protection.
+---
+
 # Port Management
 
 The **Ports** page lets you open TCP and UDP ports in the firewall.
