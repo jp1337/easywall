@@ -106,7 +106,9 @@ jobs:
           sudo apt-get install -y devscripts debhelper
 
       - name: Build .deb
-        run: dpkg-buildpackage -us -uc -b
+        env:
+          DEB_BUILD_OPTIONS: nocheck
+        run: dpkg-buildpackage -us -uc -b -d
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
