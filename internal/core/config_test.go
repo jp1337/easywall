@@ -159,6 +159,26 @@ func TestVersionCachePath_Core(t *testing.T) {
 	}
 }
 
+func TestValidateCoreConfig_SetsConnectionLimitDefaults(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
+	cfg.Firewall.ConnectionLimit = true
+	cfg.Firewall.ConnectionLimitMax = 0
+	_ = cfg.Validate()
+	if cfg.Firewall.ConnectionLimitMax != 100 {
+		t.Errorf("expected ConnectionLimitMax default 100, got %d", cfg.Firewall.ConnectionLimitMax)
+	}
+}
+
+func TestValidateCoreConfig_SetsLogBlockedDefaults(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
+	cfg.Firewall.LogBlocked = true
+	cfg.Firewall.LogBlockedLimit = 0
+	_ = cfg.Validate()
+	if cfg.Firewall.LogBlockedLimit != 60 {
+		t.Errorf("expected LogBlockedLimit default 60, got %d", cfg.Firewall.LogBlockedLimit)
+	}
+}
+
 func TestWriteDefaultCoreConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "easywall.toml")
