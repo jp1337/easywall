@@ -1,0 +1,61 @@
+{{define "log.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{T "log_title"}}</h1>
+    </div>
+
+    {{with .Data}}
+    {{if .CoreErr}}
+    <div class="alert alert-error">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+      <span>{{.CoreErr}}</span>
+    </div>
+    {{end}}
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">{{T "log_recent"}}</span>
+        <span class="card-subtitle">{{T "log_subtitle"}}</span>
+      </div>
+      {{if .Entries}}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>{{T "log_col_time"}}</th>
+              <th>{{T "log_col_action"}}</th>
+              <th>{{T "log_col_ruletype"}}</th>
+              <th>{{T "log_col_detail"}}</th>
+              <th>{{T "log_col_user"}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Entries}}
+            <tr>
+              <td class="mono log-time">{{.Time}}</td>
+              <td><span class="log-action log-action-{{.Action}}">{{.Action}}</span></td>
+              <td>{{if .RuleType}}<span class="badge badge-muted">{{.RuleType}}</span>{{else}}—{{end}}</td>
+              <td class="log-detail">{{if .Detail}}{{.Detail}}{{else}}—{{end}}</td>
+              <td>{{.User}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <div class="card-body">
+        <p class="text-muted">{{T "log_empty"}}</p>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}

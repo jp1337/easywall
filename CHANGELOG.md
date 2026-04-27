@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Audit log viewer (`GET /log`) — the core's per-change `audit.log` is now accessible from the web UI in a table showing timestamp, action, rule type, detail, and user; most-recent entries first (up to 200)
+- Dashboard rule-count cards — TCP port count, UDP port count, blocked IPs (blacklist), and allowed IPs (whitelist) are now shown as stat-cards on the dashboard, each linking to the relevant management page
+- `GET/POST /system` — acceptance window duration and enabled flag are now configurable from the web UI without editing `easywall.toml`
+
 ## [2.1.0] - 2026-04-27
 
 ### Added

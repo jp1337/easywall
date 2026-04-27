@@ -269,6 +269,32 @@ func TestSaveFirewallOptions_ReadOnlyDir(t *testing.T) {
 	}
 }
 
+func TestSaveSystemSettings_RoundTrip(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	s := shared.SystemSettings{
+		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 300},
+	}
+	if err := cfg.SaveSystemSettings(s); err != nil {
+		t.Fatalf("SaveSystemSettings: %v", err)
+	}
+
+	cfg2, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig after save: %v", err)
+	}
+	if !cfg2.Acceptance.Enabled {
+		t.Error("expected Acceptance.Enabled=true after reload")
+	}
+	if cfg2.Acceptance.Duration != 300 {
+		t.Errorf("expected Duration=300, got %d", cfg2.Acceptance.Duration)
+	}
+}
+
 func TestWriteDefaultCoreConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "easywall.toml")

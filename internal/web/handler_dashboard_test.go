@@ -68,3 +68,21 @@ func TestHandleDashboard_RootRedirectsToDashboard(t *testing.T) {
 	rec := doAuthRequest(t, s, "GET", "/", nil)
 	assertRedirect(t, rec, "/dashboard")
 }
+
+func TestHandleDashboard_WithRuleCounts(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	rules := shared.RulesState{
+		Current: shared.Rules{
+			TCP:       []shared.PortRule{{Port: "22"}, {Port: "80"}},
+			UDP:       []shared.PortRule{{Port: "53"}},
+			Blacklist: []string{"1.2.3.4"},
+			Whitelist: []string{"10.0.0.0/8", "192.168.0.0/16"},
+		},
+	}
+	fc.SetResponse(shared.CmdGetRules, successResp(rules))
+
+	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
+	assertStatus(t, rec, http.StatusOK)
+}

@@ -1068,3 +1068,56 @@ tbody td {
 
 .mt-1 { margin-top: 4px; }
 .mb-5 { margin-bottom: 20px; }
+
+/* ─── Audit Log ───────────────────────────────────────────────────────────── */
+.log-time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.log-action {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.log-action-rules_saved,
+.log-action-rules_applied { background: rgba(34,197,94,0.12); color: #16a34a; }
+
+.log-action-options_saved,
+.log-action-settings_saved,
+.log-action-system_saved { background: rgba(59,130,246,0.12); color: #2563eb; }
+
+.log-action-rules_imported { background: rgba(168,85,247,0.12); color: #9333ea; }
+
+.log-action-rules_rolled_back { background: rgba(239,68,68,0.12); color: #dc2626; }
+
+[data-theme="dark"] .log-action-rules_saved,
+[data-theme="dark"] .log-action-rules_applied { color: #4ade80; }
+[data-theme="dark"] .log-action-options_saved,
+[data-theme="dark"] .log-action-settings_saved,
+[data-theme="dark"] .log-action-system_saved { color: #60a5fa; }
+[data-theme="dark"] .log-action-rules_imported { color: #c084fc; }
+[data-theme="dark"] .log-action-rules_rolled_back { color: #f87171; }
+
+.log-detail {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}

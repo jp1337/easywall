@@ -197,6 +197,33 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		WriteAuditLog(d.cfg.AuditLogPath(), "settings_saved", "", "", "web")
 		return shared.Response{Success: true}
 
+	case shared.CmdGetSystem:
+		s := shared.SystemSettings{Acceptance: d.cfg.Acceptance}
+		data, _ := json.Marshal(s)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdSaveSystem:
+		var s shared.SystemSettings
+		if err := json.Unmarshal(cmd.Payload, &s); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		if s.Acceptance.Duration <= 0 {
+			return errResp(fmt.Errorf("acceptance.duration must be > 0"))
+		}
+		if err := d.cfg.SaveSystemSettings(s); err != nil {
+			return errResp(err)
+		}
+		WriteAuditLog(d.cfg.AuditLogPath(), "system_saved", "", "", "web")
+		return shared.Response{Success: true}
+
+	case shared.CmdGetLog:
+		entries, err := readAuditLog(d.cfg.AuditLogPath(), 200)
+		if err != nil && !os.IsNotExist(err) {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(entries)
+		return shared.Response{Success: true, Data: data}
+
 	case shared.CmdExportRules:
 		data, err := d.firewall.RulesStore().ExportCurrent()
 		if err != nil {
@@ -224,6 +251,37 @@ func (d *Daemon) sendError(conn net.Conn, msg string) {
 
 func errResp(err error) shared.Response {
 	return shared.Response{Success: false, Error: err.Error()}
+}
+
+// readAuditLog reads the last n entries from the audit log file (most-recent first).
+func readAuditLog(path string, n int) ([]shared.AuditLogEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	// Reverse so most-recent first
+	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
+		lines[i], lines[j] = lines[j], lines[i]
+	}
+
+	entries := make([]shared.AuditLogEntry, 0, min(n, len(lines)))
+	for _, line := range lines {
+		if len(entries) >= n {
+			break
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var e shared.AuditLogEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
 }
 
 // groupFilePath is the path to the system group file; overridden in tests.

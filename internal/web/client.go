@@ -196,6 +196,54 @@ func (c *CoreClient) SaveSettings(s shared.NetworkSettings) error {
 	return nil
 }
 
+// GetSystem returns the current acceptance window configuration.
+func (c *CoreClient) GetSystem() (*shared.SystemSettings, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetSystem})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var s shared.SystemSettings
+	if err := json.Unmarshal(resp.Data, &s); err != nil {
+		return nil, fmt.Errorf("parse system settings: %w", err)
+	}
+	return &s, nil
+}
+
+// SaveSystem persists updated system settings (acceptance window) to the core config.
+func (c *CoreClient) SaveSystem(s shared.SystemSettings) error {
+	payload, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdSaveSystem, Payload: payload})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("core error: %s", resp.Error)
+	}
+	return nil
+}
+
+// GetLog returns the most recent audit log entries (newest first).
+func (c *CoreClient) GetLog() ([]shared.AuditLogEntry, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetLog})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var entries []shared.AuditLogEntry
+	if err := json.Unmarshal(resp.Data, &entries); err != nil {
+		return nil, fmt.Errorf("parse log entries: %w", err)
+	}
+	return entries, nil
+}
+
 // ExportRules returns the current rule set as pretty-printed JSON bytes.
 func (c *CoreClient) ExportRules() ([]byte, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdExportRules})
