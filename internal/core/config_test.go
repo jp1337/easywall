@@ -210,6 +210,10 @@ func TestSaveFirewallOptions_RoundTrip(t *testing.T) {
 }
 
 func TestSaveFirewallOptions_ReadOnlyDir(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root bypasses directory permissions; skipping read-only dir test")
+	}
+
 	path := writeTempCoreConfig(t, validCoreConfig)
 	cfg, err := LoadConfig(path)
 	if err != nil {
