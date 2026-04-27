@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -205,6 +206,22 @@ func TestRender_WithFlash(t *testing.T) {
 	s.router.ServeHTTP(rec2, req2)
 	// Dashboard should render successfully
 	assertStatus(t, rec2, http.StatusOK)
+}
+
+func TestRender_NonceFromContext(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	const testNonce = "abc123testNONCEvalue"
+	req := httptest.NewRequest("GET", "/", nil)
+	req = req.WithContext(context.WithValue(req.Context(), nonceCtxKey, testNonce))
+
+	rec := httptest.NewRecorder()
+	s.render(rec, req, "nonce.html", "test", nil)
+
+	if body := rec.Body.String(); !strings.Contains(body, testNonce) {
+		t.Errorf("render did not propagate nonce to template; body=%q", body)
+	}
 }
 
 func TestRender_TemplateError(t *testing.T) {

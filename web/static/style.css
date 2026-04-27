@@ -1011,3 +1011,8 @@ tbody td {
   font-family: var(--font-mono);
   font-size: 13px;
 }
+
+.btn-full { width: 100%; justify-content: center; }
+
+.mt-1 { margin-top: 4px; }
+.mb-5 { margin-bottom: 20px; }

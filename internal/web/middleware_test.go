@@ -37,6 +37,63 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestSecurityHeaders_NonceInCSPAndContext(t *testing.T) {
+	var ctxNonce string
+	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctxNonce, _ = r.Context().Value(nonceCtxKey).(string)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if ctxNonce == "" {
+		t.Fatal("nonce not stored in request context")
+	}
+	csp := rec.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "nonce-"+ctxNonce) {
+		t.Errorf("CSP does not contain context nonce: CSP=%q nonce=%q", csp, ctxNonce)
+	}
+}
+
+func TestSecurityHeaders_NonceDiffersPerRequest(t *testing.T) {
+	var nonces [2]string
+	i := 0
+	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nonces[i], _ = r.Context().Value(nonceCtxKey).(string)
+		i++
+	}))
+
+	for range nonces {
+		req := httptest.NewRequest("GET", "/", nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+	}
+
+	if nonces[0] == "" || nonces[1] == "" {
+		t.Fatal("expected non-empty nonces")
+	}
+	if nonces[0] == nonces[1] {
+		t.Errorf("expected different nonces per request, both were %q", nonces[0])
+	}
+}
+
+func TestSecurityHeaders_NoUnsafeInlineInScriptSrc(t *testing.T) {
+	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	if strings.Contains(csp, "'unsafe-inline'") {
+		t.Errorf("CSP must not contain 'unsafe-inline': %s", csp)
+	}
+}
+
 func TestSecurityHeaders_PassesThrough(t *testing.T) {
 	called := false
 	handler := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
