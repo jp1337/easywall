@@ -583,6 +583,89 @@ func TestDaemonStart_Stop(t *testing.T) {
 	}
 }
 
+// TestDaemonStart_ChownPath exercises the os.Chown call inside Start by creating
+// a synthetic group file that contains the "easywall" group so lookupGroup succeeds.
+// The chown itself may fail (not root) — either branch is covered.
+func TestDaemonStart_ChownPath(t *testing.T) {
+	groupFile, err := os.CreateTemp("", "group-chown-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(groupFile.Name())
+	_, _ = groupFile.WriteString("easywall:x:12345:\n")
+	groupFile.Close()
+
+	old := groupFilePath
+	groupFilePath = groupFile.Name()
+	defer func() { groupFilePath = old }()
+
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- d.Start() }()
+
+	// Wait for the socket — once it appears, Start has already executed the chown path.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(cfg.SocketPath); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	d.Stop()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("Start returned unexpected error: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("Start did not return within 3s")
+	}
+}
+
+// TestDaemonStart_AcceptErrorDefaultBranch covers the default: continue branch
+// inside Start's Accept loop — triggered by closing the listener while the quit
+// channel is still open, so the select falls through to slog.Error + continue.
+func TestDaemonStart_AcceptErrorDefaultBranch(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- d.Start() }()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(cfg.SocketPath); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := os.Stat(cfg.SocketPath); err != nil {
+		t.Fatalf("socket not created: %v", err)
+	}
+
+	// Close the listener directly (not via Stop) while quit is still open.
+	// The goroutine will loop through default: continue until Stop closes quit.
+	if d.listener != nil {
+		_ = d.listener.Close()
+	}
+	time.Sleep(10 * time.Millisecond) // let the default branch execute at least once
+
+	d.Stop()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("Start returned unexpected error: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("Start did not return within 3s")
+	}
+}
+
 func TestDaemonStart_AcceptsAndResponds(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
