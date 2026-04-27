@@ -112,6 +112,12 @@ func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
 	return c.save()
 }
 
+// SaveSystemSettings updates the [acceptance] section and atomically persists the config.
+func (c *Config) SaveSystemSettings(s shared.SystemSettings) error {
+	c.Acceptance = s.Acceptance
+	return c.save()
+}
+
 func (c *Config) save() error {
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "core-*.toml.tmp")
