@@ -173,6 +173,9 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/options", s.handleOptionsGET)
 		r.Post("/options", s.handleOptionsPOST)
 
+		r.Get("/settings", s.handleSettingsGET)
+		r.Post("/settings", s.handleSettingsPOST)
+
 		r.Get("/password", s.handlePasswordGET)
 		r.Post("/password", s.handlePasswordPOST)
 
@@ -258,7 +261,7 @@ func loadTemplates(dir string) (*template.Template, error) {
 func templateFuncs() template.FuncMap {
 	successKeys := map[string]bool{
 		"saved": true, "rules_accepted": true, "import_success": true,
-		"options_saved": true, "password_changed": true,
+		"options_saved": true, "password_changed": true, "settings_saved": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,

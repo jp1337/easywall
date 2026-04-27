@@ -6,6 +6,7 @@
   {"id": "nav_forwarding",   "translation": "Portweiterleitung"},
   {"id": "nav_custom",       "translation": "Eigene Regeln"},
   {"id": "nav_options",      "translation": "Optionen"},
+  {"id": "nav_settings",     "translation": "Netzwerk"},
   {"id": "nav_password",     "translation": "Passwort"},
   {"id": "nav_apply",        "translation": "Regeln anwenden"},
   {"id": "nav_logout",       "translation": "Abmelden"},
@@ -58,6 +59,10 @@
   {"id": "options_title",    "translation": "Firewall-Optionen"},
   {"id": "options_save",     "translation": "Optionen speichern"},
   {"id": "options_saved",    "translation": "Optionen gespeichert. Regeln anwenden, um Änderungen zu aktivieren."},
+
+  {"id": "settings_title",   "translation": "Netzwerk-Einstellungen"},
+  {"id": "settings_save",    "translation": "Einstellungen speichern"},
+  {"id": "settings_saved",   "translation": "Netzwerk-Einstellungen gespeichert."},
 
   {"id": "password_title",   "translation": "Passwort ändern"},
   {"id": "password_current", "translation": "Aktuelles Passwort"},

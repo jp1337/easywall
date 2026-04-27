@@ -181,6 +181,22 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		WriteAuditLog(d.cfg.AuditLogPath(), "options_saved", "", "", "web")
 		return shared.Response{Success: true}
 
+	case shared.CmdGetSettings:
+		s := shared.NetworkSettings{IPv6: d.cfg.IPv6, Docker: d.cfg.Docker}
+		data, _ := json.Marshal(s)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdSaveSettings:
+		var s shared.NetworkSettings
+		if err := json.Unmarshal(cmd.Payload, &s); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		if err := d.cfg.SaveNetworkSettings(s); err != nil {
+			return errResp(err)
+		}
+		WriteAuditLog(d.cfg.AuditLogPath(), "settings_saved", "", "", "web")
+		return shared.Response{Success: true}
+
 	case shared.CmdExportRules:
 		data, err := d.firewall.RulesStore().ExportCurrent()
 		if err != nil {

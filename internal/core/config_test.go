@@ -179,6 +179,44 @@ func TestValidateCoreConfig_SetsLogBlockedDefaults(t *testing.T) {
 	}
 }
 
+func TestSaveNetworkSettings_RoundTrip(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	ns := shared.NetworkSettings{
+		IPv6: shared.IPv6Config{
+			Enabled:                        true,
+			ICMPAllowRouterAdvertisement:   true,
+			ICMPAllowNeighborAdvertisement: false,
+		},
+		Docker: shared.DockerConfig{
+			Enabled:             true,
+			AllowBridgeNetworks: true,
+			CustomNetworks:      []string{"172.20.0.0/16"},
+		},
+	}
+	if err := cfg.SaveNetworkSettings(ns); err != nil {
+		t.Fatalf("SaveNetworkSettings: %v", err)
+	}
+
+	cfg2, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig after save: %v", err)
+	}
+	if !cfg2.IPv6.Enabled {
+		t.Error("expected IPv6.Enabled=true after reload")
+	}
+	if !cfg2.Docker.Enabled {
+		t.Error("expected Docker.Enabled=true after reload")
+	}
+	if len(cfg2.Docker.CustomNetworks) != 1 || cfg2.Docker.CustomNetworks[0] != "172.20.0.0/16" {
+		t.Errorf("unexpected CustomNetworks: %v", cfg2.Docker.CustomNetworks)
+	}
+}
+
 func TestSaveFirewallOptions_RoundTrip(t *testing.T) {
 	path := writeTempCoreConfig(t, validCoreConfig)
 	cfg, err := LoadConfig(path)

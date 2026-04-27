@@ -164,6 +164,38 @@ func (c *CoreClient) SaveOptions(opts shared.FirewallOptions) error {
 	return nil
 }
 
+// GetSettings returns the current IPv6 and Docker configuration.
+func (c *CoreClient) GetSettings() (*shared.NetworkSettings, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetSettings})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var s shared.NetworkSettings
+	if err := json.Unmarshal(resp.Data, &s); err != nil {
+		return nil, fmt.Errorf("parse settings: %w", err)
+	}
+	return &s, nil
+}
+
+// SaveSettings persists updated IPv6 and Docker network settings to the core config.
+func (c *CoreClient) SaveSettings(s shared.NetworkSettings) error {
+	payload, err := json.Marshal(s)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdSaveSettings, Payload: payload})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("core error: %s", resp.Error)
+	}
+	return nil
+}
+
 // ExportRules returns the current rule set as pretty-printed JSON bytes.
 func (c *CoreClient) ExportRules() ([]byte, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdExportRules})

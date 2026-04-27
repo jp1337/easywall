@@ -6,6 +6,7 @@
   {"id": "nav_forwarding",   "translation": "Port Forwarding"},
   {"id": "nav_custom",       "translation": "Custom Rules"},
   {"id": "nav_options",      "translation": "Options"},
+  {"id": "nav_settings",     "translation": "Network"},
   {"id": "nav_password",     "translation": "Password"},
   {"id": "nav_apply",        "translation": "Apply Rules"},
   {"id": "nav_logout",       "translation": "Logout"},
@@ -58,6 +59,10 @@
   {"id": "options_title",    "translation": "Firewall Options"},
   {"id": "options_save",     "translation": "Save Options"},
   {"id": "options_saved",    "translation": "Options saved. Apply rules to activate changes."},
+
+  {"id": "settings_title",   "translation": "Network Settings"},
+  {"id": "settings_save",    "translation": "Save Settings"},
+  {"id": "settings_saved",   "translation": "Network settings saved."},
 
   {"id": "password_title",   "translation": "Change Password"},
   {"id": "password_current", "translation": "Current Password"},

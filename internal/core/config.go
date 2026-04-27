@@ -99,6 +99,13 @@ func (c *Config) VersionCachePath() string {
 	return c.DataDir + "/version_cache.json"
 }
 
+// SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.
+func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
+	c.IPv6 = s.IPv6
+	c.Docker = s.Docker
+	return c.save()
+}
+
 // SaveFirewallOptions updates the [firewall] section and atomically persists the config.
 func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
 	c.Firewall = opts

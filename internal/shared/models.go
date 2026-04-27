@@ -140,6 +140,12 @@ type WebConfig struct {
 	Password   string    `toml:"password"` // argon2id hash
 }
 
+// NetworkSettings groups IPv6 and Docker configuration for IPC transport.
+type NetworkSettings struct {
+	IPv6   IPv6Config   `json:"ipv6"`
+	Docker DockerConfig `json:"docker"`
+}
+
 // AcceptanceStatus represents the current state of a two-step activation cycle.
 type AcceptanceStatus string
 
