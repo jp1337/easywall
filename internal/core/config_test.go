@@ -179,6 +179,54 @@ func TestValidateCoreConfig_SetsLogBlockedDefaults(t *testing.T) {
 	}
 }
 
+func TestSaveFirewallOptions_RoundTrip(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	opts := shared.FirewallOptions{
+		SSHBruteForce:                true,
+		SSHBruteForceConnectionLimit: 3,
+		ICMPFlood:                    true,
+		SYNFloodLimit:                200,
+	}
+	if err := cfg.SaveFirewallOptions(opts); err != nil {
+		t.Fatalf("SaveFirewallOptions: %v", err)
+	}
+
+	// Reload and verify
+	cfg2, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig after save: %v", err)
+	}
+	if !cfg2.Firewall.SSHBruteForce {
+		t.Error("expected SSHBruteForce=true after reload")
+	}
+	if cfg2.Firewall.SSHBruteForceConnectionLimit != 3 {
+		t.Errorf("expected SSHBruteForceConnectionLimit=3, got %d", cfg2.Firewall.SSHBruteForceConnectionLimit)
+	}
+}
+
+func TestSaveFirewallOptions_ReadOnlyDir(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	// Make config dir read-only so CreateTemp fails
+	dir := filepath.Dir(path)
+	_ = os.Chmod(dir, 0555)
+	defer func() { _ = os.Chmod(dir, 0755) }()
+
+	err = cfg.SaveFirewallOptions(shared.FirewallOptions{SSHBruteForce: true})
+	if err == nil {
+		t.Error("expected error when config dir is not writable")
+	}
+}
+
 func TestWriteDefaultCoreConfig(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "easywall.toml")

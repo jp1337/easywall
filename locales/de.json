@@ -6,6 +6,7 @@
   {"id": "nav_forwarding",   "translation": "Portweiterleitung"},
   {"id": "nav_custom",       "translation": "Eigene Regeln"},
   {"id": "nav_options",      "translation": "Optionen"},
+  {"id": "nav_password",     "translation": "Passwort"},
   {"id": "nav_apply",        "translation": "Regeln anwenden"},
   {"id": "nav_logout",       "translation": "Abmelden"},
 
@@ -55,7 +56,16 @@
   {"id": "custom_hint",      "translation": "Eine nftables-Regel pro Zeile. Mit Vorsicht verwenden."},
 
   {"id": "options_title",    "translation": "Firewall-Optionen"},
-  {"id": "options_readonly", "translation": "Optionen werden in easywall.toml konfiguriert und benötigen einen Core-Neustart."},
+  {"id": "options_save",     "translation": "Optionen speichern"},
+  {"id": "options_saved",    "translation": "Optionen gespeichert. Regeln anwenden, um Änderungen zu aktivieren."},
+
+  {"id": "password_title",   "translation": "Passwort ändern"},
+  {"id": "password_current", "translation": "Aktuelles Passwort"},
+  {"id": "password_new",     "translation": "Neues Passwort"},
+  {"id": "password_confirm", "translation": "Neues Passwort bestätigen"},
+  {"id": "password_submit",  "translation": "Passwort ändern"},
+  {"id": "password_changed", "translation": "Passwort erfolgreich geändert."},
+  {"id": "password_wrong",   "translation": "Aktuelles Passwort ist falsch."},
 
   {"id": "apply_title",      "translation": "Regeln anwenden"},
   {"id": "apply_start",      "translation": "Jetzt anwenden"},
@@ -84,5 +94,6 @@
   {"id": "import_no_file",       "translation": "Keine Datei hochgeladen."},
   {"id": "import_read_error",    "translation": "Datei konnte nicht gelesen werden."},
   {"id": "import_error",         "translation": "Import fehlgeschlagen. Dateiformat prüfen."},
-  {"id": "import_success",       "translation": "Regeln importiert. Bitte prüfen und anwenden."}
+  {"id": "import_success",       "translation": "Regeln importiert. Bitte prüfen und anwenden."},
+  {"id": "options_readonly",     "translation": "Optionen werden in easywall.toml konfiguriert und benötigen einen Core-Neustart."}
 ]

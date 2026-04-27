@@ -170,6 +170,17 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		data, _ := json.Marshal(opts)
 		return shared.Response{Success: true, Data: data}
 
+	case shared.CmdSaveOptions:
+		var opts shared.FirewallOptions
+		if err := json.Unmarshal(cmd.Payload, &opts); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		if err := d.cfg.SaveFirewallOptions(opts); err != nil {
+			return errResp(err)
+		}
+		WriteAuditLog(d.cfg.AuditLogPath(), "options_saved", "", "", "web")
+		return shared.Response{Success: true}
+
 	case shared.CmdExportRules:
 		data, err := d.firewall.RulesStore().ExportCurrent()
 		if err != nil {
