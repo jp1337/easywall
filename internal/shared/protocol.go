@@ -12,8 +12,10 @@ const (
 	CmdAccept      CommandType = "ACCEPT"
 	CmdGetStatus   CommandType = "GET_STATUS"
 	CmdGetOptions  CommandType = "GET_OPTIONS"
-	CmdSaveOptions CommandType = "SAVE_OPTIONS"
-	CmdExportRules CommandType = "EXPORT_RULES"
+	CmdSaveOptions  CommandType = "SAVE_OPTIONS"
+	CmdGetSettings  CommandType = "GET_SETTINGS"
+	CmdSaveSettings CommandType = "SAVE_SETTINGS"
+	CmdExportRules  CommandType = "EXPORT_RULES"
 	CmdImportRules CommandType = "IMPORT_RULES"
 )
 
