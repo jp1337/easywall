@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- IPv6 CIDR rules in blacklist and whitelist now correctly generate nftables expressions with `NFPROTO_IPV6` protocol-family guards in the `inet` table; previously IPv6 CIDRs were silently skipped
+- IPv6 single-address whitelist entries now produce an accept rule (the branch was missing entirely)
+- Docker custom networks using IPv6 CIDRs are now handled correctly
+- CSP nonce added to the inline theme-init `<script>` in `login.html` and `firstrun.html`; the script was previously blocked by the `script-src` policy on those pages
+- Removed remaining inline `style=` attributes from auth templates that were blocked by `style-src` without `'unsafe-inline'`
+- Removed unused htmx CDN script from base template; the script tag was blocked by CSP and no `hx-*` attributes were used anywhere
+
+### Changed
+
+- CSP `script-src` and `style-src` no longer contain `'unsafe-inline'`; inline scripts use per-request nonces instead
+- GoReleaser Docker configuration migrated from deprecated `dockers` + `docker_manifests` to `dockers_v2`
+- CI build workflow updated: Debian package step uses `-d` to skip Go build-dependency check and artifacts are moved to `dist/` before upload
+
 ## [2.0.0] - 2026-04-26
 
 ### Added
