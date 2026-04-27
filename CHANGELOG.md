@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-04-27
+
+### Added
+
+- Firewall protection options (`[firewall]` config section) are now editable directly from the web UI via `POST /options`; changes are persisted atomically to `easywall.toml`
+- `GET/POST /password` — administrators can change their password from the web UI without editing config files
+- `GET/POST /settings` — IPv6 support flags and Docker network integration settings (`[ipv6]`, `[docker]` config sections) are now editable from the web UI
+- Option toggle switches on the Options and Network Settings pages now update their status icon live when toggled (no page reload required)
+
 ### Fixed
 
 - IPv6 CIDR rules in blacklist and whitelist now correctly generate nftables expressions with `NFPROTO_IPV6` protocol-family guards in the `inet` table; previously IPv6 CIDRs were silently skipped
@@ -15,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CSP nonce added to the inline theme-init `<script>` in `login.html` and `firstrun.html`; the script was previously blocked by the `script-src` policy on those pages
 - Removed remaining inline `style=` attributes from auth templates that were blocked by `style-src` without `'unsafe-inline'`
 - Removed unused htmx CDN script from base template; the script tag was blocked by CSP and no `hx-*` attributes were used anywhere
+- Apply status polling no longer stops at `accepted` state; the backend resets to `idle` immediately after acceptance, so the UI now transitions naturally without getting stuck
 
 ### Changed
 
@@ -306,7 +316,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.0.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0
 [0.3.1]: https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0
