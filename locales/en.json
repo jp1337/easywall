@@ -6,6 +6,7 @@
   {"id": "nav_forwarding",   "translation": "Port Forwarding"},
   {"id": "nav_custom",       "translation": "Custom Rules"},
   {"id": "nav_options",      "translation": "Options"},
+  {"id": "nav_password",     "translation": "Password"},
   {"id": "nav_apply",        "translation": "Apply Rules"},
   {"id": "nav_logout",       "translation": "Logout"},
 
@@ -55,7 +56,16 @@
   {"id": "custom_hint",      "translation": "Enter one nftables rule per line. Use with caution."},
 
   {"id": "options_title",    "translation": "Firewall Options"},
-  {"id": "options_readonly", "translation": "Options are configured in easywall.toml and require a core restart to apply."},
+  {"id": "options_save",     "translation": "Save Options"},
+  {"id": "options_saved",    "translation": "Options saved. Apply rules to activate changes."},
+
+  {"id": "password_title",   "translation": "Change Password"},
+  {"id": "password_current", "translation": "Current Password"},
+  {"id": "password_new",     "translation": "New Password"},
+  {"id": "password_confirm", "translation": "Confirm New Password"},
+  {"id": "password_submit",  "translation": "Change Password"},
+  {"id": "password_changed", "translation": "Password changed successfully."},
+  {"id": "password_wrong",   "translation": "Current password is incorrect."},
 
   {"id": "apply_title",      "translation": "Apply Rules"},
   {"id": "apply_start",      "translation": "Apply Now"},
@@ -84,5 +94,6 @@
   {"id": "import_no_file",       "translation": "No file uploaded."},
   {"id": "import_read_error",    "translation": "Failed to read uploaded file."},
   {"id": "import_error",         "translation": "Failed to import rules. Check the file format."},
-  {"id": "import_success",       "translation": "Rules imported successfully. Review and apply when ready."}
+  {"id": "import_success",       "translation": "Rules imported successfully. Review and apply when ready."},
+  {"id": "options_readonly",     "translation": "Options are configured in easywall.toml and require a core restart to apply."}
 ]

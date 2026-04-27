@@ -148,6 +148,22 @@ func (c *CoreClient) GetOptions() (*shared.FirewallOptions, error) {
 	return &opts, nil
 }
 
+// SaveOptions persists updated firewall options to the core config.
+func (c *CoreClient) SaveOptions(opts shared.FirewallOptions) error {
+	payload, err := json.Marshal(opts)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdSaveOptions, Payload: payload})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("core error: %s", resp.Error)
+	}
+	return nil
+}
+
 // ExportRules returns the current rule set as pretty-printed JSON bytes.
 func (c *CoreClient) ExportRules() ([]byte, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdExportRules})

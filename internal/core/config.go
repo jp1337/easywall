@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -96,6 +97,33 @@ func (c *Config) AuditLogPath() string {
 // VersionCachePath returns the path for the version check cache file.
 func (c *Config) VersionCachePath() string {
 	return c.DataDir + "/version_cache.json"
+}
+
+// SaveFirewallOptions updates the [firewall] section and atomically persists the config.
+func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
+	c.Firewall = opts
+	return c.save()
+}
+
+func (c *Config) save() error {
+	dir := filepath.Dir(c.configPath)
+	tmp, err := os.CreateTemp(dir, "core-*.toml.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp config: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	enc := toml.NewEncoder(tmp)
+	if err := enc.Encode(c.CoreConfig); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("encode config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return os.Rename(tmpPath, c.configPath)
 }
 
 // WriteDefaultCoreConfig writes a default easywall.toml to path.

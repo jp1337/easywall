@@ -813,6 +813,58 @@ tbody td {
 .option-name { font-size: 13px; font-weight: 500; }
 .option-desc { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
 
+/* ─── Options form ────────────────────────────────────────────────────── */
+.opt-block { border-bottom: 1px solid var(--border); }
+.opt-block:last-child { border-bottom: none; }
+.opt-block .option-item { border: none; border-radius: 0; }
+
+.opt-toggle { position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0; }
+.opt-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+.opt-slider {
+  position: absolute; inset: 0;
+  background: var(--surface-3);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.opt-slider::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: transform .15s, background .15s;
+}
+.opt-toggle input:checked ~ .opt-slider { background: var(--accent); }
+.opt-toggle input:checked ~ .opt-slider::after { transform: translateX(16px); background: white; }
+
+.opt-sub {
+  padding: 5px 14px 8px 58px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-1);
+}
+.opt-toggle-sm {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-muted); cursor: pointer; user-select: none;
+}
+.opt-toggle-sm input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.opt-limit-field {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--text-muted);
+}
+.input-xs {
+  width: 64px; padding: 3px 7px; font-size: 12px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface-2); color: var(--text);
+}
+.mb-4 { margin-bottom: 16px; }
+.p-0 { padding: 0; }
+.form-actions { margin-top: 4px; }
+
 /* ─── Login / Firstrun pages ────────────────────────────────────────────── */
 .auth-page {
   min-height: 100vh;
