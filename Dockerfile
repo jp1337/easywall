@@ -18,7 +18,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
       -o /out/easywall-web ./cmd/easywall-web
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM alpine:3.21
+FROM alpine:3.23
 
 # nftables for firewall management; supervisor to run both processes; tini for signal handling
 RUN apk add --no-cache nftables supervisor tini && \
