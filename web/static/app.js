@@ -211,13 +211,13 @@ function initApplyStatus() {
       if (startBtn)   startBtn.style.display = '';
     }
 
-    // Stop polling once terminal state reached
-    if (data.acceptance === 'accepted' || data.acceptance === 'rolled_back') {
+    // rolled_back is terminal — stop polling and show the error banner.
+    // accepted is NOT terminal: Reset() returns the state to idle within milliseconds,
+    // so keep polling and let the UI transition naturally to idle.
+    if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
-      if (data.acceptance === 'rolled_back') {
-        statusEl.insertAdjacentHTML('afterend',
-          '<div class="alert alert-error mt-3">Rules were rolled back — acceptance timeout.</div>');
-      }
+      statusEl.insertAdjacentHTML('afterend',
+        '<div class="alert alert-error mt-3">Rules were rolled back — acceptance timeout.</div>');
     }
   };
 
