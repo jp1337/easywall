@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Apply status polling ───────────────────────────────────────────── */
   initApplyStatus();
+
+  /* ── Options icon sync ──────────────────────────────────────────────── */
+  initOptionIcons();
 });
 
 /* ── Port / Custom rule editor ───────────────────────────────────────────── */
@@ -230,6 +233,20 @@ function initApplyStatus() {
 
   poll();
   timer = setInterval(poll, 2000);
+}
+
+/* ── Options / Settings icon sync ────────────────────────────────────────── */
+function initOptionIcons() {
+  document.querySelectorAll('.opt-block .option-item').forEach(item => {
+    const toggle = item.querySelector('.opt-toggle input');
+    const icon   = item.querySelector('.option-icon');
+    if (!toggle || !icon) return;
+    const update = () => {
+      icon.classList.toggle('on',  toggle.checked);
+      icon.classList.toggle('off', !toggle.checked);
+    };
+    toggle.addEventListener('change', update);
+  });
 }
 
 /* ── Utilities ────────────────────────────────────────────────────────────── */
