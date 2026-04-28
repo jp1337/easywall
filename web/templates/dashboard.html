@@ -99,6 +99,31 @@
     </div>
     {{end}}
 
+    {{if .Counts}}
+    <div class="cards-grid">
+      <div class="stat-card">
+        <div class="stat-label">{{T "dashboard_tcp_ports"}}</div>
+        <div class="stat-value">{{.Counts.TCP}}</div>
+        <div class="stat-sub"><a href="/ports">Manage →</a></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{T "dashboard_udp_ports"}}</div>
+        <div class="stat-value">{{.Counts.UDP}}</div>
+        <div class="stat-sub"><a href="/ports">Manage →</a></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{T "dashboard_blacklist"}}</div>
+        <div class="stat-value">{{.Counts.Blacklist}}</div>
+        <div class="stat-sub"><a href="/blacklist">Manage →</a></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">{{T "dashboard_whitelist"}}</div>
+        <div class="stat-value">{{.Counts.Whitelist}}</div>
+        <div class="stat-sub"><a href="/whitelist">Manage →</a></div>
+      </div>
+    </div>
+    {{end}}
+
     <div class="card">
       <div class="card-header">
         <span class="card-title">Quick Actions</span>
