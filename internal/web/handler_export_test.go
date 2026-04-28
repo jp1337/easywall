@@ -91,7 +91,7 @@ func TestHandleImport_Success(t *testing.T) {
 		t.Fatalf("create form file: %v", err)
 	}
 	_, _ = fmt.Fprint(fw, `{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`)
-	w.Close()
+	_ = w.Close()
 
 	cookie := makeAuthCookie(t, s.store)
 	req := httptest.NewRequest("POST", "/import", &buf)
@@ -111,7 +111,7 @@ func TestHandleImport_CoreError(t *testing.T) {
 	w := multipart.NewWriter(&buf)
 	fw, _ := w.CreateFormFile("rules_file", "rules.json")
 	_, _ = io.WriteString(fw, `{}`)
-	w.Close()
+	_ = w.Close()
 
 	cookie := makeAuthCookie(t, s.store)
 	req := httptest.NewRequest("POST", "/import", &buf)

@@ -38,7 +38,7 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck // multipart file close errors are irrelevant after full read
 
 	data, err := io.ReadAll(file)
 	if err != nil {
