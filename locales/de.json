@@ -8,6 +8,8 @@
   {"id": "nav_options",      "translation": "Optionen"},
   {"id": "nav_settings",     "translation": "Netzwerk"},
   {"id": "nav_password",     "translation": "Passwort"},
+  {"id": "nav_system",       "translation": "System"},
+  {"id": "nav_log",          "translation": "Audit-Log"},
   {"id": "nav_apply",        "translation": "Regeln anwenden"},
   {"id": "nav_logout",       "translation": "Abmelden"},
 
@@ -32,6 +34,10 @@
   {"id": "dashboard_update",       "translation": "Update verfügbar"},
   {"id": "dashboard_import_rules", "translation": "Regeln importieren"},
   {"id": "dashboard_export_rules", "translation": "Regeln exportieren"},
+  {"id": "dashboard_tcp_ports",    "translation": "TCP-Ports"},
+  {"id": "dashboard_udp_ports",    "translation": "UDP-Ports"},
+  {"id": "dashboard_blacklist",    "translation": "Gesperrte IPs"},
+  {"id": "dashboard_whitelist",    "translation": "Erlaubte IPs"},
 
   {"id": "ports_title",      "translation": "Port-Regeln"},
   {"id": "ports_tcp",        "translation": "TCP"},
@@ -100,5 +106,26 @@
   {"id": "import_read_error",    "translation": "Datei konnte nicht gelesen werden."},
   {"id": "import_error",         "translation": "Import fehlgeschlagen. Dateiformat prüfen."},
   {"id": "import_success",       "translation": "Regeln importiert. Bitte prüfen und anwenden."},
-  {"id": "options_readonly",     "translation": "Optionen werden in easywall.toml konfiguriert und benötigen einen Core-Neustart."}
+  {"id": "options_readonly",     "translation": "Optionen werden in easywall.toml konfiguriert und benötigen einen Core-Neustart."},
+
+  {"id": "system_title",                    "translation": "Systemeinstellungen"},
+  {"id": "system_acceptance_title",         "translation": "Bestätigungsfenster"},
+  {"id": "system_acceptance_enabled",       "translation": "Bestätigungsfenster aktivieren"},
+  {"id": "system_acceptance_enabled_desc",  "translation": "Regeln automatisch zurücksetzen, wenn nicht innerhalb des Timeouts bestätigt"},
+  {"id": "system_acceptance_duration",      "translation": "Timeout"},
+  {"id": "system_acceptance_duration_unit", "translation": "Sekunden"},
+  {"id": "system_acceptance_duration_desc", "translation": "Sekunden bis zum automatischen Zurücksetzen der Regeln (10–3600). Standard: 120."},
+  {"id": "system_save",                     "translation": "Systemeinstellungen speichern"},
+  {"id": "system_saved",                    "translation": "Systemeinstellungen gespeichert."},
+  {"id": "system_invalid_duration",         "translation": "Timeout muss eine positive Zahl sein."},
+
+  {"id": "log_title",        "translation": "Audit-Log"},
+  {"id": "log_recent",       "translation": "Letzte Aktivitäten"},
+  {"id": "log_subtitle",     "translation": "letzte 200 Einträge"},
+  {"id": "log_col_time",     "translation": "Zeitstempel"},
+  {"id": "log_col_action",   "translation": "Aktion"},
+  {"id": "log_col_ruletype", "translation": "Regeltyp"},
+  {"id": "log_col_detail",   "translation": "Detail"},
+  {"id": "log_col_user",     "translation": "Benutzer"},
+  {"id": "log_empty",        "translation": "Noch keine Audit-Log-Einträge. Änderungen an Regeln und Einstellungen erscheinen hier."}
 ]
