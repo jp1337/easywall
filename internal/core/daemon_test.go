@@ -369,7 +369,7 @@ func TestDaemonDispatch_ApplyRules_ReturnsSuccess(t *testing.T) {
 	// We just verify the dispatch return, then give the goroutine time to fail gracefully.
 	done := make(chan shared.Response, 1)
 	go func() {
-		defer func() { recover() }() // recover from any goroutine panics in Apply
+		defer func() { _ = recover() }() // recover from any goroutine panics in Apply
 		done <- d.dispatch(shared.Command{Type: shared.CmdApplyRules})
 	}()
 
