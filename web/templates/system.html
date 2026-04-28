@@ -1,0 +1,69 @@
+{{define "system.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <h1 class="page-title">{{T "system_title"}}</h1>
+    </div>
+
+    {{with .Data}}
+    {{if .CoreErr}}
+    <div class="alert alert-error">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+      <span>{{.CoreErr}}</span>
+    </div>
+    {{end}}
+
+    {{$s := .Settings}}
+    <form method="POST" action="/system">
+
+    <div class="card mb-4">
+      <div class="card-header"><span class="card-title">{{T "system_acceptance_title"}}</span></div>
+      <div class="card-body p-0">
+
+        <div class="opt-block">
+          <div class="option-item">
+            <div class="option-icon {{if and $s $s.Acceptance.Enabled}}on{{else}}off{{end}}">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+            </div>
+            <div class="option-text">
+              <div class="option-name">{{T "system_acceptance_enabled"}}</div>
+              <div class="option-desc">{{T "system_acceptance_enabled_desc"}}</div>
+            </div>
+            <label class="opt-toggle"><input type="checkbox" name="acceptance_enabled" {{if and $s $s.Acceptance.Enabled}}checked{{end}}><span class="opt-slider"></span></label>
+          </div>
+        </div>
+
+        <div class="opt-block">
+          <div class="card-body">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="acceptance_duration">{{T "system_acceptance_duration"}}</label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="number" id="acceptance_duration" name="acceptance_duration" class="input-xs"
+                  min="10" max="3600"
+                  value="{{if $s}}{{$s.Acceptance.Duration}}{{else}}120{{end}}"
+                  style="width:100px">
+                <span style="color:var(--text-muted);font-size:13px">{{T "system_acceptance_duration_unit"}}</span>
+              </div>
+              <small style="color:var(--text-muted);font-size:12px">{{T "system_acceptance_duration_desc"}}</small>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">{{T "system_save"}}</button>
+    </div>
+
+    </form>
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}

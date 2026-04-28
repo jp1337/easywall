@@ -457,3 +457,61 @@ func TestCoreClient_SaveRules_MarshalError(t *testing.T) {
 		t.Errorf("expected 'marshal payload' in error, got: %v", err)
 	}
 }
+
+func TestCoreClient_GetSystem_Success(t *testing.T) {
+	fc := newFakeCore(t)
+	s := shared.SystemSettings{Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120}}
+	raw, _ := json.Marshal(s)
+	fc.SetResponse(shared.CmdGetSystem, shared.Response{Success: true, Data: raw})
+
+	client := NewCoreClient(fc.socketPath)
+	result, err := client.GetSystem()
+	if err != nil {
+		t.Fatalf("GetSystem: %v", err)
+	}
+	if !result.Acceptance.Enabled || result.Acceptance.Duration != 120 {
+		t.Errorf("unexpected system settings: %+v", result)
+	}
+}
+
+func TestCoreClient_GetSystem_SendError(t *testing.T) {
+	client := NewCoreClient("/nonexistent/socket.sock")
+	_, err := client.GetSystem()
+	if err == nil {
+		t.Error("expected error when socket doesn't exist")
+	}
+}
+
+func TestCoreClient_SaveSystem_SendError(t *testing.T) {
+	client := NewCoreClient("/nonexistent/socket.sock")
+	err := client.SaveSystem(shared.SystemSettings{})
+	if err == nil {
+		t.Error("expected error when socket doesn't exist")
+	}
+}
+
+func TestCoreClient_GetLog_Success(t *testing.T) {
+	fc := newFakeCore(t)
+	entries := []shared.AuditLogEntry{
+		{Time: "2026-04-27T10:00:00Z", Action: "rules_saved", User: "web"},
+	}
+	raw, _ := json.Marshal(entries)
+	fc.SetResponse(shared.CmdGetLog, shared.Response{Success: true, Data: raw})
+
+	client := NewCoreClient(fc.socketPath)
+	result, err := client.GetLog()
+	if err != nil {
+		t.Fatalf("GetLog: %v", err)
+	}
+	if len(result) != 1 || result[0].Action != "rules_saved" {
+		t.Errorf("unexpected log entries: %+v", result)
+	}
+}
+
+func TestCoreClient_GetLog_SendError(t *testing.T) {
+	client := NewCoreClient("/nonexistent/socket.sock")
+	_, err := client.GetLog()
+	if err == nil {
+		t.Error("expected error when socket doesn't exist")
+	}
+}
