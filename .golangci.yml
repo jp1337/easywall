@@ -40,16 +40,14 @@ linters:
       rules:
         - name: exported
           disabled: true  # don't require godoc on every exported symbol yet
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
-
-issues:
   exclusions:
     rules:
       - path: .*_test\.go
         linters:
           - gosec
           - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
