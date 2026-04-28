@@ -57,7 +57,7 @@ jobs:
             ./cmd/easywall-web
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: bin/
@@ -114,7 +114,7 @@ jobs:
         run: mkdir -p dist && mv ../*.deb dist/
 
       - name: Upload .deb artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: debian-package
           path: dist/*.deb
