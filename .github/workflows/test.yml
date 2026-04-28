@@ -41,6 +41,7 @@ jobs:
 
       - name: Upload coverage
         uses: codecov/codecov-action@v5
+        continue-on-error: true  # Dependabot PRs lack CODECOV_TOKEN; don't block CI
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
@@ -83,7 +84,7 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           install-mode: goinstall

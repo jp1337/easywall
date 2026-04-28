@@ -146,6 +146,20 @@ type NetworkSettings struct {
 	Docker DockerConfig `json:"docker"`
 }
 
+// SystemSettings groups the acceptance window configuration for IPC transport.
+type SystemSettings struct {
+	Acceptance AcceptanceConfig `json:"acceptance"`
+}
+
+// AuditLogEntry is a single parsed line from the audit log.
+type AuditLogEntry struct {
+	Time     string `json:"time"`
+	Action   string `json:"action"`
+	RuleType string `json:"rule_type"`
+	Detail   string `json:"detail"`
+	User     string `json:"user"`
+}
+
 // AcceptanceStatus represents the current state of a two-step activation cycle.
 type AcceptanceStatus string
 

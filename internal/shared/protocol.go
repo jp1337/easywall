@@ -15,6 +15,9 @@ const (
 	CmdSaveOptions  CommandType = "SAVE_OPTIONS"
 	CmdGetSettings  CommandType = "GET_SETTINGS"
 	CmdSaveSettings CommandType = "SAVE_SETTINGS"
+	CmdGetSystem    CommandType = "GET_SYSTEM"
+	CmdSaveSystem   CommandType = "SAVE_SYSTEM"
+	CmdGetLog       CommandType = "GET_LOG"
 	CmdExportRules  CommandType = "EXPORT_RULES"
 	CmdImportRules  CommandType = "IMPORT_RULES"
 )
