@@ -4,12 +4,16 @@ BUILD_FLAGS := -ldflags "$(LDFLAGS)"
 
 BINARIES := easywall-core easywall-web
 
-.PHONY: all build test lint vuln clean install release
+.PHONY: all build css test lint vuln clean install release
 
 ## Build both binaries
 all: build
 
-build:
+## Build CSS from Tailwind source
+css:
+	npx @tailwindcss/cli -i web/src/app.css -o web/static/style.css --minify
+
+build: css
 	@echo "Building $(VERSION)..."
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o bin/easywall-core ./cmd/easywall-core
 	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o bin/easywall-web  ./cmd/easywall-web
