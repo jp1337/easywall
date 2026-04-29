@@ -272,3 +272,27 @@ func (c *CoreClient) ImportRules(data []byte) error {
 	}
 	return nil
 }
+
+// ValidateCustom validates custom nftables rules before saving.
+// Returns a map of line-index to error string; empty map means all valid.
+func (c *CoreClient) ValidateCustom(rules []string) (map[int]string, error) {
+	payload, err := json.Marshal(shared.ValidateCustomPayload{Rules: rules})
+	if err != nil {
+		return nil, fmt.Errorf("marshal payload: %w", err)
+	}
+	resp, err := c.Send(shared.Command{
+		Type:    shared.CmdValidateCustom,
+		Payload: payload,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	var result shared.ValidateCustomResult
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return nil, err
+	}
+	return result.Errors, nil
+}

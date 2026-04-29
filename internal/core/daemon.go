@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 
@@ -238,6 +239,16 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		WriteAuditLog(d.cfg.AuditLogPath(), "rules_imported", "all", "", "web")
 		return shared.Response{Success: true}
 
+	case shared.CmdValidateCustom:
+		var payload shared.ValidateCustomPayload
+		if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		errs := validateCustomRules(payload.Rules)
+		result := shared.ValidateCustomResult{Errors: errs}
+		data, _ := json.Marshal(result)
+		return shared.Response{Success: true, Data: data}
+
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}
 	}
@@ -282,6 +293,33 @@ func readAuditLog(path string, n int) ([]shared.AuditLogEntry, error) {
 		entries = append(entries, e)
 	}
 	return entries, nil
+}
+
+// validateCustomRules checks each rule by wrapping it in a minimal nft table
+// and passing it to "nft --check --file -". Returns a map of line-index to
+// error string for any rule that fails; an empty map means all rules are valid.
+func validateCustomRules(rules []string) map[int]string {
+	errs := make(map[int]string)
+	for i, rule := range rules {
+		rule = strings.TrimSpace(rule)
+		if rule == "" || strings.HasPrefix(rule, "#") {
+			continue // skip blanks and comments
+		}
+		// Wrap in a test table context for nft -c
+		script := "table inet easywall_validate {\n  chain test_input {\n    type filter hook input priority 0;\n    " + rule + "\n  }\n}\n"
+		cmd := exec.Command("nft", "--check", "--file", "-")
+		cmd.Stdin = strings.NewReader(script)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				msg = err.Error()
+			}
+			// Strip the internal table name from error messages for cleaner output
+			msg = strings.ReplaceAll(msg, "easywall_validate", "easywall")
+			errs[i] = msg
+		}
+	}
+	return errs
 }
 
 // groupFilePath is the path to the system group file; overridden in tests.

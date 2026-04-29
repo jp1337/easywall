@@ -1,0 +1,12 @@
+{
+  "name": "easywall-ui",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i web/src/app.css -o web/static/style.css --minify",
+    "dev:css": "tailwindcss -i web/src/app.css -o web/static/style.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/cli": "^4.1.0"
+  }
+}
