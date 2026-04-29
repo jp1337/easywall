@@ -15,12 +15,16 @@
   <meta property="og:image" content="/static/og-image.png">
   <meta property="og:type" content="website">
   <script nonce="{{.Nonce}}">
-    (function(){var t=localStorage.getItem('theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();
+    (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script nonce="{{.Nonce}}">
+    document.addEventListener('htmx:config', function(e){e.detail.allowEval=false;e.detail.inlineScriptNonce='{{.Nonce}}';});
+  </script>
 </head>
 <body>
 <div class="layout">
@@ -159,7 +163,7 @@
 
 {{define "flash"}}
 {{if .Flash}}
-<div class="alert {{flashClass .Flash}}" data-auto-dismiss>
+<div role="alert" class="alert {{flashClass .Flash}} alert-soft mb-4" data-auto-dismiss>
   {{flashIcon .Flash}}
   <span>{{T .Flash}}</span>
 </div>

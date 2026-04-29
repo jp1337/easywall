@@ -14,59 +14,62 @@
     <form method="POST" action="/forwarding" id="fwd-form">
       <input type="hidden" name="rules" id="fwd-json" value="">
 
-      <div class="card rule-editor">
-        <div class="card-header">
-          <span class="card-title">NAT Port Forwarding Rules</span>
-          <button type="button" id="add-fwd-btn" class="btn btn-secondary btn-sm">
-            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
-            {{T "forwarding_add"}}
-          </button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{{T "forwarding_protocol"}}</th>
-                <th>{{T "forwarding_source_port"}}</th>
-                <th>{{T "forwarding_dest_port"}}</th>
-                <th style="text-align:right">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="fwd-tbody">
-              {{range $i, $r := .Rules}}
-              <tr data-idx="{{$i}}">
-                <td>
-                  <select class="f-proto" style="width:80px;font-family:var(--font-mono);font-size:13px">
-                    <option value="tcp" {{if eq $r.Protocol "tcp"}}selected{{end}}>tcp</option>
-                    <option value="udp" {{if eq $r.Protocol "udp"}}selected{{end}}>udp</option>
-                  </select>
-                </td>
-                <td><input class="f-src" type="number" min="1" max="65535" value="{{$r.SourcePort}}" style="width:110px"></td>
-                <td><input class="f-dst" type="number" min="1" max="65535" value="{{$r.DestPort}}" style="width:110px"></td>
-                <td class="td-actions">
-                  <button type="button" class="btn btn-ghost btn-sm del-rule" title="Remove">
-                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                  </button>
-                </td>
-              </tr>
-              {{end}}
-            </tbody>
-          </table>
-          {{if not .Rules}}
-          <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-            <p>No port forwarding rules. Click <strong>Add Rule</strong> to create one.</p>
+      <div class="card bg-base-200 border border-base-300 shadow-sm">
+        <div class="card-body p-0">
+          <div class="px-6 py-4 flex items-center justify-between border-b border-base-300">
+            <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">NAT Port Forwarding Rules</h2>
+            <button type="button" id="add-fwd-btn" class="btn btn-soft btn-sm">
+              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
+              {{T "forwarding_add"}}
+            </button>
           </div>
-          {{end}}
+
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>{{T "forwarding_protocol"}}</th>
+                  <th>{{T "forwarding_source_port"}}</th>
+                  <th>{{T "forwarding_dest_port"}}</th>
+                  <th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="fwd-tbody">
+                {{range $i, $r := .Rules}}
+                <tr data-idx="{{$i}}">
+                  <td>
+                    <select class="f-proto select select-bordered select-sm w-24 font-mono">
+                      <option value="tcp" {{if eq $r.Protocol "tcp"}}selected{{end}}>tcp</option>
+                      <option value="udp" {{if eq $r.Protocol "udp"}}selected{{end}}>udp</option>
+                    </select>
+                  </td>
+                  <td><input class="f-src input input-bordered input-sm w-28" type="number" min="1" max="65535" value="{{$r.SourcePort}}"></td>
+                  <td><input class="f-dst input input-bordered input-sm w-28" type="number" min="1" max="65535" value="{{$r.DestPort}}"></td>
+                  <td class="text-right">
+                    <button type="button" class="btn btn-ghost btn-sm del-rule text-error" title="Remove">
+                      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                    </button>
+                  </td>
+                </tr>
+                {{end}}
+              </tbody>
+            </table>
+            {{if not .Rules}}
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+              <p>No port forwarding rules. Click <strong>Add Rule</strong> to create one.</p>
+            </div>
+            {{end}}
+          </div>
         </div>
       </div>
 
-      <div class="form-actions" style="margin-top:16px">
+      <div class="flex items-center gap-4 mt-4">
         <button type="submit" class="btn btn-primary">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
           {{T "save"}}
         </button>
-        <span class="form-hint">Changes are staged until you <a href="/apply">apply rules</a>.</span>
+        <span class="text-sm text-base-content/60">Changes are staged until you <a href="/apply" class="link link-primary">apply rules</a>.</span>
       </div>
     </form>
     {{end}}

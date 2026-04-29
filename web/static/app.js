@@ -2,9 +2,15 @@
 'use strict';
 
 /* ── Theme ──────────────────────────────────────────────────────────────── */
+const normalizeTheme = (t) => {
+  if (t === 'dark' || t === 'light') return 'easywall-' + t;
+  if (t === 'easywall-dark' || t === 'easywall-light') return t;
+  return null;
+};
+
 const getTheme = () =>
-  localStorage.getItem('theme') ||
-  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  normalizeTheme(localStorage.getItem('theme')) ||
+  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'easywall-dark' : 'easywall-light');
 
 const applyTheme = (t) => {
   document.documentElement.setAttribute('data-theme', t);
@@ -14,7 +20,7 @@ const applyTheme = (t) => {
 // Apply immediately to prevent flash
 applyTheme(getTheme());
 
-const toggleTheme = () => applyTheme(getTheme() === 'dark' ? 'light' : 'dark');
+const toggleTheme = () => applyTheme(getTheme() === 'easywall-dark' ? 'easywall-light' : 'easywall-dark');
 
 /* ── Mobile sidebar ──────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {

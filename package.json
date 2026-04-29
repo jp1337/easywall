@@ -6,7 +6,11 @@
     "dev:css": "tailwindcss -i web/src/app.css -o web/static/style.css --watch"
   },
   "devDependencies": {
-    "tailwindcss": "^4.1.0",
-    "@tailwindcss/cli": "^4.1.0"
+    "@tailwindcss/cli": "^4.1.0",
+    "tailwindcss": "^4.1.0"
+  },
+  "dependencies": {
+    "daisyui": "^5.5.19",
+    "htmx.org": "^2.0.10"
   }
 }

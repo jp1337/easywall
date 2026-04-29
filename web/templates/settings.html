@@ -12,8 +12,8 @@
 
     {{with .Data}}
     {{if .CoreErr}}
-    <div class="alert alert-error">
-      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+    <div role="alert" class="alert alert-error alert-soft mb-4">
+      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
       <span>{{.CoreErr}}</span>
     </div>
     {{end}}
@@ -21,99 +21,77 @@
     {{$ns := .Settings}}
     <form method="POST" action="/settings">
 
-    <div class="card mb-4">
-      <div class="card-header"><span class="card-title">IPv6</span></div>
-      <div class="card-body p-0">
+      <div class="card bg-base-200 border border-base-300 shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">IPv6</h2>
 
-        <div class="opt-block">
-          <div class="option-item">
-            <div class="option-icon {{if and $ns $ns.IPv6.Enabled}}on{{else}}off{{end}}">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.083 9h1.946c.089-1.546.383-2.97.837-4.118A6.004 6.004 0 004.083 9zM10 2a8 8 0 100 16 8 8 0 000-16zm0 2c-.076 0-.232.032-.465.262-.238.234-.497.623-.737 1.182-.389.907-.673 2.142-.766 3.556h3.936c-.093-1.414-.377-2.649-.766-3.556-.24-.56-.5-.948-.737-1.182C10.232 4.032 10.076 4 10 4zm3.971 5c-.089-1.546-.383-2.97-.837-4.118A6.004 6.004 0 0115.917 9h-1.946zm-2.003 2H8.032c.093 1.414.377 2.649.766 3.556.24.56.5.948.737 1.182.233.23.389.262.465.262.076 0 .232-.032.465-.262.238-.234.498-.623.737-1.182.389-.907.673-2.142.766-3.556zm1.166 4.118c.454-1.147.748-2.572.837-4.118h1.946a6.004 6.004 0 01-2.783 4.118zm-6.268 0C6.412 13.97 6.118 12.546 6.03 11H4.083a6.004 6.004 0 002.783 4.118z" clip-rule="evenodd"/></svg>
+          <div class="flex items-start gap-4 py-3 border-b border-base-300">
+            <div class="flex-1">
+              <div class="font-medium">IPv6 Support</div>
+              <div class="text-sm text-base-content/60 mt-0.5">Enable IPv6 filtering in the inet table</div>
             </div>
-            <div class="option-text">
-              <div class="option-name">IPv6 Support</div>
-              <div class="option-desc">Enable IPv6 filtering in the inet table</div>
+            <input type="checkbox" name="ipv6_enabled" class="toggle toggle-primary"
+                   {{if and $ns $ns.IPv6.Enabled}}checked{{end}}>
+          </div>
+
+          <div class="flex items-start gap-4 py-3 border-b border-base-300">
+            <div class="flex-1">
+              <div class="font-medium">Router Advertisement (ICMPv6 134)</div>
+              <div class="text-sm text-base-content/60 mt-0.5">Allow incoming router advertisement messages</div>
             </div>
-            <label class="opt-toggle"><input type="checkbox" name="ipv6_enabled" {{if and $ns $ns.IPv6.Enabled}}checked{{end}}><span class="opt-slider"></span></label>
+            <input type="checkbox" name="icmp_allow_router_advertisement" class="toggle toggle-primary"
+                   {{if and $ns $ns.IPv6.ICMPAllowRouterAdvertisement}}checked{{end}}>
+          </div>
+
+          <div class="flex items-start gap-4 py-3">
+            <div class="flex-1">
+              <div class="font-medium">Neighbor Advertisement (ICMPv6 136)</div>
+              <div class="text-sm text-base-content/60 mt-0.5">Allow neighbor discovery advertisement messages</div>
+            </div>
+            <input type="checkbox" name="icmp_allow_neighbor_advertisement" class="toggle toggle-primary"
+                   {{if and $ns $ns.IPv6.ICMPAllowNeighborAdvertisement}}checked{{end}}>
           </div>
         </div>
-
-        <div class="opt-block">
-          <div class="option-item">
-            <div class="option-icon {{if and $ns $ns.IPv6.ICMPAllowRouterAdvertisement}}on{{else}}off{{end}}">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
-            </div>
-            <div class="option-text">
-              <div class="option-name">Router Advertisement (ICMPv6 134)</div>
-              <div class="option-desc">Allow incoming router advertisement messages</div>
-            </div>
-            <label class="opt-toggle"><input type="checkbox" name="icmp_allow_router_advertisement" {{if and $ns $ns.IPv6.ICMPAllowRouterAdvertisement}}checked{{end}}><span class="opt-slider"></span></label>
-          </div>
-        </div>
-
-        <div class="opt-block">
-          <div class="option-item">
-            <div class="option-icon {{if and $ns $ns.IPv6.ICMPAllowNeighborAdvertisement}}on{{else}}off{{end}}">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
-            </div>
-            <div class="option-text">
-              <div class="option-name">Neighbor Advertisement (ICMPv6 136)</div>
-              <div class="option-desc">Allow neighbor discovery advertisement messages</div>
-            </div>
-            <label class="opt-toggle"><input type="checkbox" name="icmp_allow_neighbor_advertisement" {{if and $ns $ns.IPv6.ICMPAllowNeighborAdvertisement}}checked{{end}}><span class="opt-slider"></span></label>
-          </div>
-        </div>
-
       </div>
-    </div>
 
-    <div class="card mb-4">
-      <div class="card-header"><span class="card-title">Docker Integration</span></div>
-      <div class="card-body p-0">
+      <div class="card bg-base-200 border border-base-300 shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">Docker Integration</h2>
 
-        <div class="opt-block">
-          <div class="option-item">
-            <div class="option-icon {{if and $ns $ns.Docker.Enabled}}on{{else}}off{{end}}">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"/></svg>
+          <div class="flex items-start gap-4 py-3 border-b border-base-300">
+            <div class="flex-1">
+              <div class="font-medium">Docker Network Detection</div>
+              <div class="text-sm text-base-content/60 mt-0.5">Auto-detect Docker bridge networks and whitelist them</div>
             </div>
-            <div class="option-text">
-              <div class="option-name">Docker Network Detection</div>
-              <div class="option-desc">Auto-detect Docker bridge networks and whitelist them</div>
-            </div>
-            <label class="opt-toggle"><input type="checkbox" name="docker_enabled" {{if and $ns $ns.Docker.Enabled}}checked{{end}}><span class="opt-slider"></span></label>
+            <input type="checkbox" name="docker_enabled" class="toggle toggle-primary"
+                   {{if and $ns $ns.Docker.Enabled}}checked{{end}}>
           </div>
-        </div>
 
-        <div class="opt-block">
-          <div class="option-item">
-            <div class="option-icon {{if and $ns $ns.Docker.AllowBridgeNetworks}}on{{else}}off{{end}}">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+          <div class="flex items-start gap-4 py-3 border-b border-base-300">
+            <div class="flex-1">
+              <div class="font-medium">Allow Bridge Networks</div>
+              <div class="text-sm text-base-content/60 mt-0.5">Whitelist all detected Docker bridge network CIDRs</div>
             </div>
-            <div class="option-text">
-              <div class="option-name">Allow Bridge Networks</div>
-              <div class="option-desc">Whitelist all detected Docker bridge network CIDRs</div>
-            </div>
-            <label class="opt-toggle"><input type="checkbox" name="allow_bridge_networks" {{if and $ns $ns.Docker.AllowBridgeNetworks}}checked{{end}}><span class="opt-slider"></span></label>
+            <input type="checkbox" name="allow_bridge_networks" class="toggle toggle-primary"
+                   {{if and $ns $ns.Docker.AllowBridgeNetworks}}checked{{end}}>
           </div>
-        </div>
 
-        <div class="opt-block">
-          <div class="card-body">
-            <div class="form-group" style="margin-bottom:0">
-              <label for="custom_networks">Custom Networks</label>
-              <textarea id="custom_networks" name="custom_networks" rows="4"
-                placeholder="192.168.100.0/24&#10;172.20.0.0/16">{{.CustomNetworks}}</textarea>
-              <small style="color:var(--text-muted);font-size:12px">One CIDR per line — always whitelisted regardless of Docker auto-detection.</small>
-            </div>
-          </div>
+          <fieldset class="fieldset mt-2">
+            <legend class="fieldset-legend">Custom Networks</legend>
+            <textarea id="custom_networks" name="custom_networks" rows="4"
+                      class="textarea textarea-bordered w-full font-mono"
+                      placeholder="192.168.100.0/24&#10;172.20.0.0/16">{{.CustomNetworks}}</textarea>
+            <p class="label text-base-content/60">One CIDR per line — always whitelisted regardless of Docker auto-detection.</p>
+          </fieldset>
         </div>
-
       </div>
-    </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">{{T "settings_save"}}</button>
-    </div>
+      <div>
+        <button type="submit" class="btn btn-primary">
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          {{T "settings_save"}}
+        </button>
+      </div>
 
     </form>
     {{end}}
