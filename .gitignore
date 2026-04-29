@@ -48,3 +48,5 @@ debian/*.debhelper
 # Logs
 *.log
 node_modules/
+tmp/
+.claude/

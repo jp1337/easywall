@@ -12,8 +12,8 @@
 
     {{with .Data}}
     {{if .CoreErr}}
-    <div class="alert alert-error">
-      <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+    <div role="alert" class="alert alert-error alert-soft mb-4">
+      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
       <span>{{.CoreErr}}</span>
     </div>
     {{end}}
@@ -21,45 +21,38 @@
     {{$s := .Settings}}
     <form method="POST" action="/system">
 
-    <div class="card mb-4">
-      <div class="card-header"><span class="card-title">{{T "system_acceptance_title"}}</span></div>
-      <div class="card-body p-0">
+      <div class="card bg-base-200 border border-base-300 shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">{{T "system_acceptance_title"}}</h2>
 
-        <div class="opt-block">
-          <div class="option-item">
-            <div class="option-icon {{if and $s $s.Acceptance.Enabled}}on{{else}}off{{end}}">
-              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+          <div class="flex items-start gap-4 py-3 border-b border-base-300">
+            <div class="flex-1">
+              <div class="font-medium">{{T "system_acceptance_enabled"}}</div>
+              <div class="text-sm text-base-content/60 mt-0.5">{{T "system_acceptance_enabled_desc"}}</div>
             </div>
-            <div class="option-text">
-              <div class="option-name">{{T "system_acceptance_enabled"}}</div>
-              <div class="option-desc">{{T "system_acceptance_enabled_desc"}}</div>
-            </div>
-            <label class="opt-toggle"><input type="checkbox" name="acceptance_enabled" {{if and $s $s.Acceptance.Enabled}}checked{{end}}><span class="opt-slider"></span></label>
+            <input type="checkbox" name="acceptance_enabled" class="toggle toggle-primary"
+                   {{if and $s $s.Acceptance.Enabled}}checked{{end}}>
           </div>
-        </div>
 
-        <div class="opt-block">
-          <div class="card-body">
-            <div class="form-group" style="margin-bottom:0">
-              <label for="acceptance_duration">{{T "system_acceptance_duration"}}</label>
-              <div style="display:flex;align-items:center;gap:8px">
-                <input type="number" id="acceptance_duration" name="acceptance_duration" class="input-xs"
-                  min="10" max="3600"
-                  value="{{if $s}}{{$s.Acceptance.Duration}}{{else}}120{{end}}"
-                  style="width:100px">
-                <span style="color:var(--text-muted);font-size:13px">{{T "system_acceptance_duration_unit"}}</span>
-              </div>
-              <small style="color:var(--text-muted);font-size:12px">{{T "system_acceptance_duration_desc"}}</small>
+          <fieldset class="fieldset mt-3">
+            <legend class="fieldset-legend">{{T "system_acceptance_duration"}}</legend>
+            <div class="flex items-center gap-2">
+              <input type="number" id="acceptance_duration" name="acceptance_duration"
+                     class="input input-bordered w-28" min="10" max="3600"
+                     value="{{if $s}}{{$s.Acceptance.Duration}}{{else}}120{{end}}">
+              <span class="text-sm text-base-content/60">{{T "system_acceptance_duration_unit"}}</span>
             </div>
-          </div>
+            <p class="label text-base-content/60">{{T "system_acceptance_duration_desc"}}</p>
+          </fieldset>
         </div>
-
       </div>
-    </div>
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">{{T "system_save"}}</button>
-    </div>
+      <div>
+        <button type="submit" class="btn btn-primary">
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+          {{T "system_save"}}
+        </button>
+      </div>
 
     </form>
     {{end}}
