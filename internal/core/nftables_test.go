@@ -343,3 +343,34 @@ func TestTableFamilyName_UnknownValue(t *testing.T) {
 		t.Errorf("expected 'unspecified' for unknown family, got %q", got)
 	}
 }
+
+// --- applyCustomRules ---
+
+func TestApplyCustomRules_EmptySlice(t *testing.T) {
+	m := &NftablesManager{}
+	err := m.applyCustomRules([]string{})
+	if err != nil {
+		t.Errorf("expected nil error for empty rules, got %v", err)
+	}
+}
+
+func TestApplyCustomRules_OnlyBlanksAndComments(t *testing.T) {
+	m := &NftablesManager{}
+	// All blank or comment lines → len(cmds)==0 → returns nil without calling nft
+	err := m.applyCustomRules([]string{"", "  ", "# a comment", "  # another"})
+	if err != nil {
+		t.Errorf("expected nil error for blank/comment-only rules, got %v", err)
+	}
+}
+
+func TestApplyCustomRules_NftNotAvailableOrFails(t *testing.T) {
+	if nftAvailable() {
+		t.Skip("nft available with kernel access — skipping error path test")
+	}
+	m := &NftablesManager{}
+	// When nft is not available or has no kernel access, this should return an error.
+	err := m.applyCustomRules([]string{"tcp dport 80 accept"})
+	if err == nil {
+		t.Error("expected error when nft is not available or fails")
+	}
+}

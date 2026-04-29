@@ -48,4 +48,3 @@ debian/*.debhelper
 # Logs
 *.log
 node_modules/
-package-lock.json

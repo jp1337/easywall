@@ -3,8 +3,11 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/google/nftables"
@@ -249,7 +252,40 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addFinalLog(table, inputChain, opts)
 	}
 
-	return m.conn.Flush()
+	if err := m.conn.Flush(); err != nil {
+		return err
+	}
+	// Apply custom rules via nft subprocess after all typed rules are committed.
+	if len(state.Current.Custom) > 0 {
+		if err := m.applyCustomRules(state.Current.Custom); err != nil {
+			slog.Warn("custom rules apply warning", "error", err)
+			return fmt.Errorf("apply custom rules: %w", err)
+		}
+	}
+	return nil
+}
+
+// applyCustomRules appends raw nftables expression strings to the input chain.
+// The Go netlink library accepts only typed expressions, so custom rules are
+// applied via the nft CLI using the existing table/chain created by Apply().
+func (m *NftablesManager) applyCustomRules(rules []string) error {
+	var cmds []string
+	for _, rule := range rules {
+		rule = strings.TrimSpace(rule)
+		if rule == "" || strings.HasPrefix(rule, "#") {
+			continue
+		}
+		cmds = append(cmds, "add rule inet "+tableName+" input "+rule)
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(strings.Join(cmds, "\n") + "\n")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("nft custom rules: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
 }
 
 // Restore restores a previously taken snapshot. Currently a no-op placeholder

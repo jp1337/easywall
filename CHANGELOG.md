@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Custom rules syntax validation — the web UI now validates raw nftables rules via `nft --check` before saving; per-line errors are displayed inline in the editor
+- Tailwind CSS v4 UI — the web interface now uses a purpose-built "Operator Interface" design with deep navy background, orange firewall accent, Outfit UI font, and JetBrains Mono for IPs/rules; replaces the previous IBM Plex stylesheet
+- `make css` target and CI steps compile the Tailwind source in `web/src/app.css` to `web/static/style.css` during build
+
+### Fixed
+
+- Custom rules in `state.Current.Custom` are now actually applied to the nftables kernel after the typed rules flush; previously the slice was stored and validated but never passed to `nft`
+
 ## [2.2.0] - 2026-04-28
 
 ### Added
