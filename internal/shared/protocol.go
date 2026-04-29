@@ -18,8 +18,9 @@ const (
 	CmdGetSystem    CommandType = "GET_SYSTEM"
 	CmdSaveSystem   CommandType = "SAVE_SYSTEM"
 	CmdGetLog       CommandType = "GET_LOG"
-	CmdExportRules  CommandType = "EXPORT_RULES"
-	CmdImportRules  CommandType = "IMPORT_RULES"
+	CmdExportRules   CommandType = "EXPORT_RULES"
+	CmdImportRules   CommandType = "IMPORT_RULES"
+	CmdValidateCustom CommandType = "VALIDATE_CUSTOM"
 )
 
 // Command is sent from easywall-web to easywall-core over the Unix socket.
@@ -39,4 +40,14 @@ type Response struct {
 type SaveRulesPayload struct {
 	RuleType string      `json:"rule_type"` // "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"
 	Rules    interface{} `json:"rules"`
+}
+
+// ValidateCustomPayload is the payload for CmdValidateCustom.
+type ValidateCustomPayload struct {
+	Rules []string `json:"rules"`
+}
+
+// ValidateCustomResult holds per-rule validation errors (empty = all valid).
+type ValidateCustomResult struct {
+	Errors map[int]string `json:"errors"`
 }

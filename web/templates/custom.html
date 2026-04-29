@@ -25,6 +25,19 @@
             <textarea name="rules" rows="16" placeholder="# Example: allow a specific port&#10;tcp dport 8443 accept&#10;&#10;# Allow traffic from specific IP&#10;ip saddr 203.0.113.1 accept">{{range .Rules}}{{.}}
 {{end}}</textarea>
           </div>
+          {{if .Errors}}
+          <div class="alert alert-error" style="margin-top:12px">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
+            <div>
+              <strong>Syntax errors found:</strong>
+              <ul style="margin:6px 0 0;padding-left:1.2em">
+              {{range $idx, $err := .Errors}}
+                <li>Line {{add1 $idx}}: <code style="font-family:var(--font-mono)">{{$err}}</code></li>
+              {{end}}
+              </ul>
+            </div>
+          </div>
+          {{end}}
         </div>
       </div>
       <div class="form-actions" style="margin-top:16px">
