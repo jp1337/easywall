@@ -247,6 +247,39 @@ func (s *Server) setFlash(w http.ResponseWriter, r *http.Request, msg string) {
 	_ = sess.Save(r, w)
 }
 
+// isHTMX reports whether the request was issued by HTMX.
+// HTMX always sets the HX-Request header on AJAX requests.
+func isHTMX(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}
+
+// respondPartialSave returns a 204 + HX-Trigger header for HTMX partial-save
+// requests (so the client toast listener can react), or a flash + redirect
+// for regular form POSTs. flashKey is the i18n message key (e.g. "options_saved").
+func (s *Server) respondPartialSave(w http.ResponseWriter, r *http.Request, redirect, flashKey string) {
+	if isHTMX(r) {
+		w.Header().Set("HX-Trigger", `{"easywall:saved":"`+flashKey+`"}`)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s.setFlash(w, r, flashKey)
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+}
+
+// respondPartialError returns a 200 + HX-Trigger error event for HTMX,
+// or a flash + redirect for regular form POSTs. We use 200 (not 5xx) so
+// HTMX fires htmx:afterRequest cleanly; the client distinguishes via the
+// custom event name.
+func (s *Server) respondPartialError(w http.ResponseWriter, r *http.Request, redirect, flashKey string) {
+	if isHTMX(r) {
+		w.Header().Set("HX-Trigger", `{"easywall:error":"`+flashKey+`"}`)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	s.setFlash(w, r, flashKey)
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+}
+
 // loadTemplates parses all .html files in dir as a single template set.
 // A stub T function is registered so that the HTML escape context is established at parse time;
 // the actual per-request T is injected via a cloned template in render().

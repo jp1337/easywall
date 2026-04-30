@@ -54,7 +54,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Apply status polling ───────────────────────────────────────────── */
   initApplyStatus();
+
+  /* ── HTMX toast feedback (HX-Trigger: easywall:saved / easywall:error) ─ */
+  initHtmxToast();
 });
+
+/* ── HTMX toast ───────────────────────────────────────────────────────────
+   Listens for custom events that the server fires via the HX-Trigger
+   response header. Shows a small auto-dismissing alert in the toast
+   container at the bottom-right of the page. */
+function initHtmxToast() {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  // i18n message map — keys match flashKey values from server.
+  // Kept here so the server can use stable keys without sending strings.
+  const messages = {
+    saved:                    { text: 'Saved', kind: 'success' },
+    options_saved:            { text: 'Options saved', kind: 'success' },
+    settings_saved:           { text: 'Settings saved', kind: 'success' },
+    system_saved:             { text: 'System settings saved', kind: 'success' },
+    save_error:               { text: 'Save failed', kind: 'error' },
+    system_invalid_duration:  { text: 'Duration must be > 0', kind: 'warning' },
+  };
+
+  const show = (key, kind) => {
+    const msg = messages[key] || { text: key, kind: kind || 'info' };
+    const k = msg.kind || kind || 'info';
+    const el = document.createElement('div');
+    el.setAttribute('role', 'alert');
+    el.className = `alert alert-${k} alert-soft shadow-lg max-w-sm`;
+    el.innerHTML = `<span>${esc(msg.text)}</span>`;
+    container.appendChild(el);
+    // Auto-dismiss after 2.5 seconds with fade.
+    setTimeout(() => {
+      el.style.transition = 'opacity 0.3s ease';
+      el.style.opacity = '0';
+      setTimeout(() => el.remove(), 300);
+    }, 2500);
+  };
+
+  // We parse the HX-Trigger header manually in htmx:afterRequest. HTMX's
+  // own auto-dispatch of HX-Trigger custom events with namespaced names
+  // (containing ":") is unreliable — by the time we'd attach a listener
+  // on a colon-namespaced event, the event may have already fired or
+  // the dispatch context may differ from document.body. Reading the
+  // header directly is deterministic and one-line simpler.
+  document.body.addEventListener('htmx:afterRequest', e => {
+    const trigger = e.detail?.xhr?.getResponseHeader('HX-Trigger');
+    if (!trigger) return;
+    let parsed;
+    try { parsed = JSON.parse(trigger); } catch { return; }
+    if (parsed['easywall:saved']) show(parsed['easywall:saved'], 'success');
+    if (parsed['easywall:error']) show(parsed['easywall:error'], 'error');
+  });
+}
 
 /* ── Port / Custom rule editor ───────────────────────────────────────────── */
 function initRuleEditor() {
