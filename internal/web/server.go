@@ -169,6 +169,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/custom", s.handleCustomGET)
 		r.Post("/custom", s.handleCustomPOST)
+		r.Post("/custom/validate", s.handleCustomValidate)
 
 		r.Get("/options", s.handleOptionsGET)
 		r.Post("/options", s.handleOptionsPOST)
