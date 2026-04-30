@@ -5,32 +5,36 @@
   exclude: rootscrollgutter;
 }
 
-/* ── DaisyUI Themes ────────────────────────────────────────────────────── */
+/* ── DaisyUI Themes — "Aurora Operator" ────────────────────────────────
+   Palette philosophy: analogous colors only. Slate-blue chrome + cyan
+   primary accent harmonize (same color family) instead of fighting
+   like the previous navy+orange complementary pair. Rose is used for
+   error instead of red so it doesn't clash with the cyan accent. */
 @plugin "daisyui/theme" {
   name: "easywall-dark";
   default: true;
   prefersdark: true;
   color-scheme: dark;
-  --color-base-100: #090e1a;
-  --color-base-200: #0f1626;
-  --color-base-300: #162035;
-  --color-base-content: #d0ddf0;
-  --color-primary: #f97316;
-  --color-primary-content: #0a0f1c;
-  --color-secondary: #6b85a8;
-  --color-secondary-content: #d0ddf0;
-  --color-accent: #f97316;
-  --color-accent-content: #0a0f1c;
-  --color-neutral: #1d2a45;
-  --color-neutral-content: #d0ddf0;
+  --color-base-100: #0a0f1c;
+  --color-base-200: #111828;
+  --color-base-300: #1a2238;
+  --color-base-content: #e4ebf5;
+  --color-primary: #22d3ee;
+  --color-primary-content: #042a36;
+  --color-secondary: #64748b;
+  --color-secondary-content: #e4ebf5;
+  --color-accent: #2dd4bf;
+  --color-accent-content: #042a23;
+  --color-neutral: #243353;
+  --color-neutral-content: #e4ebf5;
   --color-info: #38bdf8;
-  --color-info-content: #062c3a;
-  --color-success: #22c55e;
-  --color-success-content: #052910;
-  --color-warning: #eab308;
-  --color-warning-content: #2a1c00;
-  --color-error: #ef4444;
-  --color-error-content: #2a0606;
+  --color-info-content: #042c3d;
+  --color-success: #10b981;
+  --color-success-content: #042916;
+  --color-warning: #f59e0b;
+  --color-warning-content: #2a1d04;
+  --color-error: #f43f5e;
+  --color-error-content: #2a0612;
   --radius-selector: 8px;
   --radius-field: 8px;
   --radius-box: 12px;
@@ -45,24 +49,24 @@
   name: "easywall-light";
   color-scheme: light;
   --color-base-100: #ffffff;
-  --color-base-200: #f0f4f8;
-  --color-base-300: #e4eaf2;
+  --color-base-200: #f1f5f9;
+  --color-base-300: #e2e8f0;
   --color-base-content: #0f172a;
-  --color-primary: #ea6c0a;
+  --color-primary: #0891b2;
   --color-primary-content: #ffffff;
   --color-secondary: #475569;
   --color-secondary-content: #ffffff;
-  --color-accent: #ea6c0a;
+  --color-accent: #0d9488;
   --color-accent-content: #ffffff;
   --color-neutral: #0f172a;
   --color-neutral-content: #ffffff;
   --color-info: #0284c7;
   --color-info-content: #ffffff;
-  --color-success: #16a34a;
+  --color-success: #059669;
   --color-success-content: #ffffff;
-  --color-warning: #ca8a04;
+  --color-warning: #d97706;
   --color-warning-content: #ffffff;
-  --color-error: #dc2626;
+  --color-error: #e11d48;
   --color-error-content: #ffffff;
   --radius-selector: 8px;
   --radius-field: 8px;
@@ -74,7 +78,10 @@
   --noise: 0;
 }
 
-/* ── Layout-specific Tokens (used by hand-rolled chrome only) ──────────── */
+/* ── Layout-specific Tokens — Aurora Operator palette ───────────────────
+   These tokens are used ONLY by the hand-rolled chrome (sidebar/topbar/
+   auth/status-dot/log-action/apply-icon). They mirror the DaisyUI theme
+   colors above so the whole app feels cohesive. */
 :root {
   --font-sans:    'Outfit', 'Helvetica Neue', sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
@@ -82,49 +89,50 @@
   --radius-lg:    12px;
   --sidebar-w:    240px;
 
-  --bg:           #090e1a;
-  --surface:      #0f1626;
-  --surface-2:    #162035;
-  --surface-3:    #1d2a45;
-  --border:       #253555;
-  --border-muted: #1a2840;
-  --text:         #d0ddf0;
-  --text-muted:   #6b85a8;
-  --text-subtle:  #4d6280;
-  --accent:       #f97316;
-  --accent-dim:   rgba(249,115,22,0.12);
-  --accent-hover: rgba(249,115,22,0.20);
-  --success:      #22c55e;
-  --success-dim:  rgba(34,197,94,0.12);
-  --warning:      #eab308;
-  --warning-dim:  rgba(234,179,8,0.12);
-  --danger:       #ef4444;
-  --danger-dim:   rgba(239,68,68,0.12);
+  /* Dark theme defaults (matches easywall-dark above) */
+  --bg:           #0a0f1c;
+  --surface:      #111828;
+  --surface-2:    #1a2238;
+  --surface-3:    #243353;
+  --border:       #2d3b5a;
+  --border-muted: #1a2238;
+  --text:         #e4ebf5;
+  --text-muted:   #8595b0;
+  --text-subtle:  #5a6b85;
+  --accent:       #22d3ee;
+  --accent-dim:   rgba(34,211,238,0.10);
+  --accent-hover: rgba(34,211,238,0.18);
+  --success:      #10b981;
+  --success-dim:  rgba(16,185,129,0.12);
+  --warning:      #f59e0b;
+  --warning-dim:  rgba(245,158,11,0.12);
+  --danger:       #f43f5e;
+  --danger-dim:   rgba(244,63,94,0.12);
   --shadow:       0 2px 12px rgba(0,0,0,0.6);
   --shadow-sm:    0 1px 4px rgba(0,0,0,0.4);
 }
 
 [data-theme="easywall-light"] {
-  --bg:           #f0f4f8;
+  --bg:           #f8fafc;
   --surface:      #ffffff;
-  --surface-2:    #f0f4f8;
-  --surface-3:    #e4eaf2;
+  --surface-2:    #f1f5f9;
+  --surface-3:    #e2e8f0;
   --border:       #cbd5e1;
   --border-muted: #e2e8f0;
   --text:         #0f172a;
   --text-muted:   #475569;
   --text-subtle:  #94a3b8;
-  --accent:       #ea6c0a;
-  --accent-dim:   rgba(234,108,10,0.10);
-  --accent-hover: rgba(234,108,10,0.16);
-  --success:      #16a34a;
-  --success-dim:  rgba(22,163,74,0.10);
-  --warning:      #ca8a04;
-  --warning-dim:  rgba(202,138,4,0.10);
-  --danger:       #dc2626;
-  --danger-dim:   rgba(220,38,38,0.10);
-  --shadow:       0 2px 8px rgba(0,0,0,0.12);
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.08);
+  --accent:       #0891b2;
+  --accent-dim:   rgba(8,145,178,0.10);
+  --accent-hover: rgba(8,145,178,0.18);
+  --success:      #059669;
+  --success-dim:  rgba(5,150,105,0.10);
+  --warning:      #d97706;
+  --warning-dim:  rgba(217,119,6,0.12);
+  --danger:       #e11d48;
+  --danger-dim:   rgba(225,29,72,0.10);
+  --shadow:       0 2px 8px rgba(0,0,0,0.08);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.06);
 }
 
 /* ── Body / Fonts (DaisyUI base-100 already sets bg + color) ──────────── */
@@ -232,7 +240,7 @@ html, body {
     height: 28px;
     background: var(--accent-dim);
     color: var(--accent);
-    border: 1px solid rgba(249,115,22,0.25);
+    border: 1px solid rgba(34,211,238,0.30);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -243,7 +251,7 @@ html, body {
   }
 
   [data-theme="easywall-light"] .user-avatar {
-    border-color: rgba(234,108,10,0.25);
+    border-color: rgba(8,145,178,0.30);
   }
 
   .content {
@@ -283,13 +291,13 @@ html, body {
     color: var(--accent);
     padding: 1px 5px;
     border-radius: 3px;
-    border: 1px solid rgba(249,115,22,0.2);
+    border: 1px solid rgba(34,211,238,0.25);
     margin-left: auto;
     letter-spacing: 0.5px;
   }
 
   [data-theme="easywall-light"] .brand-version {
-    border-color: rgba(234,108,10,0.2);
+    border-color: rgba(8,145,178,0.25);
   }
 
   /* === Sidebar Navigation === */
@@ -666,43 +674,49 @@ html, body {
 
   .log-action-rules_saved,
   .log-action-rules_applied {
-    background: rgba(34,197,94,0.10);
+    background: var(--success-dim);
     color: var(--success);
-    border-color: rgba(34,197,94,0.2);
+    border-color: rgba(16,185,129,0.25);
   }
 
+  /* options/settings/system saved — sky tone (info family) */
   .log-action-options_saved,
   .log-action-settings_saved,
   .log-action-system_saved {
-    background: rgba(59,130,246,0.10);
-    color: #60a5fa;
-    border-color: rgba(59,130,246,0.2);
+    background: rgba(56,189,248,0.10);
+    color: #38bdf8;
+    border-color: rgba(56,189,248,0.25);
   }
 
   [data-theme="easywall-light"] .log-action-options_saved,
   [data-theme="easywall-light"] .log-action-settings_saved,
   [data-theme="easywall-light"] .log-action-system_saved {
-    color: #2563eb;
-    background: rgba(37,99,235,0.08);
-    border-color: rgba(37,99,235,0.2);
+    color: #0284c7;
+    background: rgba(2,132,199,0.08);
+    border-color: rgba(2,132,199,0.20);
   }
 
+  /* imports — indigo tone (distinct from cyan primary) */
   .log-action-rules_imported {
-    background: rgba(168,85,247,0.10);
-    color: #c084fc;
-    border-color: rgba(168,85,247,0.2);
+    background: rgba(129,140,248,0.10);
+    color: #a5b4fc;
+    border-color: rgba(129,140,248,0.25);
   }
 
   [data-theme="easywall-light"] .log-action-rules_imported {
-    color: #9333ea;
-    background: rgba(147,51,234,0.08);
-    border-color: rgba(147,51,234,0.2);
+    color: #4f46e5;
+    background: rgba(79,70,229,0.08);
+    border-color: rgba(79,70,229,0.20);
   }
 
   .log-action-rules_rolled_back {
     background: var(--danger-dim);
     color: var(--danger);
-    border-color: rgba(239,68,68,0.2);
+    border-color: rgba(244,63,94,0.25);
+  }
+
+  [data-theme="easywall-light"] .log-action-rules_rolled_back {
+    border-color: rgba(225,29,72,0.25);
   }
 
   .log-detail {
