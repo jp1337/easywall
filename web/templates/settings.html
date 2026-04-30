@@ -19,7 +19,10 @@
     {{end}}
 
     {{$ns := .Settings}}
-    <form method="POST" action="/settings">
+    <form method="POST" action="/settings"
+          hx-post="/settings"
+          hx-trigger="change delay:200ms"
+          hx-swap="none">
 
       <div class="card bg-base-200 border border-base-300 shadow-sm mb-4">
         <div class="card-body">

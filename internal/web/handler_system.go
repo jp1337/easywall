@@ -35,8 +35,7 @@ func (s *Server) handleSystemPOST(w http.ResponseWriter, r *http.Request) {
 
 	dur, err := strconv.Atoi(r.FormValue("acceptance_duration"))
 	if err != nil || dur <= 0 {
-		s.setFlash(w, r, "system_invalid_duration")
-		http.Redirect(w, r, "/system", http.StatusSeeOther)
+		s.respondPartialError(w, r, "/system", "system_invalid_duration")
 		return
 	}
 
@@ -49,8 +48,9 @@ func (s *Server) handleSystemPOST(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.client.SaveSystem(settings); err != nil {
 		slog.Warn("could not save system settings", "error", err)
+		s.respondPartialError(w, r, "/system", "save_error")
+		return
 	}
 
-	s.setFlash(w, r, "system_saved")
-	http.Redirect(w, r, "/system", http.StatusSeeOther)
+	s.respondPartialSave(w, r, "/system", "system_saved")
 }

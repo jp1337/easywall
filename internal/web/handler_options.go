@@ -25,8 +25,7 @@ func (s *Server) handleOptionsGET(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		s.setFlash(w, r, "save_error")
-		http.Redirect(w, r, "/options", http.StatusSeeOther)
+		s.respondPartialError(w, r, "/options", "save_error")
 		return
 	}
 
@@ -78,11 +77,9 @@ func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.client.SaveOptions(opts); err != nil {
 		slog.Warn("save options error", "error", err)
-		s.setFlash(w, r, "save_error")
-		http.Redirect(w, r, "/options", http.StatusSeeOther)
+		s.respondPartialError(w, r, "/options", "save_error")
 		return
 	}
 
-	s.setFlash(w, r, "options_saved")
-	http.Redirect(w, r, "/options", http.StatusSeeOther)
+	s.respondPartialSave(w, r, "/options", "options_saved")
 }

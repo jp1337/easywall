@@ -29,8 +29,7 @@ func (s *Server) handleSettingsGET(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		s.setFlash(w, r, "save_error")
-		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		s.respondPartialError(w, r, "/settings", "save_error")
 		return
 	}
 
@@ -49,11 +48,9 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.client.SaveSettings(ns); err != nil {
 		slog.Warn("save settings error", "error", err)
-		s.setFlash(w, r, "save_error")
-		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		s.respondPartialError(w, r, "/settings", "save_error")
 		return
 	}
 
-	s.setFlash(w, r, "settings_saved")
-	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+	s.respondPartialSave(w, r, "/settings", "settings_saved")
 }
