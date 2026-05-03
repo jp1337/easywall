@@ -156,9 +156,11 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_TOKEN }}
 
-      # Push each registry's manifest separately. GHCR always runs; the
-      # other two run only when their token secret is configured. Pushes
-      # happen in parallel — each registry is independent.
+      # Push each registry's manifest separately. GHCR is the canonical
+      # source of truth and must succeed; Docker Hub is a desired mirror;
+      # Quay is a "best-effort" mirror — if it fails (e.g. robot account
+      # lacks repo-create permission), we log a GitHub warning and let
+      # the workflow continue so the demo deploy still rolls forward.
       - name: Push manifests
         working-directory: /tmp/digests
         run: |
@@ -176,15 +178,23 @@ jobs:
               $(printf 'ghcr.io/jp1337/easywall@sha256:%s ' *)
           }
 
-          push_to "ghcr.io"      & PID_GHCR=$!
-          if [[ -n "${DOCKERHUB_TOKEN:-}" ]]; then push_to "docker.io" & PID_DH=$!;   fi
-          if [[ -n "${QUAY_TOKEN:-}" ]];      then push_to "quay.io"   & PID_QUAY=$!; fi
+          # GHCR — must succeed
+          push_to "ghcr.io"
 
-          CODE=0
-          wait $PID_GHCR || CODE=$?
-          [[ -n "${PID_DH:-}"   ]] && { wait $PID_DH   || CODE=$((CODE + $?)); }
-          [[ -n "${PID_QUAY:-}" ]] && { wait $PID_QUAY || CODE=$((CODE + $?)); }
-          exit $CODE
+          # Docker Hub — must succeed if token is configured
+          if [[ -n "${DOCKERHUB_TOKEN:-}" ]]; then
+            push_to "docker.io"
+          fi
+
+          # Quay — best-effort. Robot accounts with limited permissions
+          # sometimes 401 on the manifest HEAD before push. Don't block
+          # the demo deploy on this; surface as a workflow warning so the
+          # operator can fix it and rerun without losing this build.
+          if [[ -n "${QUAY_TOKEN:-}" ]]; then
+            if ! push_to "quay.io"; then
+              echo "::warning title=Quay push failed::Manifest push to quay.io did not succeed. GHCR and Docker Hub are up to date; the demo will still update. Fix the robot account permissions on quay.io and rerun if you need quay.io in sync. See docs/installation/docker.md for the registry list."
+            fi
+          fi
 
       - name: Inspect published image
         run: docker buildx imagetools inspect ghcr.io/jp1337/easywall:edge
