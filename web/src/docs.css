@@ -1,0 +1,781 @@
+/* ── easywall documentation site stylesheet ────────────────────────────
+   Mirrors the app's stack (Tailwind v4 + DaisyUI 5.5) and theme so the
+   docs feel like a natural extension of the firewall UI.
+   Compiled with: npx @tailwindcss/cli -i web/src/docs.css -o docs/assets/css/style.css --minify */
+
+@import "tailwindcss";
+
+/* Tailwind v4 scans for utility classes. Restrict the source set to docs
+   files so we don't pull in app-template patterns (and vice versa). */
+@source "../../docs/**/*.{html,md}";
+
+@plugin "daisyui" {
+  themes: easywall-dark --default --prefersdark, easywall-light;
+  root: ":root";
+  exclude: rootscrollgutter;
+}
+
+/* ── DaisyUI Themes — identical palette to the app ───────────────────── */
+@plugin "daisyui/theme" {
+  name: "easywall-dark";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #0a0f1c;
+  --color-base-200: #111828;
+  --color-base-300: #1a2238;
+  --color-base-content: #e4ebf5;
+  --color-primary: #22d3ee;
+  --color-primary-content: #042a36;
+  --color-secondary: #64748b;
+  --color-secondary-content: #e4ebf5;
+  --color-accent: #2dd4bf;
+  --color-accent-content: #042a23;
+  --color-neutral: #243353;
+  --color-neutral-content: #e4ebf5;
+  --color-info: #38bdf8;
+  --color-info-content: #042c3d;
+  --color-success: #10b981;
+  --color-success-content: #042916;
+  --color-warning: #f59e0b;
+  --color-warning-content: #2a1d04;
+  --color-error: #f43f5e;
+  --color-error-content: #2a0612;
+  --radius-selector: 8px;
+  --radius-field: 8px;
+  --radius-box: 12px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "easywall-light";
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f1f5f9;
+  --color-base-300: #e2e8f0;
+  --color-base-content: #0f172a;
+  --color-primary: #0891b2;
+  --color-primary-content: #ffffff;
+  --color-secondary: #475569;
+  --color-secondary-content: #ffffff;
+  --color-accent: #0d9488;
+  --color-accent-content: #ffffff;
+  --color-neutral: #0f172a;
+  --color-neutral-content: #ffffff;
+  --color-info: #0284c7;
+  --color-info-content: #ffffff;
+  --color-success: #059669;
+  --color-success-content: #ffffff;
+  --color-warning: #d97706;
+  --color-warning-content: #ffffff;
+  --color-error: #e11d48;
+  --color-error-content: #ffffff;
+  --radius-selector: 8px;
+  --radius-field: 8px;
+  --radius-box: 12px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* ── Layout-specific tokens used by hand-rolled chrome ───────────────── */
+:root {
+  --font-sans:    'Outfit', 'Helvetica Neue', sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --sidebar-w:    260px;
+
+  --bg:           #0a0f1c;
+  --surface:      #111828;
+  --surface-2:    #1a2238;
+  --surface-3:    #243353;
+  --border:       #2d3b5a;
+  --border-muted: #1a2238;
+  --text:         #e4ebf5;
+  --text-muted:   #8595b0;
+  --text-subtle:  #5a6b85;
+  --accent:       #22d3ee;
+  --accent-dim:   rgba(34,211,238,0.10);
+  --accent-hover: rgba(34,211,238,0.18);
+}
+
+[data-theme="easywall-light"] {
+  --bg:           #f8fafc;
+  --surface:      #ffffff;
+  --surface-2:    #f1f5f9;
+  --surface-3:    #e2e8f0;
+  --border:       #cbd5e1;
+  --border-muted: #e2e8f0;
+  --text:         #0f172a;
+  --text-muted:   #475569;
+  --text-subtle:  #94a3b8;
+  --accent:       #0891b2;
+  --accent-dim:   rgba(8,145,178,0.10);
+  --accent-hover: rgba(8,145,178,0.18);
+}
+
+/* ── Body / Fonts ────────────────────────────────────────────────────── */
+html, body {
+  font-family: var(--font-sans);
+  font-size: 15.5px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Layout chrome (sidebar / topbar / content) ──────────────────────── */
+@layer components {
+
+  /* The sidebar is position:fixed (removed from flow), so the layout
+     wrapper is a plain block — using display:flex here makes .content
+     compute width against the full parent and overflow horizontally. */
+  .layout {
+    min-height: 100vh;
+  }
+
+  /* === Mobile topbar (hidden on desktop) === */
+  .topbar {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    padding: 0 1rem;
+    gap: 0.75rem;
+    z-index: 200;
+    backdrop-filter: blur(8px);
+  }
+
+  .topbar-logo {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--text);
+    text-decoration: none;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .topbar-logo:hover { color: var(--accent); }
+
+  .topbar-github {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .topbar-github:hover { color: var(--accent); }
+
+  .sidebar-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.375rem;
+    color: var(--text);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sidebar-toggle:hover { background: var(--surface-2); }
+
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 150;
+    backdrop-filter: blur(2px);
+  }
+  .sidebar-backdrop.visible { display: block; }
+
+  /* === Sidebar === */
+  .sidebar {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 1.25rem 1rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.4px;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .sidebar-logo:hover { color: var(--accent); }
+
+  .sidebar-github {
+    color: var(--text-muted);
+    padding: 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .sidebar-github:hover {
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 0.75rem 0.5rem;
+    overflow-y: auto;
+  }
+
+  .nav-group-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-subtle);
+    padding: 0.875rem 0.75rem 0.375rem;
+  }
+
+  .nav-section, .nav-section-single {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .nav-link:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .nav-link.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .nav-sub {
+    padding-left: 0.875rem;
+  }
+
+  .sidebar-footer {
+    padding: 0.75rem 0.875rem 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    transition: all 0.15s;
+  }
+
+  .theme-toggle:hover {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  .icon-sun, .icon-moon {
+    flex-shrink: 0;
+  }
+  [data-theme="easywall-dark"] .icon-sun { display: block; }
+  [data-theme="easywall-dark"] .icon-moon { display: none; }
+  [data-theme="easywall-light"] .icon-sun { display: none; }
+  [data-theme="easywall-light"] .icon-moon { display: block; }
+  .theme-label { font-weight: 500; }
+
+  .sidebar-version {
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(34,211,238,0.25);
+    letter-spacing: 0.5px;
+  }
+
+  [data-theme="easywall-light"] .sidebar-version {
+    border-color: rgba(8,145,178,0.25);
+  }
+
+  /* === Content === */
+  .content {
+    margin-left: var(--sidebar-w);
+    min-height: 100vh;
+    padding: 3rem clamp(1.25rem, 5vw, 4rem) 3rem;
+    animation: fade-in 0.25s ease;
+  }
+
+  .content-body {
+    max-width: 880px;
+    margin: 0 auto;
+  }
+
+  .page-footer {
+    max-width: 880px;
+    margin: 4rem auto 0;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-muted);
+    font-size: 0.78rem;
+    color: var(--text-subtle);
+    text-align: center;
+  }
+
+  .page-footer a {
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .page-footer a:hover { color: var(--accent); }
+
+  /* === Hero (homepage) === */
+  .docs-hero {
+    margin-bottom: 3rem;
+    padding: 2rem 0 0.5rem;
+  }
+
+  .docs-hero-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .docs-hero-brand img {
+    width: 56px;
+    height: 56px;
+  }
+
+  .docs-hero-brand-text h1 {
+    font-size: 2.5rem;
+    font-weight: 600;
+    letter-spacing: -1.2px;
+    line-height: 1.1;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .tagline {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  .docs-hero-desc {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    max-width: 720px;
+    margin-bottom: 1.75rem;
+  }
+
+  .docs-hero-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* The buttons inside .docs-hero-buttons are styled by DaisyUI directly
+     (.btn, .btn-primary, .btn-soft). We add only minor sizing tweaks
+     and prevent the prose-link underline-on-hover from leaking through. */
+  .docs-hero-buttons .btn {
+    text-decoration: none;
+    border-bottom: none;
+  }
+  .docs-hero-buttons .btn:hover {
+    border-bottom: none;
+  }
+
+  /* === Feature cards grid === */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0 2.5rem;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border-muted);
+    border-radius: 10px;
+    padding: 1.25rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .feature-card .fc-icon {
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .feature-card h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin: 0 0 0.4rem;
+    color: var(--text);
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  .feature-card p {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  /* === Callouts (mapped to DaisyUI alert visual language) === */
+  .callout {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 1rem 1.1rem;
+    margin: 1.5rem 0;
+    border-radius: 10px;
+    border: 1px solid;
+    border-left-width: 4px;
+    line-height: 1.6;
+  }
+
+  .callout-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+  }
+
+  .callout-content { flex: 1; }
+  .callout-content strong { display: block; margin-bottom: 0.25rem; font-size: 0.85rem; }
+  .callout-content p { margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+  .callout-content p + p { margin-top: 0.4rem; }
+  .callout-content code { font-size: 0.8rem; }
+
+  .callout-info {
+    background: rgba(56,189,248,0.08);
+    border-color: rgba(56,189,248,0.25);
+    color: #38bdf8;
+  }
+
+  [data-theme="easywall-light"] .callout-info {
+    background: rgba(2,132,199,0.06);
+    border-color: rgba(2,132,199,0.30);
+    color: #0284c7;
+  }
+
+  .callout-warning {
+    background: rgba(245,158,11,0.08);
+    border-color: rgba(245,158,11,0.30);
+    color: #f59e0b;
+  }
+
+  [data-theme="easywall-light"] .callout-warning {
+    background: rgba(217,119,6,0.06);
+    border-color: rgba(217,119,6,0.30);
+    color: #d97706;
+  }
+
+  .callout-success {
+    background: rgba(16,185,129,0.08);
+    border-color: rgba(16,185,129,0.25);
+    color: #10b981;
+  }
+
+  [data-theme="easywall-light"] .callout-success {
+    background: rgba(5,150,105,0.06);
+    border-color: rgba(5,150,105,0.30);
+    color: #059669;
+  }
+
+  /* === Scroll wrapper for tables / pre on mobile === */
+  .scroll-wrapper {
+    overflow-x: auto;
+    margin: 1.25rem 0;
+    border-radius: 8px;
+  }
+
+  .scroll-wrapper table,
+  .scroll-wrapper pre {
+    margin: 0;
+  }
+
+  /* === Mermaid container === */
+  .mermaid {
+    display: block;
+    text-align: center;
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border-muted);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+
+}
+
+/* ── Prose / Markdown rendering (outside @layer for higher specificity) ── */
+
+.content-body h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+  margin: 0 0 1.5rem;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.content-body h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  margin: 2.25rem 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-muted);
+  color: var(--text);
+}
+
+.content-body h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--text);
+}
+
+.content-body h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.4rem;
+  color: var(--text);
+}
+
+.content-body p {
+  margin: 0 0 1rem;
+  color: var(--text);
+}
+
+/* Apply prose link styling to all anchors EXCEPT DaisyUI buttons —
+   otherwise the color: var(--accent) here clobbers the button's own
+   text color (which is set via DaisyUI's --btn-fg → primary-content). */
+.content-body a:not(.btn):not(.docs-hero-brand):not(.feature-card) {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+
+.content-body a:not(.btn):not(.docs-hero-brand):not(.feature-card):hover {
+  border-bottom-color: var(--accent);
+}
+
+.content-body strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.content-body em {
+  color: var(--text-muted);
+}
+
+.content-body ul,
+.content-body ol {
+  margin: 0 0 1rem;
+  padding-left: 1.5rem;
+}
+
+.content-body li {
+  margin-bottom: 0.4rem;
+}
+
+.content-body li > p {
+  margin-bottom: 0.4rem;
+}
+
+.content-body hr {
+  border: none;
+  border-top: 1px solid var(--border-muted);
+  margin: 2rem 0;
+}
+
+.content-body blockquote {
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-dim);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Inline code */
+.content-body code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface-2);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-muted);
+}
+
+[data-theme="easywall-light"] .content-body code {
+  background: var(--surface-2);
+}
+
+/* Code blocks */
+.content-body pre {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  background: var(--surface);
+  border: 1px solid var(--border-muted);
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  color: var(--text);
+}
+
+.content-body pre code {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+}
+
+.content-body pre.highlight,
+.content-body div.highlight {
+  background: var(--surface);
+  border: 1px solid var(--border-muted);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+/* Rouge syntax highlighting — minimal token theme */
+.highlight .c, .highlight .c1, .highlight .cm { color: var(--text-subtle); font-style: italic; }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: #c084fc; font-weight: 500; }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb { color: #10b981; }
+.highlight .n, .highlight .nx, .highlight .nv { color: var(--text); }
+.highlight .nf, .highlight .nc { color: var(--accent); }
+.highlight .nb, .highlight .bp { color: #38bdf8; }
+.highlight .o, .highlight .ow { color: var(--text-muted); }
+.highlight .mi, .highlight .mf, .highlight .il { color: #f59e0b; }
+.highlight .err { color: #f43f5e; }
+
+[data-theme="easywall-light"] .highlight .k, [data-theme="easywall-light"] .highlight .kd { color: #7c3aed; }
+[data-theme="easywall-light"] .highlight .s, [data-theme="easywall-light"] .highlight .s1, [data-theme="easywall-light"] .highlight .s2 { color: #059669; }
+[data-theme="easywall-light"] .highlight .nb { color: #0284c7; }
+[data-theme="easywall-light"] .highlight .mi { color: #d97706; }
+[data-theme="easywall-light"] .highlight .err { color: #e11d48; }
+
+/* Tables */
+.content-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin: 1rem 0;
+}
+
+.content-body th,
+.content-body td {
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-muted);
+}
+
+.content-body th {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: var(--surface);
+}
+
+.content-body tbody tr:hover {
+  background: var(--surface-2);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .topbar { display: flex; }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .content {
+    margin-left: 0;
+    padding-top: 4.5rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .sidebar-toggle, .sidebar-backdrop { display: none !important; }
+}

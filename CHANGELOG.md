@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Documentation site (jp1337.github.io/easywall) now uses **the same stack as the app**: Tailwind CSS v4 + DaisyUI 5.5 with the same Aurora Operator palette, Outfit + JetBrains Mono fonts, and `easywall-dark`/`easywall-light` theme tokens shared with the running web UI. Previous 693-line hand-rolled stylesheet replaced by `web/src/docs.css` compiled to `docs/assets/css/style.css` via `make docs-css`. The old IBM Plex typography is gone; the docs feel like a natural extension of the firewall UI
 - **Demo mode** — set `demo_mode = true` in `web.toml` and `easywall-web` runs against an in-memory mock instead of the Unix socket. No `easywall-core` process, no root privileges, no nftables dependency. The state machine seeds itself with realistic example data and supports every page (rules, options, settings, system, audit log, apply/accept/rollback). Designed for hosting a public demo so visitors can explore the UI without affecting a real firewall. State resets when the process restarts. A topbar banner makes the demo status visible on every page
 
 ## [2.3.0] - 2026-05-03

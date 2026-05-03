@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
   <script>
-    (function(){
-      var t=localStorage.getItem('ew-theme');
-      if(!t){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}
-      document.documentElement.setAttribute('data-theme',t);
+    // Theme init script — must run before paint to prevent FOUC.
+    // Uses the same localStorage key + 'easywall-' prefix as the app so a
+    // visitor's preference carries between docs.jp1337.io and the running
+    // app (when both are on the same origin).
+    (function () {
+      var t = localStorage.getItem('theme');
+      if (t === 'dark' || t === 'light') t = 'easywall-' + t;
+      if (!t) {
+        t = window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'easywall-dark' : 'easywall-light';
+      }
+      document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
   <meta charset="UTF-8">
@@ -14,8 +22,8 @@
   <meta name="description" content="{% if page.description %}{{ page.description }}{% else %}{{ site.description }}{% endif %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}?v=2">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}?v=3">
   <link rel="icon" type="image/svg+xml" href="{{ '/assets/img/icon.svg' | relative_url }}">
   {% seo %}
 </head>
@@ -24,20 +32,17 @@
   <!-- ── Mobile topbar ────────────────────────────────────────────── -->
   <header class="topbar">
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle navigation" aria-expanded="false">
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-        <rect y="2" width="18" height="2" rx="1" fill="currentColor"/>
-        <rect y="8" width="18" height="2" rx="1" fill="currentColor"/>
-        <rect y="14" width="18" height="2" rx="1" fill="currentColor"/>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
       </svg>
     </button>
     <a href="{{ '/' | relative_url }}" class="topbar-logo">
-      <img src="{{ '/assets/img/icon.svg' | relative_url }}" width="20" height="20" alt="">
+      <img src="{{ '/assets/img/icon.svg' | relative_url }}" width="22" height="22" alt="">
       easywall
     </a>
     <a href="https://github.com/jp1337/easywall" class="topbar-github" target="_blank" rel="noopener">GitHub ↗</a>
   </header>
 
-  <!-- ── Sidebar backdrop (mobile) ────────────────────────────────── -->
   <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <div class="layout">
@@ -46,11 +51,11 @@
     <nav class="sidebar" id="sidebar" aria-label="Documentation navigation">
       <div class="sidebar-header">
         <a href="{{ '/' | relative_url }}" class="sidebar-logo">
-          <img src="{{ '/assets/img/icon.svg' | relative_url }}" width="24" height="24" alt="">
+          <img src="{{ '/assets/img/icon.svg' | relative_url }}" width="26" height="26" alt="">
           easywall
         </a>
-        <a href="https://github.com/jp1337/easywall" class="sidebar-github" target="_blank" rel="noopener" title="GitHub">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <a href="https://github.com/jp1337/easywall" class="sidebar-github" target="_blank" rel="noopener" title="GitHub" aria-label="GitHub repository">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
           </svg>
         </a>
@@ -74,16 +79,16 @@
       </div>
 
       <div class="sidebar-footer">
-        <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle light/dark theme">
-          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle light/dark theme" type="button">
+          <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
           </svg>
-          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
           </svg>
-          <span class="theme-label">Toggle theme</span>
+          <span class="theme-label">Theme</span>
         </button>
-        <span class="sidebar-version">v2.0</span>
+        <span class="sidebar-version">v2.3</span>
       </div>
     </nav>
 
@@ -102,69 +107,78 @@
 
   <script>
     // Mobile sidebar toggle
-    (function(){
-      var toggle=document.getElementById('sidebar-toggle');
-      var sidebar=document.getElementById('sidebar');
-      var backdrop=document.getElementById('sidebar-backdrop');
-      function open(){sidebar.classList.add('open');backdrop.classList.add('visible');toggle.setAttribute('aria-expanded','true');document.body.style.overflow='hidden';}
-      function close(){sidebar.classList.remove('open');backdrop.classList.remove('visible');toggle.setAttribute('aria-expanded','false');document.body.style.overflow='';}
-      toggle.addEventListener('click',function(){sidebar.classList.contains('open')?close():open();});
-      backdrop.addEventListener('click',close);
-      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&sidebar.classList.contains('open'))close();});
+    (function () {
+      var toggle = document.getElementById('sidebar-toggle');
+      var sidebar = document.getElementById('sidebar');
+      var backdrop = document.getElementById('sidebar-backdrop');
+      if (!toggle || !sidebar || !backdrop) return;
+      function open()  { sidebar.classList.add('open'); backdrop.classList.add('visible'); toggle.setAttribute('aria-expanded', 'true'); document.body.style.overflow = 'hidden'; }
+      function close() { sidebar.classList.remove('open'); backdrop.classList.remove('visible'); toggle.setAttribute('aria-expanded', 'false'); document.body.style.overflow = ''; }
+      toggle.addEventListener('click', function () { sidebar.classList.contains('open') ? close() : open(); });
+      backdrop.addEventListener('click', close);
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sidebar.classList.contains('open')) close(); });
     })();
 
-    // Theme toggle
-    (function(){
-      var btn=document.getElementById('theme-toggle');
-      btn.addEventListener('click',function(){
-        var cur=document.documentElement.getAttribute('data-theme');
-        var next=cur==='dark'?'light':'dark';
-        document.documentElement.setAttribute('data-theme',next);
-        localStorage.setItem('ew-theme',next);
+    // Theme toggle — stays in sync with the app's localStorage convention.
+    (function () {
+      var btn = document.getElementById('theme-toggle');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var cur = document.documentElement.getAttribute('data-theme');
+        var next = cur === 'easywall-dark' ? 'easywall-light' : 'easywall-dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
       });
     })();
 
-    // Wrap tables and pre blocks for horizontal scroll on mobile
-    (function(){
-      var body=document.querySelector('.content-body');
-      if(!body)return;
-      body.querySelectorAll('table,pre').forEach(function(el){
-        if(el.querySelector('.mermaid')||el.classList.contains('mermaid'))return;
-        var w=document.createElement('div');
-        w.className='scroll-wrapper';
-        el.parentNode.insertBefore(w,el);
+    // Wrap tables and pre blocks in horizontal scroll containers on mobile.
+    (function () {
+      var body = document.querySelector('.content-body');
+      if (!body) return;
+      body.querySelectorAll('table, pre').forEach(function (el) {
+        if (el.querySelector('.mermaid') || el.classList.contains('mermaid')) return;
+        if (el.parentNode.classList.contains('scroll-wrapper') || el.parentNode.classList.contains('highlight')) return;
+        var w = document.createElement('div');
+        w.className = 'scroll-wrapper';
+        el.parentNode.insertBefore(w, el);
         w.appendChild(el);
       });
     })();
 
-    // Mermaid
-    (function(){
-      var theme=document.documentElement.getAttribute('data-theme')==='light'?'default':'dark';
-      window.mermaid_theme=theme;
+    // Mermaid theme handoff
+    (function () {
+      var theme = document.documentElement.getAttribute('data-theme') === 'easywall-light' ? 'default' : 'dark';
+      window.mermaid_theme = theme;
     })();
   </script>
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    var theme=window.mermaid_theme||'dark';
+    var theme = window.mermaid_theme || 'dark';
     mermaid.initialize({
-      startOnLoad:true,
-      theme:theme,
-      themeVariables: theme==='dark' ? {
-        primaryColor:'#111a2e',
-        primaryTextColor:'#d8e8f8',
-        primaryBorderColor:'#253d5e',
-        lineColor:'#8ab4d4',
-        secondaryColor:'#172138',
-        tertiaryColor:'#0f1828',
-        noteBkgColor:'#172138',
-        noteTextColor:'#d8e8f8',
-        fontFamily:'IBM Plex Sans, sans-serif'
+      startOnLoad: true,
+      theme: theme,
+      themeVariables: theme === 'dark' ? {
+        // Aurora dark — matches the app's slate-blue + cyan palette
+        primaryColor:       '#111828',
+        primaryTextColor:   '#e4ebf5',
+        primaryBorderColor: '#2d3b5a',
+        lineColor:          '#22d3ee',
+        secondaryColor:     '#1a2238',
+        tertiaryColor:      '#0a0f1c',
+        noteBkgColor:       '#1a2238',
+        noteTextColor:      '#e4ebf5',
+        fontFamily:         'Outfit, sans-serif'
       } : {
-        primaryColor:'#e8f1fb',
-        primaryTextColor:'#0a1628',
-        primaryBorderColor:'#b8cfe8',
-        lineColor:'#466080',
-        fontFamily:'IBM Plex Sans, sans-serif'
+        // Aurora light
+        primaryColor:       '#ffffff',
+        primaryTextColor:   '#0f172a',
+        primaryBorderColor: '#cbd5e1',
+        lineColor:          '#0891b2',
+        secondaryColor:     '#f1f5f9',
+        tertiaryColor:      '#ffffff',
+        noteBkgColor:       '#f1f5f9',
+        noteTextColor:      '#0f172a',
+        fontFamily:         'Outfit, sans-serif'
       }
     });
   </script>
