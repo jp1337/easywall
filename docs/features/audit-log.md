@@ -20,7 +20,19 @@ Navigate to **Audit Log** in the sidebar. The table displays entries newest-firs
 | Detail | The specific value involved — a port number, an IP address, a CIDR, or a short description |
 | User | The web UI username that triggered the action |
 
-The table is static — there is no live-refresh. Reload the page to see events that occurred after you opened it.
+The table itself is static — there is no live-refresh, so reload the page to see events that occurred after you opened it. Within the loaded page, however, you can narrow down quickly with the search box (see below).
+
+## Filtering Entries
+
+Above the table is a search input labelled *Filter by action, detail, user…*. Typing in this box filters the rows live: with each keystroke (debounced at ~300 ms), the page sends the query to `GET /log/filter?q=…` and replaces only the table body with the matching rows. The match is case-insensitive substring across the **Action**, **Rule Type**, **Detail**, and **User** columns.
+
+Examples:
+
+- `alice` — show only events recorded for the user `alice`
+- `forwarding` — show only forwarding rule changes
+- `192.168` — show entries that mention the `192.168` IP range in the detail column
+
+Clear the input to see all entries again. The filter operates on the 200 entries returned by `/log` — to search older history, read `audit.log` on disk directly.
 
 ## Action Colour Coding
 

@@ -20,6 +20,8 @@ Traffic from blacklisted addresses is dropped immediately before reaching any po
 2001:db8::/32          # IPv6 CIDR range
 ```
 
+The editor performs **live syntax validation** as you type — invalid lines are reported by line number under the textarea before you save. Comments (lines starting with `#`) and blank lines are skipped silently.
+
 ### When to Use the Blacklist
 
 - Block a specific IP address that is scanning or attacking your server
@@ -50,6 +52,8 @@ Use this for trusted management addresses to ensure you are never locked out, ev
 10.0.0.0/24            # your internal management network
 2001:db8::1            # IPv6 management address
 ```
+
+The whitelist editor uses the same live IP/CIDR validation as the blacklist — you'll see a list of invalid lines under the textarea before saving.
 
 ### When to Use the Whitelist
 

@@ -65,10 +65,11 @@ How many seconds the core waits for confirmation before rolling back. Accepted r
 ## Saving Changes
 
 1. Navigate to **System Settings** in the sidebar
-2. Adjust the **Enabled** toggle and/or the **Duration** field
-3. Click **Save**
+2. Toggle **Enabled** or change the **Duration** field
 
-The new values are sent to the core over IPC and written to `easywall.toml`. The next apply operation will use the updated settings. There is no need to restart either the core or the web process.
+Changes are saved **automatically** as soon as you toggle the switch or change the duration. A small confirmation toast appears in the bottom-right corner ("System settings saved" / "Save failed") and the new values are sent to the core over IPC and written to `easywall.toml`. The next apply operation will use the updated settings. There is no need to restart either the core or the web process — and no need to click the explicit Save button (it remains as a fallback for when JavaScript is disabled).
+
+The same auto-save UX applies on the **Options** and **Network** pages: every toggle and numeric input persists on change, with the toast indicating success or failure.
 
 ## Configuration File Reference
 

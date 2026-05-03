@@ -164,6 +164,9 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/whitelist", s.handleWhitelistGET)
 		r.Post("/whitelist", s.handleWhitelistPOST)
 
+		// Shared HTMX validation endpoint for both blacklist and whitelist.
+		r.Post("/iplist/validate", s.handleIPListValidate)
+
 		r.Get("/forwarding", s.handleForwardingGET)
 		r.Post("/forwarding", s.handleForwardingPOST)
 
@@ -184,6 +187,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Post("/system", s.handleSystemPOST)
 
 		r.Get("/log", s.handleLog)
+		r.Get("/log/filter", s.handleLogFilter)
 
 		r.Get("/apply", s.handleApplyGET)
 		r.Post("/apply/start", s.handleApplyStart)
@@ -237,6 +241,30 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, name, pd); err != nil {
 		slog.Error("template render error", "template", name, "error", err)
+	}
+}
+
+// renderPartial executes a defined template block with raw data (no PageData
+// wrapper). Used for HTMX fragment endpoints — the response is just the
+// inner HTML the client will swap into the target. The per-request T func
+// is injected the same way render() does it.
+func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name string, data interface{}) {
+	if s.tmpl == nil {
+		http.Error(w, "templates missing", http.StatusServiceUnavailable)
+		return
+	}
+	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	tmpl, err := s.tmpl.Clone()
+	if err != nil {
+		slog.Error("template clone error", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	tmpl.Funcs(template.FuncMap{"T": tFunc})
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
+		slog.Error("partial render error", "template", name, "error", err)
 	}
 }
 
