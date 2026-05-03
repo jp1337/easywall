@@ -26,7 +26,7 @@ description: easywall — Linux firewall management with a web interface. Built 
 
   <div class="docs-hero-buttons">
     <a href="{{ '/installation/debian/' | relative_url }}" class="btn btn-primary btn-lg">Get Started</a>
-    <a href="{{ '/installation/demo/' | relative_url }}" class="btn btn-soft btn-lg">Try the demo</a>
+    <a href="https://easywall.wdkro.de" class="btn btn-soft btn-lg" target="_blank" rel="noopener">Live demo ↗</a>
     <a href="https://github.com/jp1337/easywall" class="btn btn-ghost btn-lg" target="_blank" rel="noopener">GitHub ↗</a>
   </div>
 
@@ -258,7 +258,10 @@ description: easywall — Linux firewall management with a web interface. Built 
   </p>
   <div class="docs-cta-buttons">
     <a href="{{ '/installation/requirements/' | relative_url }}" class="btn btn-primary btn-lg">Quickstart guide</a>
-    <a href="{{ '/installation/demo/' | relative_url }}" class="btn btn-soft btn-lg">Try the demo</a>
+    <a href="https://easywall.wdkro.de" class="btn btn-soft btn-lg" target="_blank" rel="noopener">Live demo ↗</a>
     <a href="{{ '/architecture/' | relative_url }}" class="btn btn-ghost btn-lg">Read the architecture →</a>
   </div>
+  <p class="docs-cta-credentials">
+    Demo credentials: <code>demo</code> / <code>demo</code> &nbsp;·&nbsp; resets every 6 hours
+  </p>
 </section>
