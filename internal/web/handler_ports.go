@@ -34,26 +34,32 @@ func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
-	ruleType := r.FormValue("type")
-	if ruleType != "udp" {
-		ruleType = "tcp"
+	// Pick the redirect from a fixed allow-list of two literal URLs so
+	// taint analysis can verify there is no open-redirect path. The
+	// branch on r.FormValue("type") is a value comparison, not used to
+	// construct the URL — gosec G710 won't flag this shape.
+	ruleType := "tcp"
+	redirect := "/ports?type=tcp"
+	if r.FormValue("type") == "udp" {
+		ruleType = "udp"
+		redirect = "/ports?type=udp"
 	}
 
 	rulesJSON := r.FormValue("rules")
 	var rules []shared.PortRule
 	if err := json.Unmarshal([]byte(rulesJSON), &rules); err != nil {
 		s.setFlash(w, r, "invalid_rules")
-		http.Redirect(w, r, "/ports?type="+ruleType, http.StatusSeeOther)
+		http.Redirect(w, r, redirect, http.StatusSeeOther)
 		return
 	}
 
 	if err := s.client.SaveRules(ruleType, rules); err != nil {
 		slog.Warn("save rules error", "type", ruleType, "error", err)
 		s.setFlash(w, r, "save_error")
-		http.Redirect(w, r, "/ports?type="+ruleType, http.StatusSeeOther)
+		http.Redirect(w, r, redirect, http.StatusSeeOther)
 		return
 	}
 
 	s.setFlash(w, r, "saved")
-	http.Redirect(w, r, "/ports?type="+ruleType, http.StatusSeeOther)
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
