@@ -48,19 +48,66 @@ func newDemoState() *demoState {
 }
 
 func (d *demoState) seed() {
+	// Seed every list with the kind of entries an experienced operator
+	// would actually have on a small-to-mid-sized internet-facing host.
+	// All IPs/CIDRs use RFC 5737 / RFC 3849 documentation prefixes so
+	// nothing here points at a real network.
 	example := shared.Rules{
 		TCP: []shared.PortRule{
-			{Port: "22", Description: "SSH", SSH: true},
-			{Port: "80", Description: "HTTP"},
-			{Port: "443", Description: "HTTPS"},
+			{Port: "22", Description: "SSH (admin)", SSH: true},
+			{Port: "80", Description: "HTTP — redirect to HTTPS"},
+			{Port: "443", Description: "HTTPS — main web"},
+			{Port: "8443", Description: "HTTPS — staging / backend"},
+			{Port: "25", Description: "SMTP — incoming mail"},
+			{Port: "587", Description: "SMTP submission (STARTTLS)"},
+			{Port: "993", Description: "IMAPS"},
+			{Port: "5432", Description: "PostgreSQL — replication peer"},
 		},
 		UDP: []shared.PortRule{
-			{Port: "53", Description: "DNS"},
+			{Port: "53", Description: "DNS — authoritative"},
+			{Port: "123", Description: "NTP"},
+			{Port: "51820", Description: "WireGuard VPN"},
 		},
-		Whitelist:  []string{"192.168.0.0/24"},
-		Blacklist:  []string{"198.51.100.42"},
-		Forwarding: []shared.ForwardingRule{},
-		Custom:     []string{},
+		Blacklist: []string{
+			"# scanner ranges observed in fail2ban logs over the last 30d",
+			"192.0.2.42",
+			"192.0.2.118",
+			"198.51.100.0/24",
+			"203.0.113.0/24",
+			"",
+			"# IPv6 — block known ranges from compromised cloud tenant",
+			"2001:db8:bad::/48",
+		},
+		Whitelist: []string{
+			"# always-allow management — never lock these out",
+			"203.0.113.10",
+			"203.0.113.11",
+			"",
+			"# office / VPN subnet",
+			"198.51.100.0/24",
+			"",
+			"# monitoring — Prometheus scraper",
+			"192.0.2.50/32",
+			"",
+			"# IPv6 admin range",
+			"2001:db8:1::/64",
+		},
+		Forwarding: []shared.ForwardingRule{
+			{Protocol: "tcp", SourcePort: 8080, DestPort: 80},
+			{Protocol: "tcp", SourcePort: 8443, DestPort: 443},
+			{Protocol: "tcp", SourcePort: 2222, DestPort: 22},
+			{Protocol: "udp", SourcePort: 51821, DestPort: 51820},
+		},
+		Custom: []string{
+			"# allow Prometheus node-exporter only from the monitoring host",
+			"ip saddr 192.0.2.50 tcp dport 9100 accept",
+			"",
+			"# rate-limit inbound DNS queries to mitigate amplification",
+			"udp dport 53 limit rate 50/second accept",
+			"",
+			"# log + drop traffic to legacy admin port",
+			"tcp dport 10000 log prefix \"legacy-admin: \" drop",
+		},
 	}
 	d.rules = shared.RulesState{
 		Current: example,
@@ -69,18 +116,25 @@ func (d *demoState) seed() {
 	}
 	d.options = shared.FirewallOptions{
 		SSHBruteForce:                true,
+		SSHBruteForceLog:             true,
 		SSHBruteForceConnectionLimit: 5,
 		SSHBruteForceLogLimit:        60,
 		ICMPFlood:                    true,
 		ICMPFloodConnectionLimit:     10,
 		ICMPFloodLogLimit:            60,
 		SYNFlood:                     true,
+		SYNFloodLog:                  true,
 		SYNFloodLimit:                100,
 		PortScan:                     true,
+		PortScanLog:                  true,
 		InvalidPackets:               true,
+		Bogons:                       true,
+		ConnectionLimit:              true,
 		ConnectionLimitMax:           100,
 		TCPRSTFloodLimit:             100,
+		LogBlocked:                   true,
 		LogBlockedLimit:              60,
+		LogBlacklist:                 true,
 		LogBlacklistLimit:            60,
 	}
 	d.settings = shared.NetworkSettings{
@@ -89,20 +143,65 @@ func (d *demoState) seed() {
 			ICMPAllowRouterAdvertisement:   true,
 			ICMPAllowNeighborAdvertisement: true,
 		},
+		Docker: shared.DockerConfig{
+			Enabled:             true,
+			AllowBridgeNetworks: true,
+			CustomNetworks:      []string{"172.20.0.0/16"},
+		},
 	}
 	d.system = shared.SystemSettings{
-		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 60},
+		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
 	}
-	// Seed a few audit log entries from "yesterday" so the page is not empty.
+	// Audit log: 18 entries spanning the last ~30 hours to simulate
+	// realistic operator activity (apply cycles, individual rule edits,
+	// option toggles, an import, a rollback). Newest first.
 	now := time.Now()
-	yesterday := now.Add(-24 * time.Hour)
-	d.auditLog = []shared.AuditLogEntry{
-		{Time: yesterday.Format(time.RFC3339), Action: "rules_applied", User: "demo"},
-		{Time: yesterday.Add(-1 * time.Minute).Format(time.RFC3339), Action: "rules_saved", RuleType: "tcp", User: "demo"},
-		{Time: yesterday.Add(-5 * time.Minute).Format(time.RFC3339), Action: "options_saved", User: "demo"},
-		{Time: yesterday.Add(-10 * time.Minute).Format(time.RFC3339), Action: "rules_saved", RuleType: "blacklist", User: "demo"},
+	d.auditLog = buildSeedAuditLog(now)
+	d.lastApply = now.Add(-2 * time.Hour).Format(time.RFC3339)
+}
+
+// buildSeedAuditLog returns ~18 plausible audit entries, newest first.
+// Times are spread across the last day with variable gaps so the table
+// looks like a real working log, not a demo stub.
+func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
+	type e struct {
+		offset   time.Duration
+		action   string
+		ruleType string
+		detail   string
+		user     string
 	}
-	d.lastApply = yesterday.Format(time.RFC3339)
+	entries := []e{
+		{-2 * time.Hour, "rules_applied", "", "", "demo"},
+		{-2*time.Hour - 30*time.Second, "rules_saved", "tcp", "added 8443 (staging)", "demo"},
+		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log enabled", "demo"},
+		{-4 * time.Hour, "rules_saved", "blacklist", "+192.0.2.42", "demo"},
+		{-4*time.Hour - 12*time.Second, "rules_saved", "blacklist", "+192.0.2.118", "demo"},
+		{-5 * time.Hour, "settings_saved", "", "docker bridge auto-detect on", "demo"},
+		{-6 * time.Hour, "system_saved", "", "acceptance window 120s", "demo"},
+		{-8 * time.Hour, "rules_applied", "", "", "demo"},
+		{-8*time.Hour - 45*time.Second, "rules_saved", "forwarding", "+8443→443/tcp", "demo"},
+		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32 (office)", "demo"},
+		{-12 * time.Hour, "rules_saved", "udp", "added 51820 wireguard", "demo"},
+		{-14 * time.Hour, "rules_imported", "", "rules-2026-05-02.json", "demo"},
+		{-18 * time.Hour, "rules_rolled_back", "", "acceptance window expired", "demo"},
+		{-18*time.Hour + 2*time.Minute, "rules_applied", "", "", "demo"},
+		{-20 * time.Hour, "options_saved", "", "syn_flood_limit 100", "demo"},
+		{-24 * time.Hour, "rules_saved", "custom", "rate-limit DNS", "demo"},
+		{-26 * time.Hour, "rules_applied", "", "", "demo"},
+		{-30 * time.Hour, "rules_saved", "tcp", "initial port set", "demo"},
+	}
+	out := make([]shared.AuditLogEntry, 0, len(entries))
+	for _, x := range entries {
+		out = append(out, shared.AuditLogEntry{
+			Time:     now.Add(x.offset).Format(time.RFC3339),
+			Action:   x.action,
+			RuleType: x.ruleType,
+			Detail:   x.detail,
+			User:     x.user,
+		})
+	}
+	return out
 }
 
 // Send dispatches a typed command to the in-memory handler.

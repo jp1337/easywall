@@ -144,6 +144,22 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Subtle atmospheric gradient on the body — adds depth to the dark
+   slate without being distracting. Light mode keeps it cleaner. */
+body {
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(34,211,238,0.04), transparent 60%),
+    radial-gradient(900px 600px at 0% 100%, rgba(45,212,191,0.03), transparent 60%);
+  background-attachment: fixed;
+}
+
+[data-theme="easywall-light"] body {
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(8,145,178,0.04), transparent 60%),
+    radial-gradient(900px 600px at 0% 100%, rgba(13,148,136,0.03), transparent 60%);
+  background-attachment: fixed;
+}
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -726,6 +742,154 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* === Demo-mode banner — sticky strip above the topbar ================ */
+  .demo-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.25rem;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(8px);
+  }
+
+  .demo-banner strong {
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: 0.1px;
+  }
+
+  .demo-banner-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    flex-shrink: 0;
+    animation: pulse-cyan 2.4s infinite;
+  }
+
+  @keyframes pulse-cyan {
+    0%, 100% { box-shadow: 0 0 0 3px var(--accent-dim); }
+    50%      { box-shadow: 0 0 0 6px var(--accent-dim); }
+  }
+
+  .demo-banner-text {
+    color: var(--text-subtle);
+  }
+
+  .demo-banner-link {
+    margin-left: auto;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }
+
+  .demo-banner-link:hover {
+    background: var(--accent-dim);
+    text-decoration: none;
+  }
+
+  @media (max-width: 768px) {
+    .demo-banner {
+      font-size: 0.72rem;
+      padding: 0.45rem 0.75rem;
+    }
+    .demo-banner-text { display: none; }
+  }
+
+  /* === Dashboard stat tiles — large, dramatic numbers ================== */
+  .stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 1.1rem 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border-muted);
+    border-radius: 12px;
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-tile::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--accent-dim) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+
+  .stat-tile:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+    text-decoration: none;
+  }
+
+  .stat-tile:hover::before {
+    opacity: 0.6;
+  }
+
+  [data-theme="easywall-light"] .stat-tile:hover {
+    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+  }
+
+  .stat-tile-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    position: relative;
+  }
+
+  .stat-tile-value {
+    font-size: clamp(2.25rem, 4.5vw, 3rem);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -1.5px;
+    font-family: var(--font-mono);
+    position: relative;
+    margin: 0.25rem 0 0;
+  }
+
+  .stat-tile-value-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, #2dd4bf 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .stat-tile-value-success { color: var(--success); }
+  .stat-tile-value-danger  { color: var(--danger); }
+
+  .stat-tile-cta {
+    font-size: 0.72rem;
+    color: var(--text-subtle);
+    margin-top: 0.25rem;
+    position: relative;
+    transition: color 0.15s, transform 0.15s;
+  }
+
+  .stat-tile:hover .stat-tile-cta {
+    color: var(--accent);
+    transform: translateX(2px);
   }
 
   /* === Update Banner (dashboard new-version notice) === */
