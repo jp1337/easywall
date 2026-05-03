@@ -13,6 +13,14 @@ jobs:
   goreleaser:
     name: GoReleaser
     runs-on: ubuntu-24.04
+
+    # Map secrets to env vars — secrets context is not available in step `if`,
+    # but env context is. Lets us conditionally skip non-GHCR registry logins
+    # when their tokens are not configured.
+    env:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,6 +44,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to Quay.io
+        if: env.QUAY_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -43,4 +67,8 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          # Forwarded to .goreleaser.yaml templates so the Docker Hub and
+          # Quay image names can pull their namespace from a single secret
+          # rather than being hardcoded.
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          QUAY_NAMESPACE: ${{ secrets.QUAY_NAMESPACE }}

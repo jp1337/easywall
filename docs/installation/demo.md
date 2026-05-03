@@ -22,6 +22,27 @@ The state machine seeds itself with realistic example data on startup (3 TCP por
 
 State **resets when the process restarts**. For a public demo, schedule a periodic `systemctl restart easywall-web` to wipe accumulated visitor changes.
 
+## How the public demo stays current
+
+The public demo at the easywall website runs the **`:edge` Docker tag** —
+`ghcr.io/jp1337/easywall:edge` (or the equivalent on Docker Hub / Quay.io;
+see [Docker Installation]({{ '/installation/docker/' | relative_url }})
+for all three mirror locations and the full tag scheme).
+
+After every successful CI build on the `main` branch, the `publish-edge`
+workflow re-publishes the `:edge` tag with the new digest, then triggers
+[Watchtower](https://containrrr.dev/watchtower/) on the demo host to pull
+and recreate the container. The visible demo therefore always reflects
+the current state of `main`, typically within a few minutes of a merge.
+
+State resets on each restart (no on-disk persistence in demo mode), so
+the auto-update is also a free state wipe — visitors always see a clean
+seed.
+
+If you self-host a demo following this guide, point your image reference
+at `:edge` if you want the same auto-rolling behaviour, or `:latest` if
+you want only released versions.
+
 ## Running the demo
 
 ### Single-binary deployment
