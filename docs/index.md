@@ -4,22 +4,22 @@ title: Home
 description: easywall — Linux firewall management with a web interface. Built on Go, nftables, and two-process isolation.
 ---
 
-<div class="hero">
-  <div class="hero-brand">
+<div class="docs-hero">
+  <div class="docs-hero-brand">
     <img src="{{ '/assets/img/icon.svg' | relative_url }}" alt="easywall">
-    <div class="hero-brand-text">
+    <div class="docs-hero-brand-text">
       <h1>easywall</h1>
       <p class="tagline">Your firewall. Your rules. No surprises.</p>
     </div>
   </div>
 
-  <p class="hero-desc">
+  <p class="docs-hero-desc">
     Linux firewall management with a web interface — built for 2026.
     Go, nftables via direct netlink, two-process isolation, Argon2id auth.
     Security problems addressed at the root.
   </p>
 
-  <div class="hero-buttons">
+  <div class="docs-hero-buttons">
     <a href="{{ '/installation/debian/' | relative_url }}" class="btn btn-primary">Get Started</a>
     <a href="https://github.com/jp1337/easywall" class="btn btn-secondary" target="_blank" rel="noopener">GitHub ↗</a>
   </div>

@@ -4,14 +4,18 @@ BUILD_FLAGS := -ldflags "$(LDFLAGS)"
 
 BINARIES := easywall-core easywall-web
 
-.PHONY: all build css test lint vuln clean install release
+.PHONY: all build css docs-css test lint vuln clean install release
 
 ## Build both binaries
 all: build
 
-## Build CSS from Tailwind source
+## Build CSS from Tailwind source (app)
 css:
 	npx @tailwindcss/cli -i web/src/app.css -o web/static/style.css --minify
+
+## Build CSS for the GitHub Pages documentation site
+docs-css:
+	npx @tailwindcss/cli -i web/src/docs.css -o docs/assets/css/style.css --minify
 
 build: css
 	@echo "Building $(VERSION)..."

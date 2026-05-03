@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "build:css": "tailwindcss -i web/src/app.css -o web/static/style.css --minify",
-    "dev:css": "tailwindcss -i web/src/app.css -o web/static/style.css --watch"
+    "dev:css": "tailwindcss -i web/src/app.css -o web/static/style.css --watch",
+    "build:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --minify",
+    "dev:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --watch"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",
