@@ -6,11 +6,20 @@ description: Run easywall-web standalone with an in-memory mock — no nftables,
 
 # Demo Mode
 
+<div class="callout callout-success">
+  <svg class="callout-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+  <div class="callout-content">
+    <strong>Try the live demo right now</strong>
+    <p><strong>URL:</strong> <a href="https://easywall.wdkro.de" target="_blank" rel="noopener">https://easywall.wdkro.de</a> &nbsp;·&nbsp; <strong>Username:</strong> <code>demo</code> &nbsp;·&nbsp; <strong>Password:</strong> <code>demo</code></p>
+    <p>The instance auto-resets every 6 hours so visitor changes don't pile up. It always runs the latest <code>main</code> build because the publishing pipeline re-deploys it on every successful merge — read on for how that works.</p>
+  </div>
+</div>
+
 Demo mode runs `easywall-web` against an **in-memory mock of the core daemon**. Every page is fully interactive, every save/apply/audit-log entry is recorded, but **nothing reaches a real firewall** — there is no Unix socket connection, no `easywall-core` process, no nftables changes, and no root privileges required.
 
 This makes it trivial to:
 
-- Host a **public demo** (e.g. on Hetzner) so prospective users can explore the UI before installing
+- Host a **public demo** (like the one above) so prospective users can explore the UI before installing
 - **Test UI changes** locally without a privileged environment
 - Demonstrate features in a workshop or screencast without the risk of locking yourself out
 
@@ -22,22 +31,31 @@ The state machine seeds itself with realistic example data on startup (3 TCP por
 
 State **resets when the process restarts**. For a public demo, schedule a periodic `systemctl restart easywall-web` to wipe accumulated visitor changes.
 
-## How the public demo stays current
+## How the public demo at easywall.wdkro.de stays current
 
-The public demo at the easywall website runs the **`:edge` Docker tag** —
-`ghcr.io/jp1337/easywall:edge` (or the equivalent on Docker Hub / Quay.io;
-see [Docker Installation]({{ '/installation/docker/' | relative_url }})
+The reference public demo at [easywall.wdkro.de](https://easywall.wdkro.de) runs the
+**`:edge` Docker tag** — `ghcr.io/jp1337/easywall:edge` (or the equivalent
+on Docker Hub / Quay.io; see [Docker Installation]({{ '/installation/docker/' | relative_url }})
 for all three mirror locations and the full tag scheme).
 
-After every successful CI build on the `main` branch, the `publish-edge`
-workflow re-publishes the `:edge` tag with the new digest, then triggers
-[Watchtower](https://containrrr.dev/watchtower/) on the demo host to pull
-and recreate the container. The visible demo therefore always reflects
-the current state of `main`, typically within a few minutes of a merge.
+The lifecycle from `git push` to a refreshed demo:
 
-State resets on each restart (no on-disk persistence in demo mode), so
-the auto-update is also a free state wipe — visitors always see a clean
-seed.
+1. A commit lands on `main`
+2. `Test`, `Build`, `Security` workflows run — must pass
+3. `Publish edge` workflow builds amd64 + arm64 natively, pushes the
+   manifest as `:edge` and `:sha-<commit>` to all three registries
+4. A `deploy-demo` job on a self-hosted intranet runner curls
+   [Watchtower](https://containrrr.dev/watchtower/) on the demo host
+5. Watchtower pulls the new digest, recreates the container, drops
+   any visitor state from the previous instance
+
+Typical wall-clock time from merge to live: a few minutes.
+
+In addition to the per-commit refresh, the demo container is restarted
+**every 6 hours** by a systemd timer to wipe state that accumulated
+between deploys (visitor-typed rules, audit log entries, etc.). The
+two mechanisms are independent — both push the demo back toward its
+seed state, just at different cadences.
 
 If you self-host a demo following this guide, point your image reference
 at `:edge` if you want the same auto-rolling behaviour, or `:latest` if

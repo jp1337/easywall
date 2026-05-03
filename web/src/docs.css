@@ -804,6 +804,25 @@ html, body {
     border-bottom: none;
   }
 
+  .docs-cta-credentials {
+    margin: 1.25rem 0 0;
+    font-size: 0.8rem;
+    color: var(--text-subtle);
+    font-family: var(--font-mono);
+  }
+
+  .docs-cta-credentials code {
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(34,211,238,0.20);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  [data-theme="easywall-light"] .docs-cta-credentials code {
+    border-color: rgba(8,145,178,0.20);
+  }
+
   /* === Feature cards grid === */
   .features-grid {
     display: grid;
