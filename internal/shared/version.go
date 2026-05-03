@@ -11,7 +11,7 @@ import (
 
 const (
 	// CurrentVersion is updated at build time via -ldflags.
-	CurrentVersion = "2.2.0"
+	CurrentVersion = "2.3.0"
 
 	cacheMaxAge = 24 * time.Hour
 )
