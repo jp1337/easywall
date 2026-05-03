@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-05-03
+
 ### Added
 
 - DaisyUI 5.5 component library + HTMX 2.0 are now part of the web UI build. All 15 templates use DaisyUI primitives (cards, buttons, alerts, fieldsets, toggles, tables, badges, tabs, steps); the custom CSS in `web/src/app.css` now contains only layout-specific chrome
 - New "Aurora Operator" color palette — analogous cool-tone scheme with deep slate-blue chrome and cyan-400/teal-400 accents in dark mode, white + cyan-600/teal-600 in light mode. Status colors: emerald (success), amber (warning), rose (error), sky (info). Replaces the previous orange/navy complementary pair which created visual tension
 - Custom rules now validate **live** as you type — the textarea sends the content to `POST /custom/validate` (HTMX, 600ms debounce) and per-line syntax errors appear inline without a form submit. Falls back to a soft notice when the core daemon is unreachable
+- Blacklist & whitelist editors now validate **live** as you type — invalid IPv4/IPv6/CIDR entries are listed by line number under the textarea via the shared `POST /iplist/validate` HTMX endpoint
+- Audit log page now has a **search filter** — type in the search box above the table and rows are filtered live (case-insensitive substring match across action / rule type / detail / user) via `GET /log/filter`. The filter operates on the loaded 200 entries; older history is read directly from `audit.log`
 - `/options`, `/settings`, and `/system` now **auto-save on change** — toggle a switch or change a numeric input and the form is silently submitted via HTMX, with a small toast notification appearing in the bottom-right corner ("Saved" / "Save failed"). The traditional Save button is still present for graceful degradation when JavaScript is disabled
 - Custom rules syntax validation also runs on save — the web UI validates raw nftables rules via `nft --check`; per-line errors are displayed inline in the editor (was already in 2.2 release flow, now used by the live-validation endpoint too)
 - Tailwind CSS v4 UI — the web interface now uses a purpose-built "Operator Interface" design with Outfit UI font and JetBrains Mono for IPs/rules; replaces the previous IBM Plex stylesheet
@@ -20,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Custom rules in `state.Current.Custom` are now actually applied to the nftables kernel after the typed rules flush; previously the slice was stored and validated but never passed to `nft`
+
+[2.3.0]: https://github.com/jp1337/easywall/compare/v2.2.0...v2.3.0
 
 ## [2.2.0] - 2026-04-28
 
