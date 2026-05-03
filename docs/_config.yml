@@ -54,6 +54,8 @@ nav:
         path: /installation/docker/
       - title: Manual (Source)
         path: /installation/manual/
+      - title: Demo Mode
+        path: /installation/demo/
   - title: Configuration
     path: /configuration/
   - title: Features

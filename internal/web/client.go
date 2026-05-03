@@ -12,9 +12,13 @@ import (
 
 const clientTimeout = 5 * time.Second
 
-// CoreClient communicates with the easywall-core daemon over a Unix socket.
+// CoreClient communicates with the easywall-core daemon over a Unix socket,
+// or — when demo is non-nil — with an in-memory mock for the public demo
+// deployment. Callers don't see the difference: every method on CoreClient
+// goes through Send, which transparently picks the right backend.
 type CoreClient struct {
 	socketPath string
+	demo       *demoState
 }
 
 // NewCoreClient creates a client targeting the given Unix socket path.
@@ -22,8 +26,25 @@ func NewCoreClient(socketPath string) *CoreClient {
 	return &CoreClient{socketPath: socketPath}
 }
 
+// NewDemoClient creates a client that dispatches every command to an
+// in-memory state machine (no socket, no core, no nftables). Used by the
+// public demo deployment configured with `demo_mode = true`.
+func NewDemoClient() *CoreClient {
+	return &CoreClient{demo: newDemoState()}
+}
+
+// IsDemo reports whether this client is backed by the in-memory demo.
+func (c *CoreClient) IsDemo() bool {
+	return c.demo != nil
+}
+
 // Send sends a typed command to the core daemon and returns its response.
+// In demo mode, the command is dispatched to the in-memory state machine
+// instead of the Unix socket — same return shape, no network I/O.
 func (c *CoreClient) Send(cmd shared.Command) (shared.Response, error) {
+	if c.demo != nil {
+		return c.demo.Send(cmd), nil
+	}
 	conn, err := net.DialTimeout("unix", c.socketPath, clientTimeout)
 	if err != nil {
 		return shared.Response{}, fmt.Errorf("connect to core: %w", err)

@@ -29,6 +29,7 @@ type PageData struct {
 	User  string
 	Page  string // current page for nav active state
 	Nonce string // CSP nonce for the theme-init inline script
+	Demo  bool   // true when running with the in-memory mock (banner)
 	Data  interface{}
 }
 
@@ -59,7 +60,13 @@ func NewServer(cfg *Config) (*Server, error) {
 		}
 	}
 
-	client := NewCoreClient(cfg.SocketPath)
+	var client *CoreClient
+	if cfg.DemoMode {
+		slog.Info("demo mode active — using in-memory mock instead of core socket")
+		client = NewDemoClient()
+	} else {
+		client = NewCoreClient(cfg.SocketPath)
+	}
 
 	store := sessions.NewCookieStore([]byte(cfg.SessionKey))
 	store.Options = &sessions.Options{
@@ -235,6 +242,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		User:  user,
 		Page:  page,
 		Nonce: nonce,
+		Demo:  s.client.IsDemo(),
 		Data:  data,
 	}
 

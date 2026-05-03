@@ -138,6 +138,12 @@ type WebConfig struct {
 	SessionKey string    `toml:"session_key"` // HMAC key for gorilla/sessions
 	Username   string    `toml:"username"`
 	Password   string    `toml:"password"` // argon2id hash
+
+	// DemoMode runs the web binary against an in-memory mock instead of the
+	// Unix socket — no easywall-core required. Used by the public demo
+	// deployment so visitors can explore every page without affecting any
+	// real firewall. State resets when the process restarts.
+	DemoMode bool `toml:"demo_mode"`
 }
 
 // NetworkSettings groups IPv6 and Docker configuration for IPC transport.

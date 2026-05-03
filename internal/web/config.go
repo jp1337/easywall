@@ -37,7 +37,8 @@ func (c *Config) Validate() error {
 	if c.BindAddr == "" {
 		return fmt.Errorf("bind_addr is required")
 	}
-	if c.SocketPath == "" {
+	// Demo mode runs without a core daemon, so the socket path is irrelevant.
+	if c.SocketPath == "" && !c.DemoMode {
 		return fmt.Errorf("socket_path is required")
 	}
 	if c.SSLDir == "" {
