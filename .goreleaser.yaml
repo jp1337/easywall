@@ -69,8 +69,13 @@ changelog:
 
 dockers_v2:
   - dockerfile: Dockerfile
+    # Docker Hub and Quay namespaces come from env vars set by release.yml
+    # (DOCKERHUB_USERNAME, QUAY_NAMESPACE) so they can be changed without
+    # touching this file. GHCR namespace is the GitHub org name and stable.
     images:
       - "ghcr.io/jp1337/easywall"
+      - "docker.io/{{ .Env.DOCKERHUB_USERNAME }}/easywall"
+      - "quay.io/{{ .Env.QUAY_NAMESPACE }}/easywall"
     tags:
       - "{{ .Tag }}"
       - "latest"

@@ -1,0 +1,205 @@
+name: Publish edge
+
+# Multi-arch container builds for the public demo deployment.
+#
+# Triggers on every push to main. The image is pushed to three registries
+# (GHCR, Docker Hub, Quay.io) under the :edge and :sha-<sha> tags, then
+# the demo server's Watchtower is poked to pull the new image.
+#
+# Released versions are handled separately by release.yml + GoReleaser
+# and use the :latest and :vX.Y.Z tags. The two flows do not overlap.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ── Build per platform on a native runner, push by digest only ──────────
+  # Cross-compiling Go inside a multi-arch buildx with QEMU is dramatically
+  # slower than running native amd64 + native arm64 in parallel. Each job
+  # uploads its digest as an artifact; the merge job creates the manifest.
+  build:
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare platform suffix
+        id: platform
+        run: echo "suffix=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract OCI labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jp1337/easywall
+
+      # Build a single-platform image and push it by digest (no tag yet).
+      # GHA cache is scoped per platform so the layers don't mix.
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=edge-${{ github.sha }}
+          outputs: type=image,name=ghcr.io/jp1337/easywall,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ steps.platform.outputs.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ steps.platform.outputs.suffix }}
+
+      # Write an empty file named after the digest (without the "sha256:" prefix)
+      # so the merge job can reconstruct the full reference list.
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ steps.platform.outputs.suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ── Pull both digests and create a multi-arch manifest in all 3 registries
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    # Map secrets to env vars — secrets context is not available in step `if`,
+    # but env context is. This is the supported way to conditionally skip
+    # steps based on whether a secret is configured.
+    env:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    steps:
+      - name: Download digest artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Generate :edge and :sha-<sha> tags for all three registries.
+      # Docker Hub and Quay namespaces come from repo secrets so they don't
+      # have to be hardcoded — change them by updating the secret, no
+      # workflow edit required.
+      - name: Extract tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/jp1337/easywall
+            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/easywall
+            quay.io/${{ secrets.QUAY_NAMESPACE }}/easywall
+          tags: |
+            type=raw,value=edge
+            type=sha,prefix=sha-
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to Quay.io
+        if: env.QUAY_TOKEN != ''
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      # Push each registry's manifest separately. GHCR always runs; the
+      # other two run only when their token secret is configured. Pushes
+      # happen in parallel — each registry is independent.
+      - name: Push manifests
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+
+          push_to() {
+            local registry="$1"
+            local tag_args
+            tag_args=$(jq -cr --arg r "$registry" \
+              '.tags | map(select(startswith($r)) | "-t " + .) | join(" ")' \
+              <<< "$DOCKER_METADATA_OUTPUT_JSON")
+            [[ -z "$tag_args" ]] && return 0
+            # shellcheck disable=SC2086
+            docker buildx imagetools create $tag_args \
+              $(printf 'ghcr.io/jp1337/easywall@sha256:%s ' *)
+          }
+
+          push_to "ghcr.io"      & PID_GHCR=$!
+          if [[ -n "${DOCKERHUB_TOKEN:-}" ]]; then push_to "docker.io" & PID_DH=$!;   fi
+          if [[ -n "${QUAY_TOKEN:-}" ]];      then push_to "quay.io"   & PID_QUAY=$!; fi
+
+          CODE=0
+          wait $PID_GHCR || CODE=$?
+          [[ -n "${PID_DH:-}"   ]] && { wait $PID_DH   || CODE=$((CODE + $?)); }
+          [[ -n "${PID_QUAY:-}" ]] && { wait $PID_QUAY || CODE=$((CODE + $?)); }
+          exit $CODE
+
+      - name: Inspect published image
+        run: docker buildx imagetools inspect ghcr.io/jp1337/easywall:edge
+
+  # ── Trigger Watchtower on the demo host to pull the new :edge image ─────
+  # Runs on a self-hosted runner inside the intranet so it has direct
+  # network access to the demo's Watchtower instance. The token is a
+  # bearer auth secret stored in the repo settings.
+  deploy-demo:
+    needs: merge
+    runs-on: [self-hosted, intranet]
+    permissions: {}
+    steps:
+      - name: Trigger Watchtower update
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.WATCHTOWER_API_TOKEN }}" \
+            "http://watchtower:8085/v1/update?image=ghcr.io/jp1337/easywall"
