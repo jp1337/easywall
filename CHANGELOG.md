@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Demo mode** — set `demo_mode = true` in `web.toml` and `easywall-web` runs against an in-memory mock instead of the Unix socket. No `easywall-core` process, no root privileges, no nftables dependency. The state machine seeds itself with realistic example data and supports every page (rules, options, settings, system, audit log, apply/accept/rollback). Designed for hosting a public demo so visitors can explore the UI without affecting a real firewall. State resets when the process restarts. A topbar banner makes the demo status visible on every page
+
 ## [2.3.0] - 2026-05-03
 
 ### Added

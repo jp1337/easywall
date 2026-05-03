@@ -145,6 +145,12 @@
 {{end}}
 
 {{define "topbar"}}
+{{if .Demo}}
+<div class="bg-warning/10 text-warning border-b border-warning/30 px-4 py-1.5 text-xs flex items-center gap-2 sticky top-0 z-50">
+  <svg class="size-4 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+  <span><strong class="font-semibold">Demo Mode</strong> — every page is fully interactive, but nothing is applied to a real firewall. State resets on server restart.</span>
+</div>
+{{end}}
 <div class="topbar">
   <button class="menu-btn" id="menu-btn" type="button" aria-label="Menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
