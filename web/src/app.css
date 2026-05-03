@@ -374,6 +374,21 @@ body {
   .nav-links li.active a {
     background: var(--accent-dim);
     color: var(--accent);
+    position: relative;
+    font-weight: 500;
+  }
+
+  /* Cyan left-stripe on the active nav item — small but high-presence
+     visual cue that's hard to miss while scanning the sidebar. */
+  .nav-links li.active a::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
   }
 
   .nav-links li.active a svg { opacity: 1; }
@@ -493,11 +508,30 @@ body {
   }
 
   .page-title {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 600;
-    letter-spacing: -0.4px;
+    letter-spacing: -0.6px;
     color: var(--text);
     margin: 0;
+    position: relative;
+    padding-left: 14px;
+  }
+
+  /* Small accent stripe before each page title — cohesive with the
+     sidebar's active-item stripe and gives every page a quiet identity. */
+  .page-title::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, var(--accent), #2dd4bf);
+  }
+
+  [data-theme="easywall-light"] .page-title::before {
+    background: linear-gradient(180deg, var(--accent), #0d9488);
   }
 
   .page-actions {
@@ -742,6 +776,46 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* === Make DaisyUI input borders more visible in dark mode ============
+     Default input-bordered uses a low-contrast token that nearly
+     disappears against the slate chrome. Boost it specifically in dark.
+     Also adds an accent ring on focus for clearer focus tracking. */
+  [data-theme="easywall-dark"] .input.input-bordered,
+  [data-theme="easywall-dark"] .textarea.textarea-bordered,
+  [data-theme="easywall-dark"] .select.select-bordered {
+    border-color: var(--border);
+  }
+
+  [data-theme="easywall-dark"] .input.input-bordered:hover,
+  [data-theme="easywall-dark"] .textarea.textarea-bordered:hover,
+  [data-theme="easywall-dark"] .select.select-bordered:hover {
+    border-color: var(--text-subtle);
+  }
+
+  .input.input-bordered:focus,
+  .textarea.textarea-bordered:focus,
+  .select.select-bordered:focus {
+    outline: 2px solid var(--accent-dim);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+
+  /* === DaisyUI cards — small global hover lift ========================= */
+  /* Don't over-style — only react when the card is wrapped in a link or
+     marked with .card-interactive. Avoids breaking otherwise-static cards. */
+  a.card:hover,
+  .card.card-interactive:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+
+  [data-theme="easywall-light"] a.card:hover,
+  [data-theme="easywall-light"] .card.card-interactive:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
   }
 
   /* === Demo-mode banner — sticky strip above the topbar ================ */
