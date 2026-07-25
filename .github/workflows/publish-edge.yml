@@ -203,6 +203,13 @@ jobs:
   # Runs on a self-hosted runner inside the intranet so it has direct
   # network access to the demo's Watchtower instance. The token is a
   # bearer auth secret stored in the repo settings.
+  #
+  # ⚠️ SECURITY: this repo is public and this job runs on a self-hosted
+  # runner. The whole workflow only triggers on `push: branches: [main]`
+  # (direct push only — merges are now gated by branch protection). NEVER
+  # add a `pull_request` or `pull_request_target` trigger to this workflow,
+  # or to any job that runs on `self-hosted` — that turns any fork PR into
+  # arbitrary code execution on the intranet runner.
   deploy-demo:
     needs: merge
     runs-on: [self-hosted, intranet]
