@@ -126,7 +126,13 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r := chi.NewRouter()
 
 	// Global middleware
-	r.Use(middleware.RealIP)
+	//
+	// Deliberately NOT using middleware.RealIP: easywall-web terminates TLS
+	// itself and isn't assumed to sit behind a trusted reverse proxy, so
+	// X-Forwarded-For/X-Real-IP/True-Client-IP are attacker-controlled.
+	// Trusting them would let a client spoof its IP and bypass the
+	// per-IP login rate limiter. r.RemoteAddr (the actual TCP peer) stays
+	// authoritative — see GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp, GHSA-9g5q-2w5x-hmxf.
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
 	r.Use(MaxBodySize(64 * 1024))
