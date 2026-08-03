@@ -108,25 +108,50 @@
     {{end}}
 
     {{if .Counts}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-      <a href="/ports" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_tcp_ports"}}</div>
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
+      <a href="/ports?type=tcp" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_tcp_ports"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3"/></svg>
+        </div>
         <div class="stat-tile-value">{{.Counts.TCP}}</div>
+        <div class="stat-tile-note">accepting connections</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
-      <a href="/ports" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_udp_ports"}}</div>
+      <a href="/ports?type=udp" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_udp_ports"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5"/></svg>
+        </div>
         <div class="stat-tile-value">{{.Counts.UDP}}</div>
+        <div class="stat-tile-note">accepting datagrams</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
       <a href="/blacklist" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_blacklist"}}</div>
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_blacklist"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        </div>
         <div class="stat-tile-value">{{.Counts.Blacklist}}</div>
+        <div class="stat-tile-note">dropped before any rule</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
       <a href="/whitelist" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_whitelist"}}</div>
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_whitelist"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
         <div class="stat-tile-value">{{.Counts.Whitelist}}</div>
+        <div class="stat-tile-note">always permitted</div>
+        <div class="stat-tile-cta">Manage →</div>
+      </a>
+      <a href="/custom" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "nav_custom"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.Custom}}</div>
+        <div class="stat-tile-note">raw nftables rules</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
     </div>

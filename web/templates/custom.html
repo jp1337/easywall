@@ -21,17 +21,15 @@
             <span>{{T "custom_hint"}} Rules are inserted into the <code class="font-mono bg-surface-raised px-1 rounded text-xs">inet easywall</code> table.</span>
           </div>
 
-          <fieldset class="fieldset">
-            <legend>One nftables rule per line — comments start with #</legend>
-            <textarea name="rules" rows="16"
-                      class="input w-full font-mono"
+          <textarea name="rules" rows="16"
+                      class="input w-full font-mono mt-3"
                       placeholder="# Example: allow a specific port&#10;tcp dport 8443 accept&#10;&#10;# Allow traffic from specific IP&#10;ip saddr 203.0.113.1 accept"
                       hx-post="/custom/validate"
                       hx-trigger="keyup changed delay:600ms, change delay:200ms"
                       hx-target="#custom-errors"
                       hx-swap="innerHTML">{{range .Rules}}{{.}}
 {{end}}</textarea>
-          </fieldset>
+          <p class="field-help mt-2">One nftables rule per line — comments start with #.</p>
 
           <div id="custom-errors">
             {{if .Errors}}

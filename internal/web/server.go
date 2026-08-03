@@ -21,6 +21,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/sessions"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // PageData is passed to every template render call.
@@ -30,6 +32,10 @@ type PageData struct {
 	Page  string // current page for nav active state
 	Nonce string // CSP nonce for the theme-init inline script
 	Demo  bool   // true when running with the in-memory mock (banner)
+	// Asset is appended to static stylesheet URLs. Without it an operator who
+	// upgrades easywall keeps the cached stylesheet from the previous version
+	// and sees a broken interface until they force-reload.
+	Asset string
 	Data  interface{}
 }
 
@@ -249,6 +255,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Page:  page,
 		Nonce: nonce,
 		Demo:  s.client.IsDemo(),
+		Asset: shared.CurrentVersion,
 		Data:  data,
 	}
 

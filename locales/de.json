@@ -60,7 +60,7 @@
   {"id": "forwarding_add",         "translation": "Regel hinzufügen"},
 
   {"id": "custom_title",     "translation": "Eigene Regeln"},
-  {"id": "custom_hint",      "translation": "Eine nftables-Regel pro Zeile. Mit Vorsicht verwenden."},
+  {"id": "custom_hint",      "translation": "Mit Vorsicht verwenden — eine fehlerhafte Regel kann dich von diesem Host aussperren."},
 
   {"id": "options_title",    "translation": "Firewall-Optionen"},
   {"id": "options_save",     "translation": "Optionen speichern"},

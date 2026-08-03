@@ -60,7 +60,7 @@
   {"id": "forwarding_add",         "translation": "Add Rule"},
 
   {"id": "custom_title",     "translation": "Custom Rules"},
-  {"id": "custom_hint",      "translation": "Enter one nftables rule per line. Use with caution."},
+  {"id": "custom_hint",      "translation": "Use with caution — a malformed rule can lock you out of this host."},
 
   {"id": "options_title",    "translation": "Firewall Options"},
   {"id": "options_save",     "translation": "Save Options"},

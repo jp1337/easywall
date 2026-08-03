@@ -12,8 +12,8 @@
 
     {{with .Data}}
     <div role="tablist" class="tabs mb-4">
-      <a role="tab" class="tab {{if eq .RuleType "tcp"}}tab-active{{end}}" href="/ports?type=tcp">{{T "ports_tcp"}}</a>
-      <a role="tab" class="tab {{if eq .RuleType "udp"}}tab-active{{end}}" href="/ports?type=udp">{{T "ports_udp"}}</a>
+      <a role="tab" class="tab {{if eq .RuleType "tcp"}}is-active{{end}}" href="/ports?type=tcp">{{T "ports_tcp"}}</a>
+      <a role="tab" class="tab {{if eq .RuleType "udp"}}is-active{{end}}" href="/ports?type=udp">{{T "ports_udp"}}</a>
     </div>
 
     <form method="POST" action="/ports" id="ports-form">

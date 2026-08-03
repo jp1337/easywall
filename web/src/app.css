@@ -83,7 +83,7 @@
 
   --sidebar-width: 240px;
   --topbar-height: 48px;
-  --content-max: 1100px;
+  --settings-max: 920px;
   --control-height: 32px;
   --control-height-sm: 28px;
   --row-height: 36px;
@@ -205,10 +205,17 @@ body {
     z-index: 50;
   }
 
+  /* On desktop the sidebar already marks the active page and the page's own
+     h1 names it, so a third copy in the topbar is noise. It stays for narrow
+     viewports, where the sidebar is a closed drawer. */
   .topbar-title {
     font-size: 14px;
     font-weight: 600;
     letter-spacing: -0.01em;
+  }
+
+  @media (min-width: 769px) {
+    .topbar-title { display: none; }
   }
 
   .topbar-user {
@@ -246,6 +253,13 @@ body {
 
   /* For prose and single-column forms, where a 1600px measure is unreadable. */
   .content-narrow { max-width: var(--form-max); }
+
+  /* ── Settings measure ─────────────────────────────────────────────────────
+     A settings list is text-shaped, not table-shaped. Run it full-bleed and the
+     control ends up over a thousand pixels from the label it belongs to, with
+     an empty band between them. Width belongs to the rule tables; a list of
+     switches gets a measure. */
+  .content-settings { max-width: var(--settings-max); }
 
   /* ── Brand ─────────────────────────────────────────────────────────────
      The mark is a single-colour SVG applied as a CSS mask, not an <img>: an
@@ -1144,6 +1158,26 @@ body {
     text-decoration: none;
   }
 
+  /* A metric tile earns its presence through structure and weight, not colour:
+     colour still belongs to firewall state, and a port count is not a state.
+     The icon carries the visual interest a bare number lacked. */
+  .stat-tile-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .stat-tile-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--color-ink-subtle);
+    transition: color var(--motion-instant) var(--motion-ease);
+  }
+
+  a.stat-tile:hover .stat-tile-icon { color: var(--color-accent-on-wash); }
+
   .stat-tile-label {
     font-family: var(--font-data);
     font-size: 10px;
@@ -1155,11 +1189,17 @@ body {
 
   .stat-tile-value {
     font-family: var(--font-data);
-    font-size: 26px;
+    font-size: 34px;
     font-weight: 600;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+
+  .stat-tile-note {
+    font-size: 12px;
+    color: var(--color-ink-subtle);
   }
 
   .stat-tile-value-primary { color: var(--color-accent-on-wash); }
@@ -1341,44 +1381,42 @@ body {
     white-space: nowrap;
   }
 
-  /* ── Demo banner ───────────────────────────────────────────────────────── */
-  .demo-banner {
-    display: flex;
+  /* ── Demo notice ──────────────────────────────────────────────────────────
+     Lives inside the topbar rather than as a band above it. As its own row it
+     displaced every page by its own height, which read as a layout bug. */
+  .demo-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 18px;
+    gap: 7px;
+    padding: 2px 9px 2px 7px;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-full, 9999px);
     background: var(--color-surface-raised);
-    border-bottom: 1px solid var(--color-rule);
-    border-left: 3px solid var(--color-accent);
     font-size: 12px;
     color: var(--color-ink-muted);
-    position: sticky;
-    top: 0;
-    z-index: 50;
+    white-space: nowrap;
+    min-width: 0;
   }
 
-  .demo-banner strong { color: var(--color-ink); font-weight: 600; }
-  .demo-banner-text { color: var(--color-ink-subtle); }
+  .demo-chip strong { color: var(--color-ink); font-weight: 600; }
 
-  .demo-banner-dot {
-    width: 7px;
-    height: 7px;
+  .demo-chip-dot {
+    width: 6px;
+    height: 6px;
     flex-shrink: 0;
     border-radius: 9999px;
     background: var(--color-accent);
   }
 
-  .demo-banner-link {
-    margin-left: auto;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    color: var(--color-accent-on-wash);
-    font-weight: 550;
-    text-decoration: none;
-    transition: background var(--motion-instant) var(--motion-ease);
+  .demo-chip-text {
+    color: var(--color-ink-subtle);
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .demo-banner-link:hover { background: var(--accent-wash); text-decoration: none; }
+  @media (max-width: 1100px) {
+    .demo-chip-text { display: none; }
+  }
 
   /* ── Update banner ─────────────────────────────────────────────────────── */
   .update-banner {

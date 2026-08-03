@@ -19,7 +19,7 @@
   </script>
   <link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/jetbrains-mono-var.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v={{.Asset}}">
   {{/* htmx reads its configuration from this meta tag while initialising. It
        must not be replaced by an htmx:config event listener: no such event
        exists, so the settings below — including allowEval — would silently
@@ -149,14 +149,6 @@
 {{end}}
 
 {{define "topbar"}}
-{{if .Demo}}
-<div class="demo-banner">
-  <span class="demo-banner-dot"></span>
-  <strong>Demo Mode</strong>
-  <span class="demo-banner-text">— every page is fully interactive, nothing reaches a real firewall. State resets every few hours.</span>
-  <a href="https://github.com/jp1337/easywall" target="_blank" rel="noopener" class="demo-banner-link">GitHub ↗</a>
-</div>
-{{end}}
 <div class="topbar">
   <button class="menu-btn" id="menu-btn" type="button" aria-label="Menu">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -164,6 +156,15 @@
     </svg>
   </button>
   <span class="topbar-title">{{T (printf "nav_%s" .Page)}}</span>
+  {{/* The demo notice sits inside the topbar, not as a band above it: as its
+       own row it pushed every page down by its own height. */}}
+  {{if .Demo}}
+  <span class="demo-chip">
+    <span class="demo-chip-dot" aria-hidden="true"></span>
+    <strong>Demo</strong>
+    <span class="demo-chip-text">nothing reaches a real firewall — state resets periodically</span>
+  </span>
+  {{end}}
   {{if .User}}
   <div class="topbar-user">
     <div class="user-avatar">{{slice .User 0 1}}</div>
