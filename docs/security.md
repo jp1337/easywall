@@ -142,7 +142,7 @@ contributions: assigning `element.style.*` from JavaScript, or letting a library
 inject a `<style>` block, will be blocked. Where a script needs to change
 appearance it toggles a class instead.
 
-> **Fixed in v2.3.0.** htmx was previously configured through a listener for an
+> **Fixed in v2.4.0.** htmx was previously configured through a listener for an
 > `htmx:config` event, which htmx does not emit. The listener never ran, so
 > `allowEval` remained at its default of `true` and the script nonce was never
 > applied. Configuration now goes through the `meta[name=htmx-config]` tag htmx

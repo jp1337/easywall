@@ -9,7 +9,7 @@ description: easywall — Linux firewall management with a web interface. Built 
 
   <div class="docs-hero-pill">
     <span class="docs-hero-pill-dot"></span>
-    <span>v2.3 — Aurora UI · Demo mode · Live validation</span>
+    <span>v2.4 — Graphite UI · Full translation · Language switch</span>
   </div>
 
   <h1 class="docs-hero-title">
