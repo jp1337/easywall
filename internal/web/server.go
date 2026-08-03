@@ -356,14 +356,16 @@ func templateFuncs() template.FuncMap {
 
 	return template.FuncMap{
 		"add1": func(i int) int { return i + 1 },
+		// Class names come from DESIGN.md § Components — only the three firewall
+		// states carry colour, so there is no informational variant here.
 		"flashClass": func(key string) string {
 			if successKeys[key] {
-				return "alert-success"
+				return "alert-ok"
 			}
 			if warningKeys[key] {
-				return "alert-warning"
+				return "alert-warn"
 			}
-			return "alert-error"
+			return "alert-crit"
 		},
 		"flashIcon": func(key string) template.HTML {
 			if successKeys[key] {

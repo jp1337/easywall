@@ -6,9 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>easywall — First Run Setup</title>
   <script nonce="{{.Nonce}}">(function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();</script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/jetbrains-mono-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
@@ -19,7 +18,7 @@
   <div class="auth-card">
     <div class="auth-header">
       <div class="auth-logo">
-        <img src="/static/icon.svg" alt="easywall" width="48" height="48">
+        <span class="auth-logo-mark" aria-hidden="true"></span>
         <span class="auth-logo-name">easywall</span>
       </div>
       <p class="auth-subtitle">{{T "firstrun_subtitle"}}</p>
@@ -27,35 +26,35 @@
 
     <div class="auth-body">
       {{if .Flash}}
-      <div role="alert" class="alert {{flashClass .Flash}} alert-soft mb-4">
+      <div role="alert" class="alert {{flashClass .Flash}} mb-4">
         {{flashIcon .Flash}}
         <span>{{T .Flash}}</span>
       </div>
       {{end}}
 
-      <div role="alert" class="alert alert-info alert-soft mb-4">
+      <div role="alert" class="alert mb-4">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
         <span>Welcome! Set up your administrator account to get started.</span>
       </div>
 
       <form method="POST" action="/firstrun" class="flex flex-col gap-3">
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">{{T "firstrun_username"}}</legend>
+          <legend>{{T "firstrun_username"}}</legend>
           <input id="username" name="username" type="text" autocomplete="username" autofocus required
-                 class="input input-bordered w-full">
+                 class="input w-full">
         </fieldset>
 
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">{{T "firstrun_password"}}</legend>
+          <legend>{{T "firstrun_password"}}</legend>
           <input id="password" name="password" type="password" autocomplete="new-password" required minlength="12"
-                 class="input input-bordered w-full">
-          <p class="label text-base-content/60">Minimum 12 characters</p>
+                 class="input w-full">
+          <p class="field-help">Minimum 12 characters</p>
         </fieldset>
 
         <fieldset class="fieldset">
-          <legend class="fieldset-legend">{{T "firstrun_confirm"}}</legend>
+          <legend>{{T "firstrun_confirm"}}</legend>
           <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="12"
-                 class="input input-bordered w-full">
+                 class="input w-full">
         </fieldset>
 
         <button type="submit" class="btn btn-primary w-full mt-2">

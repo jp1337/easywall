@@ -12,7 +12,7 @@
 
     {{with .Data}}
     {{if .CoreErr}}
-    <div role="alert" class="alert alert-error alert-soft mb-4">
+    <div role="alert" class="alert alert-crit mb-4">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
       <span>{{.CoreErr}}</span>
     </div>
@@ -24,28 +24,28 @@
           hx-trigger="change delay:200ms"
           hx-swap="none">
 
-      <div class="card bg-base-200 border border-base-300 shadow-sm mb-4">
-        <div class="card-body">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">{{T "system_acceptance_title"}}</h2>
+      <div class="card mb-4">
+        <div class="card-pad">
+          <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted">{{T "system_acceptance_title"}}</h2>
 
-          <div class="flex items-start gap-4 py-3 border-b border-base-300">
+          <div class="flex items-start gap-4 py-3 border-b border-rule">
             <div class="flex-1">
               <div class="font-medium">{{T "system_acceptance_enabled"}}</div>
-              <div class="text-sm text-base-content/60 mt-0.5">{{T "system_acceptance_enabled_desc"}}</div>
+              <div class="text-sm text-ink-muted mt-0.5">{{T "system_acceptance_enabled_desc"}}</div>
             </div>
-            <input type="checkbox" name="acceptance_enabled" class="toggle toggle-primary"
+            <input type="checkbox" name="acceptance_enabled" class="toggle"
                    {{if and $s $s.Acceptance.Enabled}}checked{{end}}>
           </div>
 
           <fieldset class="fieldset mt-3">
-            <legend class="fieldset-legend">{{T "system_acceptance_duration"}}</legend>
+            <legend>{{T "system_acceptance_duration"}}</legend>
             <div class="flex items-center gap-2">
               <input type="number" id="acceptance_duration" name="acceptance_duration"
-                     class="input input-bordered w-28" min="10" max="3600"
+                     class="input w-28" min="10" max="3600"
                      value="{{if $s}}{{$s.Acceptance.Duration}}{{else}}120{{end}}">
-              <span class="text-sm text-base-content/60">{{T "system_acceptance_duration_unit"}}</span>
+              <span class="text-sm text-ink-muted">{{T "system_acceptance_duration_unit"}}</span>
             </div>
-            <p class="label text-base-content/60">{{T "system_acceptance_duration_desc"}}</p>
+            <p class="field-help">{{T "system_acceptance_duration_desc"}}</p>
           </fieldset>
         </div>
       </div>

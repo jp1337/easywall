@@ -88,6 +88,32 @@ Breaking changes: add `BREAKING CHANGE:` in the footer.
 - No comments explaining *what* code does — only *why* when non-obvious
 - No half-finished features behind flags — implement completely or not at all
 
+## Styling
+
+The user interface follows [`DESIGN.md`](DESIGN.md) in the repository root. It is the
+single source of truth for colour, typography, spacing, radii, motion and components —
+read it before touching anything visual.
+
+- **Never write a colour into a template.** Use the tokens: `bg-surface`,
+  `text-ink-muted`, `border-rule`, and so on. Tailwind generates these from the
+  `@theme` block in `web/src/app.css`.
+- **Green, amber and red are reserved for firewall state** — live, unconfirmed, rolled
+  back. They are never decorative, and there is no informational colour.
+- **The accent is rationed** to what is focused, what is active, and the one primary
+  action on a page.
+- Both themes must work. Check light mode as well as dark before opening a PR.
+- There is no third-party component library. If you need a component that does not
+  exist, add it to `DESIGN.md` first, then implement it from those tokens.
+- Rebuild the stylesheets after changing them — the compiled files are committed:
+
+  ```bash
+  npm run build:css        # web/static/style.css
+  npm run build:docs-css   # docs/assets/css/style.css
+  ```
+
+Validate the design system itself with `npx @google/design.md lint DESIGN.md`. Some
+warnings are expected and are explained inside the file.
+
 ## Security Issues
 
 Please see [SECURITY.md](SECURITY.md) — do not open public issues for

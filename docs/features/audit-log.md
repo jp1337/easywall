@@ -36,15 +36,23 @@ Clear the input to see all entries again. The filter operates on the 200 entries
 
 ## Action Colour Coding
 
-Actions are colour-coded to let you scan for the type of change at a glance:
+Only actions that changed the state of the firewall carry colour. Everything else —
+saving settings, importing or exporting a rule set, changing options — is shown as a
+neutral tag.
+
+That restriction is deliberate. In easywall, colour outside the blue accent family
+always means firewall state: green is live, amber is unconfirmed, red is rolled back or
+failing. If a merely informational event were tinted too, a coloured tag in the log
+would become ambiguous — is this a state, or just emphasis? Scanning the log for what
+actually happened to your firewall would get slower, not faster.
 
 | Colour | Action | Meaning |
 |---|---|---|
-| Green | `ADD` | A rule was added to the staged rule set |
-| Red | `DELETE` | A rule was removed from the staged rule set |
-| Blue | `APPLY` | Staged rules were pushed to the running firewall |
-| Orange | `ROLLBACK` | The acceptance window expired or was manually triggered — previous rules were restored |
-| Purple | `IMPORT` / `EXPORT` | A rule set was imported from or exported to a JSON file |
+| Green | `rules_saved`, `rules_applied` | Rules were staged or pushed to the running firewall |
+| Red | `rules_rolled_back` | The acceptance window expired or was triggered manually — the previous rules were restored |
+| Neutral | everything else | Settings saved, options changed, rule set imported or exported |
+
+See `DESIGN.md` in the repository root for the full rule.
 
 ## Limits and Retention
 

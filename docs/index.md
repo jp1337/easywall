@@ -231,8 +231,8 @@ description: easywall — Linux firewall management with a web interface. Built 
     </div>
     <div class="docs-stack-item">
       <div class="docs-stack-label">UI</div>
-      <div class="docs-stack-value">Tailwind v4 + DaisyUI 5.5</div>
-      <div class="docs-stack-note">Modern component library, custom Aurora theme. Hand-rolled CSS retired entirely.</div>
+      <div class="docs-stack-value">Tailwind v4 + DESIGN.md</div>
+      <div class="docs-stack-note">Components are defined by the project's own design system, not a third-party library. Self-hosted fonts, no external requests.</div>
     </div>
     <div class="docs-stack-item">
       <div class="docs-stack-label">Interactions</div>
