@@ -41,20 +41,10 @@
             </div>
           </div>
 
+          {{/* Both the on-load render and the HTMX response go through the same
+               partial, so one cannot silently diverge from the other. */}}
           <div id="custom-errors">
-            {{if .Errors}}
-            <div role="alert" class="alert alert-crit mt-3">
-              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
-              <div class="flex-1">
-                <strong class="font-medium">{{T "custom_errors_title"}}</strong>
-                <ul class="mt-1.5 ml-5 list-disc text-sm">
-                {{range $idx, $err := .Errors}}
-                  <li>{{T "custom_error_line" (dict "Line" (add1 $idx))}} <code class="font-mono">{{$err}}</code></li>
-                {{end}}
-                </ul>
-              </div>
-            </div>
-            {{end}}
+            {{with .Validation}}{{template "validation_result" .}}{{end}}
           </div>
 
           <div class="save-bar">

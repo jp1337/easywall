@@ -41,17 +41,40 @@ func TestValidateIPListEntries_ValidCIDR(t *testing.T) {
 	}
 }
 
+// hasLine reports whether a line was rejected, and returns its entry.
+func hasLine(errs []lineError, line int) (lineError, bool) {
+	for _, e := range errs {
+		if e.Line == line {
+			return e, true
+		}
+	}
+	return lineError{}, false
+}
+
 func TestValidateIPListEntries_InvalidIP(t *testing.T) {
 	errs := validateIPListEntries("not-an-ip")
-	if _, ok := errs[0]; !ok {
-		t.Errorf("expected error at line 0, got %v", errs)
+	e, ok := hasLine(errs, 1)
+	if !ok {
+		t.Fatalf("expected an error on line 1, got %v", errs)
+	}
+	if e.Key != "validate_invalid_ip" {
+		t.Errorf("key = %q, want validate_invalid_ip", e.Key)
 	}
 }
 
 func TestValidateIPListEntries_InvalidCIDR(t *testing.T) {
 	errs := validateIPListEntries("192.168.1.1/99")
-	if _, ok := errs[0]; !ok {
-		t.Errorf("expected error at line 0 (invalid CIDR), got %v", errs)
+	e, ok := hasLine(errs, 1)
+	if !ok {
+		t.Fatalf("expected an error on line 1, got %v", errs)
+	}
+	if e.Key != "validate_invalid_cidr" {
+		t.Errorf("key = %q, want validate_invalid_cidr", e.Key)
+	}
+	// The parser's own words are diagnostic output, not a sentence to translate,
+	// so they ride along beside the translated reason.
+	if e.Detail == "" {
+		t.Error("expected the parser error to be carried in Detail")
 	}
 }
 
@@ -59,24 +82,30 @@ func TestValidateIPListEntries_MixedLineNumbers(t *testing.T) {
 	// Each line index should match the position in the raw input,
 	// including blank/comment lines (which get skipped, not removed).
 	raw := strings.Join([]string{
-		"# comment at line 0", // 0 — skip
-		"192.168.1.1",         // 1 — valid
-		"not-an-ip",           // 2 — INVALID
-		"",                    // 3 — skip
-		"10.0.0.5/24",         // 4 — valid
-		"999.999.999.999",     // 5 — INVALID (octets out of range)
+		"# comment on line 1", // skip
+		"192.168.1.1",         // valid
+		"not-an-ip",           // line 3 — INVALID
+		"",                    // skip
+		"10.0.0.5/24",         // valid
+		"999.999.999.999",     // line 6 — INVALID (octets out of range)
 	}, "\n")
 	errs := validateIPListEntries(raw)
 
-	if _, ok := errs[2]; !ok {
-		t.Errorf("expected error at line 2, got %v", errs)
+	// 1-based, counting blanks and comments, so the number matches the textarea.
+	for _, want := range []int{3, 6} {
+		if _, ok := hasLine(errs, want); !ok {
+			t.Errorf("expected an error on line %d, got %v", want, errs)
+		}
 	}
-	if _, ok := errs[5]; !ok {
-		t.Errorf("expected error at line 5, got %v", errs)
+	for _, unwanted := range []int{1, 2, 4, 5} {
+		if e, ok := hasLine(errs, unwanted); ok {
+			t.Errorf("did not expect an error on line %d, got %+v", unwanted, e)
+		}
 	}
-	for _, ok := range []int{0, 1, 3, 4} {
-		if _, exists := errs[ok]; exists {
-			t.Errorf("did not expect error at line %d, got %q", ok, errs[ok])
+	// Reported in line order, so the list reads top to bottom like the textarea.
+	for i := 1; i < len(errs); i++ {
+		if errs[i-1].Line > errs[i].Line {
+			t.Errorf("errors are not in line order: %v", errs)
 		}
 	}
 }
@@ -96,9 +125,7 @@ func TestHandleIPListValidate_AllValid(t *testing.T) {
 	rec := doAuthFormRequest(t, s, "/iplist/validate", "entries=192.168.1.0%2F24%0A2001%3Adb8%3A%3A1")
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, "alert-success") {
-		t.Errorf("expected alert-success in response, got: %s", body)
-	}
+	assertAlertVariant(t, body, "alert-ok")
 }
 
 func TestHandleIPListValidate_WithErrors(t *testing.T) {
@@ -108,9 +135,7 @@ func TestHandleIPListValidate_WithErrors(t *testing.T) {
 	rec := doAuthFormRequest(t, s, "/iplist/validate", "entries=not-an-ip%0A192.168.1.1")
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, "alert-error") {
-		t.Errorf("expected alert-error in response, got: %s", body)
-	}
+	assertAlertVariant(t, body, "alert-crit")
 	if !strings.Contains(body, "Line 1") {
 		t.Errorf("expected 'Line 1' in error list, got: %s", body)
 	}

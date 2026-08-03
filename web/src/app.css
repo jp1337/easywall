@@ -2049,6 +2049,21 @@ body {
     color: var(--color-state-crit-on-wash);
   }
 
+  /* ── Validation results ───────────────────────────────────────────────────
+     The per-line list inside a validation alert. Was four Tailwind utilities
+     repeated at each call site; it is one thing, so it is one class. */
+  .validation-lines {
+    margin: 6px 0 0 18px;
+    list-style: disc;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .validation-lines code {
+    font-family: var(--font-data);
+    font-size: 12px;
+  }
+
   /* ── Auth pages ────────────────────────────────────────────────────────── */
   .auth-page {
     min-height: 100vh;

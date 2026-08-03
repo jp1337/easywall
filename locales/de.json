@@ -132,7 +132,7 @@
 
   {"id": "log_title",        "translation": "Audit-Log"},
   {"id": "log_recent",       "translation": "Letzte Aktivitäten"},
-  {"id": "log_subtitle",     "translation": "letzte 200 Einträge"},
+  {"id": "log_subtitle", "translation": "Die letzten 200 auf diesem Host protokollierten Änderungen."},
   {"id": "log_col_time",     "translation": "Zeitstempel"},
   {"id": "log_col_action",   "translation": "Aktion"},
   {"id": "log_col_ruletype", "translation": "Regeltyp"},
@@ -368,5 +368,17 @@
   {"id": "settings_docker", "translation": "Docker"},
 
   {"id": "nav_language", "translation": "Sprache"},
-  {"id": "language_name", "translation": "Deutsch"}
+  {"id": "language_name", "translation": "Deutsch"},
+
+  {"id": "validate_line", "translation": "Zeile {{.Line}}"},
+  {"id": "validate_invalid_entries", "translation": "Ungültige Einträge:"},
+  {"id": "validate_invalid_ip", "translation": "ist keine gültige IP-Adresse"},
+  {"id": "validate_invalid_cidr", "translation": "ist kein gültiges CIDR-Netz:"},
+  {"id": "validate_iplist_ok", "translation": "Alle Einträge sind gültige IPv4-, IPv6- oder CIDR-Angaben."},
+  {"id": "validate_custom_ok", "translation": "Die Syntax ist gültiges nftables."},
+  {"id": "validate_unavailable", "translation": "Die Live-Prüfung läuft nicht — der Core-Dienst ist offline. Fehler zeigen sich beim Speichern."},
+
+  {"id": "audit_detail_timeout", "translation": "Bestätigungsfenster abgelaufen"},
+
+  {"id": "og_description", "translation": "Linux-Firewall-Verwaltung mit Weboberfläche. Go, nftables, Sicherheit zuerst."}
 ]

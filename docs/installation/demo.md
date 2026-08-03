@@ -107,12 +107,18 @@ Visit `https://your-server:12227`, complete the first-run wizard (or pre-set cre
 | `ApplyRules` | Promotes Staged → Current, starts an acceptance timer if enabled |
 | `Accept` | Cancels the timer, transitions to Accepted |
 | acceptance timeout | Auto-rolls back Current → Backup, sets state to RolledBack |
-| `ValidateCustom` | Always returns "no errors" — there is no `nft` binary to call |
+| `ValidateCustom` | Reports the checker as unavailable — there is no `nft` binary to call |
 | `ExportRules` / `ImportRules` | Round-trips the in-memory rule set as JSON |
 
 ### What's missing
 
-The demo cannot validate `nftables` syntax (no `nft` binary), so the Custom Rules page will accept any input. A small notice on the page makes this clear.
+The demo cannot validate `nftables` syntax — there is no `nft` binary to call — so the
+Custom Rules page reports live validation as unavailable and says errors will surface on
+save. It used to answer "no errors" instead, which told every visitor their rules were valid
+whatever they typed: a false green on the one page where being wrong locks you out.
+
+Address-list validation (blacklist and whitelist) is done in the web process and works
+normally in the demo.
 
 ## Visual indicators
 
@@ -171,4 +177,6 @@ That's intentional — demo mode is in-memory only. If you want persistence, you
 
 **Custom rules don't show validation errors**
 
-Demo mode has no `nft` binary to call. Every input is accepted as syntactically valid. This is documented inline in the Custom Rules page.
+Demo mode has no `nft` binary to call, so it cannot judge nftables syntax at all. The page
+says so — a neutral notice reading "live validation is not running" — rather than reporting
+either success or failure it has no basis for.

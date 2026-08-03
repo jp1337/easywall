@@ -78,7 +78,7 @@
   <td class="log-time" data-label="{{T "log_col_time"}}" title="{{.Time}}">{{shortTime .Time}}</td>
   <td data-label="{{T "log_col_action"}}"><span class="log-action{{with actionTone .Action}} log-action-{{.}}{{end}}">{{actionLabel .Action}}</span></td>
   <td data-label="{{T "log_col_ruletype"}}">{{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
-  <td class="log-detail cell-wide" data-label="{{T "log_col_detail"}}">{{if .Detail}}{{.Detail}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td class="log-detail cell-wide" data-label="{{T "log_col_detail"}}">{{if .Detail}}{{detailLabel .Detail}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
   <td data-label="{{T "log_col_user"}}">{{.User}}</td>
 </tr>
 {{else}}

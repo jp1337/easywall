@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -107,8 +108,38 @@ func (fc *fakeCore) handleConn(conn net.Conn) {
 	_, _ = conn.Write(out)
 }
 
+// repoTemplates returns the real web/templates directory.
+//
+// The handler tests used to render one-line stubs from testdata/templates/, which
+// meant no test ever exercised the markup that ships — a template naming a class
+// that no longer existed, or a fragment built with the wrong variant, was
+// invisible to the suite. Rendering the real templates costs nothing here and
+// closes that gap.
+func repoDir(t *testing.T, parts ...string) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel := filepath.Join(parts...)
+	for i := 0; i < 5; i++ {
+		candidate := filepath.Join(dir, rel)
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		dir = filepath.Dir(dir)
+	}
+	t.Fatalf("could not locate %s above the package directory", rel)
+	return ""
+}
+
+func repoTemplates(t *testing.T) string { return repoDir(t, "web", "templates") }
+
+// The real locale files too, so a handler test sees the copy that ships rather
+// than a bare message id.
+func repoLocales(t *testing.T) string { return repoDir(t, "locales") }
+
 // newTestServer creates a Server backed by a fake core for handler testing.
-// Templates are loaded from testdata/templates/.
 func newTestServer(t *testing.T, fc *fakeCore) *Server {
 	t.Helper()
 
@@ -156,9 +187,9 @@ key  = ""
 		SameSite: http.SameSiteLaxMode,
 	}
 
-	bundle := NewBundle("locales")
+	bundle := NewBundle(repoLocales(t))
 
-	tmpl, err := loadTemplates("testdata/templates")
+	tmpl, err := loadTemplates(repoTemplates(t))
 	if err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}
@@ -213,8 +244,8 @@ key  = ""
 		SameSite: http.SameSiteLaxMode,
 	}
 
-	bundle := NewBundle("locales")
-	tmpl, err := loadTemplates("testdata/templates")
+	bundle := NewBundle(repoLocales(t))
+	tmpl, err := loadTemplates(repoTemplates(t))
 	if err != nil {
 		t.Fatalf("loadTemplates: %v", err)
 	}

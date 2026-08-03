@@ -182,7 +182,7 @@
             <span class="log-action{{with actionTone .Action}} log-action-{{.}}{{end}}">{{actionLabel .Action}}</span>
             <span class="activity-text">
               {{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{end}}
-              {{if .Detail}}<span class="activity-detail">{{.Detail}}</span>{{end}}
+              {{if .Detail}}<span class="activity-detail">{{detailLabel .Detail}}</span>{{end}}
             </span>
             <span class="activity-time" title="{{.Time}}">{{shortTime .Time}}</span>
           </div>

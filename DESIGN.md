@@ -1180,12 +1180,16 @@ typeface changes.
   Until the core exposes a deadline and a rollback command, the apply screen states the
   escape route in words — doing nothing restores the previous rules — because that is what
   is actually true.
-- **Audit log details are written by the core, in English.** The interface translates the
-  *action* of every entry ("Regeln zurückgenommen"), but the `detail` column carries a
-  string `internal/core` composed — `added 8443 (staging)`, `ssh_brute_force_log enabled`.
-  Those are a record rather than language: the same audit file is read by tooling, and the
-  option names are the config keys. Translating them would mean the core emitting
-  structured detail instead of prose, which is a core change, not a design one.
+- **The audit log records almost no detail.** Every entry carries its action, rule type,
+  user and timestamp, and the interface translates all of them. The `detail` column is a
+  different matter: `internal/core` writes it empty for every save, import and apply,
+  passing something only twice — the token `timeout` on a rollback, and the raw nftables
+  error on a failure. So the column an operator would look at to answer "what changed?"
+  is a dash almost every time. The demo used to paper over this with prose fixtures
+  ("added 8443 (staging)"), which both made the product look more informative than it is
+  and put English on screen that no locale could reach; its details now look like the
+  core's. Recording what changed is a core change, not a design one, but it is the single
+  most valuable thing the audit log is missing.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

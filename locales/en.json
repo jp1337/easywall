@@ -368,5 +368,17 @@
   {"id": "settings_docker", "translation": "Docker"},
 
   {"id": "nav_language", "translation": "Language"},
-  {"id": "language_name", "translation": "English"}
+  {"id": "language_name", "translation": "English"},
+
+  {"id": "validate_line", "translation": "Line {{.Line}}"},
+  {"id": "validate_invalid_entries", "translation": "Invalid entries:"},
+  {"id": "validate_invalid_ip", "translation": "is not a valid IP address"},
+  {"id": "validate_invalid_cidr", "translation": "is not a valid CIDR network:"},
+  {"id": "validate_iplist_ok", "translation": "All entries are valid IPv4, IPv6 or CIDR."},
+  {"id": "validate_custom_ok", "translation": "Syntax is valid nftables."},
+  {"id": "validate_unavailable", "translation": "Live validation is not running — the core daemon is offline. Errors will surface on save."},
+
+  {"id": "audit_detail_timeout", "translation": "Acceptance window expired"},
+
+  {"id": "og_description", "translation": "Linux firewall management with a web interface. Go, nftables, security-first."}
 ]

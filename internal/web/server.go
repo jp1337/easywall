@@ -270,6 +270,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		"actionLabel": func(action string) string {
 			return actionLabel(tFunc, action)
 		},
+		"detailLabel": func(detail string) string {
+			return detailLabel(tFunc, detail)
+		},
 	})
 
 	nonce, _ := r.Context().Value(nonceCtxKey).(string)
@@ -315,6 +318,9 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		"T": tFunc,
 		"actionLabel": func(action string) string {
 			return actionLabel(tFunc, action)
+		},
+		"detailLabel": func(detail string) string {
+			return detailLabel(tFunc, detail)
 		},
 	})
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -504,6 +510,24 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 	return template.HTML(b.String()), nil //nolint:gosec // G203: every interpolated value is escaped above
 }
 
+// auditDetailKeys maps the fixed detail strings the core writes to message ids.
+// Almost every entry the core records carries an empty detail; the exceptions are
+// this one token and, for a failed apply, the nftables error, which is diagnostic
+// output rather than a sentence and is shown verbatim.
+var auditDetailKeys = map[string]string{
+	"timeout": "audit_detail_timeout",
+}
+
+// detailLabel translates a detail the core wrote from a known vocabulary, and
+// leaves anything else exactly as stored. An audit record is evidence: what is not
+// a recognised token is passed through rather than guessed at.
+func detailLabel(tFunc func(string, ...interface{}) string, detail string) string {
+	if key, ok := auditDetailKeys[detail]; ok {
+		return tFunc(key)
+	}
+	return detail
+}
+
 // actionTone returns "ok", "warn", "crit" or "" for a neutral action.
 func actionTone(action string) string { return auditActionTones[action] }
 
@@ -592,6 +616,7 @@ func templateFuncs() template.FuncMap {
 		// actionLabel is rebound per request in render()/renderPartial(), where the
 		// localizer exists. This entry only keeps ParseGlob happy at startup.
 		"actionLabel": func(action string) string { return action },
+		"detailLabel": func(detail string) string { return detail },
 		"actionTone":  actionTone,
 		"richText":    richText,
 		"shortTime":   shortTime,
