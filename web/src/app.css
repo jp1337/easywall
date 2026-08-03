@@ -1082,11 +1082,29 @@ body {
   .htmx-request .htmx-indicator,
   .htmx-request.htmx-indicator { opacity: 1; }
 
-  /* Toast fade-out. The class replaces a .style.opacity assignment that
-     style-src 'self' blocked. */
+  /* Toasts sit bottom-right, out of the way of the content being edited.
+     The container previously relied on daisyUI's .toast/.toast-end, so after
+     that dependency was removed it had no positioning at all and the messages
+     appeared inline in the document flow. */
+  .toast-container {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  /* Fade-out via class, because assigning .style.opacity would be blocked by
+     style-src 'self'. */
   .toast-item {
     max-width: 24rem;
     box-shadow: var(--shadow-overlay);
+    pointer-events: auto;
+    animation: ew-fade-in var(--motion-slow) var(--motion-ease);
     transition: opacity var(--motion-slow) var(--motion-ease);
   }
 

@@ -81,9 +81,12 @@ function initHtmxToast() {
   const show = (key, kind) => {
     const msg = messages[key] || { text: key, kind: kind || 'info' };
     const k = msg.kind || kind || 'info';
+    // Map to the alert variants the stylesheet actually defines. There is no
+    // informational variant by design — only firewall state carries colour.
+    const variant = { success: 'alert-ok', error: 'alert-crit', warning: 'alert-warn' }[k] || '';
     const el = document.createElement('div');
     el.setAttribute('role', 'alert');
-    el.className = `alert alert-${k} toast-item`;
+    el.className = `alert ${variant} toast-item`.replace(/\s+/g, ' ').trim();
     el.innerHTML = `<span>${esc(msg.text)}</span>`;
     container.appendChild(el);
     // Auto-dismiss after 2.5 seconds. The fade lives in CSS (.is-leaving) —
@@ -162,15 +165,15 @@ function initRuleEditor() {
 
 function ruleRowHTML(idx, r) {
   return `
-    <td><input class="f-port input input-bordered input-sm w-36 font-mono" type="text" value="${esc(r.port)}"
+    <td><input class="f-port input-cell input-cell-data" type="text" value="${esc(r.port)}"
          placeholder="80 or 8000:9000"></td>
-    <td><input class="f-desc input input-bordered input-sm w-52" type="text" value="${esc(r.description)}"
+    <td><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
          placeholder="Description"></td>
-    <td class="text-center">
-      <input class="f-ssh checkbox checkbox-primary checkbox-sm" type="checkbox" ${r.ssh ? 'checked' : ''}>
+    <td class="col-toggle">
+      <input class="f-ssh checkbox" type="checkbox" ${r.ssh ? 'checked' : ''}>
     </td>
-    <td class="text-right">
-      <button type="button" class="btn btn-ghost btn-sm del-rule text-error" title="Remove">
+    <td class="col-actions">
+      <button type="button" class="btn-icon btn-icon-danger del-rule" title="Remove">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
           d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
           clip-rule="evenodd"/></svg>
@@ -224,17 +227,17 @@ function fwdRowHTML(idx, r) {
   const udpSel = r.protocol === 'udp' ? 'selected' : '';
   return `
     <td>
-      <select class="f-proto select select-bordered select-sm w-24 font-mono">
+      <select class="f-proto input-cell input-cell-data">
         <option value="tcp" ${tcpSel}>tcp</option>
         <option value="udp" ${udpSel}>udp</option>
       </select>
     </td>
-    <td><input class="f-src input input-bordered input-sm w-28" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
+    <td><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
          placeholder="1–65535"></td>
-    <td><input class="f-dst input input-bordered input-sm w-28" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
+    <td><input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
          placeholder="1–65535"></td>
-    <td class="text-right">
-      <button type="button" class="btn btn-ghost btn-sm del-rule text-error" title="Remove">
+    <td class="col-actions">
+      <button type="button" class="btn-icon btn-icon-danger del-rule" title="Remove">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
           d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
           clip-rule="evenodd"/></svg>
@@ -275,7 +278,7 @@ function initApplyStatus() {
     if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
       statusEl.insertAdjacentHTML('afterend',
-        '<div role="alert" class="alert alert-error alert-soft mt-3"><span>Rules were rolled back — acceptance timeout.</span></div>');
+        '<div role="alert" class="alert alert-crit mt-3"><span>Rules were rolled back — acceptance timeout.</span></div>');
     }
   };
 

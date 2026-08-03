@@ -16,7 +16,7 @@ easywall was rebuilt from scratch with security as the primary design constraint
 | Privilege escalation from web | Web process has no root access; talks to core via typed socket protocol |
 | Auth brute force | Rate limiting (5 attempts / 10 min per IP), Argon2id password hashing |
 | CSRF | `gorilla/csrf` on all POST endpoints — missing token returns HTTP 403 |
-| XSS | Go `html/template` auto-escapes all output by default; Content-Security-Policy header |
+| XSS | Go `html/template` auto-escapes all output by default; Content-Security-Policy with no `'unsafe-inline'` and no external origin |
 | Session hijacking | HTTPS-only, HttpOnly, SameSite=Lax cookies; 600-second session lifetime |
 | Admin lockout | Two-step activation: rules auto-roll back if not confirmed within timeout |
 | Audit trail gaps | Structured JSON entries logged for every config change and apply event |
@@ -119,6 +119,37 @@ For production use, configure a certificate from a trusted CA (Let's Encrypt or 
 cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 ```
+
+### No outbound requests
+
+The interface loads nothing from a third party. Fonts, stylesheet, icons and htmx
+are all served from easywall itself, and the Content-Security-Policy permits no
+external origin at all:
+
+```
+default-src 'self'; script-src 'self' 'nonce-<per-request>'; style-src 'self';
+font-src 'self'; img-src 'self' data:; connect-src 'self'
+```
+
+Two consequences worth stating. An administrative interface should not report a
+visit to anyone, and the earlier build loaded its typefaces from Google Fonts,
+which did exactly that. And because easywall frequently runs on hosts with no
+outbound route, that request also simply failed there, leaving the typography
+broken on the very machines the tool is built for.
+
+`style-src` carries no `'unsafe-inline'`. That is a real constraint on
+contributions: assigning `element.style.*` from JavaScript, or letting a library
+inject a `<style>` block, will be blocked. Where a script needs to change
+appearance it toggles a class instead.
+
+> **Fixed in v2.3.0.** htmx was previously configured through a listener for an
+> `htmx:config` event, which htmx does not emit. The listener never ran, so
+> `allowEval` remained at its default of `true` and the script nonce was never
+> applied. Configuration now goes through the `meta[name=htmx-config]` tag htmx
+> reads during initialisation, with `allowEval` and `allowScriptTags` disabled
+> and `style` removed from `attributesToSettle`. The weakness was found by
+> tightening `style-src`, which surfaced the inline `<style>` block htmx had been
+> injecting unnoticed.
 
 ---
 

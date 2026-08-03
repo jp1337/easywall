@@ -462,7 +462,7 @@ html, body {
     margin-bottom: 2.5rem;
   }
 
-  /* The buttons themselves are styled by DaisyUI (.btn, .btn-primary,
+  /* The buttons themselves are styled below (.btn, .btn-primary,
      .btn-soft, .btn-ghost). We only neutralise the prose-link styling
      that would otherwise underline them on hover. */
   .docs-hero-buttons .btn,
@@ -842,7 +842,7 @@ html, body {
     line-height: 1.55;
   }
 
-  /* === Callouts (mapped to DaisyUI alert visual language) === */
+  /* === Callouts === */
   .callout {
     display: flex;
     gap: 0.75rem;
@@ -970,9 +970,9 @@ html, body {
   color: var(--text);
 }
 
-/* Apply prose link styling to all anchors EXCEPT DaisyUI buttons —
+/* Apply prose link styling to all anchors EXCEPT the button classes —
    otherwise the color: var(--accent) here clobbers the button's own
-   text color (which is set via DaisyUI's --btn-fg → primary-content). */
+   text color (set by the button rules below). */
 .content-body a:not(.btn):not(.docs-hero-brand):not(.feature-card) {
   color: var(--accent);
   text-decoration: none;
@@ -1127,3 +1127,68 @@ html, body {
 @media (min-width: 901px) {
   .sidebar-toggle, .sidebar-backdrop { display: none !important; }
 }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────
+   The landing page's calls to action use these classes. They previously came
+   from the daisyUI plugin; when that was removed with the application's
+   dependency on it, the buttons lost every style. Defined here from the same
+   tokens the application uses. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.btn:hover {
+  background: var(--surface-2);
+  border-color: var(--surface-3);
+  text-decoration: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.btn svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+.btn-primary,
+.btn-primary:hover {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--bg);
+}
+
+.btn-primary:hover { filter: brightness(1.08); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.btn-soft { background: var(--surface-2); }
+.btn-soft:hover { background: var(--surface-3); }
+
+.btn-lg { height: 46px; padding: 0 22px; font-size: 16px; }
