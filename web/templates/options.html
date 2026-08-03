@@ -43,14 +43,14 @@
               <input type="checkbox" name="ssh_brute_force_log" class="checkbox" {{if $o.SSHBruteForceLog}}checked{{end}}>
               <span>Log</span>
             </label>
-            <fieldset class="fieldset">
-              <legend>Max conn</legend>
+            <label class="field-inline">
+              <span>Max conn</span>
               <input type="number" name="ssh_brute_force_connection_limit" value="{{$o.SSHBruteForceConnectionLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
-            <fieldset class="fieldset">
-              <legend>Log limit/min</legend>
+            </label>
+            <label class="field-inline">
+              <span>Log limit/min</span>
               <input type="number" name="ssh_brute_force_log_limit" value="{{$o.SSHBruteForceLogLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 
@@ -68,14 +68,14 @@
               <input type="checkbox" name="icmp_flood_log" class="checkbox" {{if $o.ICMPFloodLog}}checked{{end}}>
               <span>Log</span>
             </label>
-            <fieldset class="fieldset">
-              <legend>Max rate</legend>
+            <label class="field-inline">
+              <span>Max rate</span>
               <input type="number" name="icmp_flood_connection_limit" value="{{$o.ICMPFloodConnectionLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
-            <fieldset class="fieldset">
-              <legend>Log limit/min</legend>
+            </label>
+            <label class="field-inline">
+              <span>Log limit/min</span>
               <input type="number" name="icmp_flood_log_limit" value="{{$o.ICMPFloodLogLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 
@@ -93,10 +93,10 @@
               <input type="checkbox" name="syn_flood_log" class="checkbox" {{if $o.SYNFloodLog}}checked{{end}}>
               <span>Log</span>
             </label>
-            <fieldset class="fieldset">
-              <legend>Limit/s</legend>
+            <label class="field-inline">
+              <span>Limit/s</span>
               <input type="number" name="syn_flood_limit" value="{{$o.SYNFloodLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 
@@ -178,10 +178,10 @@
             <input type="checkbox" name="connection_limit_per_ip" class="toggle" {{if $o.ConnectionLimit}}checked{{end}}>
           </div>
           <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <fieldset class="fieldset">
-              <legend>Max connections</legend>
+            <label class="field-inline">
+              <span>Max connections</span>
               <input type="number" name="connection_limit_max" value="{{$o.ConnectionLimitMax}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 
@@ -199,10 +199,10 @@
               <input type="checkbox" name="tcp_rst_flood_log" class="checkbox" {{if $o.TCPRSTFloodLog}}checked{{end}}>
               <span>Log</span>
             </label>
-            <fieldset class="fieldset">
-              <legend>Limit/s</legend>
+            <label class="field-inline">
+              <span>Limit/s</span>
               <input type="number" name="tcp_rst_flood_limit" value="{{$o.TCPRSTFloodLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 
@@ -246,10 +246,10 @@
             <input type="checkbox" name="log_blocked_connections" class="toggle" {{if $o.LogBlocked}}checked{{end}}>
           </div>
           <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <fieldset class="fieldset">
-              <legend>Log limit/min</legend>
+            <label class="field-inline">
+              <span>Log limit/min</span>
               <input type="number" name="log_blocked_connections_limit" value="{{$o.LogBlockedLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 
@@ -262,10 +262,10 @@
             <input type="checkbox" name="log_blacklist_connections" class="toggle" {{if $o.LogBlacklist}}checked{{end}}>
           </div>
           <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <fieldset class="fieldset">
-              <legend>Log limit/min</legend>
+            <label class="field-inline">
+              <span>Log limit/min</span>
               <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </fieldset>
+            </label>
           </div>
         </div>
 

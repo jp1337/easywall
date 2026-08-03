@@ -83,13 +83,13 @@ function initHtmxToast() {
     const k = msg.kind || kind || 'info';
     const el = document.createElement('div');
     el.setAttribute('role', 'alert');
-    el.className = `alert alert-${k} alert-soft shadow-lg max-w-sm`;
+    el.className = `alert alert-${k} toast-item`;
     el.innerHTML = `<span>${esc(msg.text)}</span>`;
     container.appendChild(el);
-    // Auto-dismiss after 2.5 seconds with fade.
+    // Auto-dismiss after 2.5 seconds. The fade lives in CSS (.is-leaving) —
+    // setting .style.* here would violate style-src 'self'.
     setTimeout(() => {
-      el.style.transition = 'opacity 0.3s ease';
-      el.style.opacity = '0';
+      el.classList.add('is-leaving');
       setTimeout(() => el.remove(), 300);
     }, 2500);
   };
@@ -263,13 +263,11 @@ function initApplyStatus() {
     const confirmBtn = document.getElementById('confirm-btn');
     const startBtn   = document.getElementById('start-btn');
 
-    if (data.acceptance === 'pending') {
-      if (confirmBtn) confirmBtn.style.display = '';
-      if (startBtn)   startBtn.style.display = 'none';
-    } else {
-      if (confirmBtn) confirmBtn.style.display = 'none';
-      if (startBtn)   startBtn.style.display = '';
-    }
+    // toggleAttribute('hidden') instead of .style.display: an inline style
+    // would violate style-src 'self'.
+    const pending = data.acceptance === 'pending';
+    if (confirmBtn) confirmBtn.toggleAttribute('hidden', !pending);
+    if (startBtn)   startBtn.toggleAttribute('hidden', pending);
 
     // rolled_back is terminal — stop polling and show the error banner.
     // accepted is NOT terminal: Reset() returns the state to idle within milliseconds,

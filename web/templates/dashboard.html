@@ -111,22 +111,22 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
       <a href="/ports" class="stat-tile">
         <div class="stat-tile-label">{{T "dashboard_tcp_ports"}}</div>
-        <div class="stat-tile-value stat-tile-value-primary">{{.Counts.TCP}}</div>
+        <div class="stat-tile-value">{{.Counts.TCP}}</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
       <a href="/ports" class="stat-tile">
         <div class="stat-tile-label">{{T "dashboard_udp_ports"}}</div>
-        <div class="stat-tile-value stat-tile-value-primary">{{.Counts.UDP}}</div>
+        <div class="stat-tile-value">{{.Counts.UDP}}</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
       <a href="/blacklist" class="stat-tile">
         <div class="stat-tile-label">{{T "dashboard_blacklist"}}</div>
-        <div class="stat-tile-value stat-tile-value-danger">{{.Counts.Blacklist}}</div>
+        <div class="stat-tile-value">{{.Counts.Blacklist}}</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
       <a href="/whitelist" class="stat-tile">
         <div class="stat-tile-label">{{T "dashboard_whitelist"}}</div>
-        <div class="stat-tile-value stat-tile-value-success">{{.Counts.Whitelist}}</div>
+        <div class="stat-tile-value">{{.Counts.Whitelist}}</div>
         <div class="stat-tile-cta">Manage →</div>
       </a>
     </div>

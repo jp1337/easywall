@@ -142,7 +142,7 @@ spacing:
 layout:
   sidebar-width: 240px
   topbar-height: 48px
-  content-max: 1100px
+  content-max: none
   form-max: 640px
   control-height: 32px
   control-height-sm: 28px
@@ -664,10 +664,17 @@ without making them look condensed. `label` runs the other way at `+0.1em` — u
 ## Layout
 
 The frame is fixed by the `layout` tokens: a `sidebar-width` of 240px, a `topbar-height` of
-48px, and content capped at `content-max` 1100px. The cap matters: rule tables are wide but
-never *want* to be full-bleed on a 27" display, because scanning a row from port to state
-across 2000px defeats the purpose of the table. Settings and auth forms narrow further to
-`form-max` 640px — a form field 1100px wide reads as a mistake.
+48px, and content that runs the **full remaining width**.
+
+An earlier draft of this document capped content at 1100px, reasoning that a rule row
+scanned across 2000px defeats the purpose of the table. Rendering it disproved that: with a
+fixed 240px sidebar already absorbing the left edge, the cap left a dead band down the right
+of every wide display while the description column — the one field that actually wants
+room — was the one being truncated. Width belongs to the tables.
+
+Only genuinely text-shaped containers narrow themselves, via `content-narrow` at `form-max`
+640px: single-column forms and prose, where a 1600px measure is unreadable. A table is not
+text and does not take that class.
 
 Interactive controls share one height. `control-height` (32px) applies to buttons, inputs
 and selects; `control-height-sm` (28px) is the compact variant used in table toolbars;

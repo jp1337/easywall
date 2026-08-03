@@ -234,13 +234,18 @@ body {
     font-weight: 600;
   }
 
+  /* Full width. An operator's rule tables want the whole viewport; capping the
+     page left a dead band on the right of every wide display. Text-heavy
+     containers narrow themselves via .content-narrow instead. */
   .content {
-    padding: 24px 18px;
+    padding: 22px 22px 40px;
     flex: 1;
     width: 100%;
-    max-width: var(--content-max);
     animation: ew-fade-in var(--motion-slow) var(--motion-ease);
   }
+
+  /* For prose and single-column forms, where a 1600px measure is unreadable. */
+  .content-narrow { max-width: var(--form-max); }
 
   /* ── Brand ─────────────────────────────────────────────────────────────
      The mark is a single-colour SVG applied as a CSS mask, not an <img>: an
@@ -568,6 +573,47 @@ body {
      must both be unmissable on the screen where an operator may be locked out. */
   .btn-lg { height: 40px; padding: 0 18px; font-size: 15px; }
 
+  /* ── Icon-only row action ─────────────────────────────────────────────────
+     One per table row, so it must stay quiet: eight bordered red buttons down
+     the right edge of a rule list read as eight warnings. The affordance
+     appears on hover and focus, where the intent is actually expressed. */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--control-height-sm);
+    height: var(--control-height-sm);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-ink-subtle);
+    cursor: pointer;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease),
+                border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .btn-icon svg { width: 15px; height: 15px; }
+
+  .btn-icon:hover {
+    background: var(--color-surface-raised);
+    border-color: var(--color-rule);
+    color: var(--color-ink);
+  }
+
+  .btn-icon:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  .btn-icon-danger:hover {
+    background: var(--wash-crit);
+    border-color: var(--color-state-crit);
+    color: var(--color-state-crit-on-wash);
+  }
+
   /* Destructive actions are bordered, never filled. A filled red block is the
      loudest object on the page and invites the misclick it warns about. */
   .btn-danger {
@@ -639,6 +685,66 @@ body {
 
   /* Compact variant for inline numeric fields inside dense option rows. */
   .input-sm { height: var(--control-height-sm); font-size: 13px; padding: 0 8px; }
+
+  /* ── Inputs inside a table row ────────────────────────────────────────────
+     A rule table is a table, not a grid of boxes. Editable cells therefore
+     carry no visible border until the operator reaches for them; the row rule
+     and the column alignment do the structural work. The field is still
+     obviously editable — it sits on canvas, gains an edge on hover, and takes
+     the full accent focus treatment. */
+  .input-cell {
+    width: 100%;
+    height: var(--control-height-sm);
+    padding: 0 8px;
+    background: transparent;
+    color: var(--color-ink);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    transition: background var(--motion-instant) var(--motion-ease),
+                border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .input-cell::placeholder { color: var(--color-ink-subtle); }
+
+  .input-cell:hover {
+    background: var(--color-canvas);
+    border-color: var(--color-rule-strong);
+  }
+
+  .input-cell:focus,
+  .input-cell:focus-visible {
+    background: var(--color-canvas);
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  .input-cell-data {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Inline labelled field ────────────────────────────────────────────────
+     For a single control that needs a caption inside a dense row. Deliberately
+     not a <fieldset>: a fieldset frames a *group*, and using one around a lone
+     input produced a border with the legend sitting on top of the field. */
+  .field-inline {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .field-inline > span {
+    font-family: var(--font-data);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-ink-subtle);
+    white-space: nowrap;
+  }
 
   textarea.input {
     height: auto;
@@ -946,6 +1052,31 @@ body {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+
+  /* Column sizing. Data columns take exactly what they need and the
+     description absorbs the remaining width, so nothing truncates while the
+     right edge of the table stays reachable. */
+  .col-port    { width: 150px; }
+  .col-flex    { width: auto; }
+  .col-toggle  { width: 130px; text-align: center; }
+  .col-actions { width: 60px;  text-align: right; }
+
+  /* htmx normally injects its indicator CSS as an inline <style> block, which
+     style-src 'self' rejects. includeIndicatorStyles is disabled in base.html
+     and the two rules it needs live here instead. */
+  .htmx-indicator { opacity: 0; transition: opacity var(--motion-slow) var(--motion-ease); }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator { opacity: 1; }
+
+  /* Toast fade-out. The class replaces a .style.opacity assignment that
+     style-src 'self' blocked. */
+  .toast-item {
+    max-width: 24rem;
+    box-shadow: var(--shadow-overlay);
+    transition: opacity var(--motion-slow) var(--motion-ease);
+  }
+
+  .toast-item.is-leaving { opacity: 0; }
 
   /* ── Status ──────────────────────────────────────────────────────────────
      Every state carries colour *and* a word. Colour alone fails for
