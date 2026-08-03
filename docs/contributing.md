@@ -31,12 +31,19 @@ block of `web/src/app.css`, and Tailwind generates matching utilities from them,
 a template never names a colour directly — it uses `bg-surface`, `text-ink-muted`,
 `border-rule` and so on.
 
-Three rules the review will check:
+Five rules the review will check:
 
 - Green, amber and red are reserved for firewall state: live, unconfirmed, rolled
   back. A count is not a state.
 - The accent marks what is focused, what is active, and the one primary action.
 - Both themes must work. Check light mode as well as dark.
+- Headings and column heads are sentence case in Inter. The uppercase mono `label`
+  role survives only in the sidebar's nav dividers.
+- Every table cell carries a `data-label`, because below 720px rows reflow into
+  labelled cards and the attribute is what labels them.
+
+Render what you changed. Every defect worth catching here was invisible in the
+stylesheet and obvious in a screenshot — check a phone width as well as a desktop one.
 
 The compiled stylesheets are committed, so rebuild them after any change:
 

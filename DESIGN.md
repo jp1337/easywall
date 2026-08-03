@@ -86,6 +86,22 @@ typography:
     fontWeight: 400
     lineHeight: 1.45
     letterSpacing: "0em"
+  section-label:
+    fontFamily: Inter
+    fontSize: 15px
+    fontWeight: 600
+    lineHeight: 1.4
+    letterSpacing: "-0.01em"
+  column-label:
+    fontFamily: Inter
+    fontSize: 12px
+    fontWeight: 500
+    lineHeight: 1.4
+  field-label:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.45
   label:
     fontFamily: JetBrains Mono
     fontSize: 10px
@@ -126,6 +142,7 @@ rounded:
   md: 6px
   lg: 8px
   xl: 12px
+  2xl: 16px
   full: 9999px
 
 spacing:
@@ -215,7 +232,7 @@ components:
     textColor: "{colors.ink}"
     borderColor: "{colors.rule}"
     typography: "{typography.body}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.xl}"
   card-header:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -227,18 +244,18 @@ components:
     textColor: "{colors.ink}"
     borderColor: "{colors.rule}"
     typography: "{typography.data-display}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.xl}"
     padding: 12px 14px
   tile-label:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink-subtle}"
-    typography: "{typography.label}"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.field-label}"
   table-header-cell:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink-subtle}"
+    textColor: "{colors.ink-muted}"
     borderColor: "{colors.rule}"
-    typography: "{typography.label}"
-    padding: 8px 14px
+    typography: "{typography.column-label}"
+    padding: 9px 16px
   table-cell:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -436,12 +453,12 @@ components:
     textColor: "{colors.ink}"
     borderColor: "{colors.rule}"
     typography: "{typography.body}"
-    rounded: "{rounded.lg}"
+    rounded: "{rounded.xl}"
     padding: 14px 16px
   fieldset-legend:
     backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink-subtle}"
-    typography: "{typography.label}"
+    textColor: "{colors.ink}"
+    typography: "{typography.field-label}"
   link:
     backgroundColor: "transparent"
     textColor: "{colors.accent-on-wash}"
@@ -484,6 +501,79 @@ components:
     textColor: "{colors.ink-subtle}"
     typography: "{typography.body-sm}"
     padding: 40px 24px
+  section-head:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.section-label}"
+    padding: 13px 16px
+  module:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.body}"
+    rounded: "{rounded.xl}"
+  module-active:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.accent}"
+    typography: "{typography.body}"
+    rounded: "{rounded.xl}"
+  module-params:
+    backgroundColor: "{colors.surface-raised}"
+    textColor: "{colors.ink-muted}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.body-sm}"
+    padding: 10px 15px
+  switch-row:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.body-strong}"
+    padding: 12px 16px
+  switch-row-hover:
+    backgroundColor: "{colors.surface-raised}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-strong}"
+  toolbar:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink-muted}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.body-sm}"
+    padding: 11px 16px
+  save-bar:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink-muted}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.body-sm}"
+    rounded: "{rounded.xl}"
+    padding: 11px 16px
+  aside-card:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink-muted}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.xl}"
+    padding: 15px 16px
+  status-panel:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.title}"
+    rounded: "{rounded.2xl}"
+    padding: 18px 20px
+  step-marker:
+    backgroundColor: "{colors.surface-raised}"
+    textColor: "{colors.ink-muted}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.data-sm}"
+    rounded: "{rounded.full}"
+  activity-row:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.rule}"
+    typography: "{typography.body-sm}"
+    padding: 9px 16px
 ---
 
 ## Overview
@@ -551,7 +641,7 @@ toward the accent makes the chrome and the accent read as one decision.
 | `control-edge` | `#868a93` | Boundary of an unchecked/off control |
 | `ink` | `#0f1116` | Primary text |
 | `ink-muted` | `#5a6270` | Secondary text |
-| `ink-subtle` | `#6f7784` | Labels, timestamps, captions |
+| `ink-subtle` | `#666e7b` | Labels, timestamps, captions |
 | `accent` | `#0f7bab` | Focus, active, primary action |
 | `accent-ink` | `#ffffff` | Text and icons on an accent fill |
 | `accent-wash` | `rgba(15,123,171,0.09)` | Active navigation, accent chips, avatar |
@@ -651,7 +741,9 @@ inappropriate on principle. Fonts must ship with the binary, not load from a CDN
 | `body-strong` | 14 / 550 | Active nav, button labels, emphasised state |
 | `body-sm` | 13 / 400 | Table cells, dense forms |
 | `meta` | 12 / 400 | Log detail, helper text |
-| `label` | 10 / 500, `0.1em`, uppercase, mono | Table headers, tile labels, nav sections |
+| `section-label` | 15 / 600, sentence case | Panel and card headings |
+| `column-label` | 12 / 500, sentence case | Table column headers |
+| `label` | 10 / 500, `0.1em`, uppercase, mono | Sidebar nav section dividers only |
 | `data` | 13 / 500, mono, tnum | Ports, addresses, in-table values |
 | `data-sm` | 11 / 400, mono, tnum | Chips, timestamps, counters |
 | `data-display` | 26 / 600, mono, tnum | Tile values |
@@ -660,6 +752,19 @@ inappropriate on principle. Fonts must ship with the binary, not load from a CDN
 Headings carry negative tracking (`-0.01em` to `-0.02em`); it tightens multi-word titles
 without making them look condensed. `label` runs the other way at `+0.1em` — uppercase at
 10px needs the air or it sets as a smudge.
+
+**`label` used to be the general-purpose heading device**, specified here for table headers,
+tile labels and nav sections alike. Rendering the built interface retired it. A single page
+carried six or more of these — `ATTACK PROTECTION`, `PORT`, `SSH PROTECTION`,
+`ACCEPTANCE STATUS` — and at that density the effect was not restraint but a dated
+enterprise console: tracked capitals at 10px take measurably longer to read than sentence
+case at 12, and repeated as the only structural device they became the interface's loudest
+mannerism. Panel headings now use `section-label` and column headers `column-label`, both
+sentence case in Inter.
+
+The uppercase mono `label` survives in exactly one place: the sidebar's *Rules* and *System*
+dividers. There it separates groups rather than titling content, it appears twice, and the
+smallness is the point.
 
 ## Layout
 
@@ -689,9 +794,32 @@ grid and `gap` — never per-element margins, which collapse unpredictably and d
 Wide content is the norm here, not the exception. Every table lives in its own
 `overflow-x: auto` container so the page body never scrolls sideways.
 
-Below 768px the sidebar becomes an overlay drawer. Tables keep their columns and scroll
-horizontally rather than reflowing into stacked cards: a firewall rule read as a
-disconnected list of labelled fields loses the row relationship that makes it a rule.
+Below 768px the sidebar becomes an overlay drawer.
+
+**Below 720px tables reflow into labelled cards.** An earlier revision of this document said
+the opposite — keep the columns, scroll sideways — on the reasoning that a rule read as a
+list of labelled fields loses the row relationship that makes it a rule. Rendering the port
+table at 390px settled it: the port column collapsed until `22` displayed as `2:` and every
+description truncated mid-word. A rule whose identifier is unreadable has no relationship
+left to preserve. Each row becomes one bordered card, its column heading travelling with
+each value as that value's label, so the row still reads as a single unit.
+
+One field per row is the exception: a free-text description gets its own full-width line with
+the label above it, because 62% of a phone's width is not a usable measure for prose.
+
+### Content grid
+
+Most pages here carry few rows — eight ports, four forwards, eleven switches. Run that alone
+across a 1360px canvas and the columns stretch absurdly; rendering showed `SSH (admin)`
+sitting in a 950px-wide cell. The earlier conclusion — that the fix was to cap the page —
+was wrong twice over: a cap left a dead band down the right, and the width was never the
+problem. Having nothing to put in it was.
+
+Rule and settings pages therefore run a two-column `page-grid`: the work column, and a 320px
+context column carrying what an operator editing firewall rules wants at hand anyway — the
+syntax a field accepts, what a list does, what happens on save, which setting elsewhere this
+one depends on. Below 1180px the context column drops beneath the work column. Content still
+runs full width; it simply has something to say across it.
 
 ## Elevation & Depth
 
@@ -703,7 +831,14 @@ above the document and must be read as temporarily obscuring it:
 |---|---|---|---|
 | `flat` | none | none | Panels, tiles, tables, sidebar — the default |
 | `raised` | `0 1px 2px rgba(0,0,0,0.35)` | `0 1px 2px rgba(15,17,22,0.06)` | Dropdowns, select menus |
-| `overlay` | `0 8px 24px -8px rgba(0,0,0,0.55)` | `0 8px 24px -8px rgba(15,17,22,0.14)` | Modals, mobile sidebar drawer |
+| `lift` | `0 2px 8px -2px rgba(0,0,0,0.45)` | `0 2px 8px -2px rgba(15,17,22,0.12)` | Hover state of an interactive card or tile |
+| `overlay` | `0 8px 24px -8px rgba(0,0,0,0.55)` | `0 8px 24px -8px rgba(15,17,22,0.14)` | Modals, mobile sidebar drawer, sticky save bar |
+
+Flat remains the resting state, and the rule that shadow means "floats above the document"
+still holds for `overlay`. `lift` is the one addition: a card that is itself a link or a
+control may take it **on hover only**, together with a 1px upward shift. It is not depth as
+decoration — it is the surface answering the pointer, and a static panel never gets it.
+Under `prefers-reduced-motion` the shadow and border still respond; the shift does not.
 
 Dark-mode shadows are built from black; light-mode shadows from `ink` at low opacity, which
 keeps them in the page's blue-grey family instead of muddying it with neutral grey.
@@ -714,13 +849,17 @@ keeps them in the page's blue-grey family instead of muddying it with neutral gr
 |---|---|---|
 | `sm` | 4px | Chips, log tags, small badges |
 | `md` | 6px | Buttons, inputs, selects, nav items |
-| `lg` | 8px | Panels, cards, tiles |
-| `xl` | 12px | Modals, auth card |
+| `lg` | 8px | Small inset surfaces inside a card |
+| `xl` | 12px | Panels, cards, tiles, modals, auth card |
+| `2xl` | 16px | The status panel on dashboard and apply |
 | `full` | 9999px | Status dots, avatar |
 
-Radii stay tight. The 12px+ rounding common in consumer products reads as soft and
-approachable; at the density this interface runs, it also eats the corner space that the
-hairline borders need in order to describe a clean grid.
+**Controls stay tight; containers do not.** Buttons and inputs keep `md`, so the density of
+a dense form is untouched — that was the real substance of the earlier rule that "radii stay
+tight", and it holds. What did not hold was applying it to panels: at 8px, a card read as a
+box drawn around content rather than a surface holding it, and with a flat fill and a
+hairline border as the only other devices, every page resolved into a grid of rectangles.
+Containers moved up one step. It is the cheapest available change of register.
 
 ## Motion
 
@@ -760,10 +899,60 @@ audit-log actions.
 
 ### Tables
 
-The workhorse. Header cells use `label`; value cells carrying network data use `data` with
-tabular figures. Rows separate with a single `rule` hairline and lift to `surface-raised`
-on hover. Right-align nothing except pure counts — port numbers read better left-aligned
-against a left-aligned description.
+The workhorse. Header cells use `column-label`; value cells carrying network data use `data`
+with tabular figures. Rows separate with a single `rule` hairline and lift to
+`surface-raised` on hover. Right-align nothing except pure counts — port numbers read better
+left-aligned against a left-aligned description.
+
+Every table sits under a `toolbar`: the count on the right, the add action beside it, and a
+filter field where a set can grow past a screenful. Filtering happens in the browser — the
+rows are already there, and a round trip would discard unsaved edits.
+
+A destructive row action rests at 55% opacity and comes fully forward on row hover or
+`:focus-within`. Never at zero: a control that only exists on hover cannot be found by
+someone tabbing through, and on a touch screen there is no hover at all — below the reflow
+breakpoint it is always at full strength.
+
+### Protection modules
+
+A firewall protection is either on or off and may carry its own parameters. As rows in one
+long list — which is how it was first built — fourteen of them took 1700px of scroll and
+answered none of the page's actual question: *which protections are active right now.*
+
+Each is a card in an `auto-fill` grid at `minmax(330px, 1fr)`. Name and switch in the header,
+one line saying what the module does, and parameters below a hairline **inside the card** —
+not on a darker band underneath it, which read as a detached second row. An active module
+carries a 2px `accent` inset on its left edge: the same device that marks the active nav
+item, so "this one is live" speaks one vocabulary throughout. The header is a `<label>`
+wrapping its own switch, so the whole card top is the hit area.
+
+The state is never carried by that edge alone — the switch itself shows its position, which
+is what a colour-blind operator and a screenshot both rely on.
+
+### Switch rows
+
+For a setting that is a plain on/off with no parameters. Name, one-line description, switch
+at the trailing edge, the whole row a `<label>`. Rows separate with a `rule` hairline and
+take `surface-raised` on hover so the hit area is visible before the click.
+
+The description belongs *under* the name, never above it, and never between the name and the
+control. Both were tried; both made the caption read as a separate item.
+
+### Audit log
+
+Actions are stored as identifiers (`apply_rolledback`) and displayed as language
+(*Rules rolled back*). Tone is derived from the action in the template layer, not matched in
+CSS: the stylesheet once keyed on `rules_applied` and `rules_rolled_back`, names only the
+demo client produced, so in production no entry was ever tinted and a rolled-back apply —
+the most consequential line in the log — rendered neutral grey.
+
+Only the four `apply_*` actions carry colour, because only they describe what the firewall is
+doing: accepted is `ok`, started is `warn`, rolled back and failed are `crit`. Saving a rule
+set stages it and changes nothing that is live, so it stays neutral however important it feels.
+
+Timestamps display as clock time for today and `2 Jan 15:04` before that, with the full
+RFC 3339 value on the element's `title`. A log full of `2026-08-03T15:19:33+02:00` is a
+database dump, not a page.
 
 ### Status
 
@@ -920,6 +1109,16 @@ typeface changes.
 
 ## Known Gaps
 
+- **The acceptance countdown is specified but cannot be built.** This document defines a
+  `countdown` role at 40px for the acceptance window, and asks that *roll back now* be
+  offered as plainly as *confirm*. The interface can deliver neither yet, and no timer is
+  faked in its place. `shared.FirewallStatus` carries `active`, `acceptance`, `has_pending`
+  and `last_apply` — no deadline — and `core.Acceptance` holds only a `time.Timer`, not the
+  instant it fires, so there is no remaining-seconds value to render. There is also no
+  rollback endpoint: the routes are `apply/start`, `apply/confirm` and `apply/status`.
+  Until the core exposes a deadline and a rollback command, the apply screen states the
+  escape route in words — doing nothing restores the previous rules — because that is what
+  is actually true.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

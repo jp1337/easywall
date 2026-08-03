@@ -38,6 +38,8 @@
   {"id": "dashboard_udp_ports",    "translation": "UDP-Ports"},
   {"id": "dashboard_blacklist",    "translation": "Gesperrte IPs"},
   {"id": "dashboard_whitelist",    "translation": "Erlaubte IPs"},
+  {"id": "dashboard_custom",       "translation": "Eigene Regeln"},
+  {"id": "dashboard_forwarding",   "translation": "Portweiterleitung"},
 
   {"id": "ports_title",      "translation": "Port-Regeln"},
   {"id": "ports_tcp",        "translation": "TCP"},

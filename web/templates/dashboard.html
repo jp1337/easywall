@@ -12,7 +12,7 @@
     <div class="update-banner">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
       <span>Update available: <strong>{{.Version.Latest}}</strong></span>
-      <a href="{{.Version.ReleaseURL}}" target="_blank" rel="noopener">View release →</a>
+      <a href="{{.Version.ReleaseURL}}" target="_blank" rel="noopener">View release &rarr;</a>
     </div>
     {{end}}{{end}}
 
@@ -24,7 +24,10 @@
     {{end}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "dashboard_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "dashboard_title"}}</h1>
+        <p class="page-subtitle">What this firewall is currently enforcing.</p>
+      </div>
       <div class="page-actions">
         <form method="POST" action="/import" enctype="multipart/form-data" class="inline">
           <label class="btn cursor-pointer">
@@ -41,74 +44,69 @@
     </div>
 
     {{if .Status}}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-      <div class="card">
-        <div class="card-pad p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-ink-muted">{{T "dashboard_status"}}</div>
-          <div class="text-lg font-semibold mt-1">
-            {{if .Status.Active}}
-            <span class="status-dot active">{{T "dashboard_active"}}</span>
-            {{else}}
-            <span class="status-dot inactive">Inactive</span>
-            {{end}}
-          </div>
-          <div class="text-xs text-ink-subtle">Firewall daemon running</div>
+    {{/* One panel answers the page's first question, instead of it being the
+         first of nine identical rectangles. */}}
+    <div class="hero mb-4">
+      <div class="hero-main">
+        <div class="hero-state">
+          {{if .Status.Active}}
+          <span class="hero-dot ok" aria-hidden="true"></span>
+          <span>{{T "dashboard_active"}}</span>
+          {{else}}
+          <span class="hero-dot" aria-hidden="true"></span>
+          <span>Inactive</span>
+          {{end}}
         </div>
+        <p class="hero-note">
+          {{if .Status.Active}}The core daemon is running and rules are live.{{else}}The core daemon is not enforcing any rules.{{end}}
+        </p>
       </div>
 
-      <div class="card">
-        <div class="card-pad p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-ink-muted">{{T "dashboard_acceptance"}}</div>
-          <div class="text-lg font-semibold mt-1">
+      <div class="hero-facts">
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_acceptance"}}</div>
+          <div class="hero-fact-value">
             {{if eq (printf "%s" .Status.Acceptance) "pending"}}
             <span class="status-dot pending">Pending</span>
             {{else if eq (printf "%s" .Status.Acceptance) "accepted"}}
             <span class="status-dot active">Accepted</span>
             {{else if eq (printf "%s" .Status.Acceptance) "rolled_back"}}
-            <span class="status-dot error">Rolled Back</span>
+            <span class="status-dot error">Rolled back</span>
             {{else}}
             <span class="status-dot inactive">Idle</span>
             {{end}}
           </div>
-          {{if eq (printf "%s" .Status.Acceptance) "pending"}}
-          <div class="mt-2">
-            <a href="/apply" class="btn btn-primary btn-sm">Confirm Rules →</a>
+        </div>
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_pending"}}</div>
+          <div class="hero-fact-value">
+            {{if .Status.HasPending}}<span class="chip chip-warn">Unapplied changes</span>{{else}}None{{end}}
           </div>
-          {{end}}
+        </div>
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_last_apply"}}</div>
+          <div class="hero-fact-value">{{if .Status.LastApply}}<span title="{{.Status.LastApply}}">{{shortTime .Status.LastApply}}</span>{{else}}&mdash;{{end}}</div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-pad p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-ink-muted">{{T "dashboard_pending"}}</div>
-          <div class="text-lg font-semibold mt-1">
-            {{if .Status.HasPending}}
-            <span class="chip chip-warn">Yes</span>
-            {{else}}
-            <span class="badge">None</span>
-            {{end}}
-          </div>
-          {{if .Status.HasPending}}
-          <div class="mt-2">
-            <a href="/apply" class="btn btn-primary btn-sm">Apply Changes →</a>
-          </div>
-          {{end}}
-        </div>
+      {{if or .Status.HasPending (eq (printf "%s" .Status.Acceptance) "pending")}}
+      <div class="hero-actions">
+        <a href="/apply" class="btn btn-primary">
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
+          {{if eq (printf "%s" .Status.Acceptance) "pending"}}Confirm rules{{else}}Apply changes{{end}}
+        </a>
       </div>
-
-      <div class="card">
-        <div class="card-pad p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-ink-muted">{{T "dashboard_last_apply"}}</div>
-          <div class="text-sm font-mono font-medium mt-1">
-            {{if .Status.LastApply}}{{.Status.LastApply}}{{else}}—{{end}}
-          </div>
-        </div>
-      </div>
+      {{end}}
     </div>
     {{end}}
 
     {{if .Counts}}
-    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
+    <div class="group-head">
+      <h2 class="group-title">Rule sets</h2>
+      <span class="group-note">Counts are from the rules currently loaded</span>
+    </div>
+
+    <div class="tile-grid mb-4">
       <a href="/ports?type=tcp" class="stat-tile">
         <div class="stat-tile-top">
           <span class="stat-tile-label">{{T "dashboard_tcp_ports"}}</span>
@@ -116,7 +114,7 @@
         </div>
         <div class="stat-tile-value">{{.Counts.TCP}}</div>
         <div class="stat-tile-note">accepting connections</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-cta">Manage &rarr;</div>
       </a>
       <a href="/ports?type=udp" class="stat-tile">
         <div class="stat-tile-top">
@@ -125,7 +123,7 @@
         </div>
         <div class="stat-tile-value">{{.Counts.UDP}}</div>
         <div class="stat-tile-note">accepting datagrams</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-cta">Manage &rarr;</div>
       </a>
       <a href="/blacklist" class="stat-tile">
         <div class="stat-tile-top">
@@ -134,7 +132,7 @@
         </div>
         <div class="stat-tile-value">{{.Counts.Blacklist}}</div>
         <div class="stat-tile-note">dropped before any rule</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-cta">Manage &rarr;</div>
       </a>
       <a href="/whitelist" class="stat-tile">
         <div class="stat-tile-top">
@@ -142,41 +140,77 @@
           <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
         <div class="stat-tile-value">{{.Counts.Whitelist}}</div>
-        <div class="stat-tile-note">always permitted</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-note">bypass every port rule</div>
+        <div class="stat-tile-cta">Manage &rarr;</div>
       </a>
       <a href="/custom" class="stat-tile">
         <div class="stat-tile-top">
-          <span class="stat-tile-label">{{T "nav_custom"}}</span>
+          <span class="stat-tile-label">{{T "dashboard_custom"}}</span>
           <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
         </div>
         <div class="stat-tile-value">{{.Counts.Custom}}</div>
-        <div class="stat-tile-note">raw nftables rules</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-note">raw nftables statements</div>
+        <div class="stat-tile-cta">Manage &rarr;</div>
+      </a>
+      <a href="/forwarding" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_forwarding"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.Forwarding}}</div>
+        <div class="stat-tile-note">NAT redirects</div>
+        <div class="stat-tile-cta">Manage &rarr;</div>
       </a>
     </div>
     {{end}}
 
-    <div class="card">
-      <div class="card-pad">
-        <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted">Quick Actions</h2>
-        <div class="flex gap-2 flex-wrap mt-2">
-          <a href="/ports" class="btn btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 014.25 2h11.5A2.25 2.25 0 0118 4.25v8.5A2.25 2.25 0 0115.75 15h-3.105a3.501 3.501 0 001.1 1.677A.75.75 0 0113.26 18H6.74a.75.75 0 01-.484-1.323A3.501 3.501 0 007.355 15H4.25A2.25 2.25 0 012 12.75v-8.5z" clip-rule="evenodd"/></svg>
-            Manage Ports
-          </a>
-          <a href="/blacklist" class="btn btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
-            Blacklist IPs
-          </a>
-          <a href="/whitelist" class="btn btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-            Whitelist IPs
-          </a>
-          <a href="/apply" class="btn btn-primary btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
-            Apply Rules
-          </a>
+    <div class="page-grid">
+      <div class="card">
+        <div class="section-head">
+          <div class="section-head-text">
+            <h2 class="section-title">Recent activity</h2>
+            <p class="section-desc">The last changes recorded on this host.</p>
+          </div>
+          <div class="section-head-actions">
+            <a class="btn btn-sm" href="/log">Full log</a>
+          </div>
+        </div>
+        {{if .Recent}}
+        <div class="activity">
+          {{range .Recent}}
+          <div class="activity-item">
+            <span class="log-action{{with actionTone .Action}} log-action-{{.}}{{end}}">{{actionLabel .Action}}</span>
+            <span class="activity-text">
+              {{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{end}}
+              {{if .Detail}}<span class="activity-detail">{{.Detail}}</span>{{end}}
+            </span>
+            <span class="activity-time" title="{{.Time}}">{{shortTime .Time}}</span>
+          </div>
+          {{end}}
+        </div>
+        {{else}}
+        <div class="empty-state">
+          <p>Nothing recorded yet. Changes you save will show up here.</p>
+        </div>
+        {{end}}
+      </div>
+
+      <div class="aside-stack">
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            Nothing goes live on save
+          </h2>
+          <p>Editing a rule set stages it. The running firewall changes only when you apply, and only stays changed if you confirm inside the acceptance window.</p>
+          <p>That is what makes a mistake recoverable: lose your connection and the previous rules come back on their own.</p>
+        </div>
+
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
+            Before you lock yourself out
+          </h2>
+          <p>Put your own management address on the <a class="link" href="/whitelist">whitelist</a>. It survives a closed SSH port and every protection module.</p>
         </div>
       </div>
     </div>

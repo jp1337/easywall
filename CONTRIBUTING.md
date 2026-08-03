@@ -102,8 +102,20 @@ read it before touching anything visual.
 - **The accent is rationed** to what is focused, what is active, and the one primary
   action on a page.
 - Both themes must work. Check light mode as well as dark before opening a PR.
+- **Sentence case, in Inter.** Panel headings and table column heads are language, not
+  data. The tracked uppercase mono `label` role is retired everywhere except the sidebar's
+  two nav dividers — do not reintroduce it.
+- **A table must reflow.** Below 720px rows become labelled cards, which works only if
+  every `<td>` carries a `data-label`. If you add a column, add the attribute — and if you
+  build rows in `app.js` too, read the label out of the `<thead>` so it stays translated.
+- **One heading per thing.** A page title followed by a card titled the same thing is the
+  duplicate-heading bug, not structure.
 - There is no third-party component library. If you need a component that does not
   exist, add it to `DESIGN.md` first, then implement it from those tokens.
+- **Verify by rendering, not by reading the CSS.** Every significant defect in this
+  interface — a clipped port number, a class name that no longer existed, an arrow that
+  wrapped onto its own line — was invisible in the stylesheet and obvious in a screenshot.
+  Load the pages you touched, in both themes, at a phone width as well as a desktop one.
 - Rebuild the stylesheets after changing them — the compiled files are committed:
 
   ```bash

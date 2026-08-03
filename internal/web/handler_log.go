@@ -50,7 +50,13 @@ func (s *Server) handleLogFilter(w http.ResponseWriter, r *http.Request) {
 
 	var filtered []shared.AuditLogEntry
 	for _, e := range entries {
-		hay := strings.ToLower(e.Action + " " + e.RuleType + " " + e.Detail + " " + e.User)
+		// The displayed label is searched alongside the stored identifier. The
+		// table shows "Rules rolled back" while the log holds
+		// "apply_rolledback"; matching only the identifier meant typing what you
+		// can see on screen returned nothing.
+		hay := strings.ToLower(strings.Join([]string{
+			e.Action, actionLabel(e.Action), e.RuleType, e.Detail, e.User,
+		}, " "))
 		if strings.Contains(hay, q) {
 			filtered = append(filtered, e)
 		}

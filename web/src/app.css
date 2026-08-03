@@ -64,6 +64,7 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
+  --radius-2xl: 16px;
 
   --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -80,10 +81,16 @@
 
   --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-overlay: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  /* Hover state of an interactive container. Deliberately weaker than
+     `overlay`: the card is answering the pointer, not floating above the page. */
+  --shadow-lift: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
 
   --sidebar-width: 240px;
   --topbar-height: 48px;
   --settings-max: 920px;
+  /* Was referenced by .content-narrow and .form-stack but never declared, so
+     both silently had no measure at all. DESIGN.md § Layout sets it. */
+  --form-max: 640px;
   --control-height: 32px;
   --control-height-sm: 28px;
   --row-height: 36px;
@@ -108,7 +115,12 @@
   --color-control-edge: #868a93;
   --color-ink: #0f1116;
   --color-ink-muted: #5a6270;
-  --color-ink-subtle: #6f7784;
+  /* Was #6f7784, which cleared 4.5:1 on `surface` (4.52) but not on the other
+     two grounds it actually gets used on: 4.41 on `canvas` and 4.17 on
+     `surface-raised`. Measured, not guessed — the design.md linter cannot see
+     these pairings because they are set in CSS, not in a component entry.
+     #666e7b clears 4.5:1 on all three (5.15 / 5.02 / 4.75). */
+  --color-ink-subtle: #666e7b;
   --color-accent: #0f7bab;
   --color-accent-ink: #ffffff;
   --color-accent-on-wash: #0d6b95;
@@ -127,6 +139,7 @@
 
   --shadow-raised: 0 1px 2px rgba(15, 17, 22, 0.06);
   --shadow-overlay: 0 8px 24px -8px rgba(15, 17, 22, 0.14);
+  --shadow-lift: 0 2px 8px -2px rgba(15, 17, 22, 0.12);
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────── */
@@ -474,48 +487,106 @@ body {
     z-index: 99;
   }
 
-  /* ── Page header ───────────────────────────────────────────────────────── */
+  /* ── Page header ─────────────────────────────────────────────────────────
+     The title used to carry a 3px accent bar on its left. Repeated on all
+     fourteen pages it stopped reading as emphasis and started reading as a
+     template artefact, and it competed with the accent's actual job — marking
+     focus, the active nav item and the one primary action. A page is already
+     identified by its title and by the highlighted nav entry; a subtitle that
+     says what the page *does* is worth more than a decoration. */
   .page-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 12px 20px;
     margin-bottom: 20px;
   }
+
+  .page-header-text { min-width: 0; }
 
   .page-title {
     margin: 0;
     font-size: 26px;
     font-weight: 600;
     letter-spacing: -0.02em;
-    position: relative;
-    padding-left: 13px;
   }
 
-  /* Solid, not a gradient — DESIGN.md forbids gradients outright. */
-  .page-title::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 5px;
-    bottom: 5px;
-    width: 3px;
-    border-radius: 2px;
-    background: var(--color-accent);
+  .page-subtitle {
+    margin: 3px 0 0;
+    font-size: 13.5px;
+    color: var(--color-ink-muted);
+    max-width: 68ch;
   }
 
-  .page-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+  .page-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+
+  /* ── Content grid: work column + context column ──────────────────────────
+     Most pages here carry few rows — eight ports, four forwards, eleven
+     switches. Run that alone across a 1360px canvas and the columns stretch
+     absurdly: rendering showed "SSH (admin)" in a 950px-wide cell. The width is
+     not the problem; having nothing to put in it is. The aside carries the
+     guidance that a firewall interface genuinely needs anyway, so the measure
+     of the work column stays sane without leaving a dead band. */
+  .page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+  }
+
+  @media (max-width: 1180px) {
+    .page-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .page-grid > * { min-width: 0; }
+
+  /* ── Section heading inside a card ───────────────────────────────────────
+     Replaces the 10px uppercase mono `label` that used to head every panel.
+     See DESIGN.md § Typography for why that role was retired. */
+  .section-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .section-head-text { min-width: 0; }
+
+  .section-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .section-desc {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+  }
+
+  .section-head-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
 
   /* ════════════════════════════════════════════════════════════════════════
      Components — one entry per DESIGN.md § Components
      ════════════════════════════════════════════════════════════════════════ */
 
-  /* ── Card ──────────────────────────────────────────────────────────────── */
+  /* ── Card ────────────────────────────────────────────────────────────────
+     12px, not 8px. Containers moved up one step on the radius scale while
+     controls stayed where they were, so density is untouched — see DESIGN.md
+     § Shapes for the measurement that prompted it. */
   .card {
     background: var(--color-surface);
     border: 1px solid var(--color-rule);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     overflow: hidden;
   }
 
@@ -523,15 +594,29 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--color-rule);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.01em;
   }
 
   .card-header-note { margin-left: auto; font-size: 12px; color: var(--color-ink-subtle); }
-  .card-pad { padding: 14px; }
+  .card-pad { padding: 16px; }
+
+  /* Only for cards that are themselves interactive — a link, or a container
+     whose whole surface responds. A static panel stays flat. */
+  .card-interactive {
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease),
+                transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .card-interactive:hover {
+    border-color: var(--color-rule-strong);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
+  }
 
   /* ── Buttons ───────────────────────────────────────────────────────────── */
   .btn {
@@ -744,19 +829,18 @@ body {
      For a single control that needs a caption inside a dense row. Deliberately
      not a <fieldset>: a fieldset frames a *group*, and using one around a lone
      input produced a border with the legend sitting on top of the field. */
+  /* Label beside the field, not stacked above it. A stacked 10px uppercase
+     caption over a 96px number input reads as two unrelated fragments; on one
+     line it reads as the sentence it is — "max conn 5". */
   .field-inline {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
+    align-items: center;
+    gap: 8px;
   }
 
   .field-inline > span {
-    font-family: var(--font-data);
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--color-ink-subtle);
+    font-size: 13px;
+    color: var(--color-ink-muted);
     white-space: nowrap;
   }
 
@@ -772,13 +856,19 @@ body {
 
   .field { display: flex; flex-direction: column; gap: 5px; }
 
+  /* Vertical rhythm for a labelled form inside a card. */
+  .form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    max-width: var(--form-max);
+  }
+
   .field-label {
-    font-family: var(--font-data);
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--color-ink-subtle);
+    color: var(--color-ink);
   }
 
   .field-error {
@@ -799,18 +889,15 @@ body {
     padding: 14px 16px;
     background: var(--color-surface);
     border: 1px solid var(--color-rule);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
   }
 
   .fieldset > legend {
     padding: 0 6px;
     margin-left: -6px;
-    font-family: var(--font-data);
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--color-ink-subtle);
+    color: var(--color-ink);
   }
 
   /* ── Toggle ────────────────────────────────────────────────────────────────
@@ -1033,22 +1120,22 @@ body {
 
   .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
+  /* Sentence case at 12px, not 10px uppercase mono. A column head is language,
+     not data: "Ssh protection" set as S S H   P R O T E C T I O N in tracked
+     capitals takes longer to read and looks like a 2010 admin console. */
   .table th {
     text-align: left;
-    padding: 8px 14px;
+    padding: 9px 16px;
     border-bottom: 1px solid var(--color-rule);
-    font-family: var(--font-data);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--color-ink-subtle);
+    color: var(--color-ink-muted);
     white-space: nowrap;
   }
 
   .table td {
     height: var(--row-height);
-    padding: 8px 14px;
+    padding: 8px 16px;
     border-bottom: 1px solid var(--color-rule);
     vertical-align: middle;
   }
@@ -1070,10 +1157,103 @@ body {
   /* Column sizing. Data columns take exactly what they need and the
      description absorbs the remaining width, so nothing truncates while the
      right edge of the table stays reachable. */
-  .col-port    { width: 150px; }
+  .col-port    { width: 120px; }
   .col-flex    { width: auto; }
-  .col-toggle  { width: 130px; text-align: center; }
-  .col-actions { width: 60px;  text-align: right; }
+  .col-toggle  { width: 150px; }
+  .col-actions { width: 56px;  text-align: right; }
+
+  /* The lead cell of a rule row: the identifier the operator scans for. */
+  .cell-lead {
+    font-family: var(--font-data);
+    font-size: 14px;
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* A destructive control does not need to shout from every row. It stays
+     legible (0.55, not 0) and comes fully forward on row hover or when focused
+     by keyboard, so tabbing never lands on something half-visible. */
+  .row-action {
+    opacity: 0.55;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .table tbody tr:hover .row-action,
+  .table tbody tr:focus-within .row-action { opacity: 1; }
+
+  /* Forwarding is a relationship, not three independent numbers. The arrow
+     makes "8080 → 80" readable as one fact instead of two columns the operator
+     has to mentally join. */
+  /* The cell has to be a flex row: .input-cell is width:100%, so an inline
+     arrow beside it wrapped onto its own line above the number. */
+  .cell-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .flow-arrow {
+    flex-shrink: 0;
+    color: var(--color-ink-subtle);
+    font-family: var(--font-data);
+  }
+
+  /* ── Table toolbar ───────────────────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .toolbar-spacer { margin-left: auto; }
+
+  .toolbar-count {
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
+    white-space: nowrap;
+  }
+
+  .search { position: relative; display: flex; align-items: center; }
+
+  .search svg {
+    position: absolute;
+    left: 9px;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    color: var(--color-ink-subtle);
+  }
+
+  .search .input { padding-left: 30px; }
+
+  /* ── Sticky save bar ─────────────────────────────────────────────────────
+     A form long enough to scroll must not hide the button that commits it. */
+  .save-bar {
+    position: sticky;
+    bottom: 12px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    padding: 11px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .save-bar-note {
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+  }
 
   /* htmx normally injects its indicator CSS as an inline <style> block, which
      style-src 'self' rejects. includeIndicatorStyles is disabled in base.html
@@ -1161,19 +1341,29 @@ body {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    padding: 12px 14px;
+    padding: 13px 15px;
     background: var(--color-surface);
     border: 1px solid var(--color-rule);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-xl);
     text-decoration: none;
     color: inherit;
     min-width: 0;
-    transition: border-color var(--motion-fast) var(--motion-ease);
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease),
+                transform var(--motion-fast) var(--motion-ease);
   }
 
   a.stat-tile:hover {
     border-color: var(--color-accent);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
     text-decoration: none;
+  }
+
+  a.stat-tile:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 2px;
+    border-color: var(--color-accent);
   }
 
   /* A metric tile earns its presence through structure and weight, not colour:
@@ -1197,12 +1387,9 @@ body {
   a.stat-tile:hover .stat-tile-icon { color: var(--color-accent-on-wash); }
 
   .stat-tile-label {
-    font-family: var(--font-data);
-    font-size: 10px;
+    font-size: 13px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--color-ink-subtle);
+    color: var(--color-ink-muted);
   }
 
   .stat-tile-value {
@@ -1232,6 +1419,443 @@ body {
   }
 
   a.stat-tile:hover .stat-tile-cta { color: var(--color-accent-on-wash); }
+
+  /* Tiles size themselves rather than being pinned to a column count, so the
+     grid stays even at every viewport instead of leaving one orphan per row. */
+  /* 168px, not 190: at 190 a 390px-wide phone fell to a single column and the
+     six tiles became 780px of scrolling before anything else on the page. */
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 12px;
+  }
+
+  /* ── Group heading between sibling grids ─────────────────────────────────── */
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 26px 0 11px;
+  }
+
+  .group-head:first-child { margin-top: 0; }
+
+  .group-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+  }
+
+  .group-note {
+    font-size: 12.5px;
+    color: var(--color-ink-subtle);
+  }
+
+  /* ── Protection modules (options page) ───────────────────────────────────
+     Each firewall protection is a self-contained thing that is either on or
+     off and may carry its own parameters. As rows in one long list it took
+     1700px of scroll and gave no answer to the page's actual question — which
+     protections are active. As a grid of cards the answer is the shape of the
+     page: accent-edged cards are on, plain ones are off. */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 12px;
+  }
+
+  .module {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease);
+  }
+
+  .module:hover { border-color: var(--color-rule-strong); }
+
+  /* The same 2px accent edge that marks the active nav item, so "this one is
+     live" uses one vocabulary throughout the interface. */
+  .module:has(.toggle:checked) {
+    box-shadow: inset 2px 0 0 var(--color-accent);
+  }
+
+  .module:focus-within {
+    border-color: var(--color-accent);
+  }
+
+  /* A <label> wrapping its own switch: the whole header is the hit area, so an
+     operator does not have to land on a 34px target at the far edge. */
+  /* flex: 1 so the header absorbs any height the grid row forces on the card
+     and the parameter band always sits flush at the bottom — otherwise bands
+     in the same row land at different heights whenever one description wraps. */
+  .module-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    padding: 13px 15px;
+    cursor: pointer;
+  }
+
+  .module-text { display: block; min-width: 0; flex: 1; }
+
+  .module-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 550;
+    letter-spacing: -0.005em;
+  }
+
+  .module-desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+  }
+
+  .module-params label { cursor: pointer; }
+
+  /* Parameters belong to the card, separated by a hairline — not stacked
+     underneath it on a darker fill, which read as a detached second row. */
+  .module-params {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px 16px;
+    padding: 10px 15px;
+    border-top: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+    font-size: 13px;
+  }
+
+  .module-params .input { width: 5.5rem; }
+
+  /* ── Switch row ──────────────────────────────────────────────────────────
+     For settings that are a plain on/off with no parameters. A <label>, so the
+     whole row is the hit area rather than only the switch at the far edge —
+     which was the complaint that the control sat nowhere near its caption. */
+  .switch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-rule);
+    cursor: pointer;
+  }
+
+  .switch-row:hover { background: var(--color-surface-raised); }
+
+  .switch-text { display: block; flex: 1; min-width: 0; }
+
+  .switch-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 550;
+  }
+
+  .switch-desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+  }
+
+  /* A field that belongs to the switch above it, indented under it. */
+  .switch-detail {
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+  }
+
+  .switch-detail .field-help { margin-top: 6px; }
+
+  /* ── Context column ──────────────────────────────────────────────────────
+     Carries what an operator editing firewall rules actually wants at hand:
+     what the list does, the syntax it accepts, what happens on save. */
+  .aside-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .aside-card {
+    padding: 15px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+  }
+
+  .aside-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  .aside-title svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: var(--color-ink-subtle);
+  }
+
+  .aside-card p {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  .aside-card p:last-child { margin-bottom: 0; }
+
+  .aside-card code {
+    font-family: var(--font-data);
+    font-size: 11.5px;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    color: var(--color-ink);
+    white-space: nowrap;
+  }
+
+  /* Definition-list variant, for "key — value" facts such as system info. */
+  .aside-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    margin: 0;
+    font-size: 12.5px;
+  }
+
+  .aside-facts dt { color: var(--color-ink-subtle); }
+
+  .aside-facts dd {
+    margin: 0;
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Status hero ─────────────────────────────────────────────────────────
+     The dashboard and the apply screen both open on one question: what is the
+     firewall doing right now. It gets a panel of its own rather than being the
+     first of nine equal rectangles. */
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 20px 28px;
+    flex-wrap: wrap;
+    padding: 18px 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-2xl);
+  }
+
+  .hero-main { min-width: 0; }
+
+  .hero-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .hero-note {
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+  }
+
+  .hero-facts {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .hero-fact-label {
+    font-size: 12.5px;
+    color: var(--color-ink-subtle);
+  }
+
+  .hero-fact-value {
+    margin-top: 2px;
+    font-family: var(--font-data);
+    font-size: 14px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* A status dot large enough to read as the subject of the sentence. */
+  .hero-dot {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--color-ink-subtle);
+  }
+
+  .hero-dot.ok { background: var(--color-state-ok); animation: ew-pulse-ok 2.2s infinite; }
+  .hero-dot.warn { background: var(--color-state-warn); animation: ew-pulse-warn 1.6s infinite; }
+  .hero-dot.crit { background: var(--color-state-crit); box-shadow: 0 0 0 4px var(--wash-crit); }
+
+  /* ── Numbered sequence (apply screen) ────────────────────────────────────
+     Numbers here are not decoration: applying rules genuinely is a three-step
+     sequence and the order is the information. The previous markup had bold
+     titles butting directly against their descriptions with no spacing, which
+     collapsed all three steps into one wall of text. */
+  .steps {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .step::before {
+    counter-increment: step;
+    content: counter(step);
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 9999px;
+    border: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-ink-muted);
+  }
+
+  .step-title {
+    font-size: 13.5px;
+    font-weight: 550;
+  }
+
+  .step-desc {
+    margin-top: 3px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  /* ── Activity list ───────────────────────────────────────────────────────
+     Fed from the audit log the core already keeps, so the dashboard shows
+     something that happened rather than half a screen of nothing. */
+  .activity {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* A fixed first column, so the details line up down the list instead of
+     starting wherever the previous tag happened to end. */
+  .activity-item {
+    display: grid;
+    grid-template-columns: 168px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--color-rule);
+    font-size: 13px;
+  }
+
+  .activity-item > :first-child { justify-self: start; }
+
+  @media (max-width: 560px) {
+    .activity-item {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .activity-item > :first-child { grid-column: 1 / -1; }
+  }
+
+  .activity-item:last-child { border-bottom: 0; }
+
+  .activity-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .activity-detail { color: var(--color-ink-muted); }
+
+  .activity-time {
+    font-family: var(--font-data);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
+    white-space: nowrap;
+  }
+
+  /* ── List editor (blacklist / whitelist / custom rules) ──────────────────
+     A textarea is the honest control for a list that may hold eight entries or
+     eight hundred. What it lacked was a measure and any sense of how many
+     entries it currently holds. */
+  .editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .editor textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-data);
+    font-size: 13px;
+    line-height: 1.75;
+    resize: vertical;
+  }
+
+  .editor textarea:focus,
+  .editor textarea:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: -2px;
+  }
+
+  .editor-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 9px 16px;
+    border-top: 1px solid var(--color-rule);
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+  }
 
   /* ── Empty state ───────────────────────────────────────────────────────── */
   .empty-state {
@@ -1268,6 +1892,42 @@ body {
 
   .apply-status-card { text-align: center; padding: 28px 22px; }
 
+  .apply-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 34px 24px 30px;
+  }
+
+  .apply-state {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .apply-state .status-dot { font-size: inherit; font-weight: inherit; }
+
+  .apply-lead {
+    margin: 10px 0 0;
+    max-width: 52ch;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .apply-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 22px;
+  }
+
+  /* The step list sits inside an aside card, so it runs at aside type sizes. */
+  .aside-card .steps { gap: 13px; }
+  .aside-card .step-desc { font-size: 12px; }
+
   .apply-icon {
     width: 52px;
     height: 52px;
@@ -1278,6 +1938,15 @@ body {
   }
 
   .apply-icon svg { width: 26px; height: 26px; }
+
+  /* Idle is a state too. Without a variant the disc had no fill and the glyph
+     read as a stray button floating in the panel. Neutral, because nothing is
+     happening — colour here belongs to the three firewall states. */
+  .apply-icon.idle {
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    color: var(--color-ink-subtle);
+  }
 
   .apply-icon.pending {
     background: var(--wash-warn);
@@ -1377,17 +2046,32 @@ body {
     white-space: nowrap;
   }
 
-  .log-action-rules_saved,
-  .log-action-rules_applied {
+  /* Keyed on a tone the server derives from the action, not on the action
+     string itself. The previous selectors named `rules_applied` and
+     `rules_rolled_back` — identifiers only the demo client produced, so in
+     production no audit entry was ever tinted. See actionTone() in server.go. */
+  .log-action-ok {
     background: var(--wash-ok);
     color: var(--color-state-ok-on-wash);
     border-color: var(--color-state-ok);
   }
 
-  .log-action-rules_rolled_back {
+  .log-action-warn {
+    background: var(--wash-warn);
+    color: var(--color-state-warn-on-wash);
+    border-color: var(--color-state-warn);
+  }
+
+  .log-action-crit {
     background: var(--wash-crit);
     color: var(--color-state-crit-on-wash);
     border-color: var(--color-state-crit);
+  }
+
+  /* Sentence case, not the raw identifier: an audit trail is read by a person. */
+  .log-action {
+    font-family: var(--font-ui);
+    font-size: 12px;
   }
 
   .log-detail {
@@ -1472,9 +2156,91 @@ body {
 }
 
 /* ── Responsive ────────────────────────────────────────────────────────────
-   Tables keep their columns and scroll horizontally rather than reflowing into
-   stacked cards: a firewall rule read as a disconnected list of labelled
-   fields loses the row relationship that makes it a rule. */
+   An earlier revision of DESIGN.md had tables keep their columns and scroll
+   sideways on phones, arguing that a rule read as a list of labelled fields
+   loses the row relationship that makes it a rule. Rendering at 390px settled
+   it: the port column collapsed until `22` displayed as `2:` and every
+   description truncated mid-word. A rule whose identifier is unreadable has no
+   relationship left to preserve. Rows now reflow into cards, and the card
+   border keeps them legible as single units. */
+@media (max-width: 720px) {
+  .table-reflow thead { display: none; }
+
+  .table-reflow,
+  .table-reflow tbody,
+  .table-reflow tr,
+  .table-reflow td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-reflow tr {
+    margin: 10px;
+    padding: 4px 0;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-lg);
+  }
+
+  .table-reflow tbody tr:hover { background: var(--color-surface-raised); }
+
+  /* display:block above would otherwise beat the UA stylesheet's [hidden] rule
+     and a filtered-out row would stay on screen. */
+  .table-reflow tr[hidden] { display: none; }
+
+  .table-reflow td {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: auto;
+    min-height: 34px;
+    padding: 5px 12px;
+    border-bottom: 0;
+    text-align: left;
+  }
+
+  /* The column head travels with the value as its label. */
+  .table-reflow td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    font-size: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  .table-reflow td:not([data-label]) { justify-content: flex-end; }
+  .table-reflow td:not([data-label])::before { content: none; }
+
+  /* A free-text field does not fit in 62% of a phone's width. It gets its own
+     row, label above, so the whole description is readable without scrolling
+     inside the input. */
+  .table-reflow td.cell-wide {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .table-reflow td.cell-wide::before { flex: none; }
+
+  .table-reflow td > .input,
+  .table-reflow td > .input-cell {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+
+  /* The delete control is permanently visible here: there is no hover on a
+     touch screen to reveal it. */
+  .table-reflow .row-action { opacity: 1; }
+
+  .module-params .input { width: 5rem; }
+
+  .hero-facts { margin-left: 0; gap: 20px; }
+
+  /* A pinned 55px bar over a phone screen permanently hides one row of the
+     list being edited. On a narrow viewport the bar rides along in the flow. */
+  .save-bar { position: static; }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
@@ -1504,5 +2270,12 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Hover lift is movement too — the border and shadow still answer the
+     pointer, the card simply stays put. */
+  .card-interactive:hover,
+  a.stat-tile:hover {
+    transform: none;
   }
 }

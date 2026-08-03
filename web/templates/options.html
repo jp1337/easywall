@@ -3,11 +3,14 @@
 {{template "sidebar" .}}
 <div class="main">
   {{template "topbar" .}}
-  <div class="content content-settings">
+  <div class="content">
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "options_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "options_title"}}</h1>
+        <p class="page-subtitle">Protection modules that apply to every interface. An accent edge marks a module that is on.</p>
+      </div>
     </div>
 
     {{with .Data}}
@@ -25,258 +28,260 @@
           hx-trigger="change delay:200ms"
           hx-swap="none">
 
-    <div class="card mb-4">
-      <div class="card-pad p-0">
-        <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted px-6 pt-5 pb-2">Attack Protection</h2>
-
-        <!-- SSH Brute Force -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">SSH Brute-Force</div>
-              <div class="text-sm text-ink-muted mt-0.5">Limit new SSH connections</div>
-            </div>
-            <input type="checkbox" name="ssh_brute_force" class="toggle" {{if $o.SSHBruteForce}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="flex items-center gap-2 pb-2">
-              <input type="checkbox" name="ssh_brute_force_log" class="checkbox" {{if $o.SSHBruteForceLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-            <label class="field-inline">
-              <span>Max conn</span>
-              <input type="number" name="ssh_brute_force_connection_limit" value="{{$o.SSHBruteForceConnectionLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-            <label class="field-inline">
-              <span>Log limit/min</span>
-              <input type="number" name="ssh_brute_force_log_limit" value="{{$o.SSHBruteForceLogLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
-        <!-- ICMP Flood -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">ICMP Flood</div>
-              <div class="text-sm text-ink-muted mt-0.5">Rate-limit ICMP ping requests</div>
-            </div>
-            <input type="checkbox" name="icmp_flood" class="toggle" {{if $o.ICMPFlood}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="flex items-center gap-2 pb-2">
-              <input type="checkbox" name="icmp_flood_log" class="checkbox" {{if $o.ICMPFloodLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-            <label class="field-inline">
-              <span>Max rate</span>
-              <input type="number" name="icmp_flood_connection_limit" value="{{$o.ICMPFloodConnectionLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-            <label class="field-inline">
-              <span>Log limit/min</span>
-              <input type="number" name="icmp_flood_log_limit" value="{{$o.ICMPFloodLogLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
-        <!-- SYN Flood -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">SYN Flood</div>
-              <div class="text-sm text-ink-muted mt-0.5">Limit new TCP connections per IP</div>
-            </div>
-            <input type="checkbox" name="syn_flood" class="toggle" {{if $o.SYNFlood}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="flex items-center gap-2 pb-2">
-              <input type="checkbox" name="syn_flood_log" class="checkbox" {{if $o.SYNFloodLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-            <label class="field-inline">
-              <span>Limit/s</span>
-              <input type="number" name="syn_flood_limit" value="{{$o.SYNFloodLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
-        <!-- Port Scan -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Port Scan Detection</div>
-              <div class="text-sm text-ink-muted mt-0.5">Block NULL/FIN/XMAS scans</div>
-            </div>
-            <input type="checkbox" name="port_scan" class="toggle" {{if $o.PortScan}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-center text-sm bg-surface-raised">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" name="port_scan_log" class="checkbox" {{if $o.PortScanLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Invalid Packets -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Invalid Packets</div>
-              <div class="text-sm text-ink-muted mt-0.5">Drop packets with invalid conntrack state</div>
-            </div>
-            <input type="checkbox" name="drop_invalid_packets" class="toggle" {{if $o.InvalidPackets}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-center text-sm bg-surface-raised">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" name="drop_invalid_packets_log" class="checkbox" {{if $o.InvalidPacketsLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Fragments -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Fragment Drop</div>
-              <div class="text-sm text-ink-muted mt-0.5">Drop IP-fragmented packets</div>
-            </div>
-            <input type="checkbox" name="drop_fragments" class="toggle" {{if $o.Fragments}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-center text-sm bg-surface-raised">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" name="drop_fragments_log" class="checkbox" {{if $o.FragmentsLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Bogons -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Bogon Filter</div>
-              <div class="text-sm text-ink-muted mt-0.5">Drop RFC-1918 from external interfaces</div>
-            </div>
-            <input type="checkbox" name="bogon_filter" class="toggle" {{if $o.Bogons}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-center text-sm bg-surface-raised">
-            <label class="flex items-center gap-2">
-              <input type="checkbox" name="bogon_filter_log" class="checkbox" {{if $o.BogonsLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Connection Limit -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Connection Limit</div>
-              <div class="text-sm text-ink-muted mt-0.5">Max concurrent connections per source IP</div>
-            </div>
-            <input type="checkbox" name="connection_limit_per_ip" class="toggle" {{if $o.ConnectionLimit}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="field-inline">
-              <span>Max connections</span>
-              <input type="number" name="connection_limit_max" value="{{$o.ConnectionLimitMax}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
-        <!-- TCP RST Flood -->
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">TCP RST Flood</div>
-              <div class="text-sm text-ink-muted mt-0.5">Rate-limit RST packets</div>
-            </div>
-            <input type="checkbox" name="tcp_rst_flood" class="toggle" {{if $o.TCPRSTFlood}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="flex items-center gap-2 pb-2">
-              <input type="checkbox" name="tcp_rst_flood_log" class="checkbox" {{if $o.TCPRSTFloodLog}}checked{{end}}>
-              <span>Log</span>
-            </label>
-            <label class="field-inline">
-              <span>Limit/s</span>
-              <input type="number" name="tcp_rst_flood_limit" value="{{$o.TCPRSTFloodLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
-      </div>
+    <div class="group-head">
+      <h2 class="group-title">Attack protection</h2>
+      <span class="group-note">Rate limits and drop rules for hostile traffic</span>
     </div>
 
-    <div class="card mb-4">
-      <div class="card-pad p-0">
-        <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted px-6 pt-5 pb-2">Traffic Filtering</h2>
+    <div class="module-grid">
 
-        <div class="border-t border-rule flex items-start gap-4 px-6 py-3">
-          <div class="flex-1">
-            <div class="font-medium">Drop Broadcast</div>
-            <div class="text-sm text-ink-muted mt-0.5">Drop broadcast packets</div>
-          </div>
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">SSH brute-force</span>
+            <span class="module-desc">Rate-limits new SSH connections per source address</span>
+          </span>
+          <input type="checkbox" name="ssh_brute_force" class="toggle" {{if $o.SSHBruteForce}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="ssh_brute_force_log" class="checkbox" {{if $o.SSHBruteForceLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+          <label class="field-inline">
+            <span>Max conn</span>
+            <input type="number" name="ssh_brute_force_connection_limit" value="{{$o.SSHBruteForceConnectionLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+          <label class="field-inline">
+            <span>Log limit/min</span>
+            <input type="number" name="ssh_brute_force_log_limit" value="{{$o.SSHBruteForceLogLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">ICMP flood</span>
+            <span class="module-desc">Rate-limits incoming ping requests</span>
+          </span>
+          <input type="checkbox" name="icmp_flood" class="toggle" {{if $o.ICMPFlood}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="icmp_flood_log" class="checkbox" {{if $o.ICMPFloodLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+          <label class="field-inline">
+            <span>Max rate</span>
+            <input type="number" name="icmp_flood_connection_limit" value="{{$o.ICMPFloodConnectionLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+          <label class="field-inline">
+            <span>Log limit/min</span>
+            <input type="number" name="icmp_flood_log_limit" value="{{$o.ICMPFloodLogLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">SYN flood</span>
+            <span class="module-desc">Caps new TCP connections per source address</span>
+          </span>
+          <input type="checkbox" name="syn_flood" class="toggle" {{if $o.SYNFlood}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="syn_flood_log" class="checkbox" {{if $o.SYNFloodLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+          <label class="field-inline">
+            <span>Limit/s</span>
+            <input type="number" name="syn_flood_limit" value="{{$o.SYNFloodLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Port scan detection</span>
+            <span class="module-desc">Drops NULL, FIN and XMAS scan packets</span>
+          </span>
+          <input type="checkbox" name="port_scan" class="toggle" {{if $o.PortScan}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="port_scan_log" class="checkbox" {{if $o.PortScanLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Invalid packets</span>
+            <span class="module-desc">Drops packets conntrack cannot match to a connection</span>
+          </span>
+          <input type="checkbox" name="drop_invalid_packets" class="toggle" {{if $o.InvalidPackets}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="drop_invalid_packets_log" class="checkbox" {{if $o.InvalidPacketsLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Fragment drop</span>
+            <span class="module-desc">Drops IP-fragmented packets</span>
+          </span>
+          <input type="checkbox" name="drop_fragments" class="toggle" {{if $o.Fragments}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="drop_fragments_log" class="checkbox" {{if $o.FragmentsLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Bogon filter</span>
+            <span class="module-desc">Drops RFC 1918 sources arriving on external interfaces</span>
+          </span>
+          <input type="checkbox" name="bogon_filter" class="toggle" {{if $o.Bogons}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="bogon_filter_log" class="checkbox" {{if $o.BogonsLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Connection limit</span>
+            <span class="module-desc">Caps concurrent connections per source address</span>
+          </span>
+          <input type="checkbox" name="connection_limit_per_ip" class="toggle" {{if $o.ConnectionLimit}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <span>Max connections</span>
+            <input type="number" name="connection_limit_max" value="{{$o.ConnectionLimitMax}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">TCP RST flood</span>
+            <span class="module-desc">Rate-limits inbound TCP reset packets</span>
+          </span>
+          <input type="checkbox" name="tcp_rst_flood" class="toggle" {{if $o.TCPRSTFlood}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <input type="checkbox" name="tcp_rst_flood_log" class="checkbox" {{if $o.TCPRSTFloodLog}}checked{{end}}>
+            <span>Log</span>
+          </label>
+          <label class="field-inline">
+            <span>Limit/s</span>
+            <input type="number" name="tcp_rst_flood_limit" value="{{$o.TCPRSTFloodLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="group-head">
+      <h2 class="group-title">Traffic filtering</h2>
+      <span class="group-note">Address classes to discard, and what gets written to the log</span>
+    </div>
+
+    <div class="module-grid">
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Drop broadcast</span>
+            <span class="module-desc">Discards traffic sent to a broadcast address</span>
+          </span>
           <input type="checkbox" name="drop_broadcast" class="toggle" {{if $o.DropBroadcast}}checked{{end}}>
-        </div>
-
-        <div class="border-t border-rule flex items-start gap-4 px-6 py-3">
-          <div class="flex-1">
-            <div class="font-medium">Drop Multicast</div>
-            <div class="text-sm text-ink-muted mt-0.5">Drop multicast packets</div>
-          </div>
-          <input type="checkbox" name="drop_multicast" class="toggle" {{if $o.DropMulticast}}checked{{end}}>
-        </div>
-
-        <div class="border-t border-rule flex items-start gap-4 px-6 py-3">
-          <div class="flex-1">
-            <div class="font-medium">Drop Anycast</div>
-            <div class="text-sm text-ink-muted mt-0.5">Drop anycast destination packets</div>
-          </div>
-          <input type="checkbox" name="drop_anycast" class="toggle" {{if $o.DropAnycast}}checked{{end}}>
-        </div>
-
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Log Blocked</div>
-              <div class="text-sm text-ink-muted mt-0.5">Log blocked connections</div>
-            </div>
-            <input type="checkbox" name="log_blocked_connections" class="toggle" {{if $o.LogBlocked}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="field-inline">
-              <span>Log limit/min</span>
-              <input type="number" name="log_blocked_connections_limit" value="{{$o.LogBlockedLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
-        <div class="border-t border-rule">
-          <div class="flex items-start gap-4 px-6 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Log Blacklist</div>
-              <div class="text-sm text-ink-muted mt-0.5">Log blacklisted connection attempts</div>
-            </div>
-            <input type="checkbox" name="log_blacklist_connections" class="toggle" {{if $o.LogBlacklist}}checked{{end}}>
-          </div>
-          <div class="px-6 pb-3 flex flex-wrap gap-4 items-end text-sm bg-surface-raised">
-            <label class="field-inline">
-              <span>Log limit/min</span>
-              <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="9999" class="input input-sm w-24">
-            </label>
-          </div>
-        </div>
-
+        </label>
       </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Drop multicast</span>
+            <span class="module-desc">Discards traffic sent to a multicast group</span>
+          </span>
+          <input type="checkbox" name="drop_multicast" class="toggle" {{if $o.DropMulticast}}checked{{end}}>
+        </label>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Drop anycast</span>
+            <span class="module-desc">Discards traffic sent to an anycast destination</span>
+          </span>
+          <input type="checkbox" name="drop_anycast" class="toggle" {{if $o.DropAnycast}}checked{{end}}>
+        </label>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Log blocked</span>
+            <span class="module-desc">Writes dropped connections to the system log</span>
+          </span>
+          <input type="checkbox" name="log_blocked_connections" class="toggle" {{if $o.LogBlocked}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <span>Log limit/min</span>
+            <input type="number" name="log_blocked_connections_limit" value="{{$o.LogBlockedLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
+      <div class="module">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">Log blacklist</span>
+            <span class="module-desc">Writes blacklisted connection attempts to the system log</span>
+          </span>
+          <input type="checkbox" name="log_blacklist_connections" class="toggle" {{if $o.LogBlacklist}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <span>Log limit/min</span>
+            <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="9999" class="input input-sm input-data">
+          </label>
+        </div>
+      </div>
+
     </div>
 
-    <div>
+    <div class="save-bar">
       <button type="submit" class="btn btn-primary">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
         {{T "options_save"}}
       </button>
+      <span class="save-bar-note">Options save immediately. Rule changes stay staged until you <a class="link" href="/apply">apply rules</a>.</span>
     </div>
 
     </form>

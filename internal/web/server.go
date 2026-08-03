@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -345,6 +346,75 @@ func loadTemplates(dir string) (*template.Template, error) {
 	return tmpl, nil
 }
 
+// auditActionLabels turns the core's audit action identifiers into something an
+// operator reads rather than parses. The keys are exactly the strings written by
+// internal/core (see firewall.go and daemon.go); anything unknown falls back to
+// a humanised form of the identifier itself, so a new action added in the core
+// still renders sensibly before this map catches up.
+var auditActionLabels = map[string]string{
+	"apply_started":    "Apply started",
+	"apply_accepted":   "Rules applied",
+	"apply_rolledback": "Rules rolled back",
+	"apply_failed":     "Apply failed",
+	"rules_saved":      "Rules saved",
+	"rules_imported":   "Rules imported",
+	"options_saved":    "Options saved",
+	"settings_saved":   "Settings saved",
+	"system_saved":     "System settings saved",
+}
+
+// auditActionTones maps an action to a firewall state, and only to a firewall
+// state. DESIGN.md reserves green, amber and red for what the firewall is
+// doing; saving a rule stages it and changes nothing that is live, so it stays
+// neutral however important it feels.
+//
+// This previously lived in the stylesheet, keyed on `rules_applied` and
+// `rules_rolled_back` — action names only the demo client ever produced. In
+// production the real names never matched, so a rolled-back apply, the single
+// most consequential line in the log, rendered neutral grey.
+var auditActionTones = map[string]string{
+	"apply_accepted":   "ok",
+	"apply_started":    "warn",
+	"apply_rolledback": "crit",
+	"apply_failed":     "crit",
+}
+
+func actionLabel(action string) string {
+	if l, ok := auditActionLabels[action]; ok {
+		return l
+	}
+	s := strings.ReplaceAll(action, "_", " ")
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// actionTone returns "ok", "warn", "crit" or "" for a neutral action.
+func actionTone(action string) string { return auditActionTones[action] }
+
+// shortTime renders a stored RFC 3339 timestamp the way someone reads a log:
+// clock time for today, day and month before that. The full value stays in the
+// element's title attribute where the templates use it, so nothing is lost.
+//
+// The offset carried in the stored string is preserved rather than converted —
+// it is the host's own local time, which is the frame an operator correlating
+// this against syslog is working in.
+func shortTime(v string) string {
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return v // not a timestamp we recognise; show it untouched
+	}
+	now := time.Now().In(t.Location())
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return t.Format("15:04:05")
+	}
+	if t.Year() == now.Year() {
+		return t.Format("2 Jan 15:04")
+	}
+	return t.Format("2 Jan 2006 15:04")
+}
+
 // templateFuncs returns the shared FuncMap used across all templates.
 func templateFuncs() template.FuncMap {
 	successKeys := map[string]bool{
@@ -363,6 +433,29 @@ func templateFuncs() template.FuncMap {
 
 	return template.FuncMap{
 		"add1": func(i int) int { return i + 1 },
+		// The list editors hold raw lines, comments and blanks included. A
+		// counter that reports those as entries is simply wrong, and it is the
+		// number an operator uses to sanity-check a paste.
+		"countEntries": func(lines []string) int {
+			n := 0
+			for _, l := range lines {
+				l = strings.TrimSpace(l)
+				if l != "" && !strings.HasPrefix(l, "#") {
+					n++
+				}
+			}
+			return n
+		},
+		// "1 entry" / "12 entries", so the templates do not each carry an if.
+		"plural": func(n int, one, many string) string {
+			if n == 1 {
+				return one
+			}
+			return many
+		},
+		"actionLabel": actionLabel,
+		"actionTone":  actionTone,
+		"shortTime":   shortTime,
 		// Class names come from DESIGN.md § Components — only the three firewall
 		// states carry colour, so there is no informational variant here.
 		"flashClass": func(key string) string {

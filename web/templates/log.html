@@ -7,7 +7,10 @@
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "log_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "log_title"}}</h1>
+        <p class="page-subtitle">{{T "log_subtitle"}}</p>
+      </div>
     </div>
 
     {{with .Data}}
@@ -19,28 +22,28 @@
     {{end}}
 
     <div class="card">
-      <div class="card-pad p-0">
-        <div class="px-6 py-4 border-b border-rule flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted">{{T "log_recent"}}</h2>
-            <p class="text-xs text-ink-subtle mt-1">{{T "log_subtitle"}}</p>
-          </div>
+      <div>
+        <div class="toolbar">
+          <h2 class="section-title">{{T "log_recent"}}</h2>
+          <span class="toolbar-spacer"></span>
           {{if .Entries}}
-          <label class="input input-sm flex items-center gap-2 max-w-xs">
-            <svg class="size-4 opacity-60" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
-            <input type="search" name="q" placeholder="Filter by action, detail, user…"
+          <span class="toolbar-count">{{$n := len .Entries}}{{$n}} {{plural $n "entry" "entries"}}</span>
+          <div class="search">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+            <input type="search" name="q" class="input input-sm w-64"
+                   placeholder="Filter entries"
+                   aria-label="Filter audit log"
                    hx-get="/log/filter"
                    hx-trigger="keyup changed delay:300ms, search"
                    hx-target="#log-rows"
-                   hx-swap="innerHTML"
-                   class="grow">
-          </label>
+                   hx-swap="innerHTML">
+          </div>
           {{end}}
         </div>
 
         {{if .Entries}}
-        <div class="overflow-x-auto">
-          <table class="table">
+        <div class="table-wrap">
+          <table class="table table-reflow">
             <thead>
               <tr>
                 <th>{{T "log_col_time"}}</th>
@@ -72,11 +75,11 @@
 {{define "log_rows"}}
 {{range .}}
 <tr>
-  <td class="log-time">{{.Time}}</td>
-  <td><span class="log-action log-action-{{.Action}}">{{.Action}}</span></td>
-  <td>{{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
-  <td class="log-detail">{{if .Detail}}{{.Detail}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
-  <td>{{.User}}</td>
+  <td class="log-time" data-label="{{T "log_col_time"}}" title="{{.Time}}">{{shortTime .Time}}</td>
+  <td data-label="{{T "log_col_action"}}"><span class="log-action{{with actionTone .Action}} log-action-{{.}}{{end}}">{{actionLabel .Action}}</span></td>
+  <td data-label="{{T "log_col_ruletype"}}">{{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td class="log-detail cell-wide" data-label="{{T "log_col_detail"}}">{{if .Detail}}{{.Detail}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td data-label="{{T "log_col_user"}}">{{.User}}</td>
 </tr>
 {{else}}
 <tr>

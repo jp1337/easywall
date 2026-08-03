@@ -3,11 +3,14 @@
 {{template "sidebar" .}}
 <div class="main">
   {{template "topbar" .}}
-  <div class="content content-settings">
+  <div class="content">
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "settings_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "settings_title"}}</h1>
+        <p class="page-subtitle">Address families and container networks the firewall has to account for.</p>
+      </div>
     </div>
 
     {{with .Data}}
@@ -24,76 +27,106 @@
           hx-trigger="change delay:200ms"
           hx-swap="none">
 
-      <div class="card mb-4">
-        <div class="card-pad">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted">IPv6</h2>
-
-          <div class="flex items-start gap-4 py-3 border-b border-rule">
-            <div class="flex-1">
-              <div class="font-medium">IPv6 Support</div>
-              <div class="text-sm text-ink-muted mt-0.5">Enable IPv6 filtering in the inet table</div>
+      <div class="page-grid">
+        <div>
+          <div class="card mb-4">
+            <div class="section-head">
+              <div class="section-head-text">
+                <h2 class="section-title">IPv6</h2>
+                <p class="section-desc">Whether the inet table filters IPv6, and which discovery messages get through.</p>
+              </div>
             </div>
-            <input type="checkbox" name="ipv6_enabled" class="toggle"
-                   {{if and $ns $ns.IPv6.Enabled}}checked{{end}}>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">IPv6 filtering</span>
+                <span class="switch-desc">Apply every rule to IPv6 as well as IPv4. Off means IPv6 traffic is not filtered at all.</span>
+              </span>
+              <input type="checkbox" name="ipv6_enabled" class="toggle"
+                     {{if and $ns $ns.IPv6.Enabled}}checked{{end}}>
+            </label>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">Router advertisements</span>
+                <span class="switch-desc">Accept ICMPv6 type 134. Needed for stateless address autoconfiguration on most networks.</span>
+              </span>
+              <input type="checkbox" name="icmp_allow_router_advertisement" class="toggle"
+                     {{if and $ns $ns.IPv6.ICMPAllowRouterAdvertisement}}checked{{end}}>
+            </label>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">Neighbour advertisements</span>
+                <span class="switch-desc">Accept ICMPv6 type 136, the IPv6 equivalent of an ARP reply.</span>
+              </span>
+              <input type="checkbox" name="icmp_allow_neighbor_advertisement" class="toggle"
+                     {{if and $ns $ns.IPv6.ICMPAllowNeighborAdvertisement}}checked{{end}}>
+            </label>
           </div>
 
-          <div class="flex items-start gap-4 py-3 border-b border-rule">
-            <div class="flex-1">
-              <div class="font-medium">Router Advertisement (ICMPv6 134)</div>
-              <div class="text-sm text-ink-muted mt-0.5">Allow incoming router advertisement messages</div>
+          <div class="card">
+            <div class="section-head">
+              <div class="section-head-text">
+                <h2 class="section-title">Docker</h2>
+                <p class="section-desc">Container bridges use private ranges that the bogon filter would otherwise drop.</p>
+              </div>
             </div>
-            <input type="checkbox" name="icmp_allow_router_advertisement" class="toggle"
-                   {{if and $ns $ns.IPv6.ICMPAllowRouterAdvertisement}}checked{{end}}>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">Detect Docker networks</span>
+                <span class="switch-desc">Look up the bridge networks Docker has created on this host.</span>
+              </span>
+              <input type="checkbox" name="docker_enabled" class="toggle"
+                     {{if and $ns $ns.Docker.Enabled}}checked{{end}}>
+            </label>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">Allow detected bridges</span>
+                <span class="switch-desc">Accept traffic from every detected bridge CIDR. Without this, detection alone changes nothing.</span>
+              </span>
+              <input type="checkbox" name="allow_bridge_networks" class="toggle"
+                     {{if and $ns $ns.Docker.AllowBridgeNetworks}}checked{{end}}>
+            </label>
+
+            <div class="switch-detail">
+              <label class="field-label" for="custom_networks">Additional networks</label>
+              <textarea id="custom_networks" name="custom_networks" rows="4"
+                        class="input input-data w-full mt-1.5"
+                        placeholder="192.168.100.0/24&#10;172.20.0.0/16">{{.CustomNetworks}}</textarea>
+              <p class="field-help">One CIDR per line. These are always allowed, whether or not detection finds them.</p>
+            </div>
           </div>
 
-          <div class="flex items-start gap-4 py-3">
-            <div class="flex-1">
-              <div class="font-medium">Neighbor Advertisement (ICMPv6 136)</div>
-              <div class="text-sm text-ink-muted mt-0.5">Allow neighbor discovery advertisement messages</div>
-            </div>
-            <input type="checkbox" name="icmp_allow_neighbor_advertisement" class="toggle"
-                   {{if and $ns $ns.IPv6.ICMPAllowNeighborAdvertisement}}checked{{end}}>
+          <div class="save-bar">
+            <button type="submit" class="btn btn-primary">
+              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+              {{T "settings_save"}}
+            </button>
+            <span class="save-bar-note">Saved immediately. Rule changes stay staged until you <a class="link" href="/apply">apply rules</a>.</span>
           </div>
         </div>
-      </div>
 
-      <div class="card mb-4">
-        <div class="card-pad">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted">Docker Integration</h2>
-
-          <div class="flex items-start gap-4 py-3 border-b border-rule">
-            <div class="flex-1">
-              <div class="font-medium">Docker Network Detection</div>
-              <div class="text-sm text-ink-muted mt-0.5">Auto-detect Docker bridge networks and whitelist them</div>
-            </div>
-            <input type="checkbox" name="docker_enabled" class="toggle"
-                   {{if and $ns $ns.Docker.Enabled}}checked{{end}}>
+        <div class="aside-stack">
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+              Turning IPv6 off is not protection
+            </h2>
+            <p>With filtering off, IPv6 is simply unfiltered — not blocked. If this host has a routable IPv6 address, leave it on.</p>
           </div>
 
-          <div class="flex items-start gap-4 py-3 border-b border-rule">
-            <div class="flex-1">
-              <div class="font-medium">Allow Bridge Networks</div>
-              <div class="text-sm text-ink-muted mt-0.5">Whitelist all detected Docker bridge network CIDRs</div>
-            </div>
-            <input type="checkbox" name="allow_bridge_networks" class="toggle"
-                   {{if and $ns $ns.Docker.AllowBridgeNetworks}}checked{{end}}>
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+              Why Docker needs a say
+            </h2>
+            <p>Docker writes its own nftables rules. easywall allows the bridge ranges before the blacklist, so container traffic keeps working.</p>
+            <p>Bridges are detected when rules are applied. A network created afterwards needs a new apply, or an entry above.</p>
           </div>
-
-          <fieldset class="fieldset mt-2">
-            <legend>Custom Networks</legend>
-            <textarea id="custom_networks" name="custom_networks" rows="4"
-                      class="input w-full font-mono"
-                      placeholder="192.168.100.0/24&#10;172.20.0.0/16">{{.CustomNetworks}}</textarea>
-            <p class="field-help">One CIDR per line — always whitelisted regardless of Docker auto-detection.</p>
-          </fieldset>
         </div>
-      </div>
-
-      <div>
-        <button type="submit" class="btn btn-primary">
-          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-          {{T "settings_save"}}
-        </button>
       </div>
 
     </form>

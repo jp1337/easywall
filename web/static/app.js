@@ -57,7 +57,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── HTMX toast feedback (HX-Trigger: easywall:saved / easywall:error) ─ */
   initHtmxToast();
+
+  /* ── Live entry counters for the list editors ───────────────────────── */
+  initListCounter('iplist-input', 'iplist-count', 'entry', 'entries');
+  initListCounter('custom-input', 'custom-count', 'rule', 'rules');
 });
+
+/* ── List editor counter ──────────────────────────────────────────────────
+   Counts the same way the server does — blank lines and comments are not
+   entries — so the number does not jump when the page reloads. */
+function initListCounter(inputId, outId, one, many) {
+  const input = document.getElementById(inputId);
+  const out   = document.getElementById(outId);
+  if (!input || !out) return;
+
+  const update = () => {
+    const n = input.value
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l !== '' && !l.startsWith('#'))
+      .length;
+    out.textContent = `${n} ${n === 1 ? one : many}`;
+  };
+
+  input.addEventListener('input', update);
+  update();
+}
 
 /* ── HTMX toast ───────────────────────────────────────────────────────────
    Listens for custom events that the server fires via the HX-Trigger
@@ -124,6 +149,11 @@ function initRuleEditor() {
 
   const isSimple = tbody.dataset.simple === 'true'; // blacklist/whitelist use simple text
 
+  // Column headings, in order, taken from the rendered table so client-built
+  // rows carry the same labels the server used — in whatever language.
+  const headLabels = () =>
+    [...(tbody.closest('table')?.querySelectorAll('thead th') || [])].map(th => th.textContent.trim());
+
   const syncHidden = () => {
     if (isSimple) return; // handled differently
     const rows = [...tbody.querySelectorAll('tr[data-idx]')];
@@ -144,6 +174,7 @@ function initRuleEditor() {
     if (del) {
       del.closest('tr').remove();
       syncHidden();
+      updateRuleCount();
     }
   });
 
@@ -152,28 +183,73 @@ function initRuleEditor() {
       const idx = tbody.querySelectorAll('tr').length;
       const tr = document.createElement('tr');
       tr.dataset.idx = idx;
-      tr.innerHTML = ruleRowHTML(idx, { port: '', description: '', ssh: false });
+      tr.innerHTML = ruleRowHTML(idx, { port: '', description: '', ssh: false }, headLabels());
       tbody.appendChild(tr);
       tr.querySelector('.f-port')?.focus();
       syncHidden();
+      updateRuleCount();
     });
   }
 
   // Initial sync
   syncHidden();
+  initRuleFilter();
 }
 
-function ruleRowHTML(idx, r) {
+/* ── Row filter ───────────────────────────────────────────────────────────
+   A port table can hold fifty entries; scrolling to find one is the wrong
+   interaction. Filtering happens in the browser because the rows are already
+   here — a round trip would be slower and would discard unsaved edits. */
+function updateRuleCount() {
+  const tbody = document.getElementById('rules-tbody');
+  const out   = document.getElementById('rules-count');
+  if (!tbody || !out) return;
+  const all     = [...tbody.querySelectorAll('tr[data-idx]')];
+  const visible = all.filter(tr => !tr.hidden);
+  const noun    = (n) => (n === 1 ? 'rule' : 'rules');
+  out.textContent = visible.length === all.length
+    ? `${all.length} ${noun(all.length)}`
+    : `${visible.length} of ${all.length} ${noun(all.length)}`;
+}
+
+function initRuleFilter() {
+  const input   = document.getElementById('rules-filter');
+  const tbody   = document.getElementById('rules-tbody');
+  const noMatch = document.getElementById('rules-no-match');
+  if (!input || !tbody) return;
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    let shown = 0;
+    tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
+      const port = tr.querySelector('.f-port')?.value.toLowerCase() ?? '';
+      const desc = tr.querySelector('.f-desc')?.value.toLowerCase() ?? '';
+      const hit  = !q || port.includes(q) || desc.includes(q);
+      tr.toggleAttribute('hidden', !hit);
+      if (hit) shown++;
+    });
+    if (noMatch) noMatch.toggleAttribute('hidden', shown > 0 || !q);
+    updateRuleCount();
+  });
+}
+
+// Must stay identical to the server-rendered row in ports.html — same column
+// order, same classes, same data-label values, or a row added in the browser
+// looks nothing like the rest of the table (and loses its labels on mobile).
+// The labels are read out of the table header rather than written here, so a
+// row added client-side is labelled in the interface's own language.
+function ruleRowHTML(idx, r, labels) {
+  const L = labels || [];
   return `
-    <td><input class="f-port input-cell input-cell-data" type="text" value="${esc(r.port)}"
-         placeholder="80 or 8000:9000"></td>
-    <td><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
-         placeholder="Description"></td>
-    <td class="col-toggle">
-      <input class="f-ssh checkbox" type="checkbox" ${r.ssh ? 'checked' : ''}>
+    <td data-label="${esc(L[0] ?? '')}"><input class="f-port input-cell input-cell-data" type="text" value="${esc(r.port)}"
+         placeholder="80 or 8000:9000" aria-label="${esc(L[0] ?? '')}"></td>
+    <td data-label="${esc(L[1] ?? '')}">
+      <input class="f-ssh checkbox" type="checkbox" ${r.ssh ? 'checked' : ''} aria-label="${esc(L[1] ?? '')}">
     </td>
-    <td class="col-actions">
-      <button type="button" class="btn-icon btn-icon-danger del-rule" title="Remove">
+    <td class="cell-wide" data-label="${esc(L[2] ?? '')}"><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
+         placeholder="What is this port for?" aria-label="${esc(L[2] ?? '')}"></td>
+    <td>
+      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="Remove rule">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
           d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
           clip-rule="evenodd"/></svg>
@@ -188,6 +264,9 @@ function initForwardingEditor() {
   const addBtn = document.getElementById('add-fwd-btn');
 
   if (!tbody || !hidden) return;
+
+  const headLabels = () =>
+    [...(tbody.closest('table')?.querySelectorAll('thead th') || [])].map(th => th.textContent.trim());
 
   const syncHidden = () => {
     const rows = [...tbody.querySelectorAll('tr[data-idx]')];
@@ -212,7 +291,7 @@ function initForwardingEditor() {
       const idx = tbody.querySelectorAll('tr').length;
       const tr  = document.createElement('tr');
       tr.dataset.idx = idx;
-      tr.innerHTML   = fwdRowHTML(idx, { protocol: 'tcp', source_port: '', dest_port: '' });
+      tr.innerHTML   = fwdRowHTML(idx, { protocol: 'tcp', source_port: '', dest_port: '' }, headLabels());
       tbody.appendChild(tr);
       tr.querySelector('.f-src')?.focus();
       syncHidden();
@@ -222,22 +301,26 @@ function initForwardingEditor() {
   syncHidden();
 }
 
-function fwdRowHTML(idx, r) {
+// Mirrors the server-rendered row in forwarding.html, labels included.
+function fwdRowHTML(idx, r, labels) {
+  const L = labels || [];
   const tcpSel = r.protocol === 'tcp' ? 'selected' : '';
   const udpSel = r.protocol === 'udp' ? 'selected' : '';
   return `
-    <td>
-      <select class="f-proto input-cell input-cell-data">
+    <td data-label="${esc(L[0] ?? '')}">
+      <select class="f-proto input-cell input-cell-data" aria-label="${esc(L[0] ?? '')}">
         <option value="tcp" ${tcpSel}>tcp</option>
         <option value="udp" ${udpSel}>udp</option>
       </select>
     </td>
-    <td><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
-         placeholder="1–65535"></td>
-    <td><input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
-         placeholder="1–65535"></td>
-    <td class="col-actions">
-      <button type="button" class="btn-icon btn-icon-danger del-rule" title="Remove">
+    <td data-label="${esc(L[1] ?? '')}"><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
+         placeholder="1–65535" aria-label="${esc(L[1] ?? '')}"></td>
+    <td class="cell-flow" data-label="${esc(L[2] ?? '')}">
+      <span class="flow-arrow" aria-hidden="true">&rarr;</span>
+      <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
+         placeholder="1–65535" aria-label="${esc(L[2] ?? '')}"></td>
+    <td>
+      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="Remove rule">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
           d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
           clip-rule="evenodd"/></svg>

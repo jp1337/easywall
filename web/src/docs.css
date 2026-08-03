@@ -78,7 +78,7 @@
   --border-muted: #f4f6f9;
   --text:         #0f1116;
   --text-muted:   #5a6270;
-  --text-subtle:  #6f7784;
+  --text-subtle:  #666e7b;  /* raised from #6f7784: 4.17:1 on --surface-2 failed AA */
   --accent:       #0f7bab;
   --accent-on:    #0d6b95;
   --accent-dim:   rgba(15,123,171,0.09);

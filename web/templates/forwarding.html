@@ -7,69 +7,100 @@
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "forwarding_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "forwarding_title"}}</h1>
+        <p class="page-subtitle">Redirect traffic arriving on one port to another port on this host.</p>
+      </div>
     </div>
 
     {{with .Data}}
     <form method="POST" action="/forwarding" id="fwd-form">
       <input type="hidden" name="rules" id="fwd-json" value="">
 
-      <div class="card">
-        <div class="card-pad p-0">
-          <div class="px-6 py-4 flex items-center justify-between border-b border-rule">
-            <h2 class="text-sm font-medium uppercase tracking-wider text-ink-muted">NAT Port Forwarding Rules</h2>
-            <button type="button" id="add-fwd-btn" class="btn btn-sm">
-              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
-              {{T "forwarding_add"}}
-            </button>
+      <div class="page-grid">
+        <div>
+          <div class="card">
+            <div class="toolbar">
+              <div class="section-head-text">
+                <h2 class="section-title">NAT redirects</h2>
+              </div>
+              <span class="toolbar-spacer"></span>
+              <span class="toolbar-count">{{$n := len .Rules}}{{$n}} {{plural $n "rule" "rules"}}</span>
+              <button type="button" id="add-fwd-btn" class="btn btn-sm">
+                <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
+                {{T "forwarding_add"}}
+              </button>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table table-reflow">
+                <thead>
+                  <tr>
+                    <th class="col-port">{{T "forwarding_protocol"}}</th>
+                    <th class="col-port">{{T "forwarding_source_port"}}</th>
+                    <th class="col-flex">{{T "forwarding_dest_port"}}</th>
+                    <th class="col-actions"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="fwd-tbody">
+                  {{range $i, $r := .Rules}}
+                  <tr data-idx="{{$i}}">
+                    <td data-label="{{T "forwarding_protocol"}}">
+                      <select class="f-proto input-cell input-cell-data" aria-label="Protocol">
+                        <option value="tcp" {{if eq $r.Protocol "tcp"}}selected{{end}}>tcp</option>
+                        <option value="udp" {{if eq $r.Protocol "udp"}}selected{{end}}>udp</option>
+                      </select>
+                    </td>
+                    <td data-label="{{T "forwarding_source_port"}}"><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.SourcePort}}" aria-label="Incoming port"></td>
+                    <td class="cell-flow" data-label="{{T "forwarding_dest_port"}}">
+                      <span class="flow-arrow" aria-hidden="true">&rarr;</span>
+                      <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.DestPort}}" aria-label="Forward to port">
+                    </td>
+                    <td>
+                      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="Remove rule">
+                        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                      </button>
+                    </td>
+                  </tr>
+                  {{end}}
+                </tbody>
+              </table>
+              {{if not .Rules}}
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                <p>Nothing is being redirected. Add a rule to forward a port.</p>
+              </div>
+              {{end}}
+            </div>
           </div>
 
-          <div class="overflow-x-auto">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th class="col-port">{{T "forwarding_protocol"}}</th>
-                  <th class="col-port">{{T "forwarding_source_port"}}</th>
-                  <th class="col-flex">{{T "forwarding_dest_port"}}</th>
-                  <th class="col-actions">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="fwd-tbody">
-                {{range $i, $r := .Rules}}
-                <tr data-idx="{{$i}}">
-                  <td>
-                    <select class="f-proto input-cell input-cell-data">
-                      <option value="tcp" {{if eq $r.Protocol "tcp"}}selected{{end}}>tcp</option>
-                      <option value="udp" {{if eq $r.Protocol "udp"}}selected{{end}}>udp</option>
-                    </select>
-                  </td>
-                  <td><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.SourcePort}}"></td>
-                  <td><input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.DestPort}}"></td>
-                  <td class="text-right">
-                    <button type="button" class="btn-icon btn-icon-danger del-rule" title="Remove">
-                      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                    </button>
-                  </td>
-                </tr>
-                {{end}}
-              </tbody>
-            </table>
-            {{if not .Rules}}
-            <div class="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-              <p>No port forwarding rules. Click <strong>Add Rule</strong> to create one.</p>
-            </div>
-            {{end}}
+          <div class="save-bar">
+            <button type="submit" class="btn btn-primary">
+              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+              {{T "save"}}
+            </button>
+            <span class="save-bar-note">Changes are staged until you <a href="/apply" class="link">apply rules</a>.</span>
           </div>
         </div>
-      </div>
 
-      <div class="flex items-center gap-4 mt-4">
-        <button type="submit" class="btn btn-primary">
-          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-          {{T "save"}}
-        </button>
-        <span class="text-sm text-ink-muted">Changes are staged until you <a href="/apply" class="link">apply rules</a>.</span>
+        <div class="aside-stack">
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+              How a redirect reads
+            </h2>
+            <p>A rule sends traffic that arrives on the incoming port to the destination port on this same host — <code>8080 &rarr; 80</code> means a request to 8080 is served by whatever listens on 80.</p>
+            <p>The incoming port still needs to be open. Add it under <a class="link" href="/ports">port rules</a>, or the redirect never gets reached.</p>
+          </div>
+
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+              Ports below 1024
+            </h2>
+            <p>Redirecting a privileged port to a high one is the usual way to run a service without root. Check that nothing else already holds the destination port.</p>
+          </div>
+        </div>
       </div>
     </form>
     {{end}}
