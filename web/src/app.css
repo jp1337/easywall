@@ -436,6 +436,76 @@ body {
     outline-offset: 1px;
   }
 
+  /* ── Language switch ───────────────────────────────────────────────────────
+     One submit button per language rather than a select: it needs no JavaScript,
+     it shows the current choice without being opened, and the names are the
+     label — a German speaker looks for "Deutsch", not for the word "Language". */
+  .lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    color: var(--color-ink-subtle);
+  }
+
+  .lang-switch svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+  }
+
+  .lang-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .lang-option {
+    padding: 3px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-ink-muted);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 1.35;
+    cursor: pointer;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease);
+  }
+
+  .lang-option:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+  }
+
+  .lang-option:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  /* The active language is state, which is what the accent is for. It is also
+     not a button you would press, so it does not offer a hover. */
+  .lang-option.is-current {
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+    cursor: default;
+  }
+
+  .lang-option.is-current:hover {
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+  }
+
+  /* On the auth cards the switch sits in the footer, centred under the form. */
+  .auth-footer .lang-switch {
+    justify-content: center;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+
   .toggle-switch {
     width: 34px;
     height: 19px;
@@ -1419,7 +1489,12 @@ body {
   .stat-tile-value-warning { color: var(--color-state-warn-on-wash); }
   .stat-tile-value-danger  { color: var(--color-state-crit-on-wash); }
 
+  /* margin-top:auto pins the call to action to the bottom of the tile. Without it,
+     a note that wraps to two lines in one tile pushed its own CTA down and left the
+     row of six ragged — visible in German, where "nehmen Verbindungen an" wraps. */
   .stat-tile-cta {
+    margin-top: auto;
+    padding-top: 4px;
     font-size: 12px;
     color: var(--color-ink-subtle);
     transition: color var(--motion-instant) var(--motion-ease);
@@ -1786,7 +1861,10 @@ body {
      starting wherever the previous tag happened to end. */
   .activity-item {
     display: grid;
-    grid-template-columns: 168px minmax(0, 1fr) auto;
+    /* max-content, not a fixed 168px: the chip is nowrap, and a longer translation
+       ("Netzwerkeinstellungen gespeichert") overflowed into the detail column.
+       The floor keeps short actions aligned; the ceiling lets long ones fit. */
+    grid-template-columns: minmax(168px, max-content) minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
     padding: 9px 16px;
@@ -2048,8 +2126,10 @@ body {
     border: 1px solid var(--color-rule);
     background: var(--color-surface-raised);
     color: var(--color-ink-muted);
-    font-family: var(--font-data);
-    font-size: 11px;
+    /* The UI face, not the data face: an action is language, not a value. This
+       used to be a second .log-action block further down overriding the first. */
+    font-family: var(--font-ui);
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
   }
@@ -2077,10 +2157,6 @@ body {
   }
 
   /* Sentence case, not the raw identifier: an audit trail is read by a person. */
-  .log-action {
-    font-family: var(--font-ui);
-    font-size: 12px;
-  }
 
   .log-detail {
     font-size: 12px;

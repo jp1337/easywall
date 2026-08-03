@@ -9,7 +9,7 @@
     <div class="page-header">
       <div class="page-header-text">
         <h1 class="page-title">{{T "whitelist_title"}}</h1>
-        <p class="page-subtitle">Trusted sources that reach every port, including ports you never opened.</p>
+        <p class="page-subtitle">{{T "whitelist_subtitle"}}</p>
       </div>
     </div>
 
@@ -20,13 +20,13 @@
           <div class="card editor">
             <div class="section-head">
               <div class="section-head-text">
-                <h2 class="section-title">Always-allowed addresses</h2>
-                <p class="section-desc">Accepted before the port rules are consulted, and exempt from the protection modules.</p>
+                <h2 class="section-title">{{T "whitelist_section"}}</h2>
+                <p class="section-desc">{{T "whitelist_section_desc"}}</p>
               </div>
             </div>
 
             <textarea name="entries" rows="14" id="iplist-input"
-                      aria-label="Always-allowed addresses"
+                      aria-label="{{T "whitelist_section"}}"
                       placeholder="192.168.1.0/24&#10;10.0.0.1&#10;2001:db8::1"
                       hx-post="/iplist/validate"
                       hx-trigger="keyup changed delay:600ms, change delay:200ms"
@@ -35,9 +35,9 @@
 {{end}}</textarea>
 
             <div class="editor-foot">
-              <span class="toolbar-count" id="iplist-count">{{$n := countEntries .Entries}}{{$n}} {{plural $n "entry" "entries"}}</span>
+              <span class="toolbar-count" id="iplist-count">{{$n := countEntries .Entries}}{{$n}} {{plural $n (T "count_entry_one") (T "count_entry_many")}}</span>
               <span class="toolbar-spacer"></span>
-              <span>One per line — IPv4, IPv6 or CIDR. A line starting with <code>#</code> is a comment.</span>
+              <span>{{richText (T "iplist_format_note")}}</span>
             </div>
           </div>
 
@@ -48,7 +48,7 @@
               <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
               {{T "save"}}
             </button>
-            <span class="save-bar-note">Changes are staged until you <a href="/apply" class="link">apply rules</a>.</span>
+            <span class="save-bar-note">{{richText (T "staged_note") "/apply" (T "link_apply_rules")}}</span>
           </div>
         </div>
 
@@ -56,19 +56,19 @@
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
-              Use it as your way back in
+              {{T "whitelist_wayback_title"}}
             </h2>
-            <p>Your own management address belongs here. It keeps you reachable even if a port rule closes SSH or a rate limit trips.</p>
-            <p>A whitelisted source skips the port rules entirely, so it reaches services that are not listed under <a class="link" href="/ports">port rules</a> at all.</p>
+            <p>{{T "whitelist_wayback_body"}}</p>
+            <p>{{richText (T "whitelist_wayback_note") "/ports" (T "link_port_rules")}}</p>
           </div>
 
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-              Keep the list narrow
+              {{T "whitelist_narrow_title"}}
             </h2>
-            <p>An entry here bypasses every protection module. Prefer a single address over a range, and a range over a whole network.</p>
-            <p>The <a class="link" href="/blacklist">blacklist</a> is evaluated first: an address in both lists is dropped, not allowed.</p>
+            <p>{{T "whitelist_narrow_body"}}</p>
+            <p>{{richText (T "whitelist_order_note") "/blacklist" (T "link_blacklist")}}</p>
           </div>
         </div>
       </div>

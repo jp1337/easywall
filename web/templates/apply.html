@@ -9,7 +9,7 @@
     <div class="page-header">
       <div class="page-header-text">
         <h1 class="page-title">{{T "apply_title"}}</h1>
-        <p class="page-subtitle">Push the staged rules to the kernel, then confirm they work before the window closes.</p>
+        <p class="page-subtitle">{{T "apply_subtitle"}}</p>
       </div>
     </div>
 
@@ -18,7 +18,7 @@
     {{if .CoreErr}}
     <div role="alert" class="alert alert-crit mb-4">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
-      <span>Core daemon unreachable: {{.CoreErr}}</span>
+      <span>{{T "core_unreachable"}} {{.CoreErr}}</span>
     </div>
     {{end}}
 
@@ -51,25 +51,25 @@
               {{if eq $acc "pending"}}
               <span class="status-dot pending">{{T "apply_waiting"}}</span>
               {{else if eq $acc "accepted"}}
-              <span class="status-dot active">Accepted</span>
+              <span class="status-dot active">{{T "state_accepted"}}</span>
               {{else if eq $acc "rolled_back"}}
-              <span class="status-dot error">Rolled back</span>
+              <span class="status-dot error">{{T "state_rolled_back"}}</span>
               {{else}}
-              <span class="status-dot inactive">Idle</span>
+              <span class="status-dot inactive">{{T "state_idle"}}</span>
               {{end}}
             </div>
 
             <p class="apply-lead">
               {{if eq $acc "pending"}}
-              The new rules are live but unconfirmed. Open a second connection and check that you can still reach this host — then confirm. {{T "apply_rollback"}}
+              {{T "apply_lead_pending"}} {{T "apply_rollback"}}
               {{else if eq $acc "accepted"}}
-              The rules are confirmed and stay in place.
+              {{T "apply_lead_accepted"}}
               {{else if eq $acc "rolled_back"}}
-              The window closed without a confirmation, so the previous rules were restored. Nothing you staged was lost — review it and apply again.
+              {{T "apply_lead_rolled_back"}}
               {{else if .Status.HasPending}}
-              You have staged changes that the running firewall does not have yet.
+              {{T "apply_lead_staged"}}
               {{else}}
-              The running firewall matches what is staged. There is nothing to apply.
+              {{T "apply_lead_clean"}}
               {{end}}
             </p>
 
@@ -84,7 +84,7 @@
               {{else}}
               <form method="POST" action="/apply/start">
                 <button type="submit" id="start-btn" class="btn btn-primary btn-lg"
-                  {{if not .Status.HasPending}}title="Nothing staged to apply"{{end}}>
+                  {{if not .Status.HasPending}}title="{{T "apply_nothing_staged"}}"{{end}}>
                   <svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
                   {{T "apply_start"}}
                 </button>
@@ -99,7 +99,7 @@
         {{if ne (printf "%s" .Status.Acceptance) "pending"}}
         <div role="alert" class="alert alert-warn mt-4">
           <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-          <span>Staged changes are waiting. They do nothing until you apply them.</span>
+          <span>{{T "apply_staged_warning"}}</span>
         </div>
         {{end}}
         {{end}}{{end}}
@@ -109,27 +109,27 @@
         <div class="aside-card">
           <h2 class="aside-title">
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-            How applying works
+            {{T "apply_how_title"}}
           </h2>
           {{/* Numbered because this genuinely is a sequence and the order is
                the information — not as decoration. */}}
           <ol class="steps">
             <li class="step">
               <div>
-                <div class="step-title">Rules go live</div>
-                <div class="step-desc">The staged set is pushed to the kernel immediately and starts filtering traffic.</div>
+                <div class="step-title">{{T "apply_step1_title"}}</div>
+                <div class="step-desc">{{T "apply_step1_desc"}}</div>
               </div>
             </li>
             <li class="step">
               <div>
-                <div class="step-title">You check</div>
-                <div class="step-desc">Open a <em>second</em> connection — keep the current one — and confirm SSH and your services still answer.</div>
+                <div class="step-title">{{T "apply_step2_title"}}</div>
+                <div class="step-desc">{{richText (T "apply_step2_desc")}}</div>
               </div>
             </li>
             <li class="step">
               <div>
-                <div class="step-title">Confirm, or do nothing</div>
-                <div class="step-desc">Confirming keeps the new rules. Doing nothing restores the previous set when the window closes, which is what saves you if you just locked yourself out.</div>
+                <div class="step-title">{{T "apply_step3_title"}}</div>
+                <div class="step-desc">{{T "apply_step3_desc"}}</div>
               </div>
             </li>
           </ol>
@@ -138,10 +138,10 @@
         <div class="aside-card">
           <h2 class="aside-title">
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h3.5a.75.75 0 000-1.5h-2.75V5z" clip-rule="evenodd"/></svg>
-            The window length
+            {{T "apply_window_title"}}
           </h2>
-          <p>How long you get before an unconfirmed apply is rolled back is set under <a class="link" href="/system">system settings</a>.</p>
-          <p>Short enough that a lockout resolves itself quickly; long enough to actually test. The default is 120 seconds.</p>
+          <p>{{richText (T "apply_window_body") "/system" (T "link_system_settings")}}</p>
+          <p>{{T "apply_window_note"}}</p>
         </div>
       </div>
     </div>

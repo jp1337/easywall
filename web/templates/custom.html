@@ -9,7 +9,7 @@
     <div class="page-header">
       <div class="page-header-text">
         <h1 class="page-title">{{T "custom_title"}}</h1>
-        <p class="page-subtitle">Raw nftables rules, applied after everything easywall generates itself.</p>
+        <p class="page-subtitle">{{T "custom_subtitle"}}</p>
       </div>
     </div>
 
@@ -20,14 +20,14 @@
           <div class="card editor">
             <div class="section-head">
               <div class="section-head-text">
-                <h2 class="section-title">Rule statements</h2>
-                <p class="section-desc">One statement per line, inserted into the <code>inet easywall</code> table.</p>
+                <h2 class="section-title">{{T "custom_section"}}</h2>
+                <p class="section-desc">{{richText (T "custom_section_desc")}}</p>
               </div>
             </div>
 
             <textarea name="rules" rows="16" id="custom-input"
-                      aria-label="Custom nftables rules"
-                      placeholder="# Example: allow a specific port&#10;tcp dport 8443 accept&#10;&#10;# Allow traffic from specific IP&#10;ip saddr 203.0.113.1 accept"
+                      aria-label="{{T "custom_section"}}"
+                      placeholder="{{T "custom_placeholder"}}"
                       hx-post="/custom/validate"
                       hx-trigger="keyup changed delay:600ms, change delay:200ms"
                       hx-target="#custom-errors"
@@ -35,9 +35,9 @@
 {{end}}</textarea>
 
             <div class="editor-foot">
-              <span class="toolbar-count" id="custom-count">{{$n := countEntries .Rules}}{{$n}} {{plural $n "rule" "rules"}}</span>
+              <span class="toolbar-count" id="custom-count">{{$n := countEntries .Rules}}{{$n}} {{plural $n (T "count_rule_one") (T "count_rule_many")}}</span>
               <span class="toolbar-spacer"></span>
-              <span>Comments start with <code>#</code>.</span>
+              <span>{{richText (T "custom_comment_note")}}</span>
             </div>
           </div>
 
@@ -46,10 +46,10 @@
             <div role="alert" class="alert alert-crit mt-3">
               <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
               <div class="flex-1">
-                <strong class="font-medium">Syntax errors found:</strong>
+                <strong class="font-medium">{{T "custom_errors_title"}}</strong>
                 <ul class="mt-1.5 ml-5 list-disc text-sm">
                 {{range $idx, $err := .Errors}}
-                  <li>Line {{add1 $idx}}: <code class="font-mono">{{$err}}</code></li>
+                  <li>{{T "custom_error_line" (dict "Line" (add1 $idx))}} <code class="font-mono">{{$err}}</code></li>
                 {{end}}
                 </ul>
               </div>
@@ -62,7 +62,7 @@
               <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
               {{T "save"}}
             </button>
-            <span class="save-bar-note">Changes are staged until you <a href="/apply" class="link">apply rules</a>.</span>
+            <span class="save-bar-note">{{richText (T "staged_note") "/apply" (T "link_apply_rules")}}</span>
           </div>
         </div>
 
@@ -70,19 +70,19 @@
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-              This is the sharp edge
+              {{T "custom_sharp_title"}}
             </h2>
             <p>{{T "custom_hint"}}</p>
-            <p>Nothing here is validated against your intent — only against nftables syntax. The <a class="link" href="/apply">acceptance window</a> is what protects you: if a rule cuts your connection, not confirming restores the previous set.</p>
+            <p>{{richText (T "custom_sharp_note") "/apply" (T "link_acceptance_window")}}</p>
           </div>
 
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-              Statement form
+              {{T "custom_form_title"}}
             </h2>
-            <p>Write the rule body only. easywall prefixes each line with <code>add rule inet easywall input</code>, so every statement lands in the input chain.</p>
-            <p>Write <code>tcp dport 8443 accept</code> — not the full <code>add rule</code> command.</p>
+            <p>{{richText (T "custom_form_body")}}</p>
+            <p>{{richText (T "custom_form_example")}}</p>
           </div>
         </div>
       </div>

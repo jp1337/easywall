@@ -1,30 +1,51 @@
 package web
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
 
+// identityT stands in for the per-request T. Returning the message id makes the
+// mapping visible: the assertion is that an action resolves to its own key, not
+// that a particular English wording survives, which is now the locale's job.
+func identityT(id string, _ ...interface{}) string { return id }
+
 func TestActionLabel(t *testing.T) {
 	cases := map[string]string{
 		// Exactly the identifiers internal/core writes.
-		"apply_started":    "Apply started",
-		"apply_accepted":   "Rules applied",
-		"apply_rolledback": "Rules rolled back",
-		"apply_failed":     "Apply failed",
-		"rules_saved":      "Rules saved",
-		"rules_imported":   "Rules imported",
-		"options_saved":    "Options saved",
-		"settings_saved":   "Settings saved",
-		"system_saved":     "System settings saved",
+		"apply_started":    "audit_apply_started",
+		"apply_accepted":   "audit_apply_accepted",
+		"apply_rolledback": "audit_apply_rolledback",
+		"apply_failed":     "audit_apply_failed",
+		"rules_saved":      "audit_rules_saved",
+		"rules_imported":   "audit_rules_imported",
+		"options_saved":    "audit_options_saved",
+		"settings_saved":   "audit_settings_saved",
+		"system_saved":     "audit_system_saved",
 		// An action the map does not know must still render as language, so a
-		// new core action is readable before this table catches up.
+		// new core action is readable before this table catches up. There is no
+		// translation to reach for, so it is humanised rather than localized.
 		"future_thing": "Future thing",
 		"":             "",
 	}
 	for in, want := range cases {
-		if got := actionLabel(in); got != want {
+		if got := actionLabel(identityT, in); got != want {
 			t.Errorf("actionLabel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// The label an operator sees comes from the locale, so every action the core can
+// write needs an entry in every locale file. A missing one makes T fall back to
+// the raw message id and the audit log prints "audit_apply_failed".
+func TestActionLabel_EveryActionIsTranslated(t *testing.T) {
+	for _, lang := range []string{"en", "de"} {
+		ids := localeIDs(t, lang)
+		for action, key := range auditActionLabels {
+			if !ids[key] {
+				t.Errorf("locales/%s.json has no %q (for action %q)", lang, key, action)
+			}
 		}
 	}
 }
@@ -188,4 +209,77 @@ func isSpaceJS(b byte) bool {
 
 func hasPrefixJS(s, p string) bool {
 	return len(s) >= len(p) && s[:len(p)] == p
+}
+
+func TestRichText(t *testing.T) {
+	cases := []struct {
+		name, text string
+		args       []string
+		want       string
+	}{
+		{"plain text passes through", "Nothing to mark up.", nil, "Nothing to mark up."},
+		{"backticks become code", "A single port is `443`.", nil,
+			"A single port is <code>443</code>."},
+		{"asterisks become emphasis", "Evaluated *before* the whitelist.", nil,
+			"Evaluated <em>before</em> the whitelist."},
+		{"one link", "Staged until you {}.", []string{"/apply", "apply rules"},
+			`Staged until you <a class="link" href="/apply">apply rules</a>.`},
+		{"two links, in order", "Use the {} or a {}.",
+			[]string{"/whitelist", "whitelist", "/custom", "custom rule"},
+			`Use the <a class="link" href="/whitelist">whitelist</a> or a ` +
+				`<a class="link" href="/custom">custom rule</a>.`},
+		// A translator may put the link first where English has it last. That is
+		// the whole reason the slot exists, so it has to work in any position.
+		{"link first", "{} is evaluated first.", []string{"/blacklist", "blacklist"},
+			`<a class="link" href="/blacklist">blacklist</a> is evaluated first.`},
+		{"markup and link together", "Add `443` under {}.", []string{"/ports", "port rules"},
+			`Add <code>443</code> under <a class="link" href="/ports">port rules</a>.`},
+		// A typo in a locale file must not blank the panel it sits in.
+		{"unterminated backtick keeps its text", "A port is `443", nil, "A port is `443"},
+		{"unterminated asterisk keeps its text", "Evaluated *before", nil, "Evaluated *before"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := richText(c.text, c.args...)
+			if err != nil {
+				t.Fatalf("richText(%q): %v", c.text, err)
+			}
+			if string(got) != c.want {
+				t.Errorf("richText(%q)\n got: %s\nwant: %s", c.text, got, c.want)
+			}
+		})
+	}
+}
+
+// Locale text is data, and an operator can put anything in a locale file. It is
+// interpolated into HTML, so escaping is the only thing between a translation
+// and script injection.
+func TestRichText_EscapesEverything(t *testing.T) {
+	got, err := richText("Danger: <script>alert(1)</script> and `<b>x</b>` {}",
+		`" onmouseover="alert(2)`, "<em>label</em>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"<script>", "<b>x</b>", `onmouseover="alert`, "<em>label"} {
+		if strings.Contains(string(got), forbidden) {
+			t.Errorf("unescaped %q survived into output: %s", forbidden, got)
+		}
+	}
+	if !strings.Contains(string(got), "&lt;script&gt;") {
+		t.Errorf("expected the script tag escaped, got: %s", got)
+	}
+}
+
+// A count mismatch is a template bug, and a silently dropped link would ship a
+// sentence with a dangling "{}" in it.
+func TestRichText_RejectsMismatchedSlots(t *testing.T) {
+	if _, err := richText("One slot {}."); err == nil {
+		t.Error("expected an error when a slot has no link")
+	}
+	if _, err := richText("No slots.", "/apply", "apply"); err == nil {
+		t.Error("expected an error when a link has no slot")
+	}
+	if _, err := richText("One slot {}.", "/apply"); err == nil {
+		t.Error("expected an error for an unpaired href")
+	}
 }

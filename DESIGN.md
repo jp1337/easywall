@@ -425,6 +425,18 @@ components:
     rounded: "{rounded.md}"
     height: 32px
     padding: 0 10px
+  lang-option:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.sm}"
+    padding: 3px 8px
+  lang-option-current:
+    backgroundColor: "{colors.accent-wash}"
+    textColor: "{colors.accent-on-wash}"
+    typography: "{typography.meta}"
+    rounded: "{rounded.sm}"
+    padding: 3px 8px
   toggle:
     backgroundColor: "{colors.control-edge}"
     textColor: "{colors.ink}"
@@ -1032,6 +1044,31 @@ only takes effect after pressing Save — the toggle's own animation promises im
 Where a toggle sits behind an explicit apply step, pair it with the unconfirmed-change
 indicator rather than letting it imply the rule is already live.
 
+### Language and theme switches
+
+Both live in the sidebar footer, above *Logout*, because they are preferences rather than
+navigation. The language switch also appears on the login and first-run cards: an operator
+who cannot read the interface cannot sign in to change it, and the setting is useless
+behind the door it locks.
+
+The language switch is one small button per installed locale, not a `select`. Three reasons,
+in order of weight:
+
+1. It works without JavaScript. A `select` that submits on change needs a script, and the
+   one screen where this control matters most is the one you have not signed in to yet.
+2. The current language is visible without opening anything, which is what makes it
+   recognisable when you cannot read the label next to it.
+3. There is nothing to label. `Deutsch` and `English` name themselves; a "Language:" prefix
+   would be a word the person looking for the switch cannot read.
+
+Each locale supplies its own name through a `language_name` key, so a language always
+appears under its endonym whatever the interface is currently set to. The active one takes
+`accent-wash` with `accent-on-wash` text — it is *what is active*, one of the accent's three
+jobs — and offers no hover, because it is state rather than an action.
+
+Drawn only when more than one locale is installed. A single button that cannot change
+anything is a control that lies about having a choice.
+
 ### Links and badges
 
 `link` uses `accent-on-wash` — the deepened accent — because a link sits in running text
@@ -1143,14 +1180,12 @@ typeface changes.
   Until the core exposes a deadline and a rollback command, the apply screen states the
   escape route in words — doing nothing restores the previous rules — because that is what
   is actually true.
-- **The interface copy is only half translated.** `locales/de.json` is complete and at
-  parity with `locales/en.json`, but the copy written during the rebuild — page subtitles,
-  section descriptions, context cards, empty states — went straight into the templates in
-  English. As of 2026-08-03 that is **241 visible strings across 15 templates**, heaviest on
-  `options.html` (52), `dashboard.html` (34) and `settings.html` (24). A German operator gets
-  translated navigation and English explanations. The chrome and both auth screens have been
-  moved to `{{T}}`; the page bodies have not. This is a mechanical migration, not a design
-  question, but it is large enough that it should be its own change.
+- **Audit log details are written by the core, in English.** The interface translates the
+  *action* of every entry ("Regeln zurückgenommen"), but the `detail` column carries a
+  string `internal/core` composed — `added 8443 (staging)`, `ssh_brute_force_log enabled`.
+  Those are a record rather than language: the same audit file is read by tooling, and the
+  option names are the config keys. Translating them would mean the core emitting
+  structured detail instead of prose, which is a core change, not a design one.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

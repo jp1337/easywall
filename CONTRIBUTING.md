@@ -80,7 +80,28 @@ Breaking changes: add `BREAKING CHANGE:` in the footer.
 
 1. Copy `locales/en.json` to `locales/<lang>.json`
 2. Translate all values (keep the `id` fields unchanged)
-3. Open a PR with the subject: `feat(i18n): add <language> translation`
+3. Translate `language_name` into that language's **own** name — `Deutsch`, not
+   `German`. It is what the switch in the sidebar shows, whatever language the
+   interface is currently in.
+4. Open a PR with the subject: `feat(i18n): add <language> translation`
+
+Nothing else is needed: the switch is built from whatever `locales/*.json`
+contains. `TestLocaleFilesAreAtParity` and `TestTemplatesOnlyUseTranslatedKeys`
+will tell you about anything you missed.
+
+Three forms appear inside translations, and all three must survive into your
+language:
+
+| In the message | Renders as | Note |
+|---|---|---|
+| `` `443` `` | `<code>443</code>` | literals: ports, CIDRs, nftables statements |
+| `*before*` | `<em>before</em>` | emphasis that carries meaning, not decoration |
+| `{}` | a link | one per link, **in your language's word order** |
+
+The `{}` slots are filled in the order the template passes them, but you decide
+where they sit in the sentence — German puts "Die Sperrliste wird zuerst
+geprüft" with the link first where English has it third. `{{.Name}}` placeholders
+are values the page substitutes and must be kept verbatim.
 
 ## Code Style
 
@@ -107,8 +128,11 @@ read it before touching anything visual.
   Hover on a control goes to `ink-subtle`, because `rule-strong` is *weaker* than
   `control-edge` and would fade the outline you just pointed at.
 - **Every visible string goes through `{{T "key"}}`,** with the text added to *both*
-  `locales/en.json` and `locales/de.json`. Hardcoding English is how a bilingual
-  product ends up half-translated.
+  `locales/en.json` and `locales/de.json` — including `placeholder`, `aria-label`
+  and `title`. A sentence with a link or a `code` span stays *one* message and uses
+  `richText`; splitting it into fragments around the anchor does not survive
+  translation. Text that `app.js` builds needs its key in `clientStringKeys`.
+  Hardcoding English is how a bilingual product ends up half-translated.
 - Both themes must work. Check light mode as well as dark before opening a PR.
 - **Sentence case, in Inter.** Panel headings and table column heads are language, not
   data. The tracked uppercase mono `label` role is retired everywhere except the sidebar's

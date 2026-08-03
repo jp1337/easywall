@@ -1,6 +1,12 @@
 /* easywall app.js */
 'use strict';
 
+// Translations for the text this file builds itself. base.html inlines them as
+// window.easywallStrings; the auth pages do not, and do not need to — none of
+// the code that calls str() runs there. Falling back to the key keeps a missing
+// blob visible rather than blank.
+const str = (key) => (window.easywallStrings && window.easywallStrings[key]) || key;
+
 /* ── Theme ──────────────────────────────────────────────────────────────── */
 const normalizeTheme = (t) => {
   if (t === 'dark' || t === 'light') return 'easywall-' + t;
@@ -69,8 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initHtmxToast();
 
   /* ── Live entry counters for the list editors ───────────────────────── */
-  initListCounter('iplist-input', 'iplist-count', 'entry', 'entries');
-  initListCounter('custom-input', 'custom-count', 'rule', 'rules');
+  initListCounter('iplist-input', 'iplist-count', str('count_entry_one'), str('count_entry_many'));
+  initListCounter('custom-input', 'custom-count', str('count_rule_one'), str('count_rule_many'));
 });
 
 /* ── List editor counter ──────────────────────────────────────────────────
@@ -102,15 +108,15 @@ function initHtmxToast() {
   const container = document.getElementById('toast-container');
   if (!container) return;
 
-  // i18n message map — keys match flashKey values from server.
-  // Kept here so the server can use stable keys without sending strings.
+  // Keys match the flashKey values the server sends. The text comes from the
+  // locale so a toast is in the same language as the page that raised it.
   const messages = {
-    saved:                    { text: 'Saved', kind: 'success' },
-    options_saved:            { text: 'Options saved', kind: 'success' },
-    settings_saved:           { text: 'Settings saved', kind: 'success' },
-    system_saved:             { text: 'System settings saved', kind: 'success' },
-    save_error:               { text: 'Save failed', kind: 'error' },
-    system_invalid_duration:  { text: 'Duration must be > 0', kind: 'warning' },
+    saved:                    { text: str('saved'), kind: 'success' },
+    options_saved:            { text: str('options_saved'), kind: 'success' },
+    settings_saved:           { text: str('settings_saved'), kind: 'success' },
+    system_saved:             { text: str('system_saved'), kind: 'success' },
+    save_error:               { text: str('save_error'), kind: 'error' },
+    system_invalid_duration:  { text: str('system_invalid_duration'), kind: 'warning' },
   };
 
   const show = (key, kind) => {
@@ -216,10 +222,15 @@ function updateRuleCount() {
   if (!tbody || !out) return;
   const all     = [...tbody.querySelectorAll('tr[data-idx]')];
   const visible = all.filter(tr => !tr.hidden);
-  const noun    = (n) => (n === 1 ? 'rule' : 'rules');
+  const noun = (n) => str(n === 1 ? 'count_rule_one' : 'count_rule_many');
+  // "3 of 8 rules" reorders in other languages ("3 von 8 Regeln"), so the whole
+  // phrase is one message with slots rather than a concatenation.
   out.textContent = visible.length === all.length
     ? `${all.length} ${noun(all.length)}`
-    : `${visible.length} of ${all.length} ${noun(all.length)}`;
+    : str('count_filtered')
+        .replace('{shown}', visible.length)
+        .replace('{total}', all.length)
+        .replace('{noun}', noun(all.length));
 }
 
 function initRuleFilter() {
@@ -252,14 +263,14 @@ function ruleRowHTML(idx, r, labels) {
   const L = labels || [];
   return `
     <td data-label="${esc(L[0] ?? '')}"><input class="f-port input-cell input-cell-data" type="text" value="${esc(r.port)}"
-         placeholder="80 or 8000:9000" aria-label="${esc(L[0] ?? '')}"></td>
+         placeholder="${esc(str('ports_port_hint'))}" aria-label="${esc(L[0] ?? '')}"></td>
     <td data-label="${esc(L[1] ?? '')}">
       <input class="f-ssh checkbox" type="checkbox" ${r.ssh ? 'checked' : ''} aria-label="${esc(L[1] ?? '')}">
     </td>
     <td class="cell-wide" data-label="${esc(L[2] ?? '')}"><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
-         placeholder="What is this port for?" aria-label="${esc(L[2] ?? '')}"></td>
+         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
     <td>
-      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="Remove rule">
+      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
           d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
           clip-rule="evenodd"/></svg>
@@ -324,13 +335,13 @@ function fwdRowHTML(idx, r, labels) {
       </select>
     </td>
     <td data-label="${esc(L[1] ?? '')}"><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
-         placeholder="1–65535" aria-label="${esc(L[1] ?? '')}"></td>
+         placeholder="${esc(str('port_range_hint'))}" aria-label="${esc(L[1] ?? '')}"></td>
     <td class="cell-flow" data-label="${esc(L[2] ?? '')}">
       <span class="flow-arrow" aria-hidden="true">&rarr;</span>
       <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
-         placeholder="1–65535" aria-label="${esc(L[2] ?? '')}"></td>
+         placeholder="${esc(str('port_range_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
     <td>
-      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="Remove rule">
+      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
           d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
           clip-rule="evenodd"/></svg>
@@ -345,11 +356,13 @@ function initApplyStatus() {
 
   let timer = null;
 
+  // Same four words the server renders into apply.html, from the same keys —
+  // the polled update used to say "Rolled Back" where the page said "Rolled back".
   const statusLabels = {
-    idle:        { text: 'Idle',         cls: 'inactive' },
-    pending:     { text: 'Pending',      cls: 'pending'  },
-    accepted:    { text: 'Accepted',     cls: 'active'   },
-    rolled_back: { text: 'Rolled Back',  cls: 'error'    },
+    idle:        { text: str('state_idle'),         cls: 'inactive' },
+    pending:     { text: str('state_pending'),      cls: 'pending'  },
+    accepted:    { text: str('state_accepted'),     cls: 'active'   },
+    rolled_back: { text: str('state_rolled_back'),  cls: 'error'    },
   };
 
   const render = (data) => {
@@ -371,7 +384,7 @@ function initApplyStatus() {
     if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
       statusEl.insertAdjacentHTML('afterend',
-        '<div role="alert" class="alert alert-crit mt-3"><span>Rules were rolled back — acceptance timeout.</span></div>');
+        `<div role="alert" class="alert alert-crit mt-3"><span>${esc(str('apply_rolled_back_toast'))}</span></div>`);
     }
   };
 

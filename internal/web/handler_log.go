@@ -48,14 +48,17 @@ func (s *Server) handleLogFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The label is resolved in the request's own language, because the point of
+	// searching it is that it is what the operator can see. A German session
+	// shows "Regeln zurückgenommen"; matching only the English label, or only
+	// the stored "apply_rolledback", would both come back empty.
+	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+
 	var filtered []shared.AuditLogEntry
 	for _, e := range entries {
-		// The displayed label is searched alongside the stored identifier. The
-		// table shows "Rules rolled back" while the log holds
-		// "apply_rolledback"; matching only the identifier meant typing what you
-		// can see on screen returned nothing.
 		hay := strings.ToLower(strings.Join([]string{
-			e.Action, actionLabel(e.Action), e.RuleType, e.Detail, e.User,
+			e.Action, actionLabel(tFunc, e.Action), e.RuleType, e.Detail, e.User,
 		}, " "))
 		if strings.Contains(hay, q) {
 			filtered = append(filtered, e)

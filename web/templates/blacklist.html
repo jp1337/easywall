@@ -9,7 +9,7 @@
     <div class="page-header">
       <div class="page-header-text">
         <h1 class="page-title">{{T "blacklist_title"}}</h1>
-        <p class="page-subtitle">Sources that are dropped before any other rule is evaluated.</p>
+        <p class="page-subtitle">{{T "blacklist_subtitle"}}</p>
       </div>
     </div>
 
@@ -20,13 +20,13 @@
           <div class="card editor">
             <div class="section-head">
               <div class="section-head-text">
-                <h2 class="section-title">Blocked addresses</h2>
-                <p class="section-desc">Nothing from these sources reaches an open port.</p>
+                <h2 class="section-title">{{T "blacklist_section"}}</h2>
+                <p class="section-desc">{{T "blacklist_section_desc"}}</p>
               </div>
             </div>
 
             <textarea name="entries" rows="14" id="iplist-input"
-                      aria-label="Blocked addresses"
+                      aria-label="{{T "blacklist_section"}}"
                       placeholder="192.168.1.100&#10;10.0.0.0/8&#10;2001:db8::/32"
                       hx-post="/iplist/validate"
                       hx-trigger="keyup changed delay:600ms, change delay:200ms"
@@ -35,9 +35,9 @@
 {{end}}</textarea>
 
             <div class="editor-foot">
-              <span class="toolbar-count" id="iplist-count">{{$n := countEntries .Entries}}{{$n}} {{plural $n "entry" "entries"}}</span>
+              <span class="toolbar-count" id="iplist-count">{{$n := countEntries .Entries}}{{$n}} {{plural $n (T "count_entry_one") (T "count_entry_many")}}</span>
               <span class="toolbar-spacer"></span>
-              <span>One per line — IPv4, IPv6 or CIDR. A line starting with <code>#</code> is a comment.</span>
+              <span>{{richText (T "iplist_format_note")}}</span>
             </div>
           </div>
 
@@ -48,7 +48,7 @@
               <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
               {{T "save"}}
             </button>
-            <span class="save-bar-note">Changes are staged until you <a href="/apply" class="link">apply rules</a>.</span>
+            <span class="save-bar-note">{{richText (T "staged_note") "/apply" (T "link_apply_rules")}}</span>
           </div>
         </div>
 
@@ -56,18 +56,18 @@
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-              What gets blocked
+              {{T "blacklist_what_title"}}
             </h2>
-            <p>The blacklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it.</p>
-            <p>Accepted forms: a single address <code>192.0.2.42</code>, a network <code>198.51.100.0/24</code>, or IPv6 in either form.</p>
+            <p>{{T "blacklist_what_body"}}</p>
+            <p>{{richText (T "iplist_forms_note")}}</p>
           </div>
 
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-              Order matters
+              {{T "order_matters_title"}}
             </h2>
-            <p>This list is evaluated <em>before</em> the <a class="link" href="/whitelist">whitelist</a>. An address that appears in both is dropped — a narrow allow inside a wide block does not work.</p>
+            <p>{{richText (T "blacklist_order_body") "/whitelist" (T "link_whitelist")}}</p>
           </div>
         </div>
       </div>

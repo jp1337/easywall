@@ -17,6 +17,11 @@
   <script nonce="{{.Nonce}}">
     (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();
   </script>
+  {{/* app.js builds some text itself — toast bodies, the polled apply state, the
+       fields on a row added in the browser — so those translations have to reach
+       it. html/template escapes the map into a JS value; the nonce is what makes
+       it acceptable to script-src 'self'. */}}
+  <script nonce="{{.Nonce}}">window.easywallStrings = {{.Strings}};</script>
   <link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/jetbrains-mono-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css?v={{.Asset}}">
@@ -32,6 +37,27 @@
 </head>
 <body>
 <div class="layout">
+{{end}}
+
+{{/* The language switch. One submit button per installed locale, drawn only when
+     there is more than one — a lone "English" button would be a control that
+     cannot do anything. It is a POST because it writes a cookie, and a plain form
+     because an operator who cannot read the interface should not also need
+     JavaScript to fix that. */}}
+{{define "langswitch"}}
+{{if .Langs}}
+<form method="POST" action="/language" class="lang-switch">
+  <input type="hidden" name="return" value="{{.Path}}">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3M3.6 9h16.8M3.6 15h16.8"/></svg>
+  <span class="lang-options" role="group" aria-label="{{T "nav_language"}}">
+    {{range .Langs}}
+    <button type="submit" name="lang" value="{{.Code}}"
+            class="lang-option{{if .Current}} is-current{{end}}"
+            {{if .Current}}aria-current="true"{{end}}>{{.Label}}</button>
+    {{end}}
+  </span>
+</form>
+{{end}}
 {{end}}
 
 {{define "sidebar"}}
@@ -132,6 +158,7 @@
   </div>
 
   <div class="nav-footer">
+    {{template "langswitch" .}}
     {{/* role=switch, not a bare button: the track is driven by data-theme in CSS,
          so it looks right, but without aria-checked a screen reader announced
          only "Theme, button" — no state, and "Theme" names neither end of it. */}}
@@ -153,7 +180,7 @@
 
 {{define "topbar"}}
 <div class="topbar">
-  <button class="menu-btn" id="menu-btn" type="button" aria-label="Menu">
+  <button class="menu-btn" id="menu-btn" type="button" aria-label="{{T "nav_menu"}}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
     </svg>

@@ -101,11 +101,28 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
 | `data_dir` | string | Directory for the version cache file |
-| `language` | string | Default UI locale — `"en"` (English) or `"de"` (German) |
+| `language` | string | Fallback UI locale — `"en"` (English) or `"de"` (German). Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
 | `session_key` | string | 32-byte hex secret for HMAC-signed session cookies |
 | `csrf_key` | string | 32-byte hex secret for CSRF token generation |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
+
+### How the interface picks a language
+
+Highest priority first:
+
+1. **An explicit choice in the interface.** The switch in the sidebar footer — and
+   on the login page, so an operator who cannot read it can still get in — stores
+   `easywall_lang` for a year. This outranks everything below: the browser header
+   describes the machine, and this describes the person using it.
+2. **The browser's `Accept-Language` header.**
+3. **`language` in the config**, the setting above.
+4. **English.**
+
+The languages on offer are whatever `locales/*.json` contains, and each file names
+itself through its own `language_name` key — so `Deutsch` reads as `Deutsch`
+whatever language the interface is currently in. Adding a locale file is all it
+takes for it to appear in the switch; see [Adding a Language](contributing.md).
 
 Generate the required secrets:
 ```bash

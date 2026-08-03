@@ -44,7 +44,8 @@ Seven rules the review will check:
 - Controls are outlined in `control-edge`, containers in `rule`. Anything you can
   operate needs 3:1 against its surroundings, and the field fill does not provide it.
 - Visible strings go through `{{T "key"}}` and land in both `locales/en.json` and
-  `locales/de.json`.
+  `locales/de.json` — attributes included. A sentence containing a link stays one
+  message with a `{}` slot, so the translator can move the link.
 
 Render what you changed. Every defect worth catching here was invisible in the
 stylesheet and obvious in a screenshot — check a phone width as well as a desktop one.

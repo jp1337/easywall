@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
@@ -37,13 +38,50 @@ func NewBundle(localesDir string) *i18n.Bundle {
 	return bundle
 }
 
+// LangCookie holds an explicit language choice. It outranks Accept-Language,
+// because a browser header describes the machine and this describes the person
+// sitting at it — an operator on a borrowed laptop still gets their own language.
+const LangCookie = "easywall_lang"
+
+// langCandidates lists the languages to try, best first: the cookie the operator
+// chose, then what their browser asks for, then the configured default, then
+// English as the last resort.
+func langCandidates(r *http.Request, defaultLang string) []string {
+	var langs []string
+	if c, err := r.Cookie(LangCookie); err == nil && c.Value != "" {
+		langs = append(langs, c.Value)
+	}
+	langs = append(langs, parseAcceptLanguage(r.Header.Get("Accept-Language"))...)
+	return append(langs, defaultLang, "en")
+}
+
 // NewLocalizer creates a localizer for the given request and default language.
-// It reads the Accept-Language header and falls back to defaultLang.
 func NewLocalizer(bundle *i18n.Bundle, r *http.Request, defaultLang string) *i18n.Localizer {
-	accept := r.Header.Get("Accept-Language")
-	langs := parseAcceptLanguage(accept)
-	langs = append(langs, defaultLang, "en")
-	return i18n.NewLocalizer(bundle, langs...)
+	return i18n.NewLocalizer(bundle, langCandidates(r, defaultLang)...)
+}
+
+// newLocalizerForLang builds a localizer pinned to one language, used to read a
+// locale file's own name for the language switcher.
+func newLocalizerForLang(bundle *i18n.Bundle, lang string) *i18n.Localizer {
+	return i18n.NewLocalizer(bundle, lang)
+}
+
+// AvailableLangs lists the base language tags the bundle actually has messages
+// for, sorted so the interface offers them in a stable order. It is derived from
+// the locale files rather than hard-coded: dropping a fr.json into locales/ is
+// all it should take to offer French.
+func AvailableLangs(bundle *i18n.Bundle) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, t := range bundle.LanguageTags() {
+		base, _ := t.Base()
+		if b := base.String(); !seen[b] {
+			seen[b] = true
+			out = append(out, b)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ResolveLang reports the language the localizer will actually serve, so a page
@@ -52,14 +90,11 @@ func NewLocalizer(bundle *i18n.Bundle, r *http.Request, defaultLang string) *i18
 // failure: a screen reader pronounces it with English phonetics.
 func ResolveLang(bundle *i18n.Bundle, r *http.Request, defaultLang string) string {
 	available := make(map[string]bool)
-	for _, t := range bundle.LanguageTags() {
-		base, _ := t.Base()
-		available[base.String()] = true
+	for _, l := range AvailableLangs(bundle) {
+		available[l] = true
 	}
 
-	candidates := parseAcceptLanguage(r.Header.Get("Accept-Language"))
-	candidates = append(candidates, defaultLang, "en")
-	for _, c := range candidates {
+	for _, c := range langCandidates(r, defaultLang) {
 		tag, err := language.Parse(c)
 		if err != nil {
 			continue

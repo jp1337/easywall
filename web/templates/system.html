@@ -9,7 +9,7 @@
     <div class="page-header">
       <div class="page-header-text">
         <h1 class="page-title">{{T "system_title"}}</h1>
-        <p class="page-subtitle">The safety net that gets you back in when a rule change goes wrong.</p>
+        <p class="page-subtitle">{{T "system_subtitle"}}</p>
       </div>
     </div>
 
@@ -33,7 +33,7 @@
             <div class="section-head">
               <div class="section-head-text">
                 <h2 class="section-title">{{T "system_acceptance_title"}}</h2>
-                <p class="section-desc">After an apply, easywall waits for you to confirm. No confirmation, and the previous rules come back.</p>
+                <p class="section-desc">{{T "system_acceptance_desc"}}</p>
               </div>
             </div>
 
@@ -70,18 +70,18 @@
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-              Do not switch this off on a remote host
+              {{T "system_warn_title"}}
             </h2>
-            <p>Without the acceptance window an apply is final. A rule that closes your own SSH port leaves you with no way back in short of console access.</p>
+            <p>{{T "system_warn_body"}}</p>
           </div>
 
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h3.5a.75.75 0 000-1.5h-2.75V5z" clip-rule="evenodd"/></svg>
-              Choosing a timeout
+              {{T "system_timeout_title"}}
             </h2>
-            <p>Long enough to open a second connection and test what you changed. Short enough that a lockout resolves itself before it costs you the afternoon.</p>
-            <p>120 seconds suits most cases. Raise it if your check involves more than an SSH login.</p>
+            <p>{{T "system_timeout_body"}}</p>
+            <p>{{T "system_timeout_note"}}</p>
           </div>
         </div>
       </div>
