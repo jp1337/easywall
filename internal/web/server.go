@@ -33,6 +33,8 @@ type PageData struct {
 	Page  string // current page for nav active state
 	Nonce string // CSP nonce for the theme-init inline script
 	Demo  bool   // true when running with the in-memory mock (banner)
+	Lang  string // language actually served, for <html lang>
+
 	// Asset is appended to static stylesheet URLs. Without it an operator who
 	// upgrades easywall keeps the cached stylesheet from the previous version
 	// and sees a broken interface until they force-reload.
@@ -256,6 +258,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Page:  page,
 		Nonce: nonce,
 		Demo:  s.client.IsDemo(),
+		Lang:  ResolveLang(s.bundle, r, s.cfg.Language),
 		Asset: shared.CurrentVersion,
 		Data:  data,
 	}

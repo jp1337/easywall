@@ -1,10 +1,10 @@
 {{define "login.html"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>easywall — Login</title>
+  <title>easywall — {{T "login_title"}}</title>
   <script nonce="{{.Nonce}}">(function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/jetbrains-mono-var.woff2" as="font" type="font/woff2" crossorigin>
@@ -21,14 +21,13 @@
         <span class="auth-logo-mark" aria-hidden="true"></span>
         <span class="auth-logo-name">easywall</span>
       </div>
-      <p class="auth-subtitle">{{T "login_title"}}</p>
     </div>
 
     <div class="auth-body">
       {{if .Demo}}
-      <div role="alert" class="alert alert-warn mb-4">
+      <div role="alert" class="alert mb-4">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
-        <span><strong>Demo Mode</strong> — credentials are provided on the demo landing page. State resets on each server restart.</span>
+        <span><strong>{{T "demo_label"}}</strong> — {{T "login_demo_notice"}}</span>
       </div>
       {{end}}
       {{if .Flash}}

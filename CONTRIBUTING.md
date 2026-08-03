@@ -101,6 +101,14 @@ read it before touching anything visual.
   back. They are never decorative, and there is no informational colour.
 - **The accent is rationed** to what is focused, what is active, and the one primary
   action on a page.
+- **A control's outline uses `control-edge`; a container's uses `rule`.** WCAG 2.1
+  SC 1.4.11 wants 3:1 for anything you can operate, and in this system the fill of a
+  field sits ~1.05:1 from the panel behind it — the border is the whole affordance.
+  Hover on a control goes to `ink-subtle`, because `rule-strong` is *weaker* than
+  `control-edge` and would fade the outline you just pointed at.
+- **Every visible string goes through `{{T "key"}}`,** with the text added to *both*
+  `locales/en.json` and `locales/de.json`. Hardcoding English is how a bilingual
+  product ends up half-translated.
 - Both themes must work. Check light mode as well as dark before opening a PR.
 - **Sentence case, in Inter.** Panel headings and table column heads are language, not
   data. The tracked uppercase mono `label` role is retired everywhere except the sidebar's

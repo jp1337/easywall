@@ -31,7 +31,7 @@ block of `web/src/app.css`, and Tailwind generates matching utilities from them,
 a template never names a colour directly — it uses `bg-surface`, `text-ink-muted`,
 `border-rule` and so on.
 
-Five rules the review will check:
+Seven rules the review will check:
 
 - Green, amber and red are reserved for firewall state: live, unconfirmed, rolled
   back. A count is not a state.
@@ -41,6 +41,10 @@ Five rules the review will check:
   role survives only in the sidebar's nav dividers.
 - Every table cell carries a `data-label`, because below 720px rows reflow into
   labelled cards and the attribute is what labels them.
+- Controls are outlined in `control-edge`, containers in `rule`. Anything you can
+  operate needs 3:1 against its surroundings, and the field fill does not provide it.
+- Visible strings go through `{{T "key"}}` and land in both `locales/en.json` and
+  `locales/de.json`.
 
 Render what you changed. Every defect worth catching here was invisible in the
 stylesheet and obvious in a screenshot — check a phone width as well as a desktop one.

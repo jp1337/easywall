@@ -12,11 +12,18 @@
   {"id": "nav_log",          "translation": "Audit Log"},
   {"id": "nav_apply",        "translation": "Apply Rules"},
   {"id": "nav_logout",       "translation": "Logout"},
+  {"id": "nav_light_mode",   "translation": "Light mode"},
+  {"id": "nav_group_rules",  "translation": "Rules"},
+  {"id": "nav_group_system", "translation": "System"},
 
-  {"id": "login_title",      "translation": "Login"},
+  {"id": "login_title",      "translation": "Sign in"},
   {"id": "login_username",   "translation": "Username"},
   {"id": "login_password",   "translation": "Password"},
   {"id": "login_submit",     "translation": "Sign in"},
+  {"id": "login_demo_notice", "translation": "Credentials are on the demo landing page. State resets when the server restarts."},
+
+  {"id": "demo_label",       "translation": "Demo"},
+  {"id": "demo_notice",      "translation": "Nothing reaches a real firewall; state resets periodically."},
 
   {"id": "firstrun_title",         "translation": "Welcome to easywall"},
   {"id": "firstrun_subtitle",      "translation": "Set up your administrator account"},
@@ -24,6 +31,8 @@
   {"id": "firstrun_password",      "translation": "Password"},
   {"id": "firstrun_confirm",       "translation": "Confirm password"},
   {"id": "firstrun_submit",        "translation": "Create account"},
+  {"id": "firstrun_password_hint", "translation": "Minimum 12 characters"},
+  {"id": "firstrun_notice",        "translation": "This is the only account. Resetting a lost password needs shell access to the server."},
 
   {"id": "dashboard_title",        "translation": "Dashboard"},
   {"id": "dashboard_status",       "translation": "Firewall status"},

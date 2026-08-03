@@ -1,6 +1,6 @@
 {{define "head"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -54,7 +54,7 @@
   </div>
 
   <div class="nav-section">
-    <div class="nav-section-label">Rules</div>
+    <div class="nav-section-label">{{T "nav_group_rules"}}</div>
     <ul class="nav-links">
       <li class="{{if eq .Page "ports"}}active{{end}}">
         <a href="/ports">
@@ -90,7 +90,7 @@
   </div>
 
   <div class="nav-section">
-    <div class="nav-section-label">System</div>
+    <div class="nav-section-label">{{T "nav_group_system"}}</div>
     <ul class="nav-links">
       <li class="{{if eq .Page "options"}}active{{end}}">
         <a href="/options">
@@ -132,12 +132,15 @@
   </div>
 
   <div class="nav-footer">
-    <button class="theme-toggle" id="theme-toggle-btn" type="button">
+    {{/* role=switch, not a bare button: the track is driven by data-theme in CSS,
+         so it looks right, but without aria-checked a screen reader announced
+         only "Theme, button" — no state, and "Theme" names neither end of it. */}}
+    <button class="theme-toggle" id="theme-toggle-btn" type="button" role="switch" aria-checked="false">
       <span>
         <svg class="icon-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
-        Theme
+        {{T "nav_light_mode"}}
       </span>
-      <div class="toggle-switch"></div>
+      <div class="toggle-switch" aria-hidden="true"></div>
     </button>
     <a href="/logout">
       <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
@@ -161,8 +164,8 @@
   {{if .Demo}}
   <span class="demo-chip">
     <span class="demo-chip-dot" aria-hidden="true"></span>
-    <strong>Demo</strong>
-    <span class="demo-chip-text">nothing reaches a real firewall — state resets periodically</span>
+    <strong>{{T "demo_label"}}</strong>
+    <span class="demo-chip-text">{{T "demo_notice"}}</span>
   </span>
   {{end}}
   {{if .User}}

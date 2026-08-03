@@ -48,6 +48,10 @@
   --surface-3:    #252932;
   --border:       #252932;
   --border-muted: #181b22;
+  /* Mirrors control-edge in DESIGN.md. --border is a separator and may be quiet;
+     a button's outline may not — at --border it measured 1.28:1 against the
+     surface behind it, where WCAG 2.1 SC 1.4.11 wants 3:1. */
+  --control-edge: #5e636e;
   --text:         #f1f3f6;
   --text-muted:   #a2aab8;
   --text-subtle:  #7d8593;
@@ -76,6 +80,7 @@
   --surface-3:    #e4e8ee;
   --border:       #e4e8ee;
   --border-muted: #f4f6f9;
+  --control-edge: #868a93;
   --text:         #0f1116;
   --text-muted:   #5a6270;
   --text-subtle:  #666e7b;  /* raised from #6f7784: 4.17:1 on --surface-2 failed AA */
@@ -1140,7 +1145,7 @@ html, body {
   gap: 8px;
   height: 40px;
   padding: 0 18px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-edge);
   border-radius: 6px;
   background: var(--surface);
   color: var(--text);
@@ -1155,7 +1160,9 @@ html, body {
 
 .btn:hover {
   background: var(--surface-2);
-  border-color: var(--surface-3);
+  /* --surface-3 is byte-identical to --border in both themes, so this hover
+     never changed the outline at all. */
+  border-color: var(--text-subtle);
   text-decoration: none;
 }
 

@@ -188,7 +188,7 @@ components:
   button-secondary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.body-strong}"
     rounded: "{rounded.md}"
     height: 32px
@@ -196,7 +196,7 @@ components:
   button-secondary-hover:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule-strong}"
+    borderColor: "{colors.ink-subtle}"
     typography: "{typography.body-strong}"
     rounded: "{rounded.md}"
   button-danger:
@@ -209,7 +209,7 @@ components:
   input:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
     height: 32px
@@ -223,7 +223,7 @@ components:
   input-data:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.data}"
     rounded: "{rounded.md}"
     padding: 6px 10px
@@ -381,7 +381,7 @@ components:
   button-sm:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.body-sm}"
     rounded: "{rounded.md}"
     height: 28px
@@ -395,7 +395,7 @@ components:
   input-hover:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule-strong}"
+    borderColor: "{colors.ink-subtle}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
   input-error:
@@ -420,7 +420,7 @@ components:
   select:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.rule}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
     height: 32px
@@ -684,6 +684,29 @@ protection-module toggles, and an operator has to be able to see at a glance whi
 protections are *off*. A page where only the enabled toggles are visible is worse than no
 page at all, because it reads as "everything is fine".
 
+**Amended 2026-08-03: this applies to every control, not only the two that got it first.**
+Toggles and checkboxes were moved to `control-edge` when this section was written; text
+fields, secondary buttons and selects were left at `rule` and quietly failed the same
+criterion. Measured against the surface each one actually sits on:
+
+| Boundary | Dark | Light |
+|---|---|---|
+| `input` border at `rule` | 1.35:1 | 1.20:1 |
+| `btn` border at `rule` | 1.28:1 | 1.23:1 |
+| the same borders at `control-edge` | 3.26:1 | 3.37:1 |
+
+The fill cannot rescue them: a field's `canvas` background sits **1.03–1.06:1** from the
+`surface` of the card it is on, so the border carries the entire affordance. On the login
+page the password field was, for practical purposes, an unmarked rectangle.
+
+One consequence is that hover can no longer be `rule-strong` — at 1.28–1.72:1 that is
+*weaker* than the new resting state, so hovering a field faded its outline. Control hover
+states use `ink-subtle`. Containers (`card-interactive`, `module`) keep
+`rule → rule-strong`: they are not controls, and for them it is still a strengthening.
+
+`button-disabled` and `input-disabled` stay at `rule` deliberately — see the note below on
+inactive components.
+
 > **Deliberate schema extensions.** The official linter reports three groups of warnings
 > against this file, all expected:
 > - `borderColor` is not in the component schema. In a system where hairline borders — not
@@ -886,7 +909,8 @@ information must never live in the animation alone.
 ### Buttons
 
 One primary action per view, filled with `accent`. Everything else is `button-secondary`:
-surface fill, hairline border. Destructive actions — *Roll back now*, *Delete rule* — use
+surface fill and a 1px `control-edge` border — hairline in weight, but not in contrast, since
+that border is the only thing separating the button from the panel behind it. Destructive actions — *Roll back now*, *Delete rule* — use
 `button-danger`: a bordered button in `state-crit`, never a filled red block. A filled red
 button is the loudest object on the page and invites the misclick it is warning about.
 
@@ -982,11 +1006,11 @@ default and focus will silently fail the moment a rule does not validate:
 
 | State | Border | Fill | Note |
 |---|---|---|---|
-| Default | `rule` | `canvas` | |
-| Hover | `rule-strong` | `canvas` | |
+| Default | `control-edge` | `canvas` | 3:1 per SC 1.4.11 — the fill is 1.03:1 from the card |
+| Hover | `ink-subtle` | `canvas` | Must read stronger than default, so not `rule-strong` |
 | Focus | `accent` | `canvas` | Plus a 2px `accent-wash` outline at 1px offset |
 | Error | `state-crit` | `canvas` | Message below in `state-crit`, never colour alone |
-| Disabled | `rule` | `surface-raised` | Text drops to `ink-subtle` |
+| Disabled | `rule` | `surface-raised` | Text drops to `ink-subtle`; inactive, so exempt |
 
 Focus is never removed. It is a **border change plus an outline** — not a glow, and never
 colour alone, because an operator navigating by keyboard has to see where they are on a
@@ -1119,6 +1143,14 @@ typeface changes.
   Until the core exposes a deadline and a rollback command, the apply screen states the
   escape route in words — doing nothing restores the previous rules — because that is what
   is actually true.
+- **The interface copy is only half translated.** `locales/de.json` is complete and at
+  parity with `locales/en.json`, but the copy written during the rebuild — page subtitles,
+  section descriptions, context cards, empty states — went straight into the templates in
+  English. As of 2026-08-03 that is **241 visible strings across 15 templates**, heaviest on
+  `options.html` (52), `dashboard.html` (34) and `settings.html` (24). A German operator gets
+  translated navigation and English explanations. The chrome and both auth screens have been
+  moved to `{{T}}`; the page bodies have not. This is a mechanical migration, not a design
+  question, but it is large enough that it should be its own change.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

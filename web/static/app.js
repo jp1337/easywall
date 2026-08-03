@@ -12,9 +12,18 @@ const getTheme = () =>
   normalizeTheme(localStorage.getItem('theme')) ||
   (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'easywall-dark' : 'easywall-light');
 
+// The switch track is drawn from data-theme in CSS, so it needs no help to look
+// right — but aria-checked has to be written by hand or the control announces no
+// state at all. Null-guarded because applyTheme also runs before the DOM exists.
+const syncThemeSwitch = (t) => {
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.setAttribute('aria-checked', String(t === 'easywall-light'));
+};
+
 const applyTheme = (t) => {
   document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('theme', t);
+  syncThemeSwitch(t);
 };
 
 // Apply immediately to prevent flash
@@ -26,6 +35,7 @@ const toggleTheme = () => applyTheme(getTheme() === 'easywall-dark' ? 'easywall-
 document.addEventListener('DOMContentLoaded', () => {
   const themeBtn = document.getElementById('theme-toggle-btn');
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+  syncThemeSwitch(getTheme());
 
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');

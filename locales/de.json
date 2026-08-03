@@ -12,11 +12,18 @@
   {"id": "nav_log",          "translation": "Audit-Log"},
   {"id": "nav_apply",        "translation": "Regeln anwenden"},
   {"id": "nav_logout",       "translation": "Abmelden"},
+  {"id": "nav_light_mode",   "translation": "Heller Modus"},
+  {"id": "nav_group_rules",  "translation": "Regeln"},
+  {"id": "nav_group_system", "translation": "System"},
 
   {"id": "login_title",      "translation": "Anmelden"},
   {"id": "login_username",   "translation": "Benutzername"},
   {"id": "login_password",   "translation": "Passwort"},
   {"id": "login_submit",     "translation": "Anmelden"},
+  {"id": "login_demo_notice", "translation": "Die Zugangsdaten stehen auf der Demo-Startseite. Beim Neustart des Servers wird der Zustand zurückgesetzt."},
+
+  {"id": "demo_label",       "translation": "Demo"},
+  {"id": "demo_notice",      "translation": "Nichts erreicht eine echte Firewall; der Zustand wird regelmäßig zurückgesetzt."},
 
   {"id": "firstrun_title",         "translation": "Willkommen bei easywall"},
   {"id": "firstrun_subtitle",      "translation": "Administratorkonto einrichten"},
@@ -24,6 +31,8 @@
   {"id": "firstrun_password",      "translation": "Passwort"},
   {"id": "firstrun_confirm",       "translation": "Passwort bestätigen"},
   {"id": "firstrun_submit",        "translation": "Konto erstellen"},
+  {"id": "firstrun_password_hint", "translation": "Mindestens 12 Zeichen"},
+  {"id": "firstrun_notice",        "translation": "Dies ist das einzige Konto. Ein verlorenes Passwort lässt sich nur mit Shell-Zugriff auf den Server zurücksetzen."},
 
   {"id": "dashboard_title",        "translation": "Übersicht"},
   {"id": "dashboard_status",       "translation": "Firewall-Status"},

@@ -46,6 +46,31 @@ func NewLocalizer(bundle *i18n.Bundle, r *http.Request, defaultLang string) *i18
 	return i18n.NewLocalizer(bundle, langs...)
 }
 
+// ResolveLang reports the language the localizer will actually serve, so a page
+// can declare it in <html lang>. go-i18n does not expose the tag it matched,
+// and a page that renders German while declaring English is a WCAG 3.1.1
+// failure: a screen reader pronounces it with English phonetics.
+func ResolveLang(bundle *i18n.Bundle, r *http.Request, defaultLang string) string {
+	available := make(map[string]bool)
+	for _, t := range bundle.LanguageTags() {
+		base, _ := t.Base()
+		available[base.String()] = true
+	}
+
+	candidates := parseAcceptLanguage(r.Header.Get("Accept-Language"))
+	candidates = append(candidates, defaultLang, "en")
+	for _, c := range candidates {
+		tag, err := language.Parse(c)
+		if err != nil {
+			continue
+		}
+		if base, _ := tag.Base(); available[base.String()] {
+			return base.String()
+		}
+	}
+	return "en"
+}
+
 // T returns the translation for the given message ID, or the ID itself as fallback.
 func T(l *i18n.Localizer, id string, args ...interface{}) string {
 	cfg := &i18n.LocalizeConfig{MessageID: id}
