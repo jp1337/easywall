@@ -1,0 +1,9 @@
+flowchart LR
+  subgraph tables["nftables"]
+    E["table inet easywall<br/>easywall owns this"]
+    D["table ip docker<br/>Docker owns this"]
+    O["table inet filter<br/>anything else"]
+  end
+  EW["easywall"] -->|"creates, flushes,<br/>replaces"| E
+  EW -.->|"never touches"| D
+  EW -.->|"never touches"| O

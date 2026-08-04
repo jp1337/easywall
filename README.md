@@ -1,214 +1,125 @@
 <p align="center">
-  <img src="web/static/icon.svg" alt="easywall logo" width="96" height="96">
+  <img src="web/static/icon.svg" alt="" width="88" height="88">
 </p>
 
-# 🔥 easywall
+<h1 align="center">easywall</h1>
 
-[![Build](https://github.com/jp1337/easywall/actions/workflows/test.yml/badge.svg)](https://github.com/jp1337/easywall/actions/workflows/test.yml)
-[![Security](https://github.com/jp1337/easywall/actions/workflows/security.yml/badge.svg)](https://github.com/jp1337/easywall/actions/workflows/security.yml)
-[![codecov](https://codecov.io/gh/jp1337/easywall/graph/badge.svg)](https://codecov.io/gh/jp1337/easywall)
-[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue?logo=opensourceinitiative&logoColor=white)](https://www.gnu.org/licenses/gpl-3.0)
-[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![nftables](https://img.shields.io/badge/nftables-direct%20netlink-informational?logo=linux&logoColor=white)](https://netfilter.org/projects/nftables/)
-[![GitHub Sponsors](https://img.shields.io/badge/sponsor-GitHub-ea4aaa?logo=github-sponsors&logoColor=white)](https://github.com/sponsors/jp1337)
-[![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/jpylypiw)
-[![PayPal](https://img.shields.io/badge/donate-PayPal-003087?logo=paypal&logoColor=white)](https://paypal.me/JPylypiw)
+<p align="center"><em>Your firewall. Your rules. No surprises.</em></p>
 
-> *Your firewall. Your rules. No surprises.*
+<p align="center">
+  <a href="https://github.com/jp1337/easywall/actions/workflows/test.yml"><img src="https://github.com/jp1337/easywall/actions/workflows/test.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/jp1337/easywall/actions/workflows/security.yml"><img src="https://github.com/jp1337/easywall/actions/workflows/security.yml/badge.svg" alt="Security"></a>
+  <a href="https://codecov.io/gh/jp1337/easywall"><img src="https://codecov.io/gh/jp1337/easywall/graph/badge.svg" alt="Coverage"></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?logo=opensourceinitiative&logoColor=white" alt="GPL-3.0"></a>
+  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
+</p>
 
-**Linux firewall management with a web interface — built for 2026.**
+<p align="center">
+  <a href="https://easywall.wdkro.de"><strong>Live demo</strong></a> ·
+  <a href="https://jp1337.github.io/easywall"><strong>Documentation</strong></a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
-A complete rewrite of the original easywall (Python/Flask/iptables, archived after a CVE). New architecture: Go, nftables via direct netlink, two-process isolation, Argon2id auth — security problems addressed at the root.
+nftables through a web interface that cannot lock you out: **every apply reverts
+itself unless you confirm it.**
 
-📖 **Documentation:** [jp1337.github.io/easywall](https://jp1337.github.io/easywall)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/screens/dashboard-dark.png">
+  <img src="docs/assets/img/screens/dashboard-light.png" alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP ports, UDP ports, blacklist, whitelist, custom rules and forwarding; and a recent-activity list.">
+</picture>
 
----
+## The idea
 
-## 🏗️ Architecture
+Editing a rule changes nothing. Applying it changes everything — for 120 seconds.
+If the new rules cut your connection you cannot click Confirm, and *not* confirming
+is what brings the old rules back.
 
-```
-Browser  ──HTTPS──►  easywall-web   (user: easywall, unprivileged)
-                           │
-                    Unix socket (mode 0660, group easywall)
-                    Typed JSON protocol
-                           │
-                     easywall-core  (root, CAP_NET_ADMIN only)
-                           │
-                    nftables kernel (via direct netlink — no nft subprocess)
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/apply-flow-dark.svg">
+  <img src="docs/assets/diagrams/apply-flow-light.svg" alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available.">
+</picture>
 
-The web process **never touches the firewall directly**. All changes go through a typed socket protocol to a privileged core daemon — privilege escalation from the web process is structurally impossible.
+## Architecture
 
----
+Two processes. The one exposed to the network holds no privilege worth stealing.
 
-## ✨ Features
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/architecture-dark.svg">
+  <img src="docs/assets/diagrams/architecture-light.svg" alt="Browser talks HTTPS to easywall-web, which runs unprivileged; easywall-web talks typed JSON over a Unix socket to easywall-core, which runs as root and speaks netlink to the nftables table inet easywall.">
+</picture>
 
-- **nftables backend** — direct netlink API via `google/nftables`, no subprocess, no shell, no injection risk
-- **Two-step activation** — apply rules, then confirm over SSH within a configurable window; auto-rollback on timeout
-- **Docker coexistence** — own table `inet easywall`, never touches Docker's chains; auto-detects bridge networks
-- **TCP/UDP port management** — with descriptions and SSH brute-force routing per rule
-- **IP blacklist & whitelist** — IPv4/IPv6 CIDRs, applied before any other rules
-- **Port forwarding** — NAT rules with protocol selection
-- **Custom rules** — raw nftables syntax, validated before apply
-- **Export / Import** — full JSON rule backups, downloadable and re-uploadable
-- **i18n** — English & German, extensible via `locales/<lang>.json`
-- **Light / Dark mode** — follows OS preference, manual toggle available; both themes contrast-checked
+A complete rewrite of the original easywall — Python, Flask, `iptables` via
+subprocess — which was archived in 2022 after a CVE. Both root causes are gone:
+the privileges live in a different process, and the apply path builds Go structs
+instead of a command line. [How it works →](https://jp1337.github.io/easywall/architecture/)
 
-### 🛡️ Protection Modules
+## Install
 
-| Module | Default | Description |
-|---|---|---|
-| SSH brute-force | ✅ on | Connection limit per source IP |
-| ICMP flood | ✅ on | Rate-limit per source IP |
-| SYN flood | ✅ on | Rate-limit new TCP connections |
-| Port scan | ✅ on | Drops NULL, FIN, XMAS, SYN+FIN probes |
-| Invalid packets | ✅ on | `ct state invalid` → DROP |
-| IP fragments | off | Drop fragmented packets |
-| Bogon filter | off | RFC-1918 from external interface → DROP |
-| Connection limit | off | Max simultaneous connections per source IP |
-| TCP RST flood | off | Rate-limit RST packets |
-| Broadcast drop | off | `pkttype broadcast` → DROP |
-| Multicast drop | off | `pkttype multicast` → DROP |
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Choice | Notes |
-|---|---|---|
-| **Language** | Go 1.25 | Single-binary, no runtime dependencies |
-| **HTTP router** | `go-chi/chi/v5` | Lightweight, idiomatic middleware chain |
-| **Templates** | `html/template` (stdlib) | Auto-escaping — XSS structurally prevented |
-| **Design system** | `DESIGN.md` + Tailwind v4 | Own token set and components — no third-party UI library |
-| **Fonts** | Inter + JetBrains Mono, self-hosted | Subset woff2, ~145 KB — works air-gapped, no external request |
-| **nftables** | `google/nftables` | Direct netlink — no `nft` subprocess |
-| **Password hashing** | `golang.org/x/crypto` Argon2id | Memory-hard, resistant to GPU cracking |
-| **Sessions** | `gorilla/sessions` | HMAC-signed cookies, 600s lifetime |
-| **CSRF** | `net/http.CrossOriginProtection` | Go 1.25 native, no form tokens needed |
-| **Rate limiting** | `golang.org/x/time/rate` | Token bucket, per-IP on `/login` |
-| **i18n** | `go-i18n/v2` | JSON message files |
-| **Config** | `BurntSushi/toml` + JSON Schema | `taplo.toml` for editor autocomplete |
-| **Security scan** | `govulncheck` + `gosec` | CVE + security linter in CI |
-
----
-
-## 🚀 Quick Start
-
-### Debian / Ubuntu
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/install-choice-dark.svg">
+  <img src="docs/assets/diagrams/install-choice-light.svg" alt="Decision tree: just looking leads to demo mode; Debian or Ubuntu leads to the .deb package; already running containers leads to Docker; otherwise build from source.">
+</picture>
 
 ```bash
+# Debian / Ubuntu
 wget https://github.com/jp1337/easywall/releases/latest/download/easywall_amd64.deb
 sudo dpkg -i easywall_amd64.deb && sudo apt-get install -f
-xdg-open https://localhost:12227
-```
 
-### Docker
+# Docker
+git clone https://github.com/jp1337/easywall.git && cd easywall && docker compose up -d
 
-```bash
-git clone https://github.com/jp1337/easywall.git
-cd easywall
-docker compose up -d
-xdg-open https://localhost:12227
-```
-
-### Manual (from source)
-
-#### 1. Prerequisites
-
-- Linux kernel ≥ 3.13 with nftables (`apt install nftables`)
-- Go 1.25+
-
-#### 2. Build
-
-```bash
-git clone https://github.com/jp1337/easywall.git
-cd easywall
-make build
-# Produces: bin/easywall-core  bin/easywall-web
-```
-
-#### 3. Install
-
-```bash
-sudo make install
+# From source — Go 1.25+, nftables
+git clone https://github.com/jp1337/easywall.git && cd easywall
+make build && sudo make install
 sudo systemctl enable --now easywall-core easywall-web
-xdg-open https://localhost:12227
 ```
 
-The first visit opens the **setup wizard** to set your username and password.
+Then open `https://localhost:12227`. The first visit runs the setup wizard.
 
----
+## What you get
 
-## 📖 Documentation
-
-Full documentation at **[jp1337.github.io/easywall](https://jp1337.github.io/easywall)**
-
-| Guide | Description |
+| | |
 |---|---|
-| [Requirements](https://jp1337.github.io/easywall/installation/requirements/) | Kernel version, distro compatibility matrix |
-| [Debian / Ubuntu](https://jp1337.github.io/easywall/installation/debian/) | `.deb` package install |
-| [Docker](https://jp1337.github.io/easywall/installation/docker/) | Docker Compose setup, `network_mode: host` |
-| [Manual](https://jp1337.github.io/easywall/installation/manual/) | Build from source |
-| [Configuration](https://jp1337.github.io/easywall/configuration/) | All TOML keys explained, JSON Schema |
-| [Firewall Filters](https://jp1337.github.io/easywall/features/filters/) | Protection modules in detail |
-| [Docker Coexistence](https://jp1337.github.io/easywall/features/docker/) | How easywall and Docker live together |
-| [Export & Import](https://jp1337.github.io/easywall/features/export-import/) | JSON rule backups |
-| [Security Model](https://jp1337.github.io/easywall/security/) | Two-process isolation, CVE history |
+| **Ports** | TCP and UDP, single or range, with per-rule SSH brute-force routing |
+| **Blacklist & whitelist** | IPv4, IPv6 and CIDR, evaluated before any port rule |
+| **Protection modules** | Nine, four on by default — floods, scans, bogons, fragments |
+| **Port forwarding** | NAT redirects with protocol selection |
+| **Custom rules** | Raw nftables, syntax-checked before it is applied |
+| **Export / import** | The whole rule set as JSON |
+| **Audit log** | Who changed what, when |
+| **Docker coexistence** | Owns `table inet easywall`, touches nothing else |
+| **English & German** | Switchable in the interface, including before sign-in |
+| **Light & dark** | Follows the OS, with a manual toggle; both contrast-checked |
 
----
+## Built with
 
-## 🔐 Security
-
-easywall takes a **layered security approach** — each layer independently limits blast radius:
-
-| Threat | Mitigation |
+| | |
 |---|---|
-| Rule/command injection | Direct netlink API (no subprocess, no string-building) + typed Go structs |
-| Privilege escalation | Web process runs as unprivileged `easywall` user — no root access |
-| Auth brute-force | Rate-limiting on `/login` (5 req / 10 min per IP), Argon2id |
-| CSRF | `net/http.CrossOriginProtection` (Go 1.25 native) |
-| XSS | `html/template` auto-escaping + `Content-Security-Policy` header |
-| Session hijacking | HTTPS-only cookie, `SameSite=Lax` |
-| Lockout | Two-step activation with auto-rollback — bad rules can't lock you out permanently |
-| Known CVEs | `govulncheck` in CI (weekly + every PR) |
+| Go 1.25, single binary | `go-chi/chi` · `html/template` |
+| nftables via `google/nftables` | direct netlink, no `nft` subprocess |
+| Argon2id | `golang.org/x/crypto`, 16-byte salt per password |
+| CSRF | `net/http.CrossOriginProtection`, Go 1.25 native |
+| Design system | [`DESIGN.md`](DESIGN.md) + Tailwind v4 — no third-party UI library |
+| Fonts | Inter + JetBrains Mono, self-hosted, ~145 KB — works air-gapped |
+| CI | `govulncheck`, `gosec`, CodeQL, 90% web coverage |
 
-Report vulnerabilities via [GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new) — not as public issues. See [SECURITY.md](SECURITY.md).
+## Roadmap
 
----
-
-## 📦 Project Status
-
-| Phase | Status | Description |
-|---|---|---|
-| Phase 1 — Foundation | ✅ Done | Go module, shared types, IPC protocol, version check |
-| Phase 2 — Core Daemon | ✅ Done | nftables backend, rules storage, acceptance, Docker coexistence |
-| Phase 3 — Web Backend | ✅ Done | chi router, Argon2id auth, session management, all handlers |
-| Phase 4 — Web Frontend | ✅ Done | Templates, CSS custom properties, HTMX, light/dark mode |
-| Phase 5 — Deployment | ✅ Done | systemd units, Docker multi-stage, Debian package |
-| Phase 6 — Documentation | ✅ Done | MkDocs Material, GitHub Pages, custom theme |
-| Phase 7 — CI/CD | ✅ Done | Test, Security, Build, Release, Docs workflows |
-
-### Roadmap
-
-| Feature | Notes |
+| | |
 |---|---|
-| 2FA / TOTP | Second factor for the web UI |
-| Let's Encrypt ACME | Automatic TLS certificates without a reverse proxy |
-| GeoIP blocking | Country-based rules (requires GeoIP database) |
-| REST API | For Ansible and automation integrations |
+| 2FA / TOTP | Second factor for the web interface |
+| Let's Encrypt ACME | Certificates without a reverse proxy |
+| Audit log for logins | Authentication events are not recorded yet |
+| REST API | For Ansible and automation |
 
----
+## Contributing
 
-## 🤝 Contributing
+Setup, commit conventions and the review checklist: [CONTRIBUTING.md](CONTRIBUTING.md).
+Anything visual goes through [`DESIGN.md`](DESIGN.md) first.
 
-easywall is open source and welcomes contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, commit conventions (Conventional Commits), and the PR process.
+Security issues: **not** as a public issue — use
+[GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new).
 
----
+## License
 
-## 📜 License
-
-GPL-3.0 — see [LICENSE](LICENSE) for details.
-
----
-
-*A rewrite that treats the root causes, not the symptoms.*
+GPL-3.0 — see [LICENSE](LICENSE).

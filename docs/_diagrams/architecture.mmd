@@ -1,0 +1,10 @@
+flowchart LR
+  subgraph unpriv["Unprivileged"]
+    W["easywall-web<br/>HTTPS · sessions · templates"]
+  end
+  subgraph root["root"]
+    C["easywall-core<br/>rule state · acceptance timer"]
+  end
+  B(["Browser"]) -->|"HTTPS :12227"| W
+  W <-->|"typed JSON<br/>over Unix socket"| C
+  C -->|"netlink"| N[("nftables<br/>inet easywall")]

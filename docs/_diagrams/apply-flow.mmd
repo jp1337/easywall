@@ -1,0 +1,19 @@
+stateDiagram-v2
+  direction LR
+  [*] --> Staged: edit a rule set
+  Staged --> Live: apply
+  Live --> Confirmed: confirm within the window
+  Live --> RolledBack: window expires
+  RolledBack --> Staged: edits are still there
+  Confirmed --> [*]
+
+  note right of Live
+    New rules are enforcing.
+    Open a second connection
+    and check before confirming.
+  end note
+
+  note right of RolledBack
+    Previous rules are back.
+    Nothing staged was lost.
+  end note

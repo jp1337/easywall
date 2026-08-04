@@ -1,0 +1,17 @@
+flowchart TD
+  P(["Incoming packet"]) --> H["Loopback, established connections<br/>and the ICMP policy"]
+  H --> M["Protection modules<br/>scans · floods · bogons · fragments"]
+  M --> D["Docker bridge networks"]
+  D --> B{"On the blacklist?"}
+  B -->|yes| X1(["DROP"])
+  B -->|no| W{"On the whitelist?"}
+  W -->|yes| A3(["ACCEPT — every port,<br/>open or not"])
+  W -->|no| O{"Port open?"}
+  O -->|yes| A4(["ACCEPT"])
+  O -->|no| C["Custom rules"]
+  C --> X2(["DROP — chain policy"])
+
+  style X1 stroke:#f2555a
+  style X2 stroke:#f2555a
+  style A3 stroke:#3ecf8e
+  style A4 stroke:#3ecf8e

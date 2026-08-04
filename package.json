@@ -5,11 +5,15 @@
     "build:css": "tailwindcss -i web/src/app.css -o web/static/style.css --minify",
     "dev:css": "tailwindcss -i web/src/app.css -o web/static/style.css --watch",
     "build:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --minify",
-    "dev:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --watch"
+    "dev:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --watch",
+    "build:diagrams": "node scripts/render-diagrams.mjs",
+    "check:diagrams": "node scripts/render-diagrams.mjs --check"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",
-    "tailwindcss": "^4.1.0"
+    "tailwindcss": "^4.1.0",
+    "mermaid": "^11.16.0",
+    "playwright-core": "^1.50.0"
   },
   "dependencies": {
     "htmx.org": "^2.0.10"
