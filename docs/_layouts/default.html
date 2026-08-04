@@ -135,7 +135,6 @@
       var body = document.querySelector('.content-body');
       if (!body) return;
       body.querySelectorAll('table, pre').forEach(function (el) {
-        if (el.querySelector('.mermaid') || el.classList.contains('mermaid')) return;
         if (el.parentNode.classList.contains('scroll-wrapper') || el.parentNode.classList.contains('highlight')) return;
         var w = document.createElement('div');
         w.className = 'scroll-wrapper';
@@ -144,42 +143,21 @@
       });
     })();
 
-    // Mermaid theme handoff
+    // Diagrams are pre-rendered to one SVG per theme, so <picture> already picks
+    // the right one from prefers-color-scheme. This keeps them in step with the
+    // manual toggle above, which no media query can see.
     (function () {
-      var theme = document.documentElement.getAttribute('data-theme') === 'easywall-light' ? 'default' : 'dark';
-      window.mermaid_theme = theme;
-    })();
-  </script>
-  <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    var theme = window.mermaid_theme || 'dark';
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: theme,
-      themeVariables: theme === 'dark' ? {
-        // Aurora dark — matches the app's slate-blue + cyan palette
-        primaryColor:       '#111828',
-        primaryTextColor:   '#e4ebf5',
-        primaryBorderColor: '#2d3b5a',
-        lineColor:          '#22d3ee',
-        secondaryColor:     '#1a2238',
-        tertiaryColor:      '#0a0f1c',
-        noteBkgColor:       '#1a2238',
-        noteTextColor:      '#e4ebf5',
-        fontFamily:         'Outfit, sans-serif'
-      } : {
-        // Aurora light
-        primaryColor:       '#ffffff',
-        primaryTextColor:   '#0f172a',
-        primaryBorderColor: '#cbd5e1',
-        lineColor:          '#0891b2',
-        secondaryColor:     '#f1f5f9',
-        tertiaryColor:      '#ffffff',
-        noteBkgColor:       '#f1f5f9',
-        noteTextColor:      '#0f172a',
-        fontFamily:         'Outfit, sans-serif'
+      function sync() {
+        var dark = document.documentElement.getAttribute('data-theme') === 'easywall-dark';
+        document.querySelectorAll('img[src*="/assets/diagrams/"]').forEach(function (img) {
+          var want = img.src.replace(/-(light|dark)\.svg/, dark ? '-dark.svg' : '-light.svg');
+          if (img.src !== want) img.src = want;
+        });
       }
-    });
+      sync();
+      var btn = document.getElementById('theme-toggle');
+      if (btn) btn.addEventListener('click', function () { setTimeout(sync, 0); });
+    })();
   </script>
 
 </body>

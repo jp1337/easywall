@@ -282,3 +282,23 @@ func TestHandleLanguage_LocationIsAlwaysLocal(t *testing.T) {
 		}
 	}
 }
+
+// isLocalPath is the last guard before a Location header, so it is tested on its
+// own rather than only through safeRedirect.
+func TestIsLocalPath(t *testing.T) {
+	local := []string{"/dashboard", "/ports?type=udp", "/a", "/./x", "/%2e%2e/x"}
+	notLocal := []string{
+		"", "/", "//", "//evil.example", "/\\evil.example", "\\\\evil.example",
+		"dashboard", "https://evil.example", "http:/evil", " /dashboard",
+	}
+	for _, s := range local {
+		if !isLocalPath(s) {
+			t.Errorf("isLocalPath(%q) = false, want true", s)
+		}
+	}
+	for _, s := range notLocal {
+		if isLocalPath(s) {
+			t.Errorf("isLocalPath(%q) = true, want false", s)
+		}
+	}
+}
