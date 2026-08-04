@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-08-04
+
+### Fixed
+
+- **Dark mode on the documentation site.** daisyUI's base layer had been supplying the page background and `color-scheme`; removing daisyUI in 2.4.0 took them with it and nothing replaced them, so the site rendered dark components on a browser-white page. Light mode looked correct by coincidence, which is how it shipped
+- **Every documentation diagram with a line break failed to load.** mermaid emits HTML inside a `<foreignObject>` for multi-line labels, and an unclosed `<br>` makes the file invalid XML. An SVG used as an `<img>` source is parsed strictly, so the whole picture silently became alt text. The renderer now parses each SVG before writing it and fails the build if it would not load
+- **`go/bad-redirect-check`.** The last guard before a `Location` header tested for a leading slash and a second slash but relied on a backslash check twenty lines earlier. All three conditions now live in one function, `isLocalPath`, tested directly. The redirect target is rebuilt from a parsed path and query rather than the caller's string, which also closes percent-encoded slashes that a raw prefix check would have passed
+- The documentation site was loading **mermaid from a CDN** on every page — the only third-party request on a site built to make none — configured with a palette and font that 2.4.0 removed. No page contained a diagram, so it had never rendered anything
+
+### Changed
+
+- **The documentation was rewritten around pictures.** 17,000 words with no diagrams and no screenshots became 12,000 with 32 diagram references and 12 screenshots of the real interface, in both themes. Diagrams are named `.mmd` sources in `docs/_diagrams/`, pre-rendered to one SVG per theme by `npm run build:diagrams`; `npm run check:diagrams` fails if a source changed without a re-render
+- **`csrf_key` is gone from the shipped `web.toml`.** Nothing has read it since `net/http.CrossOriginProtection` replaced the token scheme. An existing config keeping the key is unaffected — it is ignored
+- CI action bumps: `actions/download-artifact` 4 → 8, `docker/login-action` 3 → 4, `actions/checkout` 6 → 7, `codecov/codecov-action` 6 → 7
+
+### Documentation corrections
+
+Eight statements that were not true, several of them security-relevant:
+
+- **The audit log does not record logins.** `security.md` listed `login_success`, `login_failed` and `logout` among its event types. Nothing writes them, and nothing ever did — a reader relying on that page would believe failed logins were on record. Use `journalctl -u easywall-web` instead
+- **The audit log's JSON shape** was documented as `{time, event, user, ip, scope, reason}`. The core writes `{time, action, rule_type, detail, user}`
+- **CSRF is not `gorilla/csrf`** — that is not a dependency. It is Go 1.25's `net/http.CrossOriginProtection`, checking `Origin` and `Sec-Fetch-Site`. The claim appeared twice
+- **`csrf_key`** was documented as a required secret and requested by the manual install
+- **"Rule injection is structurally impossible"** overstated it: true of the apply path, but custom rules do reach `nft -f -`, over stdin, inside the privileged core
+- **Certificates** are ECDSA P-256 only, not "RSA-4096 / ECDSA P-256"
+- **The docs stack** is Jekyll, not MkDocs Material
+- **The demo indicator** is a neutral chip, not an amber banner — amber is reserved for firewall state
+
+Also now stated rather than omitted: the audit log's `detail` column is empty for every save and apply, so the column that should answer *what changed* is almost always a dash.
+
+[2.4.1]: https://github.com/jp1337/easywall/compare/v2.4.0...v2.4.1
+
 ## [2.4.0] - 2026-08-03
 
 ### Added
