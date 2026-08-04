@@ -161,8 +161,19 @@ async function main() {
             startOnLoad: false,
             theme: 'base',
             themeVariables: vars,
-            flowchart: { curve: 'basis', htmlLabels: false, useMaxWidth: true },
-            sequence: { useMaxWidth: true, actorMargin: 60 },
+            // Global, not just per-diagram-type. With HTML labels mermaid puts a
+            // <foreignObject> full of HTML into the SVG, and an unclosed <br>
+            // makes the file invalid XML. Inline in a page that is survivable; as
+            // an <img> source it is not — SVG in an <img> is parsed strictly, so
+            // one <br> silently kills the whole picture.
+            htmlLabels: false,
+            // useMaxWidth would emit width="100%", which leaves the SVG with no
+            // intrinsic size. That is fine inline, but as an <img> source the
+            // browser cannot size it: naturalWidth is 0 and nothing renders.
+            // Concrete pixels here; the stylesheet scales it to the column.
+            flowchart: { curve: 'basis', htmlLabels: false, useMaxWidth: false },
+            sequence: { useMaxWidth: false, actorMargin: 60 },
+            state: { useMaxWidth: false },
             securityLevel: 'strict',
           });
           const { svg } = await window.mermaid.render(id, source);
@@ -171,6 +182,33 @@ async function main() {
         { source: d.source, vars, id: `d-${d.name}-${theme}` },
       );
       svg = svg.replace('<svg ', `<svg ${STAMP}="${digest(d.source)}" `);
+      // An <img> needs an intrinsic aspect ratio to reserve space before the file
+      // arrives. Mermaid gives width and height but not always both, so derive
+      // whatever is missing from the viewBox.
+      const vb = svg.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/);
+      if (vb) {
+        const w = Math.ceil(parseFloat(vb[3]));
+        const h = Math.ceil(parseFloat(vb[4]));
+        svg = svg.replace(/<svg([^>]*)>/, (m0, attrs) => {
+          const cleaned = attrs
+            .replace(/\swidth="[^"]*"/, '')
+            .replace(/\sheight="[^"]*"/, '')
+            .replace(/\sstyle="[^"]*"/, '');
+          return `<svg${cleaned} width="${w}" height="${h}">`;
+        });
+      }
+      // An SVG used as an <img> source is parsed as strict XML. Anything that
+      // does not parse fails silently — the browser reports naturalWidth 0 and
+      // shows the alt text. Catch it here rather than in a screenshot.
+      const bad = await page.evaluate((markup) => {
+        const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
+        const err = doc.querySelector('parsererror');
+        return err ? err.textContent.slice(0, 200) : null;
+      }, svg);
+      if (bad) {
+        throw new Error(`${d.name}-${theme}.svg is not valid XML and would not render:\n${bad}`);
+      }
+
       await writeFile(path.join(OUT_DIR, `${d.name}-${theme}.svg`), svg, 'utf8');
     }
     console.log(`  ${d.name}`);

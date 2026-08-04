@@ -100,13 +100,30 @@
   --code-error:   #ba2832;
 }
 
-/* ── Body / Fonts ────────────────────────────────────────────────────── */
+/* ── Body / Fonts ──────────────────────────────────────────────────────
+   The page ground is set here explicitly. It used to come from daisyUI's base
+   layer via --color-base-100; when daisyUI was removed the background went with
+   it and nothing replaced it, so the site rendered dark components on a white
+   page — dark mode looked broken while light mode looked fine by coincidence. */
 html, body {
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tells the browser which way round the page is, so scrollbars, form controls,
+   spell-check underlines and the default focus ring follow the theme too. This
+   also came from daisyUI. */
+:root { color-scheme: dark; }
+[data-theme="easywall-light"] { color-scheme: light; }
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--text);
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

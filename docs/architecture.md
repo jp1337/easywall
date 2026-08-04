@@ -15,11 +15,6 @@ Two processes. The one exposed to the network has no way to touch the firewall.
 
 ## Who may do what
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/privilege-split-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/privilege-split-light.svg' | relative_url }}" alt="easywall-web handles TLS, sessions and templates as an unprivileged user. easywall-core holds the rule state, the acceptance timer and the netlink connection as root. Only typed JSON commands cross between them.">
-</picture>
-
 | | `easywall-web` | `easywall-core` |
 |---|---|---|
 | Runs as | unprivileged user | root or `CAP_NET_ADMIN` |
