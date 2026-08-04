@@ -40,7 +40,7 @@ jobs:
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         continue-on-error: true  # Dependabot PRs lack CODECOV_TOKEN; don't block CI
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
