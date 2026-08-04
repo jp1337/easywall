@@ -87,7 +87,7 @@
           </svg>
           <span class="theme-label">Theme</span>
         </button>
-        <span class="sidebar-version">v2.3</span>
+        <span class="sidebar-version">v2.4</span>
       </div>
     </nav>
 
@@ -135,7 +135,6 @@
       var body = document.querySelector('.content-body');
       if (!body) return;
       body.querySelectorAll('table, pre').forEach(function (el) {
-        if (el.querySelector('.mermaid') || el.classList.contains('mermaid')) return;
         if (el.parentNode.classList.contains('scroll-wrapper') || el.parentNode.classList.contains('highlight')) return;
         var w = document.createElement('div');
         w.className = 'scroll-wrapper';
@@ -144,42 +143,24 @@
       });
     })();
 
-    // Mermaid theme handoff
+    // Diagrams and screenshots ship as one file per theme, and <picture> picks from
+    // prefers-color-scheme — the reader's operating system. The toggle in the sidebar
+    // is a different thing, and no media query can see it, so keep them in step here.
+    // Screenshots are included: a light screenshot of the application on a dark
+    // documentation page looks like a mistake, because it is one.
     (function () {
-      var theme = document.documentElement.getAttribute('data-theme') === 'easywall-light' ? 'default' : 'dark';
-      window.mermaid_theme = theme;
-    })();
-  </script>
-  <script type="module">
-    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    var theme = window.mermaid_theme || 'dark';
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: theme,
-      themeVariables: theme === 'dark' ? {
-        // Aurora dark — matches the app's slate-blue + cyan palette
-        primaryColor:       '#111828',
-        primaryTextColor:   '#e4ebf5',
-        primaryBorderColor: '#2d3b5a',
-        lineColor:          '#22d3ee',
-        secondaryColor:     '#1a2238',
-        tertiaryColor:      '#0a0f1c',
-        noteBkgColor:       '#1a2238',
-        noteTextColor:      '#e4ebf5',
-        fontFamily:         'Outfit, sans-serif'
-      } : {
-        // Aurora light
-        primaryColor:       '#ffffff',
-        primaryTextColor:   '#0f172a',
-        primaryBorderColor: '#cbd5e1',
-        lineColor:          '#0891b2',
-        secondaryColor:     '#f1f5f9',
-        tertiaryColor:      '#ffffff',
-        noteBkgColor:       '#f1f5f9',
-        noteTextColor:      '#0f172a',
-        fontFamily:         'Outfit, sans-serif'
+      function sync() {
+        var dark = document.documentElement.getAttribute('data-theme') === 'easywall-dark';
+        var sel = 'img[src*="/assets/diagrams/"], img[src*="/assets/img/screens/"]';
+        document.querySelectorAll(sel).forEach(function (img) {
+          var want = img.src.replace(/-(light|dark)\.(svg|png)$/, dark ? '-dark.$2' : '-light.$2');
+          if (img.src !== want) img.src = want;
+        });
       }
-    });
+      sync();
+      var btn = document.getElementById('theme-toggle');
+      if (btn) btn.addEventListener('click', function () { setTimeout(sync, 0); });
+    })();
   </script>
 
 </body>

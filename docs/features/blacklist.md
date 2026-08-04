@@ -1,121 +1,84 @@
 ---
 layout: default
 title: Blacklist & Whitelist
-description: Block and allow IP addresses and CIDR ranges in easywall — rule ordering, use cases, and best practices.
+description: Two address lists. One drops before anything else is considered, the other accepts every port whether it is open or not.
 ---
 
 # Blacklist & Whitelist
 
-## Blacklist
+Two lists of addresses. One drops, one accepts — and the order between them is the
+only thing you really need to remember.
 
-IPs and CIDRs on the blacklist are **always blocked**, regardless of any open port rules or protection modules.
+<figure class="docs-shot">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/blacklist-dark.png' | relative_url }}">
+    <img src="{{ '/assets/img/screens/blacklist-light.png' | relative_url }}" alt="The blacklist editor: a textarea of blocked addresses with a live entry count, per-line validation, and context cards explaining what gets blocked and that the order matters.">
+  </picture>
+  <figcaption>Both editors validate every line as you type, and name the line number when one does not parse.</figcaption>
+</figure>
 
-Traffic from blacklisted addresses is dropped immediately before reaching any port rule, whitelist entry, or protection chain. Optionally, blocked traffic can be logged with the prefix `easywall blacklist:` (see [Configuration]({{ '/configuration/' | relative_url }})).
+## The order
 
-**Supported formats:**
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/rule-order-dark.svg' | relative_url }}">
+  <img src="{{ '/assets/diagrams/rule-order-light.svg' | relative_url }}" alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops.">
+</picture>
 
-```
-192.168.1.100          # single IPv4 address
-10.0.0.0/8             # IPv4 CIDR range
-2001:db8::/32          # IPv6 CIDR range
-```
+**The blacklist wins.** An address on both lists is dropped, because the blacklist is
+evaluated first. A narrow allow inside a wide block does not work — take the entry off
+the blacklist instead.
 
-The editor performs **live syntax validation** as you type — invalid lines are reported by line number under the textarea before you save. Comments (lines starting with `#`) and blank lines are skipped silently.
+## What each list does
 
-### When to Use the Blacklist
+| | Blacklist | Whitelist |
+|---|---|---|
+| Effect | DROP | ACCEPT |
+| Evaluated | before the whitelist | after the blacklist, before the ports |
+| Reaches closed ports | — | **yes, every port** |
+| Skips the protection modules | no — those run first | no — those run first |
+| Use it for | a scanner, an abusive network | the address you administer from |
 
-- Block a specific IP address that is scanning or attacking your server
-- Block entire country-level or ISP-level ranges you never expect traffic from
-- Block Tor exit nodes or known botnet CIDRs
-- Block IPs that repeatedly fail authentication
+> **A whitelisted source reaches services you never opened.** It does not pass the
+> port rules, it skips them. Prefer a single address over a range, and a range over a
+> whole network.
 
-<div class="callout callout-info">
-  <svg class="callout-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
-  <div class="callout-content">
-    <strong>Tip</strong>
-    <p>For broad blocking (e.g., entire countries), use the largest CIDR that covers the range. A single <code>/16</code> entry is more efficient than 256 individual <code>/24</code> entries.</p>
-  </div>
-</div>
+## Accepted input
 
----
+One entry per line. Lines starting with `#` are comments; blank lines are ignored.
 
-## Whitelist
+| Form | Example |
+|---|---|
+| IPv4 address | `192.0.2.42` |
+| IPv4 network | `198.51.100.0/24` |
+| IPv6 address | `2001:db8::1` |
+| IPv6 network | `2001:db8::/32` |
 
-IPs and CIDRs on the whitelist are accepted before the port rules are consulted, so a whitelisted address reaches any port — including one you never opened — and skips the protection modules.
+The counter under the editor counts real entries — comments and blanks do not inflate it.
 
-It does **not** override the blacklist. As the [rule ordering](#rule-ordering) below shows, the blacklist is evaluated first, so an address present in both lists is dropped.
+## Your way back in
 
-Use this for trusted management addresses to ensure you are never locked out, even if you accidentally close the SSH port or trigger a rate-limit rule.
+Put the address you administer the host from on the whitelist **before** you start
+changing port rules. It survives a closed SSH port, a rate limit that trips, and every
+protection module in the chain.
 
-**Supported formats** (same as blacklist):
+Together with the [acceptance window]({{ '/architecture/' | relative_url }}) that is two
+independent ways not to lose access to your own machine.
 
-```
-203.0.113.42           # your static public IP
-10.0.0.0/24            # your internal management network
-2001:db8::1            # IPv6 management address
-```
+## When it does not work
 
-The whitelist editor uses the same live IP/CIDR validation as the blacklist — you'll see a list of invalid lines under the textarea before saving.
+| Symptom | Cause |
+|---|---|
+| A whitelisted address is still blocked | It is on the blacklist too — that is checked first |
+| A blacklisted address still gets through | The connection was already established; the list only affects new ones |
+| Nothing changed after saving | Saving stages. It goes live on [Apply]({{ '/architecture/' | relative_url }}) |
+| The editor names a line number | That line is not a valid address or CIDR; the message says why |
+| You allowed too broad a range | Remove it, save, apply. If it already locked you out, do nothing — the window rolls it back |
 
-### When to Use the Whitelist
+Need the network a single address belongs to?
 
-- Your own static public IP address for administration
-- Office or VPN subnet for team access
-- Monitoring system IP (Nagios, Zabbix, Datadog agent)
-- Internal network ranges that need unrestricted access
-
-<div class="callout callout-warning">
-  <svg class="callout-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-  <div class="callout-content">
-    <strong>Warning</strong>
-    <p>Whitelisted IPs reach every port and skip the protection modules, including SSH brute-force protection and connection limits. They do not bypass the blacklist, which is evaluated first. Only add addresses you fully trust and control.</p>
-  </div>
-</div>
-
----
-
-## Rule Ordering
-
-easywall evaluates rules in a fixed order. Understanding this order helps predict behaviour when multiple rules could match a packet:
-
-```
-1. Loopback (lo) — always ACCEPT
-2. RELATED / ESTABLISHED — always ACCEPT
-3. ICMP (v4 + v6 base types) — always ACCEPT
-4. Optional protection chains (SYN flood, port scan, …)
-5. Docker bridge networks (if Docker mode enabled)
-6. Blacklist — DROP matching source IPs
-7. Whitelist — ACCEPT matching source IPs
-8. Open ports (TCP / UDP rules)
-9. Final log rule (if log_blocked_connections = true)
-10. Default DROP (everything else)
-```
-
-A packet blocked at step 6 (blacklist) never reaches the open port rules at step 8 — even if the destination port is in the port list.
-
-A packet matching the whitelist at step 7 is accepted immediately and skips the port rules entirely. This means a whitelisted IP can reach *any* port, including closed ones.
-
----
-
-## Applying Changes
-
-All blacklist and whitelist changes are staged. They do not affect the running firewall until you visit **Apply** and confirm the changes within the acceptance window. If you do not confirm, the old rules are automatically restored.
-
----
-
-## Troubleshooting
-
-**My IP is still being blocked after removing it from the blacklist**
-
-Staged changes are not active yet — go to **Apply** and confirm.
-
-**I accidentally whitelisted a range that is too broad**
-
-Remove the entry, save, then Apply with the two-step confirmation. If you locked yourself out before applying, the auto-rollback will restore the previous rules after the acceptance timeout.
-
-**I cannot find the right CIDR for a range**
-
-Use an online CIDR calculator, or check the BGP prefix for the IP with a tool like:
 ```bash
-whois 198.51.100.42 | grep route
+whois 198.51.100.42 | grep -i route
 ```
+
+Logging blacklist hits is a switch on the [options page]({{ '/features/filters/' | relative_url }});
+they appear in the kernel log with an `easywall blacklist:` prefix.

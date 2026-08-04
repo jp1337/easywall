@@ -39,7 +39,11 @@ Responsible disclosure is acknowledged in the release notes and in the security 
 
 easywall is designed with a layered approach — each layer independently limits the blast radius of a compromise:
 
-- **No subprocess execution** — nftables rules are applied via direct netlink API (`google/nftables`), not through shell commands or the `nft` binary. Rule injection is structurally impossible.
+- **No subprocess in the apply path** — typed rules go to nftables over netlink
+  (`google/nftables`) as Go structs, so there is no command line to inject into. Custom
+  rules are the one exception: they are arbitrary nftables expressions and need the
+  official parser, so they reach `nft -f -` over **stdin** — no argv — and only inside
+  the privileged core. The web process never invokes a shell.
 - **Process isolation** — the web interface runs as an unprivileged user (`easywall`). Only the core daemon runs as root, and it only accepts typed JSON commands over a Unix socket.
 - **Argon2id authentication** — resistant to GPU-based brute-force attacks.
 - **CSRF protection** — via `net/http.CrossOriginProtection` (Go 1.25 native).

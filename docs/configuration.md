@@ -6,7 +6,20 @@ description: All TOML configuration keys for easywall-core and easywall-web expl
 
 # Configuration
 
-easywall uses two TOML configuration files — one for each process. Both files are installed to `/etc/easywall/` and read at startup. A configuration error causes a clean exit with a descriptive message, never a silent fallback.
+Two TOML files in `/etc/easywall/`, one per process, read at startup. A bad value is
+a clean exit with a message — never a silent fallback.
+
+| | Owned by | Holds |
+|---|---|---|
+| `easywall.toml` | core, root | firewall options, acceptance window, IPv6, Docker |
+| `web.toml` | web, `root:easywall` `0640` | bind address, TLS, session secret, credentials |
+
+Both binaries can write a commented default:
+
+```bash
+sudo easywall-core --write-config /etc/easywall/easywall.toml
+sudo easywall-web  --write-config /etc/easywall/web.toml
+```
 
 ---
 
@@ -102,8 +115,7 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
 | `data_dir` | string | Directory for the version cache file |
 | `language` | string | Fallback UI locale — `"en"` (English) or `"de"` (German). Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
-| `session_key` | string | 32-byte hex secret for HMAC-signed session cookies |
-| `csrf_key` | string | 32-byte hex secret for CSRF token generation |
+| `session_key` | string | 32-byte hex secret that signs the session cookie |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
 
@@ -124,13 +136,15 @@ itself through its own `language_name` key — so `Deutsch` reads as `Deutsch`
 whatever language the interface is currently in. Adding a locale file is all it
 takes for it to appear in the switch; see [Adding a Language](contributing.md).
 
-Generate the required secrets:
 ```bash
-SESSION_KEY=$(openssl rand -hex 32)
-CSRF_KEY=$(openssl rand -hex 32)
+openssl rand -hex 32     # session_key
 ```
 
-**Keep `session_key` and `csrf_key` private.** Anyone with these values can forge valid session cookies and CSRF tokens.
+**Keep `session_key` private.** Anyone holding it can forge a valid session cookie.
+
+> **There is no `csrf_key`.** CSRF protection is Go 1.25's
+> `net/http.CrossOriginProtection`, which checks `Origin` and `Sec-Fetch-Site` rather
+> than issuing tokens. A `csrf_key` left over from an older config is read by nothing.
 
 ### `[tls]`
 
@@ -145,22 +159,10 @@ The auto-generated certificate has a one-year validity and is renewed automatica
 
 ---
 
-## Writing Default Configs
+## Editor autocompletion
 
-Both binaries can write a default config file to a given path:
-
-```bash
-sudo easywall-core --write-config /etc/easywall/easywall.toml
-sudo easywall-web  --write-config /etc/easywall/web.toml
-```
-
----
-
-## JSON Schema and Editor Validation
-
-Both config files have JSON Schema definitions that can be used with the
-[Taplo](https://taplo.tamasfe.dev/) TOML language server to get inline
-validation and autocompletion in VS Code, Neovim, and other editors:
+Both files ship a JSON Schema. Point [Taplo](https://taplo.tamasfe.dev/) at them for
+inline validation in VS Code, Neovim and anything else speaking LSP:
 
 ```toml
 # taplo.toml (project root)

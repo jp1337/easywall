@@ -1,250 +1,113 @@
 ---
 layout: default
 title: Firewall Filters
-description: Optional protection modules in easywall — SYN flood, port scan, bogon filter, connection limits, and more.
+description: The protection modules — what each one drops, how to tune it, and which are on by default.
 ---
 
 # Firewall Filters
 
-easywall ships with a set of optional protection modules that harden the host beyond simply opening and closing ports. They are configured in `/etc/easywall/easywall.toml` under the `[firewall]` section.
+Optional modules that harden the host beyond opening and closing ports. All of them
+are native nftables rules in `table inet easywall` — no subprocess, nothing to inject
+into. Toggling one is staged like any other change and takes effect on **Apply**.
 
-All filters are implemented as native nftables rules in the `inet easywall` table — no subprocess, no shell commands, no injection risk. Changes take effect only after **Apply** with the two-step confirmation.
+<figure class="docs-shot">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/options-dark.png' | relative_url }}">
+    <img src="{{ '/assets/img/screens/options-light.png' | relative_url }}" alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. An accent edge marks a module that is switched on.">
+  </picture>
+  <figcaption>An accent edge down the left of a card means that module is on.</figcaption>
+</figure>
 
----
+## Where the modules sit
 
-## Always-Active Rules
+Before the blacklist, before the whitelist, before any port is considered. A module
+that drops a packet drops it whatever else you have allowed.
 
-These rules are compiled into every ruleset and cannot be disabled:
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/rule-order-dark.svg' | relative_url }}">
+  <img src="{{ '/assets/diagrams/rule-order-light.svg' | relative_url }}" alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops.">
+</picture>
 
-| Rule | nftables expression | Why it exists |
+## Always on
+
+Compiled into every rule set. There is no switch for these.
+
+| Rule | nftables | Why |
 |---|---|---|
-| Default DROP | `policy drop` on `input` chain | Deny-by-default posture |
-| Loopback ACCEPT | `iif lo accept` | Local process communication always works |
-| RELATED/ESTABLISHED | `ct state {related, established} accept` | Return traffic for outbound connections |
-| ICMPv4 (0,3,11,12) | `ip protocol icmp icmp type {...} accept` | Echo reply, unreachable, TTL exceeded, param problem |
-| ICMPv6 (1,2,3,4,128,129) | `icmpv6 type {...} accept` | Minimum set required for IPv6 to function |
-| ICMPv6 ND (if enabled) | types 133–136 | Router/neighbor discovery for address autoconfiguration |
+| Default DROP | `policy drop` on `input` | Deny by default |
+| Loopback | `iif lo accept` | Local processes must reach each other |
+| Return traffic | `ct state {related, established} accept` | Replies to what you started |
+| ICMPv4 | types 0, 3, 11, 12 | Echo reply, unreachable, TTL exceeded, parameter problem |
+| ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
+| ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/features/system-settings/' | relative_url }}) |
 
----
+## Attack protection
 
-## Optional Modules
+| Module | Drops | Tuning | Default |
+|---|---|---|---|
+| **SSH brute-force** | New SSH connections above a per-source rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5 | **on** |
+| **ICMP flood** | Echo requests above a per-source rate | `icmp_flood_connection_limit` — 10 | **on** |
+| **SYN flood** | New TCP connections above a rate | `syn_flood_limit` — 100/s | **on** |
+| **Port scan detection** | NULL, FIN and XMAS flag combinations — packets no real client sends | — | **on** |
+| **Invalid packets** | Packets conntrack cannot match to a connection | — | **on** |
+| **Fragment drop** | IP-fragmented packets | — | off |
+| **Bogon filter** | Private and special-use source addresses on a non-loopback interface | — | off |
+| **Connection limit** | Concurrent connections above a per-source cap | `connection_limit_max` — 100 | off |
+| **TCP RST flood** | Inbound RST packets above a rate | `tcp_rst_flood_limit` — 100/s | off |
 
-### SSH Brute-Force Protection (`ssh_brute_force`)
+### What the bogon filter drops
 
-Creates a named `sshbrute` chain. TCP ports marked as **SSH** in the Ports UI are redirected through this chain.
+A packet claiming to come from one of these, arriving on a real interface, is
+spoofed — nothing on the public internet legitimately has such a source address.
 
-**What it does:** limits new connection attempts per source IP. Hosts that exceed the threshold have new connections dropped until the rate drops.
+| Range | | Range | |
+|---|---|---|---|
+| `0.0.0.0/8` | "this network" | `169.254.0.0/16` | link-local |
+| `10.0.0.0/8` | private | `172.16.0.0/12` | private |
+| `100.64.0.0/10` | carrier NAT | `192.168.0.0/16` | private |
+| `127.0.0.0/8` | loopback | `192.0.2.0/24`, `198.51.100.0/24` | documentation |
 
-```toml
-ssh_brute_force                  = true
-ssh_brute_force_connection_limit = 5     # max new connections in the rate window
-ssh_brute_force_log              = false # log dropped attempts to kernel log
-ssh_brute_force_log_limit        = 60    # rate-limit log entries (per minute)
-```
+> **Not for hosts behind NAT.** On a cloud instance or a LAN, RFC 1918 *is* the real
+> network and this filter drops your own traffic. Same for container hosts — see
+> [Docker coexistence]({{ '/features/docker/' | relative_url }}).
 
-**When to use:** always, for any SSH port. The protection is negligible overhead for legitimate users but makes credential stuffing impractical.
+## Traffic filtering
 
----
-
-### ICMP Flood Protection (`icmp_flood`)
-
-Rate-limits ICMP echo requests (`ping`) per source IP to prevent bandwidth exhaustion.
-
-```toml
-icmp_flood                       = true
-icmp_flood_connection_limit      = 10    # max pings per second per source IP
-icmp_flood_log                   = false
-icmp_flood_log_limit             = 60
-```
-
-**When to use:** almost always. Disabling this allows a single host to flood your server with pings at full network speed.
-
----
-
-### SYN Flood Protection (`syn_flood`)
-
-Rate-limits new TCP SYN packets per source IP. A SYN flood exhausts the server's TCP connection state table, causing denial of service for legitimate clients.
-
-```toml
-syn_flood                        = true
-syn_flood_log                    = false
-syn_flood_limit                  = 100   # max new SYN packets per second per source IP
-```
-
-**When to use:** any server exposed to the internet. SYN flooding is one of the most common DDoS techniques.
-
----
-
-### Port Scan Detection (`port_scan`)
-
-Creates a named `portscan` chain. Drops TCP packets with suspicious flag combinations used by network scanners (Nmap, etc.):
-
-| Scan Type | Flags Set | Flags Clear |
+| Module | Drops | Default |
 |---|---|---|
-| NULL scan | none | — |
-| FIN scan | FIN | SYN, RST, ACK |
-| XMAS scan | FIN, PSH, URG | SYN, RST, ACK |
-| SYN+FIN | SYN + FIN | — |
-| SYN+RST | SYN + RST | — |
-| FIN+RST | FIN + RST | — |
-| PSH alone | PSH | SYN, ACK |
-| URG alone | URG | SYN, ACK |
+| **Drop broadcast** | Traffic to a broadcast address | off |
+| **Drop multicast** | Traffic to a multicast group | off |
+| **Drop anycast** | Traffic to an anycast destination | off |
 
-```toml
-port_scan                        = true
-port_scan_log                    = false
-```
-
-**When to use:** internet-facing servers. Note: some of these patterns are also used by broken TCP implementations — if you see legitimate traffic dropped, check logs with `port_scan_log = true`.
-
----
-
-### Invalid Packet Drop (`drop_invalid_packets`)
-
-Drops packets in the `INVALID` conntrack state. These packets have no known connection entry and do not match any expected connection state — they are often used in TCP reset attacks or are remnants of expired connections.
-
-```toml
-drop_invalid_packets             = true
-drop_invalid_packets_log         = false
-```
-
-**When to use:** almost always. There are very few legitimate reasons for a packet to be in `INVALID` state on a server.
-
----
-
-### Fragment Drop (`drop_fragments`)
-
-Drops IP-fragmented packets. IP fragmentation is rarely needed in modern networks (MTU discovery handles path sizing) and is commonly used in evasion attacks that split exploit payloads across fragments.
-
-```toml
-drop_fragments                   = false
-drop_fragments_log               = false
-```
-
-**When to use:** production servers on well-configured networks. Avoid on networks with legacy devices or MTU issues — fragmentation may be legitimate there.
-
----
-
-### Bogon Filter (`bogon_filter`)
-
-Drops inbound packets whose **source IP** belongs to private, loopback, link-local, or reserved address ranges (RFC 1918 / RFC 5735). Such packets on a public interface indicate IP spoofing.
-
-Filtered ranges:
-
-| CIDR | Type |
-|---|---|
-| `0.0.0.0/8` | "This network" |
-| `10.0.0.0/8` | RFC 1918 private |
-| `100.64.0.0/10` | Shared address space (RFC 6598) |
-| `127.0.0.0/8` | Loopback |
-| `169.254.0.0/16` | Link-local |
-| `172.16.0.0/12` | RFC 1918 private |
-| `192.0.2.0/24` | Documentation (TEST-NET-1) |
-| `192.168.0.0/16` | RFC 1918 private |
-| `198.51.100.0/24` | Documentation (TEST-NET-2) |
-
-```toml
-bogon_filter                     = false
-bogon_filter_log                 = false
-```
-
-**When to use:** servers with a single public IP, no private network interfaces that carry legitimate traffic, and no VPNs that use RFC 1918 addressing. **Do not enable** if your server is behind a NAT (e.g., cloud instances where RFC 1918 is the actual LAN) or has a private management interface.
-
----
-
-### Connection Limit per Source IP (`connection_limit_per_ip`)
-
-Limits the total number of simultaneous active connections from a single source IP. This prevents a single host from monopolising all connection state.
-
-```toml
-connection_limit_per_ip          = false
-connection_limit_max             = 100    # max simultaneous connections per source IP
-```
-
-**When to use:** web servers, API servers, and any public-facing service where you want to prevent a single client from consuming all connection state. Tune `connection_limit_max` to a value above your expected legitimate maximum.
-
----
-
-### TCP RST Flood (`tcp_rst_flood`)
-
-Rate-limits inbound TCP RST packets per source IP. Sending forged RST packets is used to terminate established connections (TCP reset attacks).
-
-```toml
-tcp_rst_flood                    = false
-tcp_rst_flood_log                = false
-tcp_rst_flood_limit              = 100    # max RST packets per second per source IP
-```
-
-**When to use:** any server where connection teardown attacks are a concern (e.g., long-lived connection services like SSH, VPN endpoints, database proxies).
-
----
-
-### Broadcast Drop (`drop_broadcast`)
-
-Drops packets with a broadcast destination address on the input chain. Broadcast traffic from external networks is almost always unwanted on a server.
-
-```toml
-drop_broadcast                   = false
-```
-
----
-
-### Multicast Drop (`drop_multicast`)
-
-Drops packets with a multicast destination address on the input chain.
-
-```toml
-drop_multicast                   = false
-```
-
-**When to use:** enable if you do not use any multicast protocols (mDNS, SSDP, etc.).
-
----
+> **Not on a LAN.** These carry DHCP, mDNS and IPv6 neighbour discovery. Safe to drop
+> on a public-facing host with a static address; disruptive nearly everywhere else.
 
 ## Logging
 
-Two global logging options add audit-trail rules:
+Every module has its own `*_log` switch, plus two global ones. All of it is
+rate-limited, which is what the `*_limit` values in messages per minute are for — a
+flood must not be able to fill the disk.
 
-### Block Logging (`log_blocked_connections`)
+| Switch | Logs | Prefix |
+|---|---|---|
+| `<module>_log` | Drops by that one module | `easywall` |
+| `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
+| `log_blacklist_connections` | Blacklist hits, before the drop | `easywall blacklist:` |
 
-Adds a rate-limited `log` rule just before the final `drop` in the input chain. All dropped traffic is logged to the kernel journal with the prefix `easywall drop:`.
-
-```toml
-log_blocked_connections       = false
-log_blocked_connections_limit = 60     # log entries per minute (burst)
+```bash
+journalctl -k -f | grep easywall
 ```
 
-View logs: `journalctl -k | grep "easywall drop:"`
+This is the *kernel* log — packets. Administrative changes are in the
+[audit log]({{ '/features/audit-log/' | relative_url }}) instead.
 
-### Blacklist Logging (`log_blacklist_connections`)
+## Which to turn on
 
-Logs packets matched by the blacklist before dropping them.
+| Host | Turn on | Leave off |
+|---|---|---|
+| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop, unless you know your traffic |
+| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets | Bogon filter, broadcast/multicast/anycast |
+| Container host | The defaults | Bogon filter — bridge ranges are RFC 1918 |
 
-```toml
-log_blacklist_connections       = false
-log_blacklist_connections_limit = 60
-```
-
-View logs: `journalctl -k | grep "easywall blacklist:"`
-
----
-
-## Recommended Configuration
-
-For a typical internet-facing Linux server:
-
-```toml
-[firewall]
-ssh_brute_force       = true
-icmp_flood            = true
-syn_flood             = true
-port_scan             = true
-drop_invalid_packets  = true
-drop_fragments        = false
-bogon_filter          = false   # enable only if no private NICs / no cloud NAT
-connection_limit_per_ip = false
-tcp_rst_flood         = false
-drop_broadcast        = false
-drop_multicast        = false
-log_blocked_connections = false  # enable temporarily for debugging
-```
+The interface writes the same `[firewall]` section you would edit by hand; every key
+is listed under [Configuration]({{ '/configuration/' | relative_url }}).

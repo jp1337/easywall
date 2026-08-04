@@ -100,13 +100,30 @@
   --code-error:   #ba2832;
 }
 
-/* ── Body / Fonts ────────────────────────────────────────────────────── */
+/* ── Body / Fonts ──────────────────────────────────────────────────────
+   The page ground is set here explicitly. It used to come from daisyUI's base
+   layer via --color-base-100; when daisyUI was removed the background went with
+   it and nothing replaced it, so the site rendered dark components on a white
+   page — dark mode looked broken while light mode looked fine by coincidence. */
 html, body {
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
   font-size: 15.5px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tells the browser which way round the page is, so scrollbars, form controls,
+   spell-check underlines and the default focus ring follow the theme too. This
+   also came from daisyUI. */
+:root { color-scheme: dark; }
+[data-theme="easywall-light"] { color-scheme: light; }
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--text);
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -921,16 +938,58 @@ html, body {
     margin: 0;
   }
 
-  /* === Mermaid container === */
-  .mermaid {
+  /* === Product screenshots ===
+     A picture of the thing beats a paragraph about the thing, so the landing page
+     leads with one. Framed rather than bled to the edge, because a screenshot of a
+     dark UI on a dark page needs an edge to read as an object. */
+  .docs-shot {
     display: block;
+    margin: 2rem 0;
+  }
+
+  .docs-shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.6);
+  }
+
+  .docs-shot figcaption {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: var(--text-subtle);
     text-align: center;
-    margin: 1.5rem 0;
-    padding: 1.5rem;
+  }
+
+  /* === Diagrams ===
+     Pre-rendered to one SVG per theme by scripts/render-diagrams.mjs. A <picture>
+     picks the theme, so there is no runtime library and nothing to lay out after
+     paint — the picture is the right size before the first frame. */
+  .content-body picture {
+    display: block;
+    margin: 1.75rem 0;
+  }
+
+  .content-body picture img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    padding: 1.25rem 1rem;
     background: var(--surface);
     border: 1px solid var(--border-muted);
-    border-radius: 8px;
-    overflow-x: auto;
+    border-radius: 10px;
+  }
+
+  /* A caption directly under a diagram belongs to it, so it sits close and quiet. */
+  .content-body picture + p em:only-child {
+    display: block;
+    margin-top: -1.25rem;
+    font-size: 0.85rem;
+    font-style: normal;
+    color: var(--text-subtle);
   }
 
 }

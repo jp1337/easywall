@@ -1,118 +1,48 @@
 ---
 layout: default
 title: Security Model
-description: easywall's layered security architecture — two-process isolation, Argon2id auth, nftables netlink API, and audit trail.
+description: What the design defends against, what it does not, and the CVE in the Python version that shaped it.
 ---
 
 # Security Model
 
-easywall was rebuilt from scratch with security as the primary design constraint. Every architectural decision traces back to a specific threat or past vulnerability.
+The whole design follows from one decision: the process reachable from the network
+holds no privilege worth stealing.
 
-## Threat Model
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/architecture-dark.svg' | relative_url }}">
+  <img src="{{ '/assets/diagrams/architecture-light.svg' | relative_url }}" alt="Browser talks HTTPS to easywall-web, which runs unprivileged; easywall-web talks typed JSON over a Unix socket to easywall-core, which runs as root and speaks netlink to the nftables table inet easywall.">
+</picture>
+
+## Threat model
 
 | Threat | Mitigation |
 |---|---|
-| Rule/command injection | Direct netlink API — no subprocess, no string interpolation |
-| Privilege escalation from web | Web process has no root access; talks to core via typed socket protocol |
-| Auth brute force | Rate limiting (5 attempts / 10 min per IP), Argon2id password hashing |
-| CSRF | `gorilla/csrf` on all POST endpoints — missing token returns HTTP 403 |
-| XSS | Go `html/template` auto-escapes all output by default; Content-Security-Policy with no `'unsafe-inline'` and no external origin |
-| Session hijacking | HTTPS-only, HttpOnly, SameSite=Lax cookies; 600-second session lifetime |
-| Admin lockout | Two-step activation: rules auto-roll back if not confirmed within timeout |
-| Audit trail gaps | Structured JSON entries logged for every config change and apply event |
-| Known CVEs | `govulncheck` in CI — weekly + every PR — with GitHub Security Advisories |
-| Dependency hijacking | Dependabot, GitHub Secret Scanning, Dependency Review (blocks critical CVE PRs) |
-| Sensitive config exposure | `session_key`, `csrf_key`, and `password` live only in root-owned config files |
-
----
-
-## Process Isolation
-
-<div class="mermaid">
-flowchart TB
-    Browser["🌐 Browser\nHTTPS :12227"]
-
-    subgraph web["easywall-web  (user: easywall, no root)"]
-        W1["• No CAP_NET_ADMIN"]
-        W2["• No direct kernel access"]
-        W3["• Reads config + TLS cert"]
-        W4["• Binds 0.0.0.0:12227"]
-    end
-
-    subgraph core["easywall-core  (root / CAP_NET_ADMIN)"]
-        C1["• Owns /run/easywall/core.sock (mode 0660, group easywall)"]
-        C2["• Reads/writes /var/lib/easywall/rules.json"]
-        C3["• Writes /var/log/easywall/audit.log"]
-        C4["• No inbound network port"]
-    end
-
-    Kernel["🐧 nftables  (table inet easywall)\nvia direct netlink — no nft subprocess"]
-
-    Browser -->|"HTTPS TLS 1.2+"| web
-    web -->|"Unix socket — JSON commands only"| core
-    core -->|"netlink syscalls"| Kernel
-</div>
-
-The web process communicates with the core exclusively via a Unix socket. It cannot invoke shell commands, cannot access the filesystem of the core process, and has no privileges to modify nftables directly.
-
----
-
-## IPC Protocol
-
-All commands from web → core are Go structs serialised as JSON. The protocol defines exactly 9 command types:
-
-| Command | Effect |
-|---|---|
-| `GET_STATUS` | Returns current firewall status |
-| `GET_RULES` | Returns the current rule state |
-| `SAVE_RULES` | Stages a rule change (one rule type at a time) |
-| `APPLY_RULES` | Starts the apply + acceptance flow |
-| `ACCEPT` | Confirms the applied rules |
-| `GET_OPTIONS` | Returns firewall option flags |
-| `EXPORT_RULES` | Returns the full rule state as JSON |
-| `IMPORT_RULES` | Validates and stages an imported rule set |
-| `UNKNOWN` / any other | Returns an error — nothing is executed |
-
-The core never executes arbitrary strings. nftables rules are constructed via the `github.com/google/nftables` netlink library directly — zero shell involvement, zero string interpolation.
-
----
-
-## Two-Step Activation
-
-Every rule change must pass through two-step activation before becoming permanent:
-
-```
-User clicks Apply
-       │
-       ▼
-Core backs up current rules
-Core applies new rules to nftables
-Core starts acceptance timer (default: 120 s)
-       │
-       ├── User confirms in web UI within window ──► Rules become permanent
-       │
-       └── Timeout expires ──────────────────────► Auto-rollback to backup
-```
-
-This prevents the most common firewall administration risk: accidentally locking yourself out by applying rules that block your own connection. Even if your SSH session drops, the old rules are restored after the timeout.
-
----
+| Rule or command injection | netlink API — no subprocess and no string interpolation in the apply path |
+| Escalation from the web process | It has no kernel access. Reaching nftables needs a command the typed protocol accepts |
+| Auth brute force | Argon2id, plus 5 attempts per 10 minutes per source address |
+| CSRF | Go 1.25 `net/http.CrossOriginProtection` — `Origin` and `Sec-Fetch-Site` on every unsafe method |
+| XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
+| Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime |
+| Locking the admin out | The acceptance window rolls back on its own |
+| Known CVEs in dependencies | `govulncheck` on every PR and weekly |
+| Dependency hijacking | Dependabot, secret scanning, dependency review |
 
 ## Authentication
 
-- **Algorithm**: Argon2id via `golang.org/x/crypto/argon2`
-- **Parameters**: memory=65536 KB, iterations=3, parallelism=4 (tunable)
-- **No default password** — the first-run wizard is mandatory on first access
-- **Login rate limiting**: max 5 attempts per 10 minutes per source IP (`golang.org/x/time/rate`)
-- **Session lifetime**: 600 seconds; cookie is `HttpOnly`, `Secure`, `SameSite=Lax`
+| | |
+|---|---|
+| Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password |
+| Default password | none. The first-run wizard is mandatory |
+| Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
+| Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
+| Recovery | none by design — no mail, no outside service. Editing `web.toml` on the host is the only way back |
 
----
+## Transport
 
-## Transport Security
-
-The web process listens exclusively on HTTPS (TLS 1.2+). No HTTP redirect port is opened. On first start, if no custom certificate is configured, a self-signed RSA-4096 / ECDSA P-256 certificate is generated and stored in the configured `ssl_dir`. The certificate is automatically renewed when it expires within 30 days.
-
-For production use, configure a certificate from a trusted CA (Let's Encrypt or enterprise CA) via `web.toml`:
+HTTPS only, TLS 1.2+. No plaintext port is opened at all. Without a configured
+certificate easywall generates a self-signed **ECDSA P-256** one into `ssl_dir`, and
+renews it when it is within 30 days of expiry.
 
 ```toml
 [tls]
@@ -120,84 +50,78 @@ cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 ```
 
-### No outbound requests
+### Nothing is loaded from a third party
 
-The interface loads nothing from a third party. Fonts, stylesheet, icons and htmx
-are all served from easywall itself, and the Content-Security-Policy permits no
-external origin at all:
+Fonts, stylesheet, icons and htmx are served by easywall itself, and the policy
+permits no external origin:
 
 ```
 default-src 'self'; script-src 'self' 'nonce-<per-request>'; style-src 'self';
 font-src 'self'; img-src 'self' data:; connect-src 'self'
 ```
 
-Two consequences worth stating. An administrative interface should not report a
-visit to anyone, and the earlier build loaded its typefaces from Google Fonts,
-which did exactly that. And because easywall frequently runs on hosts with no
-outbound route, that request also simply failed there, leaving the typography
-broken on the very machines the tool is built for.
+Two reasons, both practical. An administrative interface should not report a visit
+to anyone — the earlier build loaded its typefaces from Google Fonts, which did
+exactly that. And easywall often runs on hosts with no outbound route, where that
+request simply failed and left the typography broken on the machines the tool is
+built for.
 
-`style-src` carries no `'unsafe-inline'`. That is a real constraint on
-contributions: assigning `element.style.*` from JavaScript, or letting a library
-inject a `<style>` block, will be blocked. Where a script needs to change
-appearance it toggles a class instead.
+> **A constraint on contributions.** `style-src` has no `'unsafe-inline'`, so
+> assigning `element.style.*` from JavaScript, or letting a library inject a
+> `<style>` block, is blocked. Scripts toggle a class instead.
 
-> **Fixed in v2.4.0.** htmx was previously configured through a listener for an
-> `htmx:config` event, which htmx does not emit. The listener never ran, so
-> `allowEval` remained at its default of `true` and the script nonce was never
-> applied. Configuration now goes through the `meta[name=htmx-config]` tag htmx
-> reads during initialisation, with `allowEval` and `allowScriptTags` disabled
-> and `style` removed from `attributesToSettle`. The weakness was found by
-> tightening `style-src`, which surfaced the inline `<style>` block htmx had been
-> injecting unnoticed.
+> **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
+> event, which htmx does not emit. The listener never ran, so `allowEval` stayed at
+> its default of `true` and the script nonce was never applied. Configuration now
+> goes through the `meta[name=htmx-config]` tag htmx reads while initialising, with
+> `allowEval` and `allowScriptTags` disabled. Found by tightening `style-src`, which
+> surfaced the inline `<style>` block htmx had been injecting unnoticed.
 
----
+## What the audit log actually records
 
-## Audit Log
-
-All security-relevant events are written to `/var/log/easywall/audit.log` as structured JSON:
+One JSON object per line in `<log_dir>/audit.log`, rotated daily, 30 days kept:
 
 ```json
-{"time":"2026-04-26T14:23:01Z","event":"login_success","user":"admin","ip":"203.0.113.42"}
-{"time":"2026-04-26T14:25:13Z","event":"apply_started","user":"admin","scope":"all"}
-{"time":"2026-04-26T14:25:43Z","event":"apply_accepted","user":"admin","scope":"all"}
-{"time":"2026-04-26T14:30:00Z","event":"apply_rolledback","user":"admin","scope":"all","reason":"timeout"}
-{"time":"2026-04-26T14:31:05Z","event":"login_failed","ip":"198.51.100.7"}
+{"time":"2026-08-04T14:25:13Z","action":"apply_started","rule_type":"all","detail":"","user":"admin"}
+{"time":"2026-08-04T14:25:43Z","action":"apply_accepted","rule_type":"all","detail":"","user":"admin"}
+{"time":"2026-08-04T14:30:00Z","action":"apply_rolledback","rule_type":"all","detail":"timeout","user":"admin"}
 ```
 
-Event types: `login_success`, `login_failed`, `logout`, `apply_started`, `apply_accepted`, `apply_rolledback`, `rules_saved`, `rules_imported`, `firstrun_complete`.
-
-Audit logs are rotated by logrotate (configured in `/etc/logrotate.d/easywall`) — daily, 30 days retained, compressed.
-
----
-
-## CVE History
-
-easywall v0.3.1 (Python/Flask) received a CVE due to:
-
-- Web process ran as root — one injection = full system compromise
-- File-based IPC via sentinel files — race conditions possible
-- `nft` / `iptables` invoked via `subprocess.run()` with partially-user-controlled strings
-- SHA512 with hostname as salt — trivially reversible with knowledge of hostname
-
-v2 addresses every one of these root causes architecturally:
-
-| v1 Problem | v2 Fix |
+| Recorded | **Not** recorded |
 |---|---|
-| Web ran as root | Web runs as unprivileged `easywall` user — kernel access is impossible |
-| Shell subprocess for iptables | `github.com/google/nftables` — direct netlink, no subprocess |
-| File-based IPC | Typed Unix socket protocol — no race conditions, no ambiguity |
-| SHA512 + hostname salt | Argon2id with proper parameters |
-| Flask without CSRF | gorilla/csrf on every POST |
+| `apply_started` · `apply_accepted` · `apply_rolledback` · `apply_failed` | logins, successful or failed |
+| `rules_saved` · `rules_imported` | logouts |
+| `options_saved` · `settings_saved` · `system_saved` | the source address of a change |
 
----
+> **Authentication events are not in the audit log.** An earlier version of this page
+> listed `login_success`, `login_failed` and `logout` among the event types. Nothing
+> writes them, and nothing ever did. For evidence of failed logins use the web
+> process's own output — `journalctl -u easywall-web` — where the rate limiter and
+> the auth handler log. Recording them in the audit log is a gap, not a feature.
 
-## Reporting Security Issues
+Reading it: [Audit log]({{ '/features/audit-log/' | relative_url }}).
 
-**Do not open a public GitHub issue for security vulnerabilities.**
+## The CVE that shaped this
 
-Use [GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new) for private disclosure.
+easywall v0.3.1 — Python, Flask, `iptables` — was archived in 2022 after a
+disclosure. Four root causes, and what replaced each:
 
-- Initial response: ≤ 48 hours
-- Patch target for critical issues: ≤ 14 days
-- Credit given for responsible disclosure in release notes
+| v1 | v2 |
+|---|---|
+| Web process ran as root — one injection was full compromise | Web runs unprivileged; there is no kernel access to misuse |
+| `iptables` through `subprocess` with user-controlled strings | `google/nftables` over netlink — no shell, no argv |
+| File-based IPC with sentinel files — racy | A typed protocol over a Unix socket |
+| SHA-512 salted with the hostname — trivially reversed | Argon2id with a random 16-byte salt per password |
+
+## What this does not protect you from
+
+- **A compromised root account.** Root owns the core.
+- **A vulnerability in the kernel's nftables subsystem.** That is below easywall.
+- **A legitimate administrator making a bad rule.** The audit log records it;
+  nothing prevents it.
+
+## Reporting a vulnerability
+
+**Not as a public issue.** Use
+[GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new)
+for private disclosure — see [SECURITY.md](https://github.com/jp1337/easywall/blob/main/SECURITY.md).

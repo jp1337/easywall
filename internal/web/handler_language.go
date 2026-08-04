@@ -85,10 +85,7 @@ func safeRedirect(target string) string {
 	if err != nil || u.Scheme != "" || u.Opaque != "" || u.Host != "" || u.User != nil {
 		return safeRedirectFallback
 	}
-	if !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
-		return safeRedirectFallback
-	}
-	if u.Path == "/" {
+	if !isLocalPath(u.Path) {
 		return safeRedirectFallback
 	}
 
@@ -96,10 +93,25 @@ func safeRedirect(target string) string {
 	// /ports the open tab lives in ?type=, and dropping it would move an operator
 	// from UDP back to TCP. A fragment never reaches the server.
 	clean := (&url.URL{Path: u.Path, RawQuery: u.RawQuery}).String()
-	if !strings.HasPrefix(clean, "/") || strings.HasPrefix(clean, "//") {
+	if !isLocalPath(clean) {
 		return safeRedirectFallback
 	}
 	return clean
+}
+
+// isLocalPath reports whether s is a path a browser resolves against this origin.
+//
+// All three conditions are here rather than spread across the caller, because
+// this is the last thing standing between a form field and a Location header: a
+// guard that depends on a check twenty lines earlier is one that survives a
+// refactor by luck. It is also what CodeQL's go/bad-redirect-check looks for — a
+// leading slash tested together with the character after it.
+//
+//   - a leading slash, or the browser treats it as relative to the current page
+//   - not a second slash: "//evil.example" is a protocol-relative URL
+//   - not a backslash: browsers have read "/\evil.example" the same way
+func isLocalPath(s string) bool {
+	return len(s) > 1 && s[0] == '/' && s[1] != '/' && s[1] != '\\'
 }
 
 // languageOption is one entry in the switcher. Label is the language's own name,

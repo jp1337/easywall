@@ -1,0 +1,7 @@
+flowchart TD
+  Q1{"Just looking?"} -->|yes| DEMO["Demo mode<br/>no root, no nftables"]
+  Q1 -->|no| Q2{"Debian or Ubuntu?"}
+  Q2 -->|yes| DEB[".deb package<br/>systemd units included"]
+  Q2 -->|no| Q3{"Containers already?"}
+  Q3 -->|yes| DOCK["Docker<br/>host network + NET_ADMIN"]
+  Q3 -->|no| SRC["From source<br/>Go 1.25 + make"]

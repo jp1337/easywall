@@ -111,52 +111,51 @@ are values the page substitutes and must be kept verbatim.
 
 ## Styling
 
-The user interface follows [`DESIGN.md`](DESIGN.md) in the repository root. It is the
-single source of truth for colour, typography, spacing, radii, motion and components —
-read it before touching anything visual.
+The interface follows [`DESIGN.md`](DESIGN.md) — one source of truth for colour,
+typography, spacing, radii, motion and components. Read it before changing anything
+visual. There is no third-party component library: tokens are declared once in the
+`@theme` block of `web/src/app.css` and Tailwind generates the utilities, so a template
+names `bg-surface`, never a colour.
 
-- **Never write a colour into a template.** Use the tokens: `bg-surface`,
-  `text-ink-muted`, `border-rule`, and so on. Tailwind generates these from the
-  `@theme` block in `web/src/app.css`.
-- **Green, amber and red are reserved for firewall state** — live, unconfirmed, rolled
-  back. They are never decorative, and there is no informational colour.
-- **The accent is rationed** to what is focused, what is active, and the one primary
-  action on a page.
-- **A control's outline uses `control-edge`; a container's uses `rule`.** WCAG 2.1
-  SC 1.4.11 wants 3:1 for anything you can operate, and in this system the fill of a
-  field sits ~1.05:1 from the panel behind it — the border is the whole affordance.
-  Hover on a control goes to `ink-subtle`, because `rule-strong` is *weaker* than
-  `control-edge` and would fade the outline you just pointed at.
-- **Every visible string goes through `{{T "key"}}`,** with the text added to *both*
-  `locales/en.json` and `locales/de.json` — including `placeholder`, `aria-label`
-  and `title`. A sentence with a link or a `code` span stays *one* message and uses
-  `richText`; splitting it into fragments around the anchor does not survive
-  translation. Text that `app.js` builds needs its key in `clientStringKeys`.
-  Hardcoding English is how a bilingual product ends up half-translated.
-- Both themes must work. Check light mode as well as dark before opening a PR.
-- **Sentence case, in Inter.** Panel headings and table column heads are language, not
-  data. The tracked uppercase mono `label` role is retired everywhere except the sidebar's
-  two nav dividers — do not reintroduce it.
-- **A table must reflow.** Below 720px rows become labelled cards, which works only if
-  every `<td>` carries a `data-label`. If you add a column, add the attribute — and if you
-  build rows in `app.js` too, read the label out of the `<thead>` so it stays translated.
-- **One heading per thing.** A page title followed by a card titled the same thing is the
-  duplicate-heading bug, not structure.
-- There is no third-party component library. If you need a component that does not
-  exist, add it to `DESIGN.md` first, then implement it from those tokens.
-- **Verify by rendering, not by reading the CSS.** Every significant defect in this
-  interface — a clipped port number, a class name that no longer existed, an arrow that
-  wrapped onto its own line — was invisible in the stylesheet and obvious in a screenshot.
-  Load the pages you touched, in both themes, at a phone width as well as a desktop one.
-- Rebuild the stylesheets after changing them — the compiled files are committed:
+| Rule | Why |
+|---|---|
+| **Never write a colour into a template** | Use the tokens — `bg-surface`, `text-ink-muted`, `border-rule` |
+| **Green, amber and red mean firewall state** | Live, unconfirmed, rolled back. Never decorative. There is no informational colour |
+| **The accent is rationed** | What is focused, what is active, the one primary action on a page |
+| **Controls use `control-edge`, containers use `rule`** | WCAG 2.1 SC 1.4.11 wants 3:1 for anything you can operate, and a field's fill sits ~1.05:1 from the panel behind it. Hover goes to `ink-subtle` — `rule-strong` is *weaker* than `control-edge` and would fade the outline you just pointed at |
+| **Both themes work** | Check light as well as dark before opening a PR |
+| **Sentence case, in Inter** | The tracked uppercase mono `label` role survives only in the sidebar's two nav dividers |
+| **Every table reflows** | Below 720px rows become labelled cards, which works only if every `<td>` carries a `data-label`. Rows built in `app.js` read the label out of the `<thead>` so it stays translated |
+| **One heading per thing** | A page title followed by a card titled the same is the duplicate-heading bug |
+| **Every visible string goes through `T`** | Into *both* `locales/en.json` and `locales/de.json`, `placeholder`, `aria-label` and `title` included. A sentence with a link or a `code` span stays *one* message and uses `richText`. Text `app.js` builds needs its key in `clientStringKeys` |
+| **New component? `DESIGN.md` first** | Then implement it from those tokens |
 
-  ```bash
-  npm run build:css        # web/static/style.css
-  npm run build:docs-css   # docs/assets/css/style.css
-  ```
+**Verify by rendering, not by reading the CSS.** Every significant defect in this
+interface was invisible in the stylesheet and obvious in a screenshot — a clipped port
+number, a class that no longer existed, an arrow that wrapped onto its own line, a
+documentation site with no background at all. Load the pages you touched, in both
+themes, at a phone width as well as a desktop one.
 
-Validate the design system itself with `npx @google/design.md lint DESIGN.md`. Some
+Rebuild the committed assets after changing a source:
+
+```bash
+npm run build:css        # web/static/style.css      — the application
+npm run build:docs-css   # docs/assets/css/style.css — the documentation site
+npm run build:diagrams   # docs/assets/diagrams/     — one SVG per theme
+```
+
+`npm run check:diagrams` fails if a `.mmd` source changed without a re-render.
+`npx @google/design.md lint DESIGN.md` validates the design system itself; some
 warnings are expected and are explained inside the file.
+
+## Documentation
+
+Maximum information, minimum text. Reach for a diagram before a paragraph, a table
+before a list of sentences, and a screenshot before a description of the screen. A
+thorough page nobody finishes is worth less than a short one that gets read.
+
+Diagrams are `.mmd` sources in `docs/_diagrams/`, rendered to committed SVGs — see the
+[README](docs/_diagrams/README.md) there for how to reference one.
 
 ## Security Issues
 
