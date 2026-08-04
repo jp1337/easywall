@@ -68,13 +68,48 @@ changelog:
       order: 999
 
 dockers_v2:
-  - dockerfile: Dockerfile
-    # Docker Hub and Quay namespaces come from env vars set by release.yml
-    # (DOCKERHUB_USERNAME, QUAY_NAMESPACE) so they can be changed without
-    # touching this file. GHCR namespace is the GitHub org name and stable.
+  # GHCR and Docker Hub. release.yml already treats every registry but GHCR as
+  # optional — it skips the login when the token is absent — but this file used to
+  # push to all three unconditionally, so one registry refusing a token failed the
+  # whole release *after* the other two had been written. v2.4.0 hit exactly that:
+  # the images reached GHCR and Docker Hub, Quay answered 401, and GoReleaser
+  # aborted before creating the GitHub release, leaving no binaries and no notes.
+  #
+  # Quay is now its own entry so it can be skipped without taking the release with
+  # it. The mirrors are a convenience; the release is not.
+  - id: primary
+    dockerfile: Dockerfile
+    # Docker Hub namespace comes from an env var set by release.yml
+    # (DOCKERHUB_USERNAME) so it can be changed without touching this file.
+    # The GHCR namespace is the GitHub org name and is stable.
     images:
       - "ghcr.io/jp1337/easywall"
       - "docker.io/{{ .Env.DOCKERHUB_USERNAME }}/easywall"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    build_args:
+      VERSION: "{{ .Version }}"
+    extra_files:
+      - go.mod
+      - go.sum
+      - cmd/
+      - internal/
+      - web/
+      - locales/
+      - config/
+      - docker/
+
+  # Skipped when QUAY_NAMESPACE is unset, or when QUAY_SKIP is set to "1" — which
+  # is how a rejected or expired robot token gets worked around without editing
+  # this file or holding up a release.
+  - id: quay
+    disable: '{{ or (eq .Env.QUAY_NAMESPACE "") (eq .Env.QUAY_SKIP "1") }}'
+    dockerfile: Dockerfile
+    images:
       - "quay.io/{{ .Env.QUAY_NAMESPACE }}/easywall"
     tags:
       - "{{ .Tag }}"

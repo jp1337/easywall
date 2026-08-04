@@ -71,4 +71,10 @@ jobs:
           # Quay image names can pull their namespace from a single secret
           # rather than being hardcoded.
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          # Empty when Quay is not configured, which disables that push in
+          # .goreleaser.yaml rather than failing the release at the last step.
           QUAY_NAMESPACE: ${{ secrets.QUAY_NAMESPACE }}
+          # Set the repository variable QUAY_SKIP to "1" to publish without Quay —
+          # the escape hatch for a rejected or expired robot token, so a mirror
+          # cannot hold up a release.
+          QUAY_SKIP: ${{ vars.QUAY_SKIP }}
