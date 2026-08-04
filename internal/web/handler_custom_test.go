@@ -138,9 +138,7 @@ func TestHandleCustomValidate_AllValid(t *testing.T) {
 
 	rec := doAuthFormRequest(t, s, "/custom/validate", "rules=tcp+dport+22+accept")
 	assertStatus(t, rec, http.StatusOK)
-	if !strings.Contains(rec.Body.String(), "alert-success") {
-		t.Errorf("expected alert-success, got: %s", rec.Body.String())
-	}
+	assertAlertVariant(t, rec.Body.String(), "alert-ok")
 }
 
 func TestHandleCustomValidate_SyntaxErrors(t *testing.T) {
@@ -155,9 +153,7 @@ func TestHandleCustomValidate_SyntaxErrors(t *testing.T) {
 	rec := doAuthFormRequest(t, s, "/custom/validate", "rules=this+is+not+valid")
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, "alert-error") {
-		t.Errorf("expected alert-error, got: %s", body)
-	}
+	assertAlertVariant(t, body, "alert-crit")
 	if !strings.Contains(body, "Line 1") {
 		t.Errorf("expected 'Line 1' in error list, got: %s", body)
 	}
@@ -171,11 +167,24 @@ func TestHandleCustomValidate_CoreOffline(t *testing.T) {
 	rec := doAuthFormRequest(t, s, "/custom/validate", "rules=tcp+dport+22+accept")
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, "alert-info") {
-		t.Errorf("expected alert-info fallback when core is offline, got: %s", body)
+	// There is no informational variant by design — only firewall state carries
+	// colour — so the offline notice is a plain, neutral alert.
+	if !strings.Contains(body, `class="alert `) && !strings.Contains(body, `class="alert"`) {
+		t.Errorf("expected a neutral alert when the core is offline, got: %s", body)
 	}
-	if !strings.Contains(body, "Live validation unavailable") {
+	for _, tinted := range []string{"alert-ok", "alert-warn", "alert-crit"} {
+		if strings.Contains(body, tinted) {
+			t.Errorf("the offline notice must not be tinted, found %s: %s", tinted, body)
+		}
+	}
+	if !strings.Contains(body, "Live validation is not running") {
 		t.Errorf("expected explanatory text, got: %s", body)
+	}
+	// It must not claim the rules are fine when nothing checked them.
+	for _, wrong := range []string{"Syntax is valid", "All entries are valid"} {
+		if strings.Contains(body, wrong) {
+			t.Errorf("offline notice implies success (%q): %s", wrong, body)
+		}
 	}
 }
 

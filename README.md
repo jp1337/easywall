@@ -52,7 +52,7 @@ The web process **never touches the firewall directly**. All changes go through 
 - **Custom rules** — raw nftables syntax, validated before apply
 - **Export / Import** — full JSON rule backups, downloadable and re-uploadable
 - **i18n** — English & German, extensible via `locales/<lang>.json`
-- **Light / Dark mode** — follows OS preference, manual toggle available
+- **Light / Dark mode** — follows OS preference, manual toggle available; both themes contrast-checked
 
 ### 🛡️ Protection Modules
 
@@ -79,6 +79,8 @@ The web process **never touches the firewall directly**. All changes go through 
 | **Language** | Go 1.25 | Single-binary, no runtime dependencies |
 | **HTTP router** | `go-chi/chi/v5` | Lightweight, idiomatic middleware chain |
 | **Templates** | `html/template` (stdlib) | Auto-escaping — XSS structurally prevented |
+| **Design system** | `DESIGN.md` + Tailwind v4 | Own token set and components — no third-party UI library |
+| **Fonts** | Inter + JetBrains Mono, self-hosted | Subset woff2, ~145 KB — works air-gapped, no external request |
 | **nftables** | `google/nftables` | Direct netlink — no `nft` subprocess |
 | **Password hashing** | `golang.org/x/crypto` Argon2id | Memory-hard, resistant to GPU cracking |
 | **Sessions** | `gorilla/sessions` | HMAC-signed cookies, 600s lifetime |

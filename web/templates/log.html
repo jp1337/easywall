@@ -7,40 +7,43 @@
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "log_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "log_title"}}</h1>
+        <p class="page-subtitle">{{T "log_subtitle"}}</p>
+      </div>
     </div>
 
     {{with .Data}}
     {{if .CoreErr}}
-    <div role="alert" class="alert alert-error alert-soft mb-4">
+    <div role="alert" class="alert alert-crit mb-4">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
       <span>{{.CoreErr}}</span>
     </div>
     {{end}}
 
-    <div class="card bg-base-200 border border-base-300 shadow-sm">
-      <div class="card-body p-0">
-        <div class="px-6 py-4 border-b border-base-300 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">{{T "log_recent"}}</h2>
-            <p class="text-xs text-base-content/50 mt-1">{{T "log_subtitle"}}</p>
-          </div>
+    <div class="card">
+      <div>
+        <div class="toolbar">
+          <h2 class="section-title">{{T "log_recent"}}</h2>
+          <span class="toolbar-spacer"></span>
           {{if .Entries}}
-          <label class="input input-bordered input-sm flex items-center gap-2 max-w-xs">
-            <svg class="size-4 opacity-60" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
-            <input type="search" name="q" placeholder="Filter by action, detail, user…"
+          <span class="toolbar-count">{{$n := len .Entries}}{{$n}} {{plural $n (T "count_entry_one") (T "count_entry_many")}}</span>
+          <div class="search">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+            <input type="search" name="q" class="input input-sm w-64"
+                   placeholder="{{T "log_filter"}}"
+                   aria-label="{{T "log_filter_label"}}"
                    hx-get="/log/filter"
                    hx-trigger="keyup changed delay:300ms, search"
                    hx-target="#log-rows"
-                   hx-swap="innerHTML"
-                   class="grow">
-          </label>
+                   hx-swap="innerHTML">
+          </div>
           {{end}}
         </div>
 
         {{if .Entries}}
-        <div class="overflow-x-auto">
-          <table class="table table-zebra table-sm">
+        <div class="table-wrap">
+          <table class="table table-reflow">
             <thead>
               <tr>
                 <th>{{T "log_col_time"}}</th>
@@ -72,15 +75,15 @@
 {{define "log_rows"}}
 {{range .}}
 <tr>
-  <td class="log-time">{{.Time}}</td>
-  <td><span class="log-action log-action-{{.Action}}">{{.Action}}</span></td>
-  <td>{{if .RuleType}}<span class="badge badge-soft">{{.RuleType}}</span>{{else}}<span class="text-base-content/40">—</span>{{end}}</td>
-  <td class="log-detail">{{if .Detail}}{{.Detail}}{{else}}<span class="text-base-content/40">—</span>{{end}}</td>
-  <td>{{.User}}</td>
+  <td class="log-time" data-label="{{T "log_col_time"}}" title="{{.Time}}">{{shortTime .Time}}</td>
+  <td data-label="{{T "log_col_action"}}"><span class="log-action{{with actionTone .Action}} log-action-{{.}}{{end}}">{{actionLabel .Action}}</span></td>
+  <td data-label="{{T "log_col_ruletype"}}">{{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td class="log-detail cell-wide" data-label="{{T "log_col_detail"}}">{{if .Detail}}{{detailLabel .Detail}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td data-label="{{T "log_col_user"}}">{{.User}}</td>
 </tr>
 {{else}}
 <tr>
-  <td colspan="5" class="text-center text-base-content/40 py-6">No matching entries.</td>
+  <td colspan="5" class="text-center text-ink-subtle py-6">{{T "log_no_match"}}</td>
 </tr>
 {{end}}
 {{end}}

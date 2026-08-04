@@ -248,14 +248,20 @@ func TestDemoSend_SystemInvalidDuration(t *testing.T) {
 
 // ── Validate (custom rules) ──────────────────────────────────────────────
 
-func TestDemoSend_ValidateCustom_AlwaysOK(t *testing.T) {
+// The demo has no nft binary, so it must not answer the question. It previously
+// returned "no errors", which rendered a green "syntax is valid" on the one page
+// where being wrong locks an operator out of their own host.
+func TestDemoSend_ValidateCustom_ReportsUnavailable(t *testing.T) {
 	c := NewDemoClient()
-	errs, err := c.ValidateCustom([]string{"anything goes in demo"})
-	if err != nil {
-		t.Fatalf("ValidateCustom: %v", err)
-	}
-	if len(errs) != 0 {
-		t.Errorf("demo should accept all custom rules, got %v", errs)
+	for _, rules := range [][]string{
+		{"tcp dport 8443 accept"},       // valid nftables
+		{"this is not nftables at all"}, // not
+		{},                              // nothing at all
+	} {
+		errs, err := c.ValidateCustom(rules)
+		if err == nil {
+			t.Errorf("ValidateCustom(%v) reported a verdict it cannot have; errs=%v", rules, errs)
+		}
 	}
 }
 

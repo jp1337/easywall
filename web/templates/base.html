@@ -1,6 +1,6 @@
 {{define "head"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{.Lang}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,29 +11,59 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <link rel="manifest" href="/static/manifest.json">
   <meta property="og:title" content="easywall">
-  <meta property="og:description" content="Linux firewall management with a web interface. Go, nftables, security-first.">
+  <meta property="og:description" content="{{T "og_description"}}">
   <meta property="og:image" content="/static/og-image.png">
   <meta property="og:type" content="website">
   <script nonce="{{.Nonce}}">
     (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="/static/style.css">
+  {{/* app.js builds some text itself — toast bodies, the polled apply state, the
+       fields on a row added in the browser — so those translations have to reach
+       it. html/template escapes the map into a JS value; the nonce is what makes
+       it acceptable to script-src 'self'. */}}
+  <script nonce="{{.Nonce}}">window.easywallStrings = {{.Strings}};</script>
+  <link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/jetbrains-mono-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/style.css?v={{.Asset}}">
+  {{/* htmx reads its configuration from this meta tag while initialising. It
+       must not be replaced by an htmx:config event listener: no such event
+       exists, so the settings below — including allowEval — would silently
+       never be applied. includeIndicatorStyles=false stops htmx injecting an
+       inline <style> block, which style-src 'self' correctly rejects; the two
+       indicator rules live in app.css instead. "style" is removed from
+       attributesToSettle so a swapped response cannot smuggle one in. */}}
+  <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"attributesToSettle":["class","width","height"],"inlineScriptNonce":"{{.Nonce}}","selfRequestsOnly":true}'>
   <script src="/static/htmx.min.js" defer></script>
-  <script nonce="{{.Nonce}}">
-    document.addEventListener('htmx:config', function(e){e.detail.allowEval=false;e.detail.inlineScriptNonce='{{.Nonce}}';});
-  </script>
 </head>
 <body>
 <div class="layout">
 {{end}}
 
+{{/* The language switch. One submit button per installed locale, drawn only when
+     there is more than one — a lone "English" button would be a control that
+     cannot do anything. It is a POST because it writes a cookie, and a plain form
+     because an operator who cannot read the interface should not also need
+     JavaScript to fix that. */}}
+{{define "langswitch"}}
+{{if .Langs}}
+<form method="POST" action="/language" class="lang-switch">
+  <input type="hidden" name="return" value="{{.Path}}">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3M3.6 9h16.8M3.6 15h16.8"/></svg>
+  <span class="lang-options" role="group" aria-label="{{T "nav_language"}}">
+    {{range .Langs}}
+    <button type="submit" name="lang" value="{{.Code}}"
+            class="lang-option{{if .Current}} is-current{{end}}"
+            {{if .Current}}aria-current="true"{{end}}>{{.Label}}</button>
+    {{end}}
+  </span>
+</form>
+{{end}}
+{{end}}
+
 {{define "sidebar"}}
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-brand">
-    <img src="/static/icon.svg" class="brand-icon" alt="easywall" width="32" height="32">
+    <span class="brand-icon" aria-hidden="true"></span>
     <span class="brand-name">easywall</span>
     <span class="brand-version">v2</span>
   </div>
@@ -50,7 +80,7 @@
   </div>
 
   <div class="nav-section">
-    <div class="nav-section-label">Rules</div>
+    <div class="nav-section-label">{{T "nav_group_rules"}}</div>
     <ul class="nav-links">
       <li class="{{if eq .Page "ports"}}active{{end}}">
         <a href="/ports">
@@ -86,7 +116,7 @@
   </div>
 
   <div class="nav-section">
-    <div class="nav-section-label">System</div>
+    <div class="nav-section-label">{{T "nav_group_system"}}</div>
     <ul class="nav-links">
       <li class="{{if eq .Page "options"}}active{{end}}">
         <a href="/options">
@@ -128,12 +158,16 @@
   </div>
 
   <div class="nav-footer">
-    <button class="theme-toggle" id="theme-toggle-btn" type="button">
+    {{template "langswitch" .}}
+    {{/* role=switch, not a bare button: the track is driven by data-theme in CSS,
+         so it looks right, but without aria-checked a screen reader announced
+         only "Theme, button" — no state, and "Theme" names neither end of it. */}}
+    <button class="theme-toggle" id="theme-toggle-btn" type="button" role="switch" aria-checked="false">
       <span>
         <svg class="icon-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"/></svg>
-        Theme
+        {{T "nav_light_mode"}}
       </span>
-      <div class="toggle-switch"></div>
+      <div class="toggle-switch" aria-hidden="true"></div>
     </button>
     <a href="/logout">
       <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
@@ -145,21 +179,22 @@
 {{end}}
 
 {{define "topbar"}}
-{{if .Demo}}
-<div class="demo-banner">
-  <span class="demo-banner-dot"></span>
-  <strong>Demo Mode</strong>
-  <span class="demo-banner-text">— every page is fully interactive, nothing reaches a real firewall. State resets every few hours.</span>
-  <a href="https://github.com/jp1337/easywall" target="_blank" rel="noopener" class="demo-banner-link">GitHub ↗</a>
-</div>
-{{end}}
 <div class="topbar">
-  <button class="menu-btn" id="menu-btn" type="button" aria-label="Menu">
+  <button class="menu-btn" id="menu-btn" type="button" aria-label="{{T "nav_menu"}}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
     </svg>
   </button>
   <span class="topbar-title">{{T (printf "nav_%s" .Page)}}</span>
+  {{/* The demo notice sits inside the topbar, not as a band above it: as its
+       own row it pushed every page down by its own height. */}}
+  {{if .Demo}}
+  <span class="demo-chip">
+    <span class="demo-chip-dot" aria-hidden="true"></span>
+    <strong>{{T "demo_label"}}</strong>
+    <span class="demo-chip-text">{{T "demo_notice"}}</span>
+  </span>
+  {{end}}
   {{if .User}}
   <div class="topbar-user">
     <div class="user-avatar">{{slice .User 0 1}}</div>
@@ -171,7 +206,7 @@
 
 {{define "flash"}}
 {{if .Flash}}
-<div role="alert" class="alert {{flashClass .Flash}} alert-soft mb-4" data-auto-dismiss>
+<div role="alert" class="alert {{flashClass .Flash}} mb-4" data-auto-dismiss>
   {{flashIcon .Flash}}
   <span>{{T .Flash}}</span>
 </div>
@@ -179,7 +214,7 @@
 {{end}}
 
 {{define "foot"}}
-  <div id="toast-container" class="toast toast-end z-50"></div>
+  <div id="toast-container" class="toast-container"></div>
   <script src="/static/app.js"></script>
 </body>
 </html>

@@ -1,221 +1,204 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   easywall — application stylesheet
+
+   Single source of truth is DESIGN.md in the repo root. Every value below
+   comes from there; nothing here invents a colour, a size or a duration.
+
+   Tokens are declared once in Tailwind's @theme, which emits both the CSS
+   custom properties and matching utilities (bg-surface, text-ink-muted,
+   border-rule, …). That is why there is no second, mirrored token set the
+   way the previous stylesheet carried one.
+
+   Build: npx @tailwindcss/cli -i web/src/app.css -o web/static/style.css --minify
+   ══════════════════════════════════════════════════════════════════════════ */
+
 @import "tailwindcss";
-@plugin "daisyui" {
-  themes: easywall-dark --default --prefersdark, easywall-light;
-  root: ":root";
-  exclude: rootscrollgutter;
+
+@source "../templates/**/*.html";
+@source "../static/app.js";
+
+/* ── Self-hosted faces ──────────────────────────────────────────────────────
+   easywall runs on machines that frequently have no outbound internet access,
+   and an administrative interface has no business making a third-party
+   request. Both faces are OFL; licences ship alongside them.
+   Subsets: latin + latin-ext, weight axis trimmed to the range actually used. */
+@font-face {
+  font-family: "Inter";
+  src: url("/static/fonts/inter-var.woff2") format("woff2-variations");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* ── DaisyUI Themes — "Aurora Operator" ────────────────────────────────
-   Palette philosophy: analogous colors only. Slate-blue chrome + cyan
-   primary accent harmonize (same color family) instead of fighting
-   like the previous navy+orange complementary pair. Rose is used for
-   error instead of red so it doesn't clash with the cyan accent. */
-@plugin "daisyui/theme" {
-  name: "easywall-dark";
-  default: true;
-  prefersdark: true;
-  color-scheme: dark;
-  --color-base-100: #0a0f1c;
-  --color-base-200: #111828;
-  --color-base-300: #1a2238;
-  --color-base-content: #e4ebf5;
-  --color-primary: #22d3ee;
-  --color-primary-content: #042a36;
-  --color-secondary: #64748b;
-  --color-secondary-content: #e4ebf5;
-  --color-accent: #2dd4bf;
-  --color-accent-content: #042a23;
-  --color-neutral: #243353;
-  --color-neutral-content: #e4ebf5;
-  --color-info: #38bdf8;
-  --color-info-content: #042c3d;
-  --color-success: #10b981;
-  --color-success-content: #042916;
-  --color-warning: #f59e0b;
-  --color-warning-content: #2a1d04;
-  --color-error: #f43f5e;
-  --color-error-content: #2a0612;
-  --radius-selector: 8px;
-  --radius-field: 8px;
-  --radius-box: 12px;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/static/fonts/jetbrains-mono-var.woff2") format("woff2-variations");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
 }
 
-@plugin "daisyui/theme" {
-  name: "easywall-light";
-  color-scheme: light;
-  --color-base-100: #ffffff;
-  --color-base-200: #f1f5f9;
-  --color-base-300: #e2e8f0;
-  --color-base-content: #0f172a;
-  --color-primary: #0891b2;
-  --color-primary-content: #ffffff;
-  --color-secondary: #475569;
-  --color-secondary-content: #ffffff;
-  --color-accent: #0d9488;
-  --color-accent-content: #ffffff;
-  --color-neutral: #0f172a;
-  --color-neutral-content: #ffffff;
-  --color-info: #0284c7;
-  --color-info-content: #ffffff;
-  --color-success: #059669;
-  --color-success-content: #ffffff;
-  --color-warning: #d97706;
-  --color-warning-content: #ffffff;
-  --color-error: #e11d48;
-  --color-error-content: #ffffff;
-  --radius-selector: 8px;
-  --radius-field: 8px;
-  --radius-box: 12px;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
+/* ── Tokens — dark is the default theme ─────────────────────────────────── */
+@theme {
+  --color-canvas: #0a0b0f;
+  --color-surface: #111318;
+  --color-surface-raised: #181b22;
+  --color-rule: #252932;
+  --color-rule-strong: #333a47;
+  --color-control-edge: #5e636e;
+  --color-ink: #f1f3f6;
+  --color-ink-muted: #a2aab8;
+  --color-ink-subtle: #7d8593;
+  --color-accent: #8fd3fb;
+  --color-accent-ink: #071219;
+  --color-accent-on-wash: #8fd3fb;
+  --color-accent-hover: #a8ddfc;
+  --color-state-ok: #3ecf8e;
+  --color-state-warn: #e5a54b;
+  --color-state-crit: #f2555a;
+  --color-state-ok-on-wash: #3ecf8e;
+  --color-state-warn-on-wash: #e5a54b;
+  --color-state-crit-on-wash: #f2555a;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* ── Layout-specific Tokens — Aurora Operator palette ───────────────────
-   These tokens are used ONLY by the hand-rolled chrome (sidebar/topbar/
-   auth/status-dot/log-action/apply-icon). They mirror the DaisyUI theme
-   colors above so the whole app feels cohesive. */
-:root {
-  --font-sans:    'Outfit', 'Helvetica Neue', sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
-  --radius:       8px;
-  --radius-lg:    12px;
-  --sidebar-w:    240px;
+/* Alpha washes and shadows cannot live in @theme (they are composites, not
+   scale entries), so they sit beside it on the same element. */
+:root,
+:root[data-theme="easywall-dark"] {
+  --accent-wash: rgba(143, 211, 251, 0.13);
+  --wash-ok: rgba(62, 207, 142, 0.10);
+  --wash-warn: rgba(229, 165, 75, 0.10);
+  --wash-crit: rgba(242, 85, 90, 0.10);
 
-  /* Dark theme defaults (matches easywall-dark above) */
-  --bg:           #0a0f1c;
-  --surface:      #111828;
-  --surface-2:    #1a2238;
-  --surface-3:    #243353;
-  --border:       #2d3b5a;
-  --border-muted: #1a2238;
-  --text:         #e4ebf5;
-  --text-muted:   #8595b0;
-  --text-subtle:  #5a6b85;
-  --accent:       #22d3ee;
-  --accent-dim:   rgba(34,211,238,0.10);
-  --accent-hover: rgba(34,211,238,0.18);
-  --success:      #10b981;
-  --success-dim:  rgba(16,185,129,0.12);
-  --warning:      #f59e0b;
-  --warning-dim:  rgba(245,158,11,0.12);
-  --danger:       #f43f5e;
-  --danger-dim:   rgba(244,63,94,0.12);
-  --shadow:       0 2px 12px rgba(0,0,0,0.6);
-  --shadow-sm:    0 1px 4px rgba(0,0,0,0.4);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  /* Hover state of an interactive container. Deliberately weaker than
+     `overlay`: the card is answering the pointer, not floating above the page. */
+  --shadow-lift: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
+
+  --sidebar-width: 240px;
+  --topbar-height: 48px;
+  --settings-max: 920px;
+  /* Was referenced by .content-narrow and .form-stack but never declared, so
+     both silently had no measure at all. DESIGN.md § Layout sets it. */
+  --form-max: 640px;
+  --control-height: 32px;
+  --control-height-sm: 28px;
+  --row-height: 36px;
+
+  --motion-instant: 60ms;
+  --motion-fast: 120ms;
+  --motion-slow: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0.2, 1);
 }
 
-[data-theme="easywall-light"] {
-  --bg:           #f8fafc;
-  --surface:      #ffffff;
-  --surface-2:    #f1f5f9;
-  --surface-3:    #e2e8f0;
-  --border:       #cbd5e1;
-  --border-muted: #e2e8f0;
-  --text:         #0f172a;
-  --text-muted:   #475569;
-  --text-subtle:  #94a3b8;
-  --accent:       #0891b2;
-  --accent-dim:   rgba(8,145,178,0.10);
-  --accent-hover: rgba(8,145,178,0.18);
-  --success:      #059669;
-  --success-dim:  rgba(5,150,105,0.10);
-  --warning:      #d97706;
-  --warning-dim:  rgba(217,119,6,0.12);
-  --danger:       #e11d48;
-  --danger-dim:   rgba(225,29,72,0.10);
-  --shadow:       0 2px 8px rgba(0,0,0,0.08);
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.06);
+/* ── Light theme ────────────────────────────────────────────────────────────
+   Note the inversion: in dark mode `surface` is lighter than `canvas`; in
+   light mode it is whiter than a faintly grey canvas. In both cases the panel
+   advances and the page recedes. Do not "simplify" canvas to pure white — the
+   panels would lose their edge. */
+:root[data-theme="easywall-light"] {
+  --color-canvas: #fcfcfd;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f4f6f9;
+  --color-rule: #e4e8ee;
+  --color-rule-strong: #cdd4de;
+  --color-control-edge: #868a93;
+  --color-ink: #0f1116;
+  --color-ink-muted: #5a6270;
+  /* Was #6f7784, which cleared 4.5:1 on `surface` (4.52) but not on the other
+     two grounds it actually gets used on: 4.41 on `canvas` and 4.17 on
+     `surface-raised`. Measured, not guessed — the design.md linter cannot see
+     these pairings because they are set in CSS, not in a component entry.
+     #666e7b clears 4.5:1 on all three (5.15 / 5.02 / 4.75). */
+  --color-ink-subtle: #666e7b;
+  --color-accent: #0f7bab;
+  --color-accent-ink: #ffffff;
+  --color-accent-on-wash: #0d6b95;
+  --color-accent-hover: #0c6690;
+  --color-state-ok: #12855c;
+  --color-state-warn: #96620d;
+  --color-state-crit: #cf2d38;
+  --color-state-ok-on-wash: #0f714e;
+  --color-state-warn-on-wash: #88590c;
+  --color-state-crit-on-wash: #ba2832;
+
+  --accent-wash: rgba(15, 123, 171, 0.09);
+  --wash-ok: rgba(18, 133, 92, 0.10);
+  --wash-warn: rgba(150, 98, 13, 0.10);
+  --wash-crit: rgba(207, 45, 56, 0.10);
+
+  --shadow-raised: 0 1px 2px rgba(15, 17, 22, 0.06);
+  --shadow-overlay: 0 8px 24px -8px rgba(15, 17, 22, 0.14);
+  --shadow-lift: 0 2px 8px -2px rgba(15, 17, 22, 0.12);
 }
 
-/* ── Body / Fonts (DaisyUI base-100 already sets bg + color) ──────────── */
-html, body {
-  font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.6;
+/* ── Base ───────────────────────────────────────────────────────────────── */
+html,
+body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  background: var(--color-canvas);
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle atmospheric gradient on the body — adds depth to the dark
-   slate without being distracting. Light mode keeps it cleaner. */
-body {
-  background:
-    radial-gradient(1200px 800px at 80% -10%, rgba(34,211,238,0.04), transparent 60%),
-    radial-gradient(900px 600px at 0% 100%, rgba(45,212,191,0.03), transparent 60%);
-  background-attachment: fixed;
-}
-
-[data-theme="easywall-light"] body {
-  background:
-    radial-gradient(1200px 800px at 80% -10%, rgba(8,145,178,0.04), transparent 60%),
-    radial-gradient(900px 600px at 0% 100%, rgba(13,148,136,0.03), transparent 60%);
-  background-attachment: fixed;
-}
-
-/* ── Scrollbar ─────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: var(--surface-3);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover { background: var(--border); }
+::-webkit-scrollbar-thumb { background: var(--color-rule-strong); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-control-edge); }
 
-/* ── Animations ────────────────────────────────────────────────────────── */
-@keyframes slide-in {
-  from { opacity: 0; transform: translateY(-6px); }
+/* Only two things loop, and only because they are genuinely ongoing: the
+   pending status dot and the acceptance-window countdown. */
+@keyframes ew-pulse-ok {
+  0%, 100% { box-shadow: 0 0 0 3px var(--wash-ok); }
+  50%      { box-shadow: 0 0 0 5px var(--wash-ok); }
+}
+
+@keyframes ew-pulse-warn {
+  0%, 100% { box-shadow: 0 0 0 3px var(--wash-warn); }
+  50%      { box-shadow: 0 0 0 5px var(--wash-warn); }
+}
+
+@keyframes ew-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse-green {
-  0%, 100% { box-shadow: 0 0 0 3px var(--success-dim); }
-  50%      { box-shadow: 0 0 0 5px var(--success-dim); }
-}
-
-@keyframes pulse-amber {
-  0%, 100% { box-shadow: 0 0 0 3px var(--warning-dim); }
-  50%      { box-shadow: 0 0 0 5px var(--warning-dim); }
-}
-
-/* ── Layout Components (kept; DaisyUI does not provide these) ─────────── */
 @layer components {
 
-  /* === App Frame === */
-  .layout {
-    display: flex;
-    min-height: 100vh;
-  }
+  /* ════════════════════════════════════════════════════════════════════════
+     Application frame
+     ════════════════════════════════════════════════════════════════════════ */
+
+  .layout { display: flex; min-height: 100vh; }
 
   .sidebar {
-    width: var(--sidebar-w);
+    width: var(--sidebar-width);
     min-height: 100vh;
-    background: var(--surface);
-    border-right: 1px solid var(--border);
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-rule);
     display: flex;
     flex-direction: column;
     position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
+    inset: 0 auto 0 0;
     z-index: 100;
     overflow-y: auto;
   }
 
   .main {
-    margin-left: var(--sidebar-w);
+    margin-left: var(--sidebar-width);
     flex: 1;
     min-height: 100vh;
     display: flex;
@@ -223,445 +206,1887 @@ body {
   }
 
   .topbar {
-    height: 56px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    height: var(--topbar-height);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-rule);
     display: flex;
     align-items: center;
-    padding: 0 24px;
-    gap: 12px;
+    padding: 0 18px;
+    gap: 10px;
     position: sticky;
     top: 0;
     z-index: 50;
   }
 
+  /* On desktop the sidebar already marks the active page and the page's own
+     h1 names it, so a third copy in the topbar is noise. It stays for narrow
+     viewports, where the sidebar is a closed drawer. */
   .topbar-title {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
-    color: var(--text);
-    letter-spacing: -0.2px;
+    letter-spacing: -0.01em;
+  }
+
+  @media (min-width: 769px) {
+    .topbar-title { display: none; }
   }
 
   .topbar-user {
     margin-left: auto;
-    font-size: 13px;
-    color: var(--text-muted);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
+    font-size: 12px;
+    color: var(--color-ink-muted);
   }
 
   .user-avatar {
-    width: 28px;
-    height: 28px;
-    background: var(--accent-dim);
-    color: var(--accent);
-    border: 1px solid rgba(34,211,238,0.30);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    display: grid;
+    place-items: center;
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+    border: 1px solid var(--color-rule);
+    font-family: var(--font-data);
+    font-size: 11px;
     font-weight: 600;
-    font-family: var(--font-mono);
   }
 
-  [data-theme="easywall-light"] .user-avatar {
-    border-color: rgba(8,145,178,0.30);
-  }
-
+  /* Full width. An operator's rule tables want the whole viewport; capping the
+     page left a dead band on the right of every wide display. Text-heavy
+     containers narrow themselves via .content-narrow instead. */
   .content {
-    padding: 24px;
+    padding: 22px 22px 40px;
     flex: 1;
-    max-width: 1100px;
-    animation: fade-in 0.2s ease;
+    width: 100%;
+    animation: ew-fade-in var(--motion-slow) var(--motion-ease);
   }
 
-  /* === Sidebar Brand === */
+  /* For prose and single-column forms, where a 1600px measure is unreadable. */
+  .content-narrow { max-width: var(--form-max); }
+
+  /* ── Settings measure ─────────────────────────────────────────────────────
+     A settings list is text-shaped, not table-shaped. Run it full-bleed and the
+     control ends up over a thousand pixels from the label it belongs to, with
+     an empty band between them. Width belongs to the rule tables; a list of
+     switches gets a measure. */
+  .content-settings { max-width: var(--settings-max); }
+
+  /* ── Brand ─────────────────────────────────────────────────────────────
+     The mark is a single-colour SVG applied as a CSS mask, not an <img>: an
+     <img>-loaded SVG is its own document and cannot inherit currentColor, so
+     it could never follow the theme. As a mask only the shape matters and
+     background-color does the colouring. See DESIGN.md § Logo. */
   .sidebar-brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 20px 16px 18px;
-    border-bottom: 1px solid var(--border);
+    padding: 14px 14px 13px;
+    border-bottom: 1px solid var(--color-rule);
   }
 
-  .brand-icon {
-    width: 28px;
-    height: 28px;
-    color: var(--accent);
+  .brand-icon,
+  .auth-logo-mark {
     flex-shrink: 0;
+    background-color: var(--color-accent);
+    -webkit-mask: url("/static/icon.svg") center / contain no-repeat;
+    mask: url("/static/icon.svg") center / contain no-repeat;
   }
+
+  .brand-icon { width: 24px; height: 24px; }
+  .auth-logo-mark { width: 38px; height: 38px; }
 
   .brand-name {
-    font-size: 17px;
+    font-size: 15px;
     font-weight: 600;
-    letter-spacing: -0.4px;
-    color: var(--text);
+    letter-spacing: -0.018em;
   }
 
   .brand-version {
-    font-size: 10px;
-    font-family: var(--font-mono);
-    background: var(--accent-dim);
-    color: var(--accent);
-    padding: 1px 5px;
-    border-radius: 3px;
-    border: 1px solid rgba(34,211,238,0.25);
     margin-left: auto;
-    letter-spacing: 0.5px;
+    font-family: var(--font-data);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-muted);
+    border: 1px solid var(--color-rule);
   }
 
-  [data-theme="easywall-light"] .brand-version {
-    border-color: rgba(8,145,178,0.25);
-  }
-
-  /* === Sidebar Navigation === */
-  .nav-section {
-    padding: 12px 8px 4px;
-  }
+  /* ── Sidebar navigation ────────────────────────────────────────────────── */
+  .nav-section { padding: 12px 8px 2px; }
 
   .nav-section-label {
+    font-family: var(--font-data);
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--text-subtle);
-    padding: 0 8px;
-    margin-bottom: 4px;
+    letter-spacing: 0.1em;
+    color: var(--color-ink-subtle);
+    padding: 0 10px;
+    margin-bottom: 5px;
   }
 
-  .nav-links {
-    list-style: none;
-    padding: 4px 8px;
-    margin: 0;
-  }
-
-  .nav-links li {
-    list-style: none;
-  }
+  .nav-links { list-style: none; padding: 0 8px; margin: 0; }
+  .nav-links li { list-style: none; }
 
   .nav-links li a {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 7px 10px;
-    border-radius: var(--radius);
-    color: var(--text-muted);
-    font-size: 13.5px;
-    font-weight: 400;
-    transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
+    gap: 9px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    color: var(--color-ink-muted);
+    font-size: 13px;
     text-decoration: none;
+    white-space: nowrap;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease);
   }
 
   .nav-links li a svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     flex-shrink: 0;
-    opacity: 0.65;
-    transition: opacity 0.15s;
+    opacity: 0.7;
   }
 
   .nav-links li a:hover {
-    background: var(--surface-2);
-    color: var(--text);
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
     text-decoration: none;
   }
 
   .nav-links li a:hover svg { opacity: 1; }
 
   .nav-links li.active a {
-    background: var(--accent-dim);
-    color: var(--accent);
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+    font-weight: 550;
     position: relative;
-    font-weight: 500;
   }
 
-  /* Cyan left-stripe on the active nav item — small but high-presence
-     visual cue that's hard to miss while scanning the sidebar. */
   .nav-links li.active a::before {
-    content: '';
+    content: "";
     position: absolute;
     left: -8px;
-    top: 6px;
-    bottom: 6px;
-    width: 3px;
+    top: 5px;
+    bottom: 5px;
+    width: 2px;
     border-radius: 0 2px 2px 0;
-    background: var(--accent);
+    background: var(--color-accent);
   }
 
   .nav-links li.active a svg { opacity: 1; }
 
   .nav-footer {
     margin-top: auto;
-    padding: 12px;
-    border-top: 1px solid var(--border);
+    padding: 10px 8px;
+    border-top: 1px solid var(--color-rule);
   }
 
   .nav-footer a {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-radius: var(--radius);
-    color: var(--text-muted);
-    font-size: 13.5px;
-    transition: background 0.15s, color 0.15s;
+    gap: 9px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md);
+    color: var(--color-ink-muted);
+    font-size: 13px;
     text-decoration: none;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease);
   }
 
   .nav-footer a:hover {
-    background: var(--danger-dim);
-    color: var(--danger);
+    background: var(--wash-crit);
+    color: var(--color-state-crit-on-wash);
     text-decoration: none;
   }
 
-  /* === Theme Toggle (custom; replaces DaisyUI swap) === */
+  /* ── Theme switch (sidebar) ────────────────────────────────────────────── */
   .theme-toggle {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 10px;
+    width: 100%;
+    padding: 6px 10px;
     margin-bottom: 4px;
-    border-radius: var(--radius);
-    color: var(--text-muted);
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-ink-muted);
+    font-family: var(--font-ui);
     font-size: 13px;
     cursor: pointer;
     user-select: none;
-    background: transparent;
-    border: none;
-    width: 100%;
-    font-family: var(--font-sans);
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease);
   }
 
   .theme-toggle:hover {
-    background: var(--surface-2);
-    color: var(--text);
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
   }
 
-  .toggle-switch {
-    width: 32px;
-    height: 18px;
-    background: var(--surface-3);
-    border-radius: 9px;
-    position: relative;
-    transition: background 0.2s;
+  .theme-toggle:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+  }
+
+  /* ── Language switch ───────────────────────────────────────────────────────
+     One submit button per language rather than a select: it needs no JavaScript,
+     it shows the current choice without being opened, and the names are the
+     label — a German speaker looks for "Deutsch", not for the word "Language". */
+  .lang-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    color: var(--color-ink-subtle);
+  }
+
+  .lang-switch svg {
+    width: 15px;
+    height: 15px;
     flex-shrink: 0;
   }
 
+  .lang-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .lang-option {
+    padding: 3px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-ink-muted);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 1.35;
+    cursor: pointer;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease);
+  }
+
+  .lang-option:hover {
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+  }
+
+  .lang-option:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  /* The active language is state, which is what the accent is for. It is also
+     not a button you would press, so it does not offer a hover. */
+  .lang-option.is-current {
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+    cursor: default;
+  }
+
+  .lang-option.is-current:hover {
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+  }
+
+  /* On the auth cards the switch sits in the footer, centred under the form. */
+  .auth-footer .lang-switch {
+    justify-content: center;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+
+  .toggle-switch {
+    width: 34px;
+    height: 19px;
+    flex-shrink: 0;
+    position: relative;
+    border-radius: 9999px;
+    background: var(--color-control-edge);
+    transition: background var(--motion-fast) var(--motion-ease);
+  }
+
   .toggle-switch::after {
-    content: '';
+    content: "";
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: 2.5px;
+    left: 2.5px;
     width: 14px;
     height: 14px;
-    background: var(--text-muted);
-    border-radius: 50%;
-    transition: transform 0.2s, background 0.2s;
+    border-radius: 9999px;
+    background: var(--color-surface);
+    transition: transform var(--motion-fast) var(--motion-ease);
   }
 
-  [data-theme="easywall-light"] .toggle-switch { background: var(--accent); }
-  [data-theme="easywall-light"] .toggle-switch::after {
-    transform: translateX(14px);
-    background: white;
+  :root[data-theme="easywall-light"] .toggle-switch { background: var(--color-accent); }
+  :root[data-theme="easywall-light"] .toggle-switch::after {
+    transform: translateX(15px);
+    background: var(--color-accent-ink);
   }
 
-  /* === Mobile menu controls === */
+  /* ── Mobile chrome ─────────────────────────────────────────────────────── */
   .menu-btn {
     display: none;
-    background: none;
+    padding: 5px;
     border: none;
-    color: var(--text-muted);
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-ink-muted);
     cursor: pointer;
-    padding: 6px;
-    border-radius: var(--radius);
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--motion-instant) var(--motion-ease);
   }
 
-  .menu-btn:hover {
-    background: var(--surface-2);
-    color: var(--text);
-  }
-
+  .menu-btn:hover { background: var(--color-surface-raised); color: var(--color-ink); }
   .menu-btn svg { width: 20px; height: 20px; }
 
   .overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 99;
-    backdrop-filter: blur(2px);
   }
 
-  /* === Page Header === */
+  /* ── Page header ─────────────────────────────────────────────────────────
+     The title used to carry a 3px accent bar on its left. Repeated on all
+     fourteen pages it stopped reading as emphasis and started reading as a
+     template artefact, and it competed with the accent's actual job — marking
+     focus, the active nav item and the one primary action. A page is already
+     identified by its title and by the highlighted nav entry; a subtitle that
+     says what the page *does* is worth more than a decoration. */
   .page-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
-    margin-bottom: 24px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 12px 20px;
+    margin-bottom: 20px;
   }
+
+  .page-header-text { min-width: 0; }
 
   .page-title {
-    font-size: 24px;
-    font-weight: 600;
-    letter-spacing: -0.6px;
-    color: var(--text);
     margin: 0;
-    position: relative;
-    padding-left: 14px;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 
-  /* Small accent stripe before each page title — cohesive with the
-     sidebar's active-item stripe and gives every page a quiet identity. */
-  .page-title::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 6px;
-    bottom: 6px;
-    width: 4px;
-    border-radius: 2px;
-    background: linear-gradient(180deg, var(--accent), #2dd4bf);
+  .page-subtitle {
+    margin: 3px 0 0;
+    font-size: 13.5px;
+    color: var(--color-ink-muted);
+    max-width: 68ch;
   }
 
-  [data-theme="easywall-light"] .page-title::before {
-    background: linear-gradient(180deg, var(--accent), #0d9488);
+  .page-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+
+  /* ── Content grid: work column + context column ──────────────────────────
+     Most pages here carry few rows — eight ports, four forwards, eleven
+     switches. Run that alone across a 1360px canvas and the columns stretch
+     absurdly: rendering showed "SSH (admin)" in a 950px-wide cell. The width is
+     not the problem; having nothing to put in it is. The aside carries the
+     guidance that a firewall interface genuinely needs anyway, so the measure
+     of the work column stays sane without leaving a dead band. */
+  .page-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
   }
 
-  .page-actions {
+  @media (max-width: 1180px) {
+    .page-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .page-grid > * { min-width: 0; }
+
+  /* ── Section heading inside a card ───────────────────────────────────────
+     Replaces the 10px uppercase mono `label` that used to head every panel.
+     See DESIGN.md § Typography for why that role was retired. */
+  .section-head {
     display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .section-head-text { min-width: 0; }
+
+  .section-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .section-desc {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+  }
+
+  .section-head-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Components — one entry per DESIGN.md § Components
+     ════════════════════════════════════════════════════════════════════════ */
+
+  /* ── Card ────────────────────────────────────────────────────────────────
+     12px, not 8px. Containers moved up one step on the radius scale while
+     controls stayed where they were, so density is untouched — see DESIGN.md
+     § Shapes for the measurement that prompted it. */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-rule);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .card-header-note { margin-left: auto; font-size: 12px; color: var(--color-ink-subtle); }
+  .card-pad { padding: 16px; }
+
+  /* Only for cards that are themselves interactive — a link, or a container
+     whose whole surface responds. A static panel stays flat. */
+  .card-interactive {
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease),
+                transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .card-interactive:hover {
+    border-color: var(--color-rule-strong);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
+  }
+
+  /* ── Buttons ───────────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: var(--control-height);
+    padding: 0 12px;
+    /* control-edge, not rule: a secondary button's fill sits 1.06:1 from the
+       surface behind it, so the border is the only thing that identifies it as
+       a control. At rule it measured 1.28:1 — WCAG 1.4.11 wants 3:1. */
+    border: 1px solid var(--color-control-edge);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 550;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--motion-fast) var(--motion-ease),
+                border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .btn:hover {
+    background: var(--color-surface-raised);
+    /* Hover has to read stronger than rest. rule-strong is weaker than the new
+       resting control-edge, so hovering used to fade the outline. */
+    border-color: var(--color-ink-subtle);
+    text-decoration: none;
+  }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    border-color: transparent;
+  }
+
+  .btn-primary:hover {
+    background: var(--color-accent-hover);
+    border-color: transparent;
+  }
+
+  .btn-sm { height: var(--control-height-sm); padding: 0 10px; font-size: 13px; }
+
+  /* Only the acceptance window earns a larger button: confirm and roll back
+     must both be unmissable on the screen where an operator may be locked out. */
+  .btn-lg { height: 40px; padding: 0 18px; font-size: 15px; }
+
+  /* ── Icon-only row action ─────────────────────────────────────────────────
+     One per table row, so it must stay quiet: eight bordered red buttons down
+     the right edge of a rule list read as eight warnings. The affordance
+     appears on hover and focus, where the intent is actually expressed. */
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--control-height-sm);
+    height: var(--control-height-sm);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-ink-subtle);
+    cursor: pointer;
+    transition: background var(--motion-instant) var(--motion-ease),
+                color var(--motion-instant) var(--motion-ease),
+                border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .btn-icon svg { width: 15px; height: 15px; }
+
+  .btn-icon:hover {
+    background: var(--color-surface-raised);
+    border-color: var(--color-rule);
+    color: var(--color-ink);
+  }
+
+  .btn-icon:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  .btn-icon-danger:hover {
+    background: var(--wash-crit);
+    border-color: var(--color-state-crit);
+    color: var(--color-state-crit-on-wash);
+  }
+
+  /* Destructive actions are bordered, never filled. A filled red block is the
+     loudest object on the page and invites the misclick it warns about. */
+  .btn-danger {
+    color: var(--color-state-crit-on-wash);
+    border-color: var(--color-state-crit);
+    background: var(--color-surface);
+  }
+
+  .btn-danger:hover {
+    background: var(--wash-crit);
+    border-color: var(--color-state-crit);
+  }
+
+  .btn:disabled,
+  .btn[disabled] {
+    color: var(--color-ink-subtle);
+    cursor: not-allowed;
+  }
+
+  .btn:disabled:hover,
+  .btn[disabled]:hover {
+    background: var(--color-surface);
+    border-color: var(--color-rule);
+  }
+
+  /* ── Inputs — all five states ──────────────────────────────────────────── */
+  .input {
+    width: 100%;
+    height: var(--control-height);
+    padding: 0 10px;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    /* Same reason as .btn: the field fill is 1.03–1.06:1 from the card it sits
+       on, so the border carries the whole affordance. */
+    border: 1px solid var(--color-control-edge);
+    border-radius: var(--radius-md);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    transition: border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .input::placeholder { color: var(--color-ink-subtle); }
+  .input:hover { border-color: var(--color-ink-subtle); }
+
+  /* Focus is a border change plus an outline — never a glow, never colour
+     alone. Keyboard navigation across a dense page of ports depends on it. */
+  .input:focus,
+  .input:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  .input.is-error { border-color: var(--color-state-crit); }
+
+  .input:disabled,
+  .input[disabled] {
+    background: var(--color-surface-raised);
+    color: var(--color-ink-subtle);
+    border-color: var(--color-rule);
+    cursor: not-allowed;
+  }
+
+  /* Ports, addresses, CIDRs — monospace so a mistyped address is visible
+     while typing rather than after saving. */
+  .input-data {
+    font-family: var(--font-data);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Compact variant for inline numeric fields inside dense option rows. */
+  .input-sm { height: var(--control-height-sm); font-size: 13px; padding: 0 8px; }
+
+  /* ── Inputs inside a table row ────────────────────────────────────────────
+     A rule table is a table, not a grid of boxes. Editable cells therefore
+     carry no visible border until the operator reaches for them; the row rule
+     and the column alignment do the structural work. The field is still
+     obviously editable — it sits on canvas, gains an edge on hover, and takes
+     the full accent focus treatment. */
+  .input-cell {
+    width: 100%;
+    height: var(--control-height-sm);
+    padding: 0 8px;
+    background: transparent;
+    color: var(--color-ink);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    transition: background var(--motion-instant) var(--motion-ease),
+                border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .input-cell::placeholder { color: var(--color-ink-subtle); }
+
+  .input-cell:hover {
+    background: var(--color-canvas);
+    border-color: var(--color-control-edge);
+  }
+
+  .input-cell:focus,
+  .input-cell:focus-visible {
+    background: var(--color-canvas);
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 1px;
+    border-color: var(--color-accent);
+  }
+
+  .input-cell-data {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Inline labelled field ────────────────────────────────────────────────
+     For a single control that needs a caption inside a dense row. Deliberately
+     not a <fieldset>: a fieldset frames a *group*, and using one around a lone
+     input produced a border with the legend sitting on top of the field. */
+  /* Label beside the field, not stacked above it. A stacked 10px uppercase
+     caption over a 96px number input reads as two unrelated fragments; on one
+     line it reads as the sentence it is — "max conn 5". */
+  .field-inline {
+    display: flex;
+    align-items: center;
     gap: 8px;
   }
 
-  /* === Status Dots (dashboard live indicators) === */
+  .field-inline > span {
+    font-size: 13px;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+  }
+
+  textarea.input {
+    height: auto;
+    min-height: 76px;
+    padding: 9px 11px;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  select.input { cursor: pointer; padding-right: 28px; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+
+  /* Vertical rhythm for a labelled form inside a card. */
+  .form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    max-width: var(--form-max);
+  }
+
+  .field-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+
+  .field-error {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--color-state-crit-on-wash);
+  }
+
+  .field-error svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+  .field-help { font-size: 12px; color: var(--color-ink-subtle); }
+
+  /* ── Fieldset ──────────────────────────────────────────────────────────── */
+  .fieldset {
+    margin: 0;
+    padding: 14px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+  }
+
+  .fieldset > legend {
+    padding: 0 6px;
+    margin-left: -6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+
+  /* ── Toggle ────────────────────────────────────────────────────────────────
+     The off state uses control-edge, not rule-strong: WCAG 1.4.11 wants 3:1
+     for the outline of an interactive control, and an operator scanning the
+     options page has to see which protections are *off*. */
+  .toggle {
+    appearance: none;
+    width: 34px;
+    height: 19px;
+    flex-shrink: 0;
+    position: relative;
+    margin: 0;
+    border: none;
+    border-radius: 9999px;
+    background: var(--color-control-edge);
+    cursor: pointer;
+    transition: background var(--motion-fast) var(--motion-ease);
+  }
+
+  .toggle::after {
+    content: "";
+    position: absolute;
+    top: 2.5px;
+    left: 2.5px;
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: var(--color-surface);
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .toggle:checked { background: var(--color-accent); }
+  .toggle:checked::after {
+    transform: translateX(15px);
+    background: var(--color-accent-ink);
+  }
+
+  .toggle:focus-visible { outline: 2px solid var(--accent-wash); outline-offset: 2px; }
+
+  /* ── Checkbox ──────────────────────────────────────────────────────────── */
+  .checkbox {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    margin: 0;
+    background: var(--color-canvas);
+    border: 1.5px solid var(--color-control-edge);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background var(--motion-fast) var(--motion-ease),
+                border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  .checkbox::after {
+    content: "";
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid var(--color-accent-ink);
+    border-bottom: 2px solid var(--color-accent-ink);
+    transform: rotate(-45deg) translate(1px, -1px);
+    opacity: 0;
+  }
+
+  .checkbox:checked {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .checkbox:checked::after { opacity: 1; }
+  .checkbox:focus-visible { outline: 2px solid var(--accent-wash); outline-offset: 2px; }
+
+  /* ── Chips and badges ──────────────────────────────────────────────────────
+     A chip carries state or a chosen qualifier. A badge is a neutral marker.
+     If you reach for a coloured badge, you want a chip. */
+  .chip,
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .chip-accent {
+    background: var(--accent-wash);
+    color: var(--color-accent-on-wash);
+    border-color: var(--color-accent);
+  }
+
+  .chip-ok {
+    background: var(--wash-ok);
+    color: var(--color-state-ok-on-wash);
+    border-color: var(--color-state-ok);
+  }
+
+  .chip-warn {
+    background: var(--wash-warn);
+    color: var(--color-state-warn-on-wash);
+    border-color: var(--color-state-warn);
+  }
+
+  .chip-crit {
+    background: var(--wash-crit);
+    color: var(--color-state-crit-on-wash);
+    border-color: var(--color-state-crit);
+  }
+
+  /* ── Link ──────────────────────────────────────────────────────────────────
+     accent-on-wash, not accent: in light mode the pale ice blue would not
+     carry enough contrast inside running text. */
+  .link {
+    color: var(--color-accent-on-wash);
+    text-decoration: none;
+  }
+
+  .link:hover { text-decoration: underline; }
+  .link:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* ── Alerts ──────────────────────────────────────────────────────────────
+     There is no informational colour. "Settings saved" is neutral — only the
+     three firewall states get colour. */
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 10px 14px;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    font-size: 13px;
+  }
+
+  .alert svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+
+  .alert-warn {
+    background: var(--wash-warn);
+    color: var(--color-state-warn-on-wash);
+    border-color: var(--color-state-warn);
+  }
+
+  .alert-crit {
+    background: var(--wash-crit);
+    color: var(--color-state-crit-on-wash);
+    border-color: var(--color-state-crit);
+  }
+
+  .alert-ok {
+    background: var(--wash-ok);
+    color: var(--color-state-ok-on-wash);
+    border-color: var(--color-state-ok);
+  }
+
+  /* ── Tabs ──────────────────────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--color-rule); }
+
+  .tab {
+    height: var(--control-height);
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--color-ink-muted);
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color var(--motion-instant) var(--motion-ease);
+  }
+
+  .tab:hover { color: var(--color-ink); text-decoration: none; }
+
+  .tab.is-active {
+    color: var(--color-ink);
+    font-weight: 550;
+    border-bottom-color: var(--color-accent);
+  }
+
+  /* ── Tooltip ───────────────────────────────────────────────────────────── */
+  .tooltip { position: relative; display: inline-flex; }
+
+  .tooltip-bubble {
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 5px 9px;
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .tooltip:hover .tooltip-bubble,
+  .tooltip:focus-within .tooltip-bubble { opacity: 1; }
+
+  /* ── Tables ──────────────────────────────────────────────────────────────
+     Every table lives in its own overflow-x container so the page body never
+     scrolls sideways. */
+  .table-wrap { overflow-x: auto; }
+
+  .table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  /* Sentence case at 12px, not 10px uppercase mono. A column head is language,
+     not data: "Ssh protection" set as S S H   P R O T E C T I O N in tracked
+     capitals takes longer to read and looks like a 2010 admin console. */
+  .table th {
+    text-align: left;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--color-rule);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+  }
+
+  .table td {
+    height: var(--row-height);
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--color-rule);
+    vertical-align: middle;
+  }
+
+  .table tbody tr {
+    transition: background var(--motion-instant) var(--motion-ease);
+  }
+
+  .table tbody tr:hover { background: var(--color-surface-raised); }
+  .table tbody tr:last-child td { border-bottom: 0; }
+
+  .cell-data {
+    font-family: var(--font-data);
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Column sizing. Data columns take exactly what they need and the
+     description absorbs the remaining width, so nothing truncates while the
+     right edge of the table stays reachable. */
+  .col-port    { width: 120px; }
+  .col-flex    { width: auto; }
+  .col-toggle  { width: 150px; }
+  .col-actions { width: 56px;  text-align: right; }
+
+  /* The lead cell of a rule row: the identifier the operator scans for. */
+  .cell-lead {
+    font-family: var(--font-data);
+    font-size: 14px;
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* A destructive control does not need to shout from every row. It stays
+     legible (0.55, not 0) and comes fully forward on row hover or when focused
+     by keyboard, so tabbing never lands on something half-visible. */
+  .row-action {
+    opacity: 0.55;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+
+  .table tbody tr:hover .row-action,
+  .table tbody tr:focus-within .row-action { opacity: 1; }
+
+  /* Forwarding is a relationship, not three independent numbers. The arrow
+     makes "8080 → 80" readable as one fact instead of two columns the operator
+     has to mentally join. */
+  /* The cell has to be a flex row: .input-cell is width:100%, so an inline
+     arrow beside it wrapped onto its own line above the number. */
+  .cell-flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .flow-arrow {
+    flex-shrink: 0;
+    color: var(--color-ink-subtle);
+    font-family: var(--font-data);
+  }
+
+  /* ── Table toolbar ───────────────────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  .toolbar-spacer { margin-left: auto; }
+
+  .toolbar-count {
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
+    white-space: nowrap;
+  }
+
+  .search { position: relative; display: flex; align-items: center; }
+
+  .search svg {
+    position: absolute;
+    left: 9px;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+    color: var(--color-ink-subtle);
+  }
+
+  .search .input { padding-left: 30px; }
+
+  /* ── Sticky save bar ─────────────────────────────────────────────────────
+     A form long enough to scroll must not hide the button that commits it. */
+  .save-bar {
+    position: sticky;
+    bottom: 12px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    padding: 11px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .save-bar-note {
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+  }
+
+  /* htmx normally injects its indicator CSS as an inline <style> block, which
+     style-src 'self' rejects. includeIndicatorStyles is disabled in base.html
+     and the two rules it needs live here instead. */
+  .htmx-indicator { opacity: 0; transition: opacity var(--motion-slow) var(--motion-ease); }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator { opacity: 1; }
+
+  /* Toasts sit bottom-right, out of the way of the content being edited.
+     The container previously relied on daisyUI's .toast/.toast-end, so after
+     that dependency was removed it had no positioning at all and the messages
+     appeared inline in the document flow. */
+  .toast-container {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  /* Fade-out via class, because assigning .style.opacity would be blocked by
+     style-src 'self'. */
+  .toast-item {
+    max-width: 24rem;
+    box-shadow: var(--shadow-overlay);
+    pointer-events: auto;
+    animation: ew-fade-in var(--motion-slow) var(--motion-ease);
+    transition: opacity var(--motion-slow) var(--motion-ease);
+  }
+
+  .toast-item.is-leaving { opacity: 0; }
+
+  /* ── Status ──────────────────────────────────────────────────────────────
+     Every state carries colour *and* a word. Colour alone fails for
+     colour-blind operators and in screenshots pasted into tickets. */
   .status-dot {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 550;
   }
 
   .status-dot::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
     flex-shrink: 0;
   }
 
+  .status-dot.active {
+    color: var(--color-state-ok-on-wash);
+  }
+
   .status-dot.active::before {
-    background: var(--success);
-    box-shadow: 0 0 0 3px var(--success-dim);
-    animation: pulse-green 2s infinite;
+    background: var(--color-state-ok);
+    animation: ew-pulse-ok 2.2s infinite;
+  }
+
+  .status-dot.pending {
+    color: var(--color-state-warn-on-wash);
   }
 
   .status-dot.pending::before {
-    background: var(--warning);
-    box-shadow: 0 0 0 3px var(--warning-dim);
-    animation: pulse-amber 1.5s infinite;
+    background: var(--color-state-warn);
+    animation: ew-pulse-warn 1.6s infinite;
   }
 
-  .status-dot.inactive::before {
-    background: var(--text-subtle);
-  }
+  .status-dot.inactive { color: var(--color-ink-subtle); }
+  .status-dot.inactive::before { background: var(--color-ink-subtle); }
 
+  .status-dot.error { color: var(--color-state-crit-on-wash); }
   .status-dot.error::before {
-    background: var(--danger);
-    box-shadow: 0 0 0 3px var(--danger-dim);
+    background: var(--color-state-crit);
+    box-shadow: 0 0 0 3px var(--wash-crit);
   }
 
-  /* === Empty State === */
+  /* ── Stat tiles ────────────────────────────────────────────────────────── */
+  .stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 13px 15px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease),
+                transform var(--motion-fast) var(--motion-ease);
+  }
+
+  a.stat-tile:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+
+  a.stat-tile:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 2px;
+    border-color: var(--color-accent);
+  }
+
+  /* A metric tile earns its presence through structure and weight, not colour:
+     colour still belongs to firewall state, and a port count is not a state.
+     The icon carries the visual interest a bare number lacked. */
+  .stat-tile-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .stat-tile-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--color-ink-subtle);
+    transition: color var(--motion-instant) var(--motion-ease);
+  }
+
+  a.stat-tile:hover .stat-tile-icon { color: var(--color-accent-on-wash); }
+
+  .stat-tile-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-ink-muted);
+  }
+
+  .stat-tile-value {
+    font-family: var(--font-data);
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+
+  .stat-tile-note {
+    font-size: 12px;
+    color: var(--color-ink-subtle);
+  }
+
+  .stat-tile-value-primary { color: var(--color-accent-on-wash); }
+  .stat-tile-value-success { color: var(--color-state-ok-on-wash); }
+  .stat-tile-value-warning { color: var(--color-state-warn-on-wash); }
+  .stat-tile-value-danger  { color: var(--color-state-crit-on-wash); }
+
+  /* margin-top:auto pins the call to action to the bottom of the tile. Without it,
+     a note that wraps to two lines in one tile pushed its own CTA down and left the
+     row of six ragged — visible in German, where "nehmen Verbindungen an" wraps. */
+  .stat-tile-cta {
+    margin-top: auto;
+    padding-top: 4px;
+    font-size: 12px;
+    color: var(--color-ink-subtle);
+    transition: color var(--motion-instant) var(--motion-ease);
+  }
+
+  a.stat-tile:hover .stat-tile-cta { color: var(--color-accent-on-wash); }
+
+  /* Tiles size themselves rather than being pinned to a column count, so the
+     grid stays even at every viewport instead of leaving one orphan per row. */
+  /* 168px, not 190: at 190 a 390px-wide phone fell to a single column and the
+     six tiles became 780px of scrolling before anything else on the page. */
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 12px;
+  }
+
+  /* ── Group heading between sibling grids ─────────────────────────────────── */
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 26px 0 11px;
+  }
+
+  .group-head:first-child { margin-top: 0; }
+
+  .group-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+  }
+
+  .group-note {
+    font-size: 12.5px;
+    color: var(--color-ink-subtle);
+  }
+
+  /* ── Protection modules (options page) ───────────────────────────────────
+     Each firewall protection is a self-contained thing that is either on or
+     off and may carry its own parameters. As rows in one long list it took
+     1700px of scroll and gave no answer to the page's actual question — which
+     protections are active. As a grid of cards the answer is the shape of the
+     page: accent-edged cards are on, plain ones are off. */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+    gap: 12px;
+  }
+
+  .module {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease);
+  }
+
+  .module:hover { border-color: var(--color-rule-strong); }
+
+  /* The same 2px accent edge that marks the active nav item, so "this one is
+     live" uses one vocabulary throughout the interface. */
+  .module:has(.toggle:checked) {
+    box-shadow: inset 2px 0 0 var(--color-accent);
+  }
+
+  .module:focus-within {
+    border-color: var(--color-accent);
+  }
+
+  /* A <label> wrapping its own switch: the whole header is the hit area, so an
+     operator does not have to land on a 34px target at the far edge. */
+  /* flex: 1 so the header absorbs any height the grid row forces on the card
+     and the parameter band always sits flush at the bottom — otherwise bands
+     in the same row land at different heights whenever one description wraps. */
+  .module-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    padding: 13px 15px;
+    cursor: pointer;
+  }
+
+  .module-text { display: block; min-width: 0; flex: 1; }
+
+  .module-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 550;
+    letter-spacing: -0.005em;
+  }
+
+  .module-desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+  }
+
+  .module-params label { cursor: pointer; }
+
+  /* Parameters belong to the card, separated by a hairline — not stacked
+     underneath it on a darker fill, which read as a detached second row. */
+  .module-params {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px 16px;
+    padding: 10px 15px;
+    border-top: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+    font-size: 13px;
+  }
+
+  .module-params .input { width: 5.5rem; }
+
+  /* ── Switch row ──────────────────────────────────────────────────────────
+     For settings that are a plain on/off with no parameters. A <label>, so the
+     whole row is the hit area rather than only the switch at the far edge —
+     which was the complaint that the control sat nowhere near its caption. */
+  .switch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-rule);
+    cursor: pointer;
+  }
+
+  .switch-row:hover { background: var(--color-surface-raised); }
+
+  .switch-text { display: block; flex: 1; min-width: 0; }
+
+  .switch-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 550;
+  }
+
+  .switch-desc {
+    display: block;
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--color-ink-muted);
+  }
+
+  /* A field that belongs to the switch above it, indented under it. */
+  .switch-detail {
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+  }
+
+  .switch-detail .field-help { margin-top: 6px; }
+
+  /* ── Context column ──────────────────────────────────────────────────────
+     Carries what an operator editing firewall rules actually wants at hand:
+     what the list does, the syntax it accepts, what happens on save. */
+  .aside-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .aside-card {
+    padding: 15px 16px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+  }
+
+  .aside-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  .aside-title svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: var(--color-ink-subtle);
+  }
+
+  .aside-card p {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  .aside-card p:last-child { margin-bottom: 0; }
+
+  .aside-card code {
+    font-family: var(--font-data);
+    font-size: 11.5px;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    color: var(--color-ink);
+    white-space: nowrap;
+  }
+
+  /* Definition-list variant, for "key — value" facts such as system info. */
+  .aside-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 14px;
+    margin: 0;
+    font-size: 12.5px;
+  }
+
+  .aside-facts dt { color: var(--color-ink-subtle); }
+
+  .aside-facts dd {
+    margin: 0;
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink);
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Status hero ─────────────────────────────────────────────────────────
+     The dashboard and the apply screen both open on one question: what is the
+     firewall doing right now. It gets a panel of its own rather than being the
+     first of nine equal rectangles. */
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 20px 28px;
+    flex-wrap: wrap;
+    padding: 18px 20px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-2xl);
+  }
+
+  .hero-main { min-width: 0; }
+
+  .hero-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .hero-note {
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+  }
+
+  .hero-facts {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .hero-fact-label {
+    font-size: 12.5px;
+    color: var(--color-ink-subtle);
+  }
+
+  .hero-fact-value {
+    margin-top: 2px;
+    font-family: var(--font-data);
+    font-size: 14px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* A status dot large enough to read as the subject of the sentence. */
+  .hero-dot {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--color-ink-subtle);
+  }
+
+  .hero-dot.ok { background: var(--color-state-ok); animation: ew-pulse-ok 2.2s infinite; }
+  .hero-dot.warn { background: var(--color-state-warn); animation: ew-pulse-warn 1.6s infinite; }
+  .hero-dot.crit { background: var(--color-state-crit); box-shadow: 0 0 0 4px var(--wash-crit); }
+
+  /* ── Numbered sequence (apply screen) ────────────────────────────────────
+     Numbers here are not decoration: applying rules genuinely is a three-step
+     sequence and the order is the information. The previous markup had bold
+     titles butting directly against their descriptions with no spacing, which
+     collapsed all three steps into one wall of text. */
+  .steps {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .step::before {
+    counter-increment: step;
+    content: counter(step);
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 9999px;
+    border: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-ink-muted);
+  }
+
+  .step-title {
+    font-size: 13.5px;
+    font-weight: 550;
+  }
+
+  .step-desc {
+    margin-top: 3px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--color-ink-muted);
+  }
+
+  /* ── Activity list ───────────────────────────────────────────────────────
+     Fed from the audit log the core already keeps, so the dashboard shows
+     something that happened rather than half a screen of nothing. */
+  .activity {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* A fixed first column, so the details line up down the list instead of
+     starting wherever the previous tag happened to end. */
+  .activity-item {
+    display: grid;
+    /* max-content, not a fixed 168px: the chip is nowrap, and a longer translation
+       ("Netzwerkeinstellungen gespeichert") overflowed into the detail column.
+       The floor keeps short actions aligned; the ceiling lets long ones fit. */
+    grid-template-columns: minmax(168px, max-content) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--color-rule);
+    font-size: 13px;
+  }
+
+  .activity-item > :first-child { justify-self: start; }
+
+  @media (max-width: 560px) {
+    .activity-item {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .activity-item > :first-child { grid-column: 1 / -1; }
+  }
+
+  .activity-item:last-child { border-bottom: 0; }
+
+  .activity-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .activity-detail { color: var(--color-ink-muted); }
+
+  .activity-time {
+    font-family: var(--font-data);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
+    white-space: nowrap;
+  }
+
+  /* ── List editor (blacklist / whitelist / custom rules) ──────────────────
+     A textarea is the honest control for a list that may hold eight entries or
+     eight hundred. What it lacked was a measure and any sense of how many
+     entries it currently holds. */
+  .editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .editor textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-data);
+    font-size: 13px;
+    line-height: 1.75;
+    resize: vertical;
+  }
+
+  .editor textarea:focus,
+  .editor textarea:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: -2px;
+  }
+
+  .editor-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 9px 16px;
+    border-top: 1px solid var(--color-rule);
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+  }
+
+  /* ── Empty state ───────────────────────────────────────────────────────── */
   .empty-state {
     text-align: center;
     padding: 40px 24px;
-    color: var(--text-muted);
+    color: var(--color-ink-subtle);
   }
 
   .empty-state svg {
-    width: 40px;
-    height: 40px;
-    opacity: 0.25;
-    margin-bottom: 12px;
+    width: 30px;
+    height: 30px;
+    opacity: 0.4;
+    margin-bottom: 8px;
   }
 
-  .empty-state p {
-    font-size: 14px;
-    margin: 0;
-  }
+  .empty-state p { margin: 0; font-size: 13px; }
 
-  /* === Apply Page === */
+  /* ── Acceptance window ─────────────────────────────────────────────────────
+     easywall's most consequential screen: rules are live but unconfirmed and a
+     timer is counting down to automatic rollback. Both actions are offered
+     plainly — an operator who locked themselves out needs the escape route to
+     be as findable as the confirmation. */
   .apply-countdown {
-    font-size: 48px;
+    font-family: var(--font-data);
+    font-size: 40px;
     font-weight: 300;
-    font-family: var(--font-mono);
-    color: var(--warning);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-state-warn-on-wash);
     text-align: center;
-    margin: 20px 0;
+    margin: 18px 0;
   }
 
-  .apply-status-card {
+  .apply-status-card { text-align: center; padding: 28px 22px; }
+
+  .apply-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    padding: 32px 24px;
+    padding: 34px 24px 30px;
   }
+
+  .apply-state {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .apply-state .status-dot { font-size: inherit; font-weight: inherit; }
+
+  .apply-lead {
+    margin: 10px 0 0;
+    max-width: 52ch;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--color-ink-muted);
+  }
+
+  .apply-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 22px;
+  }
+
+  /* The step list sits inside an aside card, so it runs at aside type sizes. */
+  .aside-card .steps { gap: 13px; }
+  .aside-card .step-desc { font-size: 12px; }
 
   .apply-icon {
-    width: 56px;
-    height: 56px;
-    margin: 0 auto 16px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    border-radius: 9999px;
+    display: grid;
+    place-items: center;
   }
 
-  .apply-icon svg { width: 28px; height: 28px; }
+  .apply-icon svg { width: 26px; height: 26px; }
+
+  /* Idle is a state too. Without a variant the disc had no fill and the glyph
+     read as a stray button floating in the panel. Neutral, because nothing is
+     happening — colour here belongs to the three firewall states. */
+  .apply-icon.idle {
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    color: var(--color-ink-subtle);
+  }
 
   .apply-icon.pending {
-    background: var(--warning-dim);
-    color: var(--warning);
-    animation: pulse-amber 1.5s infinite;
+    background: var(--wash-warn);
+    color: var(--color-state-warn-on-wash);
+    animation: ew-pulse-warn 1.6s infinite;
   }
 
   .apply-icon.accepted {
-    background: var(--success-dim);
-    color: var(--success);
+    background: var(--wash-ok);
+    color: var(--color-state-ok-on-wash);
   }
 
   .apply-icon.rolled-back {
-    background: var(--danger-dim);
-    color: var(--danger);
+    background: var(--wash-crit);
+    color: var(--color-state-crit-on-wash);
   }
 
-  /* === Auth Pages (login / firstrun) === */
+  /* ── Validation results ───────────────────────────────────────────────────
+     The per-line list inside a validation alert. Was four Tailwind utilities
+     repeated at each call site; it is one thing, so it is one class. */
+  .validation-lines {
+    margin: 6px 0 0 18px;
+    list-style: disc;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .validation-lines code {
+    font-family: var(--font-data);
+    font-size: 12px;
+  }
+
+  /* ── Auth pages ────────────────────────────────────────────────────────── */
   .auth-page {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg);
     padding: 24px;
+    background: var(--color-canvas);
   }
 
   .auth-card {
     width: 100%;
     max-width: 420px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
     overflow: hidden;
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-overlay);
   }
 
   .auth-header {
-    padding: 28px 32px 24px;
-    border-bottom: 1px solid var(--border);
+    padding: 26px 30px 22px;
+    border-bottom: 1px solid var(--color-rule);
     text-align: center;
   }
 
@@ -670,327 +2095,154 @@ body {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin-bottom: 8px;
-  }
-
-  .auth-logo svg {
-    width: 32px;
-    height: 32px;
-    color: var(--accent);
   }
 
   .auth-logo-name {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
-    letter-spacing: -0.4px;
+    letter-spacing: -0.018em;
   }
 
+  /* The gap belongs to the subtitle, not the wordmark: the login header has no
+     subtitle, and a margin on .auth-logo left it padded for one that never came. */
   .auth-subtitle {
-    font-size: 14px;
-    color: var(--text-muted);
-    margin-top: 6px;
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
   }
 
-  .auth-body { padding: 28px 32px; }
+  .auth-body { padding: 26px 30px; }
 
   .auth-footer {
-    padding: 16px 32px;
-    border-top: 1px solid var(--border);
+    padding: 14px 30px;
+    border-top: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
     text-align: center;
     font-size: 12px;
-    color: var(--text-subtle);
-    background: var(--surface-2);
+    color: var(--color-ink-subtle);
   }
 
-  /* === Audit Log Action Tags === */
+  /* ── Audit log ─────────────────────────────────────────────────────────────
+     Informational actions are neutral. Earlier iterations tinted "settings
+     saved" sky blue and "rules imported" indigo — both sit inside the accent's
+     family, which made a coloured tag ambiguous: state, or just emphasis? */
   .log-time {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-muted);
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
     white-space: nowrap;
   }
 
   .log-action {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 1px 7px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-rule);
+    background: var(--color-surface-raised);
+    color: var(--color-ink-muted);
+    /* The UI face, not the data face: an action is language, not a value. This
+       used to be a second .log-action block further down overriding the first. */
+    font-family: var(--font-ui);
     font-size: 12px;
     font-weight: 500;
-    font-family: var(--font-mono);
-    background: var(--surface-2);
-    color: var(--text);
-    border: 1px solid var(--border-muted);
+    white-space: nowrap;
   }
 
-  .log-action-rules_saved,
-  .log-action-rules_applied {
-    background: var(--success-dim);
-    color: var(--success);
-    border-color: rgba(16,185,129,0.25);
+  /* Keyed on a tone the server derives from the action, not on the action
+     string itself. The previous selectors named `rules_applied` and
+     `rules_rolled_back` — identifiers only the demo client produced, so in
+     production no audit entry was ever tinted. See actionTone() in server.go. */
+  .log-action-ok {
+    background: var(--wash-ok);
+    color: var(--color-state-ok-on-wash);
+    border-color: var(--color-state-ok);
   }
 
-  /* options/settings/system saved — sky tone (info family) */
-  .log-action-options_saved,
-  .log-action-settings_saved,
-  .log-action-system_saved {
-    background: rgba(56,189,248,0.10);
-    color: #38bdf8;
-    border-color: rgba(56,189,248,0.25);
+  .log-action-warn {
+    background: var(--wash-warn);
+    color: var(--color-state-warn-on-wash);
+    border-color: var(--color-state-warn);
   }
 
-  [data-theme="easywall-light"] .log-action-options_saved,
-  [data-theme="easywall-light"] .log-action-settings_saved,
-  [data-theme="easywall-light"] .log-action-system_saved {
-    color: #0284c7;
-    background: rgba(2,132,199,0.08);
-    border-color: rgba(2,132,199,0.20);
+  .log-action-crit {
+    background: var(--wash-crit);
+    color: var(--color-state-crit-on-wash);
+    border-color: var(--color-state-crit);
   }
 
-  /* imports — indigo tone (distinct from cyan primary) */
-  .log-action-rules_imported {
-    background: rgba(129,140,248,0.10);
-    color: #a5b4fc;
-    border-color: rgba(129,140,248,0.25);
-  }
-
-  [data-theme="easywall-light"] .log-action-rules_imported {
-    color: #4f46e5;
-    background: rgba(79,70,229,0.08);
-    border-color: rgba(79,70,229,0.20);
-  }
-
-  .log-action-rules_rolled_back {
-    background: var(--danger-dim);
-    color: var(--danger);
-    border-color: rgba(244,63,94,0.25);
-  }
-
-  [data-theme="easywall-light"] .log-action-rules_rolled_back {
-    border-color: rgba(225,29,72,0.25);
-  }
+  /* Sentence case, not the raw identifier: an audit trail is read by a person. */
 
   .log-detail {
-    font-size: 13px;
-    color: var(--text-muted);
-    max-width: 240px;
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  /* === Make DaisyUI input borders more visible in dark mode ============
-     Default input-bordered uses a low-contrast token that nearly
-     disappears against the slate chrome. Boost it specifically in dark.
-     Also adds an accent ring on focus for clearer focus tracking. */
-  [data-theme="easywall-dark"] .input.input-bordered,
-  [data-theme="easywall-dark"] .textarea.textarea-bordered,
-  [data-theme="easywall-dark"] .select.select-bordered {
-    border-color: var(--border);
-  }
-
-  [data-theme="easywall-dark"] .input.input-bordered:hover,
-  [data-theme="easywall-dark"] .textarea.textarea-bordered:hover,
-  [data-theme="easywall-dark"] .select.select-bordered:hover {
-    border-color: var(--text-subtle);
-  }
-
-  .input.input-bordered:focus,
-  .textarea.textarea-bordered:focus,
-  .select.select-bordered:focus {
-    outline: 2px solid var(--accent-dim);
-    outline-offset: 1px;
-    border-color: var(--accent);
-  }
-
-  /* === DaisyUI cards — small global hover lift ========================= */
-  /* Don't over-style — only react when the card is wrapped in a link or
-     marked with .card-interactive. Avoids breaking otherwise-static cards. */
-  a.card:hover,
-  .card.card-interactive:hover {
-    border-color: var(--accent);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
-  }
-
-  [data-theme="easywall-light"] a.card:hover,
-  [data-theme="easywall-light"] .card.card-interactive:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  }
-
-  /* === Demo-mode banner — sticky strip above the topbar ================ */
-  .demo-banner {
-    display: flex;
+  /* ── Demo notice ──────────────────────────────────────────────────────────
+     Lives inside the topbar rather than as a band above it. As its own row it
+     displaced every page by its own height, which read as a layout bug. */
+  .demo-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1.25rem;
-    background: var(--surface-2);
-    border-bottom: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    backdrop-filter: blur(8px);
+    gap: 7px;
+    padding: 2px 9px 2px 7px;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-full, 9999px);
+    background: var(--color-surface-raised);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+    min-width: 0;
   }
 
-  .demo-banner strong {
-    color: var(--text);
-    font-weight: 600;
-    letter-spacing: 0.1px;
-  }
+  .demo-chip strong { color: var(--color-ink); font-weight: 600; }
 
-  .demo-banner-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-dim);
+  .demo-chip-dot {
+    width: 6px;
+    height: 6px;
     flex-shrink: 0;
-    animation: pulse-cyan 2.4s infinite;
+    border-radius: 9999px;
+    background: var(--color-accent);
   }
 
-  @keyframes pulse-cyan {
-    0%, 100% { box-shadow: 0 0 0 3px var(--accent-dim); }
-    50%      { box-shadow: 0 0 0 6px var(--accent-dim); }
-  }
-
-  .demo-banner-text {
-    color: var(--text-subtle);
-  }
-
-  .demo-banner-link {
-    margin-left: auto;
-    color: var(--accent);
-    text-decoration: none;
-    font-weight: 500;
-    padding: 2px 8px;
-    border-radius: 4px;
-    transition: background 0.15s;
-  }
-
-  .demo-banner-link:hover {
-    background: var(--accent-dim);
-    text-decoration: none;
-  }
-
-  @media (max-width: 768px) {
-    .demo-banner {
-      font-size: 0.72rem;
-      padding: 0.45rem 0.75rem;
-    }
-    .demo-banner-text { display: none; }
-  }
-
-  /* === Dashboard stat tiles — large, dramatic numbers ================== */
-  .stat-tile {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 1.1rem 1.25rem;
-    background: var(--surface);
-    border: 1px solid var(--border-muted);
-    border-radius: 12px;
-    text-decoration: none;
-    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-    position: relative;
+  .demo-chip-text {
+    color: var(--color-ink-subtle);
     overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .stat-tile::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, var(--accent-dim) 0%, transparent 60%);
-    opacity: 0;
-    transition: opacity 0.2s;
-    pointer-events: none;
+  @media (max-width: 1100px) {
+    .demo-chip-text { display: none; }
   }
 
-  .stat-tile:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.25);
-    text-decoration: none;
-  }
-
-  .stat-tile:hover::before {
-    opacity: 0.6;
-  }
-
-  [data-theme="easywall-light"] .stat-tile:hover {
-    box-shadow: 0 6px 16px rgba(0,0,0,0.06);
-  }
-
-  .stat-tile-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 1.4px;
-    font-weight: 600;
-    color: var(--text-subtle);
-    position: relative;
-  }
-
-  .stat-tile-value {
-    font-size: clamp(2.25rem, 4.5vw, 3rem);
-    font-weight: 600;
-    line-height: 1;
-    letter-spacing: -1.5px;
-    font-family: var(--font-mono);
-    position: relative;
-    margin: 0.25rem 0 0;
-  }
-
-  .stat-tile-value-primary {
-    background: linear-gradient(135deg, var(--accent) 0%, #2dd4bf 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-
-  .stat-tile-value-success { color: var(--success); }
-  .stat-tile-value-danger  { color: var(--danger); }
-
-  .stat-tile-cta {
-    font-size: 0.72rem;
-    color: var(--text-subtle);
-    margin-top: 0.25rem;
-    position: relative;
-    transition: color 0.15s, transform 0.15s;
-  }
-
-  .stat-tile:hover .stat-tile-cta {
-    color: var(--accent);
-    transform: translateX(2px);
-  }
-
-  /* === Update Banner (dashboard new-version notice) === */
+  /* ── Update banner ─────────────────────────────────────────────────────── */
   .update-banner {
-    background: var(--warning-dim);
-    border: 1px solid rgba(234,179,8,0.25);
-    border-left: 4px solid var(--warning);
-    border-radius: var(--radius);
-    padding: 10px 16px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 9px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: var(--wash-warn);
+    border: 1px solid var(--color-state-warn);
+    border-radius: var(--radius-md);
     font-size: 13px;
-    color: var(--warning);
-    margin-bottom: 20px;
+    color: var(--color-state-warn-on-wash);
   }
 
-  .update-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .update-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
 
   .update-banner a {
-    color: var(--warning);
-    font-weight: 600;
     margin-left: auto;
+    color: inherit;
+    font-weight: 600;
     text-decoration: underline;
   }
 
-  /* === Small icon utilities === */
+  /* ── Icon helpers ──────────────────────────────────────────────────────── */
   .icon-theme {
     width: 14px;
     height: 14px;
@@ -999,31 +2251,130 @@ body {
     vertical-align: -2px;
   }
 
-  .icon-sm {
-    width: 16px;
-    height: 16px;
-  }
+  .icon-sm { width: 15px; height: 15px; }
 }
 
-/* ── Responsive ─────────────────────────────────────────────────────────── */
+/* ── Responsive ────────────────────────────────────────────────────────────
+   An earlier revision of DESIGN.md had tables keep their columns and scroll
+   sideways on phones, arguing that a rule read as a list of labelled fields
+   loses the row relationship that makes it a rule. Rendering at 390px settled
+   it: the port column collapsed until `22` displayed as `2:` and every
+   description truncated mid-word. A rule whose identifier is unreadable has no
+   relationship left to preserve. Rows now reflow into cards, and the card
+   border keeps them legible as single units. */
+@media (max-width: 720px) {
+  .table-reflow thead { display: none; }
+
+  .table-reflow,
+  .table-reflow tbody,
+  .table-reflow tr,
+  .table-reflow td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-reflow tr {
+    margin: 10px;
+    padding: 4px 0;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-lg);
+  }
+
+  .table-reflow tbody tr:hover { background: var(--color-surface-raised); }
+
+  /* display:block above would otherwise beat the UA stylesheet's [hidden] rule
+     and a filtered-out row would stay on screen. */
+  .table-reflow tr[hidden] { display: none; }
+
+  .table-reflow td {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: auto;
+    min-height: 34px;
+    padding: 5px 12px;
+    border-bottom: 0;
+    text-align: left;
+  }
+
+  /* The column head travels with the value as its label. */
+  .table-reflow td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    font-size: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  .table-reflow td:not([data-label]) { justify-content: flex-end; }
+  .table-reflow td:not([data-label])::before { content: none; }
+
+  /* A free-text field does not fit in 62% of a phone's width. It gets its own
+     row, label above, so the whole description is readable without scrolling
+     inside the input. */
+  .table-reflow td.cell-wide {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .table-reflow td.cell-wide::before { flex: none; }
+
+  .table-reflow td > .input,
+  .table-reflow td > .input-cell {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+
+  /* The delete control is permanently visible here: there is no hover on a
+     touch screen to reveal it. */
+  .table-reflow .row-action { opacity: 1; }
+
+  .module-params .input { width: 5rem; }
+
+  .hero-facts { margin-left: 0; gap: 20px; }
+
+  /* A pinned 55px bar over a phone screen permanently hides one row of the
+     list being edited. On a narrow viewport the bar rides along in the flow. */
+  .save-bar { position: static; }
+}
+
 @media (max-width: 768px) {
   .sidebar {
     transform: translateX(-100%);
-    transition: transform 0.25s ease;
+    transition: transform var(--motion-slow) var(--motion-ease);
+    box-shadow: var(--shadow-overlay);
   }
 
   .sidebar.open { transform: translateX(0); }
-
   .main { margin-left: 0; }
-
   .menu-btn { display: flex; }
-
   .overlay.visible { display: block; }
-
-  .content { padding: 16px; }
+  .content { padding: 16px 14px; }
+  .demo-banner-text { display: none; }
 }
 
 @media (min-width: 769px) {
   .menu-btn { display: none; }
-  .overlay  { display: none !important; }
+  .overlay { display: none !important; }
+}
+
+/* Information must never live in the animation alone: the pending dot stays
+   visibly amber, it simply stops pulsing. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Hover lift is movement too — the border and shadow still answer the
+     pointer, the card simply stays put. */
+  .card-interactive:hover,
+  a.stat-tile:hover {
+    transform: none;
+  }
 }

@@ -38,7 +38,11 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		h.Set("Content-Security-Policy", fmt.Sprintf(
-			"default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
+			// Fonts are self-hosted (see DESIGN.md § Typography), so no external
+			// origin is permitted anywhere: easywall frequently runs on machines
+			// without outbound internet access, and an administrative interface
+			// has no business making third-party requests.
+			"default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'",
 			nonce,
 		))
 		ctx := context.WithValue(r.Context(), nonceCtxKey, nonce)

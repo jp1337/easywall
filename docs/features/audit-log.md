@@ -14,9 +14,9 @@ Navigate to **Audit Log** in the sidebar. The table displays entries newest-firs
 
 | Column | Description |
 |---|---|
-| Timestamp | Date and time the action was recorded by the core (server local time) |
+| Timestamp | When the core recorded the action, in the host's own local time. Today's entries show the clock time, older ones the day and month; hover for the full RFC 3339 value |
 | Action | The operation performed — see colour coding below |
-| Rule Type | Which rule category was affected: `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `—` for bulk operations |
+| Rule type | Which rule category was affected: `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `—` for bulk operations |
 | Detail | The specific value involved — a port number, an IP address, a CIDR, or a short description |
 | User | The web UI username that triggered the action |
 
@@ -24,27 +24,46 @@ The table itself is static — there is no live-refresh, so reload the page to s
 
 ## Filtering Entries
 
-Above the table is a search input labelled *Filter by action, detail, user…*. Typing in this box filters the rows live: with each keystroke (debounced at ~300 ms), the page sends the query to `GET /log/filter?q=…` and replaces only the table body with the matching rows. The match is case-insensitive substring across the **Action**, **Rule Type**, **Detail**, and **User** columns.
+Above the table is a search input labelled *Filter entries*. Typing in this box filters the rows live: with each keystroke (debounced at ~300 ms), the page sends the query to `GET /log/filter?q=…` and replaces only the table body with the matching rows. The match is a case-insensitive substring across the **Action** — both the stored identifier and the label you see — plus **Rule type**, **Detail** and **User**.
 
 Examples:
 
 - `alice` — show only events recorded for the user `alice`
 - `forwarding` — show only forwarding rule changes
+- `rolled back` — find rollbacks by the wording on screen, or `apply_rolledback` by the stored identifier
 - `192.168` — show entries that mention the `192.168` IP range in the detail column
 
 Clear the input to see all entries again. The filter operates on the 200 entries returned by `/log` — to search older history, read `audit.log` on disk directly.
 
 ## Action Colour Coding
 
-Actions are colour-coded to let you scan for the type of change at a glance:
+Only actions that changed the state of the firewall carry colour. Everything else —
+saving settings, importing or exporting a rule set, changing options — is shown as a
+neutral tag.
 
-| Colour | Action | Meaning |
-|---|---|---|
-| Green | `ADD` | A rule was added to the staged rule set |
-| Red | `DELETE` | A rule was removed from the staged rule set |
-| Blue | `APPLY` | Staged rules were pushed to the running firewall |
-| Orange | `ROLLBACK` | The acceptance window expired or was manually triggered — previous rules were restored |
-| Purple | `IMPORT` / `EXPORT` | A rule set was imported from or exported to a JSON file |
+That restriction is deliberate. In easywall, colour outside the blue accent family
+always means firewall state: green is live, amber is unconfirmed, red is rolled back or
+failing. If a merely informational event were tinted too, a coloured tag in the log
+would become ambiguous — is this a state, or just emphasis? Scanning the log for what
+actually happened to your firewall would get slower, not faster.
+
+| Colour | Action | Shown as | Meaning |
+|---|---|---|---|
+| Green | `apply_accepted` | Rules applied | The new rules were confirmed and are live |
+| Amber | `apply_started` | Apply started | Rules are live but unconfirmed — the acceptance window is open |
+| Red | `apply_rolledback` | Rules rolled back | The window closed without a confirmation; the previous rules were restored |
+| Red | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
+| Neutral | everything else | Rules saved, Options saved, … | Something was staged or a setting changed; nothing live moved |
+
+Note that **`rules_saved` is neutral**, not green. Saving stages a change and leaves the
+running firewall untouched, so it is not a firewall state however consequential the edit
+feels. Only the four `apply_*` actions describe what the firewall is actually doing.
+
+The log stores identifiers and the interface displays language: the entry recorded as
+`apply_rolledback` reads *Rules rolled back*. The filter box matches both, so you can type
+either what you see or what is stored.
+
+See `DESIGN.md` in the repository root for the full rule.
 
 ## Limits and Retention
 

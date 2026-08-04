@@ -11,29 +11,32 @@
     {{if .Version}}{{if .Version.UpdateAvailable}}
     <div class="update-banner">
       <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-      <span>Update available: <strong>{{.Version.Latest}}</strong></span>
-      <a href="{{.Version.ReleaseURL}}" target="_blank" rel="noopener">View release →</a>
+      <span>{{T "dashboard_update_available"}} <strong>{{.Version.Latest}}</strong></span>
+      <a href="{{.Version.ReleaseURL}}" target="_blank" rel="noopener">{{T "dashboard_view_release"}} &rarr;</a>
     </div>
     {{end}}{{end}}
 
     {{if .CoreErr}}
-    <div role="alert" class="alert alert-error alert-soft mb-4">
+    <div role="alert" class="alert alert-crit mb-4">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
-      <span>Core daemon unreachable: {{.CoreErr}}</span>
+      <span>{{T "core_unreachable"}} {{.CoreErr}}</span>
     </div>
     {{end}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "dashboard_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "dashboard_title"}}</h1>
+        <p class="page-subtitle">{{T "dashboard_subtitle"}}</p>
+      </div>
       <div class="page-actions">
         <form method="POST" action="/import" enctype="multipart/form-data" class="inline">
-          <label class="btn btn-soft cursor-pointer">
+          <label class="btn cursor-pointer">
             <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.5 2.25a.75.75 0 000 1.5V5h.5a.75.75 0 000-1.5H9.5V2.25zm1 9V10a.75.75 0 00-1.5 0v2.19l-.72-.72a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0l2-2a.75.75 0 10-1.06-1.06l-.72.72V11.25zm2.5-5.5a.75.75 0 01.75-.75h3.75a.75.75 0 010 1.5H13.75a.75.75 0 01-.75-.75zm.75 3.25a.75.75 0 000 1.5H18a.75.75 0 000-1.5h-4.25zm0 3.5a.75.75 0 000 1.5H18a.75.75 0 000-1.5h-4.25z" clip-rule="evenodd"/></svg>
             {{T "dashboard_import_rules"}}
             <input type="file" name="rules_file" accept=".json" class="hidden" onchange="this.form.submit()">
           </label>
         </form>
-        <a class="btn btn-soft" href="/export">
+        <a class="btn" href="/export">
           <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.25 2.25a.75.75 0 000 1.5H9.5v1.5H9.25a.75.75 0 000 1.5H9.5V8H2a.75.75 0 000 1.5h7.5V11H9.25a.75.75 0 000 1.5H9.5v1.75a.75.75 0 001.5 0V12.5h.25a.75.75 0 000-1.5H11V9.5h6a.75.75 0 000-1.5h-6V6.75h.25a.75.75 0 000-1.5H11V3.75h.25a.75.75 0 000-1.5h-2z" clip-rule="evenodd"/></svg>
           {{T "dashboard_export_rules"}}
         </a>
@@ -41,117 +44,173 @@
     </div>
 
     {{if .Status}}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-base-content/60">{{T "dashboard_status"}}</div>
-          <div class="text-lg font-semibold mt-1">
-            {{if .Status.Active}}
-            <span class="status-dot active">{{T "dashboard_active"}}</span>
-            {{else}}
-            <span class="status-dot inactive">Inactive</span>
-            {{end}}
-          </div>
-          <div class="text-xs text-base-content/50">Firewall daemon running</div>
+    {{/* One panel answers the page's first question, instead of it being the
+         first of nine identical rectangles. */}}
+    <div class="hero mb-4">
+      <div class="hero-main">
+        <div class="hero-state">
+          {{if .Status.Active}}
+          <span class="hero-dot ok" aria-hidden="true"></span>
+          <span>{{T "dashboard_active"}}</span>
+          {{else}}
+          <span class="hero-dot" aria-hidden="true"></span>
+          <span>{{T "state_inactive"}}</span>
+          {{end}}
         </div>
+        <p class="hero-note">
+          {{if .Status.Active}}{{T "dashboard_hero_active"}}{{else}}{{T "dashboard_hero_inactive"}}{{end}}
+        </p>
       </div>
 
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-base-content/60">{{T "dashboard_acceptance"}}</div>
-          <div class="text-lg font-semibold mt-1">
+      <div class="hero-facts">
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_acceptance"}}</div>
+          <div class="hero-fact-value">
             {{if eq (printf "%s" .Status.Acceptance) "pending"}}
-            <span class="status-dot pending">Pending</span>
+            <span class="status-dot pending">{{T "state_pending"}}</span>
             {{else if eq (printf "%s" .Status.Acceptance) "accepted"}}
-            <span class="status-dot active">Accepted</span>
+            <span class="status-dot active">{{T "state_accepted"}}</span>
             {{else if eq (printf "%s" .Status.Acceptance) "rolled_back"}}
-            <span class="status-dot error">Rolled Back</span>
+            <span class="status-dot error">{{T "state_rolled_back"}}</span>
             {{else}}
-            <span class="status-dot inactive">Idle</span>
+            <span class="status-dot inactive">{{T "state_idle"}}</span>
             {{end}}
           </div>
-          {{if eq (printf "%s" .Status.Acceptance) "pending"}}
-          <div class="mt-2">
-            <a href="/apply" class="btn btn-success btn-sm">Confirm Rules →</a>
+        </div>
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_pending"}}</div>
+          <div class="hero-fact-value">
+            {{if .Status.HasPending}}<span class="chip chip-warn">{{T "state_unapplied"}}</span>{{else}}{{T "state_none"}}{{end}}
           </div>
-          {{end}}
+        </div>
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_last_apply"}}</div>
+          <div class="hero-fact-value">{{if .Status.LastApply}}<span title="{{.Status.LastApply}}">{{shortTime .Status.LastApply}}</span>{{else}}&mdash;{{end}}</div>
         </div>
       </div>
 
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-base-content/60">{{T "dashboard_pending"}}</div>
-          <div class="text-lg font-semibold mt-1">
-            {{if .Status.HasPending}}
-            <span class="badge badge-warning badge-soft">Yes</span>
-            {{else}}
-            <span class="badge badge-soft">None</span>
-            {{end}}
-          </div>
-          {{if .Status.HasPending}}
-          <div class="mt-2">
-            <a href="/apply" class="btn btn-primary btn-sm">Apply Changes →</a>
-          </div>
-          {{end}}
-        </div>
+      {{if or .Status.HasPending (eq (printf "%s" .Status.Acceptance) "pending")}}
+      <div class="hero-actions">
+        <a href="/apply" class="btn btn-primary">
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
+          {{if eq (printf "%s" .Status.Acceptance) "pending"}}{{T "apply_confirm_action"}}{{else}}{{T "apply_changes_action"}}{{end}}
+        </a>
       </div>
-
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body p-4 gap-1">
-          <div class="text-xs uppercase tracking-wider text-base-content/60">{{T "dashboard_last_apply"}}</div>
-          <div class="text-sm font-mono font-medium mt-1">
-            {{if .Status.LastApply}}{{.Status.LastApply}}{{else}}—{{end}}
-          </div>
-        </div>
-      </div>
+      {{end}}
     </div>
     {{end}}
 
     {{if .Counts}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-      <a href="/ports" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_tcp_ports"}}</div>
-        <div class="stat-tile-value stat-tile-value-primary">{{.Counts.TCP}}</div>
-        <div class="stat-tile-cta">Manage →</div>
+    <div class="group-head">
+      <h2 class="group-title">{{T "dashboard_rulesets"}}</h2>
+      <span class="group-note">{{T "dashboard_rulesets_note"}}</span>
+    </div>
+
+    <div class="tile-grid mb-4">
+      <a href="/ports?type=tcp" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_tcp_ports"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.TCP}}</div>
+        <div class="stat-tile-note">{{T "tile_tcp_note"}}</div>
+        <div class="stat-tile-cta">{{T "tile_manage"}} &rarr;</div>
       </a>
-      <a href="/ports" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_udp_ports"}}</div>
-        <div class="stat-tile-value stat-tile-value-primary">{{.Counts.UDP}}</div>
-        <div class="stat-tile-cta">Manage →</div>
+      <a href="/ports?type=udp" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_udp_ports"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.UDP}}</div>
+        <div class="stat-tile-note">{{T "tile_udp_note"}}</div>
+        <div class="stat-tile-cta">{{T "tile_manage"}} &rarr;</div>
       </a>
       <a href="/blacklist" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_blacklist"}}</div>
-        <div class="stat-tile-value stat-tile-value-danger">{{.Counts.Blacklist}}</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_blacklist"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.Blacklist}}</div>
+        <div class="stat-tile-note">{{T "tile_blacklist_note"}}</div>
+        <div class="stat-tile-cta">{{T "tile_manage"}} &rarr;</div>
       </a>
       <a href="/whitelist" class="stat-tile">
-        <div class="stat-tile-label">{{T "dashboard_whitelist"}}</div>
-        <div class="stat-tile-value stat-tile-value-success">{{.Counts.Whitelist}}</div>
-        <div class="stat-tile-cta">Manage →</div>
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_whitelist"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.Whitelist}}</div>
+        <div class="stat-tile-note">{{T "tile_whitelist_note"}}</div>
+        <div class="stat-tile-cta">{{T "tile_manage"}} &rarr;</div>
+      </a>
+      <a href="/custom" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_custom"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.Custom}}</div>
+        <div class="stat-tile-note">{{T "tile_custom_note"}}</div>
+        <div class="stat-tile-cta">{{T "tile_manage"}} &rarr;</div>
+      </a>
+      <a href="/forwarding" class="stat-tile">
+        <div class="stat-tile-top">
+          <span class="stat-tile-label">{{T "dashboard_forwarding"}}</span>
+          <svg class="stat-tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+        </div>
+        <div class="stat-tile-value">{{.Counts.Forwarding}}</div>
+        <div class="stat-tile-note">{{T "tile_forwarding_note"}}</div>
+        <div class="stat-tile-cta">{{T "tile_manage"}} &rarr;</div>
       </a>
     </div>
     {{end}}
 
-    <div class="card bg-base-200 border border-base-300 shadow-sm">
-      <div class="card-body">
-        <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">Quick Actions</h2>
-        <div class="flex gap-2 flex-wrap mt-2">
-          <a href="/ports" class="btn btn-soft btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 014.25 2h11.5A2.25 2.25 0 0118 4.25v8.5A2.25 2.25 0 0115.75 15h-3.105a3.501 3.501 0 001.1 1.677A.75.75 0 0113.26 18H6.74a.75.75 0 01-.484-1.323A3.501 3.501 0 007.355 15H4.25A2.25 2.25 0 012 12.75v-8.5z" clip-rule="evenodd"/></svg>
-            Manage Ports
-          </a>
-          <a href="/blacklist" class="btn btn-soft btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
-            Blacklist IPs
-          </a>
-          <a href="/whitelist" class="btn btn-soft btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-            Whitelist IPs
-          </a>
-          <a href="/apply" class="btn btn-primary btn-sm">
-            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
-            Apply Rules
-          </a>
+    <div class="page-grid">
+      <div class="card">
+        <div class="section-head">
+          <div class="section-head-text">
+            <h2 class="section-title">{{T "dashboard_activity"}}</h2>
+            <p class="section-desc">{{T "dashboard_activity_desc"}}</p>
+          </div>
+          <div class="section-head-actions">
+            <a class="btn btn-sm" href="/log">{{T "dashboard_full_log"}}</a>
+          </div>
+        </div>
+        {{if .Recent}}
+        <div class="activity">
+          {{range .Recent}}
+          <div class="activity-item">
+            <span class="log-action{{with actionTone .Action}} log-action-{{.}}{{end}}">{{actionLabel .Action}}</span>
+            <span class="activity-text">
+              {{if .RuleType}}<span class="badge">{{.RuleType}}</span>{{end}}
+              {{if .Detail}}<span class="activity-detail">{{detailLabel .Detail}}</span>{{end}}
+            </span>
+            <span class="activity-time" title="{{.Time}}">{{shortTime .Time}}</span>
+          </div>
+          {{end}}
+        </div>
+        {{else}}
+        <div class="empty-state">
+          <p>{{T "dashboard_activity_empty"}}</p>
+        </div>
+        {{end}}
+      </div>
+
+      <div class="aside-stack">
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            {{T "dashboard_staging_title"}}
+          </h2>
+          <p>{{T "dashboard_staging_body"}}</p>
+          <p>{{T "dashboard_staging_note"}}</p>
+        </div>
+
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
+            {{T "dashboard_lockout_title"}}
+          </h2>
+          <p>{{richText (T "dashboard_lockout_body") "/whitelist" (T "link_whitelist")}}</p>
         </div>
       </div>
     </div>

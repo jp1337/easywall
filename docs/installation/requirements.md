@@ -94,7 +94,10 @@ easywall v1 used iptables. v2 uses nftables. Before installing v2:
 ## Not Required
 
 - Python, pip, or any Python runtime
-- Node.js or npm
+- Node.js or npm — the stylesheet is compiled and shipped; the toolchain is only needed to rebuild it while developing
 - Any database (SQLite, PostgreSQL, etc.)
 - Docker (unless you use the Docker deployment option)
 - Go toolchain on the target server — install the pre-built binary or `.deb` package
+- **Outbound internet access.** The interface serves its own fonts, stylesheet and
+  scripts, so it renders correctly on an air-gapped host. Only the optional update
+  check contacts the network, and it fails quietly when it cannot.

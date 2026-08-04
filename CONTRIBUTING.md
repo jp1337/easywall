@@ -80,13 +80,83 @@ Breaking changes: add `BREAKING CHANGE:` in the footer.
 
 1. Copy `locales/en.json` to `locales/<lang>.json`
 2. Translate all values (keep the `id` fields unchanged)
-3. Open a PR with the subject: `feat(i18n): add <language> translation`
+3. Translate `language_name` into that language's **own** name — `Deutsch`, not
+   `German`. It is what the switch in the sidebar shows, whatever language the
+   interface is currently in.
+4. Open a PR with the subject: `feat(i18n): add <language> translation`
+
+Nothing else is needed: the switch is built from whatever `locales/*.json`
+contains. `TestLocaleFilesAreAtParity` and `TestTemplatesOnlyUseTranslatedKeys`
+will tell you about anything you missed.
+
+Three forms appear inside translations, and all three must survive into your
+language:
+
+| In the message | Renders as | Note |
+|---|---|---|
+| `` `443` `` | `<code>443</code>` | literals: ports, CIDRs, nftables statements |
+| `*before*` | `<em>before</em>` | emphasis that carries meaning, not decoration |
+| `{}` | a link | one per link, **in your language's word order** |
+
+The `{}` slots are filled in the order the template passes them, but you decide
+where they sit in the sentence — German puts "Die Sperrliste wird zuerst
+geprüft" with the link first where English has it third. `{{.Name}}` placeholders
+are values the page substitutes and must be kept verbatim.
 
 ## Code Style
 
 - Follow standard Go conventions (`gofmt`, `golangci-lint`)
 - No comments explaining *what* code does — only *why* when non-obvious
 - No half-finished features behind flags — implement completely or not at all
+
+## Styling
+
+The user interface follows [`DESIGN.md`](DESIGN.md) in the repository root. It is the
+single source of truth for colour, typography, spacing, radii, motion and components —
+read it before touching anything visual.
+
+- **Never write a colour into a template.** Use the tokens: `bg-surface`,
+  `text-ink-muted`, `border-rule`, and so on. Tailwind generates these from the
+  `@theme` block in `web/src/app.css`.
+- **Green, amber and red are reserved for firewall state** — live, unconfirmed, rolled
+  back. They are never decorative, and there is no informational colour.
+- **The accent is rationed** to what is focused, what is active, and the one primary
+  action on a page.
+- **A control's outline uses `control-edge`; a container's uses `rule`.** WCAG 2.1
+  SC 1.4.11 wants 3:1 for anything you can operate, and in this system the fill of a
+  field sits ~1.05:1 from the panel behind it — the border is the whole affordance.
+  Hover on a control goes to `ink-subtle`, because `rule-strong` is *weaker* than
+  `control-edge` and would fade the outline you just pointed at.
+- **Every visible string goes through `{{T "key"}}`,** with the text added to *both*
+  `locales/en.json` and `locales/de.json` — including `placeholder`, `aria-label`
+  and `title`. A sentence with a link or a `code` span stays *one* message and uses
+  `richText`; splitting it into fragments around the anchor does not survive
+  translation. Text that `app.js` builds needs its key in `clientStringKeys`.
+  Hardcoding English is how a bilingual product ends up half-translated.
+- Both themes must work. Check light mode as well as dark before opening a PR.
+- **Sentence case, in Inter.** Panel headings and table column heads are language, not
+  data. The tracked uppercase mono `label` role is retired everywhere except the sidebar's
+  two nav dividers — do not reintroduce it.
+- **A table must reflow.** Below 720px rows become labelled cards, which works only if
+  every `<td>` carries a `data-label`. If you add a column, add the attribute — and if you
+  build rows in `app.js` too, read the label out of the `<thead>` so it stays translated.
+- **One heading per thing.** A page title followed by a card titled the same thing is the
+  duplicate-heading bug, not structure.
+- There is no third-party component library. If you need a component that does not
+  exist, add it to `DESIGN.md` first, then implement it from those tokens.
+- **Verify by rendering, not by reading the CSS.** Every significant defect in this
+  interface — a clipped port number, a class name that no longer existed, an arrow that
+  wrapped onto its own line — was invisible in the stylesheet and obvious in a screenshot.
+  Load the pages you touched, in both themes, at a phone width as well as a desktop one.
+- Rebuild the stylesheets after changing them — the compiled files are committed:
+
+  ```bash
+  npm run build:css        # web/static/style.css
+  npm run build:docs-css   # docs/assets/css/style.css
+  ```
+
+Validate the design system itself with `npx @google/design.md lint DESIGN.md`. Some
+warnings are expected and are explained inside the file.
 
 ## Security Issues
 

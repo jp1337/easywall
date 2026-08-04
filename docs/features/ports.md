@@ -12,11 +12,16 @@ The **Ports** page manages which TCP and UDP ports are open on the firewall. All
 
 1. Navigate to **Ports** in the sidebar
 2. Select the protocol tab — **TCP** or **UDP**
-3. Enter the port number or range in the **Port** field
-4. Optionally enter a human-readable **Description** (e.g. `HTTPS`, `Game server`)
-5. Check **SSH** if this port runs an SSH server (see [SSH Protection](#ssh-protection))
-6. Click **Save**
-7. Go to **Apply** to activate the new rules with two-step confirmation
+3. Click **Add port** — a new row appears with the cursor in the **Port** field
+4. Enter the port number or range
+5. Tick **SSH protection** if this port runs an SSH server (see [SSH Protection](#ssh-protection))
+6. Optionally enter a **Description** (e.g. `HTTPS`, `Game server`)
+7. Click **Save changes**
+8. Go to **Apply** to activate the new rules with two-step confirmation
+
+With more than a screenful of rules, the **Filter ports** box above the table narrows the
+list by port number or description as you type. It filters what is already on the page, so
+unsaved edits are preserved.
 
 ### Port Formats
 

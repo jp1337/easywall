@@ -7,13 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-08-03
+
 ### Added
 
 - **Public demo at [easywall.wdkro.de](https://easywall.wdkro.de)** — login with `demo` / `demo`. Auto-redeployed on every successful CI build of `main` via the new `publish-edge` workflow + Watchtower hook on the demo host. Container restarts every 6 hours to wipe accumulated visitor state. Linked from the hero CTA and the bottom CTA card on the homepage
 - **Multi-registry container publishing** — every release is now pushed to **GitHub Container Registry, Docker Hub, and Quay.io** simultaneously. Same multi-arch (`linux/amd64` + `linux/arm64`) image, byte-for-byte identical across all three mirrors. Pull from whichever is closest to your environment
 - **`:edge` rolling tag for the public demo** — new `.github/workflows/publish-edge.yml` builds and publishes after every successful CI on `main`, then triggers Watchtower on the demo host to pull the new digest. The four-tag scheme (`:latest` for releases, `:vX.Y.Z` for pinning, `:edge` for nightly, `:sha-<commit>` for rollback debugging) is documented on the Docker installation page
-- Documentation site (jp1337.github.io/easywall) now uses **the same stack as the app**: Tailwind CSS v4 + DaisyUI 5.5 with the same Aurora Operator palette, Outfit + JetBrains Mono fonts, and `easywall-dark`/`easywall-light` theme tokens shared with the running web UI. Previous 693-line hand-rolled stylesheet replaced by `web/src/docs.css` compiled to `docs/assets/css/style.css` via `make docs-css`. The old IBM Plex typography is gone; the docs feel like a natural extension of the firewall UI
+- Documentation site (jp1337.github.io/easywall) now uses **the same stack as the app**: Tailwind CSS v4 with the same palette, fonts and `easywall-dark`/`easywall-light` theme tokens as the running web UI. Previous 693-line hand-rolled stylesheet replaced by `web/src/docs.css` compiled to `docs/assets/css/style.css` via `make docs-css`
 - **Demo mode** — set `demo_mode = true` in `web.toml` and `easywall-web` runs against an in-memory mock instead of the Unix socket. No `easywall-core` process, no root privileges, no nftables dependency. The state machine seeds itself with realistic example data and supports every page (rules, options, settings, system, audit log, apply/accept/rollback). Designed for hosting a public demo so visitors can explore the UI without affecting a real firewall. State resets when the process restarts. A topbar banner makes the demo status visible on every page
+- **Language switch in the interface** — one button per installed locale in the sidebar footer, and on the login and first-run cards, so an operator who cannot read the interface can still change it before signing in. The choice is stored in an `easywall_lang` cookie for a year and outranks `Accept-Language`. Each locale names itself through a `language_name` key, so a language always appears under its own name. Adding `locales/<lang>.json` is all it takes for it to appear
+- **The interface is fully translated.** Every visible string — page copy, context cards, placeholders, `aria-label`s, empty states, toasts, audit actions, validation messages — goes through the message catalogue in English and German. Sentences containing a link or a literal stay one message with `{}` and `` ` `` markers so a translator controls word order
+- `<html lang>` now reports the language actually served instead of always `en` (WCAG 2.1 SC 3.1.1)
+
+### Changed
+
+- **The interface was rebuilt on a written design system.** `DESIGN.md` in the repository root is now the single source of truth for colour, typography, spacing, radii, motion and components, validated with `@google/design.md`. daisyUI is gone: it contributed 14 components against 107 hand-written rules, and every exact requirement in the spec — control heights, the focus ring, control outlines — was an override. Tailwind v4 stays, with the tokens declared once in `@theme` so a template names `bg-surface`, never a colour. The compiled stylesheet dropped from 95 KB to 48 KB
+- **Graphite + ice palette, dual theme.** Green, amber and red are reserved for firewall state — live, unconfirmed, rolled back — so colour in the interface always means something about the firewall. The accent marks only what is focused, what is active, and the one primary action
+- **Fonts are self-hosted.** Inter and JetBrains Mono are subset and served from `web/static/fonts/`, so `style-src` and `font-src` are now `'self'` with no exceptions. The interface no longer makes a third-party request, and typography survives on an air-gapped host
+- Pages are full-width with a context column beside the rule editors, tables reflow into labelled cards below 720px, and the protection modules on the options page are a self-sizing card grid rather than a single column of two-storey rows
+- `language` in `web.toml` is now the *fallback* locale rather than the default. An explicit choice in the interface wins, then `Accept-Language`, then this setting
+
+### Fixed
+
+- **Live validation rendered unstyled.** The blacklist, whitelist and custom-rule editors emitted `alert-success`, `alert-error`, `alert-info` and `alert-soft` — daisyUI class names that stopped existing when daisyUI was removed. Every validation response an operator has seen since was a box with no colour, on the three pages where "did that parse?" is the entire question. The tests asserted the same dead names and passed throughout
+- **The audit log's colour coding never worked in production.** The stylesheet keyed on `rules_applied` and `rules_rolled_back`, names only the demo client produced. The core writes `apply_accepted`, `apply_rolledback`, `apply_started` and `apply_failed`, so a rolled-back apply — the most consequential line in the log — rendered neutral grey
+- **The demo told every visitor their nftables syntax was valid.** It has no `nft` binary and answered "no errors" whatever was typed. It now reports the checker as unavailable, which is true. The documentation claimed a notice already made this clear; it did not
+- **Text fields and secondary buttons failed WCAG 2.1 SC 1.4.11.** Their borders measured 1.20–1.35:1 where the criterion requires 3:1, and the field fill sits ~1.05:1 from the panel behind it, so the border carried the whole affordance. On the login page the password field was effectively an unmarked rectangle. Toggles and checkboxes had already been fixed; every other control was missed
+- **`docs/features/blacklist.md` stated twice that the whitelist overrides the blacklist.** The code drops blacklisted sources first, as the same page's own ordering table shows. A reader trusting the prose could have locked themselves out
+- The audit log filter searched only the stored identifier, so typing the wording shown on screen returned nothing
+- Entry counters in the list editors counted comment and blank lines as entries
+- The theme switch had no accessible state and a label that named neither of its two positions; it is now a `role="switch"` labelled "Light mode"
+- Light-mode `ink-subtle` failed AA on two of three grounds; raised to `#666e7b`
+- `--form-max` was referenced by `.content-narrow` and `.form-stack` but never declared, so neither had any effect
+- The first-run screen printed its own subtitle again as a notice; it now carries the one thing an operator cannot look up once locked out — that this is the only account, and resetting it needs shell access
+
+[2.4.0]: https://github.com/jp1337/easywall/compare/v2.3.0...v2.4.0
 
 ## [2.3.0] - 2026-05-03
 

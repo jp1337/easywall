@@ -7,72 +7,104 @@
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "ports_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "ports_title"}}</h1>
+        <p class="page-subtitle">{{T "ports_subtitle"}}</p>
+      </div>
     </div>
 
     {{with .Data}}
-    <div role="tablist" class="tabs tabs-box bg-base-200 border border-base-300 inline-flex p-1 mb-4">
-      <a role="tab" class="tab {{if eq .RuleType "tcp"}}tab-active{{end}}" href="/ports?type=tcp">{{T "ports_tcp"}}</a>
-      <a role="tab" class="tab {{if eq .RuleType "udp"}}tab-active{{end}}" href="/ports?type=udp">{{T "ports_udp"}}</a>
+    <div role="tablist" class="tabs mb-4">
+      <a role="tab" class="tab {{if eq .RuleType "tcp"}}is-active{{end}}" href="/ports?type=tcp">{{T "ports_tcp"}}</a>
+      <a role="tab" class="tab {{if eq .RuleType "udp"}}is-active{{end}}" href="/ports?type=udp">{{T "ports_udp"}}</a>
     </div>
 
     <form method="POST" action="/ports" id="ports-form">
       <input type="hidden" name="type" value="{{.RuleType}}">
       <input type="hidden" name="rules" id="rules-json" value="">
 
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body p-0">
-          <div class="px-6 py-4 flex items-center justify-between border-b border-base-300">
-            <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">
-              {{if eq .RuleType "udp"}}{{T "ports_udp"}}{{else}}{{T "ports_tcp"}}{{end}} Port Rules
-            </h2>
-            <button type="button" id="add-rule-btn" class="btn btn-soft btn-sm">
-              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
-              {{T "ports_add"}}
-            </button>
+      <div class="page-grid">
+        <div>
+          <div class="card">
+            <div class="toolbar">
+              <div class="search">
+                <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+                <input type="search" class="input input-sm w-64" id="rules-filter"
+                       placeholder="{{T "ports_filter"}}" aria-label="{{T "ports_filter_label"}}">
+              </div>
+              <span class="toolbar-spacer"></span>
+              <span class="toolbar-count" id="rules-count">{{$n := len .Rules}}{{$n}} {{plural $n (T "count_rule_one") (T "count_rule_many")}}</span>
+              <button type="button" id="add-rule-btn" class="btn btn-sm">
+                <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
+                {{T "ports_add"}}
+              </button>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table table-reflow">
+                <thead>
+                  <tr>
+                    <th class="col-port">{{T "ports_port"}}</th>
+                    <th class="col-toggle">{{T "ports_ssh"}}</th>
+                    <th class="col-flex">{{T "ports_description"}}</th>
+                    <th class="col-actions"><span class="sr-only">{{T "table_actions"}}</span></th>
+                  </tr>
+                </thead>
+                <tbody id="rules-tbody">
+                  {{range $i, $r := .Rules}}
+                  <tr data-idx="{{$i}}">
+                    <td data-label="{{T "ports_port"}}"><input class="f-port input-cell input-cell-data" type="text" value="{{$r.Port}}" placeholder="{{T "ports_port_hint"}}" aria-label="{{T "ports_port"}}"></td>
+                    <td data-label="{{T "ports_ssh"}}"><input class="f-ssh checkbox" type="checkbox" {{if $r.SSH}}checked{{end}} aria-label="{{T "ports_ssh"}}"></td>
+                    <td class="cell-wide" data-label="{{T "ports_description"}}"><input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}"></td>
+                    <td>
+                      <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="{{T "action_remove_rule"}}">
+                        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                      </button>
+                    </td>
+                  </tr>
+                  {{end}}
+                </tbody>
+              </table>
+              {{if not .Rules}}
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3"/></svg>
+                <p>{{T "ports_empty" (dict "Type" .RuleType)}}</p>
+              </div>
+              {{end}}
+              <div class="empty-state" id="rules-no-match" hidden>
+                <p>{{T "filter_no_match"}}</p>
+              </div>
+            </div>
           </div>
 
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>{{T "ports_port"}}</th>
-                  <th>{{T "ports_description"}}</th>
-                  <th class="text-center">{{T "ports_ssh"}}</th>
-                  <th class="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="rules-tbody">
-                {{range $i, $r := .Rules}}
-                <tr data-idx="{{$i}}">
-                  <td><input class="f-port input input-bordered input-sm w-36 font-mono" type="text" value="{{$r.Port}}" placeholder="80 or 8000:9000"></td>
-                  <td><input class="f-desc input input-bordered input-sm w-52" type="text" value="{{$r.Description}}" placeholder="Description"></td>
-                  <td class="text-center"><input class="f-ssh checkbox checkbox-primary checkbox-sm" type="checkbox" {{if $r.SSH}}checked{{end}}></td>
-                  <td class="text-right">
-                    <button type="button" class="btn btn-ghost btn-sm del-rule text-error" title="Remove">
-                      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                    </button>
-                  </td>
-                </tr>
-                {{end}}
-              </tbody>
-            </table>
-            {{if not .Rules}}
-            <div class="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3"/></svg>
-              <p>No {{.RuleType}} port rules yet. Click <strong>Add Port</strong> to create one.</p>
-            </div>
-            {{end}}
+          <div class="save-bar">
+            <button type="submit" class="btn btn-primary">
+              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+              {{T "ports_save"}}
+            </button>
+            <span class="save-bar-note">{{richText (T "staged_note") "/apply" (T "link_apply_rules")}}</span>
           </div>
         </div>
-      </div>
 
-      <div class="flex items-center gap-4 mt-4">
-        <button type="submit" class="btn btn-primary">
-          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-          {{T "ports_save"}}
-        </button>
-        <span class="text-sm text-base-content/60">Changes are staged until you <a href="/apply" class="link link-primary">apply rules</a>.</span>
+        <div class="aside-stack">
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+              {{T "ports_syntax_title"}}
+            </h2>
+            <p>{{richText (T "ports_syntax_body")}}</p>
+            <p>{{richText (T "ports_scope_body") "/whitelist" (T "link_whitelist") "/custom" (T "link_custom_rule")}}</p>
+          </div>
+
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
+              {{T "ports_ssh_card_title"}}
+            </h2>
+            <p>{{T "ports_ssh_card_body"}}</p>
+            <p>{{richText (T "ports_ssh_card_note") "/options" (T "link_options")}}</p>
+          </div>
+        </div>
       </div>
     </form>
 
