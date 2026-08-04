@@ -41,7 +41,9 @@ The editor performs **live syntax validation** as you type — invalid lines are
 
 ## Whitelist
 
-IPs and CIDRs on the whitelist are **always allowed**, bypassing all port rules, the blacklist, and all protection modules.
+IPs and CIDRs on the whitelist are accepted before the port rules are consulted, so a whitelisted address reaches any port — including one you never opened — and skips the protection modules.
+
+It does **not** override the blacklist. As the [rule ordering](#rule-ordering) below shows, the blacklist is evaluated first, so an address present in both lists is dropped.
 
 Use this for trusted management addresses to ensure you are never locked out, even if you accidentally close the SSH port or trigger a rate-limit rule.
 
@@ -66,7 +68,7 @@ The whitelist editor uses the same live IP/CIDR validation as the blacklist — 
   <svg class="callout-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
   <div class="callout-content">
     <strong>Warning</strong>
-    <p>Whitelisted IPs bypass <strong>all</strong> firewall rules — including the blacklist, SSH brute-force protection, and connection limits. Only add addresses you fully trust and control.</p>
+    <p>Whitelisted IPs reach every port and skip the protection modules, including SSH brute-force protection and connection limits. They do not bypass the blacklist, which is evaluated first. Only add addresses you fully trust and control.</p>
   </div>
 </div>
 

@@ -1,6 +1,12 @@
 /* ── easywall documentation site stylesheet ────────────────────────────
-   Mirrors the app's stack (Tailwind v4 + DaisyUI 5.5) and theme so the
-   docs feel like a natural extension of the firewall UI.
+   Palette and typography come from DESIGN.md in the repo root — the same
+   source the application uses. The values are duplicated here rather than
+   imported because Tailwind v4 cannot share a theme across two entry points;
+   when DESIGN.md changes, both stylesheets must be updated.
+
+   daisyUI was removed along with the application's dependency on it: the docs
+   chrome is hand-rolled and never used a daisyUI component.
+
    Compiled with: npx @tailwindcss/cli -i web/src/docs.css -o docs/assets/css/style.css --minify */
 
 @import "tailwindcss";
@@ -9,114 +15,89 @@
    files so we don't pull in app-template patterns (and vice versa). */
 @source "../../docs/**/*.{html,md}";
 
-@plugin "daisyui" {
-  themes: easywall-dark --default --prefersdark, easywall-light;
-  root: ":root";
-  exclude: rootscrollgutter;
+/* Self-hosted, same subsets the application ships. Paths are relative to the
+   compiled stylesheet at docs/assets/css/, so they survive the GitHub Pages
+   baseurl prefix. */
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/inter-var.woff2") format("woff2-variations");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
 }
 
-/* ── DaisyUI Themes — identical palette to the app ───────────────────── */
-@plugin "daisyui/theme" {
-  name: "easywall-dark";
-  default: true;
-  prefersdark: true;
-  color-scheme: dark;
-  --color-base-100: #0a0f1c;
-  --color-base-200: #111828;
-  --color-base-300: #1a2238;
-  --color-base-content: #e4ebf5;
-  --color-primary: #22d3ee;
-  --color-primary-content: #042a36;
-  --color-secondary: #64748b;
-  --color-secondary-content: #e4ebf5;
-  --color-accent: #2dd4bf;
-  --color-accent-content: #042a23;
-  --color-neutral: #243353;
-  --color-neutral-content: #e4ebf5;
-  --color-info: #38bdf8;
-  --color-info-content: #042c3d;
-  --color-success: #10b981;
-  --color-success-content: #042916;
-  --color-warning: #f59e0b;
-  --color-warning-content: #2a1d04;
-  --color-error: #f43f5e;
-  --color-error-content: #2a0612;
-  --radius-selector: 8px;
-  --radius-field: 8px;
-  --radius-box: 12px;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../fonts/jetbrains-mono-var.woff2") format("woff2-variations");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
 }
 
-@plugin "daisyui/theme" {
-  name: "easywall-light";
-  color-scheme: light;
-  --color-base-100: #ffffff;
-  --color-base-200: #f1f5f9;
-  --color-base-300: #e2e8f0;
-  --color-base-content: #0f172a;
-  --color-primary: #0891b2;
-  --color-primary-content: #ffffff;
-  --color-secondary: #475569;
-  --color-secondary-content: #ffffff;
-  --color-accent: #0d9488;
-  --color-accent-content: #ffffff;
-  --color-neutral: #0f172a;
-  --color-neutral-content: #ffffff;
-  --color-info: #0284c7;
-  --color-info-content: #ffffff;
-  --color-success: #059669;
-  --color-success-content: #ffffff;
-  --color-warning: #d97706;
-  --color-warning-content: #ffffff;
-  --color-error: #e11d48;
-  --color-error-content: #ffffff;
-  --radius-selector: 8px;
-  --radius-field: 8px;
-  --radius-box: 12px;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
-}
-
-/* ── Layout-specific tokens used by hand-rolled chrome ───────────────── */
+/* ── Tokens — Graphite + Ice, dark by default ─────────────────────────────
+   The chrome below refers to these short names; only the values changed when
+   the design system did. */
 :root {
-  --font-sans:    'Outfit', 'Helvetica Neue', sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans:    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --sidebar-w:    260px;
 
-  --bg:           #0a0f1c;
-  --surface:      #111828;
-  --surface-2:    #1a2238;
-  --surface-3:    #243353;
-  --border:       #2d3b5a;
-  --border-muted: #1a2238;
-  --text:         #e4ebf5;
-  --text-muted:   #8595b0;
-  --text-subtle:  #5a6b85;
-  --accent:       #22d3ee;
-  --accent-dim:   rgba(34,211,238,0.10);
-  --accent-hover: rgba(34,211,238,0.18);
+  --bg:           #0a0b0f;
+  --surface:      #111318;
+  --surface-2:    #181b22;
+  --surface-3:    #252932;
+  --border:       #252932;
+  --border-muted: #181b22;
+  /* Mirrors control-edge in DESIGN.md. --border is a separator and may be quiet;
+     a button's outline may not — at --border it measured 1.28:1 against the
+     surface behind it, where WCAG 2.1 SC 1.4.11 wants 3:1. */
+  --control-edge: #5e636e;
+  --text:         #f1f3f6;
+  --text-muted:   #a2aab8;
+  --text-subtle:  #7d8593;
+  --accent:       #8fd3fb;
+  --accent-on:    #8fd3fb;
+  --accent-dim:   rgba(143,211,251,0.13);
+  --accent-hover: rgba(143,211,251,0.20);
+
+  --state-ok:     #3ecf8e;
+  --state-warn:   #e5a54b;
+  --state-crit:   #f2555a;
+
+  /* Syntax highlighting is its own semantic domain — a docs page carries no
+     firewall state, so the state hues are free to be reused for code tokens. */
+  --code-keyword: #8fd3fb;
+  --code-string:  #3ecf8e;
+  --code-number:  #e5a54b;
+  --code-builtin: #a2aab8;
+  --code-error:   #f2555a;
 }
 
 [data-theme="easywall-light"] {
-  --bg:           #f8fafc;
+  --bg:           #fcfcfd;
   --surface:      #ffffff;
-  --surface-2:    #f1f5f9;
-  --surface-3:    #e2e8f0;
-  --border:       #cbd5e1;
-  --border-muted: #e2e8f0;
-  --text:         #0f172a;
-  --text-muted:   #475569;
-  --text-subtle:  #94a3b8;
-  --accent:       #0891b2;
-  --accent-dim:   rgba(8,145,178,0.10);
-  --accent-hover: rgba(8,145,178,0.18);
+  --surface-2:    #f4f6f9;
+  --surface-3:    #e4e8ee;
+  --border:       #e4e8ee;
+  --border-muted: #f4f6f9;
+  --control-edge: #868a93;
+  --text:         #0f1116;
+  --text-muted:   #5a6270;
+  --text-subtle:  #666e7b;  /* raised from #6f7784: 4.17:1 on --surface-2 failed AA */
+  --accent:       #0f7bab;
+  --accent-on:    #0d6b95;
+  --accent-dim:   rgba(15,123,171,0.09);
+  --accent-hover: rgba(15,123,171,0.16);
+
+  --state-ok:     #12855c;
+  --state-warn:   #96620d;
+  --state-crit:   #cf2d38;
+
+  --code-keyword: #0d6b95;
+  --code-string:  #0f714e;
+  --code-number:  #88590c;
+  --code-builtin: #5a6270;
+  --code-error:   #ba2832;
 }
 
 /* ── Body / Fonts ────────────────────────────────────────────────────── */
@@ -459,7 +440,7 @@ html, body {
   }
 
   .docs-hero-accent {
-    background: linear-gradient(135deg, var(--accent), #2dd4bf);
+    background: linear-gradient(135deg, var(--accent), var(--accent));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -486,7 +467,7 @@ html, body {
     margin-bottom: 2.5rem;
   }
 
-  /* The buttons themselves are styled by DaisyUI (.btn, .btn-primary,
+  /* The buttons themselves are styled below (.btn, .btn-primary,
      .btn-soft, .btn-ghost). We only neutralise the prose-link styling
      that would otherwise underline them on hover. */
   .docs-hero-buttons .btn,
@@ -557,19 +538,19 @@ html, body {
 
   .docs-why-icon-problem {
     background: rgba(244,63,94,0.10);
-    color: #f43f5e;
+    color: var(--code-error);
   }
   [data-theme="easywall-light"] .docs-why-icon-problem {
-    color: #e11d48;
+    color: var(--code-error);
     background: rgba(225,29,72,0.08);
   }
 
   .docs-why-icon-history {
     background: rgba(245,158,11,0.10);
-    color: #f59e0b;
+    color: var(--code-number);
   }
   [data-theme="easywall-light"] .docs-why-icon-history {
-    color: #d97706;
+    color: var(--code-number);
     background: rgba(217,119,6,0.08);
   }
 
@@ -866,7 +847,7 @@ html, body {
     line-height: 1.55;
   }
 
-  /* === Callouts (mapped to DaisyUI alert visual language) === */
+  /* === Callouts === */
   .callout {
     display: flex;
     gap: 0.75rem;
@@ -895,37 +876,37 @@ html, body {
   .callout-info {
     background: rgba(56,189,248,0.08);
     border-color: rgba(56,189,248,0.25);
-    color: #38bdf8;
+    color: var(--code-builtin);
   }
 
   [data-theme="easywall-light"] .callout-info {
     background: rgba(2,132,199,0.06);
     border-color: rgba(2,132,199,0.30);
-    color: #0284c7;
+    color: var(--code-builtin);
   }
 
   .callout-warning {
     background: rgba(245,158,11,0.08);
     border-color: rgba(245,158,11,0.30);
-    color: #f59e0b;
+    color: var(--code-number);
   }
 
   [data-theme="easywall-light"] .callout-warning {
     background: rgba(217,119,6,0.06);
     border-color: rgba(217,119,6,0.30);
-    color: #d97706;
+    color: var(--code-number);
   }
 
   .callout-success {
     background: rgba(16,185,129,0.08);
     border-color: rgba(16,185,129,0.25);
-    color: #10b981;
+    color: var(--code-string);
   }
 
   [data-theme="easywall-light"] .callout-success {
     background: rgba(5,150,105,0.06);
     border-color: rgba(5,150,105,0.30);
-    color: #059669;
+    color: var(--code-string);
   }
 
   /* === Scroll wrapper for tables / pre on mobile === */
@@ -994,9 +975,9 @@ html, body {
   color: var(--text);
 }
 
-/* Apply prose link styling to all anchors EXCEPT DaisyUI buttons —
+/* Apply prose link styling to all anchors EXCEPT the button classes —
    otherwise the color: var(--accent) here clobbers the button's own
-   text color (which is set via DaisyUI's --btn-fg → primary-content). */
+   text color (set by the button rules below). */
 .content-body a:not(.btn):not(.docs-hero-brand):not(.feature-card) {
   color: var(--accent);
   text-decoration: none;
@@ -1093,20 +1074,15 @@ html, body {
 
 /* Rouge syntax highlighting — minimal token theme */
 .highlight .c, .highlight .c1, .highlight .cm { color: var(--text-subtle); font-style: italic; }
-.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: #c084fc; font-weight: 500; }
-.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb { color: #10b981; }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: var(--code-keyword); font-weight: 500; }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb { color: var(--code-string); }
 .highlight .n, .highlight .nx, .highlight .nv { color: var(--text); }
 .highlight .nf, .highlight .nc { color: var(--accent); }
-.highlight .nb, .highlight .bp { color: #38bdf8; }
+.highlight .nb, .highlight .bp { color: var(--code-builtin); }
 .highlight .o, .highlight .ow { color: var(--text-muted); }
-.highlight .mi, .highlight .mf, .highlight .il { color: #f59e0b; }
-.highlight .err { color: #f43f5e; }
+.highlight .mi, .highlight .mf, .highlight .il { color: var(--code-number); }
+.highlight .err { color: var(--code-error); }
 
-[data-theme="easywall-light"] .highlight .k, [data-theme="easywall-light"] .highlight .kd { color: #7c3aed; }
-[data-theme="easywall-light"] .highlight .s, [data-theme="easywall-light"] .highlight .s1, [data-theme="easywall-light"] .highlight .s2 { color: #059669; }
-[data-theme="easywall-light"] .highlight .nb { color: #0284c7; }
-[data-theme="easywall-light"] .highlight .mi { color: #d97706; }
-[data-theme="easywall-light"] .highlight .err { color: #e11d48; }
 
 /* Tables */
 .content-body table {
@@ -1156,3 +1132,70 @@ html, body {
 @media (min-width: 901px) {
   .sidebar-toggle, .sidebar-backdrop { display: none !important; }
 }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────
+   The landing page's calls to action use these classes. They previously came
+   from the daisyUI plugin; when that was removed with the application's
+   dependency on it, the buttons lost every style. Defined here from the same
+   tokens the application uses. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--control-edge);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 550;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.btn:hover {
+  background: var(--surface-2);
+  /* --surface-3 is byte-identical to --border in both themes, so this hover
+     never changed the outline at all. */
+  border-color: var(--text-subtle);
+  text-decoration: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.btn svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+.btn-primary,
+.btn-primary:hover {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--bg);
+}
+
+.btn-primary:hover { filter: brightness(1.08); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.btn-soft { background: var(--surface-2); }
+.btn-soft:hover { background: var(--surface-3); }
+
+.btn-lg { height: 46px; padding: 0 22px; font-size: 16px; }

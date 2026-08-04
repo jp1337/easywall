@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -163,6 +164,12 @@ func (d *demoState) seed() {
 // buildSeedAuditLog returns ~18 plausible audit entries, newest first.
 // Times are spread across the last day with variable gaps so the table
 // looks like a real working log, not a demo stub.
+//
+// Details are written the way the core writes them — data, not prose. They used
+// to read "added 8443 (staging)" and "acceptance window expired", which was
+// English text no locale could reach, and it also promised a level of detail the
+// core does not record (see Known Gaps in DESIGN.md). "timeout" is the one token
+// the core does emit, and it is translated through auditDetailKeys.
 func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 	type e struct {
 		offset   time.Duration
@@ -172,24 +179,24 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		user     string
 	}
 	entries := []e{
-		{-2 * time.Hour, "rules_applied", "", "", "demo"},
-		{-2*time.Hour - 30*time.Second, "rules_saved", "tcp", "added 8443 (staging)", "demo"},
-		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log enabled", "demo"},
+		{-2 * time.Hour, "apply_accepted", "", "", "demo"},
+		{-2*time.Hour - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
+		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log", "demo"},
 		{-4 * time.Hour, "rules_saved", "blacklist", "+192.0.2.42", "demo"},
 		{-4*time.Hour - 12*time.Second, "rules_saved", "blacklist", "+192.0.2.118", "demo"},
-		{-5 * time.Hour, "settings_saved", "", "docker bridge auto-detect on", "demo"},
-		{-6 * time.Hour, "system_saved", "", "acceptance window 120s", "demo"},
-		{-8 * time.Hour, "rules_applied", "", "", "demo"},
+		{-5 * time.Hour, "settings_saved", "", "docker_enabled", "demo"},
+		{-6 * time.Hour, "system_saved", "", "acceptance_duration=120", "demo"},
+		{-8 * time.Hour, "apply_accepted", "", "", "demo"},
 		{-8*time.Hour - 45*time.Second, "rules_saved", "forwarding", "+8443→443/tcp", "demo"},
-		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32 (office)", "demo"},
-		{-12 * time.Hour, "rules_saved", "udp", "added 51820 wireguard", "demo"},
+		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32", "demo"},
+		{-12 * time.Hour, "rules_saved", "udp", "+51820", "demo"},
 		{-14 * time.Hour, "rules_imported", "", "rules-2026-05-02.json", "demo"},
-		{-18 * time.Hour, "rules_rolled_back", "", "acceptance window expired", "demo"},
-		{-18*time.Hour + 2*time.Minute, "rules_applied", "", "", "demo"},
-		{-20 * time.Hour, "options_saved", "", "syn_flood_limit 100", "demo"},
-		{-24 * time.Hour, "rules_saved", "custom", "rate-limit DNS", "demo"},
-		{-26 * time.Hour, "rules_applied", "", "", "demo"},
-		{-30 * time.Hour, "rules_saved", "tcp", "initial port set", "demo"},
+		{-18 * time.Hour, "apply_rolledback", "", "timeout", "demo"},
+		{-18*time.Hour + 2*time.Minute, "apply_accepted", "", "", "demo"},
+		{-20 * time.Hour, "options_saved", "", "syn_flood_limit=100", "demo"},
+		{-24 * time.Hour, "rules_saved", "custom", "+1", "demo"},
+		{-26 * time.Hour, "apply_accepted", "", "", "demo"},
+		{-30 * time.Hour, "rules_saved", "tcp", "+22 +80 +443", "demo"},
 	}
 	out := make([]shared.AuditLogEntry, 0, len(entries))
 	for _, x := range entries {
@@ -235,8 +242,12 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 	case shared.CmdGetLog:
 		return demoOK(d.auditLog)
 	case shared.CmdValidateCustom:
-		// Demo can't run nft — accept everything as valid.
-		return demoOK(shared.ValidateCustomResult{Errors: map[int]string{}})
+		// There is no nft binary behind the demo, so it cannot judge syntax. It
+		// used to answer "no errors", which told every visitor their rules were
+		// valid whatever they typed — a false green on the one page where being
+		// wrong locks you out. Reporting the checker as unavailable is the truth,
+		// and the interface already has a state for exactly that.
+		return demoErr(errors.New("syntax checking needs the core daemon"))
 	case shared.CmdExportRules:
 		raw, err := json.Marshal(d.rules.Current)
 		if err != nil {
@@ -365,7 +376,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 	d.rules.Backup = d.rules.Current
 	d.rules.Current = d.rules.Staged
 	d.lastApply = time.Now().Format(time.RFC3339)
-	d.audit("rules_applied", "", "")
+	d.audit("apply_accepted", "", "")
 
 	if d.system.Acceptance.Enabled {
 		d.acceptance = shared.AcceptancePending
@@ -399,7 +410,7 @@ func (d *demoState) rollback() {
 	defer d.mu.Unlock()
 	d.rules.Current = d.rules.Backup
 	d.acceptance = shared.AcceptanceRolledBack
-	d.audit("rules_rolled_back", "", "acceptance window expired")
+	d.audit("apply_rolledback", "", "timeout") // the token the real core writes
 	d.acceptanceTimer = nil
 }
 

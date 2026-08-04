@@ -131,18 +131,18 @@ key  = "`+sslDir+`/key.pem"
 }
 
 func TestLoadTemplates_StubTFunction(t *testing.T) {
-	// Directly execute a loaded template to invoke the stub T function registered
-	// during loadTemplates — this covers the stub function body.
+	// loadTemplates registers a stub T so ParseGlob succeeds before any request
+	// exists. Executing a template without going through render() — which swaps in
+	// the per-request T — is what exercises that stub.
 	tmpl, err := loadTemplates("testdata/templates")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var buf strings.Builder
-	err = tmpl.ExecuteTemplate(&buf, "dashboard.html", PageData{Page: "test"})
-	if err != nil {
-		t.Fatalf("execute dashboard template: %v", err)
+	if err := tmpl.ExecuteTemplate(&buf, "nonce.html", PageData{Nonce: "stub-probe"}); err != nil {
+		t.Fatalf("execute fixture template: %v", err)
 	}
-	if !strings.Contains(buf.String(), "test") {
+	if !strings.Contains(buf.String(), "stub-probe") {
 		t.Errorf("unexpected output: %s", buf.String())
 	}
 }
@@ -211,6 +211,14 @@ func TestRender_WithFlash(t *testing.T) {
 func TestRender_NonceFromContext(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+
+	// nonce.html exists only as a fixture — it is a probe for the nonce plumbing,
+	// not part of the interface, so it is not in web/templates.
+	tmpl, err := loadTemplates("testdata/templates")
+	if err != nil {
+		t.Fatalf("load fixture templates: %v", err)
+	}
+	s.tmpl = tmpl
 
 	const testNonce = "abc123testNONCEvalue"
 	req := httptest.NewRequest("GET", "/", nil)

@@ -15,12 +15,15 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/sessions"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // PageData is passed to every template render call.
@@ -30,6 +33,25 @@ type PageData struct {
 	Page  string // current page for nav active state
 	Nonce string // CSP nonce for the theme-init inline script
 	Demo  bool   // true when running with the in-memory mock (banner)
+	Lang  string // language actually served, for <html lang>
+
+	// Langs lists the languages on offer, with the current one marked. Empty when
+	// only one locale file is installed, in which case the switcher is not drawn.
+	Langs []languageOption
+
+	// Path is where the language switcher returns to, query included: on /ports the
+	// open tab is ?type=, and losing it moves the operator to a different tab.
+	Path string
+
+	// Strings carries the translations app.js needs. It builds some text in the
+	// browser — toast bodies, the polled apply state, the placeholders on a row
+	// added client-side — which is not in the rendered HTML to read back out.
+	Strings map[string]string
+
+	// Asset is appended to static stylesheet URLs. Without it an operator who
+	// upgrades easywall keeps the cached stylesheet from the previous version
+	// and sees a broken interface until they force-reload.
+	Asset string
 	Data  interface{}
 }
 
@@ -152,6 +174,9 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/login", s.handleLoginGET)
 		r.With(LoginRateLimit).Post("/login", s.handleLoginPOST)
 		r.Get("/logout", s.handleLogout)
+		// Outside RequireAuth on purpose: someone who cannot read the login page
+		// has no way to sign in and change the language afterwards.
+		r.Post("/language", s.handleLanguage)
 
 		if cfg.IsFirstRun() {
 			r.Get("/firstrun", s.handleFirstRunGET)
@@ -240,16 +265,30 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	tmpl.Funcs(template.FuncMap{"T": tFunc})
+	tmpl.Funcs(template.FuncMap{
+		"T": tFunc,
+		"actionLabel": func(action string) string {
+			return actionLabel(tFunc, action)
+		},
+		"detailLabel": func(detail string) string {
+			return detailLabel(tFunc, detail)
+		},
+	})
 
 	nonce, _ := r.Context().Value(nonceCtxKey).(string)
+	lang := ResolveLang(s.bundle, r, s.cfg.Language)
 	pd := PageData{
-		Flash: flash,
-		User:  user,
-		Page:  page,
-		Nonce: nonce,
-		Demo:  s.client.IsDemo(),
-		Data:  data,
+		Flash:   flash,
+		User:    user,
+		Page:    page,
+		Nonce:   nonce,
+		Demo:    s.client.IsDemo(),
+		Lang:    lang,
+		Langs:   s.languageOptions(r, lang),
+		Path:    r.URL.RequestURI(),
+		Strings: clientStrings(tFunc),
+		Asset:   shared.CurrentVersion,
+		Data:    data,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -275,7 +314,15 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	tmpl.Funcs(template.FuncMap{"T": tFunc})
+	tmpl.Funcs(template.FuncMap{
+		"T": tFunc,
+		"actionLabel": func(action string) string {
+			return actionLabel(tFunc, action)
+		},
+		"detailLabel": func(detail string) string {
+			return detailLabel(tFunc, detail)
+		},
+	})
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
 		slog.Error("partial render error", "template", name, "error", err)
@@ -338,6 +385,198 @@ func loadTemplates(dir string) (*template.Template, error) {
 	return tmpl, nil
 }
 
+// auditActionLabels maps the core's audit action identifiers to message ids. The
+// keys are exactly the strings written by internal/core (see firewall.go and
+// daemon.go); anything unknown falls back to a humanised form of the identifier
+// itself, so a new action added in the core still renders sensibly before this
+// map catches up.
+var auditActionLabels = map[string]string{
+	"apply_started":    "audit_apply_started",
+	"apply_accepted":   "audit_apply_accepted",
+	"apply_rolledback": "audit_apply_rolledback",
+	"apply_failed":     "audit_apply_failed",
+	"rules_saved":      "audit_rules_saved",
+	"rules_imported":   "audit_rules_imported",
+	"options_saved":    "audit_options_saved",
+	"settings_saved":   "audit_settings_saved",
+	"system_saved":     "audit_system_saved",
+}
+
+// auditActionTones maps an action to a firewall state, and only to a firewall
+// state. DESIGN.md reserves green, amber and red for what the firewall is
+// doing; saving a rule stages it and changes nothing that is live, so it stays
+// neutral however important it feels.
+//
+// This previously lived in the stylesheet, keyed on `rules_applied` and
+// `rules_rolled_back` — action names only the demo client ever produced. In
+// production the real names never matched, so a rolled-back apply, the single
+// most consequential line in the log, rendered neutral grey.
+var auditActionTones = map[string]string{
+	"apply_accepted":   "ok",
+	"apply_started":    "warn",
+	"apply_rolledback": "crit",
+	"apply_failed":     "crit",
+}
+
+// actionLabel resolves an action to its translated label. tFunc is the
+// per-request T; passing it in rather than reaching for a package-level
+// localizer keeps the audit log in the same language as the page around it,
+// including the filter, which searches the label an operator can actually see.
+func actionLabel(tFunc func(string, ...interface{}) string, action string) string {
+	if key, ok := auditActionLabels[action]; ok {
+		return tFunc(key)
+	}
+	// An action the core has learned to write but this map has not caught up
+	// with. Humanising the identifier beats printing a raw snake_case token,
+	// and it is deliberately not translated: there is nothing to translate yet.
+	s := strings.ReplaceAll(action, "_", " ")
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// wrapPairs renders text delimited by marker into element, escaping everything.
+// An unterminated marker keeps its own character and the tail stays plain text:
+// a typo in a translation must not blank the panel it sits in.
+func wrapPairs(s, marker, element string, inner func(string) string) string {
+	segs := strings.Split(s, marker)
+	var b strings.Builder
+	for i, seg := range segs {
+		if i%2 == 1 && i < len(segs)-1 {
+			b.WriteString("<" + element + ">")
+			b.WriteString(template.HTMLEscapeString(seg))
+			b.WriteString("</" + element + ">")
+			continue
+		}
+		if i%2 == 1 {
+			b.WriteString(marker)
+		}
+		b.WriteString(inner(seg))
+	}
+	return b.String()
+}
+
+// inlineMarkup renders the two inline forms a translation may carry: `literal`
+// becomes <code>, *word* becomes <em>. Emphasis is not decoration here — "this
+// list is evaluated *before* the whitelist" is the whole point of the sentence —
+// so a translator needs to be able to move it.
+func inlineMarkup(s string) string {
+	return wrapPairs(s, "`", "code", func(seg string) string {
+		return wrapPairs(seg, "*", "em", template.HTMLEscapeString)
+	})
+}
+
+// richText renders a translated sentence that carries inline markup — `code`,
+// *emphasis*, and "{}" for each link, filled from the href/label pairs that
+// follow.
+//
+// Sentences like these used to be split into before/after fragments around the
+// anchor, which does not survive translation: German writes "Die Blacklist wird
+// zuerst ausgewertet" with the link first where English has it third. Keeping the
+// sentence whole leaves word order to the translator.
+//
+// Everything from the locale is HTML-escaped; the only markup reaching the page
+// is the <code> and <a> elements built here.
+func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
+	if len(hrefLabelPairs)%2 != 0 {
+		return "", fmt.Errorf("richText: got %d arguments after the text, want href/label pairs",
+			len(hrefLabelPairs))
+	}
+	parts := strings.Split(text, "{}")
+	if want := len(parts) - 1; want != len(hrefLabelPairs)/2 {
+		return "", fmt.Errorf("richText: %q has %d link slots but %d links were given",
+			text, want, len(hrefLabelPairs)/2)
+	}
+
+	var b strings.Builder
+	for i, part := range parts {
+		b.WriteString(inlineMarkup(part))
+		if i == len(parts)-1 {
+			break
+		}
+		href, label := hrefLabelPairs[2*i], hrefLabelPairs[2*i+1]
+		b.WriteString(`<a class="link" href="`)
+		b.WriteString(template.HTMLEscapeString(href))
+		b.WriteString(`">`)
+		b.WriteString(inlineMarkup(label))
+		b.WriteString(`</a>`)
+	}
+	// gosec G203: template.HTML bypasses auto-escaping, which is the point — this
+	// function builds the markup. Everything that came from the locale went
+	// through template.HTMLEscapeString above (inlineMarkup for the text and the
+	// labels, explicitly for the href), so the only tags here are the <code>,
+	// <em> and <a> written above. TestRichText_EscapesEverything guards it.
+	// #nosec G203 -- every interpolated value is escaped above; this function is
+	// the one that builds the markup. Covered by TestRichText_EscapesEverything.
+	return template.HTML(b.String()), nil //nolint:gosec // G203 — see above
+}
+
+// auditDetailKeys maps the fixed detail strings the core writes to message ids.
+// Almost every entry the core records carries an empty detail; the exceptions are
+// this one token and, for a failed apply, the nftables error, which is diagnostic
+// output rather than a sentence and is shown verbatim.
+var auditDetailKeys = map[string]string{
+	"timeout": "audit_detail_timeout",
+}
+
+// detailLabel translates a detail the core wrote from a known vocabulary, and
+// leaves anything else exactly as stored. An audit record is evidence: what is not
+// a recognised token is passed through rather than guessed at.
+func detailLabel(tFunc func(string, ...interface{}) string, detail string) string {
+	if key, ok := auditDetailKeys[detail]; ok {
+		return tFunc(key)
+	}
+	return detail
+}
+
+// actionTone returns "ok", "warn", "crit" or "" for a neutral action.
+func actionTone(action string) string { return auditActionTones[action] }
+
+// shortTime renders a stored RFC 3339 timestamp the way someone reads a log:
+// clock time for today, day and month before that. The full value stays in the
+// element's title attribute where the templates use it, so nothing is lost.
+//
+// The offset carried in the stored string is preserved rather than converted —
+// it is the host's own local time, which is the frame an operator correlating
+// this against syslog is working in.
+func shortTime(v string) string {
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return v // not a timestamp we recognise; show it untouched
+	}
+	now := time.Now().In(t.Location())
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return t.Format("15:04:05")
+	}
+	if t.Year() == now.Year() {
+		return t.Format("2 Jan 15:04")
+	}
+	return t.Format("2 Jan 2006 15:04")
+}
+
+// clientStringKeys are the message ids app.js needs. Kept as an explicit list
+// rather than shipping every translation: the blob is inlined into every page.
+var clientStringKeys = []string{
+	"saved", "options_saved", "settings_saved", "system_saved",
+	"save_error", "system_invalid_duration",
+	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
+	"apply_rolled_back_toast",
+	"ports_port", "ports_port_hint", "ports_description", "ports_desc_hint",
+	"ports_ssh", "action_remove_rule", "port_range_hint",
+	"forwarding_protocol", "forwarding_source_port", "forwarding_dest_port",
+	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
+	"count_filtered",
+}
+
+func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
+	m := make(map[string]string, len(clientStringKeys))
+	for _, k := range clientStringKeys {
+		m[k] = tFunc(k)
+	}
+	return m
+}
+
 // templateFuncs returns the shared FuncMap used across all templates.
 func templateFuncs() template.FuncMap {
 	successKeys := map[string]bool{
@@ -356,14 +595,60 @@ func templateFuncs() template.FuncMap {
 
 	return template.FuncMap{
 		"add1": func(i int) int { return i + 1 },
+		// The list editors hold raw lines, comments and blanks included. A
+		// counter that reports those as entries is simply wrong, and it is the
+		// number an operator uses to sanity-check a paste.
+		"countEntries": func(lines []string) int {
+			n := 0
+			for _, l := range lines {
+				l = strings.TrimSpace(l)
+				if l != "" && !strings.HasPrefix(l, "#") {
+					n++
+				}
+			}
+			return n
+		},
+		// "1 entry" / "12 entries", so the templates do not each carry an if.
+		"plural": func(n int, one, many string) string {
+			if n == 1 {
+				return one
+			}
+			return many
+		},
+		// actionLabel is rebound per request in render()/renderPartial(), where the
+		// localizer exists. This entry only keeps ParseGlob happy at startup.
+		"actionLabel": func(action string) string { return action },
+		"detailLabel": func(detail string) string { return detail },
+		"actionTone":  actionTone,
+		"richText":    richText,
+		"shortTime":   shortTime,
+		// dict lets a template pass named values into a translation that carries
+		// its own {{.Placeholder}} — the only way a sentence with an interpolated
+		// value stays one message for the translator.
+		"dict": func(pairs ...interface{}) (map[string]interface{}, error) {
+			if len(pairs)%2 != 0 {
+				return nil, fmt.Errorf("dict: got %d arguments, want key/value pairs", len(pairs))
+			}
+			m := make(map[string]interface{}, len(pairs)/2)
+			for i := 0; i < len(pairs); i += 2 {
+				k, ok := pairs[i].(string)
+				if !ok {
+					return nil, fmt.Errorf("dict: key %d is %T, want string", i, pairs[i])
+				}
+				m[k] = pairs[i+1]
+			}
+			return m, nil
+		},
+		// Class names come from DESIGN.md § Components — only the three firewall
+		// states carry colour, so there is no informational variant here.
 		"flashClass": func(key string) string {
 			if successKeys[key] {
-				return "alert-success"
+				return "alert-ok"
 			}
 			if warningKeys[key] {
-				return "alert-warning"
+				return "alert-warn"
 			}
-			return "alert-error"
+			return "alert-crit"
 		},
 		"flashIcon": func(key string) template.HTML {
 			if successKeys[key] {

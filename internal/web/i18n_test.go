@@ -179,3 +179,72 @@ func TestNewLocalizer_ReadsHeader(t *testing.T) {
 		t.Errorf("expected German translation, got: %s", result)
 	}
 }
+
+func TestResolveLang(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"en.json": `[{"id":"hello","translation":"Hello"}]`,
+		"de.json": `[{"id":"hello","translation":"Hallo"}]`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bundle := NewBundle(dir)
+
+	cases := []struct {
+		name, header, dflt, want string
+	}{
+		{"no header falls back to config", "", "en", "en"},
+		{"config default wins when no header", "", "de", "de"},
+		{"regional tag matches its base", "de-DE,de;q=0.9", "en", "de"},
+		{"first available candidate wins", "fr-FR,de;q=0.8", "en", "de"},
+		{"unavailable language falls through", "fr-FR,fr;q=0.9", "en", "en"},
+		{"garbage tag is skipped, not fatal", "!!!,de", "en", "de"},
+		{"unknown config default still yields a tag", "", "xx", "en"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/", nil)
+			if c.header != "" {
+				req.Header.Set("Accept-Language", c.header)
+			}
+			if got := ResolveLang(bundle, req, c.dflt); got != c.want {
+				t.Errorf("ResolveLang(header=%q, default=%q) = %q, want %q",
+					c.header, c.dflt, got, c.want)
+			}
+		})
+	}
+}
+
+// ResolveLang exists only so <html lang> matches the text actually rendered. If
+// the two ever disagree the page lies to a screen reader, so assert them
+// together rather than trusting the helper in isolation.
+func TestResolveLang_AgreesWithRenderedText(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"en.json": `[{"id":"hello","translation":"Hello"}]`,
+		"de.json": `[{"id":"hello","translation":"Hallo"}]`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bundle := NewBundle(dir)
+
+	for header, want := range map[string]string{"de-DE,de;q=0.9": "Hallo", "en-GB": "Hello"} {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set("Accept-Language", header)
+
+		lang := ResolveLang(bundle, req, "en")
+		text := T(NewLocalizer(bundle, req, "en"), "hello")
+		if text != want {
+			t.Fatalf("header %q rendered %q, want %q", header, text, want)
+		}
+		wantLang := map[string]string{"Hallo": "de", "Hello": "en"}[want]
+		if lang != wantLang {
+			t.Errorf("header %q rendered %q but declared lang=%q, want %q",
+				header, text, lang, wantLang)
+		}
+	}
+}

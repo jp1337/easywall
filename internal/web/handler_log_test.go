@@ -67,7 +67,9 @@ func TestHandleLogFilter_NoQueryReturnsAll(t *testing.T) {
 	rec := doAuthRequest(t, s, "GET", "/log/filter", nil)
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, "rules_saved") || !strings.Contains(body, "options_saved") {
+	// The label, not the stored identifier: the table shows "Rules saved", and
+	// that is what an operator reads and searches for.
+	if !strings.Contains(body, "Rules saved") || !strings.Contains(body, "Options saved") {
 		t.Errorf("expected both rows in response, got: %s", body)
 	}
 }
@@ -83,10 +85,10 @@ func TestHandleLogFilter_MatchByAction(t *testing.T) {
 
 	rec := doAuthRequest(t, s, "GET", "/log/filter?q=options", nil)
 	body := rec.Body.String()
-	if !strings.Contains(body, "options_saved") {
+	if !strings.Contains(body, "Options saved") {
 		t.Errorf("expected options_saved in body, got: %s", body)
 	}
-	if strings.Contains(body, "rules_saved") || strings.Contains(body, "rules_applied") {
+	if strings.Contains(body, "Rules saved") || strings.Contains(body, "rules_applied") {
 		t.Errorf("non-matching rows leaked into filtered result: %s", body)
 	}
 }
@@ -118,7 +120,9 @@ func TestHandleLogFilter_CaseInsensitive(t *testing.T) {
 	}))
 
 	rec := doAuthRequest(t, s, "GET", "/log/filter?q=rules", nil)
-	if !strings.Contains(rec.Body.String(), "RULES_APPLIED") {
+	// An action the label map does not know is humanised rather than printed as a
+	// snake_case token, so the row reads as language even before the map catches up.
+	if !strings.Contains(rec.Body.String(), "RULES APPLIED") {
 		t.Errorf("expected case-insensitive match, got: %s", rec.Body.String())
 	}
 }

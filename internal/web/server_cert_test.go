@@ -185,20 +185,20 @@ func TestTemplateFuncs_FlashClass(t *testing.T) {
 	funcs := templateFuncs()
 	flashClass := funcs["flashClass"].(func(string) string)
 
-	if c := flashClass("saved"); c != "alert-success" {
-		t.Errorf("saved should be alert-success, got: %s", c)
+	if c := flashClass("saved"); c != "alert-ok" {
+		t.Errorf("saved should be alert-ok, got: %s", c)
 	}
-	if c := flashClass("password_too_short"); c != "alert-warning" {
-		t.Errorf("password_too_short should be alert-warning, got: %s", c)
+	if c := flashClass("password_too_short"); c != "alert-warn" {
+		t.Errorf("password_too_short should be alert-warn, got: %s", c)
 	}
-	if c := flashClass("some_error"); c != "alert-error" {
-		t.Errorf("unknown key should be alert-error, got: %s", c)
+	if c := flashClass("some_error"); c != "alert-crit" {
+		t.Errorf("unknown key should be alert-crit, got: %s", c)
 	}
-	if c := flashClass("rules_accepted"); c != "alert-success" {
-		t.Errorf("rules_accepted should be alert-success, got: %s", c)
+	if c := flashClass("rules_accepted"); c != "alert-ok" {
+		t.Errorf("rules_accepted should be alert-ok, got: %s", c)
 	}
-	if c := flashClass("import_success"); c != "alert-success" {
-		t.Errorf("import_success should be alert-success, got: %s", c)
+	if c := flashClass("import_success"); c != "alert-ok" {
+		t.Errorf("import_success should be alert-ok, got: %s", c)
 	}
 }
 

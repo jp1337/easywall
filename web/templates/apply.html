@@ -7,44 +7,76 @@
     {{template "flash" .}}
 
     <div class="page-header">
-      <h1 class="page-title">{{T "apply_title"}}</h1>
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "apply_title"}}</h1>
+        <p class="page-subtitle">{{T "apply_subtitle"}}</p>
+      </div>
     </div>
 
     {{with .Data}}
 
     {{if .CoreErr}}
-    <div role="alert" class="alert alert-error alert-soft mb-4">
+    <div role="alert" class="alert alert-crit mb-4">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>
-      <span>Core daemon unreachable: {{.CoreErr}}</span>
+      <span>{{T "core_unreachable"}} {{.CoreErr}}</span>
     </div>
     {{end}}
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-4xl">
+    <div class="page-grid">
+      <div>
+        <div class="card">
+          <div class="apply-panel">
+            {{if .Status}}
+            {{$acc := printf "%s" .Status.Acceptance}}
 
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">Acceptance Status</h2>
-
-          <div class="apply-status-card">
-            <div id="apply-status">
-              {{if .Status}}
-              {{if eq (printf "%s" .Status.Acceptance) "pending"}}
-              <span class="status-dot pending">{{T "apply_waiting"}}</span>
-              {{else if eq (printf "%s" .Status.Acceptance) "accepted"}}
-              <span class="status-dot active">Accepted</span>
-              {{else if eq (printf "%s" .Status.Acceptance) "rolled_back"}}
-              <span class="status-dot error">Rolled Back</span>
+            <div class="apply-icon
+              {{if eq $acc "pending"}}pending
+              {{else if eq $acc "accepted"}}accepted
+              {{else if eq $acc "rolled_back"}}rolled-back
+              {{else}}idle{{end}}">
+              {{if eq $acc "pending"}}
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h3.5a.75.75 0 000-1.5h-2.75V5z" clip-rule="evenodd"/></svg>
+              {{else if eq $acc "accepted"}}
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+              {{else if eq $acc "rolled_back"}}
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L4.622 6.25h9.128a4.25 4.25 0 010 8.5h-1a.75.75 0 010-1.5h1a2.75 2.75 0 000-5.5H4.622l3.146 2.957a.75.75 0 01-1.036 1.086l-4.5-4.25a.75.75 0 010-1.086l4.5-4.25a.75.75 0 011.06.025z" clip-rule="evenodd"/></svg>
               {{else}}
-              <span class="status-dot inactive">Idle</span>
-              {{end}}
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
               {{end}}
             </div>
 
-            <div class="mt-5 flex flex-col gap-3 items-center">
-              {{if .Status}}
-              {{if eq (printf "%s" .Status.Acceptance) "pending"}}
+            {{/* app.js replaces the contents of #apply-status as it polls, so
+                 the state word and its dot are the only thing inside it. */}}
+            <div id="apply-status" class="apply-state">
+              {{if eq $acc "pending"}}
+              <span class="status-dot pending">{{T "apply_waiting"}}</span>
+              {{else if eq $acc "accepted"}}
+              <span class="status-dot active">{{T "state_accepted"}}</span>
+              {{else if eq $acc "rolled_back"}}
+              <span class="status-dot error">{{T "state_rolled_back"}}</span>
+              {{else}}
+              <span class="status-dot inactive">{{T "state_idle"}}</span>
+              {{end}}
+            </div>
+
+            <p class="apply-lead">
+              {{if eq $acc "pending"}}
+              {{T "apply_lead_pending"}} {{T "apply_rollback"}}
+              {{else if eq $acc "accepted"}}
+              {{T "apply_lead_accepted"}}
+              {{else if eq $acc "rolled_back"}}
+              {{T "apply_lead_rolled_back"}}
+              {{else if .Status.HasPending}}
+              {{T "apply_lead_staged"}}
+              {{else}}
+              {{T "apply_lead_clean"}}
+              {{end}}
+            </p>
+
+            <div class="apply-actions">
+              {{if eq $acc "pending"}}
               <form method="POST" action="/apply/confirm" id="confirm-form">
-                <button type="submit" id="confirm-btn" class="btn btn-success btn-lg">
+                <button type="submit" id="confirm-btn" class="btn btn-primary btn-lg">
                   <svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
                   {{T "apply_confirm"}}
                 </button>
@@ -52,51 +84,67 @@
               {{else}}
               <form method="POST" action="/apply/start">
                 <button type="submit" id="start-btn" class="btn btn-primary btn-lg"
-                  {{if not .Status.HasPending}}title="No pending changes"{{end}}>
+                  {{if not .Status.HasPending}}title="{{T "apply_nothing_staged"}}"{{end}}>
                   <svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
                   {{T "apply_start"}}
                 </button>
               </form>
               {{end}}
-              {{end}}
             </div>
+            {{end}}
           </div>
         </div>
+
+        {{if .Status}}{{if .Status.HasPending}}
+        {{if ne (printf "%s" .Status.Acceptance) "pending"}}
+        <div role="alert" class="alert alert-warn mt-4">
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+          <span>{{T "apply_staged_warning"}}</span>
+        </div>
+        {{end}}
+        {{end}}{{end}}
       </div>
 
-      <div class="card bg-base-200 border border-base-300 shadow-sm">
-        <div class="card-body">
-          <h2 class="text-sm font-medium uppercase tracking-wider text-base-content/70">How it works</h2>
-          <ul class="steps steps-vertical mt-2">
-            <li class="step step-primary">
-              <div class="text-left">
-                <div class="text-sm font-medium">Apply rules</div>
-                <div class="text-xs text-base-content/60">New rules are pushed to the kernel immediately.</div>
+      <div class="aside-stack">
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            {{T "apply_how_title"}}
+          </h2>
+          {{/* Numbered because this genuinely is a sequence and the order is
+               the information — not as decoration. */}}
+          <ol class="steps">
+            <li class="step">
+              <div>
+                <div class="step-title">{{T "apply_step1_title"}}</div>
+                <div class="step-desc">{{T "apply_step1_desc"}}</div>
               </div>
             </li>
-            <li class="step step-warning">
-              <div class="text-left">
-                <div class="text-sm font-medium">Verify connectivity</div>
-                <div class="text-xs text-base-content/60">Test that SSH and other services still work.</div>
+            <li class="step">
+              <div>
+                <div class="step-title">{{T "apply_step2_title"}}</div>
+                <div class="step-desc">{{richText (T "apply_step2_desc")}}</div>
               </div>
             </li>
-            <li class="step step-success">
-              <div class="text-left">
-                <div class="text-sm font-medium">Confirm or auto-rollback</div>
-                <div class="text-xs text-base-content/60">{{T "apply_rollback"}}</div>
+            <li class="step">
+              <div>
+                <div class="step-title">{{T "apply_step3_title"}}</div>
+                <div class="step-desc">{{T "apply_step3_desc"}}</div>
               </div>
             </li>
-          </ul>
+          </ol>
+        </div>
+
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h3.5a.75.75 0 000-1.5h-2.75V5z" clip-rule="evenodd"/></svg>
+            {{T "apply_window_title"}}
+          </h2>
+          <p>{{richText (T "apply_window_body") "/system" (T "link_system_settings")}}</p>
+          <p>{{T "apply_window_note"}}</p>
         </div>
       </div>
     </div>
-
-    {{if .Status}}{{if .Status.HasPending}}
-    <div role="alert" class="alert alert-warning alert-soft mt-5 max-w-4xl">
-      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-      <span>You have pending rule changes that have not been applied yet.</span>
-    </div>
-    {{end}}{{end}}
 
     {{end}}
   </div>

@@ -27,7 +27,7 @@ easywall maintains a stable four-tag scheme so you can pick exactly the cadence 
 | Tag | When it moves | Use it for |
 |---|---|---|
 | `:latest` | Updated only on tagged releases (`v*.*.*`) | **Production.** Stable, signed-off versions |
-| `:vX.Y.Z` | Pinned forever — never reused | **Pinning to a specific version** (e.g. `v2.3.0`) |
+| `:vX.Y.Z` | Pinned forever — never reused | **Pinning to a specific version** (e.g. `v2.4.0`) |
 | `:edge` | Updated after every successful build on `main` | **Demo / development tracking** — picks up unreleased features |
 | `:sha-<commit>` | Pinned forever — one tag per commit | **Rollback / debugging** — reproduce a specific commit |
 
@@ -51,7 +51,7 @@ To pin to a specific version, override the image tag:
 # docker-compose.override.yml
 services:
   easywall:
-    image: ghcr.io/jp1337/easywall:v2.3.0
+    image: ghcr.io/jp1337/easywall:v2.4.0
 ```
 
 Or pull directly without cloning the repo:
