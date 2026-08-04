@@ -143,14 +143,17 @@
       });
     })();
 
-    // Diagrams are pre-rendered to one SVG per theme, so <picture> already picks
-    // the right one from prefers-color-scheme. This keeps them in step with the
-    // manual toggle above, which no media query can see.
+    // Diagrams and screenshots ship as one file per theme, and <picture> picks from
+    // prefers-color-scheme — the reader's operating system. The toggle in the sidebar
+    // is a different thing, and no media query can see it, so keep them in step here.
+    // Screenshots are included: a light screenshot of the application on a dark
+    // documentation page looks like a mistake, because it is one.
     (function () {
       function sync() {
         var dark = document.documentElement.getAttribute('data-theme') === 'easywall-dark';
-        document.querySelectorAll('img[src*="/assets/diagrams/"]').forEach(function (img) {
-          var want = img.src.replace(/-(light|dark)\.svg/, dark ? '-dark.svg' : '-light.svg');
+        var sel = 'img[src*="/assets/diagrams/"], img[src*="/assets/img/screens/"]';
+        document.querySelectorAll(sel).forEach(function (img) {
+          var want = img.src.replace(/-(light|dark)\.(svg|png)$/, dark ? '-dark.$2' : '-light.$2');
           if (img.src !== want) img.src = want;
         });
       }

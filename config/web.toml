@@ -14,10 +14,12 @@ language    = "en"
 # See https://jp1337.github.io/easywall/installation/demo/ for details.
 demo_mode = false
 
-# ─── Secrets — CHANGE THESE before first use ────────────────────────────────
+# ─── Secret — CHANGE THIS before first use ──────────────────────────────────
 # Generate with: openssl rand -hex 32
+# Signs the session cookie. There is no csrf_key: CSRF protection is Go 1.25's
+# net/http.CrossOriginProtection, which checks Origin and Sec-Fetch-Site rather
+# than issuing tokens, so it needs no secret of its own.
 session_key = "CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX"
-csrf_key    = "CHANGE_ME_32_BYTES_HEX_ENCODED_CSRF_SECRET_HERE_XXXXXXXXXX"
 
 # ─── Credentials — set via first-run wizard or fill in manually ─────────────
 username = ""
