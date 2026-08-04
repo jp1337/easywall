@@ -3,6 +3,7 @@ package web
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -20,10 +21,10 @@ const langCookieMaxAge = 365 * 24 * 60 * 60
 func (s *Server) handleLanguage(w http.ResponseWriter, r *http.Request) {
 	lang := r.FormValue("lang")
 
-	// gosec G710 flags http.Redirect with a request-derived target and cannot see
-	// through the sanitiser. safeRedirect reduces this to a local path — see
-	// TestSafeRedirect and TestSafeRedirect_NeverLeavesTheSite, which cover
-	// protocol-relative URLs, absolute URLs, backslashes and CRLF injection.
+	// Both redirects below carry #nosec G710: the taint analysis cannot see through
+	// safeRedirect, which rebuilds the value from a parsed path and query and can
+	// only return a local path. TestSafeRedirect and TestSafeRedirect_NeverLeavesTheSite
+	// cover protocol-relative URLs, absolute URLs, backslashes and CRLF injection.
 	target := safeRedirect(r.FormValue("return"))
 
 	// Only a language the bundle actually has. Anything else would be written
@@ -37,7 +38,8 @@ func (s *Server) handleLanguage(w http.ResponseWriter, r *http.Request) {
 	}
 	if !valid {
 		slog.Debug("rejected unknown language", "lang", lang)
-		http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710: target is sanitised by safeRedirect
+		// #nosec G710 -- target came from safeRedirect
+		http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710
 		return
 	}
 
@@ -50,31 +52,54 @@ func (s *Server) handleLanguage(w http.ResponseWriter, r *http.Request) {
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
-	http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710: target is sanitised by safeRedirect
+	// #nosec G710 -- target came from safeRedirect
+	http.Redirect(w, r, target, http.StatusSeeOther) //nolint:gosec // G710
 }
 
-// safeRedirect reduces a submitted return target to a local path. Without this
-// the switcher would be an open redirect: the form field is attacker-supplied,
-// and "//evil.example" is a protocol-relative URL that browsers follow off-site.
+// safeRedirectFallback is where anything that is not a plain local path goes.
+const safeRedirectFallback = "/dashboard"
+
+// safeRedirect reduces a submitted return target to a local path. The form field
+// is attacker-supplied and flows into a Location header, so without this the
+// language switch would be an open redirect — "//evil.example" is a
+// protocol-relative URL that a browser follows off-site.
+//
+// The target is parsed and the result rebuilt from the path and query alone.
+// Returning a value constructed here, rather than the caller's string with a few
+// prefixes ruled out, is what makes this checkable: there is no input that can
+// reach the caller carrying a scheme, a host, or credentials, because none of
+// those fields are ever copied into the output.
 func safeRedirect(target string) string {
-	if target == "" || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") {
-		return "/dashboard"
+	if target == "" {
+		return safeRedirectFallback
 	}
-	// Reject anything that could carry a scheme or credentials past the prefix
-	// check, or split the Location header.
-	if strings.ContainsAny(target, ":\\\r\n") {
-		return "/dashboard"
+	// Before parsing. url.Parse accepts a backslash inside a path, and browsers
+	// have historically read "/\evil.example" as protocol-relative; a tab, CR or
+	// LF would break the header apart. None of these belong in a path easywall
+	// serves, so they are refused outright rather than normalised.
+	if strings.ContainsAny(target, "\\\r\n\t") {
+		return safeRedirectFallback
 	}
-	// The query is kept: on /ports the open tab lives in ?type=, so dropping it
-	// would silently move an operator from UDP back to TCP. A fragment never
-	// reaches the server, so there is nothing to preserve there.
-	if i := strings.IndexByte(target, '#'); i >= 0 {
-		target = target[:i]
+
+	u, err := url.Parse(target)
+	if err != nil || u.Scheme != "" || u.Opaque != "" || u.Host != "" || u.User != nil {
+		return safeRedirectFallback
 	}
-	if target == "" || target == "/" {
-		return "/dashboard"
+	if !strings.HasPrefix(u.Path, "/") || strings.HasPrefix(u.Path, "//") {
+		return safeRedirectFallback
 	}
-	return target
+	if u.Path == "/" {
+		return safeRedirectFallback
+	}
+
+	// Rebuilt from the two fields worth keeping. The query survives because on
+	// /ports the open tab lives in ?type=, and dropping it would move an operator
+	// from UDP back to TCP. A fragment never reaches the server.
+	clean := (&url.URL{Path: u.Path, RawQuery: u.RawQuery}).String()
+	if !strings.HasPrefix(clean, "/") || strings.HasPrefix(clean, "//") {
+		return safeRedirectFallback
+	}
+	return clean
 }
 
 // languageOption is one entry in the switcher. Label is the language's own name,

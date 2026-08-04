@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,11 +50,22 @@ func TestSafeRedirect(t *testing.T) {
 	}
 }
 
-// safeRedirect is only useful if nothing it returns can leave the origin.
+// safeRedirect is only useful if nothing it returns can leave the origin. The
+// value is rebuilt from a parsed path and query, so this asserts the property
+// rather than a list of prefixes: whatever goes in, what comes out is local.
 func TestSafeRedirect_NeverLeavesTheSite(t *testing.T) {
 	for _, in := range []string{
 		"//evil.example", "https://evil.example", "http:/evil", "\\\\evil.example",
 		"/\t//evil.example", "//", "///evil.example", " //evil.example",
+		// Percent-encoded slashes: url.Parse decodes these into Path, so a check
+		// that only looked at the raw string would wave them through.
+		"/%2f%2fevil.example", "/%2F/evil.example", "%2f%2fevil.example",
+		// Userinfo and ports, which carry a host past a naive prefix check.
+		"//user:pass@evil.example/", "//evil.example:8443/x",
+		// Backslash variants browsers have historically treated as slashes.
+		"/\\evil.example", "\\/evil.example", "/\\\\evil.example",
+		// Traversal and control characters.
+		"/..//evil.example", "/\x00//evil.example",
 	} {
 		got := safeRedirect(in)
 		if !strings.HasPrefix(got, "/") || strings.HasPrefix(got, "//") {
@@ -228,6 +240,45 @@ func TestHandleLanguage_RejectsUnknownLanguage(t *testing.T) {
 		}
 		if rec.Code != http.StatusSeeOther {
 			t.Errorf("lang=%q: status %d, want a redirect", lang, rec.Code)
+		}
+	}
+}
+
+// The rebuilt value has to survive a real Location header, so this asserts the
+// end-to-end property: whatever the form field contains, the browser is sent to
+// this origin. url.Parse on the result is the same thing a browser resolves.
+func TestHandleLanguage_LocationIsAlwaysLocal(t *testing.T) {
+	s, _ := bundleWith(t, map[string]string{
+		"en.json": `[{"id":"language_name","translation":"English"}]`,
+		"de.json": `[{"id":"language_name","translation":"Deutsch"}]`,
+	})
+
+	for _, target := range []string{
+		"//evil.example/", "https://evil.example", "/\\evil.example",
+		"/%2f%2fevil.example", "//user:pass@evil.example/", "/ports\r\nX-Evil: 1",
+		"/ports?type=udp", "/log", "", "/",
+	} {
+		req := httptest.NewRequest("POST", "/language",
+			strings.NewReader("lang=de&return="+url.QueryEscape(target)))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		s.handleLanguage(rec, req)
+
+		loc := rec.Header().Get("Location")
+		if loc == "" {
+			t.Errorf("return=%q produced no Location header", target)
+			continue
+		}
+		u, err := url.Parse(loc)
+		if err != nil {
+			t.Errorf("return=%q produced an unparsable Location %q: %v", target, loc, err)
+			continue
+		}
+		if u.Scheme != "" || u.Host != "" || u.User != nil {
+			t.Errorf("return=%q escaped the origin: Location=%q", target, loc)
+		}
+		if !strings.HasPrefix(loc, "/") || strings.HasPrefix(loc, "//") {
+			t.Errorf("return=%q produced a non-local Location %q", target, loc)
 		}
 	}
 }

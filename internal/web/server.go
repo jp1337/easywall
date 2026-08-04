@@ -507,7 +507,9 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 	// through template.HTMLEscapeString above (inlineMarkup for the text and the
 	// labels, explicitly for the href), so the only tags here are the <code>,
 	// <em> and <a> written above. TestRichText_EscapesEverything guards it.
-	return template.HTML(b.String()), nil //nolint:gosec // G203: every interpolated value is escaped above
+	// #nosec G203 -- every interpolated value is escaped above; this function is
+	// the one that builds the markup. Covered by TestRichText_EscapesEverything.
+	return template.HTML(b.String()), nil //nolint:gosec // G203 — see above
 }
 
 // auditDetailKeys maps the fixed detail strings the core writes to message ids.
