@@ -26,8 +26,20 @@ Documentation site — six rendering defects, all of them visible only on screen
 - Inline code is no longer accent-coloured. On `configuration.md` it made a page of keys and values read as a page of links, and left the real links with nothing to stand out against
 - Reference tables scroll on a phone instead of squeezing to one word per line
 
+Documentation site — layout and content:
+
+- **Headings sat at a different left edge from the content below them.** Prose was held to an 880px measure centred in the available area, while tables and diagrams stepped outside it and centred on the same axis. Everything now runs full width between the sidebar and the contents column, sharing one left edge
+- **The landing page's call to action had its three elements on two centre lines**, 104px apart, and a chapter divider drawn inside the card. Both came from the generic `h2` and `p` rules: those are unlayered, the card's rules are in `@layer components`, and an unlayered rule beats a layered one whatever the specificity — so raising the selector inside the layer changed nothing
+- **The sidebar version badge read `v2.4`.** It was hardcoded in the layout and a patch release behind. It now comes from `docs/_config.yml`, as do the hero badge and the two pinning examples in `docker.md`, which named `v2.4.0`
+- **A Playwright storage-state file was published** at `/assets/img/screens/state.json`, committed by accident with the screenshot set in 2.4.1. It holds a session cookie for a local demo instance, long expired and never valid off that host, but it had no business being served. Removed, and `state.json` is now ignored
+
+### Removed
+
+- **"How the public demo stays current"**, and its diagram. It documented how the project's own demo host is deployed — registries, the update daemon, the restart timer, the hostname — which is operational detail about someone's infrastructure rather than documentation for a reader. The parts about resetting your *own* demo remain; two other pages that leaked the same detail are reworded
+
 ### Added
 
+- **An on-page contents column** on wide viewports, built from the rendered headings so it cannot drift from the page, and absent on pages with fewer than three. Earns its place on the long reference pages — `configuration.md` runs to about 5,600px
 - `internal/web/docs_style_test.go` asserts that load-bearing rules survive into the built documentation stylesheet. Nothing had ever checked that file, and it has now broken twice in a way no build could catch — once when removing daisyUI took the page background with it, once when a mistyped comment terminator silently deleted the rule that hides the non-current theme's images. Each assertion was confirmed to fail with the defect reintroduced
 
 ## [2.4.1] - 2026-08-04
