@@ -34,8 +34,8 @@ picture, and what everyone gets if the image fails to load.
 
 ## Why not `<picture>`
 
-The docs site used `<picture>` with `<source media="(prefers-color-scheme: dark)">`
-until v2.4.2. That media query reports the reader's **operating system**, while the
+The docs site used `<picture>` with `<source media="(prefers-color-scheme: dark)">`.
+That media query reports the reader's **operating system**, while the
 site's theme is a `data-theme` attribute set by the sidebar toggle. The two disagree
 as soon as anyone uses the toggle, and the layout's attempt to reconcile them by
 reassigning `img.src` could not work: a matching `<source>` always wins over the

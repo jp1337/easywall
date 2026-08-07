@@ -87,12 +87,21 @@
           </svg>
           <span class="theme-label">Theme</span>
         </button>
-        <span class="sidebar-version">v2.4</span>
+        <span class="sidebar-version">v{{ site.version }}</span>
       </div>
     </nav>
 
     <!-- ── Page content ──────────────────────────────────────────── -->
     <main class="content" id="main-content">
+      <!-- Filled from the rendered headings by the script at the end of this
+           file, and removed again if the page is too short to need it. Empty
+           in the served HTML on purpose: kramdown owns the heading ids, and
+           Liquid cannot read them back out of {{ content }}. -->
+      <nav class="docs-toc" id="docs-toc" aria-labelledby="docs-toc-title" hidden>
+        <p class="docs-toc-title" id="docs-toc-title">On this page</p>
+        <ul class="docs-toc-list"></ul>
+      </nav>
+
       <article class="content-body">
         {{ content }}
       </article>
@@ -152,6 +161,54 @@
         el.parentNode.insertBefore(w, el);
         w.appendChild(el);
       });
+    })();
+
+    // On-page contents. Built from the rendered headings rather than declared in
+    // the markdown, so it cannot fall out of step with the page. Only h2 and h3
+    // — deeper than that is an outline of an outline.
+    (function () {
+      var nav  = document.getElementById('docs-toc');
+      var body = document.querySelector('.content-body');
+      if (!nav || !body) return;
+
+      var heads = [].slice.call(body.querySelectorAll('h2[id], h3[id]'));
+      // Two entries is a list, not an overview; it would cost more attention
+      // than it saves.
+      if (heads.length < 3) { nav.remove(); return; }
+
+      var list = nav.querySelector('.docs-toc-list');
+      var links = heads.map(function (h) {
+        var li = document.createElement('li');
+        li.className = 'docs-toc-item is-' + h.tagName.toLowerCase();
+        var a = document.createElement('a');
+        a.href = '#' + h.id;
+        a.textContent = h.textContent;
+        li.appendChild(a);
+        list.appendChild(li);
+        return a;
+      });
+      nav.hidden = false;
+
+      // Scroll spy. rootMargin pins the "active" line near the top of the
+      // viewport, so a heading counts as current from the moment it settles
+      // under the topbar until the next one does.
+      var current = null;
+      function mark(a) {
+        if (current === a) return;
+        if (current) current.removeAttribute('aria-current');
+        current = a;
+        if (current) current.setAttribute('aria-current', 'true');
+      }
+
+      if (!('IntersectionObserver' in window)) return;
+      var seen = new Map();
+      var obs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { seen.set(e.target, e.isIntersecting); });
+        for (var i = 0; i < heads.length; i++) {
+          if (seen.get(heads[i])) { mark(links[i]); return; }
+        }
+      }, { rootMargin: '-72px 0px -70% 0px', threshold: 0 });
+      heads.forEach(function (h) { obs.observe(h); });
     })();
 
     // Diagrams and screenshots used to be reconciled with the theme from here, by

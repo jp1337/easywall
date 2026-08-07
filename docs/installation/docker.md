@@ -25,23 +25,24 @@ authentication.
 | Docker Hub | `docker.io/kermit1337/easywall` |
 | Quay.io | `quay.io/jp1337/easywall` |
 
-> **Quay is behind as of v2.4.0.** The publishing token is being rejected, so that
-> mirror is skipped until it is replaced. Use GHCR or Docker Hub.
+> **Quay is behind.** The publishing token is being rejected, so that mirror is
+> skipped until it is replaced, and it does not have the recent releases. Use
+> GHCR or Docker Hub.
 
 ## Which tag
 
 | Tag | Moves | For |
 |---|---|---|
 | `:latest` | on tagged releases only | **production** |
-| `:vX.Y.Z` | never | pinning, e.g. `v2.4.0` |
-| `:edge` | after every green build on `main` | tracking development, [demo hosts]({{ '/installation/demo/' | relative_url }}) |
+| `:vX.Y.Z` | never | pinning, e.g. `v{{ site.version }}` |
+| `:edge` | after every green build on `main` | tracking development, [demo mode]({{ '/installation/demo/' | relative_url }}) |
 | `:sha-<commit>` | never | rollback and debugging |
 
 ```yaml
 # docker-compose.override.yml — pin a version
 services:
   easywall:
-    image: ghcr.io/jp1337/easywall:v2.4.0
+    image: ghcr.io/jp1337/easywall:v{{ site.version }}
 ```
 
 ## Why host networking
@@ -86,7 +87,7 @@ docker compose pull && docker compose up -d
 ```
 
 [Watchtower](https://containrrr.dev/watchtower/) automates it. Nightly or weekly on
-`:latest` for production; the public demo runs it against `:edge`.
+`:latest` for production, or against `:edge` if you want every green build.
 
 ## Checking what you pulled
 

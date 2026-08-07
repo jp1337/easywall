@@ -9,7 +9,7 @@ description: Linux firewall management with a web interface. Go, nftables via ne
 
   <div class="docs-hero-pill">
     <span class="docs-hero-pill-dot"></span>
-    <span>v2.4 — Graphite UI · English &amp; German · Language switch</span>
+    <span>v{{ site.version }} — Graphite UI · English &amp; German · Language switch</span>
   </div>
 
   <h1 class="docs-hero-title">

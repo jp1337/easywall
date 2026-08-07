@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // docsStylesheet returns the built documentation stylesheet.
@@ -92,5 +94,36 @@ func TestDocsInlineCodeIsNotThemeScoped(t *testing.T) {
 			"  it outranks `.content-body pre code` (0,2,2 vs 0,3,1) and leaks the "+
 			"inline chip background into code blocks; the colours already come from "+
 			"custom properties, so the theme scope buys nothing", m)
+	}
+}
+
+// The documentation sidebar shows a version badge. It was hardcoded in the
+// layout, so it silently drifted a patch release behind what was published.
+// It now comes from docs/_config.yml, and this keeps that value honest.
+func TestDocsVersionMatchesRelease(t *testing.T) {
+	root := filepath.Dir(localesDir(t))
+
+	cfg, err := os.ReadFile(filepath.Join(root, "docs", "_config.yml"))
+	if err != nil {
+		t.Fatalf("read docs/_config.yml: %v", err)
+	}
+	m := regexp.MustCompile(`(?m)^version:\s*"([^"]+)"`).FindSubmatch(cfg)
+	if m == nil {
+		t.Fatal("docs/_config.yml has no top-level version key; the sidebar badge reads it")
+	}
+	if got := string(m[1]); got != shared.CurrentVersion {
+		t.Errorf("docs/_config.yml says version %q, shared.CurrentVersion is %q\n"+
+			"  the sidebar badge on every documentation page would show the wrong release",
+			got, shared.CurrentVersion)
+	}
+
+	// And the layout must still read it rather than spelling a version out.
+	layout, err := os.ReadFile(filepath.Join(root, "docs", "_layouts", "default.html"))
+	if err != nil {
+		t.Fatalf("read layout: %v", err)
+	}
+	if !strings.Contains(string(layout), `{{ site.version }}`) {
+		t.Error("the sidebar version badge no longer reads site.version; " +
+			"a literal there cannot be kept in step with a release")
 	}
 }
