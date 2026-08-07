@@ -10,19 +10,15 @@ Two lists of addresses. One drops, one accepts — and the order between them is
 only thing you really need to remember.
 
 <figure class="docs-shot">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/blacklist-dark.png' | relative_url }}">
-    <img src="{{ '/assets/img/screens/blacklist-light.png' | relative_url }}" alt="The blacklist editor: a textarea of blocked addresses with a live entry count, per-line validation, and context cards explaining what gets blocked and that the order matters.">
-  </picture>
+  {% include themed-figure.html base="/assets/img/screens/blacklist" ext="png"
+     alt="The blacklist editor: a textarea of blocked addresses with a live entry count, per-line validation, and context cards explaining what gets blocked and that the order matters." %}
   <figcaption>Both editors validate every line as you type, and name the line number when one does not parse.</figcaption>
 </figure>
 
 ## The order
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/rule-order-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/rule-order-light.svg' | relative_url }}" alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
+   alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 **The blacklist wins.** An address on both lists is dropped, because the blacklist is
 evaluated first. A narrow allow inside a wide block does not work — take the entry off

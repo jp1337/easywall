@@ -75,10 +75,8 @@ the unprivileged web process and its data directory.
 
 ## How the public demo stays current
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/demo-deploy-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/demo-deploy-light.svg' | relative_url }}" alt="A commit on main runs the test, build and security workflows; on success publish-edge builds amd64 and arm64 and pushes :edge and :sha tags to three registries; Watchtower on the demo host pulls the new digest and recreates the container, wiping state. A systemd timer also restarts it every six hours.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/demo-deploy" ext="svg"
+   alt="A commit on main runs the test, build and security workflows; on success publish-edge builds amd64 and arm64 and pushes :edge and :sha tags to three registries; Watchtower on the demo host pulls the new digest and recreates the container, wiping state. A systemd timer also restarts it every six hours." %}
 
 It runs `:edge` — see [Docker]({{ '/installation/docker/' | relative_url }}) for the
 full tag scheme. Merge to live takes a few minutes. Point at `:edge` for the same

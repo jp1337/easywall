@@ -1,0 +1,22 @@
+{%- comment -%}
+Theme-dependent image: one file per theme, chosen by the site theme.
+
+Deliberately NOT <picture> with prefers-color-scheme. That media query reports
+the operating system, while this site's theme is a data-theme attribute driven
+by the sidebar toggle, and a matching <source> always beats a JavaScript
+reassignment of img.src — so a reader on a dark OS who chose the light docs got
+dark diagrams on a light page, and there was no way to correct it from script.
+
+Both variants are emitted and CSS shows one. loading="lazy" keeps the hidden
+one off the wire: it never intersects the viewport, so it is never fetched.
+
+Usage:
+  {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
+     alt="..." %}
+{%- endcomment -%}
+<img class="themed-img themed-img-light" loading="lazy"
+     src="{{ include.base | append: '-light.' | append: include.ext | relative_url }}"
+     alt="{{ include.alt }}">
+<img class="themed-img themed-img-dark" loading="lazy"
+     src="{{ include.base | append: '-dark.' | append: include.ext | relative_url }}"
+     alt="{{ include.alt }}">

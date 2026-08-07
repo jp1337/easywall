@@ -1,5 +1,5 @@
 flowchart LR
-  E["Editor"] -->|"save"| S["Staged<br/><i>what you are writing</i>"]
-  S -->|"apply"| C["Current<br/><i>enforcing right now</i>"]
-  C -.->|"copied first"| B["Backup<br/><i>last known good</i>"]
+  E["Editor"] -->|"save"| S["Staged<br/>what you are writing"]
+  S -->|"apply"| C["Current<br/>enforcing right now"]
+  C -.->|"copied first"| B["Backup<br/>last known good"]
   B -.->|"window expires"| C

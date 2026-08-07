@@ -6,10 +6,8 @@ description: What the host needs, what it does not, and which install path to ta
 
 # Requirements
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/install-choice-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/install-choice-light.svg' | relative_url }}" alt="Decision tree: just looking leads to demo mode; Debian or Ubuntu leads to the .deb package; already running containers leads to Docker; otherwise build from source.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/install-choice" ext="svg"
+   alt="Decision tree: just looking leads to demo mode; Debian or Ubuntu leads to the .deb package; already running containers leads to Docker; otherwise build from source." %}
 
 ## The host
 

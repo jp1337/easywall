@@ -9,10 +9,8 @@ description: What the design defends against, what it does not, and the CVE in t
 The whole design follows from one decision: the process reachable from the network
 holds no privilege worth stealing.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/architecture-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/architecture-light.svg' | relative_url }}" alt="Browser talks HTTPS to easywall-web, which runs unprivileged; easywall-web talks typed JSON over a Unix socket to easywall-core, which runs as root and speaks netlink to the nftables table inet easywall.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/architecture" ext="svg"
+   alt="Browser talks HTTPS to easywall-web, which runs unprivileged; easywall-web talks typed JSON over a Unix socket to easywall-core, which runs as root and speaks netlink to the nftables table inet easywall." %}
 
 ## Threat model
 

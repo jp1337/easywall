@@ -938,6 +938,11 @@ html, body {
     margin: 0;
   }
 
+  /* A table at width:100% inside the scroll wrapper never scrolls — it just
+     squeezes, and on a phone a four-column reference table squeezes down to
+     one word per line. Give it a floor and let the wrapper do its job. */
+  .scroll-wrapper table { min-width: 520px; }
+
   /* === Product screenshots ===
      A picture of the thing beats a paragraph about the thing, so the landing page
      leads with one. Framed rather than bled to the edge, because a screenshot of a
@@ -947,14 +952,18 @@ html, body {
     margin: 2rem 0;
   }
 
+  /* No display here on purpose: the themed-image rules below own that, and at
+     (0,1,1) this selector would outrank their (0,1,0) hide and show both the
+     light and the dark screenshot at once. */
   .docs-shot img {
-    display: block;
     width: 100%;
     height: auto;
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.6);
   }
+
+  .docs-shot img:not(.themed-img) { display: block; }
 
   .docs-shot figcaption {
     margin-top: 0.6rem;
@@ -963,24 +972,49 @@ html, body {
     text-align: center;
   }
 
-  /* === Diagrams ===
-     Pre-rendered to one SVG per theme by scripts/render-diagrams.mjs. A <picture>
-     picks the theme, so there is no runtime library and nothing to lay out after
-     paint — the picture is the right size before the first frame. */
-  .content-body picture {
-    display: block;
-    margin: 1.75rem 0;
-  }
+  /* === Theme-dependent images ===
+     Diagrams and screenshots ship as one file per theme. Both variants are in
+     the markup (see _includes/themed-figure.html) and the choice is made here,
+     from [data-theme] — the same signal that themes the rest of the page.
 
-  .content-body picture img {
-    display: block;
-    width: 100%;
+     It used to be made by <picture> from prefers-color-scheme, which reports the
+     operating system and therefore disagreed with the sidebar toggle. Script
+     cannot correct that: a matching <source> outranks the img's own src.
+
+     These two rules are the ONLY place display is set on a themed image. Any
+     other rule that sets it will outrank them on specificity and show both
+     variants stacked — which is exactly what happened when the sizing rule
+     below carried a display of its own. */
+  .themed-img { display: none; }
+
+  [data-theme="easywall-light"] .themed-img-light,
+  [data-theme="easywall-dark"]  .themed-img-dark { display: block; }
+
+  /* Diagrams: framed, because a line drawing needs an edge to sit on.
+
+     Sized from the SVG's own dimensions rather than stretched to width:100%.
+     The measure here is 880px; forcing every diagram to it scaled the 1495px
+     demo-deploy flow to 0.59 and its labels to about 8px, while blowing the
+     narrow rule-order flow up nearly 2x. Wide diagrams are additionally let
+     out of the text measure — prose wants a short line, a flow chart does
+     not — so they scale down less, or not at all. */
+  .content-body > .themed-img,
+  .content-body > p > .themed-img {
+    width: auto;
     max-width: 100%;
     height: auto;
+    margin: 1.75rem auto;
     padding: 1.25rem 1rem;
-    background: var(--surface);
-    border: 1px solid var(--border-muted);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: 10px;
+  }
+
+  /* Screenshots inside a figure keep the figure's own frame instead. */
+  .docs-shot .themed-img {
+    margin: 0;
+    padding: 0;
+    background: none;
   }
 
   /* A caption directly under a diagram belongs to it, so it sits close and quiet. */
@@ -1057,14 +1091,31 @@ html, body {
   color: var(--text-muted);
 }
 
+/* Tailwind's preflight sets list-style:none on ul and ol. Nothing put it
+   back, so every bullet and every number in the documentation was missing —
+   including the numbered priority list in configuration.md, where the order
+   is the content. */
 .content-body ul,
 .content-body ol {
   margin: 0 0 1rem;
   padding-left: 1.5rem;
 }
 
+/* The longhand, not the shorthand: `list-style: disc outside` minifies to
+   `list-style: outside`, because disc is list-style-type's initial value. That
+   still works — the shorthand resets the omitted longhand — but it reads like
+   the marker was dropped, and it cannot be grepped for. */
+.content-body ul { list-style-type: disc; }
+.content-body ol { list-style-type: decimal; }
+.content-body ul ul { list-style-type: circle; }
+.content-body ol ol { list-style-type: lower-alpha; }
+
 .content-body li {
   margin-bottom: 0.4rem;
+}
+
+.content-body li::marker {
+  color: var(--text-subtle);
 }
 
 .content-body li > p {
@@ -1077,58 +1128,105 @@ html, body {
   margin: 2rem 0;
 }
 
+/* Callouts. Previously the whole block was italic, which is fine for one
+   line and punishing on security.md, where three of these run to several
+   lines each — italic body text at that length is slower to read, and these
+   are the paragraphs a reader most needs to get right. The left edge and
+   the bold lead-in carry the emphasis instead. */
 .content-body blockquote {
-  margin: 1rem 0;
-  padding: 0.5rem 1rem;
+  margin: 1.15rem 0;
+  padding: 0.7rem 1.1rem;
   border-left: 3px solid var(--accent);
   background: var(--accent-dim);
   border-radius: 0 6px 6px 0;
-  color: var(--text-muted);
-  font-style: italic;
+  color: var(--text);
 }
 
-/* Inline code */
+.content-body blockquote > :last-child { margin-bottom: 0; }
+
+/* em is muted body-wide; inside a callout that lands on the tinted ground
+   and loses contrast, so keep it at full strength here. */
+.content-body blockquote em { color: inherit; }
+
+/* ── Inline code ───────────────────────────────────────────────────────
+   Deliberately NOT --accent: links are accent-coloured, and on a page like
+   configuration.md — where nearly every table cell holds a key or a value —
+   accent-coloured code made the whole page read as links and left the real
+   links with nothing to stand out against. The tinted chip carries the
+   distinction instead, so colour stays reserved for things you can click. */
 .content-body code {
   font-family: var(--font-mono);
   font-size: 0.85em;
   background: var(--surface-2);
-  color: var(--accent);
+  color: var(--text);
   padding: 1px 6px;
   border-radius: 4px;
-  border: 1px solid var(--border-muted);
+  border: 1px solid var(--border);
 }
 
-[data-theme="easywall-light"] .content-body code {
+/* ── Code blocks ───────────────────────────────────────────────────────
+   kramdown + rouge nest three elements per block:
+
+     div.highlighter-rouge > div.highlight > pre.highlight > code
+
+   The frame belongs to exactly one of them. It used to sit on both
+   div.highlight and pre.highlight, which drew a box inside a box — two
+   frames, offset by the pre's own margin. It went unnoticed because the
+   edge was --border-muted, which is ~1.05:1 against the fill in both
+   themes, so each frame was individually almost invisible.
+
+   Fenced blocks with no language get no rouge wrapper at all and arrive as
+   a bare <pre>, so that case is claimed here too. */
+.content-body div.highlighter-rouge,
+.content-body pre:not(.highlight) {
   background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 1.15rem 0;
 }
 
-/* Code blocks */
+/* Everything inside the frame is bare — no second background, no second
+   edge, no margin that would push the content off the frame's centre. */
+.content-body div.highlighter-rouge div.highlight,
+.content-body div.highlighter-rouge pre.highlight {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+}
+
 .content-body pre {
   font-family: var(--font-mono);
   font-size: 0.84rem;
   line-height: 1.6;
-  background: var(--surface);
-  border: 1px solid var(--border-muted);
-  padding: 1rem 1.25rem;
-  border-radius: 8px;
+  padding: 0.95rem 1.15rem;
   overflow-x: auto;
   color: var(--text);
+  /* Long lines — CSP headers, JSON audit records — scroll rather than wrap,
+     so the scrollbar has to be visible enough to announce that. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
+.content-body pre::-webkit-scrollbar { height: 9px; }
+.content-body pre::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
+}
+.content-body pre::-webkit-scrollbar-track { background: transparent; }
+
+/* The chip styling above must not follow <code> into a <pre>. This reset
+   used to lose to a [data-theme="easywall-light"] .content-body code rule
+   that set the identical background at higher specificity; since <code> is
+   an inline box, the chip fill painted per line box and left ragged grey
+   rectangles behind parts of every light-mode code block. That rule is
+   gone — do not reintroduce a theme-scoped override of a plain property. */
 .content-body pre code {
   background: none;
   border: none;
   color: inherit;
   padding: 0;
   font-size: inherit;
-}
-
-.content-body pre.highlight,
-.content-body div.highlight {
-  background: var(--surface);
-  border: 1px solid var(--border-muted);
-  border-radius: 8px;
-  margin: 1rem 0;
 }
 
 /* Rouge syntax highlighting — minimal token theme */
@@ -1190,6 +1288,41 @@ html, body {
 
 @media (min-width: 901px) {
   .sidebar-toggle, .sidebar-backdrop { display: none !important; }
+}
+
+/* Diagrams step outside the 880px text measure once there is room for it.
+   That measure exists to keep prose lines short; a flow chart has the opposite
+   need, and squeezing the widest one (1495px) into 880 was what made its labels
+   illegible. Only the paragraph holding a diagram is widened, and it is centred
+   on the same axis, so the reading column does not move. Browsers without :has()
+   simply keep the diagram at the measure — smaller, never broken. */
+@media (min-width: 1200px) {
+  .content-body > p:has(> .themed-img) {
+    width: calc(100vw - var(--sidebar-w) - 2 * clamp(1.25rem, 5vw, 4rem));
+    max-width: 1240px;
+    margin-left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* Below that, a diagram scrolls rather than shrinks. Fitting the 1597px-wide
+   deployment flow into a phone meant scaling it to about a fifth, which left
+   its labels at three pixels — present, and useless. Same bargain the tables
+   and code blocks already make on narrow screens.
+
+   Both declarations hang off :has() on purpose: without it the image would
+   keep max-width:100% and merely be small, instead of overflowing the page. */
+@media (max-width: 1199px) {
+  .content-body > p:has(> .themed-img) {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .content-body > p:has(> .themed-img) > .themed-img {
+    width: auto;
+    max-width: none;
+  }
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────

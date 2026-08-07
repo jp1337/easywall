@@ -130,6 +130,17 @@
       });
     })();
 
+    // Several tables use the headerless markdown idiom — a "| | |" header row —
+    // for key/value content. kramdown still emits a <thead>, and a styled row of
+    // empty cells renders as a blank band above the table. Drop it.
+    (function () {
+      document.querySelectorAll('.content-body table thead').forEach(function (h) {
+        var empty = Array.prototype.every.call(h.querySelectorAll('th, td'),
+          function (c) { return c.textContent.trim() === ''; });
+        if (empty) h.remove();
+      });
+    })();
+
     // Wrap tables and pre blocks in horizontal scroll containers on mobile.
     (function () {
       var body = document.querySelector('.content-body');
@@ -143,24 +154,12 @@
       });
     })();
 
-    // Diagrams and screenshots ship as one file per theme, and <picture> picks from
-    // prefers-color-scheme — the reader's operating system. The toggle in the sidebar
-    // is a different thing, and no media query can see it, so keep them in step here.
-    // Screenshots are included: a light screenshot of the application on a dark
-    // documentation page looks like a mistake, because it is one.
-    (function () {
-      function sync() {
-        var dark = document.documentElement.getAttribute('data-theme') === 'easywall-dark';
-        var sel = 'img[src*="/assets/diagrams/"], img[src*="/assets/img/screens/"]';
-        document.querySelectorAll(sel).forEach(function (img) {
-          var want = img.src.replace(/-(light|dark)\.(svg|png)$/, dark ? '-dark.$2' : '-light.$2');
-          if (img.src !== want) img.src = want;
-        });
-      }
-      sync();
-      var btn = document.getElementById('theme-toggle');
-      if (btn) btn.addEventListener('click', function () { setTimeout(sync, 0); });
-    })();
+    // Diagrams and screenshots used to be reconciled with the theme from here, by
+    // reassigning img.src against a <picture> that chose from prefers-color-scheme.
+    // That never worked — a matching <source> outranks the src — so a reader on a
+    // dark OS who chose the light docs saw dark diagrams on a white page. Both
+    // variants are now in the markup and CSS picks one from [data-theme]; see
+    // _includes/themed-figure.html. Nothing to do at runtime.
   </script>
 
 </body>

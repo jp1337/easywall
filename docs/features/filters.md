@@ -11,10 +11,8 @@ are native nftables rules in `table inet easywall` — no subprocess, nothing to
 into. Toggling one is staged like any other change and takes effect on **Apply**.
 
 <figure class="docs-shot">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/options-dark.png' | relative_url }}">
-    <img src="{{ '/assets/img/screens/options-light.png' | relative_url }}" alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. An accent edge marks a module that is switched on.">
-  </picture>
+  {% include themed-figure.html base="/assets/img/screens/options" ext="png"
+     alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. An accent edge marks a module that is switched on." %}
   <figcaption>An accent edge down the left of a card means that module is on.</figcaption>
 </figure>
 
@@ -23,10 +21,8 @@ into. Toggling one is staged like any other change and takes effect on **Apply**
 Before the blacklist, before the whitelist, before any port is considered. A module
 that drops a packet drops it whatever else you have allowed.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/rule-order-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/rule-order-light.svg' | relative_url }}" alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
+   alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 

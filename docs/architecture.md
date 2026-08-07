@@ -8,10 +8,8 @@ description: Two processes, a typed socket, three rule sets, and a timer that un
 
 Two processes. The one exposed to the network has no way to touch the firewall.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/architecture-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/architecture-light.svg' | relative_url }}" alt="Browser talks HTTPS to easywall-web, which runs unprivileged; easywall-web talks typed JSON over a Unix socket to easywall-core, which runs as root and speaks netlink to the nftables table inet easywall.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/architecture" ext="svg"
+   alt="Browser talks HTTPS to easywall-web, which runs unprivileged; easywall-web talks typed JSON over a Unix socket to easywall-core, which runs as root and speaks netlink to the nftables table inet easywall." %}
 
 ## Who may do what
 
@@ -37,20 +35,16 @@ validation permits.
 
 ## Three rule sets
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/rule-states-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/rule-states-light.svg' | relative_url }}" alt="Editing writes to Staged. Applying copies Current to Backup and promotes Staged to Current. If the acceptance window expires, Backup is restored to Current.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/rule-states" ext="svg"
+   alt="Editing writes to Staged. Applying copies Current to Backup and promotes Staged to Current. If the acceptance window expires, Backup is restored to Current." %}
 
 Editing never touches the kernel. Saving writes to **Staged**; only *Apply* promotes
 it to **Current**, and **Backup** is what comes back if you do not confirm.
 
 ## Applying, and the way back
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/apply-flow-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/apply-flow-light.svg' | relative_url }}" alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
+   alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
 **Applying is reversible by doing nothing.** If the new rules cut your connection,
 you cannot click Confirm — and that is exactly what restores the previous set.
