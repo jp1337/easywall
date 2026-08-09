@@ -2226,6 +2226,19 @@ body {
 
   .firstrun-port .field-help { margin-top: 6px; }
 
+  /* A row in the same card as the switches, but with nothing to operate: the
+     port this page is served on is staged whatever the operator answers. It
+     therefore takes the switch layout and leaves the control off, rather than
+     offering a disabled toggle that invites a click it will not honour. */
+  .firstrun-fixed {
+    display: block;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .firstrun-fixed .switch-name,
+  .firstrun-fixed .switch-desc { display: block; }
+
   .firstrun-section {
     font-size: 14px;
     font-weight: 600;

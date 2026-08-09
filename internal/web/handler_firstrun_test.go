@@ -2,8 +2,13 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -245,11 +250,78 @@ func TestHandleFirstRunPOST_EmptySSHPortMeans22(t *testing.T) {
 	doFormRequest(s, "POST", "/firstrun",
 		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1&ssh_port=")
 
-	if len(saved) != 1 || saved[0].Port != "22" {
-		t.Fatalf("expected port 22 staged, got %+v", saved)
+	if len(saved) == 0 || saved[0].Port != "22" {
+		t.Fatalf("expected port 22 staged first, got %+v", saved)
 	}
 	if !saved[0].SSH {
 		t.Error("the SSH port should be staged with brute-force protection")
+	}
+}
+
+// The input policy is drop and nothing opens the web port by itself, so a
+// wizard that stages only SSH hands the operator a rule set whose first apply
+// cuts off the page they applied it from. The acceptance window then rolls the
+// whole apply back, and nothing anywhere says why.
+func TestHandleFirstRunPOST_StagesThePortThisInterfaceIsServedOn(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	var saved []shared.PortRule
+	fc.OnCommand(shared.CmdSaveRules, func(cmd shared.Command) {
+		var p shared.SaveRulesPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return
+		}
+		raw, _ := json.Marshal(p.Rules)
+		_ = json.Unmarshal(raw, &saved)
+	})
+
+	doFormRequest(s, "POST", "/firstrun",
+		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1&ssh_port=22")
+
+	_, want, err := net.SplitHostPort(s.cfg.BindAddr)
+	if err != nil {
+		t.Fatalf("test server has an unreadable bind_addr %q", s.cfg.BindAddr)
+	}
+	found := false
+	for _, r := range saved {
+		if r.Port == want {
+			found = true
+			if r.SSH {
+				t.Error("the web port must not be routed through the SSH brute-force chain")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("port %s (this interface) was not staged; got %+v", want, saved)
+	}
+}
+
+// Everything the operator answered has to survive a rejected submission. The
+// SSH port is the one that matters: reverting it to 22 unnoticed stages a port
+// their machine does not listen on, and the passwords are the one thing that
+// must not come back.
+func TestHandleFirstRunPOST_RejectedSubmissionKeepsTheAnswers(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+
+	rec := doFormRequest(s, "POST", "/firstrun",
+		"username=operator&password=averysecurepass1&password_confirm=mismatch"+
+			"&ssh_port=2222&open_web=on&ipv6_mode=block&telemetry=on")
+
+	back := doRequest(s, "GET", "/firstrun", nil, rec.Result().Cookies()...)
+	body := back.Body.String()
+	for _, want := range []string{`value="operator"`, `value="2222"`, `name="open_web" class="toggle" checked`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the re-rendered wizard lost %s", want)
+		}
+	}
+	if !strings.Contains(body, `value="block" class="radio" checked`) {
+		t.Error("the re-rendered wizard lost the IPv6 choice")
+	}
+	if strings.Contains(body, "averysecurepass1") {
+		t.Error("the password came back in the page")
 	}
 }
 
@@ -288,5 +360,46 @@ func TestHandleFirstRunPOST_StagesButNeverApplies(t *testing.T) {
 
 	if applied {
 		t.Error("the wizard must not apply rules")
+	}
+}
+
+// Two setups arriving together both passed the handler's IsFirstRun check and
+// both wrote, so the second one decided who owns the firewall. The check now
+// sits under the same lock as the write.
+func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	const attempts = 50
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			hash, err := HashPassword("averysecurepass1")
+			if err != nil {
+				return
+			}
+			_ = s.cfg.SaveFirstRun(fmt.Sprintf("operator%d", i), hash, false)
+		}(i)
+	}
+	wg.Wait()
+
+	user, _ := s.cfg.Credentials()
+	if user == "" {
+		t.Fatal("no account was created at all")
+	}
+
+	// Whoever won, nobody may replace them afterwards.
+	hash, err := HashPassword("averysecurepass1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.SaveFirstRun("intruder", hash, true); !errors.Is(err, ErrAlreadySetUp) {
+		t.Fatalf("a later setup was accepted: %v", err)
+	}
+	if after, _ := s.cfg.Credentials(); after != user {
+		t.Errorf("the account changed hands: %q became %q", user, after)
 	}
 }

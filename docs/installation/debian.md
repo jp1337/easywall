@@ -19,7 +19,10 @@ out — which port SSH is on, whether 80 and 443 should be open, what happens to
 and whether this installation may be counted. Everything but the account is *staged*:
 nothing reaches the firewall until you review it and apply, and an apply undoes itself
 unless you confirm it.
-The first visit runs the setup wizard.
+
+The port easywall itself is served on is staged too, and the wizard says so. The
+firewall drops what it was not told to allow, this page included — a rule set without
+it makes the interface unreachable on the first apply.
 
 `arm64` packages are on the same release page.
 

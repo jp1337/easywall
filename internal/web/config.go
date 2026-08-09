@@ -215,14 +215,27 @@ func (c *Config) SaveCredentials(username, passwordHash string) error {
 	return c.saveLocked()
 }
 
+// ErrAlreadySetUp is returned when the wizard is asked to create an account on
+// an installation that already has one.
+var ErrAlreadySetUp = errors.New("the account has already been created")
+
 // SaveFirstRun persists everything the setup wizard decides, in one write.
 //
 // One write rather than three, because a failure halfway through the first run
 // is the worst moment to leave a half-configured file behind: the wizard closes
 // as soon as a password exists, and whatever did not land cannot be asked again.
+//
+// The "is it still the first run" test happens here, under the same lock as the
+// write. The handler checks too, but that check and this write are two moments:
+// two POSTs arriving together both passed it, both wrote, and the second one
+// decided who owns the firewall. The window is small and it sits on a machine
+// that is, by definition, freshly exposed and not yet protected.
 func (c *Config) SaveFirstRun(username, passwordHash string, telemetry bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.Password != "" {
+		return ErrAlreadySetUp
+	}
 	c.Username = username
 	c.Password = passwordHash
 	c.Telemetry = &telemetry
