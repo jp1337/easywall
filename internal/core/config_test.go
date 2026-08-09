@@ -152,13 +152,6 @@ func TestAuditLogPath(t *testing.T) {
 	}
 }
 
-func TestVersionCachePath_Core(t *testing.T) {
-	cfg := newCoreCfgWith("/run/x", "/var/lib/easywall", "/log", 120)
-	if p := cfg.VersionCachePath(); p != "/var/lib/easywall/version_cache.json" {
-		t.Errorf("unexpected version cache path: %s", p)
-	}
-}
-
 func TestValidateCoreConfig_SetsConnectionLimitDefaults(t *testing.T) {
 	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
 	cfg.Firewall.ConnectionLimit = true
@@ -292,6 +285,60 @@ func TestSaveSystemSettings_RoundTrip(t *testing.T) {
 	}
 	if cfg2.Acceptance.Duration != 300 {
 		t.Errorf("expected Duration=300, got %d", cfg2.Acceptance.Duration)
+	}
+}
+
+// The core is the authority on what it will store. A duration chosen now is
+// refused outright rather than quietly adjusted, so the setting cannot end up
+// disagreeing with what the operator was shown.
+func TestSaveSystemSettings_RejectsADurationOutsideTheRange(t *testing.T) {
+	for _, dur := range []int{0, 1, 9, 3601, 100000} {
+		path := writeTempCoreConfig(t, validCoreConfig)
+		cfg, err := LoadConfig(path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+
+		err = cfg.SaveSystemSettings(shared.SystemSettings{
+			Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: dur},
+		})
+		if err == nil {
+			t.Errorf("duration %d is out of range and must be rejected", dur)
+		}
+
+		reloaded, err := LoadConfig(path)
+		if err != nil {
+			t.Fatalf("LoadConfig after rejected save: %v", err)
+		}
+		if reloaded.Acceptance.Duration == dur {
+			t.Errorf("a rejected duration (%d) must not be written to the config", dur)
+		}
+	}
+}
+
+// A config file already carrying an out-of-range value is a different case: the
+// daemon refusing to start would leave the host without a firewall manager over
+// a number it can perfectly well bring into range.
+func TestValidateCoreConfig_ClampsAnOutOfRangeDuration(t *testing.T) {
+	cases := []struct {
+		configured, want int
+	}{
+		{5, shared.AcceptanceDurationMin},
+		{9, shared.AcceptanceDurationMin},
+		{10, 10},
+		{120, 120},
+		{3600, 3600},
+		{7200, shared.AcceptanceDurationMax},
+	}
+	for _, tc := range cases {
+		cfg := newCoreCfgWith("/run/x", "/data", "/log", tc.configured)
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate(%d): %v", tc.configured, err)
+		}
+		if cfg.Acceptance.Duration != tc.want {
+			t.Errorf("duration %d: expected %d after Validate, got %d",
+				tc.configured, tc.want, cfg.Acceptance.Duration)
+		}
 	}
 }
 

@@ -2,17 +2,10 @@ package web
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
+	"crypto/tls"
 	"fmt"
 	"html/template"
 	"log/slog"
-	"math/big"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -64,6 +57,8 @@ type Server struct {
 	tmpl    *template.Template
 	router  chi.Router
 	httpSrv *http.Server
+	version *shared.Checker
+	certs   *certManager
 }
 
 // NewServer initialises the web server with all dependencies.
@@ -72,14 +67,11 @@ func NewServer(cfg *Config) (*Server, error) {
 		return nil, fmt.Errorf("create ssl dir: %w", err)
 	}
 
-	// TLS certificate — generate self-signed if needed
-	if cfg.TLS.CertFile == "" {
-		if certNeedsRenewal(cfg.CertPath()) {
-			slog.Info("generating self-signed TLS certificate", "dir", cfg.SSLDir)
-			if err := generateSelfSignedCert(cfg.SSLDir); err != nil {
-				return nil, fmt.Errorf("generate TLS cert: %w", err)
-			}
-		}
+	// TLS certificate — generated on first start, and kept current from here on
+	// by the manager rather than only at process start.
+	certs := newCertManager(cfg)
+	if err := certs.ensure(); err != nil {
+		return nil, fmt.Errorf("generate TLS cert: %w", err)
 	}
 
 	var client *CoreClient
@@ -102,10 +94,12 @@ func NewServer(cfg *Config) (*Server, error) {
 	bundle := NewBundle(cfg.LocalesDir())
 
 	s := &Server{
-		cfg:    cfg,
-		client: client,
-		store:  store,
-		bundle: bundle,
+		cfg:     cfg,
+		client:  client,
+		store:   store,
+		bundle:  bundle,
+		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:   certs,
 	}
 
 	// Load templates — non-fatal if not yet created (Phase 4)
@@ -123,6 +117,13 @@ func NewServer(cfg *Config) (*Server, error) {
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
+		// The certificate comes from the manager on every handshake instead of
+		// being read once from disk, so a renewed or replaced certificate takes
+		// effect without restarting the service.
+		TLSConfig: &tls.Config{
+			GetCertificate: certs.GetCertificate,
+			MinVersion:     tls.VersionTLS12,
+		},
 	}
 
 	return s, nil
@@ -130,8 +131,17 @@ func NewServer(cfg *Config) (*Server, error) {
 
 // Start begins serving HTTPS traffic. Blocks until Stop() is called.
 func (s *Server) Start() error {
+	// Load the certificate before binding. Serving the port and failing every
+	// handshake looks, from the outside, like a broken network rather than a
+	// missing file; refusing to start says which.
+	if _, err := s.certs.GetCertificate(nil); err != nil {
+		return fmt.Errorf("TLS certificate: %w", err)
+	}
+
 	slog.Info("easywall-web listening", "addr", s.cfg.BindAddr)
-	if err := s.httpSrv.ListenAndServeTLS(s.cfg.CertPath(), s.cfg.KeyPath()); err != nil && err != http.ErrServerClosed {
+	go s.certs.maintain()
+	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
+	if err := s.httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTPS server: %w", err)
 	}
 	return nil
@@ -139,6 +149,7 @@ func (s *Server) Start() error {
 
 // Stop gracefully shuts down the server.
 func (s *Server) Stop() {
+	s.certs.close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = s.httpSrv.Shutdown(ctx)
@@ -157,7 +168,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// authoritative — see GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp, GHSA-9g5q-2w5x-hmxf.
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
-	r.Use(MaxBodySize(64 * 1024))
+	r.Use(MaxBodySize(64*1024, map[string]int64{"/import": maxImportBytes}))
 
 	// CSRF protection via Go 1.25 net/http.CrossOriginProtection (Origin/Sec-Fetch-Site header check)
 	cop := http.NewCrossOriginProtection()
@@ -186,7 +197,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(RequireAuth(s.store))
+		r.Use(RequireAuth(s.store, func() string { return credentialFingerprint(s.cfg.Password) }))
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -664,74 +675,4 @@ func templateFuncs() template.FuncMap {
 			return errorSVG
 		},
 	}
-}
-
-// certNeedsRenewal returns true if the cert doesn't exist or expires within 30 days.
-func certNeedsRenewal(certPath string) bool {
-	data, err := os.ReadFile(certPath)
-	if err != nil {
-		return true
-	}
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return true
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return true
-	}
-	return time.Until(cert.NotAfter) < 30*24*time.Hour
-}
-
-// generateSelfSignedCert creates a new ECDSA P-256 self-signed certificate valid 1 year.
-func generateSelfSignedCert(dir string) error {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return fmt.Errorf("generate key: %w", err)
-	}
-
-	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	tmpl := &x509.Certificate{
-		SerialNumber: serial,
-		Subject: pkix.Name{
-			Organization: []string{"easywall"},
-			CommonName:   "easywall",
-		},
-		NotBefore:   time.Now().Add(-time.Minute),
-		NotAfter:    time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:    x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		// SANs are required by modern browsers — CN alone is not trusted since Chrome 58.
-		DNSNames:              []string{"localhost", "easywall"},
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
-		BasicConstraintsValid: true,
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
-	if err != nil {
-		return fmt.Errorf("create certificate: %w", err)
-	}
-
-	certPath := dir + "/cert.pem"
-	certOut, err := os.OpenFile(certPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("create cert file: %w", err)
-	}
-	defer certOut.Close()
-	if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: certDER}); err != nil {
-		return err
-	}
-
-	keyPath := dir + "/key.pem"
-	keyOut, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return fmt.Errorf("create key file: %w", err)
-	}
-	defer keyOut.Close()
-
-	keyDER, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return fmt.Errorf("marshal key: %w", err)
-	}
-	return pem.Encode(keyOut, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
 }

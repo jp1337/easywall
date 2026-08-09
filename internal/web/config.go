@@ -53,6 +53,18 @@ func (c *Config) Validate() error {
 	if c.Language == "" {
 		c.Language = "en"
 	}
+	// Both halves of a custom certificate, or neither.
+	//
+	// With only one set, easywall generated its own pair into ssl_dir and then
+	// served the generated certificate with the configured key — or the other
+	// way round. TLS refuses the mismatch, and the operator got "private key
+	// does not match public key" from a certificate they never configured.
+	switch {
+	case c.TLS.CertFile != "" && c.TLS.KeyFile == "":
+		return fmt.Errorf("tls.cert is set but tls.key is not; set both, or neither for a self-signed certificate")
+	case c.TLS.KeyFile != "" && c.TLS.CertFile == "":
+		return fmt.Errorf("tls.key is set but tls.cert is not; set both, or neither for a self-signed certificate")
+	}
 	return nil
 }
 
@@ -90,6 +102,13 @@ func (c *Config) TemplatesDir() string {
 // StaticDir returns the static assets directory path.
 func (c *Config) StaticDir() string {
 	return "web/static"
+}
+
+// UpdateCheckEnabled reports whether the dashboard may contact the GitHub
+// releases API. An absent key means yes, so an existing config keeps behaving
+// as it did.
+func (c *Config) UpdateCheckEnabled() bool {
+	return c.UpdateCheck == nil || *c.UpdateCheck
 }
 
 // VersionCachePath returns the path for the version check cache file.
@@ -141,7 +160,12 @@ func WriteDefaultWebConfig(path string) error {
 bind_addr    = "0.0.0.0:12227"
 socket_path  = "/run/easywall/core.sock"
 ssl_dir      = "/etc/easywall/ssl"
+data_dir     = "/var/lib/easywall"
 language     = "en"
+
+# The dashboard checks github.com once a day for a newer release. This is the
+# only outbound request easywall makes. Set to false to remove it entirely.
+update_check = true
 
 # Auto-generated secret — keep this private!
 session_key = %q

@@ -40,9 +40,15 @@ The two-step activation safety mechanism. When a ruleset is applied, the core wa
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable two-step activation safety |
-| `duration` | int | `120` | Seconds before auto-rollback if not confirmed |
+| `duration` | int | `120` | Seconds before auto-rollback if not confirmed — 10 to 3600 |
 
 Set `duration` to a value long enough for you to verify connectivity from a second terminal after applying rules.
+
+The range is enforced, not merely suggested. Below ten seconds the window closes before
+the confirmation page can be read, so every apply rolls back and the firewall can no
+longer be changed through the interface. A value outside the range in an existing file
+is brought to the nearest permitted one, with a warning, rather than keeping the daemon
+from starting; a value set through the interface is rejected outright.
 
 ### `[ipv6]`
 
@@ -122,11 +128,13 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 | `bind_addr` | string | Listen address and port — e.g. `"0.0.0.0:12227"` or `"127.0.0.1:12227"` |
 | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
-| `data_dir` | string | Directory for the version cache file |
+| `data_dir` | string | Directory for the version cache file — defaults to `/var/lib/easywall` |
 | `language` | string | Fallback UI locale — `"en"` (English) or `"de"` (German). Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
 | `session_key` | string | 32-byte hex secret that signs the session cookie |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
+| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. The only outbound request easywall makes; see below |
+| `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 
 ### How the interface picks a language
 
@@ -164,7 +172,28 @@ Leave both keys empty to use an auto-generated self-signed certificate in `ssl_d
 | `cert` | Absolute path to a custom TLS certificate PEM file (e.g. Let's Encrypt fullchain) |
 | `key` | Absolute path to the matching private key PEM file |
 
-The auto-generated certificate has a one-year validity and is renewed automatically on startup when it expires within 30 days.
+The auto-generated certificate is valid for a year and is replaced once it comes within
+30 days of expiry — checked at startup and twice a day while the service runs, so a
+server that stays up past its own certificate keeps working.
+
+A custom certificate is **never** overwritten. It is re-read when the file changes, so
+an ACME client renewing it in place takes effect on the next connection without a
+restart.
+
+Set both `cert` and `key` or neither. Setting one alone is refused at startup: easywall
+would otherwise pair your file with the other half of its own generated pair, and TLS
+fails with a key-mismatch error naming a certificate you never configured.
+
+## The update check
+
+The dashboard asks `api.github.com` once a day whether there is a newer release, and
+shows a banner if so. It is the only outbound request easywall makes, and it is never
+in the way of a page: the answer comes from a cache on disk, and a stale cache is
+refreshed in the background. On a host with no route out, the failure is remembered for
+an hour rather than retried on every load.
+
+Set `update_check = false` to switch it off entirely. Nothing else changes; the version
+easywall is running is shown either way.
 
 ---
 

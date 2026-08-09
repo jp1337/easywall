@@ -53,6 +53,16 @@ func (s *Server) handlePasswordPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every session issued under the old password is now invalid. Re-stamp this
+	// one so the operator who just changed it is not thrown out of the tab they
+	// are working in — anyone else signed in is.
+	if sess, err := s.store.Get(r, SessionName); err == nil {
+		sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password)
+		if err := sess.Save(r, w); err != nil {
+			slog.Warn("could not refresh session after password change", "error", err)
+		}
+	}
+
 	s.setFlash(w, r, "password_changed")
 	http.Redirect(w, r, "/password", http.StatusSeeOther)
 }

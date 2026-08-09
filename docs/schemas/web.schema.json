@@ -54,10 +54,24 @@
       "description": "Argon2id password hash. Set via the first-run wizard — do not edit manually.",
       "default": ""
     },
+    "update_check": {
+      "type": "boolean",
+      "description": "Check github.com once a day for a newer release and show a banner on the dashboard. This is the only outbound request easywall makes; set to false to remove it. The dashboard never waits for it either way.",
+      "default": true
+    },
+    "demo_mode": {
+      "type": "boolean",
+      "description": "Run against an in-memory mock instead of the core socket, for the public demo. No rule ever reaches a kernel and state resets when the process restarts. Never enable this on a host you are actually protecting.",
+      "default": false
+    },
     "tls": {
       "type": "object",
-      "description": "Custom TLS certificate settings. Leave both fields empty to use an auto-generated self-signed certificate.",
+      "description": "Custom TLS certificate settings. Leave both fields empty to use an auto-generated self-signed certificate; set both to use your own. Setting only one is rejected at startup.",
       "additionalProperties": false,
+      "dependencies": {
+        "cert": ["key"],
+        "key": ["cert"]
+      },
       "properties": {
         "cert": {
           "type": "string",

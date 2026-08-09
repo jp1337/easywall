@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,13 +53,24 @@ func SecurityHeaders(next http.Handler) http.Handler {
 }
 
 // RequireAuth rejects unauthenticated requests with a redirect to /login.
-func RequireAuth(store sessions.Store) func(http.Handler) http.Handler {
+//
+// currentCredential returns the fingerprint of the password in force right now.
+// A session carrying a different one was issued under a password that has since
+// been changed, and stops being accepted at that moment rather than when it
+// happens to time out.
+func RequireAuth(store sessions.Store, currentCredential func() string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, err := store.Get(r, SessionName)
 			if err != nil || sess.Values[SessionUserKey] == nil {
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
+			}
+			if currentCredential != nil {
+				if fp, _ := sess.Values[SessionCredentialKey].(string); fp != currentCredential() {
+					http.Redirect(w, r, "/login", http.StatusSeeOther)
+					return
+				}
 			}
 			next.ServeHTTP(w, r)
 		})
@@ -122,12 +135,35 @@ func LoginRateLimit(next http.Handler) http.Handler {
 	})
 }
 
-// MaxBodySize limits request bodies to avoid memory exhaustion.
-func MaxBodySize(n int64) func(http.Handler) http.Handler {
+// MaxBodySize limits request bodies to avoid memory exhaustion. Paths listed in
+// overrides get their own limit instead of the default.
+//
+// The override belongs here rather than in the handler because a handler cannot
+// widen a limit that is already in place: http.MaxBytesReader has no way to
+// unwrap, so a second, larger reader around the first one changes nothing and
+// the smaller limit keeps applying. The only place a route can get more room is
+// where the limit is first set.
+func MaxBodySize(n int64, overrides map[string]int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r.Body = http.MaxBytesReader(w, r.Body, n)
+			limit := n
+			if o, ok := overrides[r.URL.Path]; ok {
+				limit = o
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isBodyTooLarge reports whether err came from a body hitting its size limit,
+// however deeply the multipart or form parser has wrapped it.
+func isBodyTooLarge(err error) bool {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) {
+		return true
+	}
+	// mime/multipart reports the limit as a plain string in some paths rather
+	// than passing the typed error through.
+	return err != nil && strings.Contains(err.Error(), "http: request body too large")
 }

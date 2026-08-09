@@ -21,7 +21,7 @@ holds no privilege worth stealing.
 | Auth brute force | Argon2id, plus 5 attempts per 10 minutes per source address |
 | CSRF | Go 1.25 `net/http.CrossOriginProtection` — `Origin` and `Sec-Fetch-Site` on every unsafe method |
 | XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
-| Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime |
+| Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime, and every session ends the moment the password changes |
 | Locking the admin out | The acceptance window rolls back on its own |
 | Known CVEs in dependencies | `govulncheck` on every PR and weekly |
 | Dependency hijacking | Dependabot, secret scanning, dependency review |
@@ -34,13 +34,20 @@ holds no privilege worth stealing.
 | Default password | none. The first-run wizard is mandatory |
 | Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
 | Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
+| Password change | Ends every other session at once. Sessions live in a signed cookie with nothing to revoke server-side, so each one carries a fingerprint of the password hash it was issued under and is refused as soon as that stops matching. The browser making the change stays signed in |
 | Recovery | none by design — no mail, no outside service. Editing `web.toml` on the host is the only way back |
 
 ## Transport
 
 HTTPS only, TLS 1.2+. No plaintext port is opened at all. Without a configured
 certificate easywall generates a self-signed **ECDSA P-256** one into `ssl_dir`, and
-renews it when it is within 30 days of expiry.
+replaces it once it comes within 30 days of expiry — at startup, and twice a day while
+the service is running. The certificate is read per handshake rather than once at
+startup, so a renewal takes effect without a restart. That matters for a service that
+may well outlive its own one-year certificate.
+
+A certificate you configure yourself is never overwritten. It is re-read when the file
+changes, so an ACME client renewing it in place needs no restart either.
 
 ```toml
 [tls]
@@ -67,6 +74,13 @@ built for.
 > **A constraint on contributions.** `style-src` has no `'unsafe-inline'`, so
 > assigning `element.style.*` from JavaScript, or letting a library inject a
 > `<style>` block, is blocked. Scripts toggle a class instead.
+
+### The one request that does go out
+
+The dashboard checks for a newer release against `api.github.com`, once a day. That is
+the whole list. It never delays a page — the answer is served from a cache and refreshed
+in the background — and a failure is remembered for an hour, so a host with no route out
+is not retrying on every load. `update_check = false` in `web.toml` removes it.
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
 > event, which htmx does not emit. The listener never ran, so `allowEval` stayed at

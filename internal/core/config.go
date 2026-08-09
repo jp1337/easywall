@@ -51,6 +51,16 @@ func (c *Config) Validate() error {
 	if c.Acceptance.Duration <= 0 {
 		return fmt.Errorf("acceptance.duration must be > 0 (seconds)")
 	}
+	// A file written by hand, or by an older version that accepted anything, is
+	// brought into range rather than kept from starting: the daemon refusing to
+	// come up is a worse outcome than a window of a different length.
+	if !shared.ValidAcceptanceDuration(c.Acceptance.Duration) {
+		clamped := min(max(c.Acceptance.Duration, shared.AcceptanceDurationMin), shared.AcceptanceDurationMax)
+		slog.Warn("acceptance.duration is out of range; using the nearest permitted value",
+			"configured", c.Acceptance.Duration, "using", clamped,
+			"min", shared.AcceptanceDurationMin, "max", shared.AcceptanceDurationMax)
+		c.Acceptance.Duration = clamped
+	}
 
 	// SSH brute force limits
 	if c.Firewall.SSHBruteForce {
@@ -134,11 +144,6 @@ func (c *Config) LastApplyPath() string {
 	return c.DataDir + "/last_apply"
 }
 
-// VersionCachePath returns the path for the version check cache file.
-func (c *Config) VersionCachePath() string {
-	return c.DataDir + "/version_cache.json"
-}
-
 // SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.
 func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	// Unset means filter, the same as everywhere else — a caller that omits the
@@ -173,7 +178,15 @@ func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
 }
 
 // SaveSystemSettings updates the [acceptance] section and atomically persists the config.
+//
+// Unlike Validate, a value arriving here is being chosen right now, so it is
+// rejected rather than adjusted — silently storing something other than what
+// was asked for is how a setting comes to disagree with what it says.
 func (c *Config) SaveSystemSettings(s shared.SystemSettings) error {
+	if !shared.ValidAcceptanceDuration(s.Acceptance.Duration) {
+		return fmt.Errorf("acceptance duration %d is outside %d–%d seconds",
+			s.Acceptance.Duration, shared.AcceptanceDurationMin, shared.AcceptanceDurationMax)
+	}
 	c.Acceptance = s.Acceptance
 	return c.save()
 }

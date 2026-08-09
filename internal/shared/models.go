@@ -96,6 +96,24 @@ type AcceptanceConfig struct {
 	Duration int  `toml:"duration"` // seconds before auto-rollback
 }
 
+// Bounds on the acceptance window. The settings page has advertised these as
+// the permitted range from the beginning — as an HTML min/max, which is a hint
+// to the browser and nothing more. The server took any positive number.
+//
+// Both ends matter. Below ten seconds the window closes before anyone can read
+// the confirmation page, let alone click it, so every apply rolls back and the
+// firewall can never be changed. Above an hour a lockout you have already
+// noticed keeps you shut out for the rest of it.
+const (
+	AcceptanceDurationMin = 10
+	AcceptanceDurationMax = 3600
+)
+
+// ValidAcceptanceDuration reports whether d is within the permitted range.
+func ValidAcceptanceDuration(d int) bool {
+	return d >= AcceptanceDurationMin && d <= AcceptanceDurationMax
+}
+
 // IPv6Mode says what the firewall does with IPv6 traffic.
 //
 // This replaces a boolean that could not express the question. `enabled = false`
@@ -180,6 +198,12 @@ type WebConfig struct {
 	SessionKey string    `toml:"session_key"` // HMAC key for gorilla/sessions
 	Username   string    `toml:"username"`
 	Password   string    `toml:"password"` // argon2id hash
+
+	// UpdateCheck controls whether the dashboard asks the GitHub releases API
+	// for the newest version. Unset means on. It is the only outbound request
+	// easywall makes, and on an isolated network it is one an operator may
+	// reasonably want gone entirely rather than merely failing quietly.
+	UpdateCheck *bool `toml:"update_check"`
 
 	// DemoMode runs the web binary against an in-memory mock instead of the
 	// Unix socket — no easywall-core required. Used by the public demo

@@ -160,6 +160,9 @@ session_key = "test-session-key-32bytes-padding!"
 language = "en"
 username = "admin"
 password = ""
+# No test may reach for the network. Tests that want the update check switch it
+# on themselves, with a cache primed so nothing is fetched.
+update_check = false
 [tls]
 cert = ""
 key  = ""
@@ -195,11 +198,12 @@ key  = ""
 	}
 
 	s := &Server{
-		cfg:    cfg,
-		client: client,
-		store:  store,
-		bundle: bundle,
-		tmpl:   tmpl,
+		cfg:     cfg,
+		client:  client,
+		store:   store,
+		bundle:  bundle,
+		tmpl:    tmpl,
+		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 	}
 	s.router = s.buildRouter(cfg)
 	return s
@@ -223,6 +227,7 @@ session_key = "test-session-key-32bytes-padding!"
 language = "en"
 username = ""
 password = ""
+update_check = false
 [tls]
 cert = ""
 key  = ""
@@ -251,26 +256,32 @@ key  = ""
 	}
 
 	s := &Server{
-		cfg:    cfg,
-		client: client,
-		store:  store,
-		bundle: bundle,
-		tmpl:   tmpl,
+		cfg:     cfg,
+		client:  client,
+		store:   store,
+		bundle:  bundle,
+		tmpl:    tmpl,
+		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 	}
 	s.router = s.buildRouter(cfg)
 	return s
 }
 
 // makeAuthCookie creates a session cookie with admin user logged in.
-func makeAuthCookie(t *testing.T, store sessions.Store) *http.Cookie {
+//
+// It carries the credential fingerprint the server is currently running with,
+// exactly as a real login would leave it — a session without one is refused,
+// which is the whole point of it.
+func makeAuthCookie(t *testing.T, s *Server) *http.Cookie {
 	t.Helper()
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	sess, err := store.Get(req, SessionName)
+	sess, err := s.store.Get(req, SessionName)
 	if err != nil {
 		t.Fatalf("store.Get: %v", err)
 	}
 	sess.Values[SessionUserKey] = "admin"
+	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password)
 	if err := sess.Save(req, rec); err != nil {
 		t.Fatalf("sess.Save: %v", err)
 	}
@@ -317,14 +328,14 @@ func doFormRequest(s *Server, method, url, formBody string, cookies ...*http.Coo
 // doAuthRequest performs an authenticated request (with session cookie).
 func doAuthRequest(t *testing.T, s *Server, method, url string, body io.Reader) *httptest.ResponseRecorder {
 	t.Helper()
-	cookie := makeAuthCookie(t, s.store)
+	cookie := makeAuthCookie(t, s)
 	return doRequest(s, method, url, body, cookie)
 }
 
 // doAuthFormRequest performs an authenticated POST with URL-encoded form data.
 func doAuthFormRequest(t *testing.T, s *Server, url, formBody string) *httptest.ResponseRecorder {
 	t.Helper()
-	cookie := makeAuthCookie(t, s.store)
+	cookie := makeAuthCookie(t, s)
 	return doFormRequest(s, "POST", url, formBody, cookie)
 }
 

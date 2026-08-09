@@ -185,7 +185,7 @@ func TestRender_WithFlash(t *testing.T) {
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
 
 	// First: set a flash via a POST that fails
-	cookie := makeAuthCookie(t, s.store)
+	cookie := makeAuthCookie(t, s)
 
 	// Set flash in the session directly
 	req1 := httptest.NewRequest("GET", "/dashboard", nil)
@@ -452,8 +452,12 @@ func TestServer_Start_MissingCert(t *testing.T) {
 		t.Fatalf("NewServer: %v", err)
 	}
 
-	// Override cert path to nonexistent file after NewServer succeeds
-	s.cfg.TLS.CertFile = dir + "/nonexistent.pem"
+	// Point the certificate manager at a file that does not exist. The server
+	// no longer hands paths to ListenAndServeTLS — the certificate comes from
+	// the manager on each handshake — so Start checks it can load one before it
+	// binds the port, rather than accepting connections it cannot complete.
+	s.certs.certPath = dir + "/nonexistent.pem"
+	s.certs.cert = nil
 
 	err = s.Start()
 	if err == nil {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,19 +47,49 @@ func TestHandleDashboard_WithVersionCache(t *testing.T) {
 	s := newTestServer(t, fc)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
 
-	// Write a fresh version cache so CheckLatestVersion returns data (covers data.Version = versionInfo)
+	// A fresh cache naming a release ahead of this build. Fresh means the
+	// checker answers from it without a request, so the test needs no network.
 	info := shared.VersionInfo{
-		Current:         "2.0.0",
-		Latest:          "2.0.1",
+		Current:         shared.CurrentVersion,
+		Latest:          "v99.0.0",
 		UpdateAvailable: true,
-		ReleaseURL:      "https://example.com",
+		ReleaseURL:      "https://example.com/releases/v99.0.0",
 		CheckedAt:       time.Now().UTC().Format(time.RFC3339),
 	}
 	data, _ := json.Marshal(info)
-	_ = os.WriteFile(s.cfg.VersionCachePath(), data, 0600)
+	if err := os.WriteFile(s.cfg.VersionCachePath(), data, 0600); err != nil {
+		t.Fatalf("write version cache: %v", err)
+	}
+	s.version = shared.NewChecker(s.cfg.VersionCachePath(), true)
 
 	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
 	assertStatus(t, rec, http.StatusOK)
+
+	// The old test asserted only the status code, so it passed whether or not
+	// the version ever reached the page.
+	if body := rec.Body.String(); !strings.Contains(body, "v99.0.0") {
+		t.Error("the dashboard must show the newer release it knows about")
+	}
+}
+
+func TestHandleDashboard_DoesNotWaitOnAnUnreachableUpdateAPI(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
+
+	// No cache, update check on, and nothing listening: the state of a host
+	// with no route out. The dashboard used to sit through the full HTTP
+	// timeout here, on every single load.
+	s.version = shared.NewChecker(s.cfg.VersionCachePath(), true)
+
+	start := time.Now()
+	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
+	elapsed := time.Since(start)
+
+	assertStatus(t, rec, http.StatusOK)
+	if elapsed > time.Second {
+		t.Errorf("dashboard took %v to render; it must not wait for the update check", elapsed)
+	}
 }
 
 func TestHandleDashboard_RootRedirectsToDashboard(t *testing.T) {

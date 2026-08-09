@@ -116,6 +116,7 @@
   {"id": "export_error",         "translation": "Failed to export rules."},
   {"id": "import_no_file",       "translation": "No file uploaded."},
   {"id": "import_read_error",    "translation": "Failed to read uploaded file."},
+  {"id": "import_too_large",     "translation": "That file is larger than 512 KB. Split the rule set, or import it with the core's command line."},
   {"id": "import_error",         "translation": "Failed to import rules. Check the file format."},
   {"id": "import_success",       "translation": "Rules imported successfully. Review and apply when ready."},
   {"id": "options_readonly",     "translation": "Options are configured in easywall.toml and require a core restart to apply."},
@@ -129,7 +130,7 @@
   {"id": "system_acceptance_duration_desc", "translation": "Seconds before rules are automatically rolled back (10–3600). Default: 120."},
   {"id": "system_save",                     "translation": "Save system settings"},
   {"id": "system_saved",                    "translation": "System settings saved."},
-  {"id": "system_invalid_duration",         "translation": "Duration must be a positive number."},
+  {"id": "system_invalid_duration",         "translation": "Duration must be between 10 and 3600 seconds."},
 
   {"id": "log_title",        "translation": "Audit Log"},
   {"id": "log_recent",       "translation": "Recent activity"},

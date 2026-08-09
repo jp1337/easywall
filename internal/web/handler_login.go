@@ -37,6 +37,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values[SessionUserKey] = username
+	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password)
 	sess.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   SessionLifetime,
