@@ -6,8 +6,18 @@ description: All TOML configuration keys for easywall-core and easywall-web expl
 
 # Configuration
 
-Two TOML files in `/etc/easywall/`, one per process, read at startup. A bad value is
-a clean exit with a message — never a silent fallback.
+Two TOML files in `/etc/easywall/`, one per process, read at startup.
+
+A value that cannot be interpreted stops the daemon with a message naming the key —
+an unknown `ipv6.mode`, a missing path. A value that is merely out of range is brought
+into range and **said out loud** in the log, because a firewall daemon that refuses to
+start is a worse outcome than one running a documented default: `acceptance.duration`
+is clamped to 10–3600, and a rate limit of zero on an enabled module becomes that
+module's default.
+
+The same value arriving through the interface is refused instead, with the key named.
+Nothing is substituted quietly in either direction — that used to be five rate limits,
+and the file and the running firewall could disagree with nothing to say so.
 
 | | Owned by | Holds |
 |---|---|---|

@@ -1,9 +1,10 @@
 package web
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -29,13 +30,19 @@ func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// strconv, not fmt.Sscanf: Sscanf stops at the first character it cannot
+	// read and reports success for what it got, so "5abc" arrived as 5 and
+	// "5 10" as 5. The same loose parse was taken out of the port validation and
+	// the rule builders; this was the third copy of it.
 	parseInt := func(name string, fallback int) int {
-		v := r.FormValue(name)
+		v := strings.TrimSpace(r.FormValue(name))
 		if v == "" {
 			return fallback
 		}
-		var n int
-		if _, err := fmt.Sscanf(v, "%d", &n); err != nil || n <= 0 {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			slog.Info("ignoring an unusable value on the options page; using the default",
+				"field", name, "got", v, "using", fallback)
 			return fallback
 		}
 		return n

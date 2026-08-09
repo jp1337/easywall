@@ -102,31 +102,18 @@ func (c *Config) Validate() error {
 		c.Acceptance.Duration = clamped
 	}
 
-	// SSH brute force limits
-	if c.Firewall.SSHBruteForce {
-		if c.Firewall.SSHBruteForceConnectionLimit <= 0 {
-			c.Firewall.SSHBruteForceConnectionLimit = 5
+	for _, l := range firewallLimits(&c.Firewall) {
+		if *l.value > 0 || !*l.enabled {
+			continue
 		}
-	}
-	if c.Firewall.ICMPFlood {
-		if c.Firewall.ICMPFloodConnectionLimit <= 0 {
-			c.Firewall.ICMPFloodConnectionLimit = 10
-		}
-	}
-	if c.Firewall.SYNFlood {
-		if c.Firewall.SYNFloodLimit <= 0 {
-			c.Firewall.SYNFloodLimit = 100
-		}
-	}
-	if c.Firewall.ConnectionLimit {
-		if c.Firewall.ConnectionLimitMax <= 0 {
-			c.Firewall.ConnectionLimitMax = 100
-		}
-	}
-	if c.Firewall.LogBlocked {
-		if c.Firewall.LogBlockedLimit <= 0 {
-			c.Firewall.LogBlockedLimit = 60
-		}
+		// Substituted rather than refused, for the same reason the acceptance
+		// duration is clamped: a firewall daemon that will not start is worse
+		// than one running a documented default. But it is said out loud —
+		// configuration.md promised "never a silent fallback", and this was five
+		// of them.
+		slog.Warn("firewall limit is not a positive number; using the default",
+			"key", l.key, "configured", *l.value, "using", l.fallback)
+		*l.value = l.fallback
 	}
 
 	c.migrateIPv6Mode()
@@ -135,6 +122,27 @@ func (c *Config) Validate() error {
 			shared.IPv6Filter, shared.IPv6Passthrough, shared.IPv6Block, c.IPv6.Mode)
 	}
 	return nil
+}
+
+// firewallLimit ties a numeric limit to the module that uses it, so validation
+// and the save path cannot disagree about which values matter.
+type firewallLimit struct {
+	key      string
+	enabled  *bool
+	value    *int
+	fallback int
+}
+
+func firewallLimits(o *shared.FirewallOptions) []firewallLimit {
+	return []firewallLimit{
+		{"ssh_brute_force_connection_limit", &o.SSHBruteForce, &o.SSHBruteForceConnectionLimit, 5},
+		{"icmp_flood_connection_limit", &o.ICMPFlood, &o.ICMPFloodConnectionLimit, 10},
+		{"syn_flood_limit", &o.SYNFlood, &o.SYNFloodLimit, 100},
+		{"tcp_rst_flood_limit", &o.TCPRSTFlood, &o.TCPRSTFloodLimit, 100},
+		{"connection_limit_max", &o.ConnectionLimit, &o.ConnectionLimitMax, 100},
+		{"log_blocked_connections_limit", &o.LogBlocked, &o.LogBlockedLimit, 60},
+		{"log_blacklist_connections_limit", &o.LogBlacklist, &o.LogBlacklistLimit, 60},
+	}
 }
 
 // migrateIPv6Mode fills in ipv6.mode for a config written before 2.5.0.
@@ -261,7 +269,18 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 }
 
 // SaveFirewallOptions updates the [firewall] section and atomically persists the config.
+// SaveFirewallOptions updates the [firewall] section and atomically persists the config.
+//
+// A limit arriving here is being chosen now, so a value that cannot work is
+// refused rather than replaced. Storing 100 when the operator asked for 0 leaves
+// the file and the interface disagreeing about what the firewall is doing.
 func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
+	for _, l := range firewallLimits(&opts) {
+		if *l.enabled && *l.value <= 0 {
+			return fmt.Errorf("%s must be a positive number, got %d", l.key, *l.value)
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.Firewall = opts
