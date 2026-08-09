@@ -363,10 +363,17 @@ function initApplyStatus() {
     pending:     { text: str('state_pending'),      cls: 'pending'  },
     accepted:    { text: str('state_accepted'),     cls: 'active'   },
     rolled_back: { text: str('state_rolled_back'),  cls: 'error'    },
+    unknown:     { text: str('state_unknown'),      cls: 'error'    },
   };
 
   const render = (data) => {
-    const s = statusLabels[data.acceptance] || statusLabels.idle;
+    // An unreachable core used to fall through to "idle" — a definite claim
+    // that nothing is pending, made at the moment nothing is known. It also
+    // swapped the confirm button for apply, inviting a second apply while a
+    // window may still be open on a core that cannot be asked. Not knowing is
+    // its own state and says so.
+    const known = data && typeof data.acceptance === 'string' && statusLabels[data.acceptance];
+    const s = known || statusLabels.unknown;
     statusEl.innerHTML = `<span class="status-dot ${s.cls}">${s.text}</span>`;
 
     const confirmBtn = document.getElementById('confirm-btn');
@@ -374,6 +381,13 @@ function initApplyStatus() {
 
     // toggleAttribute('hidden') instead of .style.display: an inline style
     // would violate style-src 'self'.
+    if (!known) {
+      // Offer neither action: both would be a guess about state nobody has.
+      if (confirmBtn) confirmBtn.toggleAttribute('hidden', true);
+      if (startBtn)   startBtn.toggleAttribute('hidden', true);
+      return;
+    }
+
     const pending = data.acceptance === 'pending';
     if (confirmBtn) confirmBtn.toggleAttribute('hidden', !pending);
     if (startBtn)   startBtn.toggleAttribute('hidden', pending);
@@ -390,9 +404,9 @@ function initApplyStatus() {
 
   const poll = () => {
     fetch('/apply/status')
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : null))
       .then(render)
-      .catch(() => {}); // silent on network error
+      .catch(() => render(null)); // a failed request is not "idle" either
   };
 
   poll();

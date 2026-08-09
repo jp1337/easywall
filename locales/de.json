@@ -170,6 +170,7 @@
   {"id": "state_idle", "translation": "Bereit"},
   {"id": "state_pending", "translation": "Offen"},
   {"id": "state_accepted", "translation": "Bestätigt"},
+  {"id": "state_unknown",         "translation": "Unbekannt — Core nicht erreichbar"},
   {"id": "state_rolled_back", "translation": "Zurückgenommen"},
   {"id": "state_unapplied", "translation": "Nicht angewendete Änderungen"},
   {"id": "state_none", "translation": "Keine"},
