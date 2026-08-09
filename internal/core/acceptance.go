@@ -127,18 +127,28 @@ func (a *Acceptance) Cancel() {
 	close(a.cancelCh)
 }
 
-// Accept signals that the admin confirmed the new rules work.
+// Accept signals that the admin confirmed the new rules work, and reports
+// whether there was an open window to accept.
+//
+// The answer matters. A confirmation that arrives a second after the window
+// closed was discarded silently, and the interface said "Rules accepted and
+// applied successfully" anyway — telling the operator their change is live at
+// the one moment it is not, because it has just been rolled back.
+//
 // Non-blocking: safe to call from a different goroutine.
-func (a *Acceptance) Accept() {
+func (a *Acceptance) Accept() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.status != shared.AcceptancePending {
-		return
+		return false
 	}
 	select {
 	case a.acceptCh <- struct{}{}:
+		return true
 	default:
+		// Already signalled; the window is being accepted either way.
+		return true
 	}
 }
 

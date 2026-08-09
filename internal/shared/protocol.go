@@ -42,6 +42,13 @@ type SaveRulesPayload struct {
 	Rules    interface{} `json:"rules"`
 }
 
+// AcceptResult is returned for CmdAccept. Accepted is false when no acceptance
+// window was open — the confirmation arrived after the window had already
+// closed and the rules had been rolled back.
+type AcceptResult struct {
+	Accepted bool `json:"accepted"`
+}
+
 // ValidateCustomPayload is the payload for CmdValidateCustom.
 type ValidateCustomPayload struct {
 	Rules []string `json:"rules"`

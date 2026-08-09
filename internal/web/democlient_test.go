@@ -122,8 +122,8 @@ func TestDemoSend_ApplyAccept(t *testing.T) {
 		t.Errorf("expected pending after Apply, got %s", st.Acceptance)
 	}
 
-	if err := c.Accept(); err != nil {
-		t.Fatalf("Accept: %v", err)
+	if accepted, err := c.Accept(); err != nil || !accepted {
+		t.Fatalf("Accept: accepted=%v err=%v", accepted, err)
 	}
 	st, _ = c.GetStatus()
 	if st.Acceptance != shared.AcceptanceAccepted {

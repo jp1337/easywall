@@ -540,3 +540,64 @@ func TestIntegration_StopDuringAnOpenWindowRollsBack(t *testing.T) {
 		}
 	}
 }
+
+// The end-to-end version of the promise the apply-flow diagram makes on four
+// pages: after a window expires, the previous rules are back and nothing staged
+// was lost. Losing the edits is worst exactly here — the operator has just been
+// cut off by a bad rule and has to redo the work over a link they have proved
+// is fragile.
+func TestIntegration_RollbackKeepsTheStagedEdits(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = 10 // the minimum; the test cancels rather than waits
+
+	// A working set, applied and confirmed.
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "22"}}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		fw.Accept()
+	}()
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	// The edit that will be rolled back.
+	edits := []shared.PortRule{{Port: "22"}, {Port: "8443", Description: "the work"}}
+	if err := fw.rules.SaveStaged("tcp", edits); err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		fw.acceptance.Cancel() // stands in for "nobody confirmed"
+	}()
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("second apply: %v", err)
+	}
+
+	state, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Current.TCP) != 1 || state.Current.TCP[0].Port != "22" {
+		t.Errorf("the enforced set must be the previous one: %+v", state.Current.TCP)
+	}
+	if len(state.Staged.TCP) != 2 {
+		t.Fatalf("the staged edits must survive the rollback: %+v", state.Staged.TCP)
+	}
+	if state.Staged.TCP[1].Description != "the work" {
+		t.Errorf("the staged edit lost its content: %+v", state.Staged.TCP[1])
+	}
+
+	// The kernel must be back on the previous set too.
+	rs := ruleset(t)
+	mustContain(t, rs, "tcp dport 22 accept", "the previous rule is enforced again")
+	mustNotContain(t, rs, "tcp dport 8443", "the rolled-back rule must be gone from the kernel")
+}
