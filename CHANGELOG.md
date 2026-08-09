@@ -90,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`docker compose up` ran with a session key published in this repository.** The compose file bind-mounts `./config` over `/etc/easywall`, and `config/web.toml` shipped `session_key = "CHANGE_ME_…"` — which nothing validated. That key signs the session cookie, so anyone who had read the repository could mint a valid one: a forged cookie built from it was accepted on `/dashboard` with **no password at all**. easywall now generates a key on first start when the configured one is missing, too short, or still the placeholder, and writes it back so sessions survive a restart
+- **The container ran the web process as root.** `supervisord` had no `user=` directive, so `easywall-web` inherited root inside a container holding `NET_ADMIN` and `SYS_MODULE` — while `architecture.md` states, in a table and in every diagram, that it runs as an unprivileged user. The Debian units always had `User=easywall`; the image did not
 - **mermaid 11.16.0 → 11.16.1**, closing five advisories: prototype pollution in the configuration APIs and in architecture diagrams, denial of service in XY charts and radar diagrams, and CSS injection into siblings of a diagram. Build-time exposure only — mermaid is a devDependency used by `scripts/render-diagrams.mjs` to pre-render diagrams into committed SVGs, and no runtime copy is served (that was removed in 2.4.1)
 
 ## [2.4.2] - 2026-08-09

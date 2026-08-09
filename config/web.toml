@@ -20,8 +20,12 @@ demo_mode = false
 # answer comes from a cache on disk. Set to false to remove it entirely.
 update_check = true
 
-# ─── Secret — CHANGE THIS before first use ──────────────────────────────────
-# Generate with: openssl rand -hex 32
+# ─── Secret ─────────────────────────────────────────────────────────────────
+# Signs the session cookie, so anyone who knows it can forge one. Left as the
+# placeholder below, easywall generates a key on first start and writes it here
+# — the placeholder is published in this repository, and a firewall interface
+# signing cookies with a published key can be signed into by anyone.
+# To choose your own: openssl rand -hex 32
 # Signs the session cookie. There is no csrf_key: CSRF protection is Go 1.25's
 # net/http.CrossOriginProtection, which checks Origin and Sec-Fetch-Site rather
 # than issuing tokens, so it needs no secret of its own.
