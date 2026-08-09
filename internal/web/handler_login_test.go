@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestHandleLoginGET_RedirectsToFirstRun(t *testing.T) {
@@ -120,4 +121,49 @@ func TestHandleLoginGET_DirectHandlerNotFirstRun(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleLoginGET(rec, req)
 	assertStatus(t, rec, http.StatusOK)
+}
+
+// A wrong username must cost the same as a wrong password.
+//
+// The check used to be `username != want || !VerifyPassword(...)`, which skips
+// argon2 entirely when the name is wrong — and argon2 is deliberately slow. A
+// wrong username answered in 60µs, the right one in 37ms: a 600-fold difference,
+// readable over any network, turning one request per guess into a lookup for the
+// account name of the only account this system has.
+//
+// The bound here is loose on purpose. The gap it guards against was three orders
+// of magnitude; anything under a small multiple means both paths are doing the
+// same work.
+func TestHandleLoginPOST_WrongUsernameCostsTheSameAsWrongPassword(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	hash, err := HashPassword("thecorrectpassword1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.Password = hash
+	s.cfg.Username = "admin"
+
+	measure := func(user string) time.Duration {
+		// One discarded round so neither case pays for warm-up.
+		doFormRequest(s, "POST", "/login", "username="+user+"&password=wrongpassword123")
+		const rounds = 5
+		start := time.Now()
+		for i := 0; i < rounds; i++ {
+			doFormRequest(s, "POST", "/login", "username="+user+"&password=wrongpassword123")
+		}
+		return time.Since(start) / rounds
+	}
+
+	unknownUser := measure("nosuchuser")
+	knownUser := measure("admin")
+
+	if unknownUser <= 0 {
+		t.Fatal("could not measure the unknown-username path")
+	}
+	if ratio := float64(knownUser) / float64(unknownUser); ratio > 3 {
+		t.Errorf("a wrong username answers %.0fx faster than a wrong password "+
+			"(%v vs %v), which tells an attacker the account name",
+			ratio, unknownUser, knownUser)
+	}
 }
