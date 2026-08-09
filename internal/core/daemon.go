@@ -2,7 +2,9 @@ package core
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -415,9 +417,28 @@ func validateCustomRules(rules []string) map[int]string {
 		}
 		// Wrap in a test table context for nft -c
 		script := "table inet easywall_validate {\n  chain test_input {\n    type filter hook input priority 0;\n    " + rule + "\n  }\n}\n"
-		cmd := exec.Command("nft", "--check", "--file", "-")
+		// Bounded, like the apply path: the web client gives up after five
+		// seconds, but an unbounded nft here would leave the goroutine behind
+		// for the life of the process, once per validation request.
+		ctx, cancel := context.WithTimeout(context.Background(), nftTimeout)
+		cmd := exec.CommandContext(ctx, nftBinary, "--check", "--file", "-")
+		// Killing the process is not enough on its own: CombinedOutput waits for
+		// the output pipes to close, and anything the child spawned still holds
+		// them. WaitDelay bounds that too, so a cancelled command really does
+		// return.
+		cmd.WaitDelay = nftWaitDelay
 		cmd.Stdin = strings.NewReader(script)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		out, err := cmd.CombinedOutput()
+		timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
+		cancel()
+		// Specifically DeadlineExceeded: cancel() above makes ctx.Err() non-nil
+		// either way, so a plain nil check reports every successful validation
+		// as a timeout.
+		if timedOut {
+			errs[i] = fmt.Sprintf("syntax check timed out after %s", nftTimeout)
+			continue
+		}
+		if err != nil {
 			msg := strings.TrimSpace(string(out))
 			if msg == "" {
 				msg = err.Error()
