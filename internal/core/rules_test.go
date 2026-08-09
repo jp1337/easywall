@@ -569,3 +569,63 @@ func TestWriteAuditLog(t *testing.T) {
 		t.Errorf("unexpected action: %s", entry["action"])
 	}
 }
+
+// SaveStaged validates before persisting. ImportRules always did and SaveStaged
+// never did, so the same malformed address was rejected when it arrived in a
+// file and accepted when it arrived from the web form — then stored, shown as
+// blocked, and silently skipped at apply time.
+func TestSaveStaged_RejectsInvalidAddresses(t *testing.T) {
+	cases := []struct {
+		name     string
+		ruleType string
+		rules    interface{}
+	}{
+		{"blacklist octet out of range", "blacklist", []string{"192.168.1.999"}},
+		{"blacklist prefix out of range", "blacklist", []string{"10.0.0.0/33"}},
+		{"blacklist hostname", "blacklist", []string{"example.com"}},
+		{"whitelist malformed", "whitelist", []string{"10.0.0."}},
+		{"tcp port out of range", "tcp", []shared.PortRule{{Port: "70000"}}},
+		{"forwarding bad protocol", "forwarding", []shared.ForwardingRule{
+			{Protocol: "sctp", SourcePort: 80, DestPort: 8080}}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := NewRulesStore(t.TempDir() + "/rules.json")
+			if err != nil {
+				t.Fatalf("NewRulesStore: %v", err)
+			}
+			if err := store.SaveStaged(tc.ruleType, tc.rules); err == nil {
+				t.Error("SaveStaged accepted a value that can never become a rule")
+			}
+
+			// And nothing may have been written.
+			state, err := store.GetState()
+			if err != nil {
+				t.Fatalf("GetState: %v", err)
+			}
+			if len(state.Staged.Blacklist)+len(state.Staged.Whitelist)+
+				len(state.Staged.TCP)+len(state.Staged.Forwarding) != 0 {
+				t.Errorf("a rejected save still persisted something: %+v", state.Staged)
+			}
+		})
+	}
+}
+
+func TestSaveStaged_AcceptsValidAddresses(t *testing.T) {
+	store, err := NewRulesStore(t.TempDir() + "/rules.json")
+	if err != nil {
+		t.Fatalf("NewRulesStore: %v", err)
+	}
+	valid := []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1", "2001:db8::/32"}
+	if err := store.SaveStaged("blacklist", valid); err != nil {
+		t.Fatalf("SaveStaged rejected valid entries: %v", err)
+	}
+	state, err := store.GetState()
+	if err != nil {
+		t.Fatalf("GetState: %v", err)
+	}
+	if len(state.Staged.Blacklist) != len(valid) {
+		t.Errorf("expected %d entries, got %d", len(valid), len(state.Staged.Blacklist))
+	}
+}

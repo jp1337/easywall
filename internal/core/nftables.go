@@ -146,6 +146,16 @@ func (m *NftablesManager) Reset() error {
 // Apply translates the given RulesState and FirewallOptions into nftables
 // rules and installs them atomically via a single netlink Flush call.
 func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, ipv6 shared.IPv6Config, docker shared.DockerConfig) error {
+	// Check the rules before Reset, not after: Reset deletes the table, so a
+	// failure past this point costs the working ruleset. The builders below
+	// each guard their own parsing and return quietly when an address will not
+	// parse — which used to mean a malformed entry was listed in the interface
+	// as blocked while no rule for it ever existed. Refusing here makes that
+	// impossible to reach, and leaves the previous rules in place.
+	if err := validateRules(state.Current); err != nil {
+		return fmt.Errorf("refusing to apply: %w", err)
+	}
+
 	if err := m.Reset(); err != nil {
 		return fmt.Errorf("reset table: %w", err)
 	}

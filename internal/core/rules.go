@@ -96,6 +96,19 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 		return fmt.Errorf("unknown rule type: %s", ruleType)
 	}
 
+	// Validate before persisting. ImportRules has always done this and
+	// SaveStaged never did, so the same malformed address was rejected when it
+	// arrived in a file and accepted when it arrived from the form. It was then
+	// stored, listed in the interface as blocked, and silently skipped at apply
+	// time by the parse guards in nftables.go — an entry that looked enforced
+	// and was not.
+	//
+	// It belongs here rather than only in the web process because the whole
+	// design rests on the privileged side not trusting the unprivileged one.
+	if err := validateRules(state.Staged); err != nil {
+		return fmt.Errorf("invalid %s rules: %w", ruleType, err)
+	}
+
 	return s.save(state)
 }
 

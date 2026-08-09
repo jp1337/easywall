@@ -242,6 +242,54 @@ func TestIntegration_BlacklistIsEvaluatedBeforeWhitelist(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Refusing bad rules rather than skipping them
+// ---------------------------------------------------------------------------
+
+// An address that will not parse used to be stored, listed in the interface as
+// blocked, and then quietly skipped by the parse guard in addCIDRDrop. Apply
+// now refuses the whole set.
+func TestIntegration_Apply_RefusesAnUnparseableEntry(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.Blacklist = []string{"192.0.2.1", "192.168.1.999"}
+
+	err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{})
+	if err == nil {
+		t.Fatal("Apply accepted an address that cannot become a rule; it would be " +
+			"listed as blocked and never enforced")
+	}
+	if !strings.Contains(err.Error(), "192.168.1.999") {
+		t.Errorf("the error should name the offending entry, got: %v", err)
+	}
+}
+
+// And it must refuse *before* Reset, or the check costs the operator the
+// working ruleset it was meant to protect.
+func TestIntegration_Apply_RefusalLeavesThePreviousRulesInPlace(t *testing.T) {
+	m := newIntegrationManager(t)
+
+	good := emptyState()
+	good.Current.Blacklist = []string{"192.0.2.1"}
+	if err := m.Apply(good, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("first Apply: %v", err)
+	}
+	before := ruleset(t)
+
+	bad := emptyState()
+	bad.Current.Blacklist = []string{"not-an-address"}
+	if err := m.Apply(bad, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err == nil {
+		t.Fatal("expected refusal")
+	}
+
+	if after := ruleset(t); after != before {
+		t.Errorf("the refused apply changed the live ruleset\n--- before ---\n%s\n--- after ---\n%s",
+			before, after)
+	}
+	mustContain(t, ruleset(t), "ip saddr 192.0.2.1",
+		"the previously applied blacklist must survive a refused apply")
+}
+
+// ---------------------------------------------------------------------------
 // Modules that produced nothing before 2.5.0
 // ---------------------------------------------------------------------------
 
