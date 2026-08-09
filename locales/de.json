@@ -103,6 +103,7 @@
 
   {"id": "saved",                "translation": "Änderungen gespeichert."},
   {"id": "save_error",           "translation": "Speichern fehlgeschlagen. Core-Verbindung prüfen."},
+  {"id": "save_invalid_entries", "translation": "Es wurde nichts gespeichert: einige Zeilen sind keine gültige IP-Adresse und kein gültiges CIDR-Netz. Die Zeilennummern stehen über dem Editor."},
   {"id": "invalid_rules",        "translation": "Ungültiges Regelformat."},
   {"id": "invalid_credentials",  "translation": "Ungültiger Benutzername oder Passwort."},
   {"id": "username_required",    "translation": "Benutzername ist erforderlich."},
