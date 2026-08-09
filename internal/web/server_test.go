@@ -232,15 +232,39 @@ func TestRender_NonceFromContext(t *testing.T) {
 	}
 }
 
-func TestRender_TemplateError(t *testing.T) {
+// A template that cannot be rendered is a server error and has to be reported
+// as one. Executing straight into the ResponseWriter committed a 200 first, so
+// the failure arrived as an empty page that looked like a successful one — and
+// this test asserted nothing, so it passed either way.
+func TestRender_TemplateErrorIsAServerError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
-	// Request a non-existent template name
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
 	s.render(rec, req, "nonexistent-template.html", "test", nil)
-	// Template execution failure is logged but response has already started
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for a template that does not exist, got %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "<html") {
+		t.Error("no partial page may be written before the error is known")
+	}
+}
+
+// The same for a fragment: htmx swaps the body into the page, so half a
+// fragment is swapped in as though it were the whole one.
+func TestRenderPartial_TemplateErrorIsAServerError(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	req := httptest.NewRequest("POST", "/iplist/validate", nil)
+	rec := httptest.NewRecorder()
+	s.renderPartial(rec, req, "no-such-partial", nil)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for a fragment that does not exist, got %d", rec.Code)
+	}
 }
 
 func TestSetFlash(t *testing.T) {

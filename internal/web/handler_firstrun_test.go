@@ -92,26 +92,46 @@ func TestHandleFirstRunPOST_SavesCredentials(t *testing.T) {
 	}
 }
 
-func TestHandleFirstRunPOST_PasswordExactly12Chars(t *testing.T) {
+// The stated minimum is 12 characters, so 12 has to be accepted. This test used
+// to log a note wondering whether it was, and assert nothing — leaving the
+// boundary of the only password rule easywall has undefined.
+func TestHandleFirstRunPOST_PasswordExactly12CharsIsAccepted(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	// exactly 12 chars - should pass
-	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=exactly12chr&password_confirm=exactly12chr")
-	if rec.Code == http.StatusSeeOther && rec.Header().Get("Location") == "/firstrun" {
-		// If it redirects to /firstrun it means validation failed
-		t.Log("Note: 12 chars was rejected (need >12)")
+	const pw = "exactly12chr" // 12 characters
+	if len(pw) != 12 {
+		t.Fatalf("the test password is %d characters, not 12", len(pw))
 	}
-	// At least it should not panic
+
+	rec := doFormRequest(s, "POST", "/firstrun",
+		"username=admin&password="+pw+"&password_confirm="+pw)
+	assertRedirect(t, rec, "/login")
+
+	if s.cfg.IsFirstRun() {
+		t.Error("credentials were not saved, so the account was not created")
+	}
+	if !VerifyPassword(pw, s.cfg.Password) {
+		t.Error("the stored hash does not verify against the password that was set")
+	}
 }
 
 func TestHandleFirstRunPOST_Password11Chars(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	// 11 chars - should fail (need >= 12)
-	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=eleven1234!&password_confirm=eleven1234!")
+	const pw = "eleven1234!" // 11 characters
+	if len(pw) != 11 {
+		t.Fatalf("the test password is %d characters, not 11", len(pw))
+	}
+
+	rec := doFormRequest(s, "POST", "/firstrun",
+		"username=admin&password="+pw+"&password_confirm="+pw)
 	assertRedirect(t, rec, "/firstrun")
+
+	if !s.cfg.IsFirstRun() {
+		t.Error("a rejected password must not create the account")
+	}
 }
 
 func TestHandleFirstRunPOST_SaveCredentialsError(t *testing.T) {

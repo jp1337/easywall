@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -13,11 +14,50 @@ import (
 )
 
 // Config is the runtime configuration for easywall-core.
+//
+// It is read and written from different goroutines: an apply runs
+// asynchronously so the socket stays responsive, and while its acceptance
+// window is open the operator can save a setting on another page. Apply reads
+// the firewall options, the IPv6 mode and the Docker section; the save writes
+// them. Without the lock below that is a data race on a slice header and a
+// string — and the race detector never saw it, because no test applied and
+// saved at the same time until one dispatched every command in a row.
 type Config struct {
 	shared.CoreConfig
 
+	// mu guards CoreConfig. Take it for writing in the Save* methods and for
+	// reading through the accessors; nothing outside this file should touch the
+	// embedded struct directly.
+	mu sync.RWMutex
+
 	// Derived fields (not in TOML)
 	configPath string
+}
+
+// FirewallOptions returns a copy of the [firewall] section.
+func (c *Config) FirewallOptions() shared.FirewallOptions {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Firewall
+}
+
+// NetworkSettings returns a copy of the [ipv6] and [docker] sections.
+//
+// CustomNetworks is copied rather than shared: handing out the backing array
+// would put the race straight back, one indirection further away.
+func (c *Config) NetworkSettings() shared.NetworkSettings {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	docker := c.Docker
+	docker.CustomNetworks = append([]string(nil), c.Docker.CustomNetworks...)
+	return shared.NetworkSettings{IPv6: c.IPv6, Docker: docker}
+}
+
+// SystemSettings returns a copy of the [acceptance] section.
+func (c *Config) SystemSettings() shared.SystemSettings {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return shared.SystemSettings{Acceptance: c.Acceptance}
 }
 
 // LoadConfig reads and parses the TOML config at path.
@@ -166,14 +206,18 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 			return fmt.Errorf("docker custom network %q: not a CIDR network", cidr)
 		}
 	}
+	c.mu.Lock()
 	c.IPv6 = s.IPv6
 	c.Docker = s.Docker
+	c.mu.Unlock()
 	return c.save()
 }
 
 // SaveFirewallOptions updates the [firewall] section and atomically persists the config.
 func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
+	c.mu.Lock()
 	c.Firewall = opts
+	c.mu.Unlock()
 	return c.save()
 }
 
@@ -187,11 +231,18 @@ func (c *Config) SaveSystemSettings(s shared.SystemSettings) error {
 		return fmt.Errorf("acceptance duration %d is outside %d–%d seconds",
 			s.Acceptance.Duration, shared.AcceptanceDurationMin, shared.AcceptanceDurationMax)
 	}
+	c.mu.Lock()
 	c.Acceptance = s.Acceptance
+	c.mu.Unlock()
 	return c.save()
 }
 
 func (c *Config) save() error {
+	c.mu.RLock()
+	snapshot := c.CoreConfig
+	snapshot.Docker.CustomNetworks = append([]string(nil), c.Docker.CustomNetworks...)
+	c.mu.RUnlock()
+
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "core-*.toml.tmp")
 	if err != nil {
@@ -200,7 +251,7 @@ func (c *Config) save() error {
 	tmpPath := tmp.Name()
 
 	enc := toml.NewEncoder(tmp)
-	if err := enc.Encode(c.CoreConfig); err != nil {
+	if err := enc.Encode(snapshot); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("encode config: %w", err)

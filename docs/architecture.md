@@ -18,7 +18,7 @@ Two processes. The one exposed to the network has no way to touch the firewall.
 | Runs as | unprivileged user | root or `CAP_NET_ADMIN` |
 | Listens on | HTTPS, port 12227 | Unix socket only |
 | Can reach nftables | **no** | yes, via netlink |
-| Can run a shell | **no** | only `nft -f -` for custom rules |
+| Can run a shell | **no** | `nft` only: `--check --file -` to validate a custom rule, `-f -` to apply one |
 | Holds | sessions, templates | rule state, acceptance timer |
 
 A flaw in form parsing or template rendering cannot reach the kernel, because the

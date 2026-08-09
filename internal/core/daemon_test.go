@@ -361,12 +361,25 @@ func TestDaemonStop(t *testing.T) {
 	d.Stop()
 }
 
-func TestDaemonStop_NilListener(t *testing.T) {
+// Stop before Start, and Stop twice. Both happen for real: SIGTERM can arrive
+// while the socket is still being set up, and the signal handler and a deferred
+// Stop can both fire.
+func TestDaemonStop_BeforeStartAndTwiceIsSafe(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
-	// listener is nil — Stop should not panic
+
 	d.Stop()
+	d.Stop() // quitOnce must absorb the second close
+
+	if d.currentListener() != nil {
+		t.Error("Stop must leave no listener behind")
+	}
+	select {
+	case <-d.quit:
+	default:
+		t.Error("Stop must close the quit channel so Start returns")
+	}
 }
 
 func TestDaemonDispatch_ApplyRules_ReturnsSuccess(t *testing.T) {
@@ -439,6 +452,12 @@ func TestDaemonDispatch_SaveRules_SaveError(t *testing.T) {
 	rules := []shared.PortRule{{Port: "80"}}
 	payload, _ := json.Marshal(shared.SaveRulesPayload{RuleType: "tcp", Rules: rules})
 	resp := d.dispatch(shared.Command{Type: shared.CmdSaveRules, Payload: payload})
+	if resp.Success {
+		t.Error("a save that cannot be written must be reported as a failure")
+	}
+	if resp.Error == "" {
+		t.Error("a failed save must say why")
+	}
 	// Either parse error or save error — either way not Success
 	_ = resp // just ensure no panic
 }
@@ -468,8 +487,19 @@ func TestDaemonHandleConn_ReadError(t *testing.T) {
 	// Set deadline to the past so any read immediately returns a timeout error
 	_ = client.SetDeadline(time.Now().Add(-time.Second))
 
-	// handleConn should handle the io.ReadAll error gracefully (no panic)
-	d.handleConn(client)
+	// handleConn must return rather than block or panic when the read fails.
+	// Without the bound below, a regression here hangs the suite instead of
+	// failing it — and in production it would hold a goroutine per connection.
+	done := make(chan struct{})
+	go func() {
+		d.handleConn(client)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handleConn did not return after a failed read")
+	}
 }
 
 // TestDaemonDispatch_ApplyRules_GoroutineError waits long enough for the Apply

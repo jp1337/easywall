@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -302,9 +303,21 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Data:    data,
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, name, pd); err != nil {
+	// Render into a buffer first. Executing straight into the ResponseWriter
+	// commits a 200 and whatever was produced before the error — for a template
+	// that does not exist at all, that is an empty page reported as success, and
+	// for one that fails halfway, half a form. Neither is something an operator
+	// should have to recognise as a failure.
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, name, pd); err != nil {
 		slog.Error("template render error", "template", name, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Warn("could not write rendered page", "template", name, "error", err)
 	}
 }
 
@@ -334,9 +347,19 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 			return detailLabel(tFunc, detail)
 		},
 	})
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, name, data); err != nil {
+	// Buffered for the same reason as render: htmx swaps the response body into
+	// the page, so a half-rendered fragment is swapped in as though it were the
+	// finished one.
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
 		slog.Error("partial render error", "template", name, "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Warn("could not write rendered fragment", "template", name, "error", err)
 	}
 }
 
