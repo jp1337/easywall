@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/jp1337/easywall/internal/core"
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func main() {
@@ -43,12 +44,30 @@ func main() {
 		}
 	}()
 
-	slog.Info("easywall-core started", "socket", cfg.SocketPath, "version", "2.0.0-dev")
+	slog.Info("easywall-core started", "socket", cfg.SocketPath, "version", shared.CurrentVersion)
 
+	// SIGHUP reloads the configuration, which is what the documentation has
+	// always said it does. Until it was handled here the default disposition
+	// applied and the signal terminated the daemon.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-	<-quit
 
-	slog.Info("shutting down easywall-core")
-	daemon.Stop()
+	reload := make(chan os.Signal, 1)
+	signal.Notify(reload, syscall.SIGHUP)
+
+	for {
+		select {
+		case <-reload:
+			if err := cfg.Reload(); err != nil {
+				slog.Error("config reload failed; keeping the running configuration",
+					"path", *configPath, "error", err)
+				continue
+			}
+			slog.Info("configuration reloaded", "path", *configPath)
+		case <-quit:
+			slog.Info("shutting down easywall-core")
+			daemon.Stop()
+			return
+		}
+	}
 }

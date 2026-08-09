@@ -34,9 +34,16 @@ func (a *Acceptance) Status() shared.AcceptanceStatus {
 	return a.status
 }
 
-// Start begins a new acceptance window. It must be called before nftables
-// rules are applied. Returns an error if an acceptance is already in progress.
-func (a *Acceptance) Start() error {
+// Start begins a new acceptance window of the given length. It must be called
+// before nftables rules are applied. Returns an error if an acceptance is
+// already in progress.
+//
+// The length is passed in per apply rather than fixed when the controller is
+// built. It used to be captured once, at daemon start, so changing the duration
+// on the system settings page wrote the new value to easywall.toml and every
+// apply for the rest of the process's life still used the old one — while the
+// documentation said the next apply would pick it up.
+func (a *Acceptance) Start(duration time.Duration) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -44,15 +51,25 @@ func (a *Acceptance) Start() error {
 		return nil // idempotent
 	}
 
+	if duration > 0 {
+		a.duration = duration
+	}
 	a.acceptCh = make(chan struct{}, 1)
 	a.status = shared.AcceptancePending
 	return nil
 }
 
+// Duration returns the window length the next Wait will use.
+func (a *Acceptance) Duration() time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.duration
+}
+
 // Wait blocks until the admin calls Accept() or the timeout expires.
 // Returns true if accepted, false if timed out (rollback needed).
 func (a *Acceptance) Wait() bool {
-	timer := time.NewTimer(a.duration)
+	timer := time.NewTimer(a.Duration())
 	defer timer.Stop()
 
 	select {
@@ -67,7 +84,7 @@ func (a *Acceptance) Wait() bool {
 		a.status = shared.AcceptanceRolledBack
 		a.mu.Unlock()
 		slog.Warn("acceptance timed out — rolling back rules",
-			"duration", a.duration)
+			"duration", a.Duration())
 		return false
 	}
 }
