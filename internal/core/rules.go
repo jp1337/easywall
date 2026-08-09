@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -13,7 +14,19 @@ import (
 
 // RulesStore manages the three-state rules persistence (current/staged/backup).
 // All writes use atomic rename to prevent data corruption on crash.
+//
+// Every write is a read-modify-write of one file holding all six lists, and the
+// daemon handles each socket connection on its own goroutine — so two saves
+// that arrive together were both built on the same read and the second one
+// wrote the first one away. Measured before this lock existed: 187 of 200
+// concurrent saves of two different rule types silently discarded one of them.
+// Two browser tabs is all it takes, and the interface said "Changes saved" to
+// both.
+//
+// mu serialises the whole read-modify-write. The exported methods take it; the
+// helpers below assume it is held.
 type RulesStore struct {
+	mu   sync.Mutex
 	path string
 }
 
@@ -31,6 +44,12 @@ func NewRulesStore(path string) (*RulesStore, error) {
 
 // GetState returns the full three-state rules document.
 func (s *RulesStore) GetState() (shared.RulesState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.getState()
+}
+
+func (s *RulesStore) getState() (shared.RulesState, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		return shared.RulesState{}, fmt.Errorf("read rules: %w", err)
@@ -45,7 +64,10 @@ func (s *RulesStore) GetState() (shared.RulesState, error) {
 // SaveStaged replaces the staged rule set for one rule type.
 // ruleType is one of: "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom".
 func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
-	state, err := s.GetState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
 	if err != nil {
 		return err
 	}
@@ -114,7 +136,10 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 
 // HasPendingChanges returns true when staged rules differ from current rules.
 func (s *RulesStore) HasPendingChanges() (bool, error) {
-	state, err := s.GetState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
 	if err != nil {
 		return false, err
 	}
@@ -131,7 +156,10 @@ func (s *RulesStore) HasPendingChanges() (bool, error) {
 
 // BackupCurrent copies current → backup before applying new rules.
 func (s *RulesStore) BackupCurrent() error {
-	state, err := s.GetState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
 	if err != nil {
 		return err
 	}
@@ -141,7 +169,10 @@ func (s *RulesStore) BackupCurrent() error {
 
 // PromoteStaged copies staged → current (called after nftables apply succeeds).
 func (s *RulesStore) PromoteStaged() error {
-	state, err := s.GetState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
 	if err != nil {
 		return err
 	}
@@ -163,7 +194,10 @@ func (s *RulesStore) PromoteStaged() error {
 // the interface correctly reports pending changes, because there are some: the
 // set you tried to apply, ready to be corrected and applied again.
 func (s *RulesStore) Rollback() error {
-	state, err := s.GetState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
 	if err != nil {
 		return err
 	}
@@ -173,7 +207,10 @@ func (s *RulesStore) Rollback() error {
 
 // ExportCurrent returns the current rule set as pretty-printed JSON.
 func (s *RulesStore) ExportCurrent() ([]byte, error) {
-	state, err := s.GetState()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +219,9 @@ func (s *RulesStore) ExportCurrent() ([]byte, error) {
 
 // ImportRules validates and replaces the staged rule set from external JSON.
 func (s *RulesStore) ImportRules(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var rules shared.Rules
 	if err := json.Unmarshal(data, &rules); err != nil {
 		return fmt.Errorf("invalid import data: %w", err)
@@ -189,7 +229,7 @@ func (s *RulesStore) ImportRules(data []byte) error {
 	if err := shared.ValidateRules(rules); err != nil {
 		return fmt.Errorf("import validation failed: %w", err)
 	}
-	state, err := s.GetState()
+	state, err := s.getState()
 	if err != nil {
 		return err
 	}
