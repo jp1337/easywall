@@ -70,7 +70,21 @@ jobs:
       # They verify that actual nftables rules are applied correctly to the
       # kernel — something unit-test mocking cannot achieve.
       - name: Integration tests (kernel nftables)
-        run: sudo go test -tags integration -v -count=1 -timeout 120s ./internal/core/...
+        run: sudo go test -tags integration -v -count=1 -timeout 120s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/...
+
+      # Counted, not just run. Without this the rule builders in nftables.go
+      # measured 0% — every one of them is exercised here and nowhere else, so
+      # the coverage report said the firewall's core logic was untested while
+      # the suite above was testing it against a real kernel. A number that
+      # wrong is worse than no number: it hid which parts genuinely had none.
+      - name: Upload integration coverage
+        uses: codecov/codecov-action@v7
+        continue-on-error: true # Dependabot PRs lack CODECOV_TOKEN; don't block CI
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-integration.out
+          flags: integration
+          fail_ci_if_error: true
 
   lint:
     name: Lint
