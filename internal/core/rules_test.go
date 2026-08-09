@@ -275,12 +275,12 @@ func TestRollback_RestoresCurrentAndKeepsTheStagedEdits(t *testing.T) {
 	}
 }
 
-func TestExportCurrent(t *testing.T) {
+func TestExportStaged(t *testing.T) {
 	store, _ := newTempStore(t)
 	_ = store.SaveStaged("tcp", []shared.PortRule{{Port: "443"}})
 	_ = store.PromoteStaged()
 
-	data, err := store.ExportCurrent()
+	data, err := store.ExportStaged()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,9 +394,9 @@ func TestRollback_GetStateError(t *testing.T) {
 	}
 }
 
-func TestExportCurrent_GetStateError(t *testing.T) {
+func TestExportStaged_GetStateError(t *testing.T) {
 	store := &RulesStore{path: "/nonexistent/rules.json"}
-	_, err := store.ExportCurrent()
+	_, err := store.ExportStaged()
 	if err == nil {
 		t.Error("expected error when file is missing")
 	}
@@ -635,5 +635,59 @@ func TestRulesStore_ApplySequenceIsAtomicAgainstConcurrentSaves(t *testing.T) {
 	}
 	if len(state.Staged.TCP) != 1 || state.Staged.TCP[0].Port != "22" {
 		t.Errorf("the staged port list was corrupted: %+v", state.Staged.TCP)
+	}
+}
+
+// Export and import have to be a pair: import replaces the staged set, so
+// export has to read it, or the round trip loses exactly the edits an operator
+// exported to protect. export-import.md offers this as what to do "before a
+// risky change" — advice worth taking only if the file holds the change.
+func TestExportImport_RoundTripsTheStagedSetIncludingComments(t *testing.T) {
+	store, _ := newTempStore(t)
+
+	// Something applied and live, and a different set staged on top of it.
+	if err := store.SaveStaged("tcp", []shared.PortRule{{Port: "22"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PromoteStaged(); err != nil {
+		t.Fatal(err)
+	}
+	staged := []string{"# from the abuse report", "192.0.2.42", "", "198.51.100.0/24"}
+	if err := store.SaveStaged("blacklist", staged); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := store.ExportStaged()
+	if err != nil {
+		t.Fatalf("ExportStaged: %v", err)
+	}
+
+	var exported shared.Rules
+	if err := json.Unmarshal(data, &exported); err != nil {
+		t.Fatalf("the export is not valid JSON: %v", err)
+	}
+	if len(exported.Blacklist) != len(staged) {
+		t.Fatalf("the export lost lines: %+v", exported.Blacklist)
+	}
+	if exported.Blacklist[0] != "# from the abuse report" {
+		t.Errorf("the export dropped the comment: %+v", exported.Blacklist)
+	}
+
+	// Importing it back into a fresh store reproduces what was staged.
+	other, _ := newTempStore(t)
+	if err := other.ImportRules(data); err != nil {
+		t.Fatalf("the export must import: %v", err)
+	}
+	state, err := other.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Staged.Blacklist) != len(staged) {
+		t.Errorf("the round trip lost lines: %+v", state.Staged.Blacklist)
+	}
+	for i := range staged {
+		if state.Staged.Blacklist[i] != staged[i] {
+			t.Errorf("line %d: got %q, want %q", i, state.Staged.Blacklist[i], staged[i])
+		}
 	}
 }

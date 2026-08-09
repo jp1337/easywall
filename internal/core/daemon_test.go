@@ -429,7 +429,7 @@ func TestDaemonDispatch_ExportRules_Error(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	// Corrupt the rules file so ExportCurrent → GetState fails
+	// Corrupt the rules file so ExportStaged → GetState fails
 	_ = os.WriteFile(cfg.RulesPath(), []byte("not valid json"), 0644)
 
 	resp := d.dispatch(shared.Command{Type: shared.CmdExportRules})
