@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -76,8 +78,8 @@ func (c *Config) Validate() error {
 	if c.DataDir == "" {
 		c.DataDir = "/var/lib/easywall"
 	}
-	if c.SessionKey == "" {
-		return fmt.Errorf("session_key is required")
+	if err := c.ensureSessionKey(); err != nil {
+		return err
 	}
 	if c.Language == "" {
 		c.Language = "en"
@@ -94,6 +96,52 @@ func (c *Config) Validate() error {
 	case c.TLS.KeyFile != "" && c.TLS.CertFile == "":
 		return fmt.Errorf("tls.key is set but tls.cert is not; set both, or neither for a self-signed certificate")
 	}
+	return nil
+}
+
+// sessionKeyPlaceholder is the value config/web.toml ships with. It is a
+// placeholder in the sense that a reader is expected to replace it — and it was
+// not enforced, so `docker compose up`, which bind-mounts that very file,
+// started a firewall administration interface whose session cookies were signed
+// with a key published in the repository. A forged cookie built from it was
+// accepted on /dashboard with no password at all.
+const sessionKeyPlaceholder = "CHANGE_ME"
+
+// minSessionKeyLen is the shortest key worth signing with. The documented
+// recipe is `openssl rand -hex 32`, which produces 64 characters.
+const minSessionKeyLen = 32
+
+// ensureSessionKey guarantees the cookie signing key is one nobody else knows.
+//
+// An unusable key — empty, the shipped placeholder, or too short to be worth
+// forging against — is replaced with a fresh one and written back to the config
+// file, so the next start keeps the same sessions. Refusing to start instead
+// would be defensible, but it would also break `docker compose up` out of the
+// box, and an operator who has just been told to edit a file inside a container
+// image is an operator who reaches for the fastest way past the message.
+func (c *Config) ensureSessionKey() error {
+	if c.SessionKey != "" &&
+		!strings.Contains(c.SessionKey, sessionKeyPlaceholder) &&
+		len(c.SessionKey) >= minSessionKeyLen {
+		return nil
+	}
+
+	key, err := generateSecret(32)
+	if err != nil {
+		return fmt.Errorf("generate session key: %w", err)
+	}
+	c.SessionKey = key
+
+	if c.configPath == "" {
+		return nil // constructed in memory; nothing to persist to
+	}
+	if err := c.saveLocked(); err != nil {
+		return fmt.Errorf("no usable session_key, and the generated one could not be "+
+			"saved to %s (%w). Set session_key yourself: openssl rand -hex 32",
+			c.configPath, err)
+	}
+	slog.Warn("session_key was missing or still the shipped placeholder; " +
+		"generated a new one and saved it. Existing sessions are invalidated.")
 	return nil
 }
 

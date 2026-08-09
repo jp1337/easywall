@@ -348,10 +348,74 @@ func TestConfigVersionCachePath_NoDataDir(t *testing.T) {
 	}
 }
 
-func TestValidate_MissingSessionKey(t *testing.T) {
-	cfg := newCfgWith("0.0.0.0:12227", "/run/x", "/tmp", "")
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected error for empty session_key")
+// An unusable session key is replaced rather than rejected — refusing to start
+// would break `docker compose up` out of the box, and an operator told to edit
+// a file inside a container image reaches for the fastest way past the message.
+// What must never happen is running with one.
+func TestValidate_ReplacesAnUnusableSessionKey(t *testing.T) {
+	for _, unusable := range []string{
+		"",
+		"CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX",
+		"short",
+	} {
+		cfg := newCfgWith("0.0.0.0:12227", "/run/x", "/tmp", unusable)
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate(%q): %v", unusable, err)
+		}
+		if cfg.SessionKey == unusable {
+			t.Errorf("%q was kept as the signing key", unusable)
+		}
+		if len(cfg.SessionKey) < minSessionKeyLen {
+			t.Errorf("the generated key is only %d characters", len(cfg.SessionKey))
+		}
+		if strings.Contains(cfg.SessionKey, sessionKeyPlaceholder) {
+			t.Error("the generated key still contains the placeholder")
+		}
+	}
+}
+
+// A key the operator chose is left alone.
+func TestValidate_KeepsAConfiguredSessionKey(t *testing.T) {
+	const mine = "1f0c1a3e5b7d9f11335577991bbddff11f0c1a3e5b7d9f11335577991bbddff1"
+	cfg := newCfgWith("0.0.0.0:12227", "/run/x", "/tmp", mine)
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SessionKey != mine {
+		t.Error("a configured session key must not be replaced")
+	}
+}
+
+// And the replacement is persisted, so sessions survive a restart.
+func TestValidate_PersistsTheGeneratedSessionKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "web.toml")
+	if err := os.WriteFile(path, []byte(`
+bind_addr = "0.0.0.0:12227"
+socket_path = "/run/easywall/core.sock"
+ssl_dir = "/etc/easywall/ssl"
+session_key = "CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX"
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.SessionKey != cfg.SessionKey {
+		t.Error("the generated key was not written back, so every restart would sign with a different one")
+	}
+	if strings.Contains(reloaded.SessionKey, sessionKeyPlaceholder) {
+		t.Error("the placeholder is still in the file")
 	}
 }
 func TestSaveCredentials_InvalidPath(t *testing.T) {
