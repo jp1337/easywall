@@ -75,10 +75,19 @@ const THEMES = {
   },
 };
 
-const digest = (s) => createHash('sha256').update(s.trim()).digest('hex').slice(0, 16);
+// The renderer is part of the input. mermaid 11.16.0 -> 11.16.1 moved the bezier
+// control points on every rounded container, so four committed SVGs no longer
+// matched what the pinned version produced — and --check, hashing the .mmd alone,
+// reported them current. Fold the version in so an upgrade is a re-render.
+const MERMAID_VERSION = JSON.parse(
+  await readFile(new URL('../node_modules/mermaid/package.json', import.meta.url), 'utf8'),
+).version;
 
-// The source hash is written into the SVG so --check can tell "not rendered yet"
-// from "rendered from an older version of the source".
+const digest = (s) =>
+  createHash('sha256').update(`${MERMAID_VERSION}\n${s.trim()}`).digest('hex').slice(0, 16);
+
+// Written into the SVG so --check can tell "not rendered yet" from "rendered
+// from an older version of the source, or by an older mermaid".
 const STAMP = 'data-source-digest';
 
 async function sources() {
@@ -104,7 +113,10 @@ async function check(diagrams) {
       const svg = await readFile(file, 'utf8');
       const m = svg.match(new RegExp(`${STAMP}="([a-f0-9]+)"`));
       if (!m || m[1] !== digest(d.source)) {
-        problems.push(`${d.name}-${theme}.svg is stale (${d.name}.mmd changed)`);
+        problems.push(
+          `${d.name}-${theme}.svg is stale — ${d.name}.mmd changed, ` +
+            `or it was rendered by a mermaid other than ${MERMAID_VERSION}`,
+        );
       }
     }
   }
