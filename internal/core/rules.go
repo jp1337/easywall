@@ -3,11 +3,9 @@ package core
 import (
 	"encoding/json"
 	"fmt"
-	"net"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -107,7 +105,7 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 	//
 	// It belongs here rather than only in the web process because the whole
 	// design rests on the privileged side not trusting the unprivileged one.
-	if err := validateRules(state.Staged); err != nil {
+	if err := shared.ValidateRules(state.Staged); err != nil {
 		return fmt.Errorf("invalid %s rules: %w", ruleType, err)
 	}
 
@@ -177,7 +175,7 @@ func (s *RulesStore) ImportRules(data []byte) error {
 	if err := json.Unmarshal(data, &rules); err != nil {
 		return fmt.Errorf("invalid import data: %w", err)
 	}
-	if err := validateRules(rules); err != nil {
+	if err := shared.ValidateRules(rules); err != nil {
 		return fmt.Errorf("import validation failed: %w", err)
 	}
 	state, err := s.GetState()
@@ -234,108 +232,36 @@ func emptyState() shared.RulesState {
 	}
 }
 
-// validateRules performs basic sanity checks on imported rules.
-func validateRules(r shared.Rules) error {
-	for _, rule := range r.TCP {
-		if err := validatePortRule(rule); err != nil {
-			return fmt.Errorf("tcp rule %q: %w", rule.Port, err)
-		}
-	}
-	for _, rule := range r.UDP {
-		if err := validatePortRule(rule); err != nil {
-			return fmt.Errorf("udp rule %q: %w", rule.Port, err)
-		}
-	}
-	for _, ip := range r.Blacklist {
-		if err := validateIPOrCIDR(ip); err != nil {
-			return fmt.Errorf("blacklist %q: %w", ip, err)
-		}
-	}
-	for _, ip := range r.Whitelist {
-		if err := validateIPOrCIDR(ip); err != nil {
-			return fmt.Errorf("whitelist %q: %w", ip, err)
-		}
-	}
-	for _, fwd := range r.Forwarding {
-		if fwd.Protocol != "tcp" && fwd.Protocol != "udp" {
-			return fmt.Errorf("forwarding: invalid protocol %q", fwd.Protocol)
-		}
-		if fwd.SourcePort < 1 || fwd.SourcePort > 65535 {
-			return fmt.Errorf("forwarding: invalid source port %d", fwd.SourcePort)
-		}
-		if fwd.DestPort < 1 || fwd.DestPort > 65535 {
-			return fmt.Errorf("forwarding: invalid dest port %d", fwd.DestPort)
-		}
-	}
-	return nil
-}
-
-// validatePortRule accepts "80" or "8000:9000" and nothing else.
-//
-// It used to parse with fmt.Sscanf, which stops at the first thing it cannot
-// read and reports success for what it got: "80abc" passed as port 80, and so
-// did "80 90" — someone who meant to open two ports opened one, and the rule
-// list showed a string the firewall was not enforcing. strconv.Atoi rejects any
-// trailing character, so what is stored is what is applied.
-func validatePortRule(r shared.PortRule) error {
-	if r.Port == "" {
-		return fmt.Errorf("port is required")
-	}
-
-	if start, end, ok := strings.Cut(r.Port, ":"); ok {
-		lo, err := parsePortNumber(start)
-		if err != nil {
-			return fmt.Errorf("port range start: %w", err)
-		}
-		hi, err := parsePortNumber(end)
-		if err != nil {
-			return fmt.Errorf("port range end: %w", err)
-		}
-		if hi < lo {
-			return fmt.Errorf("port range %d:%d ends before it starts", lo, hi)
-		}
-		return nil
-	}
-
-	if _, err := parsePortNumber(r.Port); err != nil {
-		return err
-	}
-	return nil
-}
-
-// parsePortNumber parses a complete port number, rejecting anything else.
-func parsePortNumber(s string) (int, error) {
-	p, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, fmt.Errorf("%q is not a port number", s)
-	}
-	if p < 1 || p > 65535 {
-		return 0, fmt.Errorf("port %d is outside 1-65535", p)
-	}
-	return p, nil
-}
-
-func validateIPOrCIDR(s string) error {
-	if ip := net.ParseIP(s); ip != nil {
-		return nil
-	}
-	if _, _, err := net.ParseCIDR(s); err == nil {
-		return nil
-	}
-	return fmt.Errorf("invalid IP or CIDR: %s", s)
-}
-
 // WriteAuditLog appends a structured audit log entry to the given log path.
+//
+// The line is produced by encoding/json, not by fmt's %q. The two agree on
+// ordinary text and part company on anything else: %q escapes an invalid UTF-8
+// byte as \xNN, which JSON has no such escape for. The reader parses each line
+// with encoding/json and skips what it cannot decode, so a line the writer
+// produced and the reader rejects would remove an audit entry from the record
+// with nothing to show that it had ever been there. One encoder on both sides
+// means that cannot happen.
 func WriteAuditLog(logPath, action, ruleType, detail, user string) {
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	line, err := json.Marshal(shared.AuditLogEntry{
+		Time:     time.Now().UTC().Format(time.RFC3339),
+		Action:   action,
+		RuleType: ruleType,
+		Detail:   detail,
+		User:     user,
+	})
 	if err != nil {
+		slog.Error("could not encode audit entry", "action", action, "error", err)
 		return
 	}
-	defer f.Close()
 
-	entry := fmt.Sprintf(`{"time":%q,"action":%q,"rule_type":%q,"detail":%q,"user":%q}`+"\n",
-		time.Now().UTC().Format(time.RFC3339),
-		action, ruleType, detail, user,
-	)
-	_, _ = f.WriteString(entry)
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	if err != nil {
+		slog.Error("could not open audit log", "path", logPath, "error", err)
+		return
+	}
+	defer f.Close() //nolint:errcheck // the write below is what matters; a close error on append adds nothing
+
+	if _, err := f.Write(append(line, '\n')); err != nil {
+		slog.Error("could not write audit entry", "path", logPath, "error", err)
+	}
 }

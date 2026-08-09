@@ -317,14 +317,30 @@ func errResp(err error) shared.Response {
 	return shared.Response{Success: false, Error: err.Error()}
 }
 
+// auditTailBytes is how much of the end of the audit log is read to satisfy a
+// request for the most recent entries.
+//
+// An entry is around 150 bytes, so this holds well over a thousand — several
+// times the 200 the viewer asks for. The file is append-only and rotated by
+// logrotate, which the Debian package configures but a manual install may not;
+// reading all of it to show the newest 200 meant the dashboard, which reads the
+// log on every load, grew slower for the lifetime of the host.
+const auditTailBytes = 256 * 1024
+
 // readAuditLog reads the last n entries from the audit log file (most-recent first).
 func readAuditLog(path string, n int) ([]shared.AuditLogEntry, error) {
-	data, err := os.ReadFile(path)
+	data, truncated, err := tailFile(path, auditTailBytes)
 	if err != nil {
 		return nil, err
 	}
 
 	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	// The first line of a window that does not start at the beginning of the
+	// file is almost certainly half an entry. Dropping it costs one record out
+	// of a thousand and keeps a mangled one out of the log view.
+	if truncated && len(lines) > 0 {
+		lines = lines[1:]
+	}
 	// Reverse so most-recent first
 	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
 		lines[i], lines[j] = lines[j], lines[i]
@@ -346,6 +362,33 @@ func readAuditLog(path string, n int) ([]shared.AuditLogEntry, error) {
 		entries = append(entries, e)
 	}
 	return entries, nil
+}
+
+// tailFile returns at most max bytes from the end of the file, and whether it
+// had to skip anything to do so.
+func tailFile(path string, max int64) ([]byte, bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false, err
+	}
+	defer f.Close() //nolint:errcheck // read-only
+
+	info, err := f.Stat()
+	if err != nil {
+		return nil, false, err
+	}
+
+	size := info.Size()
+	if size <= max {
+		data, err := io.ReadAll(f)
+		return data, false, err
+	}
+
+	if _, err := f.Seek(size-max, io.SeekStart); err != nil {
+		return nil, false, err
+	}
+	data, err := io.ReadAll(f)
+	return data, true, err
 }
 
 // validateCustomRules checks each rule by wrapping it in a minimal nft table

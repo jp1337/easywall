@@ -50,17 +50,28 @@ func (s *Server) handleBlacklistPOST(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/blacklist", http.StatusSeeOther)
 }
 
-// parseIPList converts a newline-separated string into a slice of non-empty, trimmed entries.
+// parseIPList converts the textarea into the list that gets stored: one trimmed
+// line per element, comments and the blank lines between groups kept.
+//
+// They used to be dropped here, which quietly deleted them. blacklist.md
+// documents `#` comments, the entry counter is written to ignore them, the
+// demo ships a list full of them, and the core skips them wherever it reads a
+// list — every part of the system expected them to be there except the one
+// function that decides what is saved. An operator who noted why an address was
+// blocked lost the note on the next save, and the same applied to the hand
+// written nftables statements on the custom rules page, where the comment is
+// often the only thing explaining the rule.
+//
+// Trailing blank lines are dropped: they carry nothing and would otherwise
+// accumulate at the end of the file on every save.
 func parseIPList(raw string) []string {
-	var result []string
-	for _, line := range strings.Split(raw, "\n") {
-		entry := strings.TrimSpace(line)
-		if entry != "" && !strings.HasPrefix(entry, "#") {
-			result = append(result, entry)
-		}
+	lines := strings.Split(raw, "\n")
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		result = append(result, strings.TrimSpace(line))
 	}
-	if result == nil {
-		return []string{}
+	for len(result) > 0 && result[len(result)-1] == "" {
+		result = result[:len(result)-1]
 	}
 	return result
 }

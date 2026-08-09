@@ -364,6 +364,14 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 		return demoErr(fmt.Errorf("unknown rule type %q", generic.RuleType))
 	}
 
+	// The same check the core runs. Without it the demo accepted input the real
+	// thing refuses — and the demo is what people judge the product by before
+	// they install it.
+	if err := shared.ValidateRules(d.rules.Staged); err != nil {
+		d.rules.Staged = before
+		return demoErr(err)
+	}
+
 	d.audit("rules_saved", generic.RuleType, shared.DescribeRuleChange(generic.RuleType, before, d.rules.Staged))
 	return shared.Response{Success: true}
 }
@@ -472,6 +480,9 @@ func (d *demoState) handleImportRules(payload []byte) shared.Response {
 	var imported shared.Rules
 	if err := json.Unmarshal(payload, &imported); err != nil {
 		return demoErr(fmt.Errorf("invalid rules: %w", err))
+	}
+	if err := shared.ValidateRules(imported); err != nil {
+		return demoErr(fmt.Errorf("import validation failed: %w", err))
 	}
 	d.rules.Staged = imported
 	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",

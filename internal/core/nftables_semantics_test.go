@@ -677,3 +677,55 @@ func TestIntegration_BogonFilter_CoversTheDocumentedRanges(t *testing.T) {
 	mustNotContain(t, rs, "ip daddr 10.0.0.0/8",
 		"a bogon is a claim about where a packet came from, not where it is going")
 }
+
+// ---------------------------------------------------------------------------
+// Comments in address lists
+// ---------------------------------------------------------------------------
+
+// The editor keeps `#` comments and the blank lines between groups, so an
+// operator's note about why an address is blocked survives a save. They are
+// stored in the same list as the addresses, and must produce no rule while
+// every address around them still does.
+func TestIntegration_ListComments_ProduceNoRulesAndBlockNothingElse(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.Blacklist = []string{
+		"# scanners seen in the fail2ban log",
+		"192.0.2.42",
+		"",
+		"# reported by the upstream provider",
+		"198.51.100.0/24",
+	}
+	state.Current.Whitelist = []string{
+		"# the address I administer from",
+		"203.0.113.10",
+	}
+
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	rs := ruleset(t)
+	mustContain(t, rs, "ip saddr 192.0.2.42 drop", "the address after a comment is still blocked")
+	mustContain(t, rs, "ip saddr 198.51.100.0/24 drop", "so is the one after a blank line")
+	mustContain(t, rs, "ip saddr 203.0.113.10 accept", "and the whitelist entry still accepts")
+	mustNotContain(t, rs, "scanners", "a comment is not a rule")
+	mustNotContain(t, rs, "fail2ban", "a comment is not a rule")
+}
+
+// A comment must not be mistaken for an unparseable address, which Apply
+// refuses outright.
+func TestIntegration_ListComments_DoNotMakeApplyRefuseTheSet(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.Blacklist = []string{"# a note", "", "192.0.2.1"}
+
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("a list with comments must apply: %v", err)
+	}
+	// And an actual malformed address still refuses.
+	state.Current.Blacklist = []string{"# a note", "192.168.1.999"}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err == nil {
+		t.Error("a malformed address must still be refused")
+	}
+}
