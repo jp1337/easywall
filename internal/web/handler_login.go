@@ -51,6 +51,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values[SessionUserKey] = username
 	sess.Values[SessionCredentialKey] = credentialFingerprint(wantHash)
+	sess.Values[SessionIDKey] = newSessionID()
 	sess.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   SessionLifetime,
@@ -65,6 +66,15 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	sess, _ := s.store.Get(r, SessionName)
+
+	// Telling the browser to drop the cookie is not the same as ending the
+	// session. The cookie is a signed, self-contained token: whoever still has
+	// the value stayed signed in for the rest of its lifetime, however firmly
+	// the button said otherwise. Record it as revoked so it stops working now.
+	if id, _ := sess.Values[SessionIDKey].(string); id != "" {
+		revokeSession(id)
+	}
+
 	sess.Options.MaxAge = -1
 	_ = sess.Save(r, w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)

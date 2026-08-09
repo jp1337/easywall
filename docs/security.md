@@ -35,6 +35,7 @@ holds no privilege worth stealing.
 | Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
 | Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
 | Cookie signing key | Generated on first start unless one is configured. A key that is missing, too short, or still the placeholder in the sample config is replaced and written back — the placeholder is published in this repository, and a cookie signed with a published key is a login |
+| Logout | Ends that session immediately. A signed cookie is self-contained, so telling the browser to drop it left the value working for the rest of its lifetime; the identifier is recorded as revoked instead. Other browsers are unaffected. The record is in memory, so a restart within the same ten minutes forgets it |
 | Password change | Ends every other session at once. Sessions live in a signed cookie with nothing to revoke server-side, so each one carries a fingerprint of the password hash it was issued under and is refused as soon as that stops matching. The browser making the change stays signed in |
 | Recovery | none by design — no mail, no outside service. Editing `web.toml` on the host is the only way back |
 

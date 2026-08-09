@@ -66,6 +66,10 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
+			if id, _ := sess.Values[SessionIDKey].(string); sessionRevoked(id) {
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
 			if currentCredential != nil {
 				if fp, _ := sess.Values[SessionCredentialKey].(string); fp != currentCredential() {
 					http.Redirect(w, r, "/login", http.StatusSeeOther)
