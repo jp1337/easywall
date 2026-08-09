@@ -8,8 +8,18 @@
     delaycompress
     notifempty
     create 640 root easywall
-    sharedscripts
-    postrotate
-        systemctl kill -s HUP easywall-core.service 2>/dev/null || true
-    endscript
 }
+
+# There is deliberately no postrotate here.
+#
+# easywall opens the audit log for each entry and closes it again, so a rotated
+# file needs no signal: the next entry opens whatever `create` just made. The
+# hook that used to live here sent SIGHUP to easywall-core — and until 2.5.0
+# nothing handled that signal, so the default disposition applied and the daily
+# log rotation *terminated the firewall daemon*. systemd restarted it five
+# seconds later, which hid it; what it could not restore was an acceptance
+# window open at that moment, whose goroutine went with the process, leaving
+# unconfirmed rules live and the rollback unable to run.
+#
+# SIGHUP reloads the configuration now, so the hook would merely be pointless
+# rather than harmful. It is still pointless.

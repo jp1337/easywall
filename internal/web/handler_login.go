@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/subtle"
 	"net/http"
 
 	"github.com/gorilla/sessions"
@@ -29,8 +30,19 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
+	// Both checks always run, and neither short-circuits the other.
+	//
+	// `username != wantUser || !VerifyPassword(...)` skipped the argon2
+	// verification whenever the name was wrong, and argon2 is deliberately slow:
+	// a wrong username answered in 60µs and the right one in 37ms, a 600-fold
+	// difference readable over any network. That is not a side channel so much
+	// as a lookup — one request per guess tells an attacker the account name of
+	// the single account this system has.
 	wantUser, wantHash := s.cfg.Credentials()
-	if username != wantUser || !VerifyPassword(password, wantHash) {
+	passwordOK := VerifyPassword(password, wantHash)
+	usernameOK := subtle.ConstantTimeCompare([]byte(username), []byte(wantUser)) == 1
+
+	if !usernameOK || !passwordOK {
 		s.setFlash(w, r, "invalid_credentials")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
