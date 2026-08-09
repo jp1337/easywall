@@ -1,7 +1,9 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -15,6 +17,16 @@ import (
 	"github.com/google/nftables/expr"
 	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/sys/unix"
+)
+
+// nftBinary is the nft executable, and nftTimeout bounds every call to it.
+// Both are vars so a test can substitute a program that hangs.
+var (
+	nftBinary  = "nft"
+	nftTimeout = 30 * time.Second
+	// nftWaitDelay bounds how long Wait may keep waiting on the output pipes
+	// after the process itself has been killed.
+	nftWaitDelay = 2 * time.Second
 )
 
 const (
@@ -387,9 +399,25 @@ func (m *NftablesManager) applyCustomRules(rules []string) error {
 	if len(cmds) == 0 {
 		return nil
 	}
-	cmd := exec.Command("nft", "-f", "-")
+	// Bounded. This runs inside Firewall.Apply, which holds the apply mutex for
+	// the whole cycle — so an nft that never returns does not just fail this
+	// apply, it wedges every future one, and Stop waits on the same goroutine.
+	// A firewall manager that can never change the firewall again, and cannot be
+	// shut down either, is a worse outcome than a failed apply.
+	ctx, cancel := context.WithTimeout(context.Background(), nftTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, nftBinary, "-f", "-")
+	// Killing the process is not enough on its own: CombinedOutput waits for the
+	// output pipes to close, and anything the child spawned still holds them.
+	// WaitDelay bounds that too, so a cancelled command really does return.
+	cmd.WaitDelay = nftWaitDelay
 	cmd.Stdin = strings.NewReader(strings.Join(cmds, "\n") + "\n")
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("nft custom rules: timed out after %s", nftTimeout)
+	}
+	if err != nil {
 		return fmt.Errorf("nft custom rules: %s: %w", strings.TrimSpace(string(out)), err)
 	}
 	return nil
