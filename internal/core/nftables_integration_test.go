@@ -4,6 +4,8 @@ package core
 
 import (
 	"encoding/json"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -100,6 +102,48 @@ func ruleCount(t *testing.T, m *NftablesManager, chainName string) int {
 		t.Fatalf("GetRules(%s): %v", chainName, err)
 	}
 	return len(rules)
+}
+
+// inputChainText returns the input chain exactly as `nft list` prints it, one
+// rule per line in kernel order.
+//
+// Rule counts cannot express order, and order is the whole question for
+// anything that meters traffic before accepting it. This is also what an
+// operator sees when they check the box themselves.
+func inputChainText(t *testing.T, _ *NftablesManager) []string {
+	t.Helper()
+	out, err := exec.Command("nft", "list", "chain", "inet", tableName, "input").CombinedOutput()
+	if err != nil {
+		t.Fatalf("nft list chain: %v\n%s", err, out)
+	}
+	var rules []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "table ") || strings.HasPrefix(line, "chain ") ||
+			strings.HasPrefix(line, "type ") || line == "}" {
+			continue
+		}
+		rules = append(rules, line)
+	}
+	return rules
+}
+
+// indexOfRule returns the position of the first rule containing every fragment,
+// or -1.
+func indexOfRule(rules []string, fragments ...string) int {
+	for i, r := range rules {
+		all := true
+		for _, f := range fragments {
+			if !strings.Contains(r, f) {
+				all = false
+				break
+			}
+		}
+		if all {
+			return i
+		}
+	}
+	return -1
 }
 
 // baseInputRules returns the number of rules in the input chain of an empty
@@ -554,6 +598,79 @@ func TestIntegration_Apply_SSHBruteForce_DefaultsToPort22(t *testing.T) {
 
 	if !hasChainName(t, m, "sshbrute") {
 		t.Error("expected 'sshbrute' chain even without explicit SSH rule")
+	}
+}
+
+// A port marked as SSH used to jump to the sshbrute chain, which exists only
+// while the module is switched on. Turning the module off therefore produced a
+// rule pointing at a chain that was not there: the apply failed, the rollback
+// failed identically, and the kernel was left holding a table with no chains
+// and no policy — the host completely unfiltered, from one checkbox.
+//
+// The first-run wizard marks the SSH port for every new installation, so this
+// is now on the path everybody takes.
+func TestIntegration_Apply_SSHPortAppliesWithBruteForceOff(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.TCP = []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}}
+
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: false}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply with SSH port and brute force disabled: %v", err)
+	}
+
+	rules := inputChainText(t, m)
+	if indexOfRule(rules, "tcp dport 22", "accept") < 0 {
+		t.Errorf("expected port 22 to be accepted, input chain holds:\n%s", strings.Join(rules, "\n"))
+	}
+	if i := indexOfRule(rules, "sshbrute"); i >= 0 {
+		t.Errorf("rule %d references the sshbrute chain although the module is off: %s", i, rules[i])
+	}
+	if !m.Enforcing() {
+		t.Error("firewall reports itself not enforcing after a successful apply")
+	}
+}
+
+// With the module on, a new connection must meet the meter before it meets the
+// accept — otherwise the protection is present in the ruleset and bypassed by
+// every packet.
+func TestIntegration_Apply_SSHBruteForce_MetersBeforeAccepting(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.TCP = []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}}
+
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	rules := inputChainText(t, m)
+	meter := indexOfRule(rules, "tcp dport 22", "jump sshbrute")
+	accept := indexOfRule(rules, "tcp dport 22", "accept")
+	switch {
+	case meter < 0:
+		t.Fatalf("no metering rule for the SSH port:\n%s", strings.Join(rules, "\n"))
+	case accept < 0:
+		t.Fatalf("port 22 is never accepted:\n%s", strings.Join(rules, "\n"))
+	case meter > accept:
+		t.Errorf("the accept at %d precedes the meter at %d — brute force protection never sees a packet:\n%s",
+			accept, meter, strings.Join(rules, "\n"))
+	}
+}
+
+// A range marked as SSH was parsed with parsePort, which returns 0 for anything
+// containing a colon, and the port was skipped. The module reported itself
+// enabled and metered nothing at all.
+func TestIntegration_Apply_SSHBruteForce_MetersAPortRange(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.TCP = []shared.PortRule{{Port: "2200:2210", Description: "SSH", SSH: true}}
+
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	rules := inputChainText(t, m)
+	if indexOfRule(rules, "2200-2210", "jump sshbrute") < 0 {
+		t.Errorf("port range marked as SSH is not metered:\n%s", strings.Join(rules, "\n"))
 	}
 }
 

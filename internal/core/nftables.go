@@ -912,25 +912,22 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictAccept}},
 	})
 
-	// Jump to sshbrute chain for each SSH port
+	// Meter new connections to each SSH port.
+	//
+	// buildPortExprs rather than a single-port match, because a port marked as
+	// SSH may be a range. The old code parsed it with parsePort, got 0 back for
+	// anything containing a colon, and skipped it — the module reported itself
+	// enabled and metered nothing.
 	for _, port := range sshPorts {
-		portNum := parsePort(port)
-		if portNum == 0 {
-			continue
+		exprs := []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
 		}
+		exprs = append(exprs, buildPortExprs(port)...)
 		m.conn.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseTransportHeader,
-					Offset:       2, // dest port
-					Len:          2,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(portNum >> 8), byte(portNum)}},
+			Exprs: append(exprs,
 				&expr.Ct{Register: 1, Key: expr.CtKeySTATE},
 				&expr.Bitwise{
 					SourceRegister: 1,
@@ -941,7 +938,7 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 				},
 				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
 				&expr.Verdict{Kind: expr.VerdictJump, Chain: "sshbrute"},
-			},
+			),
 		})
 	}
 }
@@ -1448,31 +1445,31 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 	})
 }
 
+// addPortAccept opens one port.
+//
+// It accepts, and only accepts. It used to send a port marked as SSH to the
+// sshbrute chain instead — a chain that exists only while the SSH brute-force
+// module is switched on. Switching that module off therefore produced a rule
+// pointing at nothing: the apply failed, the rollback failed for the same
+// reason, and the table was left with no chains and no policy at all. One
+// checkbox on the options page turned the firewall off completely, and the
+// audit log recorded it as `rollback_failed` without saying what had happened.
+//
+// The metering is not lost. addSSHBruteForce installs its own rule for every
+// SSH port, matching new connections only, and it runs earlier in the chain —
+// so a new connection is metered before it ever reaches this rule.
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {
 	protoNum := unix.IPPROTO_TCP
 	if proto == "udp" {
 		protoNum = unix.IPPROTO_UDP
 	}
 
-	targetChain := ""
-	if rule.SSH {
-		targetChain = "sshbrute"
-	}
-
 	exprs := []expr.Any{
 		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
 		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(protoNum)}},
 	}
-
-	// Port range or single port
-	portExprs := buildPortExprs(rule.Port)
-	exprs = append(exprs, portExprs...)
-
-	if targetChain != "" {
-		exprs = append(exprs, &expr.Verdict{Kind: expr.VerdictJump, Chain: targetChain})
-	} else {
-		exprs = append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
-	}
+	exprs = append(exprs, buildPortExprs(rule.Port)...)
+	exprs = append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
 
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
