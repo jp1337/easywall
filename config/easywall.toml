@@ -10,7 +10,10 @@ enabled  = true
 duration = 120  # seconds before auto-rollback if not confirmed
 
 [ipv6]
-enabled                           = true
+# filter      — apply every rule to IPv6 as well as IPv4 (default)
+# passthrough — accept all IPv6 before any rule; IPv6 is managed elsewhere
+# block       — drop all IPv6 except loopback
+mode                              = "filter"
 icmp_allow_router_advertisement   = true
 icmp_allow_neighbor_advertisement = true
 

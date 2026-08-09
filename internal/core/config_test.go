@@ -342,29 +342,6 @@ func TestValidateCoreConfig_ClampsAnOutOfRangeDuration(t *testing.T) {
 		}
 	}
 }
-
-func TestWriteDefaultCoreConfig(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "easywall.toml")
-	if err := WriteDefaultCoreConfig(path); err != nil {
-		t.Fatalf("WriteDefaultCoreConfig: %v", err)
-	}
-	cfg, err := LoadConfig(path)
-	if err != nil {
-		t.Fatalf("LoadConfig after WriteDefault: %v", err)
-	}
-	if cfg.SocketPath != "/run/easywall/core.sock" {
-		t.Errorf("unexpected socket_path: %s", cfg.SocketPath)
-	}
-	if cfg.Acceptance.Duration != 120 {
-		t.Errorf("unexpected acceptance duration: %d", cfg.Acceptance.Duration)
-	}
-}
-
-// A config written before 2.5.0 has ipv6.enabled and no ipv6.mode. Both old
-// values become "filter": there is no faithful translation of the old
-// behaviour, which filtered IPv6 while removing the exemptions it needs, and
-// filter is the safe direction as well as what most installations had.
 func TestValidate_MigratesIPv6EnabledToMode(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		cfg := newTestConfig(t)

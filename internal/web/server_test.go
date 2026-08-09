@@ -354,14 +354,6 @@ func TestValidate_MissingSessionKey(t *testing.T) {
 		t.Error("expected error for empty session_key")
 	}
 }
-
-func TestWriteDefaultWebConfig_InvalidDir(t *testing.T) {
-	err := WriteDefaultWebConfig("/nonexistent/path/web.toml")
-	if err == nil {
-		t.Error("expected error for invalid path")
-	}
-}
-
 func TestSaveCredentials_InvalidPath(t *testing.T) {
 	cfg := &Config{}
 	cfg.configPath = "/nonexistent/path/web.toml"

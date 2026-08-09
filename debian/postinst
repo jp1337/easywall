@@ -13,26 +13,45 @@ case "$1" in
     fi
 
     # ── Runtime and data directories ─────────────────────────────────────
-    install -d -m 0750 -o root    -g easywall /run/easywall
-    install -d -m 0750 -o root    -g root     /etc/easywall
-    install -d -m 0750 -o root    -g root     /etc/easywall/ssl
+    #
+    # /etc/easywall is root-owned and group easywall: the web process must be
+    # able to traverse it to reach its own config, and must not be able to write
+    # in it. The directory holds easywall.toml, which the *root* daemon reads —
+    # a network-facing process able to replace that file would defeat the
+    # two-process split entirely.
+    #
+    # It used to be 0750 root:root, which left the easywall user unable to
+    # traverse the directory at all. easywall-web exited at startup with
+    # "permission denied" reading its own configuration, so a freshly installed
+    # package had no web interface. Nothing in CI installs the package, so
+    # nothing noticed.
+    install -d -m 0750 -o root     -g easywall /run/easywall
+    install -d -m 0750 -o root     -g easywall /etc/easywall
+    install -d -m 0750 -o easywall -g easywall /etc/easywall/ssl
     install -d -m 0750 -o easywall -g easywall /var/lib/easywall
-    install -d -m 0750 -o root    -g easywall /var/log/easywall
+    install -d -m 0750 -o root     -g easywall /var/log/easywall
 
     # ── Generate web.toml from template if not already present ───────────
+    #
+    # Owned by easywall: the first-run wizard and the password page rewrite it.
+    # There is no csrf_key to generate — CSRF protection is Go's
+    # net/http.CrossOriginProtection, which checks Origin and Sec-Fetch-Site
+    # rather than issuing tokens, so it needs no secret. A second key used to be
+    # generated here and substituted into a placeholder the template does not
+    # contain.
     if [ ! -f /etc/easywall/web.toml ]; then
       SESSION_KEY=$(openssl rand -hex 32)
-      CSRF_KEY=$(openssl rand -hex 32)
       sed -e "s/CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX/$SESSION_KEY/" \
-          -e "s/CHANGE_ME_32_BYTES_HEX_ENCODED_CSRF_SECRET_HERE_XXXXXXXXXX/$CSRF_KEY/" \
           /etc/easywall/web.toml.template > /etc/easywall/web.toml
-      chmod 0640 /etc/easywall/web.toml
-      chown root:easywall /etc/easywall/web.toml
     fi
+    chown easywall:easywall /etc/easywall/web.toml
+    chmod 0600 /etc/easywall/web.toml
 
-    # ── Fix config file ownership ─────────────────────────────────────────
-    chown root:easywall /etc/easywall/easywall.toml 2>/dev/null || true
-    chmod 0640 /etc/easywall/easywall.toml 2>/dev/null || true
+    # ── The core's config stays root-only ────────────────────────────────
+    if [ -f /etc/easywall/easywall.toml ]; then
+      chown root:root /etc/easywall/easywall.toml
+      chmod 0600 /etc/easywall/easywall.toml
+    fi
 
     # ── Enable and start services ─────────────────────────────────────────
     if [ -d /run/systemd/system ]; then
