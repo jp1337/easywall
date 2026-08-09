@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -163,5 +164,63 @@ func TestValidatePortRule_AcceptsWhatItShould(t *testing.T) {
 				t.Errorf("rejected %q: %v", port, err)
 			}
 		})
+	}
+}
+
+// A custom rule is one nft statement. nft reads a newline or a semicolon as the
+// end of a command, so a rule carrying either is a second command — run by the
+// root daemon, and able to reach tables easywall does not own.
+//
+// Reachable through import, where a JSON string can hold anything the textarea
+// would have split apart. Demonstrated against a real kernel before this check
+// existed: an imported rule with a newline in it wrote a drop into a
+// neighbouring table, which is exactly what "easywall owns one table and never
+// looks at another" says cannot happen.
+func TestValidateRules_RejectsCommandSeparatorsInCustomRules(t *testing.T) {
+	payloads := []string{
+		"accept\nadd rule inet bystander c drop",
+		"accept\r\nflush ruleset",
+		"accept; add rule inet bystander c drop",
+		"accept;",
+		"tcp dport 22 accept\n}\ntable inet evil { chain c { type filter hook prerouting priority -300; accept } }",
+	}
+	for _, rule := range payloads {
+		err := ValidateRules(Rules{Custom: []string{rule}})
+		if err == nil {
+			t.Errorf("a rule carrying a command separator must be refused: %q", rule)
+		}
+	}
+}
+
+// And the rules operators actually write must keep working, braces and all.
+func TestValidateRules_AcceptsOrdinaryCustomRules(t *testing.T) {
+	ordinary := []string{
+		"ip saddr 192.0.2.50 tcp dport 9100 accept",
+		"tcp dport { 80, 443 } accept",
+		"udp dport 53 limit rate 50/second accept",
+		"ct state { new, established } accept",
+		`tcp dport 10000 log prefix "legacy-admin: " drop`,
+		"iif eth0 ip protocol udp udp dport 1194 accept",
+		"# a comment line",
+		"",
+	}
+	if err := ValidateRules(Rules{Custom: ordinary}); err != nil {
+		t.Errorf("ordinary custom rules must be accepted: %v", err)
+	}
+}
+
+// The message has to name the rule, or an operator with forty of them has to
+// find it by bisection.
+func TestValidateRules_NamesTheOffendingCustomRule(t *testing.T) {
+	err := ValidateRules(Rules{Custom: []string{
+		"tcp dport 80 accept",
+		"tcp dport 443 accept",
+		"accept\nflush ruleset",
+	}})
+	if err == nil {
+		t.Fatal("expected a refusal")
+	}
+	if !strings.Contains(err.Error(), "custom rule 3") {
+		t.Errorf("the error should name rule 3, got: %v", err)
 	}
 }

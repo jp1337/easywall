@@ -41,6 +41,11 @@ func ValidateRules(r Rules) error {
 			return fmt.Errorf("whitelist %q: %w", ip, err)
 		}
 	}
+	for i, rule := range r.Custom {
+		if err := validateCustomRule(rule); err != nil {
+			return fmt.Errorf("custom rule %d: %w", i+1, err)
+		}
+	}
 	for _, fwd := range r.Forwarding {
 		if fwd.Protocol != "tcp" && fwd.Protocol != "udp" {
 			return fmt.Errorf("forwarding: invalid protocol %q", fwd.Protocol)
@@ -84,6 +89,33 @@ func validatePortRule(r PortRule) error {
 
 	if _, err := ParsePortNumber(r.Port); err != nil {
 		return err
+	}
+	return nil
+}
+
+// customRuleSeparators are the characters nft reads as the end of one command
+// and the start of the next.
+const customRuleSeparators = "\n\r;"
+
+// validateCustomRule checks that a rule is one nft statement and not several.
+//
+// Custom rules are appended to a script as `add rule inet easywall input <rule>`,
+// and nft takes both a newline and a semicolon as a command separator. A rule
+// carrying either is not a rule: it is a second command, run by the root daemon,
+// able to reach tables easywall does not own. Demonstrated against a real
+// kernel — an imported rule containing a newline wrote into a neighbouring
+// table, which is precisely what "easywall owns one table and never looks at
+// another" says cannot happen.
+//
+// The textarea splits on newlines, so this was reachable through import, where
+// a JSON string can hold anything. Structural rather than a parser check on
+// purpose: it does not depend on nft's grammar, on a subprocess being available,
+// or on the wrapper used for syntax checking happening to be unbalanced.
+func validateCustomRule(rule string) error {
+	if i := strings.IndexAny(rule, customRuleSeparators); i >= 0 {
+		return fmt.Errorf("contains %q, which nft reads as the end of the command; "+
+			"a custom rule is a single statement, so put each on its own line",
+			string(rule[i]))
 	}
 	return nil
 }
