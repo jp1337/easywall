@@ -42,12 +42,24 @@ sudo useradd  --system --no-create-home --shell /usr/sbin/nologin \
               --gid easywall easywall 2>/dev/null || true
 
 sudo install -d -m 0750 -o root     -g easywall /run/easywall
-sudo install -d -m 0750 -o root     -g root     /etc/easywall /etc/easywall/ssl
+sudo install -d -m 0750 -o root     -g easywall /etc/easywall
+sudo install -d -m 0750 -o easywall -g easywall /etc/easywall/ssl
 sudo install -d -m 0750 -o easywall -g easywall /var/lib/easywall
 sudo install -d -m 0750 -o root     -g easywall /var/log/easywall
 
-sudo cp config/easywall.toml /etc/easywall/
+sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 ```
+
+The ownership is the point, not a detail. `easywall-web` runs as the `easywall`
+user, so it needs to traverse `/etc/easywall` and read and rewrite its own
+`web.toml` — the first-run wizard writes the password hash there. It must **not**
+be able to write `easywall.toml`, which is the configuration the root daemon
+loads: a network-facing process that can change what root reads has undone the
+two-process split. Hence root-owned directory, group `easywall` for traverse, and
+one file each side of the line.
+
+`ssl_dir` belongs to `easywall` because easywall generates its own certificate
+there and replaces it before it expires.
 
 ## Configure
 
@@ -68,9 +80,13 @@ cert = ""
 key  = ""
 EOF
 
-sudo chown root:easywall /etc/easywall/web.toml /etc/easywall/easywall.toml
-sudo chmod 0640          /etc/easywall/web.toml /etc/easywall/easywall.toml
+sudo chown easywall:easywall /etc/easywall/web.toml
+sudo chmod 0600              /etc/easywall/web.toml
 ```
+
+Leave `session_key` out and easywall generates one on first start and writes it
+back — but generating it here is better, because then it exists before the port
+is ever open.
 
 > **No `csrf_key` is needed.** CSRF protection is Go 1.25's
 > `net/http.CrossOriginProtection`, which checks `Origin` and `Sec-Fetch-Site` instead
