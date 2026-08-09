@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -512,5 +513,61 @@ func TestConfigReload_IgnoresChangedPaths(t *testing.T) {
 	}
 	if cfg.SocketPath != socketBefore || cfg.DataDir != dataBefore {
 		t.Errorf("paths must not change on reload: socket=%q data=%q", cfg.SocketPath, cfg.DataDir)
+	}
+}
+
+// Two configuration saves arriving together must both survive.
+//
+// The options page and the network page are separate requests, and the daemon
+// handles each connection on its own goroutine. Taking a snapshot under a read
+// lock and writing it to the file afterwards left the two writes free to
+// reorder — an older snapshot reaching the file after a newer one and undoing
+// it. Measured at 20 of 100 before the write moved under the same lock as the
+// field update.
+func TestConfig_ConcurrentSavesDoNotLoseEachOther(t *testing.T) {
+	const trials = 100
+	lost := 0
+
+	for i := 0; i < trials; i++ {
+		path := writeTempCoreConfig(t, validCoreConfig)
+		cfg, err := LoadConfig(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatal(err)
+		}
+
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = cfg.SaveFirewallOptions(shared.FirewallOptions{
+				SSHBruteForce: true, SSHBruteForceConnectionLimit: 7,
+			})
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = cfg.SaveSystemSettings(shared.SystemSettings{
+				Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 300},
+			})
+		}()
+		close(start)
+		wg.Wait()
+
+		reloaded, err := LoadConfig(path)
+		if err != nil {
+			t.Fatalf("the config file did not survive concurrent saves: %v", err)
+		}
+		if !reloaded.Firewall.SSHBruteForce || reloaded.Acceptance.Duration != 300 {
+			lost++
+		}
+	}
+
+	if lost > 0 {
+		t.Errorf("%d of %d concurrent config saves discarded the other change", lost, trials)
 	}
 }
