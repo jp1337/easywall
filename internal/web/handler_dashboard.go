@@ -61,13 +61,11 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		data.Recent = entries
 	}
 
-	// Version check (non-blocking — fail silently if unavailable)
-	versionInfo, err := shared.CheckLatestVersion(s.cfg.VersionCachePath())
-	if err != nil {
-		slog.Debug("version check failed", "error", err)
-	} else {
-		data.Version = versionInfo
-	}
+	// Version check. Answered from cache; a stale cache is refreshed in the
+	// background and shows up on the next load. The comment here used to say
+	// "non-blocking" above a call that waited out a five-second HTTP timeout on
+	// every render — on exactly the isolated hosts easywall is built for.
+	data.Version = s.version.Info()
 
 	s.render(w, r, "dashboard.html", "dashboard", data)
 }

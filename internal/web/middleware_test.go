@@ -1,6 +1,7 @@
 package web
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -115,7 +116,7 @@ func TestSecurityHeaders_PassesThrough(t *testing.T) {
 
 func TestRequireAuth_Unauthenticated(t *testing.T) {
 	store := sessions.NewCookieStore([]byte("test-key-32bytes-padding-padding!"))
-	mw := RequireAuth(store)
+	mw := RequireAuth(store, nil)
 
 	called := false
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +140,7 @@ func TestRequireAuth_Unauthenticated(t *testing.T) {
 
 func TestRequireAuth_Authenticated(t *testing.T) {
 	store := sessions.NewCookieStore([]byte("test-key-32bytes-padding-padding!"))
-	mw := RequireAuth(store)
+	mw := RequireAuth(store, nil)
 
 	called := false
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -169,14 +170,11 @@ func TestRequireAuth_Authenticated(t *testing.T) {
 }
 
 func TestMaxBodySize_LargeBody(t *testing.T) {
-	mw := MaxBodySize(10) // 10 bytes max
+	mw := MaxBodySize(10, nil) // 10 bytes max
 
-	called := false
+	var readErr error
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-		buf := make([]byte, 100)
-		n, _ := r.Body.Read(buf)
-		_ = n // MaxBytesReader limits silently on read; handler may still be called
+		_, readErr = io.ReadAll(r.Body)
 	}))
 
 	body := strings.Repeat("x", 100)
@@ -184,15 +182,24 @@ func TestMaxBodySize_LargeBody(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	_ = called // handler is invoked but body read is truncated
+	// The previous version of this test read into a buffer, discarded both the
+	// count and the error, and asserted nothing — it passed whatever the
+	// middleware did, including doing nothing at all.
+	if !isBodyTooLarge(readErr) {
+		t.Errorf("reading past the limit must fail with a size error, got %v", readErr)
+	}
 }
 
 func TestMaxBodySize_SmallBody(t *testing.T) {
-	mw := MaxBodySize(1024)
+	mw := MaxBodySize(1024, nil)
 
-	called := false
+	var got string
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+		}
+		got = string(b)
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -200,8 +207,32 @@ func TestMaxBodySize_SmallBody(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if !called {
-		t.Error("next handler must be called for small body")
+	if got != "small body" {
+		t.Errorf("body under the limit must arrive intact, got %q", got)
+	}
+}
+
+func TestMaxBodySize_OverriddenPathGetsItsOwnLimit(t *testing.T) {
+	mw := MaxBodySize(10, map[string]int64{"/import": 1024})
+
+	var got int
+	var readErr error
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		got, readErr = len(b), err
+	}))
+
+	body := strings.Repeat("x", 100)
+	req := httptest.NewRequest("POST", "/import", strings.NewReader(body))
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if readErr != nil || got != 100 {
+		t.Errorf("the override path must accept 100 bytes, read %d bytes with err %v", got, readErr)
+	}
+
+	req = httptest.NewRequest("POST", "/ports", strings.NewReader(body))
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if !isBodyTooLarge(readErr) {
+		t.Errorf("every other path keeps the default limit, got %v", readErr)
 	}
 }
 
@@ -255,5 +286,90 @@ func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
 	// Should still allow (first request for this "IP")
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200 for first request from addr without port, got %d", rec.Code)
+	}
+}
+
+// A session created under one password must stop working the moment the
+// password changes. Sessions live in a signed cookie, so nothing on the server
+// expires them: without this check they stayed valid for their full lifetime,
+// including the case the change was made for — someone else already signed in.
+func TestRequireAuth_SessionFromABeforePasswordChangeIsRejected(t *testing.T) {
+	store := sessions.NewCookieStore([]byte("test-key-32bytes-padding-padding!"))
+
+	oldHash, err := HashPassword("the-old-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newHash, err := HashPassword("the-new-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	current := oldHash
+	mw := RequireAuth(store, func() string { return credentialFingerprint(current) })
+
+	called := false
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+
+	// Sign in under the old password.
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	rec := httptest.NewRecorder()
+	sess, _ := store.Get(req, SessionName)
+	sess.Values[SessionUserKey] = "admin"
+	sess.Values[SessionCredentialKey] = credentialFingerprint(oldHash)
+	if err := sess.Save(req, rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range rec.Result().Cookies() {
+		req.AddCookie(c)
+	}
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if !called {
+		t.Fatal("the session is valid while the password is unchanged")
+	}
+
+	// The password changes.
+	current = newHash
+	called = false
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req)
+
+	if called {
+		t.Error("a session issued under the previous password must be refused")
+	}
+	if loc := rec2.Header().Get("Location"); loc != "/login" {
+		t.Errorf("expected a redirect to /login, got %q", loc)
+	}
+}
+
+// A cookie from before this check existed carries no fingerprint at all.
+func TestRequireAuth_SessionWithoutAFingerprintIsRejected(t *testing.T) {
+	store := sessions.NewCookieStore([]byte("test-key-32bytes-padding-padding!"))
+	hash, err := HashPassword("some-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mw := RequireAuth(store, func() string { return credentialFingerprint(hash) })
+
+	called := false
+	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	rec := httptest.NewRecorder()
+	sess, _ := store.Get(req, SessionName)
+	sess.Values[SessionUserKey] = "admin"
+	if err := sess.Save(req, rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range rec.Result().Cookies() {
+		req.AddCookie(c)
+	}
+
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if called {
+		t.Error("a session with no credential fingerprint must be refused")
 	}
 }

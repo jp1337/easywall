@@ -2,6 +2,7 @@ package web
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
@@ -14,7 +15,25 @@ const (
 	SessionName     = "easywall"
 	SessionLifetime = 600 // seconds
 	SessionUserKey  = "user"
+
+	// SessionCredentialKey holds a fingerprint of the password hash that was in
+	// force when the session was created.
+	SessionCredentialKey = "cred"
 )
+
+// credentialFingerprint derives a short, non-reversible marker from the stored
+// password hash.
+//
+// Sessions live in a signed cookie, so there is no server-side list to clear:
+// changing the password left every existing session working until it timed out.
+// Comparing this marker on each request ends them instead, which is what an
+// operator changing the password because they suspect someone else is signed in
+// is actually asking for. It is derived from the hash, never from the password,
+// and it is only ever compared with itself.
+func credentialFingerprint(passwordHash string) string {
+	sum := sha256.Sum256([]byte("easywall-session-v1:" + passwordHash))
+	return base64.RawStdEncoding.EncodeToString(sum[:16])
+}
 
 type argon2Params struct {
 	memory      uint32

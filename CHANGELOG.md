@@ -18,9 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ports were parsed loosely.** `fmt.Sscanf` stops at the first character it cannot read and reports success for what it got, so `"80abc"` validated as port 80 and `"80 90"` did too — someone meaning to open two ports opened one, and the rule list showed a string the firewall was not enforcing
 - **A data race between `Daemon.Start` and `Stop`** that CI's `-race` run had been passing by luck. Reachable in production when SIGTERM arrives during startup
 - **`lastApply` reset to "never" on every daemon restart** while the rules it referred to were still installed. It is now persisted, and reading it no longer races with the apply that writes it
+- **The dashboard waited five seconds for github.com on every load, on hosts with no route out.** The version check ran inline under a comment reading "non-blocking", and only successes were cached — so the failure repeated on every render, on exactly the isolated machines easywall is built for. The answer now comes from cache, refreshes in the background, and a failed check is remembered for an hour
+- **The update banner could point backwards.** "Is there something newer" was `latest != current`, which is also true when the running build is *ahead* of the newest release — a build from main, a release candidate, the maintainer's own machine — so the dashboard advertised an update to an older version. It is a version comparison now, and the claim is re-derived from the running binary rather than trusted from a cache an upgrade has outdated
+- **Importing a rule set larger than 64 KB failed with "no file uploaded".** The handler documented a 512 KB ceiling and set one, but the global body limit had already wrapped the request at 64 KB and wrapping a limited reader cannot widen it. A blacklist of a few thousand addresses — an ordinary export from a busy host — could not be imported back, and the message blamed the operator for a size problem. The limit is now set once, per route, and an oversized upload says so
+- **The acceptance window accepted any positive number.** The settings page has always advertised 10–3600 through the input's `min` and `max`, which the browser enforces and a POST ignores. A one-second window closes before the confirmation page can be read, so every apply rolls back and the firewall can no longer be changed through the interface. The range is enforced server-side; an existing file outside it is clamped with a warning rather than blocking startup
+- **A certificate could expire under a running service.** Renewal happened once, in `NewServer`, and `ListenAndServeTLS` reads the files once at startup — so a service running longer than its own one-year certificate served an expired one, and even replacing the files by hand changed nothing until a restart. The certificate is now supplied per handshake and rechecked twice a day; a custom certificate is re-read when it changes on disk and never overwritten
+- **`tls.cert` without `tls.key`** left easywall pairing the configured file with the other half of its own generated pair. TLS then failed with a key mismatch naming a certificate the operator never configured. Setting one without the other is refused at startup, by name
 
 ### Changed
 
+- **Changing the password now ends every other session.** Sessions live in a signed cookie, so there is nothing server-side to revoke and a change left anyone already signed in exactly where they were until the session timed out — including in the case the change is usually made for. Each session carries a fingerprint of the password hash it was issued under and is refused as soon as that stops matching. The browser making the change stays signed in
 - **`ipv6.enabled` became `ipv6.mode`, with three values.** The boolean was documented — in the interface, in its own warning, and in `configuration.md` — as "off means IPv6 traffic is not filtered at all". It did the opposite: the table is `inet`, so every rule and the drop policy still applied to IPv6 and only the ICMPv6 exemptions were removed, leaving IPv6 filtered *and* non-functional. `filter` puts IPv6 through every rule (the default), `passthrough` accepts it before any rule, `block` drops it except loopback. Existing configurations load and both old values become `filter`; a zero-valued config filters too, so the old behaviour cannot return through a caller that builds the struct by hand
 - **The audit log's detail column says what changed.** It was empty on every save. Rule saves name the addresses added and removed, or count entries for the rule kinds whose members are structures; option and settings saves name the fields that moved, including nested ones such as `docker.enabled`
 - **A failed rollback is recorded** as `rollback_failed` instead of being discarded with `_ =`. New rules not taking *and* the old ones not returning is the worst outcome the system has, and it was the quietest one
@@ -29,16 +36,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`update_check` in `web.toml`.** The version check is the only outbound request easywall makes, and on an isolated network it is one an operator may want gone rather than merely failing quietly. Unset means on, so existing configurations are unaffected
 - `internal/core/nftables_semantics_test.go` — the existing integration tests assert rule counts, which a rule that drops where it should accept passes without complaint. These read back `nft list table`, the view an operator gets, and assert on meaning: verdicts, source vs destination, log prefixes, and that the blacklist is evaluated before the whitelist
 - Integration coverage for the three modules that produced nothing, and for the refusal path leaving the previous ruleset untouched
 
 ### Documentation corrections
 
+- Both TOML JSON Schemas were a release behind the code: `ipv6.mode` was missing while the obsolete `ipv6.enabled` was still described as the way to disable IPv6, and `demo_mode` was absent altogether. With `additionalProperties: false` on both files, that meant a correct config was reported as invalid in the editor
+- `security.md` said the certificate is renewed "when it is within 30 days of expiry" without saying that only happened at startup, which for a long-running service is the difference between renewal and none
 - `filters.md` listed three log prefixes; none of them were ever emitted, and the per-module prefix it named (`easywall`) did not exist. The table now lists all ten, with the prefix each rule actually carries
 - `architecture.md` claimed the socket protocol has "no untyped fields". `SaveRulesPayload.Rules` is an `interface{}` that the core re-encodes and decodes by `rule_type`
 - `audit-log.md` described the detail column as "usually empty" and that is no longer true; it now also states that entries are attributed to `web` rather than to an account
 
-### Fixed
+### Tooling
 
 - **`npm run check:diagrams` could not see a renderer upgrade.** It hashed only the `.mmd` source, so when mermaid went from 11.16.0 to 11.16.1 — moving the bezier control points on every rounded container — the committed SVGs stopped matching what the pinned renderer produced, and the check still called them current. The mermaid version is now part of the stamp, so an upgrade is a re-render
 
