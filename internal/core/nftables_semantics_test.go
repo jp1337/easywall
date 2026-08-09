@@ -452,9 +452,15 @@ func TestIntegration_PortRange_ReachesTheKernelAsARange(t *testing.T) {
 		"a range that collapsed to a single port would open far less than the rule says")
 }
 
-// A port marked for SSH protection jumps to the brute-force chain instead of
-// accepting outright. Marking it must not stop it being reachable.
-func TestIntegration_SSHFlaggedPort_JumpsToTheBruteForceChain(t *testing.T) {
+// A port marked for SSH protection is metered on new connections and accepted
+// otherwise. Marking it must not stop it being reachable.
+//
+// This test used to require the port rule itself to read `jump sshbrute`. That
+// was the defect, not the contract: the chain exists only while the module is
+// on, so the same rule turned every apply into a failure the moment the
+// operator switched the module off. The guarantee is that a new connection
+// meets the meter and that the port is open — not which rule carries it.
+func TestIntegration_SSHFlaggedPort_IsMeteredAndReachable(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "2222", SSH: true}}
@@ -464,8 +470,12 @@ func TestIntegration_SSHFlaggedPort_JumpsToTheBruteForceChain(t *testing.T) {
 	}
 
 	rs := ruleset(t)
-	mustContain(t, rs, "dport 2222 jump sshbrute",
-		"the flagged port must go through the rate limiter")
+	// 0x8000000 is NEW. nft prints the mask rather than the name because the
+	// match is built as a bitwise-and plus a not-equal-zero test.
+	mustContain(t, rs, "dport 2222 ct state 0x8000000 jump sshbrute",
+		"a new connection to the flagged port must go through the rate limiter")
+	mustContain(t, rs, "dport 2222 accept",
+		"and the port still has to be open")
 	mustContain(t, rs, "chain sshbrute",
 		"and that chain has to exist")
 }
