@@ -25,9 +25,21 @@ func (s *Server) handleBlacklistGET(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBlacklistPOST(w http.ResponseWriter, r *http.Request) {
-	entries := parseIPList(r.FormValue("entries"))
+	raw := r.FormValue("entries")
 
-	if err := s.client.SaveRules("blacklist", entries); err != nil {
+	// The live validation beside the textarea is advisory — it swaps a message
+	// into the page and does not stop the form. Until 2.5.0 nothing else
+	// checked either, so a malformed address was saved, listed here as blocked,
+	// and then silently skipped when the rules were applied. Refuse the save
+	// instead, and say which line.
+	if errs := validateIPListEntries(raw); len(errs) > 0 {
+		slog.Info("rejected blacklist save", "invalid_lines", len(errs))
+		s.setFlash(w, r, "save_invalid_entries")
+		http.Redirect(w, r, "/blacklist", http.StatusSeeOther)
+		return
+	}
+
+	if err := s.client.SaveRules("blacklist", parseIPList(raw)); err != nil {
 		slog.Warn("save blacklist error", "error", err)
 		s.setFlash(w, r, "save_error")
 		http.Redirect(w, r, "/blacklist", http.StatusSeeOther)

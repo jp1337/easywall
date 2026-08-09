@@ -19,9 +19,19 @@ func (s *Server) handleWhitelistGET(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWhitelistPOST(w http.ResponseWriter, r *http.Request) {
-	entries := parseIPList(r.FormValue("entries"))
+	raw := r.FormValue("entries")
 
-	if err := s.client.SaveRules("whitelist", entries); err != nil {
+	// See handleBlacklistPOST: an unchecked entry here is worse, not better —
+	// a whitelist entry that never becomes a rule silently withdraws access
+	// the operator believes they granted.
+	if errs := validateIPListEntries(raw); len(errs) > 0 {
+		slog.Info("rejected whitelist save", "invalid_lines", len(errs))
+		s.setFlash(w, r, "save_invalid_entries")
+		http.Redirect(w, r, "/whitelist", http.StatusSeeOther)
+		return
+	}
+
+	if err := s.client.SaveRules("whitelist", parseIPList(raw)); err != nil {
 		slog.Warn("save whitelist error", "error", err)
 		s.setFlash(w, r, "save_error")
 		http.Redirect(w, r, "/whitelist", http.StatusSeeOther)

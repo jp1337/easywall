@@ -103,6 +103,7 @@
 
   {"id": "saved",                "translation": "Changes saved."},
   {"id": "save_error",           "translation": "Failed to save changes. Check core connection."},
+  {"id": "save_invalid_entries", "translation": "Nothing was saved: some lines are not a valid IP address or CIDR network. The line numbers are listed above the editor."},
   {"id": "invalid_rules",        "translation": "Invalid rule format."},
   {"id": "invalid_credentials",  "translation": "Invalid username or password."},
   {"id": "username_required",    "translation": "Username is required."},
