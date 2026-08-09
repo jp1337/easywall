@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -1613,16 +1615,57 @@ func matchPortEq(p uint16) []expr.Any {
 }
 
 // SaveSnapshot writes a nftables backup snapshot to disk.
+// snapshotPrefix and snapshotSuffix bracket the only files rotation may delete.
+const (
+	snapshotPrefix = "nftables_"
+	snapshotSuffix = ".json"
+	snapshotsKept  = 10
+)
+
+// SaveSnapshot writes an nftables backup snapshot to disk and prunes old ones.
+//
+// The timestamp carries milliseconds. At one-second resolution two snapshots
+// from the same second landed on the same filename, so the second overwrote the
+// first and "the last ten" could quietly be fewer.
 func SaveSnapshot(dir string, data []byte) error {
-	ts := time.Now().UTC().Format("2006-01-02_15-04-05")
-	path := fmt.Sprintf("%s/nftables_%s.json", dir, ts)
+	if err := rotateSnapshots(dir, snapshotsKept); err != nil {
+		slog.Warn("could not rotate nftables snapshots", "dir", dir, "error", err)
+	}
 
-	// Rotate: keep only last 10 snapshots
-	_ = rotateSnapshots(dir, 10)
-
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(snapshotPath(dir, time.Now().UTC()), data, 0600)
 }
 
+// snapshotPath builds a name that does not collide with one already there.
+//
+// The timestamp alone was not enough: at one-second resolution two snapshots
+// from the same second landed on the same filename and the second overwrote the
+// first, so "the last ten" could quietly be fewer. Milliseconds narrow that and
+// do not close it — the suffix does. It is "_N" rather than "-N" so the
+// disambiguated name still sorts after the plain one, and name order stays age
+// order for rotation.
+func snapshotPath(dir string, t time.Time) string {
+	ts := t.Format("2006-01-02_15-04-05.000")
+	path := filepath.Join(dir, snapshotPrefix+ts+snapshotSuffix)
+	for i := 1; i < 1000; i++ {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return path
+		}
+		path = filepath.Join(dir, fmt.Sprintf("%s%s_%d%s", snapshotPrefix, ts, i, snapshotSuffix))
+	}
+	return path
+}
+
+// rotateSnapshots keeps the newest `keep` snapshots and removes the rest.
+//
+// It considers only files this package wrote. It used to take every
+// non-directory entry in the directory — and the directory it is called with is
+// log_dir, which also holds audit.log. "audit.log" sorts before "nftables_…",
+// so it was the first thing deleted: on the eleventh apply, easywall removed the
+// security record that audit-log.md describes as append-only and never
+// truncated by easywall. Anything logrotate had put beside it went the same way.
+//
+// The names embed a UTC timestamp in a format that sorts lexicographically, so
+// name order is age order.
 func rotateSnapshots(dir string, keep int) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -1631,13 +1674,21 @@ func rotateSnapshots(dir string, keep int) error {
 
 	var snapshots []string
 	for _, e := range entries {
-		if !e.IsDir() {
-			snapshots = append(snapshots, e.Name())
+		name := e.Name()
+		if e.IsDir() ||
+			!strings.HasPrefix(name, snapshotPrefix) ||
+			!strings.HasSuffix(name, snapshotSuffix) {
+			continue
 		}
+		snapshots = append(snapshots, name)
 	}
+	sort.Strings(snapshots)
 
+	// One is about to be written, so make room for it: keep-1 survive here.
 	for len(snapshots) >= keep {
-		_ = os.Remove(dir + "/" + snapshots[0])
+		if err := os.Remove(filepath.Join(dir, snapshots[0])); err != nil {
+			return err
+		}
 		snapshots = snapshots[1:]
 	}
 	return nil
