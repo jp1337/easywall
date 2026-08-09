@@ -135,6 +135,52 @@ jobs:
       - name: Collect .deb
         run: mkdir -p dist && mv ../*.deb dist/
 
+      # Building the package proved it compiles. It never proved it installs —
+      # and it did not: postinst left /etc/easywall unreadable by the user the
+      # web service runs as, so a freshly installed package had no web
+      # interface at all. That shipped because nothing here went past the build.
+      - name: Install the package
+        run: sudo apt-get install -y ./dist/*.deb
+
+      - name: Check the installed layout
+        run: |
+          set -euo pipefail
+          fail=0
+          check() { # path expected_owner expected_mode
+            actual=$(stat -c '%U:%G %a' "$1")
+            if [ "$actual" != "$2 $3" ]; then
+              echo "::error::$1 is '$actual', expected '$2 $3'"
+              fail=1
+            else
+              echo "ok  $1  $actual"
+            fi
+          }
+          check /etc/easywall            root:easywall     750
+          check /etc/easywall/web.toml   easywall:easywall 600
+          check /etc/easywall/easywall.toml root:root      600
+          check /etc/easywall/ssl        easywall:easywall 750
+          check /var/lib/easywall        easywall:easywall 750
+          exit $fail
+
+      - name: Check the web service starts and the core config stays out of reach
+        run: |
+          set -euo pipefail
+          cd /usr/share/easywall
+          sudo -u easywall /usr/sbin/easywall-web --config /etc/easywall/web.toml &
+          for i in $(seq 1 20); do
+            if curl -sk -o /dev/null https://127.0.0.1:12227/firstrun; then break; fi
+            sleep 0.5
+          done
+          code=$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:12227/firstrun)
+          echo "GET /firstrun -> $code"
+          [ "$code" = "200" ] || { echo "::error::the web interface did not come up"; exit 1; }
+          test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
+          if sudo -u easywall sh -c 'echo x >> /etc/easywall/easywall.toml' 2>/dev/null; then
+            echo "::error::the web user can write the core's configuration"
+            exit 1
+          fi
+          echo "the core configuration is out of the web user's reach"
+
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v7
         with:
