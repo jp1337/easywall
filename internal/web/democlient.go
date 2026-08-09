@@ -249,7 +249,9 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		// and the interface already has a state for exactly that.
 		return demoErr(errors.New("syntax checking needs the core daemon"))
 	case shared.CmdExportRules:
-		raw, err := json.Marshal(d.rules.Current)
+		// Staged, like the core: import replaces staged, so this is the half
+		// that makes the pair lossless.
+		raw, err := json.Marshal(d.rules.Staged)
 		if err != nil {
 			return demoErr(err)
 		}

@@ -205,8 +205,17 @@ func (s *RulesStore) Rollback() error {
 	return s.save(state)
 }
 
-// ExportCurrent returns the current rule set as pretty-printed JSON.
-func (s *RulesStore) ExportCurrent() ([]byte, error) {
+// ExportStaged returns the staged rule set as pretty-printed JSON.
+//
+// Staged, not current, for two reasons. Import replaces the staged set, so this
+// is the half that makes the pair lossless: export, import, and you are back
+// where you were. And export-import.md offers this as what to do "before a
+// risky change" — advice that is only worth taking if the file contains the
+// edits you are about to risk, rather than the rules that were already live.
+//
+// The two are identical whenever nothing is pending, which is most of the time;
+// the difference shows exactly in the case the documentation describes.
+func (s *RulesStore) ExportStaged() ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -214,7 +223,7 @@ func (s *RulesStore) ExportCurrent() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.MarshalIndent(state.Current, "", "  ")
+	return json.MarshalIndent(state.Staged, "", "  ")
 }
 
 // ImportRules validates and replaces the staged rule set from external JSON.

@@ -293,7 +293,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdExportRules:
-		data, err := d.firewall.RulesStore().ExportCurrent()
+		data, err := d.firewall.RulesStore().ExportStaged()
 		if err != nil {
 			return errResp(err)
 		}
