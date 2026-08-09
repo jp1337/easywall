@@ -88,8 +88,9 @@ One JSON object per line in `<log_dir>/audit.log`, rotated daily, 30 days kept:
 | Recorded | **Not** recorded |
 |---|---|
 | `apply_started` · `apply_accepted` · `apply_rolledback` · `apply_failed` | logins, successful or failed |
-| `rules_saved` · `rules_imported` | logouts |
-| `options_saved` · `settings_saved` · `system_saved` | the source address of a change |
+| `rollback_failed` — new rules did not take *and* the old ones did not return | logouts |
+| `rules_saved` · `rules_imported` | the source address of a change |
+| `options_saved` · `settings_saved` · `system_saved` | which account made the change |
 
 > **Authentication events are not in the audit log.** An earlier version of this page
 > listed `login_success`, `login_failed` and `logout` among the event types. Nothing

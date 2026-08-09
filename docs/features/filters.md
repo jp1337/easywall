@@ -48,7 +48,7 @@ Compiled into every rule set. There is no switch for these.
 | **Invalid packets** | Packets conntrack cannot match to a connection | — | **on** |
 | **Fragment drop** | IP-fragmented packets | — | off |
 | **Bogon filter** | Private and special-use source addresses on a non-loopback interface | — | off |
-| **Connection limit** | Concurrent connections above a per-source cap | `connection_limit_max` — 100 | off |
+| **Connection limit** | Simultaneous connections above a per-source cap, counted per source address | `connection_limit_max` — 100 | off |
 | **TCP RST flood** | Inbound RST packets above a rate | `tcp_rst_flood_limit` — 100/s | off |
 
 ### What the bogon filter drops
@@ -86,13 +86,29 @@ flood must not be able to fill the disk.
 
 | Switch | Logs | Prefix |
 |---|---|---|
-| `<module>_log` | Drops by that one module | `easywall` |
-| `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
+| `ssh_brute_force_log` | Connections over the SSH rate | `easywall ssh:` |
+| `icmp_flood_log` | Echo requests over the rate | `easywall icmp-flood:` |
+| `syn_flood_log` | SYNs over the rate | `easywall syn-flood:` |
+| `tcp_rst_flood_log` | RSTs over the rate | `easywall tcp-rst:` |
+| `port_scan_log` | Scan flag combinations | `easywall portscan:` |
+| `drop_invalid_packets_log` | Packets in INVALID state | `easywall invalid:` |
+| `drop_fragments_log` | Fragmented packets | `easywall fragment:` |
+| `bogon_filter_log` | Bogon sources | `easywall bogon:` |
 | `log_blacklist_connections` | Blacklist hits, before the drop | `easywall blacklist:` |
+| `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
 
 ```bash
 journalctl -k -f | grep easywall
 ```
+
+Each log rule sits directly in front of the drop it belongs to and carries the
+same match, so what appears in the log is exactly what was dropped.
+
+> **None of this worked before 2.5.0.** Eight of these switches produced no rule
+> at all, and the one that did carried no prefix: the log expression's `Key`
+> field is a bitmask over attribute indices and was being set to a bare
+> attribute number, so the kernel received an empty log group instead. The
+> command above matched nothing, whatever was switched on.
 
 This is the *kernel* log — packets. Administrative changes are in the
 [audit log]({{ '/features/audit-log/' | relative_url }}) instead.
