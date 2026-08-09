@@ -1273,6 +1273,12 @@ func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.F
 			protoNum = unix.IPPROTO_UDP
 		}
 
+		// Match the port the packet arrived on, redirect to the port that
+		// serves it. These were the wrong way round until 2.5.0: the rule
+		// matched DestPort and redirected to SourcePort, so the documented
+		// example {source_port: 2222, dest_port: 22} produced
+		// `tcp dport 22 redirect to :2222` — it captured SSH on 22 and sent it
+		// somewhere nothing was listening, while 2222 did nothing at all.
 		m.conn.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: preChain,
@@ -1286,12 +1292,15 @@ func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.F
 					Len:          2,
 				},
 				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{
-					byte(rule.DestPort >> 8),
-					byte(rule.DestPort),
+					byte(rule.SourcePort >> 8), // the incoming port
+					byte(rule.SourcePort),
 				}},
 				&expr.Immediate{
 					Register: 1,
-					Data:     []byte{byte(rule.SourcePort >> 8), byte(rule.SourcePort)},
+					Data: []byte{
+						byte(rule.DestPort >> 8), // the port that serves it
+						byte(rule.DestPort),
+					},
 				},
 				&expr.Redir{
 					RegisterProtoMin: 1,

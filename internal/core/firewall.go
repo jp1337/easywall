@@ -124,9 +124,25 @@ func (f *Firewall) Apply(user string) error {
 		return fmt.Errorf("apply nftables rules: %w", err)
 	}
 
+	// 5. Acceptance window, unless it has been switched off.
+	//
+	// acceptance.enabled was never read until 2.5.0. The system settings page
+	// offers the switch and documents "Off — an apply is final. There is no
+	// automatic way back", but the window ran regardless: an operator who
+	// deliberately turned it off, on a machine they can physically reach, still
+	// had the change rolled out from under them when the timer expired.
+	if !f.cfg.Acceptance.Enabled {
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all",
+			"acceptance window disabled — applied without confirmation", user)
+		f.setLastApply(time.Now())
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_accepted", "all",
+			"no confirmation required", user)
+		slog.Info("rules applied; acceptance window is disabled", "user", user)
+		return nil
+	}
+
 	WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all", "", user)
 
-	// 5. Start acceptance window
 	if err := f.acceptance.Start(); err != nil {
 		return err
 	}
