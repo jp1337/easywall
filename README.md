@@ -105,12 +105,27 @@ Then open `https://localhost:12227`. The first visit runs the setup wizard.
 
 ## Roadmap
 
-| | |
-|---|---|
-| 2FA / TOTP | Second factor for the web interface |
-| Let's Encrypt ACME | Certificates without a reverse proxy |
-| Audit log for logins | Authentication events are not recorded yet |
-| REST API | For Ansible and automation |
+Correctness first: a firewall that quietly does less than it says is worse than
+one that does less and says so.
+
+**2.6 — proof, not counts.** The integration tests assert rule counts. A rule
+that dropped where it should accept, or matched the destination where it should
+match the source, would pass them. Moving to assertions on meaning is under way;
+next is sending real packets through a veth pair in the test namespace.
+
+**2.7 — identity.** The socket protocol carries no user, so every audit entry is
+attributed to `web` and logins are not recorded at all. A `user` field comes
+first, then login events, then multiple accounts, and only then 2FA/TOTP — a
+second factor on a single account in `web.toml` is not worth much.
+
+**2.8 — reach.** A REST API with token authentication for Ansible and scripting,
+built on the accounts from 2.7. Let's Encrypt/ACME as a strictly optional
+alternative to a reverse proxy; running without any outbound connection stays
+the default.
+
+Done in 2.5: every switch on the options page reaches the firewall (17 of 31 did
+not), rules that cannot become rules are refused instead of silently skipped,
+and the dashboard's "rules are live" is asked of the kernel rather than assumed.
 
 ## Contributing
 

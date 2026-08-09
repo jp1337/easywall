@@ -40,7 +40,7 @@ coloured tag would stop meaning anything.
 | Timestamp | Clock time today, day and month before that. The full value is in the title attribute |
 | Action | The identifier, rendered in your language |
 | Rule type | `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `all` |
-| Detail | Whatever the core recorded. Usually empty — see below |
+| Detail | What changed — the addresses added and removed, or the settings that moved |
 | User | The account that made the change |
 
 ## What is not in it
@@ -50,12 +50,13 @@ coloured tag would stop meaning anything.
 | Logins, failed logins, logouts | `journalctl -u easywall-web` |
 | Read-only page views | nowhere — not recorded at all |
 | Edits made directly to `easywall.toml` | your own change management |
-| **What changed**, in most cases | the detail column is empty for every save and apply |
+| Which account made a change | every entry is attributed to `web`; the socket protocol carries no identity yet |
 
-> **The detail column is nearly always a dash.** The core passes something only
-> twice: `timeout` on a rollback, and the nftables error on a failure. Recording
-> *what* a save changed would make the log far more useful and is a gap, not a
-> design decision.
+> **The detail column was empty until 2.5.0.** Every save wrote a blank, so the
+> column meant to answer *what changed* was a dash on every line. It now names
+> the addresses that came and went, counts the entries for rule kinds whose
+> members are structures, and names the settings that moved. Long lists are
+> capped at six names plus a count.
 
 ## On disk
 
@@ -66,8 +67,13 @@ tail -f /var/log/easywall/audit.log
 ```
 
 ```json
-{"time":"2026-08-04T14:25:43Z","action":"apply_accepted","rule_type":"all","detail":"","user":"admin"}
+{"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blacklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
+{"time":"2026-08-09T14:25:43Z","action":"options_saved","rule_type":"","detail":"changed port_scan, tcp_rst_flood","user":"web"}
+{"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"admin"}
 ```
+
+`rollback_failed` is the one worth alerting on: it means the new rules did not
+take **and** the previous ones did not come back.
 
 Line-oriented JSON ships straight into Filebeat, Promtail or any log collector.
 Rotation is `logrotate`'s job — the Debian package installs a config for it.
