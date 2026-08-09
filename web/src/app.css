@@ -200,6 +200,13 @@ body {
   .main {
     margin-left: var(--sidebar-width);
     flex: 1;
+    /* A flex item defaults to min-width: auto, which means "never shrink below
+       what your content needs". The audit log table needs about 800px, so
+       between the mobile breakpoint and roughly 1085px the column pushed the
+       page wider than the viewport and the whole interface scrolled sideways —
+       worse in German, where the words are longer. .table-wrap already sets
+       overflow-x: auto; this is what lets it do its job. */
+    min-width: 0;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
