@@ -27,7 +27,7 @@ func (s *Server) handlePasswordPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(newPw) < 12 {
+	if len(newPw) < minPasswordLen {
 		s.setFlash(w, r, "password_too_short")
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return

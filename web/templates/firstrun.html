@@ -15,7 +15,7 @@
 </head>
 <body>
 <div class="auth-page">
-  <div class="auth-card">
+  <div class="auth-card auth-card-wide">
     <div class="auth-header">
       <div class="auth-logo">
         <span class="auth-logo-mark" aria-hidden="true"></span>
@@ -40,27 +40,92 @@
         <span>{{T "firstrun_notice"}}</span>
       </div>
 
-      <form method="POST" action="/firstrun" class="flex flex-col gap-3">
-        <div class="field">
-          <label class="field-label" for="username">{{T "firstrun_username"}}</label>
-          <input id="username" name="username" type="text" autocomplete="username" autofocus required
-                 class="input w-full">
+      <form method="POST" action="/firstrun">
+        <div class="firstrun-grid">
+          <section class="firstrun-col">
+            <h2 class="firstrun-section">{{T "firstrun_account_title"}}</h2>
+            <p class="field-help">{{T "firstrun_account_desc"}}</p>
+
+            <div class="field mt-2">
+              <label class="field-label" for="username">{{T "firstrun_username"}}</label>
+              <input id="username" name="username" type="text" autocomplete="username" autofocus required
+                     class="input w-full">
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="password">{{T "firstrun_password"}}</label>
+              <input id="password" name="password" type="password" autocomplete="new-password" required minlength="12"
+                     class="input w-full">
+              <p class="field-help">{{T "firstrun_password_hint"}}</p>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="password_confirm">{{T "firstrun_confirm"}}</label>
+              <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="12"
+                     class="input w-full">
+            </div>
+          </section>
+
+          {{with .Data}}
+          <section class="firstrun-col">
+            <h2 class="firstrun-section">{{T "firstrun_choices_title"}}</h2>
+            <p class="field-help">{{T "firstrun_choices_desc"}}</p>
+
+            <div class="card mt-2">
+              <div class="firstrun-port">
+                <label class="field-label" for="ssh_port">{{T "firstrun_ssh_port"}}</label>
+                <input id="ssh_port" name="ssh_port" type="number" min="1" max="65535" value="{{.SSHPort}}"
+                       class="input input-data w-28 mt-1.5">
+                <p class="field-help">{{T "firstrun_ssh_port_help"}}</p>
+              </div>
+
+              <label class="switch-row">
+                <span class="switch-text">
+                  <span class="switch-name">{{T "firstrun_open_web"}}</span>
+                  <span class="switch-desc">{{T "firstrun_open_web_desc"}}</span>
+                </span>
+                <input type="checkbox" name="open_web" class="toggle">
+              </label>
+
+              <fieldset class="choice-group">
+                <legend class="sr-only">{{T "firstrun_ipv6"}}</legend>
+                <p class="switch-row-label">{{T "firstrun_ipv6"}}</p>
+                <label class="choice-row">
+                  <input type="radio" name="ipv6_mode" value="filter" class="radio" checked>
+                  <span class="switch-text">
+                    <span class="switch-name">{{T "settings_ipv6_mode_filter"}}</span>
+                    <span class="switch-desc">{{T "settings_ipv6_mode_filter_desc"}}</span>
+                  </span>
+                </label>
+                <label class="choice-row">
+                  <input type="radio" name="ipv6_mode" value="passthrough" class="radio">
+                  <span class="switch-text">
+                    <span class="switch-name">{{T "settings_ipv6_mode_passthrough"}}</span>
+                    <span class="switch-desc">{{T "settings_ipv6_mode_passthrough_desc"}}</span>
+                  </span>
+                </label>
+                <label class="choice-row">
+                  <input type="radio" name="ipv6_mode" value="block" class="radio">
+                  <span class="switch-text">
+                    <span class="switch-name">{{T "settings_ipv6_mode_block"}}</span>
+                    <span class="switch-desc">{{T "settings_ipv6_mode_block_desc"}}</span>
+                  </span>
+                </label>
+              </fieldset>
+
+              <label class="switch-row">
+                <span class="switch-text">
+                  <span class="switch-name">{{T "firstrun_telemetry"}}</span>
+                  <span class="switch-desc">{{T "firstrun_telemetry_desc"}}</span>
+                </span>
+                <input type="checkbox" name="telemetry" class="toggle">
+              </label>
+            </div>
+          </section>
+          {{end}}
         </div>
 
-        <div class="field">
-          <label class="field-label" for="password">{{T "firstrun_password"}}</label>
-          <input id="password" name="password" type="password" autocomplete="new-password" required minlength="12"
-                 class="input w-full">
-          <p class="field-help">{{T "firstrun_password_hint"}}</p>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="password_confirm">{{T "firstrun_confirm"}}</label>
-          <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" required minlength="12"
-                 class="input w-full">
-        </div>
-
-        <button type="submit" class="btn btn-primary w-full mt-2">
+        <button type="submit" class="btn btn-primary w-full mt-4">
           <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
           {{T "firstrun_submit"}}
         </button>
