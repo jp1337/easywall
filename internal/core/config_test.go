@@ -351,3 +351,35 @@ func TestValidate_RejectsAnUnknownIPv6Mode(t *testing.T) {
 		t.Error("accepted an unknown ipv6.mode")
 	}
 }
+
+// docker.custom_networks reaches addCIDRAccept, which returns quietly on
+// anything it cannot parse — so an unchecked entry was listed in the interface
+// as whitelisted and never became a rule.
+func TestSaveNetworkSettings_RejectsAnUnparseableDockerNetwork(t *testing.T) {
+	cfg := newTestConfig(t)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	err := cfg.SaveNetworkSettings(shared.NetworkSettings{
+		IPv6:   shared.IPv6Config{Mode: shared.IPv6Filter},
+		Docker: shared.DockerConfig{Enabled: true, CustomNetworks: []string{"172.20.0.0/16", "not-a-network"}},
+	})
+	if err == nil {
+		t.Fatal("accepted a custom network that cannot become a rule")
+	}
+	if !strings.Contains(err.Error(), "not-a-network") {
+		t.Errorf("the error should name the offending entry, got: %v", err)
+	}
+}
+
+func TestSaveNetworkSettings_RejectsAnUnknownIPv6Mode(t *testing.T) {
+	cfg := newTestConfig(t)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if err := cfg.SaveNetworkSettings(shared.NetworkSettings{
+		IPv6: shared.IPv6Config{Mode: shared.IPv6Mode("open")},
+	}); err == nil {
+		t.Error("accepted an unknown mode; guessing between open and closed is not a choice to make quietly")
+	}
+}
