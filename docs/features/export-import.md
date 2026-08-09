@@ -52,6 +52,9 @@ Import validates before staging anything. A file with one bad entry imports noth
 - Malformed CIDR, such as `192.168.1.1/33`
 - An address that does not parse
 - A forwarding protocol other than `tcp` or `udp`
+- A file over **512 KB**. That is room for several thousand addresses; a rule set
+  larger than that is easier to place in `rules.json` directly than to push through a
+  browser upload
 
 ## Worth doing
 
