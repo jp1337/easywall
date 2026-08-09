@@ -110,8 +110,12 @@ func TestDaemonDispatch_GetStatus(t *testing.T) {
 	if err := json.Unmarshal(resp.Data, &status); err != nil {
 		t.Fatalf("parse status: %v", err)
 	}
-	if !status.Active {
-		t.Error("expected Active=true")
+	// See TestFirewallStatus_WithoutLastApply: the stub firewall holds no
+	// netlink connection, so Active must be false. Whether it is true when
+	// rules really are installed is a question only the kernel can answer,
+	// and TestIntegration_Status_* asks it there.
+	if status.Active {
+		t.Error("expected Active=false without a netlink connection")
 	}
 }
 

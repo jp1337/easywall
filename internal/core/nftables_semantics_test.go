@@ -242,6 +242,56 @@ func TestIntegration_BlacklistIsEvaluatedBeforeWhitelist(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Is the firewall actually up?
+// ---------------------------------------------------------------------------
+
+// The dashboard renders Active as "the core daemon is running and rules are
+// live". That is a claim about the kernel, and it used to be answered with a
+// hardcoded true meaning "the daemon is running".
+func TestIntegration_Enforcing_TrueOnlyWhenRulesAreInstalled(t *testing.T) {
+	m := newIntegrationManager(t)
+
+	if m.Enforcing() {
+		t.Error("no table exists yet, so nothing is being enforced")
+	}
+
+	applyEmpty(t, m, shared.FirewallOptions{})
+	if !m.Enforcing() {
+		t.Error("rules are installed, so this must report enforcing")
+	}
+}
+
+// The case the old implementation got wrong, and the one an operator is most
+// likely to hit: something removed the table out from under the daemon.
+func TestIntegration_Enforcing_FalseAfterTheTableIsDeleted(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{})
+	if !m.Enforcing() {
+		t.Fatal("precondition: rules should be live")
+	}
+
+	if out, err := exec.Command("nft", "delete", "table", "inet", tableName).CombinedOutput(); err != nil {
+		t.Fatalf("delete table: %v: %s", err, out)
+	}
+
+	if m.Enforcing() {
+		t.Error("the table is gone; the dashboard would still be showing green")
+	}
+}
+
+// A table with an empty input chain is not "live rules" either — the policy
+// would drop everything, which is a different problem, not a working firewall.
+func TestIntegration_Enforcing_FalseWhenTheInputChainIsEmpty(t *testing.T) {
+	m := newIntegrationManager(t)
+	if err := m.Reset(); err != nil {
+		t.Fatalf("Reset: %v", err)
+	}
+	if m.Enforcing() {
+		t.Error("the table exists but holds no rules")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Refusing bad rules rather than skipping them
 // ---------------------------------------------------------------------------
 

@@ -176,6 +176,7 @@
   {"id": "audit_apply_accepted", "translation": "Regeln angewendet"},
   {"id": "audit_apply_rolledback", "translation": "Regeln zurückgenommen"},
   {"id": "audit_apply_failed", "translation": "Anwenden fehlgeschlagen"},
+  {"id": "audit_rollback_failed", "translation": "Rücknahme fehlgeschlagen"},
   {"id": "audit_rules_saved", "translation": "Regeln gespeichert"},
   {"id": "audit_rules_imported", "translation": "Regeln importiert"},
   {"id": "audit_options_saved", "translation": "Optionen gespeichert"},

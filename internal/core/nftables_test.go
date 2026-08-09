@@ -238,14 +238,6 @@ func TestNftablesManager_Apply_NilConn(t *testing.T) {
 	}
 }
 
-func TestNftablesManager_Restore(t *testing.T) {
-	m := &NftablesManager{} // Restore is a no-op placeholder
-	err := m.Restore([]byte("snapshot"))
-	if err != nil {
-		t.Errorf("Restore should always return nil, got: %v", err)
-	}
-}
-
 func TestRotateSnapshots_KeepsAtMostN(t *testing.T) {
 	dir := t.TempDir()
 	// Create 12 files

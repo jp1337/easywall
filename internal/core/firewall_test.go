@@ -27,8 +27,12 @@ func TestFirewallStatus_WithoutLastApply(t *testing.T) {
 	if status.LastApply != "" {
 		t.Errorf("expected empty LastApply, got: %s", status.LastApply)
 	}
-	if !status.Active {
-		t.Error("expected Active=true")
+	// This test firewall has no netlink connection, so nothing is being
+	// enforced. Status used to answer true regardless — it reported that the
+	// daemon was running and the dashboard rendered that as "rules are live".
+	// Asserting true here is what let that ship.
+	if status.Active {
+		t.Error("expected Active=false: there is no netlink connection, so no rules are live")
 	}
 }
 

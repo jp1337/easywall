@@ -395,6 +395,7 @@ var auditActionLabels = map[string]string{
 	"apply_accepted":   "audit_apply_accepted",
 	"apply_rolledback": "audit_apply_rolledback",
 	"apply_failed":     "audit_apply_failed",
+	"rollback_failed":  "audit_rollback_failed",
 	"rules_saved":      "audit_rules_saved",
 	"rules_imported":   "audit_rules_imported",
 	"options_saved":    "audit_options_saved",
@@ -416,6 +417,9 @@ var auditActionTones = map[string]string{
 	"apply_started":    "warn",
 	"apply_rolledback": "crit",
 	"apply_failed":     "crit",
+	// The worst outcome there is: the new rules did not take and the old ones
+	// did not come back either.
+	"rollback_failed": "crit",
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the
