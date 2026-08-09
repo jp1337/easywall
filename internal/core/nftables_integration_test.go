@@ -436,12 +436,14 @@ func TestIntegration_Apply_SYNFlood_AddsRule(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
-	// SYNFlood adds a rate-limit rule directly to the input chain (no separate chain).
+	// Two rules, one per address family: the rate is enforced per source
+	// address, and the source address is a different width in each. A single
+	// rule here was the shared counter that let one host starve the rest.
 	applyEmpty(t, m, shared.FirewallOptions{SYNFlood: true})
 	count := ruleCount(t, m, "input")
 
-	if count != base+1 {
-		t.Errorf("SYNFlood: expected %d rules, got %d", base+1, count)
+	if count != base+2 {
+		t.Errorf("SYNFlood: expected %d rules (one per family), got %d", base+2, count)
 	}
 }
 
@@ -449,24 +451,27 @@ func TestIntegration_Apply_ICMPFlood_AddsRule(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
-	// ICMPFlood adds a rate-limit rule directly to the input chain (no separate chain).
+	// One rule per family — and the IPv6 one is not a formality: it matches
+	// ICMPv6 type 128, which the IPv4-only rule this replaced never did, so an
+	// echo flood over IPv6 went straight past the module.
 	applyEmpty(t, m, shared.FirewallOptions{ICMPFlood: true})
 	count := ruleCount(t, m, "input")
 
-	if count != base+1 {
-		t.Errorf("ICMPFlood: expected %d rules, got %d", base+1, count)
+	if count != base+2 {
+		t.Errorf("ICMPFlood: expected %d rules (one per family), got %d", base+2, count)
 	}
 }
 
-func TestIntegration_Apply_BogonFilter_AddsNineRules(t *testing.T) {
+func TestIntegration_Apply_BogonFilter_AddsOneRulePerRange(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
 	applyEmpty(t, m, shared.FirewallOptions{Bogons: true})
 	count := ruleCount(t, m, "input")
 
-	// addBogonFilter defines exactly 9 bogon CIDRs.
-	const bogonCount = 9
+	// Eleven ranges — the same eleven filters.md lists. It used to list two
+	// that were not here and omit two that were.
+	const bogonCount = 11
 	if count != base+bogonCount {
 		t.Errorf("Bogons: expected %d rules (base=%d + %d bogons), got %d",
 			base+bogonCount, base, bogonCount, count)
@@ -524,10 +529,19 @@ func TestIntegration_Apply_SSHBruteForce_ChainHasRateLimitAndDrop(t *testing.T) 
 		t.Fatalf("Apply: %v", err)
 	}
 
-	// sshbrute chain must have exactly 2 rules: rate-limit-accept + unconditional drop.
+	// Three rules: a per-source meter for each family, then accept for anyone
+	// still within their own rate. The drop moved to sshbrute-over, which is
+	// where the log belongs too — the meter must be evaluated once per packet,
+	// and a log rule repeating the match would consume a second token.
 	count := ruleCount(t, m, "sshbrute")
-	if count != 2 {
-		t.Errorf("sshbrute chain: expected 2 rules (accept+drop), got %d", count)
+	if count != 3 {
+		t.Errorf("sshbrute chain: expected 3 rules (two meters + accept), got %d", count)
+	}
+	if !hasChainName(t, m, "sshbrute-over") {
+		t.Error("expected an 'sshbrute-over' chain holding the drop")
+	}
+	if over := ruleCount(t, m, "sshbrute-over"); over != 1 {
+		t.Errorf("sshbrute-over: expected just the drop, got %d rules", over)
 	}
 }
 

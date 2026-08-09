@@ -21,8 +21,12 @@ into. Toggling one is staged like any other change and takes effect on **Apply**
 Before the blacklist, before the whitelist, before any port is considered. A module
 that drops a packet drops it whatever else you have allowed.
 
+Two things come earlier still: loopback, always, and the [IPv6
+mode]({{ '/features/system-settings/' | relative_url }}) — set to `passthrough` or
+`block`, IPv6 is decided before any module sees it.
+
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: loopback first, then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then established connections and ICMP, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
@@ -41,15 +45,26 @@ Compiled into every rule set. There is no switch for these.
 
 | Module | Drops | Tuning | Default |
 |---|---|---|---|
-| **SSH brute-force** | New SSH connections above a per-source rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5 | **on** |
-| **ICMP flood** | Echo requests above a per-source rate | `icmp_flood_connection_limit` — 10 | **on** |
-| **SYN flood** | New TCP connections above a rate | `syn_flood_limit` — 100/s | **on** |
-| **Port scan detection** | NULL, FIN and XMAS flag combinations — packets no real client sends | — | **on** |
+| **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
+| **ICMP flood** | Echo requests from one source above its rate — ICMP type 8 and ICMPv6 type 128 | `icmp_flood_connection_limit` — 10/s | **on** |
+| **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
+| **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |
 | **Invalid packets** | Packets conntrack cannot match to a connection | — | **on** |
-| **Fragment drop** | IP-fragmented packets | — | off |
-| **Bogon filter** | Private and special-use source addresses on a non-loopback interface | — | off |
-| **Connection limit** | Simultaneous connections above a per-source cap, counted per source address | `connection_limit_max` — 100 | off |
-| **TCP RST flood** | Inbound RST packets above a rate | `tcp_rst_flood_limit` — 100/s | off |
+| **Fragment drop** | Fragmented **IPv4** packets | — | off |
+| **Bogon filter** | Impossible **IPv4** source addresses on a non-loopback interface | — | off |
+| **Connection limit** | Simultaneous connections from one source above its cap | `connection_limit_max` — 100 | off |
+| **TCP RST flood** | Inbound RST packets from one source above its rate | `tcp_rst_flood_limit` — 100/s | off |
+
+> **Every rate is counted per source address.** The kernel keeps one counter per
+> address, in a set whose entries expire when that source goes quiet, so a flood from
+> one host cannot consume the budget that keeps another host — or you — connected.
+>
+> **This was not true before 2.5.0.** Four of these modules held a single counter for
+> all traffic, while the interface, this page and the JSON schema all described a
+> per-source rate. Five SSH connection attempts a minute from anywhere exhausted the
+> budget, and every further SSH connection was dropped, the administrator's included:
+> the module meant to prevent a lockout produced one, from a single attacker, at
+> negligible cost.
 
 ### What the bogon filter drops
 
@@ -58,14 +73,23 @@ spoofed — nothing on the public internet legitimately has such a source addres
 
 | Range | | Range | |
 |---|---|---|---|
-| `0.0.0.0/8` | "this network" | `169.254.0.0/16` | link-local |
-| `10.0.0.0/8` | private | `172.16.0.0/12` | private |
+| `0.0.0.0/8` | "this network" | `172.16.0.0/12` | private |
+| `10.0.0.0/8` | private | `192.0.2.0/24` | documentation |
 | `100.64.0.0/10` | carrier NAT | `192.168.0.0/16` | private |
-| `127.0.0.0/8` | loopback | `192.0.2.0/24`, `198.51.100.0/24` | documentation |
+| `127.0.0.0/8` | loopback | `198.51.100.0/24` | documentation |
+| `169.254.0.0/16` | link-local | `203.0.113.0/24` | documentation |
+| | | `240.0.0.0/4` | reserved |
+
+**IPv4 only.** There is no IPv6 counterpart, and it would not be a translation of
+this one: `fe80::/10` is link-local, and IPv6 needs neighbour discovery on it to
+function at all.
 
 > **Not for hosts behind NAT.** On a cloud instance or a LAN, RFC 1918 *is* the real
 > network and this filter drops your own traffic. Same for container hosts — see
 > [Docker coexistence]({{ '/features/docker/' | relative_url }}).
+>
+> **Not for a DHCP server either.** A client requesting a lease has no address yet and
+> sends from `0.0.0.0`, which this filter drops.
 
 ## Traffic filtering
 

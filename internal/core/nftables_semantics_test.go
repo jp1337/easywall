@@ -117,8 +117,11 @@ func TestIntegration_ChainModuleLogging_LogsInsideTheNamedChain(t *testing.T) {
 			"everything that jumps to this chain is a scan by definition",
 		},
 		{
+			// The SSH log moved with the drop into sshbrute-over when the rate
+			// became per source: the meter has to be evaluated exactly once per
+			// packet, so the log cannot repeat the match beside it.
 			"ssh brute force", shared.FirewallOptions{SSHBruteForce: true, SSHBruteForceLog: true},
-			"sshbrute", logPrefixSSH,
+			"sshbrute-over", logPrefixSSH,
 			"only connections over the rate reach the drop, and those are the event",
 		},
 	}
@@ -553,4 +556,124 @@ func TestIntegration_IPv6Mode_ZeroValueFilters(t *testing.T) {
 	rs := ruleset(t)
 	mustContain(t, rs, "icmpv6", "an unset mode must behave as filter")
 	mustNotContain(t, rs, "meta nfproto ipv6", "and must not wave IPv6 through or drop it")
+}
+
+// ---------------------------------------------------------------------------
+// Per-source rate limits
+// ---------------------------------------------------------------------------
+
+// Four modules described a per-source rate in the interface, in the
+// documentation and in the JSON schema, and enforced a single counter shared by
+// every source. That is not a weaker version of the promise — it inverts it. An
+// attacker who spends the budget locks out everyone else, so the module sold as
+// protection against being locked out is the thing that locks you out.
+//
+// `nft` renders a per-source meter as a dynamic set update with a limit
+// attached; a shared counter renders as a bare `limit rate over` on the rule.
+// The two are easy to tell apart, which is what these tests do.
+func TestIntegration_SSHBruteForce_LimitsEachSourceSeparately(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{
+		SSHBruteForce:                true,
+		SSHBruteForceConnectionLimit: 5,
+	})
+
+	rs := ruleset(t)
+	mustContain(t, rs, "set sshbrute-v4", "the per-source rate needs a set keyed by IPv4 source address")
+	mustContain(t, rs, "set sshbrute-v6", "IPv6 sources need their own set — the key is a different width")
+	mustContain(t, rs, "update @sshbrute-v4 { ip saddr timeout 10m limit rate over 5/minute",
+		"the limit has to live inside the set, keyed by source, not on the rule")
+	mustContain(t, rs, "update @sshbrute-v6 { ip6 saddr timeout 10m limit rate over 5/minute",
+		"the IPv6 rule must key on ip6 saddr")
+
+	// A source within its rate is ordinary traffic and must be accepted.
+	mustContain(t, rs, "chain sshbrute", "SSH still goes through its own chain")
+	if !strings.Contains(rs, "jump sshbrute-over") {
+		t.Error("an over-rate source must be sent to the chain that logs and drops")
+	}
+}
+
+func TestIntegration_SYNFlood_LimitsEachSourceSeparately(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{SYNFlood: true, SYNFloodLimit: 100})
+
+	rs := ruleset(t)
+	mustContain(t, rs, "update @synflood-v4 { ip saddr timeout 1m limit rate over 100/second",
+		"one host must not be able to consume the SYN budget for the whole machine")
+	mustContain(t, rs, "update @synflood-v6 { ip6 saddr timeout 1m limit rate over 100/second",
+		"IPv6 sources are rate limited separately too")
+}
+
+func TestIntegration_ICMPFlood_LimitsEachSourceSeparately(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{ICMPFlood: true, ICMPFloodConnectionLimit: 10})
+
+	rs := ruleset(t)
+	mustContain(t, rs, "update @icmpflood-v4 { ip saddr timeout 1m limit rate over 10/second",
+		"an echo flood from one source must not stop pings from another")
+	mustContain(t, rs, "update @icmpflood-v6 { ip6 saddr timeout 1m limit rate over 10/second",
+		"a ping flood over IPv6 used to pass the module entirely")
+	mustContain(t, rs, "icmpv6 type echo-request",
+		"the IPv6 rule has to match ICMPv6 type 128, not ICMP type 8")
+	mustContain(t, rs, "icmp type echo-request",
+		"the IPv4 rule still matches ICMP type 8")
+}
+
+func TestIntegration_TCPRSTFlood_LimitsEachSourceSeparately(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{TCPRSTFlood: true, TCPRSTFloodLimit: 100})
+
+	rs := ruleset(t)
+	mustContain(t, rs, "update @tcprst-v4 { ip saddr timeout 1m limit rate over 100/second",
+		"a reset flood from one source must not tear down everyone's budget")
+	mustContain(t, rs, "update @tcprst-v6 { ip6 saddr timeout 1m limit rate over 100/second",
+		"IPv6 resets are limited per source as well")
+}
+
+// The meter must not be evaluated twice for the same packet. addFiltered emits
+// the match once for a log rule and once for the action; with a stateful
+// expression in the match that would consume two tokens per packet and halve
+// the configured rate. The log therefore sits in the target chain instead.
+func TestIntegration_PerSourceLogging_DoesNotDoubleCountTheRate(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{
+		SYNFlood: true, SYNFloodLimit: 100, SYNFloodLog: true,
+	})
+
+	rs := ruleset(t)
+	if n := strings.Count(rs, "@synflood-v4"); n != 1 {
+		t.Errorf("the IPv4 meter must be updated by exactly one rule, found %d\n%s", n, rs)
+	}
+	mustContain(t, rs, logPrefixSYNFlood, "the log prefix belongs to the over-rate chain")
+	mustContain(t, rs, "chain synflood-over", "the log and the drop share one chain")
+}
+
+// Elements have to expire, or a spoofed-source flood fills the set instead of
+// the connection table.
+func TestIntegration_PerSourceSets_ExpireTheirEntries(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{SYNFlood: true, SYNFloodLimit: 100})
+
+	rs := ruleset(t)
+	mustContain(t, rs, "flags dynamic,timeout", "the set must drop idle sources")
+}
+
+// A count cannot tell you which ranges are covered, and the documentation named
+// two that were not in the code while omitting two that were. This asserts the
+// list itself.
+func TestIntegration_BogonFilter_CoversTheDocumentedRanges(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{Bogons: true})
+	rs := ruleset(t)
+
+	for _, cidr := range []string{
+		"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
+		"169.254.0.0/16", "172.16.0.0/12", "192.0.2.0/24", "192.168.0.0/16",
+		"198.51.100.0/24", "203.0.113.0/24", "240.0.0.0/4",
+	} {
+		mustContain(t, rs, "ip saddr "+cidr,
+			"filters.md lists this range as one the bogon filter drops")
+	}
+	mustNotContain(t, rs, "ip daddr 10.0.0.0/8",
+		"a bogon is a claim about where a packet came from, not where it is going")
 }

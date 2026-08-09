@@ -64,12 +64,12 @@
         },
         "icmp_allow_router_advertisement": {
           "type": "boolean",
-          "description": "Allow ICMPv6 Router Advertisement messages (type 134). Required for SLAAC address assignment.",
+          "description": "Allow ICMPv6 Router Solicitation and Advertisement (types 133 and 134). Required for SLAAC address assignment.",
           "default": true
         },
         "icmp_allow_neighbor_advertisement": {
           "type": "boolean",
-          "description": "Allow ICMPv6 Neighbor Advertisement/Solicitation (types 135/136). Required for IPv6 address resolution.",
+          "description": "Allow ICMPv6 Neighbor Solicitation and Advertisement (types 135 and 136). Required for IPv6 address resolution.",
           "default": true
         }
       }
@@ -108,7 +108,7 @@
       "properties": {
         "ssh_brute_force": {
           "type": "boolean",
-          "description": "Enable SSH brute-force prevention. Limits concurrent connections per source IP to ssh_brute_force_connection_limit.",
+          "description": "Enable SSH brute-force prevention. Rate-limits new SSH connections, counted separately for each source address, to ssh_brute_force_connection_limit per minute.",
           "default": true
         },
         "ssh_brute_force_log": {
@@ -118,7 +118,7 @@
         },
         "ssh_brute_force_connection_limit": {
           "type": "integer",
-          "description": "Maximum concurrent SSH connections per source IP before blocking.",
+          "description": "New SSH connections per minute allowed from one source address before the rest are dropped.",
           "minimum": 1,
           "maximum": 100,
           "default": 5
@@ -131,7 +131,7 @@
         },
         "icmp_flood": {
           "type": "boolean",
-          "description": "Enable ICMP flood prevention. Rate-limits ICMP packets per source IP.",
+          "description": "Enable ICMP flood prevention. Rate-limits echo requests — ICMP type 8 and ICMPv6 type 128 — counted separately for each source address.",
           "default": true
         },
         "icmp_flood_log": {
@@ -141,7 +141,7 @@
         },
         "icmp_flood_connection_limit": {
           "type": "integer",
-          "description": "Maximum ICMP packets per second per source IP.",
+          "description": "Echo requests per second allowed from one source address.",
           "minimum": 1,
           "maximum": 1000,
           "default": 10
@@ -154,7 +154,7 @@
         },
         "syn_flood": {
           "type": "boolean",
-          "description": "Enable SYN flood prevention. Rate-limits new TCP SYN packets per source IP.",
+          "description": "Enable SYN flood prevention. Rate-limits new TCP connections, counted separately for each source address.",
           "default": true
         },
         "syn_flood_log": {
@@ -164,7 +164,7 @@
         },
         "syn_flood_limit": {
           "type": "integer",
-          "description": "Maximum new TCP connections per second per source IP before rate-limiting.",
+          "description": "New TCP connections per second allowed from one source address.",
           "minimum": 1,
           "maximum": 10000,
           "default": 100
@@ -233,7 +233,7 @@
         },
         "tcp_rst_flood_limit": {
           "type": "integer",
-          "description": "Maximum TCP RST packets per second per source IP.",
+          "description": "Inbound TCP RST packets per second allowed from one source address.",
           "minimum": 1,
           "maximum": 10000,
           "default": 100

@@ -87,28 +87,28 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 |---|---|---|---|
 | `ssh_brute_force` | bool | `true` | Rate-limit new connections to SSH-tagged ports |
 | `ssh_brute_force_log` | bool | `false` | Log rate-limited SSH attempts |
-| `ssh_brute_force_connection_limit` | int | `5` | Max new connections per IP in the rate window |
+| `ssh_brute_force_connection_limit` | int | `5` | New SSH connections per minute from one source address |
 | `ssh_brute_force_log_limit` | int | `60` | Log entries per minute |
-| `icmp_flood` | bool | `true` | Rate-limit ICMP echo requests per source IP |
+| `icmp_flood` | bool | `true` | Rate-limit echo requests per source address — ICMP type 8 and ICMPv6 type 128 |
 | `icmp_flood_log` | bool | `false` | Log rate-limited ICMP |
-| `icmp_flood_connection_limit` | int | `10` | Max ICMP requests per second per source IP |
+| `icmp_flood_connection_limit` | int | `10` | Echo requests per second from one source address |
 | `icmp_flood_log_limit` | int | `60` | Log entries per minute |
-| `syn_flood` | bool | `true` | Rate-limit new TCP SYN packets per source IP |
+| `syn_flood` | bool | `true` | Rate-limit new TCP connections per source address |
 | `syn_flood_log` | bool | `false` | Log rate-limited SYN packets |
-| `syn_flood_limit` | int | `100` | Max new SYN packets per second per source IP |
+| `syn_flood_limit` | int | `100` | New TCP connections per second from one source address |
 | `port_scan` | bool | `true` | Drop TCP packets with suspicious flag combos |
 | `port_scan_log` | bool | `false` | Log dropped port scan packets |
 | `drop_invalid_packets` | bool | `true` | Drop packets in INVALID conntrack state |
 | `drop_invalid_packets_log` | bool | `false` | Log dropped invalid packets |
 | `drop_fragments` | bool | `false` | Drop IP-fragmented packets |
 | `drop_fragments_log` | bool | `false` | Log dropped fragments |
-| `bogon_filter` | bool | `false` | Drop RFC-1918 source IPs arriving on external interfaces |
+| `bogon_filter` | bool | `false` | Drop impossible IPv4 source addresses arriving on a non-loopback interface |
 | `bogon_filter_log` | bool | `false` | Log bogon-filtered packets |
 | `connection_limit_per_ip` | bool | `false` | Limit simultaneous connections per source IP |
 | `connection_limit_max` | int | `100` | Max simultaneous connections per source IP |
-| `tcp_rst_flood` | bool | `false` | Rate-limit TCP RST packets per source IP |
+| `tcp_rst_flood` | bool | `false` | Rate-limit inbound TCP RST packets per source address |
 | `tcp_rst_flood_log` | bool | `false` | Log rate-limited RST packets |
-| `tcp_rst_flood_limit` | int | `100` | Max RST packets per second per source IP |
+| `tcp_rst_flood_limit` | int | `100` | RST packets per second from one source address |
 | `drop_broadcast` | bool | `false` | Drop broadcast-destination packets |
 | `drop_multicast` | bool | `false` | Drop multicast-destination packets |
 | `drop_anycast` | bool | `false` | Drop anycast packets |
