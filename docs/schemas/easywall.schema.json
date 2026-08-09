@@ -47,12 +47,19 @@
     },
     "ipv6": {
       "type": "object",
-      "description": "IPv6 support settings.",
+      "description": "What the firewall does with IPv6 traffic.",
       "additionalProperties": false,
       "properties": {
+        "mode": {
+          "type": "string",
+          "description": "filter — apply every rule to IPv6 as well as IPv4, and permit the ICMPv6 types IPv6 needs (the default). passthrough — accept all IPv6 before any rule; IPv6 is handled elsewhere. block — drop all IPv6 except loopback.",
+          "enum": ["filter", "passthrough", "block"],
+          "default": "filter"
+        },
         "enabled": {
           "type": "boolean",
-          "description": "Enable IPv6 firewall rules. Requires kernel IPv6 support.",
+          "deprecated": true,
+          "description": "Obsolete since 2.5.0 and read only for migration: it never disabled IPv6 filtering. The table is inet, so every rule and the drop policy applied to IPv6 either way, and enabled = false removed only the ICMPv6 exemptions — leaving IPv6 filtered and broken. Both old values migrate to mode = \"filter\". Use mode instead.",
           "default": true
         },
         "icmp_allow_router_advertisement": {

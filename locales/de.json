@@ -116,6 +116,7 @@
   {"id": "export_error",         "translation": "Export fehlgeschlagen."},
   {"id": "import_no_file",       "translation": "Keine Datei hochgeladen."},
   {"id": "import_read_error",    "translation": "Datei konnte nicht gelesen werden."},
+  {"id": "import_too_large",     "translation": "Die Datei ist größer als 512 KB. Teile den Regelsatz auf oder importiere ihn über die Kommandozeile des Core."},
   {"id": "import_error",         "translation": "Import fehlgeschlagen. Dateiformat prüfen."},
   {"id": "import_success",       "translation": "Regeln importiert. Bitte prüfen und anwenden."},
   {"id": "options_readonly",     "translation": "Optionen werden in easywall.toml konfiguriert und benötigen einen Core-Neustart."},
@@ -129,7 +130,7 @@
   {"id": "system_acceptance_duration_desc", "translation": "Sekunden bis zum automatischen Zurücksetzen der Regeln (10–3600). Standard: 120."},
   {"id": "system_save",                     "translation": "Systemeinstellungen speichern"},
   {"id": "system_saved",                    "translation": "Systemeinstellungen gespeichert."},
-  {"id": "system_invalid_duration",         "translation": "Timeout muss eine positive Zahl sein."},
+  {"id": "system_invalid_duration",         "translation": "Timeout muss zwischen 10 und 3600 Sekunden liegen."},
 
   {"id": "log_title",        "translation": "Audit-Log"},
   {"id": "log_recent",       "translation": "Letzte Aktivitäten"},

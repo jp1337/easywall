@@ -27,14 +27,28 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxImportBytes is the upload ceiling for a rules file. Every other form on
+// the site is a handful of fields and lives under the global 64 KB cap; a rule
+// set is the one thing an operator legitimately uploads by the hundred kilobyte.
+const maxImportBytes = 512 * 1024
+
 // handleImport reads an uploaded JSON file and passes it to the core for validation and import.
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
-	// 512 KB max upload size for rule files
-	r.Body = http.MaxBytesReader(w, r.Body, 512*1024)
-
+	// The body limit is set by the MaxBodySize middleware, which knows this
+	// route needs more room than the rest of the site. Setting another
+	// MaxBytesReader here would not widen anything — wrapping an already
+	// limited reader leaves the inner, smaller limit in force, which is exactly
+	// how a documented 512 KB ceiling silently behaved as 64 KB.
 	file, _, err := r.FormFile("rules_file")
 	if err != nil {
-		s.setFlash(w, r, "import_no_file")
+		// MaxBytesReader surfaces as a read error from the multipart parser, so
+		// "no file" and "file too big" arrive at the same place. Telling the
+		// operator to upload a file they did upload is the wrong answer.
+		if isBodyTooLarge(err) {
+			s.setFlash(w, r, "import_too_large")
+		} else {
+			s.setFlash(w, r, "import_no_file")
+		}
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}
@@ -42,7 +56,11 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		s.setFlash(w, r, "import_read_error")
+		key := "import_read_error"
+		if isBodyTooLarge(err) {
+			key = "import_too_large"
+		}
+		s.setFlash(w, r, key)
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}

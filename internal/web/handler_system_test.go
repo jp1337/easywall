@@ -63,6 +63,47 @@ func TestHandleSystemPOST_InvalidDuration(t *testing.T) {
 	assertRedirect(t, rec, "/system")
 }
 
+// The number input advertises min=10 and max=3600. That is a browser hint, and
+// the handler took any positive number — so a one-second window, which rolls
+// back before the confirmation page can even be read, went through and made the
+// firewall unchangeable through the interface.
+func TestHandleSystemPOST_RejectsADurationOutsideTheAdvertisedRange(t *testing.T) {
+	for _, dur := range []string{"0", "1", "9", "3601", "86400", "-5"} {
+		t.Run(dur, func(t *testing.T) {
+			fc := newFakeCore(t)
+			s := newTestServer(t, fc)
+			fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
+
+			rec := doAuthFormRequest(t, s, "/system",
+				"acceptance_enabled=on&acceptance_duration="+dur)
+			assertRedirect(t, rec, "/system")
+
+			if cmd := fc.LastCommand(); cmd != nil {
+				t.Errorf("duration %s must not reach the core, got command %q", dur, cmd.Type)
+			}
+		})
+	}
+}
+
+func TestHandleSystemPOST_AcceptsTheRangeBoundaries(t *testing.T) {
+	for _, dur := range []string{"10", "3600"} {
+		t.Run(dur, func(t *testing.T) {
+			fc := newFakeCore(t)
+			s := newTestServer(t, fc)
+			fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
+
+			rec := doAuthFormRequest(t, s, "/system",
+				"acceptance_enabled=on&acceptance_duration="+dur)
+			assertRedirect(t, rec, "/system")
+
+			cmd := fc.LastCommand()
+			if cmd == nil || cmd.Type != shared.CmdSaveSystem {
+				t.Errorf("duration %s is permitted and must be saved, got %v", dur, cmd)
+			}
+		})
+	}
+}
+
 func TestHandleSystemPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
@@ -81,7 +122,7 @@ func doAuthFormHTMX(t *testing.T, s *Server, url, formBody string) *httptest.Res
 	req := httptest.NewRequest("POST", url, strings.NewReader(formBody))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("HX-Request", "true")
-	req.AddCookie(makeAuthCookie(t, s.store))
+	req.AddCookie(makeAuthCookie(t, s))
 	rec := httptest.NewRecorder()
 	s.router.ServeHTTP(rec, req)
 	return rec

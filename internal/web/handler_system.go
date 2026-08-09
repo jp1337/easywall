@@ -33,8 +33,12 @@ func (s *Server) handleSystemPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The number input carries min and max attributes, but those are a courtesy
+	// to the browser: a form posted any other way ignores them. A one-second
+	// window rolls back before the confirmation page can be read, which leaves
+	// the firewall unchangeable through the interface.
 	dur, err := strconv.Atoi(r.FormValue("acceptance_duration"))
-	if err != nil || dur <= 0 {
+	if err != nil || !shared.ValidAcceptanceDuration(dur) {
 		s.respondPartialError(w, r, "/system", "system_invalid_duration")
 		return
 	}
