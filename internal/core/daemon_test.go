@@ -439,6 +439,13 @@ func TestDaemonDispatch_ExportRules_Error(t *testing.T) {
 }
 
 func TestDaemonDispatch_SaveRules_SaveError(t *testing.T) {
+	// The integration suite runs in a user namespace as root, and root ignores
+	// the directory permission this test relies on — the save then succeeds and
+	// the assertions below are checking the wrong thing.
+	if os.Getuid() == 0 {
+		t.Skip("root bypasses directory permissions; skipping read-only dir test")
+	}
+
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
