@@ -29,7 +29,8 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	if username != s.cfg.Username || !VerifyPassword(password, s.cfg.Password) {
+	wantUser, wantHash := s.cfg.Credentials()
+	if username != wantUser || !VerifyPassword(password, wantHash) {
 		s.setFlash(w, r, "invalid_credentials")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -37,7 +38,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values[SessionUserKey] = username
-	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password)
+	sess.Values[SessionCredentialKey] = credentialFingerprint(wantHash)
 	sess.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   SessionLifetime,

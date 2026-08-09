@@ -382,7 +382,7 @@ func TestSaveConfig_AtomicWrite(t *testing.T) {
 	cfg.SessionKey = "test-key"
 	cfg.Language = "en"
 
-	if err := cfg.save(); err != nil {
+	if err := cfg.saveLocked(); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 

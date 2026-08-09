@@ -229,7 +229,7 @@ func TestSave_CreateTempError(t *testing.T) {
 		},
 		configPath: "/nonexistent/directory/web.toml",
 	}
-	err := cfg.save()
+	err := cfg.saveLocked()
 	if err == nil {
 		t.Error("expected error when directory doesn't exist")
 	}
@@ -253,7 +253,7 @@ func TestSave_AtomicRenameToSameDir(t *testing.T) {
 		},
 		configPath: path,
 	}
-	if err := cfg.save(); err != nil {
+	if err := cfg.saveLocked(); err != nil {
 		t.Fatalf("save should succeed in writable dir: %v", err)
 	}
 }
@@ -281,7 +281,7 @@ func TestSave_RenameError(t *testing.T) {
 		},
 		configPath: targetPath,
 	}
-	err := cfg.save()
+	err := cfg.saveLocked()
 	if err == nil {
 		t.Error("expected error when rename target is a directory")
 	}
