@@ -6,15 +6,41 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Config is the runtime configuration for easywall-web.
+//
+// Read on every request — the language, the demo flag, and the password hash
+// that every authenticated request compares its session against — and written
+// when the operator changes their password or completes the first-run wizard.
+// Those are different goroutines, and without the lock below that is a data
+// race on a string header: the reader can observe the new length with the old
+// pointer. The race detector never saw it because no test changed a password
+// while another request was in flight.
 type Config struct {
 	shared.WebConfig
+
+	// mu guards WebConfig. Use the accessors rather than the embedded fields.
+	mu         sync.RWMutex
 	configPath string
+}
+
+// Credentials returns the username and password hash in force right now.
+func (c *Config) Credentials() (string, string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Username, c.Password
+}
+
+// PasswordHash returns the stored hash.
+func (c *Config) PasswordHash() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Password
 }
 
 // LoadConfig reads and parses the TOML config at path.
@@ -70,6 +96,8 @@ func (c *Config) Validate() error {
 
 // IsFirstRun returns true when no password hash is set (first-run wizard needed).
 func (c *Config) IsFirstRun() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.Password == ""
 }
 
@@ -121,12 +149,16 @@ func (c *Config) VersionCachePath() string {
 
 // SaveCredentials persists updated username and password hash to the config file.
 func (c *Config) SaveCredentials(username, passwordHash string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.Username = username
 	c.Password = passwordHash
-	return c.save()
+	return c.saveLocked()
 }
 
-func (c *Config) save() error {
+// saveLocked persists the configuration. c.mu must be held for writing, so the
+// file write cannot reorder against the field update.
+func (c *Config) saveLocked() error {
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "web-*.toml.tmp")
 	if err != nil {

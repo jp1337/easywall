@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 )
 
@@ -126,5 +127,53 @@ func TestHandlePasswordPOST_KeepsTheChangersOwnSession(t *testing.T) {
 	}
 	if next := doRequest(s, "GET", "/dashboard", nil, refreshed[0]); next.Code == http.StatusSeeOther {
 		t.Error("the operator who changed the password must stay signed in")
+	}
+}
+
+// The password hash is read on every authenticated request — RequireAuth
+// compares the session's fingerprint against it — and written when the operator
+// changes their password. Different goroutines, and without a lock that is a
+// race on a string header: a reader can see the new length with the old
+// pointer. Under -race this test is what fails if the lock goes away.
+func TestConfig_PasswordChangeDoesNotRaceWithRequests(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	hash, err := HashPassword("currentpassword123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.Password = hash
+	cookie := makeAuthCookie(t, s)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 15; i++ {
+		wg.Add(3)
+		go func() {
+			defer wg.Done()
+			doRequest(s, "GET", "/dashboard", nil, cookie)
+		}()
+		go func() {
+			defer wg.Done()
+			_ = s.cfg.IsFirstRun()
+			_ = s.cfg.PasswordHash()
+		}()
+		go func() {
+			defer wg.Done()
+			h, err := HashPassword("anotherpassword123")
+			if err != nil {
+				return
+			}
+			_ = s.cfg.SaveCredentials("admin", h)
+		}()
+	}
+	wg.Wait()
+
+	// Whatever the interleaving, the stored credentials must be a matched pair.
+	user, stored := s.cfg.Credentials()
+	if user != "admin" {
+		t.Errorf("username came out as %q", user)
+	}
+	if !VerifyPassword("anotherpassword123", stored) && !VerifyPassword("currentpassword123", stored) {
+		t.Error("the stored hash matches neither password; it was torn")
 	}
 }

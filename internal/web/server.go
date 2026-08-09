@@ -198,7 +198,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(RequireAuth(s.store, func() string { return credentialFingerprint(s.cfg.Password) }))
+		r.Use(RequireAuth(s.store, func() string { return credentialFingerprint(s.cfg.PasswordHash()) }))
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
