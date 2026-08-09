@@ -50,6 +50,10 @@ it to **Current**, and **Backup** is what comes back if you do not confirm.
 you cannot click Confirm — and that is exactly what restores the previous set.
 Default window: 120 seconds, configurable from 10 to 3600.
 
+Stopping the core while a window is open counts as not confirming: the rules roll
+back before the daemon exits. A restart in those two minutes is an ordinary event,
+and it used to leave the unconfirmed set in place with nothing left to undo it.
+
 The same idea as `commit confirmed` on a Cisco router, or the `at now + 5 minutes;
 iptables -F` that experienced operators type before a risky change. Here it is the
 default path rather than a habit you have to remember.

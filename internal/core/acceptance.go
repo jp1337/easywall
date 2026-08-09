@@ -13,10 +13,12 @@ import (
 // the new rules work (e.g. SSH still connects). If confirmation is not
 // received within the timeout, rules are automatically rolled back.
 type Acceptance struct {
-	mu       sync.Mutex
-	status   shared.AcceptanceStatus
-	acceptCh chan struct{}
-	duration time.Duration
+	mu        sync.Mutex
+	status    shared.AcceptanceStatus
+	acceptCh  chan struct{}
+	cancelCh  chan struct{}
+	cancelled bool
+	duration  time.Duration
 }
 
 // NewAcceptance creates a new Acceptance controller with the given timeout.
@@ -55,6 +57,8 @@ func (a *Acceptance) Start(duration time.Duration) error {
 		a.duration = duration
 	}
 	a.acceptCh = make(chan struct{}, 1)
+	a.cancelCh = make(chan struct{})
+	a.cancelled = false
 	a.status = shared.AcceptancePending
 	return nil
 }
@@ -72,8 +76,18 @@ func (a *Acceptance) Wait() bool {
 	timer := time.NewTimer(a.Duration())
 	defer timer.Stop()
 
+	a.mu.Lock()
+	acceptCh, cancelCh := a.acceptCh, a.cancelCh
+	a.mu.Unlock()
+
 	select {
-	case <-a.acceptCh:
+	case <-cancelCh:
+		a.mu.Lock()
+		a.status = shared.AcceptanceRolledBack
+		a.mu.Unlock()
+		slog.Warn("acceptance cancelled — rolling back rules")
+		return false
+	case <-acceptCh:
 		a.mu.Lock()
 		a.status = shared.AcceptanceAccepted
 		a.mu.Unlock()
@@ -87,6 +101,30 @@ func (a *Acceptance) Wait() bool {
 			"duration", a.Duration())
 		return false
 	}
+}
+
+// Cancel ends a pending window as *not* accepted, so Wait returns false and the
+// caller rolls back.
+//
+// It exists for shutdown. An apply's window can stay open for up to an hour,
+// and until the daemon waited for it, stopping in the middle — a package
+// upgrade, a systemctl restart, a SIGTERM — simply abandoned the goroutine
+// holding it. The unconfirmed rules stayed live and the rollback that is the
+// whole promise of the window never ran. Not confirming has to mean the old
+// rules come back, including when the reason nobody confirmed is that the
+// machine was told to stop.
+func (a *Acceptance) Cancel() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Closed once, and never set to nil: Wait may not have captured it yet, and
+	// a nil channel blocks forever, which would turn a cancel into a full-length
+	// window — the opposite of what shutdown needs.
+	if a.status != shared.AcceptancePending || a.cancelled || a.cancelCh == nil {
+		return
+	}
+	a.cancelled = true
+	close(a.cancelCh)
 }
 
 // Accept signals that the admin confirmed the new rules work.
