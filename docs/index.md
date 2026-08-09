@@ -65,7 +65,7 @@ brings the old rules back.
 | **Two processes** | the web interface runs unprivileged and has no path to the kernel |
 | **netlink, not a shell** | rules are Go structs, so there is no command line to inject into |
 | **Three rule sets** | Staged, Current, Backup — editing and enforcing are separate |
-| **Audit log** | every change records who, what and when |
+| **Audit log** | every change records what moved and when, in one JSON object per line |
 | **Coexists with Docker** | easywall owns `table inet easywall` and touches nothing else |
 | **English and German** | switchable in the interface, including before you sign in |
 
@@ -77,7 +77,7 @@ The one thing worth knowing before you write a rule. A whitelisted address reach
 every port; a blacklisted one is dropped before the whitelist is ever consulted.
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: loopback first, then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then established connections and ICMP, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Where to start
 
