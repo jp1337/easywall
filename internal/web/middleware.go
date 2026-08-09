@@ -52,6 +52,31 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// sessionUser returns the signed-in user a session represents, or "" if it
+// represents nobody.
+//
+// One predicate for both sides. RequireAuth and the login page have to agree on
+// what "signed in" means, and when they did not the result was a redirect loop:
+// RequireAuth refused a revoked session and sent the browser to /login, which
+// saw a user value in the same cookie, decided the visitor was already signed
+// in, and sent them back. Chrome gave up with ERR_TOO_MANY_REDIRECTS. Both the
+// logout revocation and the password-change check had that shape.
+func sessionUser(sess *sessions.Session, currentCredential func() string) string {
+	user, _ := sess.Values[SessionUserKey].(string)
+	if user == "" {
+		return ""
+	}
+	if id, _ := sess.Values[SessionIDKey].(string); sessionRevoked(id) {
+		return ""
+	}
+	if currentCredential != nil {
+		if fp, _ := sess.Values[SessionCredentialKey].(string); fp != currentCredential() {
+			return ""
+		}
+	}
+	return user
+}
+
 // RequireAuth rejects unauthenticated requests with a redirect to /login.
 //
 // currentCredential returns the fingerprint of the password in force right now.
@@ -62,19 +87,9 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, err := store.Get(r, SessionName)
-			if err != nil || sess.Values[SessionUserKey] == nil {
+			if err != nil || sessionUser(sess, currentCredential) == "" {
 				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
-			}
-			if id, _ := sess.Values[SessionIDKey].(string); sessionRevoked(id) {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
-				return
-			}
-			if currentCredential != nil {
-				if fp, _ := sess.Values[SessionCredentialKey].(string); fp != currentCredential() {
-					http.Redirect(w, r, "/login", http.StatusSeeOther)
-					return
-				}
 			}
 			next.ServeHTTP(w, r)
 		})
