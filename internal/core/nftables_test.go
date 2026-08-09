@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -407,5 +408,86 @@ func TestBuildPortExprs_RangeAndSingle(t *testing.T) {
 		if len(exprs) != 2 {
 			t.Errorf("buildPortExprs(%q) produced a range match from an invalid range", bad)
 		}
+	}
+}
+
+// Snapshot rotation is pointed at log_dir, which also holds audit.log — and it
+// used to take every non-directory file in there. "audit.log" sorts before
+// "nftables_…", so it was the first thing removed: on the eleventh apply,
+// easywall deleted the security record that audit-log.md calls append-only and
+// never truncated by easywall.
+func TestRotateSnapshots_TouchesNothingItDidNotWrite(t *testing.T) {
+	dir := t.TempDir()
+
+	bystanders := []string{"audit.log", "audit.log.1", "audit.log.2.gz", "README"}
+	for _, name := range bystanders {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("keep me"), 0640); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 10; i++ {
+		name := fmt.Sprintf("nftables_2026-08-09_16-00-%02d.000.json", i)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := SaveSnapshot(dir, []byte(`{"tables":[]}`)); err != nil {
+		t.Fatalf("SaveSnapshot: %v", err)
+	}
+
+	for _, name := range bystanders {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("rotation deleted %q, which it did not write: %v", name, err)
+		}
+	}
+}
+
+func TestRotateSnapshots_KeepsTheNewestTen(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 15; i++ {
+		name := fmt.Sprintf("nftables_2026-08-09_16-00-%02d.000.json", i)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := SaveSnapshot(dir, []byte(`{"tables":[]}`)); err != nil {
+		t.Fatalf("SaveSnapshot: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != snapshotsKept {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("expected %d snapshots, got %d: %v", snapshotsKept, len(entries), names)
+	}
+	// The oldest must be the ones that went.
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "16-00-00") || strings.Contains(e.Name(), "16-00-05") {
+			t.Errorf("an older snapshot survived while newer ones were kept: %s", e.Name())
+		}
+	}
+}
+
+// Two applies inside the same second must not land on the same filename.
+func TestSaveSnapshot_NamesAreDistinctWithinASecond(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 3; i++ {
+		if err := SaveSnapshot(dir, []byte(`{"tables":[]}`)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 3 {
+		t.Errorf("three snapshots in quick succession must not overwrite each other, got %d", len(entries))
 	}
 }
