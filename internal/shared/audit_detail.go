@@ -1,12 +1,10 @@
-package core
+package shared
 
 import (
 	"fmt"
 	"reflect"
 	"sort"
 	"strings"
-
-	"github.com/jp1337/easywall/internal/shared"
 )
 
 // The audit log's detail column exists to answer "what changed". Until 2.5.0
@@ -25,7 +23,7 @@ const maxDetailItems = 6
 // describeRuleChange summarises a rule-set save: how many entries were added
 // and removed, and — for the address lists, where individual values are what an
 // operator looks for — which ones.
-func describeRuleChange(ruleType string, before, after shared.Rules) string {
+func DescribeRuleChange(ruleType string, before, after Rules) string {
 	switch ruleType {
 	case "blacklist":
 		return describeListChange(before.Blacklist, after.Blacklist)
@@ -79,7 +77,7 @@ func describeCountChange(before, after int, unit string) string {
 // describeStructChange lists the fields whose values differ, by their toml name
 // where they have one. Used for the option and settings structs, where the
 // question is which switch someone moved.
-func describeStructChange(before, after interface{}) string {
+func DescribeStructChange(before, after interface{}) string {
 	changed := changedFields(reflect.ValueOf(before), reflect.ValueOf(after), "")
 	if len(changed) == 0 {
 		return "no change"

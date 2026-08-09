@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The demo records what changed, like the product does.** Its saves wrote an empty detail while its own seeded history showed detailed ones, so the first change a visitor made produced a poorer entry than every line above it. The helpers that build those strings moved from `internal/core` to `internal/shared`, so there is one implementation and the demo cannot drift from it
 - **Changing the password now ends every other session.** Sessions live in a signed cookie, so there is nothing server-side to revoke and a change left anyone already signed in exactly where they were until the session timed out — including in the case the change is usually made for. Each session carries a fingerprint of the password hash it was issued under and is refused as soon as that stops matching. The browser making the change stays signed in
 - **`ipv6.enabled` became `ipv6.mode`, with three values.** The boolean was documented — in the interface, in its own warning, and in `configuration.md` — as "off means IPv6 traffic is not filtered at all". It did the opposite: the table is `inet`, so every rule and the drop policy still applied to IPv6 and only the ICMPv6 exemptions were removed, leaving IPv6 filtered *and* non-functional. `filter` puts IPv6 through every rule (the default), `passthrough` accepts it before any rule, `block` drops it except loopback. Existing configurations load and both old values become `filter`; a zero-valued config filters too, so the old behaviour cannot return through a caller that builds the struct by hand
 - **The audit log's detail column says what changed.** It was empty on every save. Rule saves name the addresses added and removed, or count entries for the rule kinds whose members are structures; option and settings saves name the fields that moved, including nested ones such as `docker.enabled`
@@ -42,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation corrections
 
+- Two IPv6 strings on the settings page were written with `code` and *emphasis* markers and rendered with plain `T`, which does not process them — so the markers reached the page as literal backticks and asterisks, in both languages. A test now fails when a locale string containing markup is rendered without `richText`
+- `export-import.md` did not mention an upload limit of any kind
 - Both TOML JSON Schemas were a release behind the code: `ipv6.mode` was missing while the obsolete `ipv6.enabled` was still described as the way to disable IPv6, and `demo_mode` was absent altogether. With `additionalProperties: false` on both files, that meant a correct config was reported as invalid in the editor
 - `security.md` said the certificate is renewed "when it is within 30 days of expiry" without saying that only happened at startup, which for a long-running service is the difference between renewal and none
 - `filters.md` listed three log prefixes; none of them were ever emitted, and the per-module prefix it named (`easywall`) did not exist. The table now lists all ten, with the prefix each rule actually carries

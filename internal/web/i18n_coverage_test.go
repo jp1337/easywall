@@ -250,3 +250,54 @@ func TestTemplateClassesExistInStylesheet(t *testing.T) {
 			cls, missing[cls][0])
 	}
 }
+
+// A locale string written with markup markers has to be rendered by something
+// that understands them.
+//
+// `code` and *emphasis* only become markup when the template puts the string
+// through richText. With a plain {{T "id"}} the markers reach the page as
+// literal backticks and asterisks — which is what two of the IPv6 settings
+// strings did, and no test noticed because both the locale file and the
+// template were, in isolation, perfectly fine.
+func TestMarkupStringsAreRenderedThroughRichText(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(localesDir(t), "en.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []struct {
+		ID          string `json:"id"`
+		Translation string `json:"translation"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatal(err)
+	}
+
+	markupRe := regexp.MustCompile("`[^`]+`|\\*[^*]+\\*")
+
+	dir := filepath.Join(filepath.Dir(localesDir(t)), "web", "templates")
+	files, err := filepath.Glob(filepath.Join(dir, "*.html"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no templates found in %s (err=%v)", dir, err)
+	}
+	templates := make(map[string]string, len(files))
+	for _, f := range files {
+		body, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		templates[filepath.Base(f)] = string(body)
+	}
+
+	for _, e := range entries {
+		if !markupRe.MatchString(e.Translation) {
+			continue
+		}
+		plain := regexp.MustCompile(`\{\{\s*T\s+"` + regexp.QuoteMeta(e.ID) + `"\s*\}\}`)
+		for name, src := range templates {
+			if plain.MatchString(src) {
+				t.Errorf("%s: %q contains markup but is rendered with plain T; "+
+					"use richText (T %q) or drop the markers", name, e.ID, e.ID)
+			}
+		}
+	}
+}

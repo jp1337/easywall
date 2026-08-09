@@ -320,6 +320,9 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 		return demoErr(fmt.Errorf("invalid payload: %w", err))
 	}
 
+	// Kept so the audit entry can say what changed, exactly as the core does.
+	before := d.rules.Staged
+
 	switch generic.RuleType {
 	case "tcp":
 		var rs []shared.PortRule
@@ -361,7 +364,7 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 		return demoErr(fmt.Errorf("unknown rule type %q", generic.RuleType))
 	}
 
-	d.audit("rules_saved", generic.RuleType, "")
+	d.audit("rules_saved", generic.RuleType, shared.DescribeRuleChange(generic.RuleType, before, d.rules.Staged))
 	return shared.Response{Success: true}
 }
 
@@ -431,8 +434,9 @@ func (d *demoState) handleSaveOptions(payload []byte) shared.Response {
 	if err := json.Unmarshal(payload, &opts); err != nil {
 		return demoErr(fmt.Errorf("invalid payload: %w", err))
 	}
+	before := d.options
 	d.options = opts
-	d.audit("options_saved", "", "")
+	d.audit("options_saved", "", shared.DescribeStructChange(before, opts))
 	return shared.Response{Success: true}
 }
 
@@ -441,8 +445,9 @@ func (d *demoState) handleSaveSettings(payload []byte) shared.Response {
 	if err := json.Unmarshal(payload, &s); err != nil {
 		return demoErr(fmt.Errorf("invalid payload: %w", err))
 	}
+	before := d.settings
 	d.settings = s
-	d.audit("settings_saved", "", "")
+	d.audit("settings_saved", "", shared.DescribeStructChange(before, s))
 	return shared.Response{Success: true}
 }
 
@@ -451,11 +456,13 @@ func (d *demoState) handleSaveSystem(payload []byte) shared.Response {
 	if err := json.Unmarshal(payload, &s); err != nil {
 		return demoErr(fmt.Errorf("invalid payload: %w", err))
 	}
-	if s.Acceptance.Duration <= 0 {
-		return demoErr(fmt.Errorf("acceptance.duration must be > 0"))
+	if !shared.ValidAcceptanceDuration(s.Acceptance.Duration) {
+		return demoErr(fmt.Errorf("acceptance duration %d is outside %d–%d seconds",
+			s.Acceptance.Duration, shared.AcceptanceDurationMin, shared.AcceptanceDurationMax))
 	}
+	before := d.system
 	d.system = s
-	d.audit("system_saved", "", "")
+	d.audit("system_saved", "", shared.DescribeStructChange(before, s))
 	return shared.Response{Success: true}
 }
 
@@ -467,6 +474,7 @@ func (d *demoState) handleImportRules(payload []byte) shared.Response {
 		return demoErr(fmt.Errorf("invalid rules: %w", err))
 	}
 	d.rules.Staged = imported
-	d.audit("rules_imported", "", "")
+	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
+		len(imported.TCP), len(imported.UDP), len(imported.Blacklist), len(imported.Whitelist)))
 	return shared.Response{Success: true}
 }

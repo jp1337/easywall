@@ -191,7 +191,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		}
 		after, _ := d.firewall.RulesStore().GetState()
 		WriteAuditLog(d.cfg.AuditLogPath(), "rules_saved", payload.RuleType,
-			describeRuleChange(payload.RuleType, before.Staged, after.Staged), "web")
+			shared.DescribeRuleChange(payload.RuleType, before.Staged, after.Staged), "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdApplyRules:
@@ -224,7 +224,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &opts); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
-		changed := describeStructChange(d.firewall.Options(), opts)
+		changed := shared.DescribeStructChange(d.firewall.Options(), opts)
 		if err := d.cfg.SaveFirewallOptions(opts); err != nil {
 			return errResp(err)
 		}
@@ -241,7 +241,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &s); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
-		changed := describeStructChange(
+		changed := shared.DescribeStructChange(
 			shared.NetworkSettings{IPv6: d.cfg.IPv6, Docker: d.cfg.Docker}, s)
 		if err := d.cfg.SaveNetworkSettings(s); err != nil {
 			return errResp(err)
@@ -262,7 +262,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if s.Acceptance.Duration <= 0 {
 			return errResp(fmt.Errorf("acceptance.duration must be > 0"))
 		}
-		changed := describeStructChange(
+		changed := shared.DescribeStructChange(
 			shared.SystemSettings{Acceptance: d.cfg.Acceptance}, s)
 		if err := d.cfg.SaveSystemSettings(s); err != nil {
 			return errResp(err)
