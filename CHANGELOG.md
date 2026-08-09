@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-08-09
+
 ### Fixed
 
 Documentation site — six rendering defects, all of them visible only on screen:
@@ -20,7 +22,7 @@ Documentation site — six rendering defects, all of them visible only on screen
 
 ### Changed
 
-- **Diagrams are legible now.** They were stretched to the 880px text measure regardless of their own size, which scaled the 1597px deployment flow to 0.59 and its labels to about eight pixels, while blowing the narrow rule-order flow up nearly 2×. They now keep their intrinsic size, step outside the text measure when the viewport allows, scroll instead of shrinking on a phone, and are rendered at 17px rather than 14px
+- **Diagrams are legible now.** They were stretched to the 880px text measure regardless of their own size, which scaled the widest flow charts to about 0.6 and their labels to roughly eight pixels, while blowing the narrow rule-order flow up nearly 2×. They now keep their intrinsic size inside a full-width frame, scroll instead of shrinking on a phone, and are rendered at 17px rather than 14px
 - `rule-states.mmd` used `<i>…</i>` in three node labels. The renderer sets `htmlLabels: false` — required, since mermaid's `<foreignObject>` output is not valid XML — so the published diagram read `<i>what you are writing</i>`, literally. `apply-flow.mmd` became a flowchart, which lays out in two thirds of the height and without the empty quadrant the state-diagram note placement left behind
 - Callouts are no longer set in italic. That is fine for one line and slow to read across the multi-line ones on `security.md`, which are the paragraphs a reader most needs to get right
 - Inline code is no longer accent-coloured. On `configuration.md` it made a page of keys and values read as a page of links, and left the real links with nothing to stand out against
@@ -72,6 +74,7 @@ Eight statements that were not true, several of them security-relevant:
 
 Also now stated rather than omitted: the audit log's `detail` column is empty for every save and apply, so the column that should answer *what changed* is almost always a dash.
 
+[2.4.2]: https://github.com/jp1337/easywall/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/jp1337/easywall/compare/v2.4.0...v2.4.1
 
 ## [2.4.0] - 2026-08-03
