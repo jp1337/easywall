@@ -205,6 +205,15 @@ type WebConfig struct {
 	// reasonably want gone entirely rather than merely failing quietly.
 	UpdateCheck *bool `toml:"update_check"`
 
+	// Telemetry records whether the operator agreed to easywall counting this
+	// installation. Unset means no: consent is asked for, never assumed.
+	//
+	// Nothing is transmitted yet — the sending arrives with the roadmap item
+	// this switch belongs to. Asking during the first run and storing the answer
+	// before any data exists is the honest order to do it in; adding the
+	// question after the fact is how a project ends up explaining itself.
+	Telemetry *bool `toml:"telemetry" json:"telemetry"`
+
 	// DemoMode runs the web binary against an in-memory mock instead of the
 	// Unix socket — no easywall-core required. Used by the public demo
 	// deployment so visitors can explore every page without affecting any

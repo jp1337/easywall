@@ -144,6 +144,7 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
 | `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. The only outbound request easywall makes; see below |
+| `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 
 ### How the interface picks a language
@@ -207,6 +208,19 @@ an hour rather than retried on every load.
 
 Set `update_check = false` to switch it off entirely. Nothing else changes; the version
 easywall is running is shown either way.
+
+## Counting installations
+
+Off unless you switch it on, and the first-run wizard asks rather than assumes. A
+critical bug matters differently at ten installations than at ten thousand, and the
+count is the only way to know which this is — or to say that a fix has reached most
+of them.
+
+What it will send, in full: a random identifier generated on this machine, and the
+version. Not the hostname, not an address, not a rule, not a count of anything you
+have configured. The sending itself arrives in a later release; the setting exists
+now so the answer is recorded before there is anything to record — asking after the
+fact is how a project ends up explaining itself.
 
 ---
 

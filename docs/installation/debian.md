@@ -13,6 +13,12 @@ sudo dpkg -i easywall_amd64.deb && sudo apt-get install -f
 
 Then open `https://<server>:12227`. The certificate is self-signed on first start, so
 the browser will warn — accept it, or [configure your own](#your-own-certificate).
+
+The setup wizard asks for two things: the account, and how this host should start
+out — which port SSH is on, whether 80 and 443 should be open, what happens to IPv6,
+and whether this installation may be counted. Everything but the account is *staged*:
+nothing reaches the firewall until you review it and apply, and an apply undoes itself
+unless you confirm it.
 The first visit runs the setup wizard.
 
 `arm64` packages are on the same release page.

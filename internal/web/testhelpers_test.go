@@ -25,6 +25,7 @@ type fakeCore struct {
 	responses   map[shared.CommandType]shared.Response
 	defaultResp shared.Response
 	lastCmd     *shared.Command
+	observers   map[shared.CommandType]func(shared.Command)
 }
 
 func newFakeCore(t *testing.T) *fakeCore {
@@ -58,6 +59,17 @@ func (fc *fakeCore) SetDefaultResponse(resp shared.Response) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 	fc.defaultResp = resp
+}
+
+// OnCommand registers an observer for one command type, so a test can inspect
+// what the web process actually sent rather than only what came back.
+func (fc *fakeCore) OnCommand(cmdType shared.CommandType, fn func(shared.Command)) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if fc.observers == nil {
+		fc.observers = make(map[shared.CommandType]func(shared.Command))
+	}
+	fc.observers[cmdType] = fn
 }
 
 func (fc *fakeCore) LastCommand() *shared.Command {
@@ -102,7 +114,12 @@ func (fc *fakeCore) handleConn(conn net.Conn) {
 	if !ok {
 		resp = fc.defaultResp
 	}
+	observer := fc.observers[cmd.Type]
 	fc.mu.Unlock()
+
+	if observer != nil {
+		observer(cmd)
+	}
 
 	out, _ := json.Marshal(resp)
 	_, _ = conn.Write(out)

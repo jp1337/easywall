@@ -19,6 +19,11 @@ const (
 	// SessionCredentialKey holds a fingerprint of the password hash that was in
 	// force when the session was created.
 	SessionCredentialKey = "cred"
+
+	// minPasswordLen is the shortest password accepted, by the first-run wizard
+	// and by the change-password page. It was written as a bare 12 in both,
+	// which is one place too many for a rule the interface also states in words.
+	minPasswordLen = 12
 )
 
 // credentialFingerprint derives a short, non-reversible marker from the stored
