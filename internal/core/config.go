@@ -316,80 +316,9 @@ func (c *Config) saveLocked() error {
 	return os.Rename(tmpPath, c.configPath)
 }
 
-// WriteDefaultCoreConfig writes a default easywall.toml to path.
-// Used during installation / first run.
-func WriteDefaultCoreConfig(path string) error {
-	const defaultConfig = `# easywall core configuration
-# See documentation at https://jp1337.github.io/easywall/configuration
-
-socket_path = "/run/easywall/core.sock"
-data_dir    = "/var/lib/easywall"
-log_dir     = "/var/log/easywall"
-
-[acceptance]
-enabled  = true
-duration = 120  # seconds before auto-rollback
-
-[ipv6]
-# filter      — apply every rule to IPv6 as well as IPv4 (default)
-# passthrough — accept all IPv6 before any rule; IPv6 is managed elsewhere
-# block       — drop all IPv6 except loopback
-mode                              = "filter"
-icmp_allow_router_advertisement   = true
-icmp_allow_neighbor_advertisement = true
-
-[docker]
-enabled              = false
-allow_bridge_networks = true
-custom_networks      = []
-
-[firewall]
-# --- Always active (no config needed) ---
-# loopback accept, established/related accept, basic ICMP
-
-# --- Optional protection modules ---
-ssh_brute_force                      = true
-ssh_brute_force_log                  = false
-ssh_brute_force_connection_limit     = 5
-ssh_brute_force_log_limit            = 60
-
-icmp_flood                           = true
-icmp_flood_log                       = false
-icmp_flood_connection_limit          = 10
-icmp_flood_log_limit                 = 60
-
-syn_flood                            = true
-syn_flood_log                        = false
-syn_flood_limit                      = 100
-
-port_scan                            = true
-port_scan_log                        = false
-
-drop_invalid_packets                 = true
-drop_invalid_packets_log             = false
-
-drop_fragments                       = false
-drop_fragments_log                   = false
-
-bogon_filter                         = false
-bogon_filter_log                     = false
-
-connection_limit_per_ip              = false
-connection_limit_max                 = 100
-
-tcp_rst_flood                        = false
-tcp_rst_flood_log                    = false
-tcp_rst_flood_limit                  = 100
-
-drop_broadcast                       = false
-drop_multicast                       = false
-drop_anycast                         = false
-
-log_blocked_connections              = false
-log_blocked_connections_limit        = 60
-
-log_blacklist_connections            = false
-log_blacklist_connections_limit      = 60
-`
-	return os.WriteFile(path, []byte(defaultConfig), 0600)
-}
+// There is deliberately no WriteDefaultCoreConfig here. One existed until this
+// release and nothing but its own test ever called it: the configuration that
+// actually ships is config/easywall.toml, installed by the package. Two
+// definitions of "the default" is one too many, and they had already drifted —
+// the dead one carried ipv6.mode while the shipped one still had the obsolete
+// ipv6.enabled.
