@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -140,6 +141,26 @@ func (c *Config) VersionCachePath() string {
 
 // SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.
 func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
+	// Unset means filter, the same as everywhere else — a caller that omits the
+	// field gets the safe disposition rather than an error. A value that is set
+	// and wrong is a different matter: guessing which of open or closed the
+	// caller meant is not something to do quietly.
+	if s.IPv6.Mode == "" {
+		s.IPv6.Mode = shared.IPv6Filter
+	}
+	if !s.IPv6.Mode.Valid() {
+		return fmt.Errorf("unknown ipv6 mode %q", s.IPv6.Mode)
+	}
+	// Every entry has to be a network the apply step can turn into a rule.
+	// addCIDRAccept returns quietly on anything it cannot parse, so an unchecked
+	// entry was listed here as whitelisted and never reached the kernel — the
+	// same silent skip the blacklist had, in the direction where the operator
+	// finds out because something they expected to work does not.
+	for _, cidr := range s.Docker.CustomNetworks {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("docker custom network %q: not a CIDR network", cidr)
+		}
+	}
 	c.IPv6 = s.IPv6
 	c.Docker = s.Docker
 	return c.save()

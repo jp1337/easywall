@@ -33,6 +33,13 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The core refuses an unparseable network, but a redirect with a generic
+	// "save failed" leaves the operator hunting. Name the lines here.
+	if errs := validateIPListEntries(r.FormValue("custom_networks")); len(errs) > 0 {
+		s.respondPartialError(w, r, "/settings", "save_invalid_entries")
+		return
+	}
+
 	ns := shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
 			// A three-way choice, not a toggle: the old boolean claimed "off
