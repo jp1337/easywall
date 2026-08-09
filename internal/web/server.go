@@ -595,14 +595,18 @@ func shortTime(v string) string {
 
 // clientStringKeys are the message ids app.js needs. Kept as an explicit list
 // rather than shipping every translation: the blob is inlined into every page.
+// The column labels are not here: a row added in the browser reads them out of
+// the table header, so it is labelled in the interface's own language without
+// shipping them twice. Six of them were in this list anyway, inlined into every
+// page and asked for by nothing — TestClientStringsCoverWhatAppJSAsksFor now
+// checks both directions.
 var clientStringKeys = []string{
 	"saved", "options_saved", "settings_saved", "system_saved",
 	"save_error", "system_invalid_duration",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
+	"state_unknown",
 	"apply_rolled_back_toast",
-	"ports_port", "ports_port_hint", "ports_description", "ports_desc_hint",
-	"ports_ssh", "action_remove_rule", "port_range_hint",
-	"forwarding_protocol", "forwarding_source_port", "forwarding_dest_port",
+	"ports_port_hint", "ports_desc_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
 }
