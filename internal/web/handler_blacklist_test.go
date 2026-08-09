@@ -2,6 +2,8 @@ package web
 
 import (
 	"testing"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func TestParseIPList_Empty(t *testing.T) {
@@ -25,17 +27,48 @@ func TestParseIPList_MultipleIPs(t *testing.T) {
 	}
 }
 
-func TestParseIPList_SkipsComments(t *testing.T) {
-	result := parseIPList("# comment\n10.0.0.1\n# another comment\n10.0.0.2")
-	if len(result) != 2 {
-		t.Errorf("expected 2 entries (comments skipped), got %d: %v", len(result), result)
+// Comments are part of the list, not noise to filter out on the way to storage.
+// Dropping them here deleted an operator's notes on every save — including the
+// comments that explain a hand-written nftables rule on the custom page, where
+// the note is often the only thing that says what the rule is for.
+func TestParseIPList_KeepsComments(t *testing.T) {
+	result := parseIPList("# scanners\n10.0.0.1\n# from the abuse report\n10.0.0.2")
+	want := []string{"# scanners", "10.0.0.1", "# from the abuse report", "10.0.0.2"}
+	if len(result) != len(want) {
+		t.Fatalf("expected %d lines, got %d: %v", len(want), len(result), result)
+	}
+	for i := range want {
+		if result[i] != want[i] {
+			t.Errorf("line %d: got %q, want %q", i, result[i], want[i])
+		}
 	}
 }
 
-func TestParseIPList_SkipsBlankLines(t *testing.T) {
-	result := parseIPList("\n\n10.0.0.1\n\n10.0.0.2\n\n")
-	if len(result) != 2 {
-		t.Errorf("expected 2 entries (blanks skipped), got %d: %v", len(result), result)
+// Blank lines between groups are the operator's own structure. Trailing ones
+// carry nothing and would pile up on every save.
+func TestParseIPList_KeepsInteriorBlanksAndDropsTrailingOnes(t *testing.T) {
+	result := parseIPList("10.0.0.1\n\n10.0.0.2\n\n\n")
+	want := []string{"10.0.0.1", "", "10.0.0.2"}
+	if len(result) != len(want) {
+		t.Fatalf("expected %v, got %v", want, result)
+	}
+	for i := range want {
+		if result[i] != want[i] {
+			t.Errorf("line %d: got %q, want %q", i, result[i], want[i])
+		}
+	}
+}
+
+func TestIsListComment(t *testing.T) {
+	for _, s := range []string{"", "   ", "# note", "  # indented note"} {
+		if !shared.IsListComment(s) {
+			t.Errorf("%q is a comment or spacer", s)
+		}
+	}
+	for _, s := range []string{"10.0.0.1", "2001:db8::/32", "198.51.100.0/24"} {
+		if shared.IsListComment(s) {
+			t.Errorf("%q is an address", s)
+		}
 	}
 }
 
@@ -47,9 +80,11 @@ func TestParseIPList_TrimsWhitespace(t *testing.T) {
 }
 
 func TestParseIPList_AllComments(t *testing.T) {
+	// Kept, and enforcing nothing: countEntries reports zero entries, and the
+	// core turns none of them into rules.
 	result := parseIPList("# only comments\n# here too")
-	if len(result) != 0 {
-		t.Errorf("expected empty result for all-comment input, got: %v", result)
+	if len(result) != 2 {
+		t.Errorf("expected both comment lines to survive, got: %v", result)
 	}
 }
 

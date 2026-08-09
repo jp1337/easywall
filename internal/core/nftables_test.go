@@ -366,3 +366,46 @@ func TestApplyCustomRules_NftNotAvailableOrFails(t *testing.T) {
 		t.Error("expected error when nft is not available or fails")
 	}
 }
+
+// The rule builders are the last mile, and they used to parse ports the loose
+// way the validation upstream was fixed not to: fmt.Sscanf stops at the first
+// character it cannot read and reports success for the rest.
+func TestParsePort_RejectsTrailingRubbish(t *testing.T) {
+	cases := []struct {
+		in   string
+		want uint16
+	}{
+		{"22", 22},
+		{"65535", 65535},
+		{" 443 ", 443},
+		{"80abc", 0},
+		{"80 90", 0},
+		{"0", 0},
+		{"65536", 0},
+		{"-1", 0},
+		{"", 0},
+		{"http", 0},
+	}
+	for _, tc := range cases {
+		if got := parsePort(tc.in); got != tc.want {
+			t.Errorf("parsePort(%q) = %d, want %d", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestBuildPortExprs_RangeAndSingle(t *testing.T) {
+	// A range produces two bounds; a single port one equality.
+	if n := len(buildPortExprs("8000:9000")); n != 3 {
+		t.Errorf("a range needs a payload load and two bounds, got %d expressions", n)
+	}
+	if n := len(buildPortExprs("443")); n != 2 {
+		t.Errorf("a single port needs a payload load and one comparison, got %d expressions", n)
+	}
+	// A malformed range must not match whichever half happened to parse.
+	for _, bad := range []string{"8000:abc", "abc:9000", "9000:8000", "8000:9000junk"} {
+		exprs := buildPortExprs(bad)
+		if len(exprs) != 2 {
+			t.Errorf("buildPortExprs(%q) produced a range match from an invalid range", bad)
+		}
+	}
+}
