@@ -12,9 +12,10 @@ func (s *Server) handleLoginGET(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/firstrun", http.StatusSeeOther)
 		return
 	}
-	// Already logged in?
+	// Already logged in? The same test RequireAuth applies, or the two disagree
+	// about a revoked session and bounce the browser between them.
 	sess, _ := s.store.Get(r, SessionName)
-	if sess.Values[SessionUserKey] != nil {
+	if sessionUser(sess, s.currentCredential()) != "" {
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
 	}

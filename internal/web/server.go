@@ -198,7 +198,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(RequireAuth(s.store, func() string { return credentialFingerprint(s.cfg.PasswordHash()) }))
+		r.Use(RequireAuth(s.store, s.currentCredential()))
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -249,6 +249,13 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	})
 
 	return r
+}
+
+// currentCredential returns the fingerprint of the password in force now, as a
+// function so callers see the value at the moment they ask rather than at wiring
+// time.
+func (s *Server) currentCredential() func() string {
+	return func() string { return credentialFingerprint(s.cfg.PasswordHash()) }
 }
 
 // render executes a named template with common page data.

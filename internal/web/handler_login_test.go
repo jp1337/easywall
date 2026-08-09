@@ -240,3 +240,57 @@ func TestRevokedSessions_ForgetsExpiredEntries(t *testing.T) {
 		t.Errorf("expected only the fresh entry, got %d", size)
 	}
 }
+
+// A refused session must not bounce between the two pages that judge it.
+//
+// RequireAuth sends a session it does not accept to /login, and /login sent a
+// cookie that still carried a user value back to /dashboard. Once logout began
+// revoking sessions — and once a password change began invalidating them — the
+// two disagreed, and a browser presenting such a cookie ran until Chrome gave up
+// with ERR_TOO_MANY_REDIRECTS. Go's handler tests do not follow redirects, so
+// nothing here saw it; rendering the page did.
+func TestSessionRefusal_DoesNotBounceBetweenLoginAndDashboard(t *testing.T) {
+	follow := func(t *testing.T, s *Server, cookie *http.Cookie, from string) string {
+		t.Helper()
+		at := from
+		for i := 0; i < 10; i++ {
+			rec := doRequest(s, "GET", at, nil, cookie)
+			if rec.Code != http.StatusSeeOther {
+				return at
+			}
+			at = rec.Header().Get("Location")
+		}
+		t.Fatalf("still redirecting after ten hops, last stop %s", at)
+		return ""
+	}
+
+	t.Run("after logout", func(t *testing.T) {
+		fc := newFakeCore(t)
+		s := newTestServer(t, fc)
+		cookie := makeAuthCookie(t, s)
+
+		doRequest(s, "GET", "/logout", nil, cookie)
+
+		if stop := follow(t, s, cookie, "/dashboard"); stop != "/login" {
+			t.Errorf("a logged-out cookie should come to rest on /login, got %s", stop)
+		}
+	})
+
+	t.Run("after a password change", func(t *testing.T) {
+		fc := newFakeCore(t)
+		s := newTestServer(t, fc)
+		cookie := makeAuthCookie(t, s)
+
+		newHash, err := HashPassword("a-completely-new-password")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := s.cfg.SaveCredentials("admin", newHash); err != nil {
+			t.Fatal(err)
+		}
+
+		if stop := follow(t, s, cookie, "/dashboard"); stop != "/login" {
+			t.Errorf("a session from before the change should come to rest on /login, got %s", stop)
+		}
+	})
+}
