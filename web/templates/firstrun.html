@@ -49,6 +49,7 @@
             <div class="field mt-2">
               <label class="field-label" for="username">{{T "firstrun_username"}}</label>
               <input id="username" name="username" type="text" autocomplete="username" autofocus required
+                     value="{{with .Data}}{{.Username}}{{end}}"
                      class="input w-full">
             </div>
 
@@ -74,38 +75,45 @@
             <div class="card mt-2">
               <div class="firstrun-port">
                 <label class="field-label" for="ssh_port">{{T "firstrun_ssh_port"}}</label>
-                <input id="ssh_port" name="ssh_port" type="number" min="1" max="65535" value="{{.SSHPort}}"
+                <input id="ssh_port" name="ssh_port" type="number" min="1" max="65535" required value="{{.SSHPort}}"
                        class="input input-data w-28 mt-1.5">
                 <p class="field-help">{{T "firstrun_ssh_port_help"}}</p>
               </div>
+
+              {{if .WebPort}}
+              <div class="firstrun-fixed">
+                <span class="switch-name">{{T "firstrun_web_port" (dict "Port" .WebPort)}}</span>
+                <span class="switch-desc">{{T "firstrun_web_port_desc"}}</span>
+              </div>
+              {{end}}
 
               <label class="switch-row">
                 <span class="switch-text">
                   <span class="switch-name">{{T "firstrun_open_web"}}</span>
                   <span class="switch-desc">{{T "firstrun_open_web_desc"}}</span>
                 </span>
-                <input type="checkbox" name="open_web" class="toggle">
+                <input type="checkbox" name="open_web" class="toggle" {{if .OpenWeb}}checked{{end}}>
               </label>
 
               <fieldset class="choice-group">
                 <legend class="sr-only">{{T "firstrun_ipv6"}}</legend>
                 <p class="switch-row-label">{{T "firstrun_ipv6"}}</p>
                 <label class="choice-row">
-                  <input type="radio" name="ipv6_mode" value="filter" class="radio" checked>
+                  <input type="radio" name="ipv6_mode" value="filter" class="radio" {{if eq .IPv6Mode "filter"}}checked{{end}}>
                   <span class="switch-text">
                     <span class="switch-name">{{T "settings_ipv6_mode_filter"}}</span>
                     <span class="switch-desc">{{T "settings_ipv6_mode_filter_desc"}}</span>
                   </span>
                 </label>
                 <label class="choice-row">
-                  <input type="radio" name="ipv6_mode" value="passthrough" class="radio">
+                  <input type="radio" name="ipv6_mode" value="passthrough" class="radio" {{if eq .IPv6Mode "passthrough"}}checked{{end}}>
                   <span class="switch-text">
                     <span class="switch-name">{{T "settings_ipv6_mode_passthrough"}}</span>
                     <span class="switch-desc">{{T "settings_ipv6_mode_passthrough_desc"}}</span>
                   </span>
                 </label>
                 <label class="choice-row">
-                  <input type="radio" name="ipv6_mode" value="block" class="radio">
+                  <input type="radio" name="ipv6_mode" value="block" class="radio" {{if eq .IPv6Mode "block"}}checked{{end}}>
                   <span class="switch-text">
                     <span class="switch-name">{{T "settings_ipv6_mode_block"}}</span>
                     <span class="switch-desc">{{T "settings_ipv6_mode_block_desc"}}</span>
@@ -118,7 +126,7 @@
                   <span class="switch-name">{{T "firstrun_telemetry"}}</span>
                   <span class="switch-desc">{{T "firstrun_telemetry_desc"}}</span>
                 </span>
-                <input type="checkbox" name="telemetry" class="toggle">
+                <input type="checkbox" name="telemetry" class="toggle" {{if .Telemetry}}checked{{end}}>
               </label>
             </div>
           </section>
