@@ -624,13 +624,24 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
 	// Drop packets from RFC-1918 and special ranges arriving from non-loopback interfaces.
 	// These are "impossible" sources on the public internet.
+	// filters.md listed "this network" and loopback among the ranges this drops,
+	// and neither was here — while TEST-NET-3 and the reserved space were here
+	// and not in the table. The list and the documentation now name the same
+	// eleven ranges.
+	//
+	// IPv4 only, deliberately: fe80::/10 is link-local, and IPv6 needs neighbour
+	// discovery on it to work at all, so the IPv6 equivalents are not a
+	// symmetric translation. filters.md says so rather than implying coverage
+	// that is not here.
 	bogons := []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"100.64.0.0/10",   // CGNAT
+		"0.0.0.0/8",       // "this network"
+		"10.0.0.0/8",      // private
+		"100.64.0.0/10",   // carrier-grade NAT
+		"127.0.0.0/8",     // loopback, which cannot arrive on a real interface
 		"169.254.0.0/16",  // link-local
+		"172.16.0.0/12",   // private
 		"192.0.2.0/24",    // TEST-NET-1
+		"192.168.0.0/16",  // private
 		"198.51.100.0/24", // TEST-NET-2
 		"203.0.113.0/24",  // TEST-NET-3
 		"240.0.0.0/4",     // reserved
@@ -744,34 +755,38 @@ func (m *NftablesManager) addSYNFloodProtection(t *nftables.Table, c *nftables.C
 		limit = 100
 	}
 
-	match := []expr.Any{
-		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
-		// SYN flag set, ACK not set (new connection)
-		&expr.Payload{
-			DestRegister: 1,
-			Base:         expr.PayloadBaseTransportHeader,
-			Offset:       13,
-			Len:          1,
-		},
-		&expr.Bitwise{
-			SourceRegister: 1,
-			DestRegister:   1,
-			Len:            1,
-			Mask:           []byte{0x17}, // SYN+ACK+RST+FIN mask
-			Xor:            []byte{0x00},
-		},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02}}, // SYN only
-		&expr.Limit{
-			Type:  expr.LimitTypePkts,
-			Rate:  uint64(limit),
-			Over:  true, // drop when rate exceeded
-			Unit:  expr.LimitTimeSecond,
-			Burst: uint32(limit * 2),
-		},
+	// The TCP header is identical in both families, so this match does not vary.
+	match := func(addrFamily) []expr.Any {
+		return []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
+			// SYN flag set, ACK not set (new connection)
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseTransportHeader,
+				Offset:       13,
+				Len:          1,
+			},
+			&expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            1,
+				Mask:           []byte{0x17}, // SYN+ACK+RST+FIN mask
+				Xor:            []byte{0x00},
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02}}, // SYN only
+		}
 	}
-	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
+
+	over := m.addOverRateChain(t, "synflood-over",
 		logSpec{enabled: opts.SYNFloodLog, prefix: logPrefixSYNFlood})
+	m.addPerSourceRateLimit(t, c, match, perSourceRate{
+		setPrefix: "synflood",
+		rate:      uint64(limit),
+		unit:      expr.LimitTimeSecond,
+		burst:     uint32(limit * 2),
+		timeout:   time.Minute,
+	}, over)
 }
 
 func (m *NftablesManager) addICMPFloodProtection(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
@@ -780,30 +795,40 @@ func (m *NftablesManager) addICMPFloodProtection(t *nftables.Table, c *nftables.
 		limit = 10
 	}
 
-	// Rate-limit ICMP echo-request (ping flood)
-	match := []expr.Any{
-		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
-		&expr.Payload{
-			DestRegister: 1,
-			Base:         expr.PayloadBaseTransportHeader,
-			Offset:       0,
-			Len:          1,
-		},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{8}}, // echo-request
-		&expr.Limit{
-			Type:  expr.LimitTypePkts,
-			Rate:  uint64(limit),
-			Over:  true,
-			Unit:  expr.LimitTimeSecond,
-			Burst: uint32(limit),
-		},
+	// Rate-limit echo requests. The protocol number and the echo-request type
+	// both differ by family: ICMP type 8 on IPv4, ICMPv6 type 128 on IPv6. The
+	// rule used to be written for IPv4 only, so a ping flood over IPv6 passed
+	// the module entirely.
+	match := func(f addrFamily) []expr.Any {
+		proto, echo := byte(unix.IPPROTO_ICMP), byte(8)
+		if f.nfproto == unix.NFPROTO_IPV6 {
+			proto, echo = unix.IPPROTO_ICMPV6, 128
+		}
+		return []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{proto}},
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseTransportHeader,
+				Offset:       0,
+				Len:          1,
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{echo}},
+		}
 	}
-	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, logSpec{
+
+	over := m.addOverRateChain(t, "icmpflood-over", logSpec{
 		enabled:   opts.ICMPFloodLog,
 		prefix:    logPrefixICMPFlood,
 		perMinute: opts.ICMPFloodLogLimit,
 	})
+	m.addPerSourceRateLimit(t, c, match, perSourceRate{
+		setPrefix: "icmpflood",
+		rate:      uint64(limit),
+		unit:      expr.LimitTimeSecond,
+		burst:     uint32(limit),
+		timeout:   time.Minute,
+	}, over)
 }
 
 func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain, rules shared.Rules, opts shared.FirewallOptions) {
@@ -830,34 +855,31 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 		Table: t,
 	})
 
-	// Accept within rate limit, drop if exceeded
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: sshChain,
-		Exprs: []expr.Any{
-			&expr.Limit{
-				Type:  expr.LimitTypePkts,
-				Rate:  uint64(limit),
-				Over:  false, // accept within limit
-				Unit:  expr.LimitTimeMinute,
-				Burst: uint32(limit),
-			},
-			&expr.Verdict{Kind: expr.VerdictAccept},
-		},
+	// The rate is per source address. It used to be one counter for the chain,
+	// which made the module the attack: five connection attempts a minute from
+	// anywhere exhausted the budget, and every further SSH connection was
+	// dropped — the administrator's included. A protection against being locked
+	// out that locks you out is worse than none, because it is trusted.
+	over := m.addOverRateChain(t, "sshbrute-over", logSpec{
+		enabled:   opts.SSHBruteForceLog,
+		prefix:    logPrefixSSH,
+		perMinute: opts.SSHBruteForceLogLimit,
 	})
-	// Anything still here exceeded the rate, which is the event worth logging —
-	// the accepted connections above are ordinary traffic.
-	if opts.SSHBruteForceLog {
-		m.conn.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: sshChain,
-			Exprs: logExprs(logPrefixSSH, opts.SSHBruteForceLogLimit),
-		})
-	}
+	m.addPerSourceRateLimit(t, sshChain, func(addrFamily) []expr.Any { return nil }, perSourceRate{
+		setPrefix: "sshbrute",
+		rate:      uint64(limit),
+		unit:      expr.LimitTimeMinute,
+		burst:     uint32(limit),
+		// Long enough that a slow brute force cannot reset its budget by
+		// pausing, short enough that the set does not accumulate.
+		timeout: 10 * time.Minute,
+	}, over)
+
+	// Anything that did not exceed its own rate is ordinary traffic.
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: sshChain,
-		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictDrop}},
+		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictAccept}},
 	})
 
 	// Jump to sshbrute chain for each SSH port
@@ -904,38 +926,39 @@ func (m *NftablesManager) addTCPRSTFlood(t *nftables.Table, c *nftables.Chain, o
 		limit = 100
 	}
 
-	match := []expr.Any{
-		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
-		// TCP flags live in the octet at offset 13 of the transport header.
-		&expr.Payload{
-			DestRegister: 1,
-			Base:         expr.PayloadBaseTransportHeader,
-			Offset:       13,
-			Len:          1,
-		},
-		&expr.Bitwise{
-			SourceRegister: 1,
-			DestRegister:   1,
-			Len:            1,
-			Mask:           []byte{0x04}, // RST
-			Xor:            []byte{0x00},
-		},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x04}},
-		&expr.Limit{
-			Type:  expr.LimitTypePkts,
-			Rate:  uint64(limit),
-			Over:  true,
-			Unit:  expr.LimitTimeSecond,
-			Burst: uint32(limit),
-		},
+	match := func(addrFamily) []expr.Any {
+		return []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
+			// TCP flags live in the octet at offset 13 of the transport header.
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseTransportHeader,
+				Offset:       13,
+				Len:          1,
+			},
+			&expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            1,
+				Mask:           []byte{0x04}, // RST
+				Xor:            []byte{0x00},
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x04}},
+		}
 	}
 
-	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, logSpec{
-		enabled:   opts.TCPRSTFloodLog,
-		prefix:    logPrefixTCPRST,
-		perMinute: 0,
+	over := m.addOverRateChain(t, "tcprst-over", logSpec{
+		enabled: opts.TCPRSTFloodLog,
+		prefix:  logPrefixTCPRST,
 	})
+	m.addPerSourceRateLimit(t, c, match, perSourceRate{
+		setPrefix: "tcprst",
+		rate:      uint64(limit),
+		unit:      expr.LimitTimeSecond,
+		burst:     uint32(limit),
+		timeout:   time.Minute,
+	}, over)
 }
 
 // addAnycastDrop drops traffic addressed to an anycast address.
@@ -965,6 +988,147 @@ func (m *NftablesManager) addAnycastDrop(t *nftables.Table, c *nftables.Chain) {
 	})
 }
 
+// addrFamily describes where the source address lives, per address family.
+// An inet table sees both, and the key is a different width in each, so
+// anything keyed on the source address needs one set and one rule per family.
+type addrFamily struct {
+	name    string
+	nfproto byte
+	keyType nftables.SetDatatype
+	offset  uint32 // source address offset in the network header
+	keyLen  uint32
+}
+
+var addrFamilies = []addrFamily{
+	{"ipv4", unix.NFPROTO_IPV4, nftables.TypeIPAddr, 12, 4},
+	{"ipv6", unix.NFPROTO_IPV6, nftables.TypeIP6Addr, 8, 16},
+}
+
+// srcAddrExprs loads the source address of family f into register 1.
+func srcAddrExprs(f addrFamily) []expr.Any {
+	return []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{f.nfproto}},
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       f.offset,
+			Len:          f.keyLen,
+		},
+	}
+}
+
+// addOverRateChain builds the chain a packet lands in once its source has
+// exceeded its rate: log it if asked, then drop.
+//
+// The log lives here rather than beside the match because the match now carries
+// a stateful expression. addFiltered emits the match twice — once for the log
+// rule, once for the action — and evaluating a meter twice per packet would
+// count every packet twice, halving the rate the operator configured. One
+// evaluation, one jump, and the log sits with the drop it explains.
+func (m *NftablesManager) addOverRateChain(t *nftables.Table, name string, lg logSpec) *nftables.Chain {
+	ch := m.conn.AddChain(&nftables.Chain{Name: name, Table: t})
+	if lg.enabled {
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: ch,
+			Exprs: logExprs(lg.prefix, lg.perMinute),
+		})
+	}
+	m.conn.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: ch,
+		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictDrop}},
+	})
+	return ch
+}
+
+// perSourceRate is a rate cap applied to each source address separately.
+type perSourceRate struct {
+	setPrefix string // set names become <prefix>-v4 and <prefix>-v6
+	rate      uint64
+	unit      expr.LimitTime
+	burst     uint32
+	timeout   time.Duration // how long an idle source stays in the set
+}
+
+// addPerSourceRateLimit sends packets matching `match` whose source is over its
+// own rate to `target`.
+//
+// A bare expr.Limit on a rule is one counter for the whole rule, not one per
+// source — so the first host to exhaust it starves every other, and an attacker
+// who can spend the budget can keep everyone else out. That is the opposite of
+// what a flood protection is for, and it is what "per source address" in the
+// interface, the documentation and the schema described for four modules that
+// did not do it.
+//
+// The kernel spells "per source" as a dynamic set keyed by the address with a
+// limit attached to each element — `meter` in nft's vocabulary. Elements carry a
+// timeout so a set cannot grow without bound from spoofed sources.
+// match is a function of the family because some modules match a different
+// protocol in each — ICMP echo is protocol 1 type 8 on IPv4 and protocol 58
+// type 128 on IPv6, and a rule written for one silently matches nothing in the
+// other.
+func (m *NftablesManager) addPerSourceRateLimit(t *nftables.Table, c *nftables.Chain,
+	match func(addrFamily) []expr.Any, r perSourceRate, target *nftables.Chain) {
+	for _, f := range addrFamilies {
+		set := &nftables.Set{
+			Table:      t,
+			Name:       fmt.Sprintf("%s-%s", r.setPrefix, familySuffix(f)),
+			KeyType:    f.keyType,
+			Dynamic:    true,
+			HasTimeout: true,
+			Timeout:    r.timeout,
+		}
+		if err := m.conn.AddSet(set, nil); err != nil {
+			slog.Warn("per-source rate limit: could not create set",
+				"set", set.Name, "family", f.name, "error", err)
+			continue
+		}
+
+		// The family test comes first: the source address offset below is only
+		// correct for that family, and so is the module's own match.
+		exprs := []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{f.nfproto}},
+		}
+		exprs = append(exprs, match(f)...)
+		exprs = append(exprs,
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       f.offset,
+				Len:          f.keyLen,
+			},
+			&expr.Dynset{
+				SrcRegKey: 1,
+				SetName:   set.Name,
+				Operation: uint32(unix.NFT_DYNSET_OP_UPDATE),
+				Timeout:   r.timeout,
+				Exprs: []expr.Any{
+					&expr.Limit{
+						Type:  expr.LimitTypePkts,
+						Rate:  r.rate,
+						Over:  true, // the rule matches once the source is over its rate
+						Unit:  r.unit,
+						Burst: r.burst,
+					},
+				},
+			},
+			&expr.Verdict{Kind: expr.VerdictJump, Chain: target.Name},
+		)
+
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: exprs})
+	}
+}
+
+func familySuffix(f addrFamily) string {
+	if f.nfproto == unix.NFPROTO_IPV6 {
+		return "v6"
+	}
+	return "v4"
+}
+
 // addConnectionLimit caps simultaneous connections per source address.
 //
 // The cap has to be per source: a single global counter would let one host
@@ -979,22 +1143,10 @@ func (m *NftablesManager) addConnectionLimit(t *nftables.Table, c *nftables.Chai
 		max = 100
 	}
 
-	families := []struct {
-		name     string
-		nfproto  byte
-		keyType  nftables.SetDatatype
-		offset   uint32
-		keyLen   uint32
-		setLabel string
-	}{
-		{"ipv4", unix.NFPROTO_IPV4, nftables.TypeIPAddr, 12, 4, "connlimit-v4"},
-		{"ipv6", unix.NFPROTO_IPV6, nftables.TypeIP6Addr, 8, 16, "connlimit-v6"},
-	}
-
-	for _, f := range families {
+	for _, f := range addrFamilies {
 		set := &nftables.Set{
 			Table:   t,
-			Name:    f.setLabel,
+			Name:    "connlimit-" + familySuffix(f),
 			KeyType: f.keyType,
 			Dynamic: true,
 		}
@@ -1003,32 +1155,22 @@ func (m *NftablesManager) addConnectionLimit(t *nftables.Table, c *nftables.Chai
 			continue
 		}
 
-		m.conn.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{f.nfproto}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseNetworkHeader,
-					Offset:       f.offset,
-					Len:          f.keyLen,
-				},
-				&expr.Dynset{
-					SrcRegKey: 1,
-					SetName:   set.Name,
-					Operation: uint32(unix.NFT_DYNSET_OP_ADD),
-					Exprs: []expr.Any{
-						&expr.Connlimit{
-							Count: uint32(max),
-							Flags: nftConnlimitInvert, // over, not under
-						},
+		exprs := srcAddrExprs(f)
+		exprs = append(exprs,
+			&expr.Dynset{
+				SrcRegKey: 1,
+				SetName:   set.Name,
+				Operation: uint32(unix.NFT_DYNSET_OP_ADD),
+				Exprs: []expr.Any{
+					&expr.Connlimit{
+						Count: uint32(max),
+						Flags: nftConnlimitInvert, // over, not under
 					},
 				},
-				&expr.Verdict{Kind: expr.VerdictDrop},
 			},
-		})
+			&expr.Verdict{Kind: expr.VerdictDrop},
+		)
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: exprs})
 	}
 }
 

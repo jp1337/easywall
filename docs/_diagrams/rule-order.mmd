@@ -1,5 +1,9 @@
 flowchart TD
-  P(["Incoming packet"]) --> H["Loopback, established connections<br/>and the ICMP policy"]
+  P(["Incoming packet"]) --> L["Loopback"]
+  L --> V{"IPv6 mode"}
+  V -->|"IPv6, passthrough"| A1(["ACCEPT — all IPv6"])
+  V -->|"IPv6, block"| X0(["DROP — all IPv6"])
+  V -->|"IPv4, or IPv6 filtered"| H["Established connections<br/>and the ICMP policy"]
   H --> M["Protection modules<br/>scans · floods · bogons · fragments"]
   M --> D["Docker bridge networks"]
   D --> B{"On the blacklist?"}
@@ -11,7 +15,9 @@ flowchart TD
   O -->|no| C["Custom rules"]
   C --> X2(["DROP — chain policy"])
 
+  style X0 stroke:#f2555a
   style X1 stroke:#f2555a
   style X2 stroke:#f2555a
+  style A1 stroke:#3ecf8e
   style A3 stroke:#3ecf8e
   style A4 stroke:#3ecf8e
