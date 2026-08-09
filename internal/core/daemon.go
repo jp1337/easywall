@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 
@@ -300,10 +301,28 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdImportRules:
+		// The editor runs every custom rule past `nft --check` before saving it;
+		// import did not, so a file could carry a rule the editor would have
+		// refused. Same check, same path.
+		var incoming shared.Rules
+		if err := json.Unmarshal(cmd.Payload, &incoming); err != nil {
+			return errResp(fmt.Errorf("invalid import data: %w", err))
+		}
+		if errs := validateCustomRules(incoming.Custom); len(errs) > 0 {
+			lines := make([]string, 0, len(errs))
+			for i, msg := range errs {
+				lines = append(lines, fmt.Sprintf("custom rule %d: %s", i+1, msg))
+			}
+			sort.Strings(lines)
+			return errResp(fmt.Errorf("import validation failed: %s", strings.Join(lines, "; ")))
+		}
 		if err := d.firewall.RulesStore().ImportRules(cmd.Payload); err != nil {
 			return errResp(err)
 		}
-		WriteAuditLog(d.cfg.AuditLogPath(), "rules_imported", "all", "", "web")
+		WriteAuditLog(d.cfg.AuditLogPath(), "rules_imported", "all",
+			fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
+				len(incoming.TCP), len(incoming.UDP),
+				len(incoming.Blacklist), len(incoming.Whitelist)), "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdValidateCustom:
