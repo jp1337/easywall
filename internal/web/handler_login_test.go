@@ -167,3 +167,76 @@ func TestHandleLoginPOST_WrongUsernameCostsTheSameAsWrongPassword(t *testing.T) 
 			ratio, unknownUser, knownUser)
 	}
 }
+
+// Logging out has to end the session, not just ask the browser to forget it.
+//
+// Sessions live in a signed cookie and the server kept no record of them, so
+// the value stayed valid for its full lifetime: anyone still holding it — a
+// shared machine, a copied value, a proxy log — remained signed in to a
+// firewall's administration interface after the button said they were not.
+func TestHandleLogout_EndsTheSessionForACookieStillHeld(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	cookie := makeAuthCookie(t, s)
+
+	if before := doRequest(s, "GET", "/dashboard", nil, cookie); before.Code != http.StatusOK {
+		t.Fatalf("the session should work before logout, got %d", before.Code)
+	}
+
+	if out := doRequest(s, "GET", "/logout", nil, cookie); out.Code != http.StatusSeeOther {
+		t.Fatalf("logout should redirect, got %d", out.Code)
+	}
+
+	// The browser was told to drop it; this is the copy that was kept anyway.
+	after := doRequest(s, "GET", "/dashboard", nil, cookie)
+	if after.Code != http.StatusSeeOther || after.Header().Get("Location") != "/login" {
+		t.Errorf("a logged-out cookie must not work, got %d %q",
+			after.Code, after.Header().Get("Location"))
+	}
+}
+
+// One logout must not end another browser's session.
+func TestHandleLogout_LeavesOtherSessionsAlone(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	laptop := makeAuthCookie(t, s)
+	phone := makeAuthCookie(t, s)
+
+	doRequest(s, "GET", "/logout", nil, laptop)
+
+	if still := doRequest(s, "GET", "/dashboard", nil, phone); still.Code != http.StatusOK {
+		t.Errorf("signing out in one browser must not sign out the other, got %d", still.Code)
+	}
+}
+
+// The revocation set must not grow without bound: entries older than a session
+// lifetime describe cookies that are refused on their own age anyway.
+func TestRevokedSessions_ForgetsExpiredEntries(t *testing.T) {
+	revokedSessions.mu.Lock()
+	revokedSessions.at = make(map[string]time.Time)
+	revokedSessions.mu.Unlock()
+
+	stale := newSessionID()
+	revokedSessions.mu.Lock()
+	revokedSessions.at[stale] = time.Now().Add(-2 * time.Duration(SessionLifetime) * time.Second)
+	revokedSessions.mu.Unlock()
+
+	if sessionRevoked(stale) {
+		t.Error("an entry older than a session lifetime is not worth keeping")
+	}
+
+	revokeSession(newSessionID()) // triggers the prune
+
+	revokedSessions.mu.Lock()
+	_, kept := revokedSessions.at[stale]
+	size := len(revokedSessions.at)
+	revokedSessions.mu.Unlock()
+
+	if kept {
+		t.Error("the stale entry should have been pruned")
+	}
+	if size != 1 {
+		t.Errorf("expected only the fresh entry, got %d", size)
+	}
+}
