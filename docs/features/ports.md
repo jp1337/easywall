@@ -35,6 +35,11 @@ rate-limits new connections per source address.
 > protected exactly like 22 — but only if you tick it. If you mark nothing, easywall
 > protects 22 by default, which is the wrong port on a hardened host.
 
+Each source address gets its own budget, so somebody else being rate-limited does not
+affect you. A [whitelist]({{ '/features/blacklist/' | relative_url }}) entry does not
+exempt you from it, though — protection modules are consulted before the whitelist,
+as the [rule order]({{ '/features/filters/' | relative_url }}) shows.
+
 The mark alone does nothing unless the module is switched on under
 [options]({{ '/features/filters/' | relative_url }}) — it is on by default, limit 5.
 
@@ -63,4 +68,4 @@ inside the window. Deleting works the same way — the rule keeps working until 
 | Port listed, still blocked | Not applied yet | Go to **Apply rules** |
 | Blocked despite being open | The source is on the [blacklist]({{ '/features/blacklist/' | relative_url }}), which is checked first | |
 | SSH drops right after Apply | That is the design — do nothing and the old rules come back | |
-| Your own SSH is rate-limited | You hit the brute-force limit | Wait, then add your address to the whitelist |
+| Your own SSH is rate-limited | You hit your own brute-force budget | Wait a minute, or raise `ssh_brute_force_connection_limit`. The whitelist does **not** help: modules run before it |

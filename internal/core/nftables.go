@@ -208,7 +208,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	// parse — which used to mean a malformed entry was listed in the interface
 	// as blocked while no rule for it ever existed. Refusing here makes that
 	// impossible to reach, and leaves the previous rules in place.
-	if err := validateRules(state.Current); err != nil {
+	if err := shared.ValidateRules(state.Current); err != nil {
 		return fmt.Errorf("refusing to apply: %w", err)
 	}
 
@@ -1199,6 +1199,9 @@ func (m *NftablesManager) addMulticastDrop(t *nftables.Table, c *nftables.Chain)
 }
 
 func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, cidr string) {
+	if shared.IsListComment(cidr) {
+		return // a note or a spacer, not an address
+	}
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return
@@ -1259,6 +1262,9 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 }
 
 func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain, ip string, opts shared.FirewallOptions) {
+	if shared.IsListComment(ip) {
+		return // a note or a spacer, not an address
+	}
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
 		// Try CIDR
@@ -1364,6 +1370,9 @@ func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr
 }
 
 func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain, ip string) {
+	if shared.IsListComment(ip) {
+		return // a note or a spacer, not an address
+	}
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
 		m.addCIDRAccept(t, c, ip)
@@ -1519,10 +1528,15 @@ func policyAccept() *nftables.ChainPolicy {
 	return &p
 }
 
+// parsePort returns the port number, or 0 if s is not one.
+//
+// Strict, like the validation upstream: fmt.Sscanf stops at the first character
+// it cannot read and reports success for the part it got, so "80abc" parsed as
+// 80 and "80 90" as 80. SaveStaged and Apply both reject those now, but the
+// last mile should not be the one place that would still accept them.
 func parsePort(s string) uint16 {
-	var p int
-	_, err := fmt.Sscanf(s, "%d", &p)
-	if err != nil || p < 1 || p > 65535 {
+	p, err := shared.ParsePortNumber(strings.TrimSpace(s))
+	if err != nil {
 		return 0
 	}
 	return uint16(p)
@@ -1531,8 +1545,16 @@ func parsePort(s string) uint16 {
 // buildPortExprs returns nftables expressions matching a port or port range.
 // Port ranges use the "start:end" format.
 func buildPortExprs(port string) []expr.Any {
-	var start, end int
-	if n, _ := fmt.Sscanf(port, "%d:%d", &start, &end); n == 2 {
+	if lo, hi, ok := strings.Cut(port, ":"); ok {
+		start, errLo := shared.ParsePortNumber(strings.TrimSpace(lo))
+		end, errHi := shared.ParsePortNumber(strings.TrimSpace(hi))
+		if errLo != nil || errHi != nil || end < start {
+			// Unreachable through the daemon — validateRules runs first — and a
+			// match on port 0 is better than a match on whatever half of a
+			// malformed range happened to parse.
+			slog.Warn("ignoring unparseable port range", "port", port)
+			return matchPortEq(0)
+		}
 		// Range match
 		return []expr.Any{
 			&expr.Payload{
@@ -1546,13 +1568,16 @@ func buildPortExprs(port string) []expr.Any {
 		}
 	}
 
-	// Single port
-	p := parsePort(port)
+	return matchPortEq(parsePort(port))
+}
+
+// matchPortEq matches a single destination port.
+func matchPortEq(p uint16) []expr.Any {
 	return []expr.Any{
 		&expr.Payload{
 			DestRegister: 1,
 			Base:         expr.PayloadBaseTransportHeader,
-			Offset:       2,
+			Offset:       2, // dest port
 			Len:          2,
 		},
 		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(p >> 8), byte(p)}},

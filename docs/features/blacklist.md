@@ -18,7 +18,7 @@ only thing you really need to remember.
 ## The order
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: loopback first, then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then established connections and ICMP, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 **The blacklist wins.** An address on both lists is dropped, because the blacklist is
 evaluated first. A narrow allow inside a wide block does not work — take the entry off
@@ -54,8 +54,13 @@ The counter under the editor counts real entries — comments and blanks do not 
 ## Your way back in
 
 Put the address you administer the host from on the whitelist **before** you start
-changing port rules. It survives a closed SSH port, a rate limit that trips, and every
-protection module in the chain.
+changing port rules. It survives a closed SSH port and every port rule you change.
+
+**It does not exempt you from the protection modules.** Those are evaluated before the
+whitelist, as the diagram above shows — a packet a module drops never reaches it. That
+matters least for the rate limits, which are counted per source address, so somebody
+else's flood cannot consume your budget; it matters most for the bogon filter, which
+will drop you outright if you administer the host from an RFC 1918 address.
 
 Together with the [acceptance window]({{ '/architecture/' | relative_url }}) that is two
 independent ways not to lose access to your own machine.
@@ -64,7 +69,7 @@ independent ways not to lose access to your own machine.
 
 | Symptom | Cause |
 |---|---|
-| A whitelisted address is still blocked | It is on the blacklist too — that is checked first |
+| A whitelisted address is still blocked | It is on the blacklist too — that is checked first. Or a protection module dropped it, which also happens before the whitelist |
 | A blacklisted address still gets through | The connection was already established; the list only affects new ones |
 | Nothing changed after saving | Saving stages. It goes live on [Apply]({{ '/architecture/' | relative_url }}) |
 | The editor names a line number | That line is not a valid address or CIDR; the message says why |

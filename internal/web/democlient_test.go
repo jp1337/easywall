@@ -368,3 +368,38 @@ func TestDemoSend_RejectsAnOutOfRangeAcceptanceDuration(t *testing.T) {
 		}
 	}
 }
+
+// The demo has to refuse what the core refuses. It used to check only that the
+// payload was JSON of the right shape, so an address the real firewall would
+// never accept was stored and shown as blocked.
+func TestDemoSend_RejectsWhatTheCoreWouldReject(t *testing.T) {
+	c := NewDemoClient()
+
+	before, err := c.GetRules()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.SaveRules("blacklist", []string{"192.168.1.999"}); err == nil {
+		t.Error("a malformed address must be refused")
+	}
+	if err := c.SaveRules("tcp", []shared.PortRule{{Port: "80abc"}}); err == nil {
+		t.Error("a port with trailing rubbish must be refused")
+	}
+	if err := c.SaveRules("forwarding", []shared.ForwardingRule{{Protocol: "sctp", SourcePort: 1, DestPort: 2}}); err == nil {
+		t.Error("a protocol other than tcp or udp must be refused")
+	}
+
+	after, err := c.GetRules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Staged.Blacklist) != len(before.Staged.Blacklist) {
+		t.Error("a refused save must leave the staged set untouched")
+	}
+
+	// And what the core accepts still goes through, comments included.
+	if err := c.SaveRules("blacklist", []string{"# a note", "", "192.0.2.7"}); err != nil {
+		t.Errorf("a valid list with comments must be accepted: %v", err)
+	}
+}
