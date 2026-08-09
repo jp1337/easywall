@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -126,4 +127,39 @@ func TestDocsVersionMatchesRelease(t *testing.T) {
 		t.Error("the sidebar version badge no longer reads site.version; " +
 			"a literal there cannot be kept in step with a release")
 	}
+}
+
+// The audit log page lists which actions carry colour, and the stylesheet-level
+// mapping lives in auditActionTones. The two drifted once already: the table
+// said four while the code coloured five, and the one it omitted was
+// rollback_failed — the entry the same page calls the one worth alerting on.
+func TestAuditColourTableMatchesTheCode(t *testing.T) {
+	root := filepath.Dir(localesDir(t))
+	raw, err := os.ReadFile(filepath.Join(root, "docs", "features", "audit-log.md"))
+	if err != nil {
+		t.Fatalf("read audit-log.md: %v", err)
+	}
+	docs := string(raw)
+
+	for action := range auditActionTones {
+		if !strings.Contains(docs, "`"+action+"`") {
+			t.Errorf("audit-log.md does not list %q, which the interface colours", action)
+		}
+	}
+
+	// And the count in the heading has to match.
+	want := fmt.Sprintf("Only %s entries carry colour", numberWord(len(auditActionTones)))
+	if !strings.Contains(docs, want) {
+		t.Errorf("the heading should read %q — there are %d coloured actions",
+			want, len(auditActionTones))
+	}
+}
+
+// numberWord spells the small numbers the heading uses.
+func numberWord(n int) string {
+	words := []string{"zero", "one", "two", "three", "four", "five", "six", "seven", "eight"}
+	if n < len(words) {
+		return words[n]
+	}
+	return fmt.Sprint(n)
 }
