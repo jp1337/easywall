@@ -56,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The audit log's detail column says what changed.** It was empty on every save. Rule saves name the addresses added and removed, or count entries for the rule kinds whose members are structures; option and settings saves name the fields that moved, including nested ones such as `docker.enabled`
 - **A failed rollback is recorded** as `rollback_failed` instead of being discarded with `_ =`. New rules not taking *and* the old ones not returning is the worst outcome the system has, and it was the quietest one
 - `NftablesManager.Restore` is removed. It took a snapshot argument, ignored it and returned nil — shaped exactly like a recovery path that recovered nothing
-- The roadmap in `README.md` is rewritten around correctness before features
+- The roadmap in `README.md` is rewritten around correctness before features, and gains an opt-in installation count for 2.9 — a critical bug matters differently at ten installations than at ten thousand, and nobody currently knows which this is
 
 ### Added
 
