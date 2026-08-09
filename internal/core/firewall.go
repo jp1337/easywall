@@ -198,6 +198,12 @@ func (f *Firewall) Accept() {
 	f.acceptance.Accept()
 }
 
+// CancelAcceptance ends an open window as not accepted, so the apply that owns
+// it rolls back and returns. Used on shutdown.
+func (f *Firewall) CancelAcceptance() {
+	f.acceptance.Cancel()
+}
+
 // Status returns the current firewall status for dashboard display.
 func (f *Firewall) Status() shared.FirewallStatus {
 	pending, _ := f.rules.HasPendingChanges()
