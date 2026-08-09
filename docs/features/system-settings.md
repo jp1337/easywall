@@ -44,7 +44,11 @@ goes to the core and into `easywall.toml`. No restart. The Save button stays for
 browsers with JavaScript disabled. The [options]({{ '/features/filters/' | relative_url }})
 and network pages behave the same way.
 
-Editing the file directly works too; send `SIGHUP` to the core to reload:
+Editing the file directly works too. `SIGHUP` reloads `[firewall]`,
+`[acceptance]`, `[ipv6]` and `[docker]` without dropping the socket; the paths are
+bound at startup and a change to one is logged and ignored until a restart. A file
+that does not parse or does not validate is refused and the running configuration
+stays — a typo must not disarm anything.
 
 ```toml
 [acceptance]
@@ -52,10 +56,18 @@ enabled  = true
 duration = 120   # seconds
 ```
 
+```bash
+sudo systemctl reload easywall-core   # or: kill -HUP $(pidof easywall-core)
+```
+
+> **This did not work before 2.5.0.** Nothing handled `SIGHUP`, and the default
+> disposition for an unhandled one is to terminate — so following this page shut the
+> core down instead of reloading it.
+
 ## When it does not behave
 
 | Symptom | Cause |
 |---|---|
-| The apply used the old duration | A running timer keeps the value it started with. The next apply picks up the change |
+| The apply used the old duration | A running timer keeps the value it started with. The next apply reads the current one |
 | The window expired before you could confirm | Raise the duration. The rollback is in the [audit log]({{ '/features/audit-log/' | relative_url }}) as `apply_rolledback` with detail `timeout` |
 | The field rejects a value | Outside 10–3600 |

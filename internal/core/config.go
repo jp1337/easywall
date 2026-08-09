@@ -161,8 +161,55 @@ func (c *Config) migrateIPv6Mode() {
 	}
 }
 
+// Reload re-reads the config file and adopts the sections that can change
+// while the daemon runs: [firewall], [acceptance], [ipv6] and [docker].
+//
+// features/system-settings.md has always told operators to edit easywall.toml
+// and send SIGHUP. Nothing handled that signal, and an unhandled SIGHUP
+// terminates the process — so following the documentation shut the firewall
+// manager down.
+//
+// The paths are deliberately not reloaded: socket_path, data_dir and log_dir
+// are bound at startup, and swapping them under a running daemon would leave
+// the socket and the rules file pointing at different places. A change to one
+// is reported and ignored.
+//
+// A file that does not parse or does not validate leaves the running
+// configuration exactly as it was. A typo must never disarm anything.
+func (c *Config) Reload() error {
+	fresh, err := LoadConfig(c.configPath)
+	if err != nil {
+		return err
+	}
+	if err := fresh.Validate(); err != nil {
+		return fmt.Errorf("refusing to reload: %w", err)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, p := range []struct{ name, old, new string }{
+		{"socket_path", c.SocketPath, fresh.SocketPath},
+		{"data_dir", c.DataDir, fresh.DataDir},
+		{"log_dir", c.LogDir, fresh.LogDir},
+	} {
+		if p.old != p.new {
+			slog.Warn("ignoring changed path on reload; it takes effect on restart",
+				"key", p.name, "running", p.old, "in_file", p.new)
+		}
+	}
+
+	c.Firewall = fresh.Firewall
+	c.Acceptance = fresh.Acceptance
+	c.IPv6 = fresh.IPv6
+	c.Docker = fresh.Docker
+	return nil
+}
+
 // AcceptanceDuration returns the acceptance window as a time.Duration.
 func (c *Config) AcceptanceDuration() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return time.Duration(c.Acceptance.Duration) * time.Second
 }
 

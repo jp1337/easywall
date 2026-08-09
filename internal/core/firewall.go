@@ -147,7 +147,7 @@ func (f *Firewall) Apply(user string) error {
 
 	WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all", "", user)
 
-	if err := f.acceptance.Start(); err != nil {
+	if err := f.acceptance.Start(f.cfg.AcceptanceDuration()); err != nil {
 		return err
 	}
 

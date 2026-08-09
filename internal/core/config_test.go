@@ -430,3 +430,87 @@ func TestSaveNetworkSettings_RejectsAnUnknownIPv6Mode(t *testing.T) {
 		t.Error("accepted an unknown mode; guessing between open and closed is not a choice to make quietly")
 	}
 }
+
+// SIGHUP reload. features/system-settings.md has always documented it; nothing
+// handled the signal, so following the documentation terminated the daemon.
+func TestConfigReload_AdoptsTheChangedSections(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	edited := strings.Replace(validCoreConfig, "duration = 120", "duration = 300", 1)
+	edited = strings.Replace(edited, "ssh_brute_force = false", "ssh_brute_force = true", 1)
+	if err := os.WriteFile(path, []byte(edited), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cfg.Reload(); err != nil {
+		t.Fatalf("Reload: %v", err)
+	}
+	if got := cfg.SystemSettings().Acceptance.Duration; got != 300 {
+		t.Errorf("expected the new duration, got %d", got)
+	}
+	if !cfg.FirewallOptions().SSHBruteForce {
+		t.Error("expected the edited firewall option to be adopted")
+	}
+}
+
+// A typo must never disarm anything: the running configuration stays.
+func TestConfigReload_KeepsTheRunningConfigWhenTheFileIsBad(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	before := cfg.SystemSettings().Acceptance.Duration
+
+	for _, bad := range []string{
+		"this is not toml {{{",
+		validCoreConfig + "\n[ipv6]\nmode = \"sometimes\"\n",
+	} {
+		if err := os.WriteFile(path, []byte(bad), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := cfg.Reload(); err == nil {
+			t.Error("a file that does not load or does not validate must be refused")
+		}
+		if got := cfg.SystemSettings().Acceptance.Duration; got != before {
+			t.Errorf("the running configuration changed after a refused reload: %d", got)
+		}
+	}
+}
+
+// The paths are bound at startup. Changing one in the file must not move the
+// socket or the rules out from under a running daemon.
+func TestConfigReload_IgnoresChangedPaths(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	socketBefore, dataBefore := cfg.SocketPath, cfg.DataDir
+
+	edited := strings.Replace(validCoreConfig, cfg.SocketPath, "/run/somewhere-else.sock", 1)
+	edited = strings.Replace(edited, cfg.DataDir, "/var/lib/elsewhere", 1)
+	if err := os.WriteFile(path, []byte(edited), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := cfg.Reload(); err != nil {
+		t.Fatalf("Reload: %v", err)
+	}
+	if cfg.SocketPath != socketBefore || cfg.DataDir != dataBefore {
+		t.Errorf("paths must not change on reload: socket=%q data=%q", cfg.SocketPath, cfg.DataDir)
+	}
+}

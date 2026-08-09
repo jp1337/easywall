@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jp1337/easywall/internal/shared"
 	"github.com/jp1337/easywall/internal/web"
 )
 
@@ -43,7 +44,7 @@ func main() {
 		}
 	}()
 
-	slog.Info("easywall-web started", "addr", cfg.BindAddr, "version", "2.0.0-dev")
+	slog.Info("easywall-web started", "addr", cfg.BindAddr, "version", shared.CurrentVersion)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
