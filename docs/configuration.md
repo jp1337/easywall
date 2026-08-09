@@ -130,7 +130,7 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
 | `data_dir` | string | Directory for the version cache file — defaults to `/var/lib/easywall` |
 | `language` | string | Fallback UI locale — `"en"` (English) or `"de"` (German). Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
-| `session_key` | string | 32-byte hex secret that signs the session cookie |
+| `session_key` | string | 32-byte hex secret that signs the session cookie. Generated on first start if missing or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
 | `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. The only outbound request easywall makes; see below |
@@ -157,7 +157,10 @@ takes for it to appear in the switch; see [Adding a Language](contributing.md).
 openssl rand -hex 32     # session_key
 ```
 
-**Keep `session_key` private.** Anyone holding it can forge a valid session cookie.
+**Keep `session_key` private.** Anyone holding it can forge a valid session cookie —
+no password required. easywall generates one on first start if the key is missing, too
+short, or still the placeholder the sample config ships with, and writes it back to
+`web.toml`.
 
 > **There is no `csrf_key`.** CSRF protection is Go 1.25's
 > `net/http.CrossOriginProtection`, which checks `Origin` and `Sec-Fetch-Site` rather
