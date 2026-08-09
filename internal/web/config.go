@@ -190,6 +190,14 @@ func (c *Config) UpdateCheckEnabled() bool {
 	return c.UpdateCheck == nil || *c.UpdateCheck
 }
 
+// TelemetryEnabled reports whether the operator agreed to be counted. Unset
+// means no — consent is asked for, never assumed.
+func (c *Config) TelemetryEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Telemetry != nil && *c.Telemetry
+}
+
 // VersionCachePath returns the path for the version check cache file.
 func (c *Config) VersionCachePath() string {
 	if c.DataDir != "" {
@@ -204,6 +212,20 @@ func (c *Config) SaveCredentials(username, passwordHash string) error {
 	defer c.mu.Unlock()
 	c.Username = username
 	c.Password = passwordHash
+	return c.saveLocked()
+}
+
+// SaveFirstRun persists everything the setup wizard decides, in one write.
+//
+// One write rather than three, because a failure halfway through the first run
+// is the worst moment to leave a half-configured file behind: the wizard closes
+// as soon as a password exists, and whatever did not land cannot be asked again.
+func (c *Config) SaveFirstRun(username, passwordHash string, telemetry bool) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Username = username
+	c.Password = passwordHash
+	c.Telemetry = &telemetry
 	return c.saveLocked()
 }
 

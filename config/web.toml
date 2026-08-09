@@ -20,6 +20,13 @@ demo_mode = false
 # answer comes from a cache on disk. Set to false to remove it entirely.
 update_check = true
 
+# ─── Counting installations ─────────────────────────────────────────────────
+# Off unless switched on, and asked for during the first-run wizard rather than
+# assumed. A random identifier and the version — enough to tell whether a
+# critical fix reached everyone, not enough to describe anyone. The sending
+# itself arrives in a later release; this records the answer.
+telemetry = false
+
 # ─── Secret ─────────────────────────────────────────────────────────────────
 # Signs the session cookie, so anyone who knows it can forge one. Left as the
 # placeholder below, easywall generates a key on first start and writes it here

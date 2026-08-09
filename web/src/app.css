@@ -2183,6 +2183,67 @@ body {
 
   .auth-body { padding: 26px 30px; }
 
+  /* The setup wizard asks two different kinds of question — who you are, and how
+     this host should start out — so it gets a wider card than the login page and
+     sets them side by side. Stacked into one narrow column the page ran to
+     fourteen hundred pixels, which is the opposite of what a first run should
+     feel like. The choices use the same card and switch rows as the settings
+     page rather than a third arrangement invented here. */
+  .auth-card-wide { max-width: 880px; }
+
+  .firstrun-grid {
+    display: grid;
+    gap: 28px;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 760px) {
+    .firstrun-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+  }
+
+  /* The form used to carry a flex gap; the two columns need their own, or the
+     password hint runs straight into the next label. */
+  .firstrun-col {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .firstrun-col > .firstrun-section + .field-help { margin-top: -12px; }
+
+  /* The port sits in a row of its own inside the card, laid out like the fields
+     on the left rather than like the switch rows around it: label above, input
+     below, help under both. */
+  .firstrun-port {
+    padding: 14px 16px;
+  }
+
+  /* .field-label carries no display of its own, so a label and an input side by
+     side stay side by side. Everywhere else it sits inside a .field, which is a
+     block; here it does not. */
+  .firstrun-port .field-label { display: block; }
+
+  .firstrun-port .field-help { margin-top: 6px; }
+
+  .firstrun-section {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    margin-bottom: 2px;
+  }
+
+  /* The IPv6 group is one row among several inside the card, so it carries the
+     same divider as its neighbours instead of a frame of its own. */
+  .auth-body .choice-group { border-top: 1px solid var(--color-rule); }
+
+  .switch-row-label {
+    padding: 12px 16px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-ink);
+  }
+
   .auth-footer {
     padding: 14px 30px;
     border-top: 1px solid var(--color-rule);
