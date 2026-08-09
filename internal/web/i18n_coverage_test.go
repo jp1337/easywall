@@ -301,3 +301,54 @@ func TestMarkupStringsAreRenderedThroughRichText(t *testing.T) {
 		}
 	}
 }
+
+// app.js builds text in the browser, so the strings it needs are inlined into
+// every page from clientStringKeys. Two ways for that to drift, both silent:
+// a key app.js asks for that is not in the list, and a key in the list that no
+// locale file has. str() falls back to the key itself, so either one renders
+// "state_unknown" to the operator instead of a sentence.
+func TestClientStringsCoverWhatAppJSAsksFor(t *testing.T) {
+	root := filepath.Dir(localesDir(t))
+	appJS, err := os.ReadFile(filepath.Join(root, "web", "static", "app.js"))
+	if err != nil {
+		t.Fatalf("read app.js: %v", err)
+	}
+
+	shipped := make(map[string]bool, len(clientStringKeys))
+	for _, k := range clientStringKeys {
+		shipped[k] = true
+	}
+
+	strCallRe := regexp.MustCompile(`\bstr\('([a-z0-9_]+)'\)`)
+	asked := make(map[string]bool)
+	for _, m := range strCallRe.FindAllStringSubmatch(string(appJS), -1) {
+		asked[m[1]] = true
+	}
+	if len(asked) == 0 {
+		t.Fatal("no str() calls found — the regex or app.js changed shape")
+	}
+
+	for key := range asked {
+		if !shipped[key] {
+			t.Errorf("app.js asks for %q, which clientStringKeys does not ship", key)
+		}
+	}
+
+	// The other direction is worth knowing too: a key shipped to every page and
+	// used by nothing is dead weight in the blob.
+	for key := range shipped {
+		if !asked[key] {
+			t.Errorf("clientStringKeys ships %q, which app.js never asks for", key)
+		}
+	}
+
+	// And every shipped key must exist in both languages.
+	for _, lang := range []string{"en", "de"} {
+		ids := localeIDs(t, lang)
+		for key := range shipped {
+			if !ids[key] {
+				t.Errorf("locales/%s.json has no %q, so app.js would render the key itself", lang, key)
+			}
+		}
+	}
+}
