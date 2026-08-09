@@ -235,9 +235,16 @@ func TestBackupCurrent(t *testing.T) {
 	}
 }
 
-func TestRollback(t *testing.T) {
+// A rollback restores what is enforced and keeps what you were writing.
+//
+// This test used to assert the opposite — "Rollback did not reset staged" —
+// which is what the code did and the exact opposite of what the apply-flow
+// diagram promises on four pages: "Previous rules are back. Nothing staged was
+// lost."
+func TestRollback_RestoresCurrentAndKeepsTheStagedEdits(t *testing.T) {
 	store, _ := newTempStore(t)
-	// set up: current=22, staged=80, backup=22
+	// The sequence an apply performs: current=22, backup=22, then the edit is
+	// staged and promoted, so current=staged=80.
 	_ = store.SaveStaged("tcp", []shared.PortRule{{Port: "22"}})
 	_ = store.PromoteStaged()
 	_ = store.BackupCurrent()
@@ -248,11 +255,22 @@ func TestRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, _ := store.GetState()
+
 	if len(state.Current.TCP) != 1 || state.Current.TCP[0].Port != "22" {
-		t.Errorf("Rollback did not restore from backup: %+v", state.Current.TCP)
+		t.Errorf("the enforced set must come back from the backup: %+v", state.Current.TCP)
 	}
-	if len(state.Staged.TCP) != 1 || state.Staged.TCP[0].Port != "22" {
-		t.Errorf("Rollback did not reset staged: %+v", state.Staged.TCP)
+	if len(state.Staged.TCP) != 1 || state.Staged.TCP[0].Port != "80" {
+		t.Errorf("the edits that were applied must still be staged, ready to be corrected: %+v",
+			state.Staged.TCP)
+	}
+
+	// And the interface must say there is something pending, because there is.
+	pending, err := store.HasPendingChanges()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending {
+		t.Error("after a rollback the staged edits differ from what is enforced")
 	}
 }
 

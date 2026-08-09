@@ -38,12 +38,25 @@ func (s *Server) handleApplyStart(w http.ResponseWriter, r *http.Request) {
 // handleApplyConfirm sends the acceptance signal to the core.
 // Must be called while the acceptance window is pending.
 func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
-	if err := s.client.Accept(); err != nil {
+	accepted, err := s.client.Accept()
+	if err != nil {
 		slog.Warn("accept error", "error", err)
 		s.setFlash(w, r, "accept_error")
 		http.Redirect(w, r, "/apply", http.StatusSeeOther)
 		return
 	}
+
+	// A confirmation that arrives after the window closed changes nothing: the
+	// rules were rolled back when it expired. Saying "accepted and applied
+	// successfully" here told the operator their change was live at the one
+	// moment it was not, and sent them to the dashboard to admire it.
+	if !accepted {
+		slog.Info("confirmation arrived after the acceptance window closed")
+		s.setFlash(w, r, "accept_too_late")
+		http.Redirect(w, r, "/apply", http.StatusSeeOther)
+		return
+	}
+
 	s.setFlash(w, r, "rules_accepted")
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }
