@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/nftables"
+	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
 	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/sys/unix"
@@ -22,6 +23,12 @@ const (
 	// nftables chain priorities
 	prioFilter = 0
 	prioNAT    = -100
+
+	// nftConnlimitInvert makes a connlimit match when the count is *over* the
+	// configured value rather than under it — `ct count over N`. golang.org/x/sys
+	// does not export it; it is NFT_CONNLIMIT_F_INV from
+	// include/uapi/linux/netfilter/nf_tables.h.
+	nftConnlimitInvert = 1 << 0
 )
 
 // NftablesManager manages the easywall nftables table via netlink.
@@ -191,13 +198,13 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addSYNFloodProtection(table, inputChain, opts)
 	}
 	if opts.InvalidPackets {
-		m.addInvalidPacketDrop(table, inputChain)
+		m.addInvalidPacketDrop(table, inputChain, opts)
 	}
 	if opts.Fragments {
-		m.addFragmentDrop(table, inputChain)
+		m.addFragmentDrop(table, inputChain, opts)
 	}
 	if opts.Bogons {
-		m.addBogonFilter(table, inputChain)
+		m.addBogonFilter(table, inputChain, opts)
 	}
 	if opts.ICMPFlood {
 		m.addICMPFloodProtection(table, inputChain, opts)
@@ -205,11 +212,20 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	if opts.SSHBruteForce {
 		m.addSSHBruteForce(table, inputChain, state.Current, opts)
 	}
+	if opts.TCPRSTFlood {
+		m.addTCPRSTFlood(table, inputChain, opts)
+	}
+	if opts.ConnectionLimit {
+		m.addConnectionLimit(table, inputChain, opts)
+	}
 	if opts.DropBroadcast {
 		m.addBroadcastDrop(table, inputChain)
 	}
 	if opts.DropMulticast {
 		m.addMulticastDrop(table, inputChain)
+	}
+	if opts.DropAnycast {
+		m.addAnycastDrop(table, inputChain)
 	}
 
 	// Docker bridge whitelisting
@@ -295,6 +311,79 @@ func (m *NftablesManager) Restore(snapshot []byte) error {
 	// The primary rollback path is: rules.Rollback() + Apply(backupRules).
 	// This function is kept for potential future use with iptables-restore equivalent.
 	return nil
+}
+
+// --- Logging ---
+
+// Log prefixes. Every one starts with "easywall " so that a single
+// `journalctl -k | grep easywall` catches all of them, which is what the
+// documentation tells operators to run.
+const (
+	logPrefixInvalid   = "easywall invalid: "
+	logPrefixFragment  = "easywall fragment: "
+	logPrefixBogon     = "easywall bogon: "
+	logPrefixPortScan  = "easywall portscan: "
+	logPrefixSYNFlood  = "easywall syn-flood: "
+	logPrefixICMPFlood = "easywall icmp-flood: "
+	logPrefixSSH       = "easywall ssh: "
+	logPrefixTCPRST    = "easywall tcp-rst: "
+	logPrefixBlacklist = "easywall blacklist: "
+	logPrefixDrop      = "easywall drop: "
+)
+
+// logSpec describes the optional log rule that precedes a module's action.
+type logSpec struct {
+	enabled   bool
+	prefix    string
+	perMinute int
+}
+
+// logExprs builds a rate-limited log expression pair.
+//
+// expr.Log.Key is a bitmask over the NFTA_LOG_* attribute indices, not an
+// attribute number. Setting it to unix.NFTA_LOG_PREFIX (2) sets the bit for
+// NFTA_LOG_GROUP (1<<1) and leaves the prefix bit (1<<2) clear, so the kernel
+// received an empty log group and no prefix at all. That is how every logged
+// packet reached the kernel log unlabelled, while the documentation told
+// operators to grep for a prefix that was never written.
+func logExprs(prefix string, perMinute int) []expr.Any {
+	if perMinute <= 0 {
+		perMinute = 60
+	}
+	return []expr.Any{
+		// Rate-limits the log line, not the verdict: this rule carries no
+		// verdict of its own and falls through to the one that acts. A flood
+		// must not be able to fill the disk, and must not escape the drop
+		// either.
+		&expr.Limit{
+			Type:  expr.LimitTypePkts,
+			Rate:  uint64(perMinute),
+			Over:  false,
+			Unit:  expr.LimitTimeMinute,
+			Burst: uint32(perMinute),
+		},
+		&expr.Log{
+			Key:  1 << unix.NFTA_LOG_PREFIX,
+			Data: []byte(prefix),
+		},
+	}
+}
+
+// addFiltered installs a module's rule as up to two rules sharing one match:
+// an optional rate-limited log rule that falls through, followed by the rule
+// that acts. Both carry the same match, so what is logged is exactly what is
+// dropped.
+func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, match []expr.Any, action expr.Any, lg logSpec) {
+	if lg.enabled {
+		logged := make([]expr.Any, 0, len(match)+2)
+		logged = append(logged, match...)
+		logged = append(logged, logExprs(lg.prefix, lg.perMinute)...)
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: logged})
+	}
+	acted := make([]expr.Any, 0, len(match)+1)
+	acted = append(acted, match...)
+	acted = append(acted, action)
+	m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted})
 }
 
 // --- Helper builders ---
@@ -385,54 +474,48 @@ func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv
 	}
 }
 
-func (m *NftablesManager) addInvalidPacketDrop(t *nftables.Table, c *nftables.Chain) {
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: []expr.Any{
-			&expr.Ct{Register: 1, Key: expr.CtKeySTATE},
-			&expr.Bitwise{
-				SourceRegister: 1,
-				DestRegister:   1,
-				Len:            4,
-				Mask:           []byte{0x00, 0x00, 0x00, 0x01}, // INVALID state
-				Xor:            []byte{0x00, 0x00, 0x00, 0x00},
-			},
-			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
-			&expr.Verdict{Kind: expr.VerdictDrop},
+func (m *NftablesManager) addInvalidPacketDrop(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
+	match := []expr.Any{
+		&expr.Ct{Register: 1, Key: expr.CtKeySTATE},
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            4,
+			Mask:           []byte{0x00, 0x00, 0x00, 0x01}, // INVALID state
+			Xor:            []byte{0x00, 0x00, 0x00, 0x00},
 		},
-	})
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
+	}
+	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
+		logSpec{enabled: opts.InvalidPacketsLog, prefix: logPrefixInvalid})
 }
 
-func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain) {
+func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
 	// Drop fragmented IPv4 packets (offset > 0 or MF flag set)
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: []expr.Any{
-			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
-			&expr.Payload{
-				DestRegister: 1,
-				Base:         expr.PayloadBaseNetworkHeader,
-				Offset:       6, // fragment offset field
-				Len:          2,
-			},
-			// Check if fragment offset bits are non-zero (fragmented packet)
-			&expr.Bitwise{
-				SourceRegister: 1,
-				DestRegister:   1,
-				Len:            2,
-				Mask:           []byte{0x3f, 0xff},
-				Xor:            []byte{0x00, 0x00},
-			},
-			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00}},
-			&expr.Verdict{Kind: expr.VerdictDrop},
+	match := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       6, // fragment offset field
+			Len:          2,
 		},
-	})
+		// Check if fragment offset bits are non-zero (fragmented packet)
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            2,
+			Mask:           []byte{0x3f, 0xff},
+			Xor:            []byte{0x00, 0x00},
+		},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00}},
+	}
+	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
+		logSpec{enabled: opts.FragmentsLog, prefix: logPrefixFragment})
 }
 
-func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain) {
+func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
 	// Drop packets from RFC-1918 and special ranges arriving from non-loopback interfaces.
 	// These are "impossible" sources on the public internet.
 	bogons := []string{
@@ -458,34 +541,31 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain) {
 			continue
 		}
 
-		m.conn.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				// Only for IPv4
-				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
-				// Not loopback interface
-				&expr.Meta{Key: expr.MetaKeyIIFNAME, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte("lo\x00")},
-				// Match source IP in bogon range
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseNetworkHeader,
-					Offset:       12, // src IP offset in IPv4 header
-					Len:          4,
-				},
-				&expr.Bitwise{
-					SourceRegister: 1,
-					DestRegister:   1,
-					Len:            4,
-					Mask:           mask,
-					Xor:            []byte{0, 0, 0, 0},
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip},
-				&expr.Verdict{Kind: expr.VerdictDrop},
+		match := []expr.Any{
+			// Only for IPv4
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+			// Not loopback interface
+			&expr.Meta{Key: expr.MetaKeyIIFNAME, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte("lo\x00")},
+			// Match source IP in bogon range
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       12, // src IP offset in IPv4 header
+				Len:          4,
 			},
-		})
+			&expr.Bitwise{
+				SourceRegister: 1,
+				DestRegister:   1,
+				Len:            4,
+				Mask:           mask,
+				Xor:            []byte{0, 0, 0, 0},
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip},
+		}
+		m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
+			logSpec{enabled: opts.BogonsLog, prefix: logPrefixBogon})
 	}
 }
 
@@ -495,6 +575,15 @@ func (m *NftablesManager) addPortScanPrevention(t *nftables.Table, c *nftables.C
 		Name:  "portscan",
 		Table: t,
 	})
+	// The log goes inside the chain, before its drop: everything that jumped
+	// here is a scan by definition, so one rule covers all seven flag combos.
+	if opts.PortScanLog {
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: scanChain,
+			Exprs: logExprs(logPrefixPortScan, 0),
+		})
+	}
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: scanChain,
@@ -549,37 +638,34 @@ func (m *NftablesManager) addSYNFloodProtection(t *nftables.Table, c *nftables.C
 		limit = 100
 	}
 
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: []expr.Any{
-			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
-			// SYN flag set, ACK not set (new connection)
-			&expr.Payload{
-				DestRegister: 1,
-				Base:         expr.PayloadBaseTransportHeader,
-				Offset:       13,
-				Len:          1,
-			},
-			&expr.Bitwise{
-				SourceRegister: 1,
-				DestRegister:   1,
-				Len:            1,
-				Mask:           []byte{0x17}, // SYN+ACK+RST+FIN mask
-				Xor:            []byte{0x00},
-			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02}}, // SYN only
-			&expr.Limit{
-				Type:  expr.LimitTypePkts,
-				Rate:  uint64(limit),
-				Over:  true, // drop when rate exceeded
-				Unit:  expr.LimitTimeSecond,
-				Burst: uint32(limit * 2),
-			},
-			&expr.Verdict{Kind: expr.VerdictDrop},
+	match := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
+		// SYN flag set, ACK not set (new connection)
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseTransportHeader,
+			Offset:       13,
+			Len:          1,
 		},
-	})
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            1,
+			Mask:           []byte{0x17}, // SYN+ACK+RST+FIN mask
+			Xor:            []byte{0x00},
+		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02}}, // SYN only
+		&expr.Limit{
+			Type:  expr.LimitTypePkts,
+			Rate:  uint64(limit),
+			Over:  true, // drop when rate exceeded
+			Unit:  expr.LimitTimeSecond,
+			Burst: uint32(limit * 2),
+		},
+	}
+	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
+		logSpec{enabled: opts.SYNFloodLog, prefix: logPrefixSYNFlood})
 }
 
 func (m *NftablesManager) addICMPFloodProtection(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
@@ -589,28 +675,28 @@ func (m *NftablesManager) addICMPFloodProtection(t *nftables.Table, c *nftables.
 	}
 
 	// Rate-limit ICMP echo-request (ping flood)
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: []expr.Any{
-			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
-			&expr.Payload{
-				DestRegister: 1,
-				Base:         expr.PayloadBaseTransportHeader,
-				Offset:       0,
-				Len:          1,
-			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{8}}, // echo-request
-			&expr.Limit{
-				Type:  expr.LimitTypePkts,
-				Rate:  uint64(limit),
-				Over:  true,
-				Unit:  expr.LimitTimeSecond,
-				Burst: uint32(limit),
-			},
-			&expr.Verdict{Kind: expr.VerdictDrop},
+	match := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseTransportHeader,
+			Offset:       0,
+			Len:          1,
 		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{8}}, // echo-request
+		&expr.Limit{
+			Type:  expr.LimitTypePkts,
+			Rate:  uint64(limit),
+			Over:  true,
+			Unit:  expr.LimitTimeSecond,
+			Burst: uint32(limit),
+		},
+	}
+	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, logSpec{
+		enabled:   opts.ICMPFloodLog,
+		prefix:    logPrefixICMPFlood,
+		perMinute: opts.ICMPFloodLogLimit,
 	})
 }
 
@@ -653,6 +739,15 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 			&expr.Verdict{Kind: expr.VerdictAccept},
 		},
 	})
+	// Anything still here exceeded the rate, which is the event worth logging —
+	// the accepted connections above are ordinary traffic.
+	if opts.SSHBruteForceLog {
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: sshChain,
+			Exprs: logExprs(logPrefixSSH, opts.SSHBruteForceLogLimit),
+		})
+	}
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: sshChain,
@@ -688,6 +783,144 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 				},
 				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
 				&expr.Verdict{Kind: expr.VerdictJump, Chain: "sshbrute"},
+			},
+		})
+	}
+}
+
+// addTCPRSTFlood rate-limits inbound TCP RST packets per second.
+//
+// A reset flood is cheap to send and forces the receiver to tear down state,
+// so the cap is on the packet rate rather than on connections.
+func (m *NftablesManager) addTCPRSTFlood(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
+	limit := opts.TCPRSTFloodLimit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	match := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
+		// TCP flags live in the octet at offset 13 of the transport header.
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseTransportHeader,
+			Offset:       13,
+			Len:          1,
+		},
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            1,
+			Mask:           []byte{0x04}, // RST
+			Xor:            []byte{0x00},
+		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x04}},
+		&expr.Limit{
+			Type:  expr.LimitTypePkts,
+			Rate:  uint64(limit),
+			Over:  true,
+			Unit:  expr.LimitTimeSecond,
+			Burst: uint32(limit),
+		},
+	}
+
+	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, logSpec{
+		enabled:   opts.TCPRSTFloodLog,
+		prefix:    logPrefixTCPRST,
+		perMinute: 0,
+	})
+}
+
+// addAnycastDrop drops traffic addressed to an anycast address.
+//
+// Anycast is not a bit in the packet — it is a property of the destination
+// address as this host resolves it, so the check goes through the FIB. That is
+// also why it is off by default: on a host with no anycast address configured
+// the rule matches nothing, and on one that has, it will match traffic that may
+// well be wanted.
+func (m *NftablesManager) addAnycastDrop(t *nftables.Table, c *nftables.Chain) {
+	m.conn.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: c,
+		Exprs: []expr.Any{
+			&expr.Fib{
+				Register:       1,
+				ResultADDRTYPE: true,
+				FlagDADDR:      true,
+			},
+			&expr.Cmp{
+				Op:       expr.CmpOpEq,
+				Register: 1,
+				Data:     binaryutil.NativeEndian.PutUint32(unix.RTN_ANYCAST),
+			},
+			&expr.Verdict{Kind: expr.VerdictDrop},
+		},
+	})
+}
+
+// addConnectionLimit caps simultaneous connections per source address.
+//
+// The cap has to be per source: a single global counter would let one host
+// exhaust the limit and lock every other client out, which is the opposite of
+// what the option promises. That is expressed as a dynamic set keyed by source
+// address carrying a connlimit — `ct count over N` inside a meter, in nft's own
+// vocabulary. inet needs one set per family, because the address key is a
+// different width in each.
+func (m *NftablesManager) addConnectionLimit(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
+	max := opts.ConnectionLimitMax
+	if max <= 0 {
+		max = 100
+	}
+
+	families := []struct {
+		name     string
+		nfproto  byte
+		keyType  nftables.SetDatatype
+		offset   uint32
+		keyLen   uint32
+		setLabel string
+	}{
+		{"ipv4", unix.NFPROTO_IPV4, nftables.TypeIPAddr, 12, 4, "connlimit-v4"},
+		{"ipv6", unix.NFPROTO_IPV6, nftables.TypeIP6Addr, 8, 16, "connlimit-v6"},
+	}
+
+	for _, f := range families {
+		set := &nftables.Set{
+			Table:   t,
+			Name:    f.setLabel,
+			KeyType: f.keyType,
+			Dynamic: true,
+		}
+		if err := m.conn.AddSet(set, nil); err != nil {
+			slog.Warn("connection limit: could not create set", "family", f.name, "error", err)
+			continue
+		}
+
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: c,
+			Exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{f.nfproto}},
+				&expr.Payload{
+					DestRegister: 1,
+					Base:         expr.PayloadBaseNetworkHeader,
+					Offset:       f.offset,
+					Len:          f.keyLen,
+				},
+				&expr.Dynset{
+					SrcRegKey: 1,
+					SetName:   set.Name,
+					Operation: uint32(unix.NFT_DYNSET_OP_ADD),
+					Exprs: []expr.Any{
+						&expr.Connlimit{
+							Count: uint32(max),
+							Flags: nftConnlimitInvert, // over, not under
+						},
+					},
+				},
+				&expr.Verdict{Kind: expr.VerdictDrop},
 			},
 		})
 	}
@@ -785,43 +1018,42 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 		return
 	}
 
-	ip4 := parsed.To4()
-	if ip4 != nil {
-		m.conn.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseNetworkHeader,
-					Offset:       12,
-					Len:          4,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
-				&expr.Verdict{Kind: expr.VerdictDrop},
-			},
-		})
-	} else {
-		ip6 := parsed.To16()
-		m.conn.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseNetworkHeader,
-					Offset:       8, // src IP in IPv6 header
-					Len:          16,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip6},
-				&expr.Verdict{Kind: expr.VerdictDrop},
-			},
-		})
+	// opts was accepted and ignored here until 2.5.0, which is why the
+	// log_blacklist_connections switch produced nothing.
+	lg := logSpec{
+		enabled:   opts.LogBlacklist,
+		prefix:    logPrefixBlacklist,
+		perMinute: opts.LogBlacklistLimit,
 	}
+
+	var match []expr.Any
+	if ip4 := parsed.To4(); ip4 != nil {
+		match = []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       12, // src IP in IPv4 header
+				Len:          4,
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+		}
+	} else {
+		match = []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseNetworkHeader,
+				Offset:       8, // src IP in IPv6 header
+				Len:          16,
+			},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: parsed.To16()},
+		}
+	}
+
+	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, lg)
 }
 
 func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr string) {
@@ -1014,19 +1246,7 @@ func (m *NftablesManager) addFinalLog(t *nftables.Table, c *nftables.Chain, opts
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
-		Exprs: []expr.Any{
-			&expr.Limit{
-				Type:  expr.LimitTypePkts,
-				Rate:  uint64(limit),
-				Over:  false,
-				Unit:  expr.LimitTimeMinute,
-				Burst: uint32(limit),
-			},
-			&expr.Log{
-				Key:  unix.NFTA_LOG_PREFIX,
-				Data: []byte("easywall blocked: "),
-			},
-		},
+		Exprs: logExprs(logPrefixDrop, limit),
 	})
 }
 
