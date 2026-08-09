@@ -121,6 +121,62 @@ func tableFamilyName(f nftables.TableFamily) string {
 	}
 }
 
+// Enforcing reports whether the kernel is actually carrying easywall's rules:
+// the table exists, it has an input chain, and that chain has rules in it.
+//
+// The dashboard used to derive this from the fact that the daemon was running,
+// and told the operator "the core daemon is running and rules are live" on that
+// basis alone. Those are different claims. After `nft delete table inet
+// easywall`, or an apply that failed and whose rollback also failed, the daemon
+// is up and nothing is being enforced — and the dashboard showed green.
+//
+// An error reading the state is reported as not enforcing. Being unable to
+// confirm that a firewall is up is not the same as it being up, and the
+// dashboard should say so.
+func (m *NftablesManager) Enforcing() bool {
+	if m.conn == nil {
+		return false
+	}
+
+	table := &nftables.Table{Name: tableName, Family: nftables.TableFamilyINet}
+	tables, err := m.conn.ListTables()
+	if err != nil {
+		slog.Warn("could not list nftables tables", "error", err)
+		return false
+	}
+	found := false
+	for _, tbl := range tables {
+		if tbl.Name == tableName && tbl.Family == nftables.TableFamilyINet {
+			table = tbl
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false
+	}
+
+	chains, err := m.conn.ListChains()
+	if err != nil {
+		slog.Warn("could not list nftables chains", "error", err)
+		return false
+	}
+	for _, ch := range chains {
+		if ch.Table == nil || ch.Table.Name != tableName || ch.Name != "input" {
+			continue
+		}
+		rules, err := m.conn.GetRules(table, ch)
+		if err != nil {
+			slog.Warn("could not read input chain rules", "error", err)
+			return false
+		}
+		// An empty input chain means the table was recreated but never filled —
+		// the policy would drop everything, which is not "live rules" either.
+		return len(rules) > 0
+	}
+	return false
+}
+
 // Reset deletes and recreates the easywall table, giving us a clean slate.
 // All other tables (filter, nat, docker, etc.) are untouched.
 func (m *NftablesManager) Reset() error {
@@ -314,14 +370,11 @@ func (m *NftablesManager) applyCustomRules(rules []string) error {
 	return nil
 }
 
-// Restore restores a previously taken snapshot. Currently a no-op placeholder
-// that relies on the rules.go rollback mechanism to re-apply the backup rules.
-// A true byte-level restore is available for emergency recovery only.
-func (m *NftablesManager) Restore(snapshot []byte) error {
-	// The primary rollback path is: rules.Rollback() + Apply(backupRules).
-	// This function is kept for potential future use with iptables-restore equivalent.
-	return nil
-}
+// There is deliberately no Restore here. One existed until 2.5.0: it took a
+// snapshot argument, ignored it, and returned nil — a function shaped exactly
+// like a recovery path that recovered nothing. Rollback is
+// rules.Rollback() followed by Apply(previous), in Firewall.rollback, and a
+// snapshot is written to the log directory for post-incident reading only.
 
 // --- Logging ---
 

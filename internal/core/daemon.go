@@ -183,10 +183,15 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
+		// Read the set being replaced first, so the audit entry can say what
+		// changed rather than only that something did.
+		before, _ := d.firewall.RulesStore().GetState()
 		if err := d.firewall.RulesStore().SaveStaged(payload.RuleType, payload.Rules); err != nil {
 			return errResp(err)
 		}
-		WriteAuditLog(d.cfg.AuditLogPath(), "rules_saved", payload.RuleType, "", "web")
+		after, _ := d.firewall.RulesStore().GetState()
+		WriteAuditLog(d.cfg.AuditLogPath(), "rules_saved", payload.RuleType,
+			describeRuleChange(payload.RuleType, before.Staged, after.Staged), "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdApplyRules:
@@ -219,10 +224,11 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &opts); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
+		changed := describeStructChange(d.firewall.Options(), opts)
 		if err := d.cfg.SaveFirewallOptions(opts); err != nil {
 			return errResp(err)
 		}
-		WriteAuditLog(d.cfg.AuditLogPath(), "options_saved", "", "", "web")
+		WriteAuditLog(d.cfg.AuditLogPath(), "options_saved", "", changed, "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdGetSettings:
@@ -235,10 +241,12 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &s); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
+		changed := describeStructChange(
+			shared.NetworkSettings{IPv6: d.cfg.IPv6, Docker: d.cfg.Docker}, s)
 		if err := d.cfg.SaveNetworkSettings(s); err != nil {
 			return errResp(err)
 		}
-		WriteAuditLog(d.cfg.AuditLogPath(), "settings_saved", "", "", "web")
+		WriteAuditLog(d.cfg.AuditLogPath(), "settings_saved", "", changed, "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdGetSystem:
@@ -254,10 +262,12 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if s.Acceptance.Duration <= 0 {
 			return errResp(fmt.Errorf("acceptance.duration must be > 0"))
 		}
+		changed := describeStructChange(
+			shared.SystemSettings{Acceptance: d.cfg.Acceptance}, s)
 		if err := d.cfg.SaveSystemSettings(s); err != nil {
 			return errResp(err)
 		}
-		WriteAuditLog(d.cfg.AuditLogPath(), "system_saved", "", "", "web")
+		WriteAuditLog(d.cfg.AuditLogPath(), "system_saved", "", changed, "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdGetLog:

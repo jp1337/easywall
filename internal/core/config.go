@@ -94,6 +94,14 @@ func (c *Config) AuditLogPath() string {
 	return c.LogDir + "/audit.log"
 }
 
+// LastApplyPath returns the path of the file recording when rules were last
+// applied and accepted. It is kept on disk because the dashboard shows it, and
+// a value held only in memory reset to "never" on every daemon restart while
+// the rules it referred to were still live.
+func (c *Config) LastApplyPath() string {
+	return c.DataDir + "/last_apply"
+}
+
 // VersionCachePath returns the path for the version check cache file.
 func (c *Config) VersionCachePath() string {
 	return c.DataDir + "/version_cache.json"
