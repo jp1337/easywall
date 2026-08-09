@@ -15,7 +15,7 @@ on disk keeps everything.
   <figcaption>The filter matches the wording on screen as well as the identifier stored on disk.</figcaption>
 </figure>
 
-## Only four entries carry colour
+## Only five entries carry colour
 
 Colour outside the accent family always means firewall state — green live, amber
 unconfirmed, red rolled back. If a merely informational event were tinted too, a
@@ -27,10 +27,11 @@ coloured tag would stop meaning anything.
 | 🟠 | `apply_started` | Apply started | Live but unconfirmed — the window is open |
 | 🔴 | `apply_rolledback` | Rules rolled back | The window closed unconfirmed; the previous rules are back |
 | 🔴 | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
+| 🔴 | `rollback_failed` | Rollback failed | The worst outcome there is: the new rules did not take **and** the old ones did not come back |
 | ⚪ | everything else | Rules saved, Options saved, … | Something was staged; nothing live moved |
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
-> running firewall untouched. Only the four `apply_*` actions describe what the
+> running firewall untouched. Only the five actions above describe what the
 > firewall is actually doing, however consequential an edit feels.
 
 ## The columns
@@ -51,6 +52,7 @@ coloured tag would stop meaning anything.
 | Read-only page views | nowhere — not recorded at all |
 | Edits made directly to `easywall.toml` | your own change management |
 | Which account made a change | every entry is attributed to `web`; the socket protocol carries no identity yet |
+| Logouts | recorded nowhere, though a logout does end the session immediately |
 
 > **The detail column was empty until 2.5.0.** Every save wrote a blank, so the
 > column meant to answer *what changed* was a dash on every line. It now names

@@ -218,10 +218,15 @@ func TestSaveFirewallOptions_RoundTrip(t *testing.T) {
 		t.Fatalf("LoadConfig: %v", err)
 	}
 
+	// A complete set, as the options page always posts: every enabled module
+	// carries its limit. An enabled module with a limit of zero is refused now,
+	// rather than silently becoming the default.
 	opts := shared.FirewallOptions{
 		SSHBruteForce:                true,
 		SSHBruteForceConnectionLimit: 3,
 		ICMPFlood:                    true,
+		ICMPFloodConnectionLimit:     10,
+		SYNFlood:                     true,
 		SYNFloodLimit:                200,
 	}
 	if err := cfg.SaveFirewallOptions(opts); err != nil {
@@ -546,5 +551,56 @@ func TestConfig_ConcurrentSavesDoNotLoseEachOther(t *testing.T) {
 
 	if lost > 0 {
 		t.Errorf("%d of %d concurrent config saves discarded the other change", lost, trials)
+	}
+}
+
+// configuration.md says a bad value is "a clean exit with a message — never a
+// silent fallback". Five rate limits were exactly that: a module enabled with a
+// limit of zero silently became the documented default, so the file and the
+// running firewall disagreed with nothing to say so.
+//
+// The policy now matches the acceptance duration: a file already on disk is
+// brought into line with a warning, because a firewall daemon that will not
+// start is worse; a value arriving through the interface is refused.
+func TestValidateCoreConfig_SubstitutesLimitsForEnabledModulesOnly(t *testing.T) {
+	cfg := newCoreCfgWith("/run/x", "/data", "/log", 120)
+	cfg.Firewall.SYNFlood = true
+	cfg.Firewall.SYNFloodLimit = 0
+	cfg.Firewall.TCPRSTFlood = false
+	cfg.Firewall.TCPRSTFloodLimit = 0 // module is off; nothing to substitute
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if cfg.Firewall.SYNFloodLimit != 100 {
+		t.Errorf("an enabled module needs a usable limit, got %d", cfg.Firewall.SYNFloodLimit)
+	}
+	if cfg.Firewall.TCPRSTFloodLimit != 0 {
+		t.Errorf("a disabled module's limit should be left alone, got %d", cfg.Firewall.TCPRSTFloodLimit)
+	}
+}
+
+func TestSaveFirewallOptions_RefusesALimitThatCannotWork(t *testing.T) {
+	path := writeTempCoreConfig(t, validCoreConfig)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = cfg.SaveFirewallOptions(shared.FirewallOptions{
+		SYNFlood: true, SYNFloodLimit: 0,
+	})
+	if err == nil {
+		t.Error("an enabled module with a limit of zero must be refused, not replaced")
+	}
+	if err != nil && !strings.Contains(err.Error(), "syn_flood_limit") {
+		t.Errorf("the message should name the key, got: %v", err)
+	}
+
+	// A module that is off may carry any limit; nothing uses it.
+	if err := cfg.SaveFirewallOptions(shared.FirewallOptions{
+		SYNFlood: false, SYNFloodLimit: 0,
+	}); err != nil {
+		t.Errorf("a disabled module's limit is not a problem: %v", err)
 	}
 }
