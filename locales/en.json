@@ -45,7 +45,7 @@
   {"id": "firstrun_open_web_desc",  "translation": "For a host serving a website. You can change this later on the ports page."},
   {"id": "firstrun_ipv6",           "translation": "IPv6"},
   {"id": "firstrun_telemetry",      "translation": "Count this installation"},
-  {"id": "firstrun_telemetry_desc", "translation": "Off unless you switch it on. A random identifier and the version — enough to see whether a critical fix reached everyone, not enough to describe you. Nothing is sent yet: this records your answer, and you can change it later."},
+  {"id": "firstrun_telemetry_desc", "translation": "Off unless you switch it on. Once a day, a random identifier and the version — enough to see whether a critical fix reached everyone, not enough to describe you. Changeable any time under System."},
   {"id": "firstrun_done",           "translation": "Account created and your choices staged. Sign in, review them, then apply."},
   {"id": "firstrun_choices_failed", "translation": "Account created, but the choices could not be staged — the core did not answer. Sign in and set them yourself."},
   {"id": "firstrun_notice",        "translation": "This is the only account. Resetting a lost password needs shell access to the server."},
@@ -356,6 +356,11 @@
   {"id": "system_timeout_title", "translation": "Choosing a timeout"},
   {"id": "system_timeout_body", "translation": "Long enough to open a second connection and test what you changed. Short enough that a lockout resolves itself before it costs you the afternoon."},
   {"id": "system_timeout_note", "translation": "120 seconds suits most cases. Raise it if your check involves more than an SSH login."},
+
+  {"id": "system_telemetry_title", "translation": "Installation count"},
+  {"id": "system_telemetry_desc", "translation": "A critical fix matters differently at ten installations and at ten thousand. Counting is the only way to tell which this is — and whether a fix has reached most of them."},
+  {"id": "system_telemetry_switch_desc", "translation": "Once a day, a random identifier generated on this machine and the version easywall is running. Not the hostname, not an address, not a rule, not a count of anything you have configured. Switch it off and the next day nothing is sent; the identifier lives in your data directory and can be deleted."},
+  {"id": "system_telemetry_endpoint", "translation": "Sent to"},
 
   {"id": "apply_subtitle", "translation": "Push the staged rules to the kernel, then confirm they work before the window closes."},
   {"id": "apply_lead_pending", "translation": "The new rules are live but unconfirmed. Open a second connection and check that you can still reach this host — then confirm."},

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -60,6 +61,14 @@ type Server struct {
 	httpSrv *http.Server
 	version *shared.Checker
 	certs   *certManager
+
+	// telemetry is nil in demo mode. The public demo is reset every few hours,
+	// which would give it a fresh identifier each time and manufacture several
+	// installations a day — in a count whose whole value is being small enough
+	// to mean something.
+	telemetry     *shared.Reporter
+	telemetryStop chan struct{}
+	telemetryOnce sync.Once
 }
 
 // NewServer initialises the web server with all dependencies.
@@ -103,6 +112,11 @@ func NewServer(cfg *Config) (*Server, error) {
 		certs:   certs,
 	}
 
+	if !cfg.DemoMode {
+		s.telemetry = shared.NewReporter(cfg.TelemetryStatePath(), cfg.TelemetryEnabled)
+		s.telemetryStop = make(chan struct{})
+	}
+
 	// Load templates — non-fatal if not yet created (Phase 4)
 	tmpl, err := loadTemplates(cfg.TemplatesDir())
 	if err != nil {
@@ -141,6 +155,9 @@ func (s *Server) Start() error {
 
 	slog.Info("easywall-web listening", "addr", s.cfg.BindAddr)
 	go s.certs.maintain()
+	if s.telemetry != nil {
+		go s.telemetry.Run(s.telemetryStop)
+	}
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
 	if err := s.httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTPS server: %w", err)
@@ -151,6 +168,9 @@ func (s *Server) Start() error {
 // Stop gracefully shuts down the server.
 func (s *Server) Stop() {
 	s.certs.close()
+	if s.telemetryStop != nil {
+		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = s.httpSrv.Shutdown(ctx)
@@ -235,6 +255,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
+		r.Post("/system/telemetry", s.handleTelemetryPOST)
 
 		r.Get("/log", s.handleLog)
 		r.Get("/log/filter", s.handleLogFilter)

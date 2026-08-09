@@ -22,13 +22,16 @@
     {{end}}
 
     {{$s := .Settings}}
-    <form method="POST" action="/system"
-          hx-post="/system"
-          hx-trigger="change delay:200ms"
-          hx-swap="none">
-
-      <div class="page-grid">
-        <div>
+    {{/* Two forms, not one. The acceptance window is a core setting and is saved
+         through the core; being counted is answered here and written to
+         web.toml. Withdrawing consent must not depend on another process
+         being reachable, so it does not travel with the settings that do. */}}
+    <div class="page-grid">
+      <div>
+        <form method="POST" action="/system"
+              hx-post="/system"
+              hx-trigger="change delay:200ms"
+              hx-swap="none">
           <div class="card">
             <div class="section-head">
               <div class="section-head-text">
@@ -64,6 +67,35 @@
               {{T "system_save"}}
             </button>
           </div>
+        </form>
+
+        <form method="POST" action="/system/telemetry"
+              hx-post="/system/telemetry"
+              hx-trigger="change delay:200ms"
+              hx-swap="none">
+          <div class="card mt-4">
+            <div class="section-head">
+              <div class="section-head-text">
+                <h2 class="section-title">{{T "system_telemetry_title"}}</h2>
+                <p class="section-desc">{{T "system_telemetry_desc"}}</p>
+              </div>
+            </div>
+
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">{{T "firstrun_telemetry"}}</span>
+                <span class="switch-desc">{{T "system_telemetry_switch_desc"}}</span>
+              </span>
+              <input type="checkbox" name="telemetry" class="toggle"
+                     {{if .Telemetry}}checked{{end}}>
+            </label>
+
+            <div class="switch-detail">
+              <p class="field-help">{{T "system_telemetry_endpoint"}}</p>
+              <p class="mt-1.5"><code>{{.TelemetryEndpoint}}</code></p>
+            </div>
+          </div>
+        </form>
         </div>
 
         <div class="aside-stack">
@@ -84,9 +116,7 @@
             <p>{{T "system_timeout_note"}}</p>
           </div>
         </div>
-      </div>
-
-    </form>
+    </div>
     {{end}}
   </div>
 </div>
