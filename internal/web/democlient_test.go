@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -140,14 +141,13 @@ func TestDemoSend_ApplyAccept(t *testing.T) {
 
 func TestDemoSend_ApplyRollback(t *testing.T) {
 	c := NewDemoClient()
-	// Use an extremely short acceptance window so the timer fires fast.
-	systemPayload, _ := json.Marshal(shared.SystemSettings{
-		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 1},
-	})
-	resp, _ := c.Send(shared.Command{Type: shared.CmdSaveSystem, Payload: systemPayload})
-	if !resp.Success {
-		t.Fatalf("SaveSystem (1s window): %s", resp.Error)
-	}
+	// A one-second window fires fast, and the demo now refuses to store one —
+	// the permitted range starts at ten seconds, because anything shorter closes
+	// before the confirmation page can be read. Set the field directly: this
+	// test is about the timer, not about what the settings API accepts.
+	c.demo.mu.Lock()
+	c.demo.system.Acceptance = shared.AcceptanceConfig{Enabled: true, Duration: 1}
+	c.demo.mu.Unlock()
 
 	// Snapshot the originally seeded rules before mutating.
 	originalState, _ := c.GetRules()
@@ -310,5 +310,61 @@ func TestDemoSend_ExportImportRoundTrip(t *testing.T) {
 	}
 	if state.Staged.TCP[0].Port == "7777" {
 		t.Error("import should have replaced the post-save state")
+	}
+}
+
+// The demo is how most people meet easywall, so what it records has to be what
+// the product records. Its saves used to write an empty detail while its seeded
+// history showed detailed ones — so the first thing a visitor changed produced
+// an entry poorer than every entry above it.
+func TestDemoSend_AuditEntriesSayWhatChanged(t *testing.T) {
+	c := NewDemoClient()
+
+	before, err := c.GetRules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := append(append([]string{}, before.Staged.Blacklist...), "198.51.100.77")
+	if err := c.SaveRules("blacklist", updated); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := c.GetLog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("expected an audit entry")
+	}
+	if got := entries[0].Detail; !strings.Contains(got, "198.51.100.77") {
+		t.Errorf("the entry must name the address that was added, got %q", got)
+	}
+
+	settings := shared.NetworkSettings{
+		IPv6:   shared.IPv6Config{Mode: shared.IPv6Block},
+		Docker: shared.DockerConfig{Enabled: true},
+	}
+	if err := c.SaveSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	entries, err = c.GetLog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := entries[0].Detail; !strings.Contains(got, "mode") {
+		t.Errorf("the entry must name the field that moved, got %q", got)
+	}
+}
+
+func TestDemoSend_RejectsAnOutOfRangeAcceptanceDuration(t *testing.T) {
+	c := NewDemoClient()
+	for _, dur := range []int{0, 1, 9, 3601} {
+		payload, _ := json.Marshal(shared.SystemSettings{
+			Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: dur},
+		})
+		resp, _ := c.Send(shared.Command{Type: shared.CmdSaveSystem, Payload: payload})
+		if resp.Success {
+			t.Errorf("duration %d is outside the permitted range and must be refused", dur)
+		}
 	}
 }
