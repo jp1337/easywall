@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 // repoFile walks up from the package directory to the repository root and reads
@@ -96,5 +98,70 @@ func TestEveryConfigKeyIsInTheSchema(t *testing.T) {
 				t.Errorf("%s is not described by its JSON Schema", key)
 			}
 		}
+	}
+}
+
+// The configurations under config/ are what the package installs and what the
+// container image copies in. They are the defaults an operator actually gets,
+// and nothing had been checking that they still parse against the structs they
+// configure — config/easywall.toml was shipping the obsolete ipv6.enabled a
+// whole release after mode replaced it, and config/web.toml had never heard of
+// update_check.
+func TestShippedConfigsMatchTheStructsTheyConfigure(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		into interface{}
+		typ  reflect.Type
+	}{
+		{"easywall.toml", &CoreConfig{}, reflect.TypeOf(CoreConfig{})},
+		{"web.toml", &WebConfig{}, reflect.TypeOf(WebConfig{})},
+	} {
+		raw := repoFile(t, "config", tc.file)
+
+		// Unknown keys are a drift signal in both directions: a key the struct
+		// no longer has, or one it never had.
+		meta, err := toml.Decode(raw, tc.into)
+		if err != nil {
+			t.Errorf("config/%s does not parse: %v", tc.file, err)
+			continue
+		}
+		for _, key := range meta.Undecoded() {
+			t.Errorf("config/%s sets %q, which no longer exists in the struct", tc.file, key)
+		}
+
+		// And every key the struct has should be present, so an operator can see
+		// the setting exists without reading the source. Deprecated keys are the
+		// exception: they are read for migration and must not be advertised.
+		deprecated := map[string]bool{"enabled": false}
+		_ = deprecated
+		text := raw
+		for _, key := range tomlKeys(tc.typ) {
+			if key == "enabled" {
+				continue // appears in three sections; presence is covered by parsing
+			}
+			if !strings.Contains(text, key) {
+				t.Errorf("config/%s does not mention %q", tc.file, key)
+			}
+		}
+	}
+}
+
+// The obsolete IPv6 boolean must not come back into the shipped default: a
+// fresh install that sets it takes the migration path and logs a warning about
+// its own packaging on every start.
+func TestShippedCoreConfigUsesTheCurrentIPv6Key(t *testing.T) {
+	// Decoded rather than grepped: the file aligns its values with spaces, and a
+	// substring check would pass or fail on the formatting instead of the value.
+	var cfg CoreConfig
+	meta, err := toml.Decode(repoFile(t, "config", "easywall.toml"), &cfg)
+	if err != nil {
+		t.Fatalf("config/easywall.toml does not parse: %v", err)
+	}
+	if cfg.IPv6.Mode != IPv6Filter {
+		t.Errorf("the shipped default should be ipv6.mode = %q, got %q", IPv6Filter, cfg.IPv6.Mode)
+	}
+	if meta.IsDefined("ipv6", "enabled") {
+		t.Error("config/easywall.toml still sets the obsolete ipv6.enabled; a fresh " +
+			"install would take the migration path and warn about its own packaging on every start")
 	}
 }

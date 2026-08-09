@@ -1,9 +1,12 @@
 package web
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -158,19 +161,40 @@ func (c *Config) SaveCredentials(username, passwordHash string) error {
 
 // saveLocked persists the configuration. c.mu must be held for writing, so the
 // file write cannot reorder against the field update.
+//
+// Written atomically where the directory permits it, and in place where it does
+// not. The packaged layout is the second case on purpose: /etc/easywall belongs
+// to root and holds easywall.toml, the configuration the *root* daemon reads.
+// Making that directory writable by the unprivileged web user so it could
+// create a temp file there would hand a network-facing process the ability to
+// rewrite what root loads — the one thing the two-process split exists to
+// prevent. web.toml itself belongs to the web user, so an in-place rewrite
+// works and nothing else in that directory is reachable.
 func (c *Config) saveLocked() error {
+	data, err := c.encode()
+	if err != nil {
+		return err
+	}
+
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "web-*.toml.tmp")
 	if err != nil {
-		return fmt.Errorf("create temp config: %w", err)
+		if !errors.Is(err, fs.ErrPermission) {
+			return fmt.Errorf("create temp config: %w", err)
+		}
+		// No write access to the directory: rewrite the file itself. It is a few
+		// hundred bytes and rewritten only when credentials change.
+		if err := os.WriteFile(c.configPath, data, 0600); err != nil {
+			return fmt.Errorf("write config: %w", err)
+		}
+		return nil
 	}
-	tmpPath := tmp.Name()
 
-	enc := toml.NewEncoder(tmp)
-	if err := enc.Encode(c.WebConfig); err != nil {
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("encode config: %w", err)
+		return fmt.Errorf("write temp config: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpPath)
@@ -179,42 +203,18 @@ func (c *Config) saveLocked() error {
 	return os.Rename(tmpPath, c.configPath)
 }
 
-// WriteDefaultWebConfig writes a default web.toml to path.
-func WriteDefaultWebConfig(path string) error {
-	sessionKey, err := generateSecret(32)
-	if err != nil {
-		return err
+// encode renders the configuration as TOML. c.mu must be held.
+func (c *Config) encode() ([]byte, error) {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(c.WebConfig); err != nil {
+		return nil, fmt.Errorf("encode config: %w", err)
 	}
-
-	content := fmt.Sprintf(`# easywall web configuration
-# See documentation at https://jp1337.github.io/easywall/configuration
-
-bind_addr    = "0.0.0.0:12227"
-socket_path  = "/run/easywall/core.sock"
-ssl_dir      = "/etc/easywall/ssl"
-data_dir     = "/var/lib/easywall"
-language     = "en"
-
-# The dashboard checks github.com once a day for a newer release. This is the
-# only outbound request easywall makes. Set to false to remove it entirely.
-update_check = true
-
-# Auto-generated secret — keep this private!
-session_key = %q
-
-# Set via first-run wizard — do not edit manually
-username = ""
-password = ""
-
-[tls]
-# Leave empty to use auto-generated self-signed certificate in ssl_dir.
-# Set to paths of your own certificate/key for custom TLS (e.g. Let's Encrypt).
-cert = ""
-key  = ""
-`, sessionKey)
-
-	return os.WriteFile(path, []byte(content), 0600)
+	return buf.Bytes(), nil
 }
+
+// There is deliberately no WriteDefaultWebConfig here, for the same reason as
+// on the core side: config/web.toml is what the package installs, and a second
+// default in the binary only drifts from it.
 
 // generateSecret generates a cryptographically random hex string of byteLen bytes.
 func generateSecret(byteLen int) (string, error) {

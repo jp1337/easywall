@@ -161,25 +161,6 @@ func TestVersionCachePath(t *testing.T) {
 		t.Errorf("unexpected VersionCachePath: %s", vcp)
 	}
 }
-
-func TestWriteDefaultWebConfig(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "web.toml")
-	if err := WriteDefaultWebConfig(path); err != nil {
-		t.Fatalf("WriteDefaultWebConfig: %v", err)
-	}
-	cfg, err := LoadConfig(path)
-	if err != nil {
-		t.Fatalf("LoadConfig after WriteDefault: %v", err)
-	}
-	if cfg.BindAddr != "0.0.0.0:12227" {
-		t.Errorf("unexpected bind_addr: %s", cfg.BindAddr)
-	}
-	if len(cfg.SessionKey) == 0 {
-		t.Error("session_key must be set in default config")
-	}
-}
-
 func TestSaveCredentials(t *testing.T) {
 	path := writeTempConfig(t, validConfigContent)
 	cfg, _ := LoadConfig(path)
@@ -257,14 +238,6 @@ func TestSave_AtomicRenameToSameDir(t *testing.T) {
 		t.Fatalf("save should succeed in writable dir: %v", err)
 	}
 }
-
-func TestWriteDefaultWebConfig_InvalidPath(t *testing.T) {
-	err := WriteDefaultWebConfig("/nonexistent/directory/web.toml")
-	if err == nil {
-		t.Error("expected error for nonexistent directory")
-	}
-}
-
 func TestSave_RenameError(t *testing.T) {
 	dir := t.TempDir()
 	// Create a directory at the target path — os.Rename(tmp, dir) returns EISDIR
@@ -297,5 +270,64 @@ func TestVersionCachePath_NoDataDir(t *testing.T) {
 	vcp := cfg.VersionCachePath()
 	if !strings.Contains(vcp, "version_cache.json") {
 		t.Errorf("unexpected VersionCachePath: %s", vcp)
+	}
+}
+
+// The packaged layout puts web.toml in a directory owned by root, because that
+// directory also holds easywall.toml — the configuration the root daemon reads.
+// Making it writable by the unprivileged web user so it could create a temp file
+// there would hand a network-facing process the ability to rewrite what root
+// loads. So the save has to work without write access to the directory.
+func TestConfigSave_WorksWithoutWriteAccessToTheDirectory(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "web.toml")
+	if err := os.WriteFile(path, []byte(`
+bind_addr = "0.0.0.0:12227"
+socket_path = "/run/easywall/core.sock"
+ssl_dir = "/etc/easywall/ssl"
+session_key = "key"
+username = ""
+password = ""
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The file stays writable; the directory does not.
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
+
+	hash, err := HashPassword("firstrunpassword123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SaveCredentials("admin", hash); err != nil {
+		t.Fatalf("the first-run wizard must be able to save its credentials: %v", err)
+	}
+
+	reloaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("reload after in-place save: %v", err)
+	}
+	if reloaded.Username != "admin" || !VerifyPassword("firstrunpassword123", reloaded.Password) {
+		t.Error("the credentials did not survive the in-place write")
+	}
+	// And nothing was left lying about.
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected only web.toml in the directory, got %d entries", len(entries))
 	}
 }
