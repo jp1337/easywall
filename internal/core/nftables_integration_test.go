@@ -226,30 +226,32 @@ func TestIntegration_Apply_BaseRules_Present(t *testing.T) {
 	}
 }
 
-func TestIntegration_Apply_ICMPv6_AddsRules_WhenEnabled(t *testing.T) {
+// The ICMPv6 exemptions belong to filter mode. Under block the traffic is gone
+// before they would be reached; comparing against block is what isolates them.
+func TestIntegration_Apply_ICMPv6_AddsRules_UnderFilterMode(t *testing.T) {
 	m := newIntegrationManager(t)
 
-	// Without IPv6
-	applyEmptyIPv6(t, m, shared.IPv6Config{Enabled: false})
-	withoutIPv6 := ruleCount(t, m, "input")
+	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Block})
+	blocked := ruleCount(t, m, "input")
 
-	// With IPv6 (6 extra ICMPv6 types: 1,2,3,4,128,129)
-	applyEmptyIPv6(t, m, shared.IPv6Config{Enabled: true})
-	withIPv6 := ruleCount(t, m, "input")
+	// 6 base ICMPv6 types (1,2,3,4,128,129), and block contributes one
+	// family-wide drop rule of its own.
+	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Filter})
+	filtered := ruleCount(t, m, "input")
 
-	if withIPv6 != withoutIPv6+6 {
-		t.Errorf("expected 6 extra ICMPv6 rules, got %d (with=%d, without=%d)",
-			withIPv6-withoutIPv6, withIPv6, withoutIPv6)
+	if filtered != blocked+5 {
+		t.Errorf("expected 6 ICMPv6 rules in place of block's single drop, got %d "+
+			"(filter=%d, block=%d)", filtered-blocked, filtered, blocked)
 	}
 }
 
 func TestIntegration_Apply_ICMPv6_RouterAdvertisement(t *testing.T) {
 	m := newIntegrationManager(t)
 
-	applyEmptyIPv6(t, m, shared.IPv6Config{Enabled: true})
+	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Filter})
 	base := ruleCount(t, m, "input")
 
-	applyEmptyIPv6(t, m, shared.IPv6Config{Enabled: true, ICMPAllowRouterAdvertisement: true})
+	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Filter, ICMPAllowRouterAdvertisement: true})
 	withRA := ruleCount(t, m, "input")
 
 	// Types 133+134 = 2 extra rules
@@ -261,10 +263,10 @@ func TestIntegration_Apply_ICMPv6_RouterAdvertisement(t *testing.T) {
 func TestIntegration_Apply_ICMPv6_NeighborAdvertisement(t *testing.T) {
 	m := newIntegrationManager(t)
 
-	applyEmptyIPv6(t, m, shared.IPv6Config{Enabled: true})
+	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Filter})
 	base := ruleCount(t, m, "input")
 
-	applyEmptyIPv6(t, m, shared.IPv6Config{Enabled: true, ICMPAllowNeighborAdvertisement: true})
+	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Filter, ICMPAllowNeighborAdvertisement: true})
 	withNA := ruleCount(t, m, "input")
 
 	// Types 135+136 = 2 extra rules

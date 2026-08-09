@@ -48,9 +48,18 @@ Set `duration` to a value long enough for you to verify connectivity from a seco
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `true` | Compile IPv6 rules into the inet table |
+| `mode` | string | `"filter"` | What happens to IPv6: `filter` puts it through every rule, `passthrough` accepts it before any rule, `block` drops it except loopback |
 | `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 type 134 — required for SLAAC address autoconfiguration |
 | `icmp_allow_neighbor_advertisement` | bool | `true` | Allow ICMPv6 types 135/136 — required for Neighbor Discovery Protocol |
+
+Both ICMPv6 keys apply only under `mode = "filter"`. Under `passthrough` the traffic
+is already accepted and under `block` already gone.
+
+> **`enabled` is obsolete.** It was documented as "off means IPv6 traffic is not
+> filtered at all" and did the opposite: the table is `inet`, so every rule and the
+> drop policy still applied to IPv6 and only the ICMPv6 exemptions were removed —
+> IPv6 came out filtered *and* non-functional. A config still carrying the key loads,
+> and both old values become `mode = "filter"`.
 
 Disable `enabled` only on servers with no IPv6 addressing. Disabling individual ICMPv6 RA/NA types will break IPv6 connectivity.
 

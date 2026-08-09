@@ -140,7 +140,7 @@ func (d *demoState) seed() {
 	}
 	d.settings = shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
-			Enabled:                        true,
+			Mode:                           shared.IPv6Filter,
 			ICMPAllowRouterAdvertisement:   true,
 			ICMPAllowNeighborAdvertisement: true,
 		},
