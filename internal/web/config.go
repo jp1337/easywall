@@ -206,6 +206,27 @@ func (c *Config) VersionCachePath() string {
 	return c.SSLDir + "/../version_cache.json"
 }
 
+// TelemetryStatePath returns the path for the installation identifier and the
+// last-reported stamp.
+func (c *Config) TelemetryStatePath() string {
+	if c.DataDir != "" {
+		return c.DataDir + "/telemetry.json"
+	}
+	return c.SSLDir + "/../telemetry.json"
+}
+
+// SaveTelemetry records the operator's answer to being counted.
+//
+// Separate from every other save on purpose: withdrawing consent must work
+// when nothing else does. It touches only web.toml, so it does not depend on
+// the core being reachable.
+func (c *Config) SaveTelemetry(enabled bool) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Telemetry = &enabled
+	return c.saveLocked()
+}
+
 // SaveCredentials persists updated username and password hash to the config file.
 func (c *Config) SaveCredentials(username, passwordHash string) error {
 	c.mu.Lock()

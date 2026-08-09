@@ -1728,6 +1728,20 @@ body {
 
   .switch-detail .field-help { margin-top: 6px; }
 
+  /* Same treatment as an aside-card's inline code, but allowed to break: the
+     one place this is used holds a URL, and a URL that cannot wrap pushes the
+     card wider than the screen on a phone. */
+  .switch-detail code {
+    font-family: var(--font-data);
+    font-size: 11.5px;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    color: var(--color-ink);
+    overflow-wrap: anywhere;
+  }
+
   /* ── Context column ──────────────────────────────────────────────────────
      Carries what an operator editing firewall rules actually wants at hand:
      what the list does, the syntax it accepts, what happens on save. */

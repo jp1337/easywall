@@ -45,7 +45,7 @@
   {"id": "firstrun_open_web_desc",  "translation": "Für einen Host, der eine Website ausliefert. Lässt sich später auf der Ports-Seite ändern."},
   {"id": "firstrun_ipv6",           "translation": "IPv6"},
   {"id": "firstrun_telemetry",      "translation": "Diese Installation mitzählen"},
-  {"id": "firstrun_telemetry_desc", "translation": "Aus, solange du es nicht einschaltest. Eine Zufalls-Kennung und die Version — genug, um zu sehen, ob ein kritischer Fix alle erreicht hat, zu wenig, um dich zu beschreiben. Gesendet wird noch nichts: hier wird nur deine Antwort festgehalten, änderbar bleibt sie."},
+  {"id": "firstrun_telemetry_desc", "translation": "Aus, solange du es nicht einschaltest. Einmal am Tag eine Zufalls-Kennung und die Version — genug, um zu sehen, ob ein kritischer Fix alle erreicht hat, zu wenig, um dich zu beschreiben. Jederzeit änderbar unter System."},
   {"id": "firstrun_done",           "translation": "Konto angelegt und deine Auswahl vorgemerkt. Melde dich an, prüfe sie und wende sie an."},
   {"id": "firstrun_choices_failed", "translation": "Konto angelegt, aber die Auswahl konnte nicht vorgemerkt werden — der Core hat nicht geantwortet. Melde dich an und setze sie selbst."},
   {"id": "firstrun_notice",        "translation": "Dies ist das einzige Konto. Ein verlorenes Passwort lässt sich nur mit Shell-Zugriff auf den Server zurücksetzen."},
@@ -356,6 +356,11 @@
   {"id": "system_timeout_title", "translation": "Die Wartezeit wählen"},
   {"id": "system_timeout_body", "translation": "Lang genug, um eine zweite Verbindung zu öffnen und das Geänderte zu prüfen. Kurz genug, dass sich ein Aussperren von selbst löst, bevor es den Nachmittag kostet."},
   {"id": "system_timeout_note", "translation": "120 Sekunden passen meistens. Höher setzen, wenn die Prüfung mehr umfasst als eine SSH-Anmeldung."},
+
+  {"id": "system_telemetry_title", "translation": "Installationszählung"},
+  {"id": "system_telemetry_desc", "translation": "Ein kritischer Fix wiegt bei zehn Installationen anders als bei zehntausend. Nur eine Zählung sagt, welcher Fall vorliegt — und ob ein Fix die meisten erreicht hat."},
+  {"id": "system_telemetry_switch_desc", "translation": "Einmal am Tag eine auf diesem Rechner erzeugte Zufalls-Kennung und die laufende Version. Nicht der Hostname, keine Adresse, keine Regel, keine Anzahl von irgendetwas, das du eingerichtet hast. Abschalten heißt: am nächsten Tag geht nichts mehr raus; die Kennung liegt in deinem Datenverzeichnis und darf gelöscht werden."},
+  {"id": "system_telemetry_endpoint", "translation": "Ziel"},
 
   {"id": "apply_subtitle", "translation": "Die vorgemerkten Regeln an den Kernel geben und vor Ablauf des Fensters bestätigen, dass sie funktionieren."},
   {"id": "apply_lead_pending", "translation": "Die neuen Regeln sind aktiv, aber unbestätigt. Eine zweite Verbindung öffnen und prüfen, ob dieser Host noch erreichbar ist — dann bestätigen."},

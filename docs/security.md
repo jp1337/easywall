@@ -77,12 +77,26 @@ built for.
 > assigning `element.style.*` from JavaScript, or letting a library inject a
 > `<style>` block, is blocked. Scripts toggle a class instead.
 
-### The one request that does go out
+### Every request that goes out
 
-The dashboard checks for a newer release against `api.github.com`, once a day. That is
-the whole list. It never delays a page — the answer is served from a cache and refreshed
-in the background — and a failure is remembered for an hour, so a host with no route out
-is not retrying on every load. `update_check = false` in `web.toml` removes it.
+Two, and this is the whole list.
+
+| | Destination | When | Carries | Default |
+|---|---|---|---|---|
+| Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
+| Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
+
+Neither delays a page. The update check is served from a cache and refreshed in the
+background, and a failure is remembered for an hour so a host with no route out is not
+retrying on every load. The count runs in the background and gives up after ten seconds.
+
+The count is off unless someone said yes — the first-run wizard asks, and the System page
+switches it back off without needing the core process to be reachable. What it sends is
+listed above and in [configuration]({{ '/configuration/' | relative_url }}) in full; the
+identifier lives in `<data_dir>/telemetry.json` and deleting it is allowed and harmless.
+
+> On a host with no route out, both simply fail and nothing else changes. easywall is
+> built for those hosts; neither request is on the path of anything that matters.
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
 > event, which htmx does not emit. The listener never ran, so `allowEval` stayed at

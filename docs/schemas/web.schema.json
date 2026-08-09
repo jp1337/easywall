@@ -61,7 +61,7 @@
     },
     "telemetry": {
       "type": "boolean",
-      "description": "Whether this installation may be counted. Off unless switched on, and asked for during the first-run wizard rather than assumed: a random identifier generated on this machine plus the version, which is enough to tell whether a critical fix reached everyone and not enough to describe anyone. The sending itself arrives in a later release.",
+      "description": "Whether this installation may be counted. Off unless switched on, and asked for during the first-run wizard rather than assumed. Once a day it sends a random identifier generated on this machine plus the version to https://telemetry.wdkro.de/v1/count — enough to tell whether a critical fix reached everyone, not enough to describe anyone. Your address is not recorded. Switch it off here or under System in the interface.",
       "default": false
     },
     "demo_mode": {

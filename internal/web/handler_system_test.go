@@ -170,3 +170,76 @@ func TestHandleSystemPOST_HTMX_CoreError(t *testing.T) {
 		t.Errorf("expected HX-Trigger easywall:error, got %q", trigger)
 	}
 }
+
+// ── Telemetry ───────────────────────────────────────────────────────────────
+
+// Withdrawing consent goes through its own route on purpose: the settings on
+// the same page travel through the core, and a core that cannot be reached
+// must not be able to keep an installation counted.
+func TestHandleTelemetryPOST_WorksWithoutTheCore(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	if err := s.cfg.SaveTelemetry(true); err != nil {
+		t.Fatal(err)
+	}
+	fc.listener.Close() // the core is gone from here on
+
+	rec := doFormRequest(s, "POST", "/system/telemetry", "", makeAuthCookie(t, s))
+	if rec.Code >= 400 {
+		t.Fatalf("consent could not be withdrawn: HTTP %d", rec.Code)
+	}
+	if s.cfg.TelemetryEnabled() {
+		t.Error("the installation is still counted after the switch was turned off")
+	}
+}
+
+func TestHandleTelemetryPOST_RecordsConsent(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	doFormRequest(s, "POST", "/system/telemetry", "telemetry=on", makeAuthCookie(t, s))
+	if !s.cfg.TelemetryEnabled() {
+		t.Error("switching it on was not recorded")
+	}
+
+	doFormRequest(s, "POST", "/system/telemetry", "", makeAuthCookie(t, s))
+	if s.cfg.TelemetryEnabled() {
+		t.Error("switching it off was not recorded")
+	}
+}
+
+// The public demo is wiped every few hours, identifier included. Left counting,
+// it would invent several installations a day in a number whose entire value is
+// being small enough to mean something.
+func TestNewServer_DemoModeNeverCounts(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	s.cfg.DemoMode = true
+
+	demo, err := NewServer(s.cfg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	defer demo.Stop()
+
+	if demo.telemetry != nil {
+		t.Error("the demo would report itself as an installation")
+	}
+}
+
+// The System page has to show what is sent and where — a claim about outbound
+// traffic that the interface itself does not state is one an operator has to
+// take on faith.
+func TestHandleSystemGET_NamesTheTelemetryEndpoint(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	rec := doRequest(s, "GET", "/system", nil, makeAuthCookie(t, s))
+	body := rec.Body.String()
+	if !strings.Contains(body, shared.TelemetryEndpoint) {
+		t.Errorf("the System page does not say where reports go (%q)", shared.TelemetryEndpoint)
+	}
+	if !strings.Contains(body, `action="/system/telemetry"`) {
+		t.Error("the telemetry switch is not on its own form; a core outage would block it")
+	}
+}
