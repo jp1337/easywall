@@ -56,9 +56,14 @@ default path rather than a habit you have to remember.
 
 ## The socket protocol
 
-About 16 typed message kinds, declared as Go structs on both sides. No untyped
-fields, no `map[string]interface{}` pass-through — adding an operation means adding
-a constant to both ends.
+Fifteen message kinds, declared as Go structs on both sides. Adding an operation
+means adding a constant to both ends.
+
+One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}`, and
+the core re-encodes it to JSON and decodes it into the concrete type named by
+`rule_type`. An unknown `rule_type` is rejected, and since 2.5.0 the decoded
+rules are validated before they are stored — but the field itself is not typed
+at the protocol level, and this page used to claim it was.
 
 | Command | Purpose |
 |---|---|

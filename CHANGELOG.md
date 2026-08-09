@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **17 of the 31 controls on the options page never reached the firewall.** They were read from the form, persisted, given defaults in `config.go` and documented with those defaults — and absent from `nftables.go`. Missing entirely: `connection_limit_per_ip` (+max), `tcp_rst_flood` (+log, +limit), `drop_anycast`, `log_blacklist_connections` (+limit), and the eight per-module `*_log` switches with their two limit fields
+- **The whole logging feature was inert.** There was one `expr.Log` in the codebase and it was miswired: `Key` is a bitmask over the `NFTA_LOG_*` attribute indices, and setting it to `unix.NFTA_LOG_PREFIX` (2) sets the *group* bit and leaves the prefix bit clear. The kernel got an empty log group and no prefix. `filters.md` tells operators to run `journalctl -k -f | grep easywall`; there was never anything for that to match
+- **A blacklist entry could be listed as blocked and never enforced.** The web handler saved without checking, `SaveStaged` did not validate (only `ImportRules` called `validateRules`), and at apply time the parse guards returned quietly. Both layers now validate, and `Apply` refuses the set — before `Reset`, so a refused apply leaves the working rules in place rather than destroying them on the way to the error
+- **The dashboard's "rules are live" was never checked.** `Status` returned `Active: true` unconditionally, meaning "the daemon is running". After `nft delete table inet easywall`, or an apply whose rollback also failed, it still showed green. It now asks the kernel: table present, input chain present, rules in it
+- **A data race between `Daemon.Start` and `Stop`** that CI's `-race` run had been passing by luck. Reachable in production when SIGTERM arrives during startup
+- **`lastApply` reset to "never" on every daemon restart** while the rules it referred to were still installed. It is now persisted, and reading it no longer races with the apply that writes it
+
+### Changed
+
+- **The audit log's detail column says what changed.** It was empty on every save. Rule saves name the addresses added and removed, or count entries for the rule kinds whose members are structures; option and settings saves name the fields that moved, including nested ones such as `docker.enabled`
+- **A failed rollback is recorded** as `rollback_failed` instead of being discarded with `_ =`. New rules not taking *and* the old ones not returning is the worst outcome the system has, and it was the quietest one
+- `NftablesManager.Restore` is removed. It took a snapshot argument, ignored it and returned nil — shaped exactly like a recovery path that recovered nothing
+- The roadmap in `README.md` is rewritten around correctness before features
+
+### Added
+
+- `internal/core/nftables_semantics_test.go` — the existing integration tests assert rule counts, which a rule that drops where it should accept passes without complaint. These read back `nft list table`, the view an operator gets, and assert on meaning: verdicts, source vs destination, log prefixes, and that the blacklist is evaluated before the whitelist
+- Integration coverage for the three modules that produced nothing, and for the refusal path leaving the previous ruleset untouched
+
+### Documentation corrections
+
+- `filters.md` listed three log prefixes; none of them were ever emitted, and the per-module prefix it named (`easywall`) did not exist. The table now lists all ten, with the prefix each rule actually carries
+- `architecture.md` claimed the socket protocol has "no untyped fields". `SaveRulesPayload.Rules` is an `interface{}` that the core re-encodes and decodes by `rule_type`
+- `audit-log.md` described the detail column as "usually empty" and that is no longer true; it now also states that entries are attributed to `web` rather than to an account
+
+### Fixed
+
 - **`npm run check:diagrams` could not see a renderer upgrade.** It hashed only the `.mmd` source, so when mermaid went from 11.16.0 to 11.16.1 — moving the bezier control points on every rounded container — the committed SVGs stopped matching what the pinned renderer produced, and the check still called them current. The mermaid version is now part of the stamp, so an upgrade is a re-render
 
 ### Security
