@@ -138,12 +138,12 @@ Each module has a matching `_log` boolean and one or more numeric threshold keys
 | `bind_addr` | string | Listen address and port — e.g. `"0.0.0.0:12227"` or `"127.0.0.1:12227"` |
 | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
-| `data_dir` | string | Directory for the version cache file — defaults to `/var/lib/easywall` |
+| `data_dir` | string | Directory for the version cache and the installation identifier — defaults to `/var/lib/easywall` |
 | `language` | string | Fallback UI locale — `"en"` (English) or `"de"` (German). Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
 | `session_key` | string | 32-byte hex secret that signs the session cookie. Generated on first start if missing or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
-| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. The only outbound request easywall makes; see below |
+| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of two possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 
@@ -201,8 +201,7 @@ fails with a key-mismatch error naming a certificate you never configured.
 ## The update check
 
 The dashboard asks `api.github.com` once a day whether there is a newer release, and
-shows a banner if so. It is the only outbound request easywall makes, and it is never
-in the way of a page: the answer comes from a cache on disk, and a stale cache is
+shows a banner if so. It is never in the way of a page: the answer comes from a cache on disk, and a stale cache is
 refreshed in the background. On a host with no route out, the failure is remembered for
 an hour rather than retried on every load.
 
@@ -216,11 +215,32 @@ critical bug matters differently at ten installations than at ten thousand, and 
 count is the only way to know which this is — or to say that a fix has reached most
 of them.
 
-What it will send, in full: a random identifier generated on this machine, and the
-version. Not the hostname, not an address, not a rule, not a count of anything you
-have configured. The sending itself arrives in a later release; the setting exists
-now so the answer is recorded before there is anything to record — asking after the
-fact is how a project ends up explaining itself.
+What it sends, in full — once a day, nothing else, ever:
+
+```
+GET https://telemetry.wdkro.de/v1/count?id=<32 hex characters>&v=<version>
+```
+
+Not the hostname, not an address, not a rule, not a count of anything you have
+configured. The identifier is 16 random bytes generated on your machine and kept in
+`<data_dir>/telemetry.json`; delete that file and the next report is a new
+installation as far as anyone can tell. It is random rather than derived from the
+hostname or the machine-id on purpose: a derived identifier can be reproduced by
+anyone who knows the host, which turns a count into a lookup.
+
+The receiving end writes one line — the timestamp, the identifier, the version — and
+answers 204. **Your address is not recorded**: it is used to rate-limit the endpoint
+and never reaches disk. Lines are kept 35 days, after which only the rolled-up number
+remains.
+
+Switch it off under **System** in the interface, or set `telemetry = false`. Turning it
+off does not need the core process to be running — consent that can only be withdrawn
+while another daemon is reachable would not be consent.
+
+> The number is a lower bound and cannot be made tamper-proof: the endpoint is open, so
+> anyone can invent identifiers. It is good enough to tell ten installations from ten
+> thousand, and to see whether a fix has spread. It is not good for anything else, and
+> is not claimed to be.
 
 ---
 

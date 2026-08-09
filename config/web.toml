@@ -22,9 +22,14 @@ update_check = true
 
 # ─── Counting installations ─────────────────────────────────────────────────
 # Off unless switched on, and asked for during the first-run wizard rather than
-# assumed. A random identifier and the version — enough to tell whether a
-# critical fix reached everyone, not enough to describe anyone. The sending
-# itself arrives in a later release; this records the answer.
+# assumed. Once a day:
+#
+#   GET https://telemetry.wdkro.de/v1/count?id=<32 hex>&v=<version>
+#
+# A random identifier generated on this machine and the version — enough to tell
+# whether a critical fix reached everyone, not enough to describe anyone. Your
+# address is not recorded at the other end. The identifier lives in
+# <data_dir>/telemetry.json and may be deleted. Also switchable under System.
 telemetry = false
 
 # ─── Secret ─────────────────────────────────────────────────────────────────
