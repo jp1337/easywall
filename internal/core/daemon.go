@@ -21,9 +21,16 @@ import (
 type Daemon struct {
 	cfg      *Config
 	firewall *Firewall
-	listener net.Listener
 	wg       sync.WaitGroup
 	quit     chan struct{}
+	quitOnce sync.Once
+
+	// mu guards listener only. Start writes it and Stop reads it, and the two
+	// are called from different goroutines — Start blocks for the process
+	// lifetime, so Stop necessarily runs on another one. Without this, a
+	// SIGTERM arriving while the socket is still being set up races the write.
+	mu       sync.Mutex
+	listener net.Listener
 }
 
 // NewDaemon initialises the daemon. Call Start() to begin accepting connections.
@@ -53,10 +60,22 @@ func (d *Daemon) Start() error {
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
 
-	var err error
-	d.listener, err = net.Listen("unix", d.cfg.SocketPath)
+	ln, err := net.Listen("unix", d.cfg.SocketPath)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", d.cfg.SocketPath, err)
+	}
+
+	d.mu.Lock()
+	select {
+	case <-d.quit:
+		// Stop already ran: it saw no listener and closed nothing, so this one
+		// would leak and keep accepting. Close it here instead.
+		d.mu.Unlock()
+		_ = ln.Close()
+		return nil
+	default:
+		d.listener = ln
+		d.mu.Unlock()
 	}
 
 	// Set socket permissions: root:easywall 0660
@@ -72,7 +91,7 @@ func (d *Daemon) Start() error {
 	slog.Info("daemon listening", "socket", d.cfg.SocketPath)
 
 	for {
-		conn, err := d.listener.Accept()
+		conn, err := ln.Accept()
 		if err != nil {
 			select {
 			case <-d.quit:
@@ -90,11 +109,35 @@ func (d *Daemon) Start() error {
 	}
 }
 
-// Stop gracefully shuts down the daemon.
+// currentListener returns the active listener, or nil once Stop has run.
+// Anything outside Start must go through this rather than reading the field:
+// Start writes it from its own goroutine, so an unguarded read is a race.
+func (d *Daemon) currentListener() net.Listener {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.listener
+}
+
+// setListener installs a listener. Used by Start and by tests that supply
+// their own socket.
+func (d *Daemon) setListener(ln net.Listener) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.listener = ln
+}
+
+// Stop gracefully shuts down the daemon. Safe to call more than once, and safe
+// to call before or during Start.
 func (d *Daemon) Stop() {
-	close(d.quit)
-	if d.listener != nil {
-		_ = d.listener.Close()
+	d.quitOnce.Do(func() { close(d.quit) })
+
+	d.mu.Lock()
+	ln := d.listener
+	d.listener = nil
+	d.mu.Unlock()
+
+	if ln != nil {
+		_ = ln.Close()
 	}
 	d.wg.Wait()
 	_ = os.Remove(d.cfg.SocketPath)

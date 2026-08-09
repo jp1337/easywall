@@ -82,7 +82,7 @@ func startTestSocket(t *testing.T, d *Daemon) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	d.listener = ln
+	d.setListener(ln)
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -341,14 +341,20 @@ func TestDaemonStop(t *testing.T) {
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 	startTestSocket(t, d)
 
+	// Hold the listener before stopping: Stop clears the field so that a
+	// second Stop, or a Start racing it, cannot act on a closed socket.
+	ln := d.currentListener()
+
 	// Stop should close the quit channel, close the listener, and clean up
 	d.Stop()
 
 	// After stop, the listener should be closed (further Accept should fail)
-	_, err := d.listener.Accept()
-	if err == nil {
+	if _, err := ln.Accept(); err == nil {
 		t.Error("expected error after stop (listener should be closed)")
 	}
+
+	// And stopping twice must not panic on the closed quit channel.
+	d.Stop()
 }
 
 func TestDaemonStop_NilListener(t *testing.T) {
@@ -650,8 +656,8 @@ func TestDaemonStart_AcceptErrorDefaultBranch(t *testing.T) {
 
 	// Close the listener directly (not via Stop) while quit is still open.
 	// The goroutine will loop through default: continue until Stop closes quit.
-	if d.listener != nil {
-		_ = d.listener.Close()
+	if ln := d.currentListener(); ln != nil {
+		_ = ln.Close()
 	}
 	time.Sleep(10 * time.Millisecond) // let the default branch execute at least once
 
