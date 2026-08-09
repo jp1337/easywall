@@ -10,10 +10,8 @@ Ports that accept inbound connections on every interface. TCP and UDP are separa
 tabs; a rule is a port, an optional SSH mark, and a description for your own benefit.
 
 <figure class="docs-shot">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/ports-dark.png' | relative_url }}">
-    <img src="{{ '/assets/img/screens/ports-light.png' | relative_url }}" alt="The port rules page: TCP and UDP tabs, a filter box, a table of ports with an SSH protection checkbox and description, and context cards explaining port syntax and SSH protection.">
-  </picture>
+  {% include themed-figure.html base="/assets/img/screens/ports" ext="png"
+     alt="The port rules page: TCP and UDP tabs, a filter box, a table of ports with an SSH protection checkbox and description, and context cards explaining port syntax and SSH protection." %}
   <figcaption>Filtering narrows what is already on the page, so unsaved edits survive it.</figcaption>
 </figure>
 

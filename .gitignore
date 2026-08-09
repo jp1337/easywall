@@ -50,3 +50,7 @@ debian/*.debhelper
 node_modules/
 tmp/
 .claude/
+
+# Playwright storage state from documentation screenshot runs — it holds a
+# session cookie and once got committed into the published assets directory.
+state.json

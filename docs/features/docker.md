@@ -9,10 +9,8 @@ description: easywall owns one nftables table and touches nothing else, so Docke
 easywall v1 flushed iptables and took Docker's chains with it. v2 cannot: it owns
 one table and never looks at another.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/docker-coexist-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/docker-coexist-light.svg' | relative_url }}" alt="easywall creates, flushes and replaces only table inet easywall. It never touches table ip docker or any other table.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/docker-coexist" ext="svg"
+   alt="easywall creates, flushes and replaces only table inet easywall. It never touches table ip docker or any other table." %}
 
 An apply flushes and rebuilds `table inet easywall`. `DOCKER`, `DOCKER-USER` and
 `DOCKER-ISOLATION` live elsewhere and are not read, written or deleted.

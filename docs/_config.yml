@@ -10,6 +10,11 @@ author:
 lang: en
 timezone: Europe/Berlin
 
+# Shown as the badge in the sidebar. Must match shared.CurrentVersion in
+# internal/shared/version.go — TestDocsVersionMatchesRelease enforces that.
+# It was hardcoded in the layout as "v2.4" and drifted a patch release behind.
+version: "2.4.2"
+
 tagline: "Your firewall. Your rules. No surprises."
 logo: /easywall/assets/img/icon.svg
 

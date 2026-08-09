@@ -9,7 +9,7 @@ description: Linux firewall management with a web interface. Go, nftables via ne
 
   <div class="docs-hero-pill">
     <span class="docs-hero-pill-dot"></span>
-    <span>v2.4 — Graphite UI · English &amp; German · Language switch</span>
+    <span>v{{ site.version }} — Graphite UI · English &amp; German · Language switch</span>
   </div>
 
   <h1 class="docs-hero-title">
@@ -41,10 +41,8 @@ description: Linux firewall management with a web interface. Go, nftables via ne
 </div>
 
 <figure class="docs-shot">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/dashboard-dark.png' | relative_url }}">
-    <img src="{{ '/assets/img/screens/dashboard-light.png' | relative_url }}" alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP ports, UDP ports, blacklist, whitelist, custom rules and forwarding; and a recent-activity list.">
-  </picture>
+  {% include themed-figure.html base="/assets/img/screens/dashboard" ext="png"
+     alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP ports, UDP ports, blacklist, whitelist, custom rules and forwarding; and a recent-activity list." %}
   <figcaption>The dashboard answers one question first: what is this firewall enforcing right now?</figcaption>
 </figure>
 
@@ -53,10 +51,8 @@ description: Linux firewall management with a web interface. Go, nftables via ne
 A firewall you edit over the network can lock you out of the machine you are editing
 it on. easywall makes that recoverable by default.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/apply-flow-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/apply-flow-light.svg' | relative_url }}" alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
+   alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
 Editing changes nothing. Applying changes everything — for 120 seconds. If the new
 rules cut your connection you cannot click Confirm, and *not* confirming is what
@@ -80,10 +76,8 @@ brings the old rules back.
 The one thing worth knowing before you write a rule. A whitelisted address reaches
 every port; a blacklisted one is dropped before the whitelist is ever consulted.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/rule-order-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/rule-order-light.svg' | relative_url }}" alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
+   alt="Decision flow for an incoming packet: loopback, established connections and ICMP first, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Where to start
 

@@ -1,7 +1,0 @@
-flowchart LR
-  P["commit on main"] --> CI["Test · Build · Security"]
-  CI -->|"pass"| E["publish-edge<br/>amd64 + arm64"]
-  E --> R[("ghcr · Docker Hub · Quay<br/>:edge and :sha-...")]
-  R --> WT["Watchtower on the demo host"]
-  WT --> D["easywall.wdkro.de<br/>state wiped"]
-  T["systemd timer<br/>every 6 h"] -.->|"restart"| D
