@@ -52,6 +52,12 @@ Import validates before staging anything. A file with one bad entry imports noth
 - Malformed CIDR, such as `192.168.1.1/33`
 - An address that does not parse
 - A forwarding protocol other than `tcp` or `udp`
+- A custom rule containing a newline or a semicolon. nft reads both as the end of
+  one command and the start of another, so such a "rule" is a second command —
+  and it would be run by the root daemon. The editor splits on newlines and
+  never produced one; a file can, so a file is checked for it
+- A custom rule `nft --check` rejects. The editor has always checked as you type;
+  imported rules were not checked at all
 - A file over **512 KB**. That is room for several thousand addresses; a rule set
   larger than that is easier to place in `rules.json` directly than to push through a
   browser upload

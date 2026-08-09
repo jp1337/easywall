@@ -729,3 +729,59 @@ func TestIntegration_ListComments_DoNotMakeApplyRefuseTheSet(t *testing.T) {
 		t.Error("a malformed address must still be refused")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Custom rules: one statement, one table
+// ---------------------------------------------------------------------------
+
+// easywall owns table inet easywall and touches nothing else. That is the
+// promise on the Docker page, in the architecture table, and on the landing
+// page — and a custom rule containing a newline broke it: the rules are joined
+// into a script for `nft -f -`, where a newline ends one command and starts the
+// next, so the root daemon executed whatever came after it.
+//
+// The textarea splits on newlines; import does not, and imported rules were
+// never syntax-checked either. This is the payload that reached a neighbouring
+// table before the check existed.
+func TestIntegration_CustomRules_CannotReachAnotherTable(t *testing.T) {
+	m := newIntegrationManager(t)
+
+	// Stand-in for Docker's table: something easywall must never write to.
+	run := func(args ...string) { _ = exec.Command("nft", args...).Run() }
+	run("add", "table", "inet", "bystander")
+	run("add", "chain", "inet", "bystander", "c")
+	t.Cleanup(func() { run("delete", "table", "inet", "bystander") })
+
+	state := emptyState()
+	state.Current.Custom = []string{"accept\nadd rule inet bystander c drop"}
+
+	err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{})
+	if err == nil {
+		t.Error("a custom rule carrying a second command must be refused")
+	}
+
+	out, _ := exec.Command("nft", "list", "table", "inet", "bystander").CombinedOutput()
+	if strings.Contains(string(out), "drop") {
+		t.Errorf("easywall wrote into a table it does not own:\n%s", out)
+	}
+}
+
+// The ordinary case still has to work, and reach the kernel.
+func TestIntegration_CustomRules_OrdinaryOnesStillApply(t *testing.T) {
+	m := newIntegrationManager(t)
+
+	state := emptyState()
+	state.Current.Custom = []string{
+		"# monitoring only",
+		"ip saddr 192.0.2.50 tcp dport 9100 accept",
+		"tcp dport { 8080, 8443 } accept",
+	}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	rs := ruleset(t)
+	mustContain(t, rs, "ip saddr 192.0.2.50 tcp dport 9100 accept", "a custom rule must reach the kernel")
+	mustContain(t, rs, "8080", "a set in a custom rule must survive")
+	mustNotContain(t, rs, "monitoring only", "a comment is not a rule")
+}
