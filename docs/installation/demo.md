@@ -73,18 +73,7 @@ Neither weakens anything: demo mode does not disable authentication, CSRF, the C
 the rate limiter. With no privileged process running, the worst case is confined to
 the unprivileged web process and its data directory.
 
-## How the public demo stays current
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/demo-deploy-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/demo-deploy-light.svg' | relative_url }}" alt="A commit on main runs the test, build and security workflows; on success publish-edge builds amd64 and arm64 and pushes :edge and :sha tags to three registries; Watchtower on the demo host pulls the new digest and recreates the container, wiping state. A systemd timer also restarts it every six hours.">
-</picture>
-
-It runs `:edge` — see [Docker]({{ '/installation/docker/' | relative_url }}) for the
-full tag scheme. Merge to live takes a few minutes. Point at `:edge` for the same
-rolling behaviour, or `:latest` for released versions only.
-
-### Resetting your own
+## Resetting it on a schedule
 
 Restarting the process wipes the state. A timer is enough:
 

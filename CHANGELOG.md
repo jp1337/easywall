@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-08-09
+
+### Fixed
+
+Documentation site — six rendering defects, all of them visible only on screen:
+
+- **Every highlighted code block was drawn as a box inside a box.** kramdown nests `div.highlighter-rouge > div.highlight > pre.highlight`, and the stylesheet gave a background, a border and a radius to *two* of them. It went unnoticed because the border colour measured about 1.05:1 against the fill, so each frame was individually almost invisible — the pair only read as a doubled edge. The frame now lives on the outer wrapper alone
+- **Code blocks had no panel at all in light mode.** They were filled with `--surface` (`#ffffff`) on a `#fcfcfd` page. They now use `--surface-2` and `--border` in both themes
+- **Light mode painted grey rectangles behind parts of every code block.** A `[data-theme="easywall-light"]` copy of the inline-code rule outranked the `.content-body pre code` reset on specificity (0,3,1 against 0,2,2), so the inline chip's background followed `<code>` into `<pre>`; being an inline box, it painted per line box. The override set the same value as the rule it was shadowing — it existed only to cause this
+- **Bullets and numbers were missing site-wide.** Tailwind's preflight sets `list-style: none` and nothing restored it, which cost `configuration.md` the numbering of its language-priority list, where the order is the content
+- **Diagrams and screenshots could show the wrong theme.** They were selected by `<picture>` with `prefers-color-scheme` — the operating system — while the site theme is a `data-theme` attribute set by the sidebar toggle. The layout tried to reconcile the two by reassigning `img.src`, which cannot work: a matching `<source>` always outranks the `src`. A reader on a dark OS who chose the light documentation got dark diagrams on a white page, with no way to fix it. Both variants are now in the markup and CSS picks one; `loading="lazy"` keeps the hidden one off the wire
+- **Fourteen tables rendered a blank grey band** where the headerless markdown idiom (`| | |`) left kramdown emitting a `<thead>` of empty cells
+
+### Changed
+
+- **Diagrams are legible now.** They were stretched to the 880px text measure regardless of their own size, which scaled the widest flow charts to about 0.6 and their labels to roughly eight pixels, while blowing the narrow rule-order flow up nearly 2×. They now keep their intrinsic size inside a full-width frame, scroll instead of shrinking on a phone, and are rendered at 17px rather than 14px
+- `rule-states.mmd` used `<i>…</i>` in three node labels. The renderer sets `htmlLabels: false` — required, since mermaid's `<foreignObject>` output is not valid XML — so the published diagram read `<i>what you are writing</i>`, literally. `apply-flow.mmd` became a flowchart, which lays out in two thirds of the height and without the empty quadrant the state-diagram note placement left behind
+- Callouts are no longer set in italic. That is fine for one line and slow to read across the multi-line ones on `security.md`, which are the paragraphs a reader most needs to get right
+- Inline code is no longer accent-coloured. On `configuration.md` it made a page of keys and values read as a page of links, and left the real links with nothing to stand out against
+- Reference tables scroll on a phone instead of squeezing to one word per line
+
+Documentation site — layout and content:
+
+- **Headings sat at a different left edge from the content below them.** Prose was held to an 880px measure centred in the available area, while tables and diagrams stepped outside it and centred on the same axis. Everything now runs full width between the sidebar and the contents column, sharing one left edge
+- **The landing page's call to action had its three elements on two centre lines**, 104px apart, and a chapter divider drawn inside the card. Both came from the generic `h2` and `p` rules: those are unlayered, the card's rules are in `@layer components`, and an unlayered rule beats a layered one whatever the specificity — so raising the selector inside the layer changed nothing
+- **The sidebar version badge read `v2.4`.** It was hardcoded in the layout and a patch release behind. It now comes from `docs/_config.yml`, as do the hero badge and the two pinning examples in `docker.md`, which named `v2.4.0`
+- **A Playwright storage-state file was published** at `/assets/img/screens/state.json`, committed by accident with the screenshot set in 2.4.1. It holds a session cookie for a local demo instance, long expired and never valid off that host, but it had no business being served. Removed, and `state.json` is now ignored
+
+### Removed
+
+- **"How the public demo stays current"**, and its diagram. It documented how the project's own demo host is deployed — registries, the update daemon, the restart timer, the hostname — which is operational detail about someone's infrastructure rather than documentation for a reader. The parts about resetting your *own* demo remain; two other pages that leaked the same detail are reworded
+
+### Added
+
+- **An on-page contents column** on wide viewports, built from the rendered headings so it cannot drift from the page, and absent on pages with fewer than three. Earns its place on the long reference pages — `configuration.md` runs to about 5,600px
+- `internal/web/docs_style_test.go` asserts that load-bearing rules survive into the built documentation stylesheet. Nothing had ever checked that file, and it has now broken twice in a way no build could catch — once when removing daisyUI took the page background with it, once when a mistyped comment terminator silently deleted the rule that hides the non-current theme's images. Each assertion was confirmed to fail with the defect reintroduced
+
 ## [2.4.1] - 2026-08-04
 
 ### Fixed
@@ -37,6 +74,7 @@ Eight statements that were not true, several of them security-relevant:
 
 Also now stated rather than omitted: the audit log's `detail` column is empty for every save and apply, so the column that should answer *what changed* is almost always a dash.
 
+[2.4.2]: https://github.com/jp1337/easywall/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/jp1337/easywall/compare/v2.4.0...v2.4.1
 
 ## [2.4.0] - 2026-08-03

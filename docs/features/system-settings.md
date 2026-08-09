@@ -9,10 +9,8 @@ description: The acceptance window — the one setting that decides whether a ba
 One page, one idea: how long easywall waits for you to confirm before undoing what
 you just applied.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/diagrams/apply-flow-dark.svg' | relative_url }}">
-  <img src="{{ '/assets/diagrams/apply-flow-light.svg' | relative_url }}" alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available.">
-</picture>
+{% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
+   alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
 ## Enabled
 

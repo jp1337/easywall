@@ -10,10 +10,8 @@ Every administrative change, newest first. The viewer shows the last 200; the fi
 on disk keeps everything.
 
 <figure class="docs-shot">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="{{ '/assets/img/screens/log-dark.png' | relative_url }}">
-    <img src="{{ '/assets/img/screens/log-light.png' | relative_url }}" alt="The audit log page: a filterable table with timestamp, colour-coded action, rule type, detail and user columns.">
-  </picture>
+  {% include themed-figure.html base="/assets/img/screens/log" ext="png"
+     alt="The audit log page: a filterable table with timestamp, colour-coded action, rule type, detail and user columns." %}
   <figcaption>The filter matches the wording on screen as well as the identifier stored on disk.</figcaption>
 </figure>
 

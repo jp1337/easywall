@@ -49,7 +49,7 @@ const THEMES = {
     labelBoxBorderColor: '#5e636e',
     labelTextColor: '#f1f3f6',
     fontFamily: 'Inter, system-ui, sans-serif',
-    fontSize: '14px',
+    fontSize: '17px',
   },
   light: {
     background: 'transparent',
@@ -71,7 +71,7 @@ const THEMES = {
     labelBoxBorderColor: '#868a93',
     labelTextColor: '#0f1116',
     fontFamily: 'Inter, system-ui, sans-serif',
-    fontSize: '14px',
+    fontSize: '17px',
   },
 };
 
