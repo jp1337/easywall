@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`npm run check:diagrams` could not see a renderer upgrade.** It hashed only the `.mmd` source, so when mermaid went from 11.16.0 to 11.16.1 — moving the bezier control points on every rounded container — the committed SVGs stopped matching what the pinned renderer produced, and the check still called them current. The mermaid version is now part of the stamp, so an upgrade is a re-render
+
+### Security
+
+- **mermaid 11.16.0 → 11.16.1**, closing five advisories: prototype pollution in the configuration APIs and in architecture diagrams, denial of service in XY charts and radar diagrams, and CSS injection into siblings of a diagram. Build-time exposure only — mermaid is a devDependency used by `scripts/render-diagrams.mjs` to pre-render diagrams into committed SVGs, and no runtime copy is served (that was removed in 2.4.1)
+
 ## [2.4.2] - 2026-08-09
 
 ### Fixed
