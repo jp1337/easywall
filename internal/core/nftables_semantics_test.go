@@ -242,6 +242,49 @@ func TestIntegration_BlacklistIsEvaluatedBeforeWhitelist(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Port forwarding — which port is matched and which is redirected to
+// ---------------------------------------------------------------------------
+
+// The interface labels these "Incoming port" and "Forward to", the help text
+// says "a request to 8080 is served by whatever listens on 80", and the export
+// format documents {"source_port": 2222, "dest_port": 22} as SSH reachable on
+// 2222. All three agree: match SourcePort, redirect to DestPort.
+//
+// The existing integration tests count rules and check that a prerouting chain
+// exists, which is true whichever way round the ports go.
+func TestIntegration_Forwarding_MatchesIncomingAndRedirectsToTarget(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	// The documented example: reach SSH on 2222.
+	state.Current.Forwarding = []shared.ForwardingRule{
+		{Protocol: "tcp", SourcePort: 2222, DestPort: 22},
+	}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	rs := ruleset(t)
+	var rule string
+	for _, line := range strings.Split(rs, "\n") {
+		if strings.Contains(line, "redirect") {
+			rule = strings.TrimSpace(line)
+		}
+	}
+	if rule == "" {
+		t.Fatalf("no redirect rule\n--- ruleset ---\n%s", rs)
+	}
+
+	if !strings.Contains(rule, "dport 2222") {
+		t.Errorf("the rule does not match the incoming port 2222: %q\n"+
+			"  reversing these silently redirects the target port instead — with the "+
+			"documented example that would capture SSH on 22 and send it to 2222", rule)
+	}
+	if !strings.Contains(rule, "redirect to :22") {
+		t.Errorf("the rule does not redirect to the target port 22: %q", rule)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Is the firewall actually up?
 // ---------------------------------------------------------------------------
 
@@ -391,4 +434,35 @@ func TestIntegration_LogBlacklist_LabelsHitsBeforeDropping(t *testing.T) {
 	if logAt > dropAt {
 		t.Errorf("the drop precedes the log, so nothing is ever logged\n--- ruleset ---\n%s", rs)
 	}
+}
+
+// A port range is two comparisons on one payload load. The count-based tests
+// cannot tell a range from a single port — both are one rule.
+func TestIntegration_PortRange_ReachesTheKernelAsARange(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.TCP = []shared.PortRule{{Port: "8000:9000"}}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	mustContain(t, ruleset(t), "dport 8000-9000",
+		"a range that collapsed to a single port would open far less than the rule says")
+}
+
+// A port marked for SSH protection jumps to the brute-force chain instead of
+// accepting outright. Marking it must not stop it being reachable.
+func TestIntegration_SSHFlaggedPort_JumpsToTheBruteForceChain(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.TCP = []shared.PortRule{{Port: "2222", SSH: true}}
+	opts := shared.FirewallOptions{SSHBruteForce: true}
+	if err := m.Apply(state, opts, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	rs := ruleset(t)
+	mustContain(t, rs, "dport 2222 jump sshbrute",
+		"the flagged port must go through the rate limiter")
+	mustContain(t, rs, "chain sshbrute",
+		"and that chain has to exist")
 }

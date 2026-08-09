@@ -389,3 +389,99 @@ func TestIntegration_NewDaemon_Start_Stop(t *testing.T) {
 		t.Error("Start did not return within 5s after Stop")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// The acceptance switch
+// ---------------------------------------------------------------------------
+
+// acceptance.enabled sits on the system settings page, is documented as
+// "Off — an apply is final. There is no automatic way back", and was read by
+// nothing until 2.5.0. The window opened either way, so an operator who
+// switched it off — on a machine they can physically reach, which is exactly
+// who the setting is for — still had the change rolled back under them.
+//
+// This has to run against a real kernel: with no netlink connection Apply
+// fails before it ever reaches the acceptance step, so a unit test would pass
+// whatever the branch did.
+func TestIntegration_Apply_AcceptanceDisabled_ReturnsWithoutWaiting(t *testing.T) {
+	m := newIntegrationManager(t)
+	cfg := newTestConfig(t)
+	cfg.Acceptance.Enabled = false
+	cfg.Acceptance.Duration = 3600 // an hour, if a window were opened
+
+	store, err := NewRulesStore(cfg.RulesPath())
+	if err != nil {
+		t.Fatalf("NewRulesStore: %v", err)
+	}
+	fw := &Firewall{
+		cfg:        cfg,
+		nft:        m,
+		rules:      store,
+		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
+	}
+	if err := store.SaveStaged("tcp", []shared.PortRule{{Port: "8080"}}); err != nil {
+		t.Fatalf("SaveStaged: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fw.Apply("test") }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Apply is waiting for a confirmation the operator switched off")
+	}
+
+	if got := fw.acceptance.Status(); got == shared.AcceptancePending {
+		t.Errorf("acceptance status is %q; no window should have opened", got)
+	}
+
+	// The rules must be live, not rolled back.
+	state, err := store.GetState()
+	if err != nil {
+		t.Fatalf("GetState: %v", err)
+	}
+	if len(state.Current.TCP) != 1 || state.Current.TCP[0].Port != "8080" {
+		t.Errorf("the applied rule did not survive: %+v", state.Current.TCP)
+	}
+	if fw.Status().LastApply == "" {
+		t.Error("an apply that needs no confirmation is still an apply; " +
+			"it must set the last-applied time")
+	}
+}
+
+// And with the switch on, the window really does open.
+func TestIntegration_Apply_AcceptanceEnabled_OpensTheWindow(t *testing.T) {
+	m := newIntegrationManager(t)
+	cfg := newTestConfig(t)
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = 30
+
+	store, err := NewRulesStore(cfg.RulesPath())
+	if err != nil {
+		t.Fatalf("NewRulesStore: %v", err)
+	}
+	fw := &Firewall{
+		cfg:        cfg,
+		nft:        m,
+		rules:      store,
+		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fw.Apply("test") }()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if fw.acceptance.Status() == shared.AcceptancePending {
+			fw.Accept()
+			<-done
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("no acceptance window opened, although the switch is on")
+}

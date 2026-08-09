@@ -244,7 +244,7 @@
   {"id": "forwarding_empty", "translation": "Nothing is being redirected. Add a rule to forward a port."},
   {"id": "forwarding_reads_title", "translation": "How a redirect reads"},
   {"id": "forwarding_reads_body", "translation": "A rule sends traffic that arrives on the incoming port to the destination port on this same host — `8080 → 80` means a request to 8080 is served by whatever listens on 80."},
-  {"id": "forwarding_reads_note", "translation": "The incoming port still needs to be open. Add it under {}, or the redirect never gets reached."},
+  {"id": "forwarding_reads_note", "translation": "The *destination* port is the one that has to be open, not the incoming one: the redirect happens before the filter sees the packet, so by then it is addressed to the destination port. Open it under {}."},
   {"id": "forwarding_privileged_title", "translation": "Ports below 1024"},
   {"id": "forwarding_privileged_body", "translation": "Redirecting a privileged port to a high one is the usual way to run a service without root. Check that nothing else already holds the destination port."},
 

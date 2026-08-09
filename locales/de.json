@@ -244,7 +244,7 @@
   {"id": "forwarding_empty", "translation": "Es wird nichts umgeleitet. Eine neue Regel leitet einen Port weiter."},
   {"id": "forwarding_reads_title", "translation": "Wie eine Umleitung zu lesen ist"},
   {"id": "forwarding_reads_body", "translation": "Eine Regel schickt Verkehr, der am eingehenden Port ankommt, an den Zielport desselben Hosts — `8080 → 80` heißt: eine Anfrage an 8080 wird von dem beantwortet, was auf 80 lauscht."},
-  {"id": "forwarding_reads_note", "translation": "Der eingehende Port muss trotzdem offen sein. Er wird unter {} eingetragen, sonst wird die Umleitung nie erreicht."},
+  {"id": "forwarding_reads_note", "translation": "Offen sein muss der *Zielport*, nicht der eingehende: die Umleitung greift, bevor der Filter das Paket sieht — dort trägt es dann schon den Zielport. Unter {} freigeben."},
   {"id": "forwarding_privileged_title", "translation": "Ports unter 1024"},
   {"id": "forwarding_privileged_body", "translation": "Einen privilegierten Port auf einen hohen umzuleiten ist der übliche Weg, einen Dienst ohne root zu betreiben. Dabei prüfen, dass der Zielport nicht schon belegt ist."},
 

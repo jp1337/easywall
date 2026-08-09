@@ -629,3 +629,41 @@ func TestSaveStaged_AcceptsValidAddresses(t *testing.T) {
 		t.Errorf("expected %d entries, got %d", len(valid), len(state.Staged.Blacklist))
 	}
 }
+
+// Ports are parsed strictly. fmt.Sscanf stops at the first character it cannot
+// read and reports what it managed, so "80abc" validated as port 80 and
+// "80 90" as port 80 — the rule list showed one thing and the firewall
+// enforced another.
+func TestValidatePortRule_RejectsTrailingGarbage(t *testing.T) {
+	bad := []string{
+		"80abc", // read as 80
+		"80 90", // someone meaning two ports opens one
+		" 80",   // leading space
+		"80:",   // half a range
+		":90",   // the other half
+		"80:90:100",
+		"",
+		"http",
+		"-1",
+		"0",
+		"65536",
+		"8000:7000", // ends before it starts
+	}
+	for _, port := range bad {
+		t.Run(port, func(t *testing.T) {
+			if err := validatePortRule(shared.PortRule{Port: port}); err == nil {
+				t.Errorf("accepted %q", port)
+			}
+		})
+	}
+}
+
+func TestValidatePortRule_AcceptsWhatItShould(t *testing.T) {
+	for _, port := range []string{"1", "22", "8080", "65535", "8000:9000", "1:65535"} {
+		t.Run(port, func(t *testing.T) {
+			if err := validatePortRule(shared.PortRule{Port: port}); err != nil {
+				t.Errorf("rejected %q: %v", port, err)
+			}
+		})
+	}
+}

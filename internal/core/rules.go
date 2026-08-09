@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -268,22 +270,49 @@ func validateRules(r shared.Rules) error {
 	return nil
 }
 
+// validatePortRule accepts "80" or "8000:9000" and nothing else.
+//
+// It used to parse with fmt.Sscanf, which stops at the first thing it cannot
+// read and reports success for what it got: "80abc" passed as port 80, and so
+// did "80 90" — someone who meant to open two ports opened one, and the rule
+// list showed a string the firewall was not enforcing. strconv.Atoi rejects any
+// trailing character, so what is stored is what is applied.
 func validatePortRule(r shared.PortRule) error {
 	if r.Port == "" {
 		return fmt.Errorf("port is required")
 	}
-	var start, end int
-	if n, _ := fmt.Sscanf(r.Port, "%d:%d", &start, &end); n == 2 {
-		if start < 1 || start > 65535 || end < start || end > 65535 {
-			return fmt.Errorf("invalid port range")
+
+	if start, end, ok := strings.Cut(r.Port, ":"); ok {
+		lo, err := parsePortNumber(start)
+		if err != nil {
+			return fmt.Errorf("port range start: %w", err)
+		}
+		hi, err := parsePortNumber(end)
+		if err != nil {
+			return fmt.Errorf("port range end: %w", err)
+		}
+		if hi < lo {
+			return fmt.Errorf("port range %d:%d ends before it starts", lo, hi)
 		}
 		return nil
 	}
-	var p int
-	if _, err := fmt.Sscanf(r.Port, "%d", &p); err != nil || p < 1 || p > 65535 {
-		return fmt.Errorf("invalid port number")
+
+	if _, err := parsePortNumber(r.Port); err != nil {
+		return err
 	}
 	return nil
+}
+
+// parsePortNumber parses a complete port number, rejecting anything else.
+func parsePortNumber(s string) (int, error) {
+	p, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("%q is not a port number", s)
+	}
+	if p < 1 || p > 65535 {
+		return 0, fmt.Errorf("port %d is outside 1-65535", p)
+	}
+	return p, nil
 }
 
 func validateIPOrCIDR(s string) error {
