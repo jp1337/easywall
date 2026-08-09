@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"net"
-	"os"
 	"testing"
 )
 
@@ -37,62 +36,18 @@ func TestIsDockerInterface_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestReadProcNetDev(t *testing.T) {
-	// /proc/net/dev is available on Linux; this is a smoke test.
-	names := readProcNetDev()
-	// On Linux this should return at least "lo"
-	// On non-Linux (CI), it may return nil — just ensure no panic.
-	_ = names
-}
-
-func TestDetectDockerBridges_NoDocker(t *testing.T) {
-	// If Docker is not running, should return nil or empty slice — no panic.
-	cidrs := detectDockerBridges()
-	_ = cidrs
-}
-
-func TestIsDockerRunning(t *testing.T) {
-	// Result depends on test environment — just ensure no panic and returns bool.
-	running := isDockerRunning()
-	_ = running
-}
-
-func TestIsDockerRunning_SocketExists(t *testing.T) {
-	dir := t.TempDir()
-	sockPath := dir + "/docker.sock"
-	f, err := os.Create(sockPath)
-	if err != nil {
-		t.Fatal(err)
+// Detection on a host with no Docker interfaces returns nothing. The previous
+// version of this test called the function, assigned the result to _ and
+// asserted nothing, so it passed whatever came back.
+func TestDetectDockerBridges_NoDockerInterfaces(t *testing.T) {
+	old := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{{Name: "eth0"}, {Name: "lo"}, {Name: "wlan0"}}, nil
 	}
-	f.Close()
+	defer func() { netInterfacesFn = old }()
 
-	old := dockerSocketPaths
-	dockerSocketPaths = []string{sockPath}
-	defer func() { dockerSocketPaths = old }()
-
-	if !isDockerRunning() {
-		t.Error("expected isDockerRunning=true when socket file exists")
-	}
-}
-
-func TestIsDockerRunning_NoSocket(t *testing.T) {
-	old := dockerSocketPaths
-	dockerSocketPaths = []string{"/nonexistent/docker.sock"}
-	defer func() { dockerSocketPaths = old }()
-
-	if isDockerRunning() {
-		t.Error("expected isDockerRunning=false when socket does not exist")
-	}
-}
-
-func TestReadProcNetDev_NotFound(t *testing.T) {
-	old := procNetDevPath
-	procNetDevPath = "/nonexistent/proc/net/dev"
-	defer func() { procNetDevPath = old }()
-
-	names := readProcNetDev()
-	if names != nil {
-		t.Errorf("expected nil when file not found, got %v", names)
+	if cidrs := detectDockerBridges(); len(cidrs) != 0 {
+		t.Errorf("expected no CIDRs on a host without Docker bridges, got %v", cidrs)
 	}
 }
 

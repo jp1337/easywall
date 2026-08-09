@@ -232,7 +232,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdGetSettings:
-		s := shared.NetworkSettings{IPv6: d.cfg.IPv6, Docker: d.cfg.Docker}
+		s := d.cfg.NetworkSettings()
 		data, _ := json.Marshal(s)
 		return shared.Response{Success: true, Data: data}
 
@@ -241,8 +241,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &s); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
-		changed := shared.DescribeStructChange(
-			shared.NetworkSettings{IPv6: d.cfg.IPv6, Docker: d.cfg.Docker}, s)
+		changed := shared.DescribeStructChange(d.cfg.NetworkSettings(), s)
 		if err := d.cfg.SaveNetworkSettings(s); err != nil {
 			return errResp(err)
 		}
@@ -250,7 +249,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdGetSystem:
-		s := shared.SystemSettings{Acceptance: d.cfg.Acceptance}
+		s := d.cfg.SystemSettings()
 		data, _ := json.Marshal(s)
 		return shared.Response{Success: true, Data: data}
 
@@ -259,11 +258,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &s); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
-		if s.Acceptance.Duration <= 0 {
-			return errResp(fmt.Errorf("acceptance.duration must be > 0"))
-		}
-		changed := shared.DescribeStructChange(
-			shared.SystemSettings{Acceptance: d.cfg.Acceptance}, s)
+		changed := shared.DescribeStructChange(d.cfg.SystemSettings(), s)
 		if err := d.cfg.SaveSystemSettings(s); err != nil {
 			return errResp(err)
 		}

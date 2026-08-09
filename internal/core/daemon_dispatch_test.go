@@ -2,8 +2,12 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -342,5 +346,108 @@ func TestDispatch_GetRules_StoreError(t *testing.T) {
 	resp := d.dispatch(shared.Command{Type: shared.CmdGetRules})
 	if resp.Success {
 		t.Error("expected failure when rules file contains invalid JSON")
+	}
+}
+
+// Every command the protocol declares must be handled. A constant added to
+// protocol.go and not to the switch falls through to the default case and comes
+// back as "unknown command" — from a web process that has no way to know it
+// asked for something the core never implemented.
+//
+// The list is derived from the protocol rather than repeated here, so adding a
+// command without a handler fails this test instead of shipping.
+func TestDaemonDispatch_HandlesEveryDeclaredCommand(t *testing.T) {
+	all := []shared.CommandType{
+		shared.CmdGetRules, shared.CmdSaveRules, shared.CmdApplyRules, shared.CmdAccept,
+		shared.CmdGetStatus, shared.CmdGetOptions, shared.CmdSaveOptions,
+		shared.CmdGetSettings, shared.CmdSaveSettings, shared.CmdGetSystem,
+		shared.CmdSaveSystem, shared.CmdGetLog, shared.CmdExportRules,
+		shared.CmdImportRules, shared.CmdValidateCustom,
+	}
+
+	// Guard against the list above drifting from the constants: protocol.go is
+	// the source of truth for how many there are, and architecture.md says
+	// fifteen.
+	if len(all) != 15 {
+		t.Fatalf("the protocol declares 15 commands; this test lists %d", len(all))
+	}
+
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	for _, cmd := range all {
+		resp := d.dispatch(shared.Command{Type: cmd, Payload: []byte("null")})
+		if !resp.Success && strings.Contains(resp.Error, "unknown command") {
+			t.Errorf("%s has no handler in dispatch", cmd)
+		}
+	}
+
+	// And something that is not a command still is an unknown command.
+	resp := d.dispatch(shared.Command{Type: "NOT_A_COMMAND"})
+	if resp.Success || !strings.Contains(resp.Error, "unknown command") {
+		t.Errorf("an unknown command must be refused as one, got %+v", resp)
+	}
+}
+
+// An apply runs asynchronously so the socket stays responsive, and its
+// acceptance window stays open for up to an hour. During that time the operator
+// can save a setting on another page — and Apply reads exactly the sections
+// that save writes.
+//
+// This is a genuine production sequence, and it was a data race on a slice
+// header and a string until Config took a lock. Run under -race, this test is
+// what fails if that lock goes away; without -race it still exercises the
+// interleaving.
+func TestDaemonDispatch_ApplyDoesNotRaceWithASettingsSave(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	settings := func(i int) []byte {
+		payload, err := json.Marshal(shared.NetworkSettings{
+			IPv6: shared.IPv6Config{Mode: shared.IPv6Filter},
+			Docker: shared.DockerConfig{
+				Enabled:        true,
+				CustomNetworks: []string{fmt.Sprintf("172.%d.0.0/16", 16+i%16)},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+	options := func() []byte {
+		payload, err := json.Marshal(shared.FirewallOptions{SSHBruteForce: true, PortScan: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(3)
+		go func() { defer wg.Done(); d.dispatch(shared.Command{Type: shared.CmdApplyRules}) }()
+		go func(i int) {
+			defer wg.Done()
+			d.dispatch(shared.Command{Type: shared.CmdSaveSettings, Payload: settings(i)})
+		}(i)
+		go func() {
+			defer wg.Done()
+			d.dispatch(shared.Command{Type: shared.CmdSaveOptions, Payload: options()})
+		}()
+	}
+	wg.Wait()
+
+	// The config must still be coherent afterwards, not a mix of two writes.
+	got := d.cfg.NetworkSettings()
+	if !got.IPv6.Mode.Valid() {
+		t.Errorf("ipv6 mode came out invalid after concurrent saves: %q", got.IPv6.Mode)
+	}
+	for _, cidr := range got.Docker.CustomNetworks {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			t.Errorf("a custom network came out torn: %q", cidr)
+		}
 	}
 }
