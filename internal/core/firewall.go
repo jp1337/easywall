@@ -117,7 +117,11 @@ func (f *Firewall) Apply(user string) error {
 	}
 
 	// 4. Apply new rules to kernel
-	if err := f.nft.Apply(updatedState, f.cfg.Firewall, f.cfg.IPv6, f.cfg.Docker); err != nil {
+	// One snapshot for the whole apply, so the rules that reach the kernel
+	// describe a single configuration rather than whatever each field happened
+	// to hold as it was read.
+	netCfg := f.cfg.NetworkSettings()
+	if err := f.nft.Apply(updatedState, f.cfg.FirewallOptions(), netCfg.IPv6, netCfg.Docker); err != nil {
 		// Rule application failed — roll back immediately without waiting
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all", err.Error(), user)
 		f.rollback(state, user)
@@ -131,7 +135,7 @@ func (f *Firewall) Apply(user string) error {
 	// automatic way back", but the window ran regardless: an operator who
 	// deliberately turned it off, on a machine they can physically reach, still
 	// had the change rolled out from under them when the timer expired.
-	if !f.cfg.Acceptance.Enabled {
+	if !f.cfg.SystemSettings().Acceptance.Enabled {
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all",
 			"acceptance window disabled — applied without confirmation", user)
 		f.setLastApply(time.Now())
@@ -177,7 +181,8 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		slog.Error("rollback rules file failed", "error", err)
 		failures = append(failures, "rules file: "+err.Error())
 	}
-	if err := f.nft.Apply(previous, f.cfg.Firewall, f.cfg.IPv6, f.cfg.Docker); err != nil {
+	netCfg := f.cfg.NetworkSettings()
+	if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), netCfg.IPv6, netCfg.Docker); err != nil {
 		slog.Error("rollback nftables failed", "error", err)
 		failures = append(failures, "nftables: "+err.Error())
 	}
@@ -225,5 +230,5 @@ func (f *Firewall) RulesStore() *RulesStore {
 
 // Options returns the current firewall options.
 func (f *Firewall) Options() shared.FirewallOptions {
-	return f.cfg.Firewall
+	return f.cfg.FirewallOptions()
 }

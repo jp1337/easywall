@@ -1,10 +1,8 @@
 package core
 
 import (
-	"bufio"
 	"log/slog"
 	"net"
-	"os"
 	"strings"
 )
 
@@ -19,8 +17,17 @@ var ifaceAddrsFn = func(iface net.Interface) ([]net.Addr, error) {
 // detectDockerBridges returns CIDR ranges for all Docker bridge networks
 // currently active on the system (e.g. "172.17.0.0/16").
 //
-// Detection works by reading /proc/net/fib_trie and cross-referencing with
-// network interfaces whose names start with "docker" or "br-".
+// Detection lists the host's network interfaces, keeps the ones named docker*
+// or br-, and takes the IPv4 network of each address they carry. The comment
+// here used to describe reading /proc/net/fib_trie, which nothing in this file
+// has ever opened.
+//
+// IPv4 only. A Docker network with IPv6 enabled is not detected, and has to go
+// in docker.custom_networks — see features/docker.md.
+//
+// The name test is a prefix match, so any bridge called br-something counts,
+// Docker's or not. That is deliberate on a container host and worth knowing on
+// a router, where br-lan would also be accepted.
 func detectDockerBridges() []string {
 	interfaces, err := netInterfacesFn()
 	if err != nil {
@@ -58,41 +65,4 @@ func detectDockerBridges() []string {
 func isDockerInterface(name string) bool {
 	return strings.HasPrefix(name, "docker") ||
 		strings.HasPrefix(name, "br-")
-}
-
-// dockerSocketPaths lists Unix socket paths checked to detect Docker; overridden in tests.
-var dockerSocketPaths = []string{"/var/run/docker.sock", "/run/docker.sock"}
-
-// procNetDevPath is the path to /proc/net/dev; overridden in tests.
-var procNetDevPath = "/proc/net/dev"
-
-// isDockerRunning returns true when the Docker socket exists, indicating
-// that Docker is likely running on this host.
-func isDockerRunning() bool {
-	for _, sock := range dockerSocketPaths {
-		if _, err := os.Stat(sock); err == nil {
-			return true
-		}
-	}
-	return false
-}
-
-// readProcNetDev returns the list of network interface names from /proc/net/dev.
-// Used as a fallback when net.Interfaces() is unavailable.
-func readProcNetDev() []string {
-	f, err := os.Open(procNetDevPath)
-	if err != nil {
-		return nil
-	}
-	defer f.Close()
-
-	var names []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if idx := strings.Index(line, ":"); idx > 0 {
-			names = append(names, strings.TrimSpace(line[:idx]))
-		}
-	}
-	return names
 }

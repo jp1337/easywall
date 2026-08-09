@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -416,9 +417,43 @@ func TestSave_RenameError(t *testing.T) {
 
 // --- WriteAuditLog ---
 
-func TestWriteAuditLog_InvalidPath(t *testing.T) {
-	// Should silently fail without panic
-	WriteAuditLog("/nonexistent/path/audit.log", "apply", "tcp", "", "admin")
+// A log that cannot be written must not take the daemon down with it — an audit
+// entry is a record of something that already happened. It must also not be
+// mistaken for one that was written: the failure is logged now rather than
+// discarded.
+func TestWriteAuditLog_UnwritablePathWritesNothingAndDoesNotPanic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "no-such-dir", "audit.log")
+	WriteAuditLog(path, "apply", "tcp", "", "admin")
+
+	if _, err := os.Stat(path); err == nil {
+		t.Error("nothing should have been created under a directory that does not exist")
+	}
+}
+
+// What it writes has to be what the reader parses. The writer used fmt's %q,
+// which is not a JSON encoder, while the reader has always used encoding/json
+// and skips a line it cannot decode.
+func TestWriteAuditLog_RoundTripsThroughTheReader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "audit.log")
+	WriteAuditLog(path, "rules_saved", "blacklist", `added 203.0.113.7 "quoted", removed 192.0.2.1`, "web")
+
+	entries, err := readAuditLog(path, 10)
+	if err != nil {
+		t.Fatalf("readAuditLog: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	e := entries[0]
+	if e.Action != "rules_saved" || e.RuleType != "blacklist" || e.User != "web" {
+		t.Errorf("fields did not survive the round trip: %+v", e)
+	}
+	if !strings.Contains(e.Detail, `"quoted"`) {
+		t.Errorf("the detail lost its quoting: %q", e.Detail)
+	}
+	if e.Time == "" {
+		t.Error("entries must be timestamped")
+	}
 }
 
 func TestWriteAuditLog(t *testing.T) {
