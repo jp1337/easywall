@@ -312,3 +312,42 @@ func TestWriteDefaultCoreConfig(t *testing.T) {
 		t.Errorf("unexpected acceptance duration: %d", cfg.Acceptance.Duration)
 	}
 }
+
+// A config written before 2.5.0 has ipv6.enabled and no ipv6.mode. Both old
+// values become "filter": there is no faithful translation of the old
+// behaviour, which filtered IPv6 while removing the exemptions it needs, and
+// filter is the safe direction as well as what most installations had.
+func TestValidate_MigratesIPv6EnabledToMode(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		cfg := newTestConfig(t)
+		cfg.IPv6 = shared.IPv6Config{Enabled: enabled}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate(enabled=%v): %v", enabled, err)
+		}
+		if cfg.IPv6.Mode != shared.IPv6Filter {
+			t.Errorf("enabled=%v migrated to %q, want %q", enabled, cfg.IPv6.Mode, shared.IPv6Filter)
+		}
+	}
+}
+
+// An explicit mode is never overwritten by the obsolete boolean.
+func TestValidate_ExplicitModeWinsOverTheObsoleteBoolean(t *testing.T) {
+	cfg := newTestConfig(t)
+	cfg.IPv6 = shared.IPv6Config{Mode: shared.IPv6Block, Enabled: true}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if cfg.IPv6.Mode != shared.IPv6Block {
+		t.Errorf("mode became %q", cfg.IPv6.Mode)
+	}
+}
+
+// A typo must stop the daemon rather than quietly pick a disposition — the
+// wrong guess either opens the host or cuts it off.
+func TestValidate_RejectsAnUnknownIPv6Mode(t *testing.T) {
+	cfg := newTestConfig(t)
+	cfg.IPv6 = shared.IPv6Config{Mode: shared.IPv6Mode("passthru")}
+	if err := cfg.Validate(); err == nil {
+		t.Error("accepted an unknown ipv6.mode")
+	}
+}

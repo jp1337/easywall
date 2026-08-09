@@ -35,7 +35,9 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 
 	ns := shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
-			Enabled:                        r.FormValue("ipv6_enabled") != "",
+			// A three-way choice, not a toggle: the old boolean claimed "off
+			// means IPv6 is not filtered at all" and did the opposite.
+			Mode:                           ipv6ModeFromForm(r.FormValue("ipv6_mode")),
 			ICMPAllowRouterAdvertisement:   r.FormValue("icmp_allow_router_advertisement") != "",
 			ICMPAllowNeighborAdvertisement: r.FormValue("icmp_allow_neighbor_advertisement") != "",
 		},
@@ -53,4 +55,15 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondPartialSave(w, r, "/settings", "settings_saved")
+}
+
+// ipv6ModeFromForm maps the submitted value to a mode, falling back to the
+// filtering default. An unrecognised value must not silently become
+// passthrough or block — those open or close the host.
+func ipv6ModeFromForm(v string) shared.IPv6Mode {
+	m := shared.IPv6Mode(v)
+	if m.Valid() {
+		return m
+	}
+	return shared.IPv6Filter
 }

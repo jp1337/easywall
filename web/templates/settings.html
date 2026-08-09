@@ -42,9 +42,36 @@
                 <span class="switch-name">{{T "settings_ipv6_filter"}}</span>
                 <span class="switch-desc">{{T "settings_ipv6_filter_desc"}}</span>
               </span>
-              <input type="checkbox" name="ipv6_enabled" class="toggle"
-                     {{if and $ns $ns.IPv6.Enabled}}checked{{end}}>
             </label>
+
+            {{$mode := "filter"}}{{if $ns}}{{$mode = $ns.IPv6.Mode}}{{end}}
+            <fieldset class="choice-group">
+              <legend class="sr-only">{{T "settings_ipv6_filter"}}</legend>
+              <label class="choice-row">
+                <input type="radio" name="ipv6_mode" value="filter" class="radio"
+                       {{if eq (printf "%s" $mode) "filter"}}checked{{end}}>
+                <span class="switch-text">
+                  <span class="switch-name">{{T "settings_ipv6_mode_filter"}}</span>
+                  <span class="switch-desc">{{T "settings_ipv6_mode_filter_desc"}}</span>
+                </span>
+              </label>
+              <label class="choice-row">
+                <input type="radio" name="ipv6_mode" value="passthrough" class="radio"
+                       {{if eq (printf "%s" $mode) "passthrough"}}checked{{end}}>
+                <span class="switch-text">
+                  <span class="switch-name">{{T "settings_ipv6_mode_passthrough"}}</span>
+                  <span class="switch-desc">{{T "settings_ipv6_mode_passthrough_desc"}}</span>
+                </span>
+              </label>
+              <label class="choice-row">
+                <input type="radio" name="ipv6_mode" value="block" class="radio"
+                       {{if eq (printf "%s" $mode) "block"}}checked{{end}}>
+                <span class="switch-text">
+                  <span class="switch-name">{{T "settings_ipv6_mode_block"}}</span>
+                  <span class="switch-desc">{{T "settings_ipv6_mode_block_desc"}}</span>
+                </span>
+              </label>
+            </fieldset>
 
             <label class="switch-row">
               <span class="switch-text">

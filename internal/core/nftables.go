@@ -212,6 +212,18 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		return fmt.Errorf("refusing to apply: %w", err)
 	}
 
+	// A zero-valued IPv6Config must mean "filter", not "some fourth thing".
+	// Config.Validate fills the mode in for the daemon, but Apply is also
+	// reachable with a struct built by hand, and an unset mode skipping the
+	// ICMPv6 rules while every other rule still applied to IPv6 is precisely
+	// the behaviour the mode was introduced to remove.
+	if !ipv6.Mode.Valid() {
+		if ipv6.Mode != "" {
+			slog.Warn("unknown ipv6 mode; filtering", "mode", ipv6.Mode)
+		}
+		ipv6.Mode = shared.IPv6Filter
+	}
+
 	if err := m.Reset(); err != nil {
 		return fmt.Errorf("reset table: %w", err)
 	}
@@ -253,6 +265,19 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 
 	// Base INPUT rules
 	m.addLoopbackAccept(table, inputChain)
+
+	// IPv6 disposition comes immediately after loopback and before everything
+	// else, because passthrough and block are statements about all IPv6 traffic
+	// and a later rule would only see what earlier ones left. Loopback stays
+	// first either way: dropping ::1 breaks local services, which is nobody's
+	// idea of "block IPv6".
+	switch ipv6.Mode {
+	case shared.IPv6Passthrough:
+		m.addFamilyVerdict(table, inputChain, unix.NFPROTO_IPV6, expr.VerdictAccept)
+	case shared.IPv6Block:
+		m.addFamilyVerdict(table, inputChain, unix.NFPROTO_IPV6, expr.VerdictDrop)
+	}
+
 	m.addEstablishedAccept(table, inputChain)
 	m.addICMPRules(table, inputChain, ipv6)
 
@@ -451,6 +476,21 @@ func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, matc
 
 // --- Helper builders ---
 
+// addFamilyVerdict accepts or drops an entire address family in one rule.
+// Used for the IPv6 passthrough and block modes, where the point is that no
+// later rule gets a say.
+func (m *NftablesManager) addFamilyVerdict(t *nftables.Table, c *nftables.Chain, family byte, kind expr.VerdictKind) {
+	m.conn.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: c,
+		Exprs: []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{family}},
+			&expr.Verdict{Kind: kind},
+		},
+	})
+}
+
 func (m *NftablesManager) addLoopbackAccept(t *nftables.Table, c *nftables.Chain) {
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
@@ -504,7 +544,10 @@ func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv
 		})
 	}
 
-	if !ipv6.Enabled {
+	// Only filter mode consults these: under passthrough IPv6 was already
+	// accepted, under block it was already dropped, and either way this rule
+	// would never be reached.
+	if ipv6.Mode != shared.IPv6Filter {
 		return
 	}
 

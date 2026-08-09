@@ -466,3 +466,91 @@ func TestIntegration_SSHFlaggedPort_JumpsToTheBruteForceChain(t *testing.T) {
 	mustContain(t, rs, "chain sshbrute",
 		"and that chain has to exist")
 }
+
+// ---------------------------------------------------------------------------
+// IPv6 disposition
+// ---------------------------------------------------------------------------
+
+// The three modes replace a boolean whose "off" was documented as leaving IPv6
+// unfiltered and did the opposite. Each mode is a claim about all IPv6 traffic,
+// so each is checked against what the kernel ends up holding.
+func TestIntegration_IPv6Mode(t *testing.T) {
+	// A v6 blacklist entry and an open port: under filter both must appear,
+	// under passthrough and block neither may be reachable, because the
+	// family-wide rule comes first.
+	state := func() shared.RulesState {
+		s := emptyState()
+		s.Current.Blacklist = []string{"2001:db8::1"}
+		s.Current.TCP = []shared.PortRule{{Port: "443"}}
+		return s
+	}
+
+	t.Run("filter applies every rule to IPv6", func(t *testing.T) {
+		m := newIntegrationManager(t)
+		cfg := shared.IPv6Config{Mode: shared.IPv6Filter, ICMPAllowNeighborAdvertisement: true}
+		if err := m.Apply(state(), shared.FirewallOptions{}, cfg, shared.DockerConfig{}); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+		rs := ruleset(t)
+		mustContain(t, rs, "ip6 saddr 2001:db8::1", "the v6 blacklist entry belongs in the table")
+		mustContain(t, rs, "icmpv6", "IPv6 needs its ICMPv6 types to work at all")
+		mustNotContain(t, rs, "meta nfproto ipv6 accept", "filter mode waves nothing through")
+	})
+
+	t.Run("passthrough accepts IPv6 before any rule", func(t *testing.T) {
+		m := newIntegrationManager(t)
+		cfg := shared.IPv6Config{Mode: shared.IPv6Passthrough}
+		if err := m.Apply(state(), shared.FirewallOptions{}, cfg, shared.DockerConfig{}); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+		rs := ruleset(t)
+		mustContain(t, rs, "meta nfproto ipv6 accept",
+			"passthrough means exactly this, and it is the whole feature")
+
+		// It has to come before the v6 blacklist, or the blacklist still bites
+		// and "not filtered at all" is untrue again.
+		acceptAt := strings.Index(rs, "meta nfproto ipv6 accept")
+		blacklistAt := strings.Index(rs, "ip6 saddr 2001:db8::1")
+		if blacklistAt >= 0 && acceptAt > blacklistAt {
+			t.Errorf("IPv6 is still filtered before it is waved through\n--- ruleset ---\n%s", rs)
+		}
+		// And loopback must still be first, ahead of it.
+		if lo := strings.Index(rs, `iifname "lo" accept`); lo < 0 || lo > acceptAt {
+			t.Errorf("loopback must stay the first rule\n--- ruleset ---\n%s", rs)
+		}
+	})
+
+	t.Run("block drops IPv6 but never loopback", func(t *testing.T) {
+		m := newIntegrationManager(t)
+		cfg := shared.IPv6Config{Mode: shared.IPv6Block}
+		if err := m.Apply(state(), shared.FirewallOptions{}, cfg, shared.DockerConfig{}); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+		rs := ruleset(t)
+		mustContain(t, rs, "meta nfproto ipv6 drop", "block means all IPv6 goes")
+
+		dropAt := strings.Index(rs, "meta nfproto ipv6 drop")
+		lo := strings.Index(rs, `iifname "lo" accept`)
+		if lo < 0 || lo > dropAt {
+			t.Errorf("dropping IPv6 ahead of loopback kills ::1 and every local "+
+				"service bound to it\n--- ruleset ---\n%s", rs)
+		}
+		mustNotContain(t, rs, "icmpv6",
+			"there is nothing for ICMPv6 to permit once IPv6 is dropped")
+	})
+}
+
+// A zero-valued IPv6Config must filter. An unset mode that skipped the ICMPv6
+// rules while every other rule still applied to IPv6 is exactly the behaviour
+// the three modes were introduced to remove, and it would have come back
+// through any caller that built the struct by hand.
+func TestIntegration_IPv6Mode_ZeroValueFilters(t *testing.T) {
+	m := newIntegrationManager(t)
+	if err := m.Apply(emptyState(), shared.FirewallOptions{},
+		shared.IPv6Config{ICMPAllowNeighborAdvertisement: true}, shared.DockerConfig{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	rs := ruleset(t)
+	mustContain(t, rs, "icmpv6", "an unset mode must behave as filter")
+	mustNotContain(t, rs, "meta nfproto ipv6", "and must not wave IPv6 through or drop it")
+}

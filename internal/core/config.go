@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -76,7 +77,37 @@ func (c *Config) Validate() error {
 			c.Firewall.LogBlockedLimit = 60
 		}
 	}
+
+	c.migrateIPv6Mode()
+	if !c.IPv6.Mode.Valid() {
+		return fmt.Errorf("ipv6.mode must be one of %q, %q or %q, got %q",
+			shared.IPv6Filter, shared.IPv6Passthrough, shared.IPv6Block, c.IPv6.Mode)
+	}
 	return nil
+}
+
+// migrateIPv6Mode fills in ipv6.mode for a config written before 2.5.0.
+//
+// The old key was ipv6.enabled, and it did not mean what it said. `false`
+// removed the ICMPv6 exemptions and left every other rule applying to IPv6, so
+// the effect was a filtered but non-functional IPv6 stack — not the
+// "unfiltered" the documentation promised, and not "blocked" either. There is
+// no faithful translation of that, so both old values map to `filter`: it is
+// the safe direction, it is what the majority already had, and for anyone who
+// set `false` it repairs an IPv6 stack that was quietly broken.
+//
+// Someone who genuinely wanted IPv6 out of the way now has two settings that
+// actually do it, and the release notes point at them.
+func (c *Config) migrateIPv6Mode() {
+	if c.IPv6.Mode != "" {
+		return
+	}
+	c.IPv6.Mode = shared.IPv6Filter
+	if !c.IPv6.Enabled {
+		slog.Warn("ipv6.enabled is obsolete and did not do what it said; " +
+			"using ipv6.mode = \"filter\". Set ipv6.mode to \"passthrough\" or " +
+			"\"block\" if you want IPv6 left alone or dropped")
+	}
 }
 
 // AcceptanceDuration returns the acceptance window as a time.Duration.
@@ -162,8 +193,11 @@ enabled  = true
 duration = 120  # seconds before auto-rollback
 
 [ipv6]
-enabled                          = true
-icmp_allow_router_advertisement  = true
+# filter      — apply every rule to IPv6 as well as IPv4 (default)
+# passthrough — accept all IPv6 before any rule; IPv6 is managed elsewhere
+# block       — drop all IPv6 except loopback
+mode                              = "filter"
+icmp_allow_router_advertisement   = true
 icmp_allow_neighbor_advertisement = true
 
 [docker]

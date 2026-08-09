@@ -96,11 +96,53 @@ type AcceptanceConfig struct {
 	Duration int  `toml:"duration"` // seconds before auto-rollback
 }
 
+// IPv6Mode says what the firewall does with IPv6 traffic.
+//
+// This replaces a boolean that could not express the question. `enabled = false`
+// was documented — in the interface, in its warning, and in configuration.md —
+// as "IPv6 traffic is not filtered at all". It did nothing of the sort: the
+// table is `inet`, so every rule and the drop policy still applied to IPv6 and
+// only the ICMPv6 exemptions were removed. IPv6 came out filtered *and* broken,
+// which was neither of the two things an operator might have wanted.
+type IPv6Mode string
+
+const (
+	// IPv6Filter applies every rule to IPv6 as well as IPv4, and permits the
+	// ICMPv6 types IPv6 needs to function. The default, and what almost
+	// everyone wants.
+	IPv6Filter IPv6Mode = "filter"
+
+	// IPv6Passthrough accepts all IPv6 before any other rule is consulted.
+	// For hosts where IPv6 is somebody else's problem — an upstream firewall,
+	// a cloud security group. easywall then protects IPv4 only.
+	IPv6Passthrough IPv6Mode = "passthrough"
+
+	// IPv6Block drops all IPv6 before any other rule is consulted, apart from
+	// loopback. For hosts that have no business speaking IPv6 at all.
+	IPv6Block IPv6Mode = "block"
+)
+
+// Valid reports whether m is a mode the core knows how to apply.
+func (m IPv6Mode) Valid() bool {
+	switch m {
+	case IPv6Filter, IPv6Passthrough, IPv6Block:
+		return true
+	default:
+		return false
+	}
+}
+
 // IPv6Config controls IPv6 support.
 type IPv6Config struct {
-	Enabled                        bool `toml:"enabled"`
-	ICMPAllowRouterAdvertisement   bool `toml:"icmp_allow_router_advertisement"`
-	ICMPAllowNeighborAdvertisement bool `toml:"icmp_allow_neighbor_advertisement"`
+	Mode IPv6Mode `toml:"mode" json:"mode"`
+
+	// Enabled is the pre-2.5.0 spelling, kept only so an existing config still
+	// loads. Config.Normalise translates it into Mode and it is not written
+	// back. Nothing should read it.
+	Enabled bool `toml:"enabled" json:"enabled"`
+
+	ICMPAllowRouterAdvertisement   bool `toml:"icmp_allow_router_advertisement" json:"icmp_allow_router_advertisement"`
+	ICMPAllowNeighborAdvertisement bool `toml:"icmp_allow_neighbor_advertisement" json:"icmp_allow_neighbor_advertisement"`
 }
 
 // DockerConfig controls Docker coexistence mode.
