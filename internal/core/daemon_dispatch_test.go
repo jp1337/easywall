@@ -376,6 +376,10 @@ func TestDaemonDispatch_HandlesEveryDeclaredCommand(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
+	// APPLY_RULES hands the work to a goroutine; Stop waits for it, so the test
+	// cannot return while it is still writing into t.TempDir().
+	defer d.Stop()
+
 	for _, cmd := range all {
 		resp := d.dispatch(shared.Command{Type: cmd, Payload: []byte("null")})
 		if !resp.Success && strings.Contains(resp.Error, "unknown command") {

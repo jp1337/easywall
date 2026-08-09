@@ -165,3 +165,63 @@ func TestAcceptance_StartWithZeroKeepsThePreviousDuration(t *testing.T) {
 		t.Errorf("expected the constructor's duration to survive, got %v", got)
 	}
 }
+
+// Shutdown during an open window. Until Stop waited for the apply goroutine and
+// cancelled the window, stopping mid-window abandoned it: the unconfirmed rules
+// stayed live and the rollback never ran — so a package upgrade at the wrong
+// moment made a bad rule permanent.
+func TestAcceptance_CancelEndsTheWaitAsNotAccepted(t *testing.T) {
+	a := NewAcceptance(time.Hour) // far longer than any test may wait
+	if err := a.Start(time.Hour); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	done := make(chan bool, 1)
+	go func() { done <- a.Wait() }()
+
+	a.Cancel()
+
+	select {
+	case accepted := <-done:
+		if accepted {
+			t.Error("a cancelled window must not count as accepted")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Cancel did not end the wait")
+	}
+	if got := a.Status(); got != shared.AcceptanceRolledBack {
+		t.Errorf("expected rolled_back after cancel, got %s", got)
+	}
+}
+
+// Cancel before Wait has captured the channel, and Cancel twice. Both are
+// reachable from a signal handler racing an apply.
+func TestAcceptance_CancelIsSafeBeforeWaitAndTwice(t *testing.T) {
+	a := NewAcceptance(time.Hour)
+	if err := a.Start(time.Hour); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	a.Cancel()
+	a.Cancel() // must not panic on a second close
+
+	done := make(chan bool, 1)
+	go func() { done <- a.Wait() }()
+	select {
+	case accepted := <-done:
+		if accepted {
+			t.Error("a cancelled window must not count as accepted")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a window cancelled before Wait must not block for its full length")
+	}
+}
+
+// Cancelling when nothing is pending is a no-op, not a panic.
+func TestAcceptance_CancelWithNoWindowOpen(t *testing.T) {
+	a := NewAcceptance(time.Minute)
+	a.Cancel()
+	if got := a.Status(); got != shared.AcceptanceIdle {
+		t.Errorf("expected idle, got %s", got)
+	}
+}

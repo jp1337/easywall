@@ -485,3 +485,58 @@ func TestIntegration_Apply_AcceptanceEnabled_OpensTheWindow(t *testing.T) {
 	}
 	t.Fatal("no acceptance window opened, although the switch is on")
 }
+
+// Stopping the daemon while an acceptance window is open must roll the rules
+// back, not abandon them. A package upgrade or a systemctl restart in the two
+// minutes after an apply is an ordinary event, and it used to make an
+// unconfirmed rule set permanent.
+func TestIntegration_StopDuringAnOpenWindowRollsBack(t *testing.T) {
+	// A real netlink manager: with the stub, Apply fails before it ever reaches
+	// the acceptance window, and the test would pass without exercising it.
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = 3600 // long enough that only the cancel can end it
+
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	// Stage a change so the rollback has something visible to undo.
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "4711"}}); err != nil {
+		t.Fatalf("SaveStaged: %v", err)
+	}
+
+	resp := d.dispatch(shared.Command{Type: shared.CmdApplyRules})
+	if !resp.Success {
+		t.Fatalf("apply was not started: %s", resp.Error)
+	}
+
+	// Wait for the window to actually open before stopping.
+	deadline := time.Now().Add(5 * time.Second)
+	for fw.acceptance.Status() != shared.AcceptancePending {
+		if time.Now().After(deadline) {
+			t.Fatal("the acceptance window never opened")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	stopped := make(chan struct{})
+	go func() { d.Stop(); close(stopped) }()
+
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop blocked on the open acceptance window instead of ending it")
+	}
+
+	// The status is reset to idle at the end of the cycle, so the thing to
+	// assert is the effect: the unconfirmed change must be gone.
+	state, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatalf("GetState: %v", err)
+	}
+	for _, r := range state.Current.TCP {
+		if r.Port == "4711" {
+			t.Error("the unconfirmed rule is still current; the rollback did not run")
+		}
+	}
+}

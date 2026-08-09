@@ -139,6 +139,14 @@ func (d *Daemon) Stop() {
 	if ln != nil {
 		_ = ln.Close()
 	}
+
+	// End an open acceptance window before waiting, or Stop blocks for as long
+	// as that window has left — up to an hour. Cancelling it counts as "not
+	// confirmed", so the rules roll back, which is what the window promises: the
+	// operator did not confirm, and the reason they did not is that the machine
+	// was told to stop.
+	d.firewall.CancelAcceptance()
+
 	d.wg.Wait()
 	_ = os.Remove(d.cfg.SocketPath)
 }
@@ -197,7 +205,14 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 	case shared.CmdApplyRules:
 		// Apply runs asynchronously to avoid blocking the socket.
 		// The caller must poll CmdGetStatus to track acceptance progress.
+		//
+		// Tracked in d.wg so Stop waits for it. Until it was, stopping in the
+		// middle of an acceptance window — a package upgrade, systemctl
+		// restart, a SIGTERM — abandoned the goroutine holding that window: the
+		// unconfirmed rules stayed live and the rollback never ran.
+		d.wg.Add(1)
 		go func() {
+			defer d.wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("apply panic recovered", "error", r)
