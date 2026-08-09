@@ -141,16 +141,24 @@ func (c *CoreClient) ApplyRules() error {
 	return nil
 }
 
-// Accept signals that the admin confirmed the new rules work.
-func (c *CoreClient) Accept() error {
+// Accept confirms the applied rules. The bool reports whether an acceptance
+// window was actually open: false means the confirmation came too late and the
+// rules have already been rolled back.
+func (c *CoreClient) Accept() (bool, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdAccept})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !resp.Success {
-		return fmt.Errorf("core error: %s", resp.Error)
+		return false, fmt.Errorf("core error: %s", resp.Error)
 	}
-	return nil
+	var result shared.AcceptResult
+	if len(resp.Data) > 0 {
+		if err := json.Unmarshal(resp.Data, &result); err != nil {
+			return false, fmt.Errorf("decode accept result: %w", err)
+		}
+	}
+	return result.Accepted, nil
 }
 
 // GetOptions returns the current firewall options from the core config.

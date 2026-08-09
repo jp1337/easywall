@@ -404,13 +404,20 @@ func (d *demoState) handleApplyRules() shared.Response {
 }
 
 func (d *demoState) handleAccept() shared.Response {
+	// Nothing to accept unless a window is open. The core reports that, and so
+	// must the demo: a confirmation arriving after the window closed changes
+	// nothing, and saying otherwise is the one lie the apply page must not tell.
+	if d.acceptance != shared.AcceptancePending {
+		return demoOK(shared.AcceptResult{Accepted: false})
+	}
+
 	if d.acceptanceTimer != nil {
 		d.acceptanceTimer.Stop()
 		d.acceptanceTimer = nil
 	}
 	d.acceptance = shared.AcceptanceAccepted
 	go d.delayedReset()
-	return shared.Response{Success: true}
+	return demoOK(shared.AcceptResult{Accepted: true})
 }
 
 // rollback fires from a time.AfterFunc when the acceptance window expires

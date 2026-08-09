@@ -225,3 +225,45 @@ func TestAcceptance_CancelWithNoWindowOpen(t *testing.T) {
 		t.Errorf("expected idle, got %s", got)
 	}
 }
+
+// Accept has to say whether there was anything to accept. A confirmation that
+// arrives after the window closed used to be discarded in silence, and the
+// interface reported "Rules accepted and applied successfully" anyway — at the
+// one moment when the rules had just been rolled back.
+func TestAcceptance_AcceptReportsWhetherAWindowWasOpen(t *testing.T) {
+	a := NewAcceptance(time.Minute)
+
+	if a.Accept() {
+		t.Error("nothing is pending, so there is nothing to accept")
+	}
+
+	if err := a.Start(time.Minute); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if !a.Accept() {
+		t.Error("an open window must report that the confirmation landed")
+	}
+	if !a.Wait() {
+		t.Error("the window was accepted")
+	}
+	a.Reset()
+
+	// And once it is over, a late click reports the truth again.
+	if a.Accept() {
+		t.Error("the window has closed; a confirmation now changes nothing")
+	}
+}
+
+// The same after a rollback, which is the case an operator actually hits.
+func TestAcceptance_AcceptAfterTimeoutReportsFalse(t *testing.T) {
+	a := NewAcceptance(20 * time.Millisecond)
+	if err := a.Start(20 * time.Millisecond); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if a.Wait() {
+		t.Fatal("the window should have expired")
+	}
+	if a.Accept() {
+		t.Error("a confirmation after the rollback must not report success")
+	}
+}

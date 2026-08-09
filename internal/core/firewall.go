@@ -193,9 +193,10 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 	}
 }
 
-// Accept signals that the admin confirmed the new rules work correctly.
-func (f *Firewall) Accept() {
-	f.acceptance.Accept()
+// Accept signals that the admin confirmed the new rules work correctly, and
+// reports whether a window was open to receive it.
+func (f *Firewall) Accept() bool {
+	return f.acceptance.Accept()
 }
 
 // CancelAcceptance ends an open window as not accepted, so the apply that owns

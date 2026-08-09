@@ -149,14 +149,25 @@ func (s *RulesStore) PromoteStaged() error {
 	return s.save(state)
 }
 
-// Rollback copies backup → current and staged (called on acceptance timeout).
+// Rollback restores the last known good rule set as the enforced one, and
+// leaves the staged edits alone.
+//
+// It used to overwrite Staged as well, which threw the operator's work away at
+// the worst possible moment: you edit twenty rules, apply, the new set cuts
+// your connection, you wait out the window to get back in — and everything you
+// wrote is gone, to be redone over the link you have just proved is fragile.
+//
+// The published apply-flow diagram, on four pages, says "Previous rules are
+// back. Nothing staged was lost." Staged is the workbench; a rollback is a
+// statement about what is enforced, not about what you are writing. After this
+// the interface correctly reports pending changes, because there are some: the
+// set you tried to apply, ready to be corrected and applied again.
 func (s *RulesStore) Rollback() error {
 	state, err := s.GetState()
 	if err != nil {
 		return err
 	}
 	state.Current = state.Backup
-	state.Staged = state.Backup
 	return s.save(state)
 }
 

@@ -113,6 +113,7 @@
   {"id": "apply_error",          "translation": "Failed to apply rules."},
   {"id": "accept_error",         "translation": "Failed to confirm rules."},
   {"id": "rules_accepted",       "translation": "Rules accepted and applied successfully."},
+  {"id": "accept_too_late",      "translation": "Too late — the confirmation window had already closed, and the previous rules are back. Your edits are still staged; apply them again when you are ready."},
   {"id": "export_error",         "translation": "Failed to export rules."},
   {"id": "import_no_file",       "translation": "No file uploaded."},
   {"id": "import_read_error",    "translation": "Failed to read uploaded file."},

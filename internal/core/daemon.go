@@ -226,8 +226,10 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdAccept:
-		d.firewall.Accept()
-		return shared.Response{Success: true}
+		// Whether it landed is the answer the caller needs: a confirmation that
+		// arrives after the window closed must not be reported as success.
+		data, _ := json.Marshal(shared.AcceptResult{Accepted: d.firewall.Accept()})
+		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdGetOptions:
 		opts := d.firewall.Options()

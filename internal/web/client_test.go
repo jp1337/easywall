@@ -205,11 +205,32 @@ func TestCoreClient_ApplyRules_CoreError(t *testing.T) {
 
 func TestCoreClient_Accept_Success(t *testing.T) {
 	fc := newFakeCore(t)
-	fc.SetResponse(shared.CmdAccept, shared.Response{Success: true})
+	fc.SetResponse(shared.CmdAccept, successResp(shared.AcceptResult{Accepted: true}))
 
 	client := NewCoreClient(fc.socketPath)
-	if err := client.Accept(); err != nil {
+	accepted, err := client.Accept()
+	if err != nil {
 		t.Fatalf("Accept: %v", err)
+	}
+	if !accepted {
+		t.Error("the core reported the window was accepted")
+	}
+}
+
+// The window may have closed a second before the operator clicked. The core
+// says so, and the client has to carry that answer rather than flattening it
+// into "no error, therefore success".
+func TestCoreClient_Accept_TooLate(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdAccept, successResp(shared.AcceptResult{Accepted: false}))
+
+	client := NewCoreClient(fc.socketPath)
+	accepted, err := client.Accept()
+	if err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+	if accepted {
+		t.Error("no window was open, so nothing was accepted")
 	}
 }
 
@@ -218,7 +239,7 @@ func TestCoreClient_Accept_CoreError(t *testing.T) {
 	fc.SetResponse(shared.CmdAccept, shared.Response{Success: false, Error: "accept failed"})
 
 	client := NewCoreClient(fc.socketPath)
-	if err := client.Accept(); err == nil {
+	if _, err := client.Accept(); err == nil {
 		t.Error("expected error on core error")
 	}
 }
@@ -390,7 +411,7 @@ func TestCoreClient_ApplyRules_SendError(t *testing.T) {
 
 func TestCoreClient_Accept_SendError(t *testing.T) {
 	client := NewCoreClient("/nonexistent/socket.sock")
-	err := client.Accept()
+	_, err := client.Accept()
 	if err == nil {
 		t.Error("expected error when socket doesn't exist")
 	}
