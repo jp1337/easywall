@@ -123,6 +123,24 @@ built on the accounts from 2.7. Let's Encrypt/ACME as a strictly optional
 alternative to a reverse proxy; running without any outbound connection stays
 the default.
 
+**2.9 — knowing how many machines this runs on.** A critical bug matters
+differently at ten installations and at ten thousand, and right now nobody knows
+which this is. An **opt-in** count, off unless switched on, sending a random
+identifier generated on the machine plus the version — enough to count distinct
+installations and to say "the fix reached 80% of them", and not enough to
+describe anyone. What it sends will be printed verbatim in the documentation,
+and the switch will sit next to the update check rather than buried.
+
+Opt-in and not opt-out, because this page and `security.md` promise that the
+update check is the *only* outbound request, and because an administrative
+interface quietly reporting to its author is the thing easywall removed Google
+Fonts to avoid. A security tool that has to explain a surprising connection has
+already lost the argument.
+
+Worth checking first: the update check already reaches `api.github.com` daily
+from every installation that has not disabled it, and release assets record
+their own download counts. That is a usable lower bound today, for nothing.
+
 Done in 2.5: every rate limit is counted per source address (four modules held
 one counter for the whole machine, so an attacker could spend the budget and
 lock everyone else out), every switch on the options page reaches the firewall
