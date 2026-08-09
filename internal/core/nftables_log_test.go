@@ -1,6 +1,9 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/nftables/expr"
@@ -89,5 +92,49 @@ func TestAddFiltered_LogAndActionShareTheMatch(t *testing.T) {
 	}
 	if len(logged) != before+2 {
 		t.Errorf("logged rule has %d expressions, want %d", len(logged), before+2)
+	}
+}
+
+// filters.md carries a table of log prefixes and tells operators to run
+// `journalctl -k -f | grep easywall`. A prefix that changes in the code and not
+// in the table sends them looking for something that is never written — which
+// is the state the whole logging feature was in before 2.5.0.
+//
+// Derived from the constants, so renaming one without touching the table fails
+// here.
+func TestLogPrefixesAreDocumented(t *testing.T) {
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var docs string
+	for i := 0; i < 5; i++ {
+		if data, err := os.ReadFile(filepath.Join(dir, "docs", "features", "filters.md")); err == nil {
+			docs = string(data)
+			break
+		}
+		dir = filepath.Dir(dir)
+	}
+	if docs == "" {
+		t.Fatal("could not locate docs/features/filters.md")
+	}
+
+	prefixes := map[string]string{
+		"invalid":    logPrefixInvalid,
+		"fragment":   logPrefixFragment,
+		"bogon":      logPrefixBogon,
+		"port scan":  logPrefixPortScan,
+		"syn flood":  logPrefixSYNFlood,
+		"icmp flood": logPrefixICMPFlood,
+		"ssh":        logPrefixSSH,
+		"tcp rst":    logPrefixTCPRST,
+		"blacklist":  logPrefixBlacklist,
+		"drop":       logPrefixDrop,
+	}
+	for name, prefix := range prefixes {
+		// The table shows the prefix without its trailing space.
+		if !strings.Contains(docs, strings.TrimSpace(prefix)) {
+			t.Errorf("filters.md does not list the %s prefix (%q)", name, prefix)
+		}
 	}
 }

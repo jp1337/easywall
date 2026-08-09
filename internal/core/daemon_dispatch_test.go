@@ -425,10 +425,21 @@ func TestDaemonDispatch_ApplyDoesNotRaceWithASettingsSave(t *testing.T) {
 		return payload
 	}
 
+	// The apply is called directly rather than through CmdApplyRules, which
+	// hands it to a goroutine this test has no handle on: those outlive the
+	// test, and one of them writing its snapshot into t.TempDir() after the
+	// cleanup has run makes the suite flaky for reasons that have nothing to do
+	// with what is being tested. The config reads that race happen in Apply
+	// either way, before it ever reaches netlink.
+	cfg.Acceptance.Enabled = false // no window to wait out
+
 	var wg sync.WaitGroup
 	for i := 0; i < 20; i++ {
 		wg.Add(3)
-		go func() { defer wg.Done(); d.dispatch(shared.Command{Type: shared.CmdApplyRules}) }()
+		go func() {
+			defer wg.Done()
+			_ = d.firewall.Apply("test")
+		}()
 		go func(i int) {
 			defer wg.Done()
 			d.dispatch(shared.Command{Type: shared.CmdSaveSettings, Payload: settings(i)})

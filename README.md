@@ -82,11 +82,11 @@ Then open `https://localhost:12227`. The first visit runs the setup wizard.
 |---|---|
 | **Ports** | TCP and UDP, single or range, with per-rule SSH brute-force routing |
 | **Blacklist & whitelist** | IPv4, IPv6 and CIDR, evaluated before any port rule |
-| **Protection modules** | Nine, four on by default — floods, scans, bogons, fragments |
+| **Protection modules** | Twelve, five on by default — floods, scans, bogons, fragments, broadcast/multicast/anycast |
 | **Port forwarding** | NAT redirects with protocol selection |
 | **Custom rules** | Raw nftables, syntax-checked before it is applied |
 | **Export / import** | The whole rule set as JSON |
-| **Audit log** | Who changed what, when |
+| **Audit log** | What changed and when, one JSON object per line |
 | **Docker coexistence** | Owns `table inet easywall`, touches nothing else |
 | **English & German** | Switchable in the interface, including before sign-in |
 | **Light & dark** | Follows the OS, with a manual toggle; both contrast-checked |
@@ -101,7 +101,7 @@ Then open `https://localhost:12227`. The first visit runs the setup wizard.
 | CSRF | `net/http.CrossOriginProtection`, Go 1.25 native |
 | Design system | [`DESIGN.md`](DESIGN.md) + Tailwind v4 — no third-party UI library |
 | Fonts | Inter + JetBrains Mono, self-hosted, ~145 KB — works air-gapped |
-| CI | `govulncheck`, `gosec`, CodeQL, 90% web coverage |
+| CI | `govulncheck`, `gosec`, CodeQL, `-race`, and an integration suite against a real kernel |
 
 ## Roadmap
 
@@ -123,9 +123,12 @@ built on the accounts from 2.7. Let's Encrypt/ACME as a strictly optional
 alternative to a reverse proxy; running without any outbound connection stays
 the default.
 
-Done in 2.5: every switch on the options page reaches the firewall (17 of 31 did
-not), rules that cannot become rules are refused instead of silently skipped,
-and the dashboard's "rules are live" is asked of the kernel rather than assumed.
+Done in 2.5: every rate limit is counted per source address (four modules held
+one counter for the whole machine, so an attacker could spend the budget and
+lock everyone else out), every switch on the options page reaches the firewall
+(17 of 31 did not), port forwarding goes the direction it says, rules that
+cannot become rules are refused instead of silently skipped, and the dashboard's
+"rules are live" is asked of the kernel rather than assumed.
 
 ## Contributing
 
