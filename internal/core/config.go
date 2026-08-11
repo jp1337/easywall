@@ -50,7 +50,9 @@ func (c *Config) NetworkSettings() shared.NetworkSettings {
 	defer c.mu.RUnlock()
 	docker := c.Docker
 	docker.CustomNetworks = append([]string(nil), c.Docker.CustomNetworks...)
-	return shared.NetworkSettings{IPv6: c.IPv6, Docker: docker}
+	routing := c.Routing
+	routing.Networks = append([]string(nil), c.Routing.Networks...)
+	return shared.NetworkSettings{IPv6: c.IPv6, Docker: docker, Routing: routing}
 }
 
 // SystemSettings returns a copy of the [acceptance] section.
@@ -120,6 +122,18 @@ func (c *Config) Validate() error {
 	if !c.IPv6.Mode.Valid() {
 		return fmt.Errorf("ipv6.mode must be one of %q, %q or %q, got %q",
 			shared.IPv6Filter, shared.IPv6Passthrough, shared.IPv6Block, c.IPv6.Mode)
+	}
+
+	// An absent [routing] section means closed, which is what every config
+	// written before this key existed was already getting. Unset is filled in;
+	// set-and-wrong is refused, because the three answers open and close a
+	// router and guessing between them is not something to do quietly.
+	if c.Routing.Mode == "" {
+		c.Routing.Mode = shared.RoutingClosed
+	}
+	if !c.Routing.Mode.Valid() {
+		return fmt.Errorf("routing.mode must be one of %q, %q or %q, got %q",
+			shared.RoutingClosed, shared.RoutingNetworks, shared.RoutingOpen, c.Routing.Mode)
 	}
 	return nil
 }
@@ -211,6 +225,7 @@ func (c *Config) Reload() error {
 	c.Acceptance = fresh.Acceptance
 	c.IPv6 = fresh.IPv6
 	c.Docker = fresh.Docker
+	c.Routing = fresh.Routing
 	return nil
 }
 
@@ -251,21 +266,41 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	if !s.IPv6.Mode.Valid() {
 		return fmt.Errorf("unknown ipv6 mode %q", s.IPv6.Mode)
 	}
+	if s.Routing.Mode == "" {
+		s.Routing.Mode = shared.RoutingClosed
+	}
+	if !s.Routing.Mode.Valid() {
+		return fmt.Errorf("unknown routing mode %q", s.Routing.Mode)
+	}
 	// Every entry has to be a network the apply step can turn into a rule.
 	// addCIDRAccept returns quietly on anything it cannot parse, so an unchecked
 	// entry was listed here as whitelisted and never reached the kernel — the
 	// same silent skip the blacklist had, in the direction where the operator
 	// finds out because something they expected to work does not.
-	for _, cidr := range s.Docker.CustomNetworks {
-		if _, _, err := net.ParseCIDR(cidr); err != nil {
-			return fmt.Errorf("docker custom network %q: not a CIDR network", cidr)
-		}
+	if err := checkCIDRList("docker custom network", s.Docker.CustomNetworks); err != nil {
+		return err
+	}
+	if err := checkCIDRList("routing network", s.Routing.Networks); err != nil {
+		return err
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.IPv6 = s.IPv6
 	c.Docker = s.Docker
+	c.Routing = s.Routing
 	return c.saveLocked()
+}
+
+// checkCIDRList refuses a list holding anything the apply step could not turn
+// into a rule. Shared by the two lists on the Network page so they cannot come
+// to disagree about what a network is.
+func checkCIDRList(what string, entries []string) error {
+	for _, cidr := range entries {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("%s %q: not a CIDR network", what, cidr)
+		}
+	}
+	return nil
 }
 
 // SaveFirewallOptions updates the [firewall] section and atomically persists the config.
@@ -314,6 +349,7 @@ func (c *Config) SaveSystemSettings(s shared.SystemSettings) error {
 func (c *Config) saveLocked() error {
 	snapshot := c.CoreConfig
 	snapshot.Docker.CustomNetworks = append([]string(nil), c.Docker.CustomNetworks...)
+	snapshot.Routing.Networks = append([]string(nil), c.Routing.Networks...)
 
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "core-*.toml.tmp")

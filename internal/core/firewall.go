@@ -120,8 +120,7 @@ func (f *Firewall) Apply(user string) error {
 	// One snapshot for the whole apply, so the rules that reach the kernel
 	// describe a single configuration rather than whatever each field happened
 	// to hold as it was read.
-	netCfg := f.cfg.NetworkSettings()
-	if err := f.nft.Apply(updatedState, f.cfg.FirewallOptions(), netCfg.IPv6, netCfg.Docker); err != nil {
+	if err := f.nft.Apply(updatedState, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 		// Rule application failed — roll back immediately without waiting
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all", err.Error(), user)
 		f.rollback(state, user)
@@ -181,8 +180,7 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		slog.Error("rollback rules file failed", "error", err)
 		failures = append(failures, "rules file: "+err.Error())
 	}
-	netCfg := f.cfg.NetworkSettings()
-	if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), netCfg.IPv6, netCfg.Docker); err != nil {
+	if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 		slog.Error("rollback nftables failed", "error", err)
 		failures = append(failures, "nftables: "+err.Error())
 	}

@@ -9,9 +9,10 @@ import (
 )
 
 type settingsData struct {
-	Settings       *shared.NetworkSettings
-	CustomNetworks string // pre-joined for textarea display
-	CoreErr        string
+	Settings        *shared.NetworkSettings
+	CustomNetworks  string // pre-joined for textarea display
+	RoutingNetworks string // likewise
+	CoreErr         string
 }
 
 func (s *Server) handleSettingsGET(w http.ResponseWriter, r *http.Request) {
@@ -22,8 +23,9 @@ func (s *Server) handleSettingsGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, r, "settings.html", "settings", &settingsData{
-		Settings:       ns,
-		CustomNetworks: strings.Join(ns.Docker.CustomNetworks, "\n"),
+		Settings:        ns,
+		CustomNetworks:  strings.Join(ns.Docker.CustomNetworks, "\n"),
+		RoutingNetworks: strings.Join(ns.Routing.Networks, "\n"),
 	})
 }
 
@@ -35,9 +37,11 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 
 	// The core refuses an unparseable network, but a redirect with a generic
 	// "save failed" leaves the operator hunting. Name the lines here.
-	if errs := validateIPListEntries(r.FormValue("custom_networks")); len(errs) > 0 {
-		s.respondPartialError(w, r, "/settings", "save_invalid_entries")
-		return
+	for _, field := range []string{"custom_networks", "routing_networks"} {
+		if errs := validateIPListEntries(r.FormValue(field)); len(errs) > 0 {
+			s.respondPartialError(w, r, "/settings", "save_invalid_entries")
+			return
+		}
 	}
 
 	ns := shared.NetworkSettings{
@@ -53,6 +57,10 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 			AllowBridgeNetworks: r.FormValue("allow_bridge_networks") != "",
 			CustomNetworks:      parseIPList(r.FormValue("custom_networks")),
 		},
+		Routing: shared.RoutingConfig{
+			Mode:     routingModeFromForm(r.FormValue("routing_mode")),
+			Networks: parseIPList(r.FormValue("routing_networks")),
+		},
 	}
 
 	if err := s.client.SaveSettings(ns); err != nil {
@@ -62,6 +70,18 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondPartialSave(w, r, "/settings", "settings_saved")
+}
+
+// routingModeFromForm maps the submitted value to a mode, falling back to
+// closed. Same reasoning as ipv6ModeFromForm below, and the same direction: a
+// value nobody recognises must not turn into "open", which is the one setting
+// that stops easywall having an opinion about routed traffic at all.
+func routingModeFromForm(v string) shared.RoutingMode {
+	m := shared.RoutingMode(v)
+	if m.Valid() {
+		return m
+	}
+	return shared.RoutingClosed
 }
 
 // ipv6ModeFromForm maps the submitted value to a mode, falling back to the

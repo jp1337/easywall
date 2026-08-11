@@ -36,7 +36,7 @@ func newIntegrationManager(t *testing.T) *NftablesManager {
 // applyEmpty applies an empty rule set with the given options.
 func applyEmpty(t *testing.T, m *NftablesManager, opts shared.FirewallOptions) {
 	t.Helper()
-	if err := m.Apply(emptyState(), opts, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(emptyState(), opts, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 }
@@ -44,7 +44,7 @@ func applyEmpty(t *testing.T, m *NftablesManager, opts shared.FirewallOptions) {
 // applyEmptyIPv6 applies an empty rule set with IPv6 enabled.
 func applyEmptyIPv6(t *testing.T, m *NftablesManager, ipv6 shared.IPv6Config) {
 	t.Helper()
-	if err := m.Apply(emptyState(), shared.FirewallOptions{}, ipv6, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(emptyState(), shared.FirewallOptions{}, shared.NetworkSettings{IPv6: ipv6}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 }
@@ -112,9 +112,15 @@ func ruleCount(t *testing.T, m *NftablesManager, chainName string) int {
 // operator sees when they check the box themselves.
 func inputChainText(t *testing.T, _ *NftablesManager) []string {
 	t.Helper()
-	out, err := exec.Command("nft", "list", "chain", "inet", tableName, "input").CombinedOutput()
+	return chainText(t, "input")
+}
+
+// chainText does the same for any chain in the easywall table.
+func chainText(t *testing.T, name string) []string {
+	t.Helper()
+	out, err := exec.Command("nft", "list", "chain", "inet", tableName, name).CombinedOutput()
 	if err != nil {
-		t.Fatalf("nft list chain: %v\n%s", err, out)
+		t.Fatalf("nft list chain %s: %v\n%s", name, err, out)
 	}
 	var rules []string
 	for _, line := range strings.Split(string(out), "\n") {
@@ -329,7 +335,7 @@ func TestIntegration_Apply_TCPPort_AddsRule(t *testing.T) {
 
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "80", Description: "HTTP"}}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with TCP port: %v", err)
 	}
 
@@ -345,7 +351,7 @@ func TestIntegration_Apply_UDPPort_AddsRule(t *testing.T) {
 
 	state := emptyState()
 	state.Current.UDP = []shared.PortRule{{Port: "53", Description: "DNS"}}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with UDP port: %v", err)
 	}
 
@@ -361,7 +367,7 @@ func TestIntegration_Apply_PortRange_AddsRule(t *testing.T) {
 
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "8000:9000"}}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with port range: %v", err)
 	}
 
@@ -378,7 +384,7 @@ func TestIntegration_Apply_MultiplePortsAndProtocols(t *testing.T) {
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "80"}, {Port: "443"}, {Port: "8080"}}
 	state.Current.UDP = []shared.PortRule{{Port: "53"}, {Port: "123"}}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -398,7 +404,7 @@ func TestIntegration_Apply_Blacklist_AddsRules(t *testing.T) {
 
 	state := emptyState()
 	state.Current.Blacklist = []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with blacklist: %v", err)
 	}
 
@@ -414,7 +420,7 @@ func TestIntegration_Apply_Whitelist_AddsRules(t *testing.T) {
 
 	state := emptyState()
 	state.Current.Whitelist = []string{"10.0.0.0/8", "172.16.0.0/12"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with whitelist: %v", err)
 	}
 
@@ -555,7 +561,7 @@ func TestIntegration_Apply_SSHBruteForce_CreatesChain(t *testing.T) {
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "22", SSH: true}}
 
-	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -569,7 +575,7 @@ func TestIntegration_Apply_SSHBruteForce_ChainHasRateLimitAndDrop(t *testing.T) 
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "22", SSH: true}}
 
-	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -592,7 +598,7 @@ func TestIntegration_Apply_SSHBruteForce_ChainHasRateLimitAndDrop(t *testing.T) 
 func TestIntegration_Apply_SSHBruteForce_DefaultsToPort22(t *testing.T) {
 	m := newIntegrationManager(t)
 	// No TCP rules — addSSHBruteForce falls back to port 22.
-	if err := m.Apply(emptyState(), shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(emptyState(), shared.FirewallOptions{SSHBruteForce: true}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -614,7 +620,7 @@ func TestIntegration_Apply_SSHPortAppliesWithBruteForceOff(t *testing.T) {
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}}
 
-	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: false}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: false}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with SSH port and brute force disabled: %v", err)
 	}
 
@@ -638,7 +644,7 @@ func TestIntegration_Apply_SSHBruteForce_MetersBeforeAccepting(t *testing.T) {
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}}
 
-	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -664,7 +670,7 @@ func TestIntegration_Apply_SSHBruteForce_MetersAPortRange(t *testing.T) {
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "2200:2210", Description: "SSH", SSH: true}}
 
-	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{SSHBruteForce: true}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -685,7 +691,7 @@ func TestIntegration_Apply_Forwarding_CreatesPreRoutingChain(t *testing.T) {
 		{Protocol: "tcp", SourcePort: 8080, DestPort: 80},
 	}
 
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply with forwarding: %v", err)
 	}
 
@@ -702,7 +708,7 @@ func TestIntegration_Apply_Forwarding_CorrectRuleCount(t *testing.T) {
 		{Protocol: "udp", SourcePort: 5353, DestPort: 53},
 	}
 
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -752,7 +758,7 @@ func TestIntegration_Apply_AllOptions(t *testing.T) {
 		{Protocol: "tcp", SourcePort: 8080, DestPort: 80},
 	}
 
-	if err := m.Apply(state, opts, shared.IPv6Config{Enabled: true}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, opts, shared.NetworkSettings{IPv6: shared.IPv6Config{Enabled: true}}); err != nil {
 		t.Fatalf("Apply all options: %v", err)
 	}
 
@@ -771,13 +777,13 @@ func TestIntegration_Apply_Idempotent(t *testing.T) {
 	opts := shared.FirewallOptions{InvalidPackets: true, Fragments: true}
 
 	for i := 0; i < 3; i++ {
-		if err := m.Apply(state, opts, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+		if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
 			t.Fatalf("Apply #%d: %v", i+1, err)
 		}
 	}
 
 	countA := ruleCount(t, m, "input")
-	if err := m.Apply(state, opts, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
 		t.Fatal(err)
 	}
 	countB := ruleCount(t, m, "input")
@@ -908,7 +914,7 @@ func TestIntegration_Snapshot_RuleCountsPresent(t *testing.T) {
 	// Apply with some rules so the input chain has a non-trivial rule count.
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "80"}, {Port: "443"}}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 

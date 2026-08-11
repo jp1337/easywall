@@ -215,7 +215,13 @@ func (m *NftablesManager) Reset() error {
 
 // Apply translates the given RulesState and FirewallOptions into nftables
 // rules and installs them atomically via a single netlink Flush call.
-func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, ipv6 shared.IPv6Config, docker shared.DockerConfig) error {
+//
+// netCfg carries the IPv6 disposition, Docker coexistence and the routing mode
+// as one value. They used to arrive as separate parameters and a third was one
+// parameter too many — the caller already holds them together, and the three
+// of them describe one configuration that has to reach the kernel intact.
+func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, netCfg shared.NetworkSettings) error {
+	ipv6, docker, routing := netCfg.IPv6, netCfg.Docker, netCfg.Routing
 	// Check the rules before Reset, not after: Reset deletes the table, so a
 	// failure past this point costs the working ruleset. The builders below
 	// each guard their own parsing and return quietly when an address will not
@@ -236,6 +242,16 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 			slog.Warn("unknown ipv6 mode; filtering", "mode", ipv6.Mode)
 		}
 		ipv6.Mode = shared.IPv6Filter
+	}
+
+	// And a zero-valued RoutingConfig must mean "closed", for the same reason.
+	// Falling through to "open" on an unset field would hand a host the one
+	// disposition nobody asked for.
+	if !routing.Mode.Valid() {
+		if routing.Mode != "" {
+			slog.Warn("unknown routing mode; routing nothing", "mode", routing.Mode)
+		}
+		routing.Mode = shared.RoutingClosed
 	}
 
 	if err := m.Reset(); err != nil {
@@ -267,14 +283,25 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		Policy:   policyAccept(),
 	})
 
-	// --- FORWARD chain (base, default DROP) ---
-	m.conn.AddChain(&nftables.Chain{
+	// --- FORWARD chain (base) ---
+	//
+	// An empty base chain at a hook is not "no opinion": the policy is the
+	// verdict, so a drop here destroys everything the host would forward, and it
+	// beats an accept another table's forward chain has already made. That is
+	// what routing.mode is for. Under "open" the policy is accept and no rules
+	// are needed; otherwise it drops and addForwardExceptions names what may
+	// cross.
+	forwardPolicy := policyDrop()
+	if routing.Mode == shared.RoutingOpen {
+		forwardPolicy = policyAccept()
+	}
+	forwardChain := m.conn.AddChain(&nftables.Chain{
 		Name:     "forward",
 		Table:    table,
 		Type:     nftables.ChainTypeFilter,
 		Hooknum:  nftables.ChainHookForward,
 		Priority: nftables.ChainPriorityRef(prioFilter),
-		Policy:   policyDrop(),
+		Policy:   forwardPolicy,
 	})
 
 	// Base INPUT rules
@@ -294,6 +321,29 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 
 	m.addEstablishedAccept(table, inputChain)
 	m.addICMPRules(table, inputChain, ipv6)
+
+	// Which Docker networks are allowed is settled before the modules run,
+	// because the bogon filter has to know about them: it drops RFC-1918
+	// sources, and a bridge network is one.
+	var dockerCIDRs []string
+	if docker.Enabled {
+		if docker.AllowBridgeNetworks {
+			dockerCIDRs = append(dockerCIDRs, detectDockerBridges()...)
+		}
+		dockerCIDRs = append(dockerCIDRs, docker.CustomNetworks...)
+	}
+
+	// What may cross the forward chain: the Docker networks, always — the
+	// coexistence above reaches no container otherwise, and that must not depend
+	// on a key nobody has set yet — plus whatever routing.networks names. Under
+	// "open" the policy already accepts and these rules would be dead weight.
+	if routing.Mode != shared.RoutingOpen {
+		forwardCIDRs := dockerCIDRs
+		if routing.Mode == shared.RoutingNetworks {
+			forwardCIDRs = append(append([]string(nil), dockerCIDRs...), routing.Networks...)
+		}
+		m.addForwardExceptions(table, forwardChain, forwardCIDRs)
+	}
 
 	// Optional protection modules
 	if opts.PortScan {
@@ -334,15 +384,8 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	}
 
 	// Docker bridge whitelisting
-	if docker.Enabled {
-		var cidrs []string
-		if docker.AllowBridgeNetworks {
-			cidrs = append(cidrs, detectDockerBridges()...)
-		}
-		cidrs = append(cidrs, docker.CustomNetworks...)
-		for _, cidr := range cidrs {
-			m.addCIDRAccept(table, inputChain, cidr)
-		}
+	for _, cidr := range dockerCIDRs {
+		m.addCIDRAccept(table, inputChain, cidr)
 	}
 
 	// Blacklist (DROP before whitelist)
@@ -1223,6 +1266,134 @@ func (m *NftablesManager) addMulticastDrop(t *nftables.Table, c *nftables.Chain)
 			&expr.Verdict{Kind: expr.VerdictDrop},
 		},
 	})
+}
+
+// addrPos gives the offset of an address within the network header, per family.
+// IPv4 carries the source at 12 and the destination at 16; IPv6 at 8 and 24.
+type addrPos struct{ v4, v6 uint32 }
+
+var (
+	posSrcAddr = addrPos{v4: 12, v6: 8}
+	posDstAddr = addrPos{v4: 16, v6: 24}
+)
+
+// cidrMatch matches an address or a network — either family, source or
+// destination. Returns nil for a comment or for text that will not parse, so a
+// caller can skip the entry.
+//
+// The mask test is omitted for a single address, so that `nft list ruleset`
+// prints `ip daddr 172.17.0.2` rather than the same thing anded with
+// 255.255.255.255. An operator checking a firewall reads that output.
+func cidrMatch(entry string, pos addrPos) []expr.Any {
+	if shared.IsListComment(entry) {
+		return nil
+	}
+	entry = strings.TrimSpace(entry)
+
+	var ipNet *net.IPNet
+	if ip := net.ParseIP(entry); ip != nil {
+		if ip4 := ip.To4(); ip4 != nil {
+			ipNet = &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}
+		} else {
+			ipNet = &net.IPNet{IP: ip.To16(), Mask: net.CIDRMask(128, 128)}
+		}
+	} else {
+		_, parsed, err := net.ParseCIDR(entry)
+		if err != nil {
+			return nil
+		}
+		ipNet = parsed
+	}
+
+	family, offset, length, addr := byte(unix.NFPROTO_IPV6), pos.v6, uint32(16), ipNet.IP.To16()
+	if ip4 := ipNet.IP.To4(); ip4 != nil {
+		family, offset, length, addr = unix.NFPROTO_IPV4, pos.v4, 4, ip4
+	}
+	mask := []byte(ipNet.Mask)
+	if uint32(len(mask)) != length || addr == nil {
+		return nil
+	}
+
+	exprs := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{family}},
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       offset,
+			Len:          length,
+		},
+	}
+	if ones, bits := ipNet.Mask.Size(); ones != bits {
+		exprs = append(exprs, &expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            length,
+			Mask:           mask,
+			Xor:            make([]byte, length),
+		})
+	}
+	return append(exprs, &expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: addr})
+}
+
+// addForwardExceptions lets the Docker networks the operator has allowed cross
+// the forward chain.
+//
+// The chain is a base chain at the forward hook with policy drop, and until
+// 2.5.0 it had no rules in it at all. That is not the same as taking no
+// interest in routed traffic: a base chain whose rules issue no verdict falls
+// through to its policy, and a drop there is final no matter what another
+// table's forward chain has already accepted. So every packet the host would
+// have routed was destroyed — measured with a router between two namespaces, a
+// second table accepting everything at the same hook, and its counter showing
+// the accept had already matched:
+//
+//	no firewall                                       REACHABLE
+//	+ another table's forward chain accepting all     REACHABLE
+//	+ easywall's empty forward chain                  DROPPED
+//
+// Every Docker container's traffic goes that way: out of the bridge, through
+// the forward hook, on to the world — and back the same way for a published
+// port, which Docker DNATs before this chain sees it. So all three of the
+// arrangements docker.md offers were dead, including the two whose whole point
+// is that containers keep working. It went unseen because nothing routes on a
+// test host and because the check on this chain asserted its policy, which was
+// exactly the part that was right.
+//
+// Only what the operator has allowed is let through, and only in the two
+// directions a container needs: a source inside one of those networks, or a
+// destination inside one. Docker's own DOCKER-USER chain still gets its say —
+// an accept here ends this chain, not the hook. With Docker coexistence off and
+// routing.mode at its default, nothing is added and the chain still drops,
+// which is the correct default for a host that does not route.
+//
+// cidrs is the Docker networks plus, under routing.mode = "networks", the
+// networks named there. The two are deliberately one list: they are the same
+// statement — "this host routes for these" — arrived at by two routes.
+func (m *NftablesManager) addForwardExceptions(t *nftables.Table, c *nftables.Chain, cidrs []string) {
+	var matches [][]expr.Any
+	for _, cidr := range cidrs {
+		for _, pos := range []addrPos{posSrcAddr, posDstAddr} {
+			if match := cidrMatch(cidr, pos); match != nil {
+				matches = append(matches, match)
+			}
+		}
+	}
+	if len(matches) == 0 {
+		return
+	}
+
+	// Return traffic first, so a reply is not re-tested against the networks:
+	// a connection out of a container to the internet comes back with neither
+	// address inside the bridge range once Docker has un-NATed it.
+	m.addEstablishedAccept(t, c)
+	for _, match := range matches {
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: c,
+			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictAccept}),
+		})
+	}
 }
 
 func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, cidr string) {
