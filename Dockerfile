@@ -20,6 +20,23 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM alpine:3.24
 
+# Provenance, set here rather than in one of the workflows, because there are
+# three build paths — GoReleaser for a release, publish-edge for :edge, and a
+# plain `docker build` for anyone building their own — and only this file is on
+# all three. installation/docker.md tells operators to read the revision back
+# and compare it against the tag; before this, release images carried no labels
+# at all and the instruction could not work.
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="easywall" \
+      org.opencontainers.image.description="Linux firewall management with a web interface" \
+      org.opencontainers.image.source="https://github.com/jp1337/easywall" \
+      org.opencontainers.image.url="https://easywall-project.org" \
+      org.opencontainers.image.documentation="https://easywall-project.org" \
+      org.opencontainers.image.licenses="GPL-3.0-or-later" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
+
 # nftables for firewall management; supervisor to run both processes; tini for signal handling
 RUN apk add --no-cache nftables supervisor tini && \
     addgroup -S easywall && \
