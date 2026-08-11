@@ -18,14 +18,28 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: github/codeql-action/init@v4
-        with:
-          languages: go
-
+      # setup-go comes *before* codeql-action/init, and the order is
+      # load-bearing. init puts a wrapper `go` on PATH so it can trace the
+      # build; a setup-go that runs afterwards prepends the real toolchain and
+      # the wrapper is never called. CodeQL says so itself on every run, and
+      # said so on this repository:
+      #
+      #   Go was installed after the `codeql-action/init` Action was run.
+      #   Expected `which go` to return
+      #   /home/runner/work/_temp/codeql-action-go-tracing/bin/go, but got
+      #   /opt/hostedtoolcache/go/1.25.12/x64/bin/go
+      #
+      # It is a warning rather than a failure, so the job stayed green while the
+      # analysis was not seeing the build it was pointed at — which is the worst
+      # shape a security check can have.
       - uses: actions/setup-go@v7
         with:
           go-version: "1.25"
           cache: true
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: go
 
       - run: go build ./...
 
@@ -62,8 +76,19 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
 
+      # -tests is what makes -tags do anything here. Everything behind the
+      # integration tag is a _test.go file, and gosec skips test files unless
+      # asked, so `-tags integration` on its own scans exactly the same 41 files
+      # as no flags at all — measured: 41 files / 9,808 lines / 23 issues, both
+      # ways. With -tests it is 148 files and 36,865 lines, and the integration
+      # harness — which shells out to ip, nsenter and ping — is finally in scope.
+      #
+      # The cost is visible: the SARIF goes from 23 findings to 145, and 99 of
+      # the additions are file-permission and file-inclusion warnings about
+      # tests writing into t.TempDir(). If that buries the ones that matter,
+      # the answer is a rule filter, not dropping the tag again.
       - name: Run gosec
-        run: gosec -fmt sarif -out gosec-results.sarif ./... || true
+        run: gosec -tests -tags integration -fmt sarif -out gosec-results.sarif ./... || true
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
