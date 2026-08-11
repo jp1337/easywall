@@ -211,10 +211,28 @@ jobs:
   # add a `pull_request` or `pull_request_target` trigger to this workflow,
   # or to any job that runs on `self-hosted` — that turns any fork PR into
   # arbitrary code execution on the intranet runner.
+  # Off unless the repository variable DEPLOY_DEMO is "1", because there is no
+  # runner carrying the `intranet` label and a job whose labels nobody answers
+  # does not fail — it *queues*, for the full 24 hours GitHub allows, and then
+  # reports the run as cancelled. Every push to main since the runner went away
+  # ended that way: build and merge green, the images in GHCR, the run red.
+  #
+  # It is worth being clear about what that cost. Watchtower on the demo host
+  # runs with WATCHTOWER_HTTP_API_UPDATE and no schedule — deliberately, so that
+  # pinned containers are never touched — so this POST is not a way of making
+  # the demo update sooner. It is the only thing that makes it update at all,
+  # and the demo has been serving whatever :edge it was last given by hand.
+  #
+  # Set DEPLOY_DEMO=1 once a runner labelled `self-hosted,intranet` is
+  # registered — same escape-hatch idiom as QUAY_SKIP in .goreleaser.yaml.
   deploy-demo:
     needs: merge
+    if: vars.DEPLOY_DEMO == '1'
     runs-on: [self-hosted, intranet]
     permissions: {}
+    # A nudge to a host on the other side of a VPN either lands in a minute or
+    # is not going to. Waiting out the default is how this went unnoticed.
+    timeout-minutes: 10
     steps:
       - name: Trigger Watchtower update
         run: |
