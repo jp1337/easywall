@@ -7,7 +7,8 @@
     "build:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --minify",
     "dev:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --watch",
     "build:diagrams": "node scripts/render-diagrams.mjs",
-    "check:diagrams": "node scripts/render-diagrams.mjs --check"
+    "check:diagrams": "node scripts/render-diagrams.mjs --check",
+    "check:ui": "node scripts/ui-check.mjs"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",
