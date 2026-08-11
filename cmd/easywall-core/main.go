@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,7 +14,16 @@ import (
 
 func main() {
 	configPath := flag.String("config", "/etc/easywall/easywall.toml", "path to core config file")
+	// So a build can be checked rather than assumed. The version is written in
+	// by the linker, and when that silently did nothing there was no way to see
+	// it from outside the binary.
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("easywall-core", shared.CurrentVersion)
+		return
+	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
