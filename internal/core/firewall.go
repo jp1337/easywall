@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -18,14 +19,67 @@ type Firewall struct {
 	nft        *NftablesManager
 	rules      *RulesStore
 	acceptance *Acceptance
-	mu         sync.Mutex // prevents concurrent Apply calls
 
-	// lastApplyMu guards lastApply, deliberately separate from mu: Apply holds
-	// mu for the whole acceptance window — up to an hour — and the dashboard
-	// polls Status throughout exactly that window. Sharing one lock would make
-	// the status page hang for the entire time it matters most.
+	// applyMu guards applying, which records that a cycle is running.
+	//
+	// This was a plain mutex that Apply held for the whole cycle, so a second
+	// apply did not fail — it *waited*, for as long as the acceptance window had
+	// left. See ErrApplyInProgress for what that cost.
+	applyMu  sync.Mutex
+	applying bool
+
+	// lastApplyMu guards lastApply, deliberately separate: a cycle runs for the
+	// whole acceptance window — up to an hour — and the dashboard polls Status
+	// throughout exactly that window. Sharing one lock would make the status
+	// page hang for the entire time it matters most.
 	lastApplyMu sync.Mutex
 	lastApply   time.Time
+}
+
+// ErrApplyInProgress is returned when an apply is asked for while a cycle is
+// already running.
+//
+// It used to be queued instead. Apply serialised on a mutex it holds for the
+// whole acceptance window, so a second APPLY_RULES sat in that lock until the
+// first window closed and then ran on its own. Two consequences, both measured
+// against a real kernel:
+//
+//   - The queued apply promoted the staged set again the instant the first one
+//     rolled back. An operator whose rules cut their connection, who waited out
+//     the window to get back in, was cut off again by an apply nobody
+//     re-requested. That is the product's central promise running backwards.
+//   - Stop cancels the window that is open, not the ones queued behind it. Four
+//     APPLY commands made shutdown wait three further full windows: 6.1 s at a
+//     2 s window, and six minutes at the shipped 120 s default — past systemd's
+//     90 s TimeoutStopSec, after which SIGKILL leaves the unconfirmed rules live
+//     and no rollback runs at all.
+//
+// The web interface hides the Start button while a window is open, which is why
+// this went unnoticed; a second tab, a double-click before the redirect lands,
+// or the back button all still reach the endpoint, and the privileged side does
+// not get to depend on the browser hiding a control.
+var ErrApplyInProgress = errors.New(shared.ErrApplyInProgressText)
+
+// beginApply claims the right to run one apply cycle, reporting false when one
+// is already running. endApply releases it.
+//
+// A flag rather than a mutex because the answer has to be available *without*
+// waiting: the caller's job is to tell the operator whether their apply
+// started, and "it will start in an hour" is not one of the answers.
+func (f *Firewall) beginApply() bool {
+	f.applyMu.Lock()
+	defer f.applyMu.Unlock()
+	if f.applying {
+		return false
+	}
+	f.applying = true
+	return true
+}
+
+func (f *Firewall) endApply() {
+	f.applyMu.Lock()
+	f.applying = false
+	f.applyMu.Unlock()
 }
 
 // NewFirewall creates a Firewall with all sub-components initialised.
@@ -81,11 +135,23 @@ func (f *Firewall) setLastApply(t time.Time) {
 
 // Apply starts a full rule-application cycle.
 // It blocks until the acceptance window completes (accepted or timed out).
-// Thread-safe: concurrent Apply calls are serialised.
+//
+// A second Apply arriving while one is running is refused with
+// ErrApplyInProgress rather than queued behind the open window — read the note
+// on that error before changing it back.
 func (f *Firewall) Apply(user string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	if !f.beginApply() {
+		return ErrApplyInProgress
+	}
+	defer f.endApply()
+	return f.apply(user)
+}
 
+// apply runs the cycle. The caller must already hold the slot from beginApply,
+// which is why this is separate: the daemon has to claim the slot
+// *synchronously*, so it can answer the request truthfully, and only then hand
+// the cycle itself to a goroutine.
+func (f *Firewall) apply(user string) error {
 	slog.Info("starting rule apply", "user", user)
 
 	state, err := f.rules.GetState()
