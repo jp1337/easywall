@@ -90,6 +90,27 @@ jobs:
       - name: Run gosec
         run: gosec -tests -tags integration -fmt sarif -out gosec-results.sarif ./... || true
 
+      # The filter the comment above predicted would be needed, needed on the
+      # first run: 47 of the 48 new alerts were G301–G307 — file and directory
+      # permissions — against test files writing into t.TempDir(), a directory
+      # the kernel removes when the test ends. A 0600 rule has nothing to say
+      # about it, and 47 of them bury the one finding that does.
+      #
+      # Dropped for test files only. The same rules still apply to everything
+      # that ships, and every *other* rule still applies to the tests — which is
+      # what -tests was for: the integration harness shells out to ip, nsenter
+      # and ping, and G204 on those lines is exactly the finding worth seeing.
+      - name: Keep the test-file permission noise out of the alert list
+        run: |
+          set -euo pipefail
+          before=$(jq '[.runs[].results[]] | length' gosec-results.sarif)
+          jq '.runs[].results |= map(select(
+                (.ruleId | test("^G30[1-7]$") | not)
+                or ((.locations[0].physicalLocation.artifactLocation.uri // "") | test("_test\\.go$") | not)
+              ))' gosec-results.sarif > filtered.sarif
+          mv filtered.sarif gosec-results.sarif
+          echo "$before findings -> $(jq '[.runs[].results[]] | length' gosec-results.sarif) after dropping G30x in test files"
+
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         with:
