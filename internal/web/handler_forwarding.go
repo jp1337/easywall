@@ -31,6 +31,17 @@ func (s *Server) handleForwardingPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Same reason as the port editor: the core's refusal is correct and its
+	// message is about a connection problem that does not exist.
+	if err := shared.ValidateRules(shared.Rules{Forwarding: rules}); err != nil {
+		slog.Info("rejected forwarding rules", "error", err)
+		// Re-rendered, not redirected: the message says the rows are still on
+		// screen, so they have to be.
+		s.setFlash(w, r, "save_invalid_forwarding")
+		s.render(w, r, "forwarding.html", "forwarding", &forwardingData{Rules: rules})
+		return
+	}
+
 	if err := s.client.SaveRules("forwarding", rules); err != nil {
 		slog.Warn("save forwarding error", "error", err)
 		s.setFlash(w, r, "save_error")

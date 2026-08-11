@@ -121,6 +121,8 @@
   {"id": "save_error",           "translation": "Speichern fehlgeschlagen. Core-Verbindung prüfen."},
   {"id": "save_invalid_entries", "translation": "Es wurde nichts gespeichert: einige Zeilen sind keine gültige IP-Adresse und kein gültiges CIDR-Netz. Die Zeilennummern stehen über dem Editor."},
   {"id": "invalid_rules",        "translation": "Ungültiges Regelformat."},
+  {"id": "save_invalid_ports",   "translation": "Es wurde nichts gespeichert: jede Zeile braucht einen Port von 1 bis 65535 oder einen Bereich in der Form 8000:9000. Die Zeilen stehen noch da."},
+  {"id": "save_invalid_forwarding", "translation": "Es wurde nichts gespeichert: jede Zeile braucht einen eingehenden und einen Ziel-Port, jeweils von 1 bis 65535. Die Zeilen stehen noch da."},
   {"id": "invalid_credentials",  "translation": "Ungültiger Benutzername oder Passwort."},
   {"id": "username_required",    "translation": "Benutzername ist erforderlich."},
   {"id": "password_too_short",   "translation": "Passwort muss mindestens 12 Zeichen lang sein."},

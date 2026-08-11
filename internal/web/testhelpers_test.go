@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -379,3 +380,7 @@ func successResp(data interface{}) shared.Response {
 func errorRespFor(msg string) shared.Response {
 	return shared.Response{Success: false, Error: msg}
 }
+
+// urlEncode escapes a value for a form body. Rule editors post JSON in a hidden
+// field, which contains braces and quotes.
+func urlEncode(v string) string { return url.QueryEscape(v) }
