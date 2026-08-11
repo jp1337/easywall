@@ -54,13 +54,29 @@ afterwards needs another apply, or an entry in `custom_networks`.
 | | Setup | Container ports reachable from outside | Good for |
 |---|---|---|---|
 | **1** | `enabled = true` — *recommended* | yes, Docker publishes them | Most hosts |
-| **2** | Docker with `{"iptables": false}` | **only if you add a port rule** | One firewall, one place to look |
-| **3** | `enabled = false`, no published ports | no | Containers that only need outbound |
+| **2** | `enabled = true`, Docker with `{"iptables": false}` | **only if you add a port rule** — and outbound needs a masquerade rule of your own | One firewall, one place to look |
+| **3** | `enabled = false` | no — and containers reach nothing outbound either | A host that runs no containers |
 
-> **Option 2 has a sharp edge.** With `iptables: false` in
-> `/etc/docker/daemon.json`, `-p 80:80` no longer opens anything. Every container
-> port you want reachable needs its own [port rule]({{ '/features/ports/' | relative_url }}).
-> Outbound still works through Docker's NAT.
+> **Option 3 is "no containers", not "quiet containers".** `enabled = false` leaves
+> the `forward` chain closed, and a container's outbound traffic is routed through
+> it like any other. It used to read as though outbound-only containers were fine
+> under this setting; they were not, and under any of the other settings either.
+
+> **Option 2 has two sharp edges.** With `iptables: false` in
+> `/etc/docker/daemon.json`, `-p 80:80` no longer opens anything: every container
+> port you want reachable needs its own
+> [port rule]({{ '/features/ports/' | relative_url }}).
+>
+> And **outbound stops working too**. This page used to say it kept working
+> "through Docker's NAT" — but Docker's NAT *is* iptables, and the setting removes
+> it. Measured against Docker 29.7.2 with a peer reachable only by leaving the
+> bridge: with the daemon as it comes, one `MASQUERADE` rule and seven `DOCKER`
+> filter rules, peer reachable; with `{"iptables": false}`, none of either, peer
+> unreachable. A container's packets leave with a `172.17.x.x` source and nothing
+> comes back. If you choose this option you have to supply the masquerade
+> yourself — easywall cannot do it for you, because
+> [custom rules]({{ '/features/custom-rules/' | relative_url }}) are appended to
+> its `input` chain and this needs a `postrouting` chain in a table of your own.
 
 ## Checking it worked
 

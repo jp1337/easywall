@@ -49,8 +49,11 @@ COPY --from=builder /out/easywall-web  /usr/sbin/easywall-web
 COPY web/     /usr/share/easywall/web/
 COPY locales/ /usr/share/easywall/locales/
 
-# Default configs — can be overridden with a bind mount
+# Default configs — can be overridden with a bind mount, which is why a pristine
+# copy stays here as well: a bind mount of an empty directory brings no
+# configuration with it, and the entrypoint installs these into it.
 COPY config/  /etc/easywall/
+COPY config/  /usr/share/easywall/config/
 
 # Runtime directories
 # Ownership mirrors the Debian layout, and for the same reason: /etc/easywall
@@ -63,14 +66,21 @@ RUN mkdir -p /run/easywall /var/lib/easywall /var/log/easywall /etc/easywall/ssl
     chown root:root     /etc/easywall/easywall.toml && chmod 600 /etc/easywall/easywall.toml && \
     chown easywall:easywall /etc/easywall/web.toml  && chmod 600 /etc/easywall/web.toml && \
     chown easywall:easywall /etc/easywall/ssl       && chmod 750 /etc/easywall/ssl && \
-    chown -R easywall:easywall /var/lib/easywall /var/log/easywall
+    chown root:easywall /var/lib/easywall && chmod 770 /var/lib/easywall && \
+    chown root:easywall /var/log/easywall && chmod 750 /var/log/easywall
 
 # Supervisor config
 COPY docker/supervisord.conf /etc/supervisord.conf
+
+# The ownership above is set at build time and a bind mount replaces all of it.
+# The entrypoint restores it at start, which is what makes `docker compose up -d`
+# with the shipped ./config mount work at all — read its header.
+COPY docker/entrypoint.sh /usr/local/bin/easywall-entrypoint
+RUN chmod 0755 /usr/local/bin/easywall-entrypoint
 
 EXPOSE 12227
 
 VOLUME ["/etc/easywall", "/var/lib/easywall", "/var/log/easywall"]
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/easywall-entrypoint"]
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf", "-n"]
