@@ -157,6 +157,90 @@ jobs:
             exit 1
           }
 
+  # What a Go test and a stylesheet diff cannot see: the interface running in a
+  # browser. The forwarding editor stored a port of "1E+04" as port 1, because
+  # parseInt and <input type="number"> disagree about what the field holds — a
+  # mistake no assertion on the server side can reach, and one the page reported
+  # as "Changes saved.". The same run also catches a console error, a failed
+  # request or a sideways scroll on any page, in both themes.
+  #
+  # Driven against demo mode, so there is no core daemon, no root and no
+  # nftables: the config starts with no password and the script completes the
+  # first-run wizard itself, which exercises that too.
+  ui:
+    name: Interface in a browser
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      # playwright-core ships no browser of its own. Its Chromium is pinned by the
+      # playwright-core version in package-lock.json, so this is reproducible
+      # rather than "whatever Chrome the runner image happens to carry".
+      #
+      # Not --only-shell: a plain chromium.launch() uses the full build, and with
+      # the shell alone the launch fails outright. Verified by asking for a bare
+      # launch and reading back which binary answered.
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+
+      # The committed stylesheet is what the pages are styled with; build it so a
+      # missing rule shows up here as well as in the assets job.
+      - name: Compile CSS
+        run: npm run build:css
+
+      - name: Build easywall-web
+        run: go build -o bin/easywall-web ./cmd/easywall-web
+
+      - name: Start easywall-web in demo mode
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/easywall/ssl /tmp/easywall/data
+          cat > /tmp/easywall/web.toml <<'EOF'
+          bind_addr    = "127.0.0.1:12227"
+          ssl_dir      = "/tmp/easywall/ssl"
+          data_dir     = "/tmp/easywall/data"
+          demo_mode    = true
+          update_check = false
+          session_key  = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          username     = ""
+          password     = ""
+          [tls]
+          cert = ""
+          key  = ""
+          EOF
+          ./bin/easywall-web -config /tmp/easywall/web.toml > /tmp/easywall/web.log 2>&1 &
+          for _ in $(seq 1 40); do
+            curl -sk -o /dev/null https://127.0.0.1:12227/firstrun && break
+            sleep 0.25
+          done
+          curl -skf -o /dev/null https://127.0.0.1:12227/firstrun || {
+            echo "::error::easywall-web did not come up"; cat /tmp/easywall/web.log; exit 1;
+          }
+
+      - name: Drive the interface
+        env:
+          EASYWALL_URL: https://127.0.0.1:12227
+        run: npm run check:ui
+
+      - name: The server logged nothing it should not have
+        if: always()
+        run: |
+          cat /tmp/easywall/web.log
+          # A panic recovered into a 500 is invisible from the browser's side.
+          ! grep -q "panic" /tmp/easywall/web.log
+
   lint:
     name: Lint
     runs-on: ubuntu-24.04
