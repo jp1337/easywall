@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -275,7 +277,14 @@ func (c *Config) SaveFirstRun(username, passwordHash string, telemetry bool) err
 // prevent. web.toml itself belongs to the web user, so an in-place rewrite
 // works and nothing else in that directory is reachable.
 func (c *Config) saveLocked() error {
-	data, err := c.encode()
+	// Read before write: the file on disk is what carries the comments, and
+	// what this save has to preserve. A file that has gone missing or become
+	// unreadable is not an error here — render falls back to the encoder.
+	existing, readErr := os.ReadFile(c.configPath) // #nosec G304 -- the daemon's own config path
+	if readErr != nil {
+		existing = nil
+	}
+	data, err := c.render(existing)
 	if err != nil {
 		return err
 	}
@@ -288,6 +297,10 @@ func (c *Config) saveLocked() error {
 		}
 		// No write access to the directory: rewrite the file itself. It is a few
 		// hundred bytes and rewritten only when credentials change.
+		//
+		// #nosec G703 -- configPath is the -config argument this process was
+		// started with, and the read above is what makes gosec call it tainted.
+		// Nothing from a request reaches it.
 		if err := os.WriteFile(c.configPath, data, 0600); err != nil {
 			return fmt.Errorf("write config: %w", err)
 		}
@@ -307,13 +320,221 @@ func (c *Config) saveLocked() error {
 	return os.Rename(tmpPath, c.configPath)
 }
 
-// encode renders the configuration as TOML. c.mu must be held.
+// configHeader is written above a config file easywall has had to rebuild from
+// the struct, which happens only when the file on disk could not be edited in
+// place — see mergeConfig.
+const configHeader = `# easywall web configuration
+#
+# Rebuilt by easywall: the file it replaced could not be edited in place, so the
+# comments that were in it are gone. Every key is documented at
+# https://easywall-project.org/configuration/
+
+`
+
+// managedKeys are the only keys easywall ever writes. Everything else in
+// web.toml is read and never touched, so an edit in place has to reach these
+// four and no others.
+//
+// Ordered as config/web.toml orders them, so a key that has to be appended
+// lands somewhere a reader expects it.
+var managedKeys = []string{"session_key", "username", "password", "telemetry"}
+
+// encode renders the whole configuration as TOML, comments and all discarded.
+// The fallback path — see mergeConfig for when it is taken. c.mu must be held.
 func (c *Config) encode() ([]byte, error) {
-	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(c.WebConfig); err != nil {
+	buf := bytes.NewBufferString(configHeader)
+	if err := toml.NewEncoder(buf).Encode(c.WebConfig); err != nil {
 		return nil, fmt.Errorf("encode config: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// render produces the bytes to write: the existing file with the four managed
+// values replaced, or a fresh encoding when that cannot be done safely.
+//
+// The file the package installs is three kilobytes of comments explaining what
+// each key does. The encoder serialises a struct, so the first save replaced all
+// of it with fourteen bare lines — and on a container installation the first
+// save is the first *start*, because the shipped session_key is a placeholder
+// that ensureSessionKey replaces and writes back. configuration.md still sends
+// operators to this file to configure easywall, and they arrived at one that no
+// longer said anything.
+//
+// c.mu must be held.
+func (c *Config) render(existing []byte) ([]byte, error) {
+	if merged, ok := mergeConfig(existing, c.WebConfig); ok {
+		return merged, nil
+	}
+	return c.encode()
+}
+
+// tomlValue renders a Go value as the TOML scalar for one of the managed keys.
+func tomlValue(v interface{}) (string, bool) {
+	switch t := v.(type) {
+	case string:
+		return strconv.Quote(t), true
+	case *bool:
+		if t == nil {
+			return "", false // unset: leave the file's line alone
+		}
+		return strconv.FormatBool(*t), true
+	default:
+		return "", false
+	}
+}
+
+// managedValues pairs each managed key with the value to write, skipping the
+// ones that are unset and therefore have nothing to say.
+func managedValues(cfg shared.WebConfig) map[string]string {
+	out := make(map[string]string, len(managedKeys))
+	for key, v := range map[string]interface{}{
+		"session_key": cfg.SessionKey,
+		"username":    cfg.Username,
+		"password":    cfg.Password,
+		"telemetry":   cfg.Telemetry,
+	} {
+		if rendered, ok := tomlValue(v); ok {
+			out[key] = rendered
+		}
+	}
+	return out
+}
+
+// trailingComment returns whatever follows the value on an assignment line —
+// a note the operator wrote beside the setting, which has no business being
+// deleted because the value next to it changed.
+//
+// A quoted value is skipped to its closing quote first, so a "#" inside the
+// string is not mistaken for the start of a comment.
+func trailingComment(rest string) string {
+	i := 0
+	if strings.HasPrefix(rest, `"`) {
+		for i = 1; i < len(rest); i++ {
+			if rest[i] == '\\' {
+				i++
+				continue
+			}
+			if rest[i] == '"' {
+				i++
+				break
+			}
+		}
+	}
+	if hash := strings.Index(rest[min(i, len(rest)):], "#"); hash >= 0 {
+		return rest[min(i, len(rest))+hash-countSpacesBefore(rest, min(i, len(rest))+hash):]
+	}
+	return ""
+}
+
+// countSpacesBefore returns how many spaces or tabs immediately precede index i,
+// so the gap between the value and its comment is kept as it was written.
+func countSpacesBefore(s string, i int) int {
+	n := 0
+	for i-n-1 >= 0 && (s[i-n-1] == ' ' || s[i-n-1] == '\t') {
+		n++
+	}
+	return n
+}
+
+// keyLineRe matches an assignment to one of the managed keys, capturing the
+// indentation, the key, the spacing around "=" and anything trailing.
+var keyLineRe = regexp.MustCompile(`^(\s*)(session_key|username|password|telemetry)(\s*=\s*)(.*)$`)
+
+// mergeConfig replaces the managed values inside the existing file text,
+// keeping every comment, blank line and alignment around them. It reports false
+// when it cannot be sure of the result, and the caller re-encodes instead.
+//
+// Only assignments above the first table header are considered: a key of the
+// same name inside [tls] is a different key, and rewriting it would move a value
+// into a section it does not belong to.
+//
+// What makes this safe enough to write credentials with is the last step. The
+// merged text is decoded again and compared against the configuration it was
+// supposed to express; any difference at all, and the whole attempt is thrown
+// away in favour of the encoder. There is no path on which a file this function
+// half understood reaches disk.
+func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
+	if len(bytes.TrimSpace(existing)) == 0 {
+		return nil, false
+	}
+
+	want := managedValues(cfg)
+	lines := strings.Split(string(existing), "\n")
+	seen := make(map[string]bool, len(want))
+	inTable := false
+	lastTopLevel := -1
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") {
+			inTable = true
+			continue
+		}
+		if inTable {
+			continue
+		}
+		m := keyLineRe.FindStringSubmatch(line)
+		if m == nil {
+			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+				lastTopLevel = i
+			}
+			continue
+		}
+		key := m[2]
+		if seen[key] {
+			return nil, false // said twice; which one wins is not ours to decide
+		}
+		seen[key] = true
+		lastTopLevel = i
+		if value, ok := want[key]; ok {
+			lines[i] = m[1] + key + m[3] + value + trailingComment(m[4])
+		}
+	}
+
+	// A key the file never had is appended after the last top-level assignment,
+	// which keeps it out of whatever table follows.
+	var missing []string
+	for _, key := range managedKeys {
+		if _, ok := want[key]; ok && !seen[key] {
+			missing = append(missing, key+" = "+want[key])
+		}
+	}
+	if len(missing) > 0 {
+		if lastTopLevel < 0 {
+			return nil, false
+		}
+		rest := append([]string(nil), lines[lastTopLevel+1:]...)
+		lines = append(lines[:lastTopLevel+1], append(missing, rest...)...)
+	}
+
+	merged := []byte(strings.Join(lines, "\n"))
+
+	// The guard. Decode what we are about to write and insist it says exactly
+	// what the caller asked for.
+	var check shared.WebConfig
+	if _, err := toml.Decode(string(merged), &check); err != nil {
+		return nil, false
+	}
+	if !sameManagedValues(check, cfg) {
+		return nil, false
+	}
+	return merged, true
+}
+
+// sameManagedValues reports whether two configurations agree on every value
+// easywall writes.
+func sameManagedValues(a, b shared.WebConfig) bool {
+	if a.SessionKey != b.SessionKey || a.Username != b.Username || a.Password != b.Password {
+		return false
+	}
+	switch {
+	case a.Telemetry == nil && b.Telemetry == nil:
+		return true
+	case a.Telemetry == nil || b.Telemetry == nil:
+		return false
+	default:
+		return *a.Telemetry == *b.Telemetry
+	}
 }
 
 // There is deliberately no WriteDefaultWebConfig here, for the same reason as
