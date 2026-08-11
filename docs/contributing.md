@@ -76,5 +76,11 @@ Three inline forms have to survive into your language:
 
 ## Security issues
 
-**Not** as a public issue —
+**Not** as a public issue, and **not** on Discord —
 [GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new).
+
+## Asking rather than reporting
+
+Anything that is a question rather than a defect belongs on
+[Discord]({{ site.discord }}) — including "is this supposed to happen?", which is
+often how a defect starts.

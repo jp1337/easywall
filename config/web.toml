@@ -1,5 +1,5 @@
 # easywall web configuration
-# See documentation at https://jp1337.github.io/easywall/configuration
+# See documentation at https://easywall-project.org/configuration
 
 bind_addr   = "0.0.0.0:12227"
 socket_path = "/run/easywall/core.sock"
@@ -11,7 +11,7 @@ language    = "en"
 # Set to true to run easywall-web against an in-memory mock instead of the
 # Unix socket. No easywall-core daemon required, no root, no nftables. State
 # resets on process restart. Used for the public demo deployment.
-# See https://jp1337.github.io/easywall/installation/demo/ for details.
+# See https://easywall-project.org/installation/demo/ for details.
 demo_mode = false
 
 # ─── Update check ───────────────────────────────────────────────────────────

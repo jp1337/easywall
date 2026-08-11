@@ -277,11 +277,11 @@ inline validation in VS Code, Neovim and anything else speaking LSP:
 # taplo.toml (project root)
 [[rule]]
 include = ["config/easywall.toml"]
-url = "https://jp1337.github.io/easywall/schemas/easywall.schema.json"
+url = "https://easywall-project.org/schemas/easywall.schema.json"
 
 [[rule]]
 include = ["config/web.toml"]
-url = "https://jp1337.github.io/easywall/schemas/web.schema.json"
+url = "https://easywall-project.org/schemas/web.schema.json"
 ```
 
 Direct schema links:

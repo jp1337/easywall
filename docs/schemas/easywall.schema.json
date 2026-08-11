@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://jp1337.github.io/easywall/schemas/easywall.schema.json",
+  "$id": "https://easywall-project.org/schemas/easywall.schema.json",
   "title": "easywall core configuration",
-  "description": "Configuration for the easywall-core daemon. See https://jp1337.github.io/easywall/configuration",
+  "description": "Configuration for the easywall-core daemon. See https://easywall-project.org/configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["socket_path", "data_dir", "log_dir"],
