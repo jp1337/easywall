@@ -69,6 +69,35 @@ func TestCodeQLSeesTheGoToolchainItTraces(t *testing.T) {
 	}
 }
 
+// A release candidate must not move `latest`.
+//
+// release.yml triggers on `v*.*.*`, and that glob matches `v2.6.0-rc1` as
+// happily as `v2.6.0`. The image tag list said `latest` unconditionally, so
+// publishing a candidate would have moved the tag installation/docker.md calls
+// the production one, and every `docker compose pull` on `:latest` would have
+// taken it. Nothing about that is visible until someone tags a candidate.
+func TestLatestImageTagIsOnlyForStableReleases(t *testing.T) {
+	cfg := repoFile(t, ".goreleaser.yaml")
+
+	// Every tag list that mentions latest has to make it conditional on there
+	// being no prerelease part.
+	for _, line := range strings.Split(cfg, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.Contains(trimmed, "latest") || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if !strings.Contains(trimmed, ".Prerelease") {
+			t.Errorf("an image is tagged latest without asking whether this is a prerelease:\n  %s", trimmed)
+		}
+	}
+
+	// And GitHub should not call a candidate the newest release either.
+	if !strings.Contains(cfg, "prerelease: auto") {
+		t.Error(".goreleaser.yaml does not set release.prerelease, so a candidate " +
+			"is published as a full GitHub release")
+	}
+}
+
 // gosec has to be asked for test files before a build tag means anything.
 //
 // Everything behind the integration tag is a _test.go file, and gosec skips

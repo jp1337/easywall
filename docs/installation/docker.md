@@ -33,7 +33,7 @@ authentication.
 
 | Tag | Moves | For |
 |---|---|---|
-| `:latest` | on tagged releases only | **production** |
+| `:latest` | on **stable** releases only — a release candidate does not move it | **production** |
 | `:vX.Y.Z` | never | pinning, e.g. `v{{ site.version }}` |
 | `:edge` | after every green build on `main` | tracking development, [demo mode]({{ '/installation/demo/' | relative_url }}) |
 | `:sha-<commit>` | never | rollback and debugging |
@@ -94,10 +94,21 @@ docker compose pull && docker compose up -d
 Every image carries the source commit in an OCI label:
 
 ```bash
-docker buildx imagetools inspect \
-  --format '{% raw %}{{ index .Manifest.Annotations "org.opencontainers.image.revision" }}{% endraw %}' \
+docker pull ghcr.io/jp1337/easywall:latest
+docker image inspect \
+  --format '{% raw %}{{ index .Config.Labels "org.opencontainers.image.revision" }}{% endraw %}' \
   ghcr.io/jp1337/easywall:latest
 ```
+
+> **This used to read `.Manifest.Annotations`, where the value has never been.**
+> A label goes into the image *config*; manifest annotations are a different
+> field that only carries base-image and creation keys. Checked by building an
+> image with `--label org.opencontainers.image.revision=abc123` and reading the
+> pushed OCI layout: `manifest annotations` held `image.base.name` and
+> `image.created`, and `abc123` was in `config.Labels`. So the command printed
+> nothing and looked like an image with no provenance. Release images genuinely
+> had none either — the labels are set in the `Dockerfile` now, which is the one
+> file all three build paths share.
 
 Compare it against the commit the release tag points at. The workflows that publish
 these images are
