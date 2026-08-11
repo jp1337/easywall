@@ -92,14 +92,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		client = NewCoreClient(cfg.SocketPath)
 	}
 
-	store := sessions.NewCookieStore([]byte(cfg.SessionKey))
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   SessionLifetime,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-	}
+	store := newSessionStore(cfg.SessionKey)
 
 	bundle := NewBundle(cfg.LocalesDir())
 

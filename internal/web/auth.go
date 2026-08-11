@@ -6,8 +6,10 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/gorilla/sessions"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -25,6 +27,37 @@ const (
 	// which is one place too many for a rule the interface also states in words.
 	minPasswordLen = 12
 )
+
+// newSessionStore builds the cookie store every session is signed with.
+//
+// It exists so there is one place that gets the lifetime right, and because
+// getting it right is not obvious. A session cookie carries a timestamp inside
+// the signed value, and the server refuses one older than the codec's max age.
+// That max age is set by NewCookieStore from its own default — thirty days —
+// and assigning a fresh Options struct afterwards does not change it. Every
+// caller here did exactly that, so the cookie the browser dropped after ten
+// minutes stayed valid to the server for thirty days.
+//
+// It made logging out temporary rather than permanent. A logged-out session is
+// remembered as revoked for one SessionLifetime and then forgotten, on the
+// stated ground that the cookie expires on its own by then; it did not, so
+// replaying the same cookie eleven minutes after logging out signed you back
+// in. Measured before this change: /dashboard answered 200 with a cookie 29
+// days old, and 200 again after a logout had been garbage-collected.
+//
+// store.MaxAge sets both halves — the Max-Age the browser sees and the age the
+// server enforces — so use it rather than writing Options.MaxAge.
+func newSessionStore(key string) *sessions.CookieStore {
+	store := sessions.NewCookieStore([]byte(key))
+	store.Options = &sessions.Options{
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	store.MaxAge(SessionLifetime)
+	return store
+}
 
 // credentialFingerprint derives a short, non-reversible marker from the stored
 // password hash.
