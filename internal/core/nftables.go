@@ -1327,13 +1327,38 @@ func (m *NftablesManager) addConnectionLimit(t *nftables.Table, c *nftables.Chai
 	}
 }
 
+// Packet types, as the kernel numbers them in include/uapi/linux/if_packet.h and
+// as `nft` compiles its own keywords.
+//
+// Named here because the value that used to be inline was wrong and the comment
+// beside it said otherwise: broadcast was written as 0x03, labelled
+// NFT_PKTTYPE_BROADCAST. 0x03 is PACKET_OTHERHOST. Asked of nft directly —
+// `nft --debug=netlink` on rules it built itself — broadcast compiles to
+// 0x00000001, multicast to 0x00000002, other to 0x00000003.
+const (
+	pktTypeBroadcast = 0x01 // PACKET_BROADCAST
+	pktTypeMulticast = 0x02 // PACKET_MULTICAST
+)
+
+// addBroadcastDrop drops traffic addressed to the link's broadcast address.
+//
+// This matched PACKET_OTHERHOST until 2.5.0, so the option did nothing it said:
+// broadcast traffic passed untouched, and what it dropped instead was traffic
+// addressed to a different host — which an interface does not receive unless it
+// is in promiscuous mode. Read back from the kernel before the fix:
+//
+//	meta pkttype other drop
+//
+// It shipped because the test asserted the rule *count*. A count cannot see what
+// a rule matches, so the wrong packet type passed for as long as exactly one rule
+// was added. The test now reads the rule back and asks nft to name it.
 func (m *NftablesManager) addBroadcastDrop(t *nftables.Table, c *nftables.Chain) {
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
 			&expr.Meta{Key: expr.MetaKeyPKTTYPE, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x03}}, // NFT_PKTTYPE_BROADCAST
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{pktTypeBroadcast}},
 			&expr.Verdict{Kind: expr.VerdictDrop},
 		},
 	})
@@ -1345,7 +1370,7 @@ func (m *NftablesManager) addMulticastDrop(t *nftables.Table, c *nftables.Chain)
 		Chain: c,
 		Exprs: []expr.Any{
 			&expr.Meta{Key: expr.MetaKeyPKTTYPE, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02}}, // NFT_PKTTYPE_MULTICAST
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{pktTypeMulticast}},
 			&expr.Verdict{Kind: expr.VerdictDrop},
 		},
 	})
