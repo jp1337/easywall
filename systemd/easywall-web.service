@@ -1,6 +1,6 @@
 [Unit]
 Description=easywall Web Interface
-Documentation=https://jp1337.github.io/easywall
+Documentation=https://easywall-project.org
 After=network.target easywall-core.service
 Wants=easywall-core.service
 

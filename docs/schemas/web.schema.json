@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://jp1337.github.io/easywall/schemas/web.schema.json",
+  "$id": "https://easywall-project.org/schemas/web.schema.json",
   "title": "easywall web configuration",
-  "description": "Configuration for the easywall-web daemon. See https://jp1337.github.io/easywall/configuration",
+  "description": "Configuration for the easywall-web daemon. See https://easywall-project.org/configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["bind_addr", "ssl_dir"],
