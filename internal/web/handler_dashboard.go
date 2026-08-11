@@ -28,6 +28,24 @@ type dashboardData struct {
 // answer "what changed here lately" without turning into a second log page.
 const recentActivityLimit = 6
 
+// countListEntries counts what is actually a rule.
+//
+// The three free-text lists keep the operator's `#` comments and the blank lines
+// between groups, and every other counter in the interface skips them — the
+// template helper the editors use says so in as many words. The dashboard tiles
+// took a plain len() instead, so the same list was "12 entries" on one page and
+// "7" on another, and the number that disagreed was the one on the front page.
+// The demo ships lists full of comments, so it was visible to anyone who looked.
+func countListEntries(lines []string) int {
+	n := 0
+	for _, l := range lines {
+		if !shared.IsListComment(l) {
+			n++
+		}
+	}
+	return n
+}
+
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	data := &dashboardData{}
 
@@ -43,9 +61,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		data.Counts = &ruleCounts{
 			TCP:        len(rules.Current.TCP),
 			UDP:        len(rules.Current.UDP),
-			Blacklist:  len(rules.Current.Blacklist),
-			Whitelist:  len(rules.Current.Whitelist),
-			Custom:     len(rules.Current.Custom),
+			Blacklist:  countListEntries(rules.Current.Blacklist),
+			Whitelist:  countListEntries(rules.Current.Whitelist),
+			Custom:     countListEntries(rules.Current.Custom),
 			Forwarding: len(rules.Current.Forwarding),
 		}
 	}
