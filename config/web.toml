@@ -15,9 +15,10 @@ language    = "en"
 demo_mode = false
 
 # ─── Update check ───────────────────────────────────────────────────────────
-# The dashboard asks github.com once a day whether a newer release exists. It is
-# the only outbound request easywall makes, and it never delays a page: the
-# answer comes from a cache on disk. Set to false to remove it entirely.
+# The dashboard asks github.com once a day whether a newer release exists. It
+# never delays a page: the answer comes from a cache on disk. Set to false to
+# remove it entirely. This is one of the two requests easywall can make; the
+# other is the installation count below, which is off unless you switch it on.
 update_check = true
 
 # ─── Counting installations ─────────────────────────────────────────────────
