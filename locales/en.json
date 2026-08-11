@@ -121,6 +121,8 @@
   {"id": "save_error",           "translation": "Failed to save changes. Check core connection."},
   {"id": "save_invalid_entries", "translation": "Nothing was saved: some lines are not a valid IP address or CIDR network. The line numbers are listed above the editor."},
   {"id": "invalid_rules",        "translation": "Invalid rule format."},
+  {"id": "save_invalid_ports",   "translation": "Nothing was saved: every row needs a port from 1 to 65535, or a range written 8000:9000. The rows are still on screen."},
+  {"id": "save_invalid_forwarding", "translation": "Nothing was saved: every row needs an incoming port and a destination port, each from 1 to 65535. The rows are still on screen."},
   {"id": "invalid_credentials",  "translation": "Invalid username or password."},
   {"id": "username_required",    "translation": "Username is required."},
   {"id": "password_too_short",   "translation": "Password must be at least 12 characters."},

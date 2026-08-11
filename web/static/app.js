@@ -159,7 +159,6 @@ function initRuleEditor() {
   const tbody   = document.getElementById('rules-tbody');
   const hidden  = document.getElementById('rules-json');
   const addBtn  = document.getElementById('add-rule-btn');
-  const ruleType = document.getElementById('rule-type')?.value;
 
   if (!tbody || !hidden) return;
 
@@ -170,6 +169,15 @@ function initRuleEditor() {
   const headLabels = () =>
     [...(tbody.closest('table')?.querySelectorAll('thead th') || [])].map(th => th.textContent.trim());
 
+  // A row goes in the payload unless it is completely untouched.
+  //
+  // It used to be `filter(r => r.port)`, which threw away anything without a
+  // port before the form was submitted — so adding a row, typing the
+  // description first and pressing Save discarded what you had written with no
+  // message and no trace. The counter above the table said nine rules, the
+  // table showed nine, and eight were sent. An empty row you never typed in is
+  // noise and still goes; a row you touched is data, and the server decides
+  // whether it is valid.
   const syncHidden = () => {
     if (isSimple) return; // handled differently
     const rows = [...tbody.querySelectorAll('tr[data-idx]')];
@@ -178,7 +186,7 @@ function initRuleEditor() {
       const desc = tr.querySelector('.f-desc')?.value.trim() ?? '';
       const ssh  = tr.querySelector('.f-ssh')?.checked ?? false;
       return { port, description: desc, ssh };
-    }).filter(r => r.port);
+    }).filter(r => r.port !== '' || r.description !== '' || r.ssh);
     hidden.value = JSON.stringify(rules);
   };
 
@@ -289,13 +297,41 @@ function initForwardingEditor() {
   const headLabels = () =>
     [...(tbody.closest('table')?.querySelectorAll('thead th') || [])].map(th => th.textContent.trim());
 
+  // The number the field holds, not the number parseInt reads out of the text.
+  //
+  // These are <input type="number">, and the two do not agree. A spreadsheet
+  // writes 10000 as "1E+04"; the field accepts it as a valid number, and
+  // parseInt("1E+04", 10) stops at the "1". Pasting a port list therefore stored
+  // port 1 — privileged, and not the port anyone asked for — and the page said
+  // "Changes saved." Measured in Chrome: typed 1E+04, payload source_port 1,
+  // stored tcp 1 → 9999. valueAsNumber is the browser's own parse of the field,
+  // so what is sent is what the field means.
+  //
+  // Anything that is not a whole number — an empty field, "80.5", text the field
+  // could not hold — becomes 0, which the server refuses by name and the page
+  // reports. Deliberately not nudged to the nearest integer: this editor does not
+  // get to decide which port the operator meant.
+  const portOf = el => {
+    const n = el?.valueAsNumber;
+    return Number.isInteger(n) ? n : 0;
+  };
+
+  // Same rule as the port editor: only a row nobody typed in is dropped. Half a
+  // forwarding rule used to vanish on save without a word.
   const syncHidden = () => {
     const rows = [...tbody.querySelectorAll('tr[data-idx]')];
-    const rules = rows.map(tr => ({
-      protocol:    tr.querySelector('.f-proto')?.value ?? 'tcp',
-      source_port: parseInt(tr.querySelector('.f-src')?.value ?? '0', 10),
-      dest_port:   parseInt(tr.querySelector('.f-dst')?.value ?? '0', 10),
-    })).filter(r => r.source_port > 0 && r.dest_port > 0);
+    const rules = rows.map(tr => {
+      const srcEl = tr.querySelector('.f-src');
+      const dstEl = tr.querySelector('.f-dst');
+      const src = srcEl?.value.trim() ?? '';
+      const dst = dstEl?.value.trim() ?? '';
+      return {
+        touched:     src !== '' || dst !== '',
+        protocol:    tr.querySelector('.f-proto')?.value ?? 'tcp',
+        source_port: portOf(srcEl),
+        dest_port:   portOf(dstEl),
+      };
+    }).filter(r => r.touched).map(({ touched, ...rule }) => rule);
     hidden.value = JSON.stringify(rules);
   };
 
