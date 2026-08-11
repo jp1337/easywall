@@ -412,11 +412,6 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addForwardingRules(table, state.Current.Forwarding)
 	}
 
-	// Final logging + DROP (already set via chain policy, add log rule if requested)
-	if opts.LogBlocked {
-		m.addFinalLog(table, inputChain, opts)
-	}
-
 	if err := m.conn.Flush(); err != nil {
 		return err
 	}
@@ -425,6 +420,20 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		if err := m.applyCustomRules(state.Current.Custom); err != nil {
 			slog.Warn("custom rules apply warning", "error", err)
 			return fmt.Errorf("apply custom rules: %w", err)
+		}
+	}
+
+	// The log of what the policy drops goes last, in its own flush, because the
+	// custom rules above are appended by the nft CLI after everything netlink
+	// wrote. Adding it before them put it in front of rules that accept: a
+	// packet a custom rule let in was written to the kernel log as
+	// "easywall drop:" first and then accepted, so the line an operator greps
+	// for named traffic that was never dropped. filters.md describes this as
+	// "everything the final policy drops", and now it is.
+	if opts.LogBlocked {
+		m.addFinalLog(table, inputChain, opts)
+		if err := m.conn.Flush(); err != nil {
+			return fmt.Errorf("add final log rule: %w", err)
 		}
 	}
 	return nil
