@@ -253,18 +253,21 @@ type WebConfig struct {
 	Password   string    `toml:"password"` // argon2id hash
 
 	// UpdateCheck controls whether the dashboard asks the GitHub releases API
-	// for the newest version. Unset means on. It is the only outbound request
-	// easywall makes, and on an isolated network it is one an operator may
-	// reasonably want gone entirely rather than merely failing quietly.
+	// for the newest version. Unset means on, and on an isolated network it is a
+	// request an operator may reasonably want gone entirely rather than merely
+	// failing quietly.
+	//
+	// One of the two requests easywall can make. The other is Telemetry below,
+	// which is off unless someone switches it on. docs/security.md lists both.
 	UpdateCheck *bool `toml:"update_check"`
 
 	// Telemetry records whether the operator agreed to easywall counting this
 	// installation. Unset means no: consent is asked for, never assumed.
 	//
-	// Nothing is transmitted yet — the sending arrives with the roadmap item
-	// this switch belongs to. Asking during the first run and storing the answer
-	// before any data exists is the honest order to do it in; adding the
-	// question after the fact is how a project ends up explaining itself.
+	// When it is on, shared.Reporter sends one request a day carrying a random
+	// identifier generated on the machine and the version, and nothing else. The
+	// System page turns it off again without the core being reachable, because
+	// consent you can only withdraw while another process is up is not consent.
 	Telemetry *bool `toml:"telemetry" json:"telemetry"`
 
 	// DemoMode runs the web binary against an in-memory mock instead of the

@@ -46,8 +46,10 @@ There is no plaintext port. The two processes talk over a Unix socket, not a por
 - A database
 - A Go toolchain on the target — use the `.deb` or a release binary
 - **Outbound internet access.** Fonts, stylesheet and scripts are served by easywall
-  itself, so it renders correctly on an air-gapped host. Only the optional update
-  check reaches out, and it fails quietly
+  itself, so it renders correctly on an air-gapped host. Two things reach out and
+  both fail quietly: the update check, which is on and can be switched off, and the
+  installation count, which is off until someone switches it on. Both are listed in
+  full under [Security]({{ '/security/' | relative_url }})
 
 ## Coming from easywall v1
 
