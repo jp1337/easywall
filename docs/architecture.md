@@ -15,7 +15,7 @@ Two processes. The one exposed to the network has no way to touch the firewall.
 
 | | `easywall-web` | `easywall-core` |
 |---|---|---|
-| Runs as | unprivileged user | root or `CAP_NET_ADMIN` |
+| Runs as | unprivileged user | root, in the `easywall` group, with the capability set cut down to `CAP_NET_ADMIN` |
 | Listens on | HTTPS, port 12227 | Unix socket only |
 | Can reach nftables | **no** | yes, via netlink |
 | Can run a shell | **no** | `nft` only: `--check --file -` to validate a custom rule, `-f -` to apply one |
