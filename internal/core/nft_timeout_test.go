@@ -58,7 +58,7 @@ func TestValidateCustomRules_TimesOutInsteadOfHanging(t *testing.T) {
 	hangingNft(t, 200*time.Millisecond)
 
 	start := time.Now()
-	errs := validateCustomRules([]string{"tcp dport 9999 accept"})
+	errs, _ := validateCustomRules([]string{"tcp dport 9999 accept"})
 	elapsed := time.Since(start)
 
 	if len(errs) != 1 {
@@ -77,7 +77,7 @@ func TestValidateCustomRules_SkipsCommentsWithoutRunningNft(t *testing.T) {
 	hangingNft(t, 200*time.Millisecond)
 
 	start := time.Now()
-	errs := validateCustomRules([]string{"# a note", "", "   "})
+	errs, _ := validateCustomRules([]string{"# a note", "", "   "})
 	if len(errs) != 0 {
 		t.Errorf("comments and blanks are not rules to check: %v", errs)
 	}
