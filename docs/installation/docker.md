@@ -14,6 +14,18 @@ docker compose up -d
 
 Open `https://localhost:12227` and complete the setup wizard.
 
+> **`./config` changes owner on first start, and needs to.** The compose file
+> mounts it at `/etc/easywall`, which replaces the ownership the image sets — so
+> the files arrive belonging to whoever cloned the repository, in a directory the
+> container's `easywall` user cannot write. easywall-web has to write `web.toml`
+> (it generates the session key into it, and the wizard and the password page
+> rewrite it) and to create its certificate in `config/ssl/`. It could do neither:
+> the process exited before binding, supervisor restarted it for ever, and the
+> container reported healthy because the healthcheck only looked at the core's
+> socket. The entrypoint now puts that directory into the same shape the Debian
+> package installs — `web.toml` and `ssl/` to `easywall`, `easywall.toml` to
+> `root`, both `0600`. Editing them on the host afterwards needs `sudo`.
+
 ## Where to pull from
 
 The same `linux/amd64` + `linux/arm64` image, pushed to all three by CI. Public, no
@@ -55,7 +67,16 @@ what lets it issue the netlink calls that reach host tables.
 network_mode: host
 cap_add:
   - NET_ADMIN
+security_opt:
+  - no-new-privileges:true
 ```
+
+`NET_ADMIN` and nothing beyond it. The shipped compose file also asked for
+`SYS_MODULE` — the capability to load kernel modules, which from a container that
+already shares the host's network is host root under another name, and which this
+page never listed. It is gone; applying a full rule set was verified without it. If
+`nf_tables` is not loaded, load it on the host with `modprobe nf_tables` — a host
+already running nftables has it.
 
 This is also why easywall in a container still coexists with Docker's own rules —
 it owns [`table inet easywall`]({{ '/features/docker/' | relative_url }}) and nothing else.

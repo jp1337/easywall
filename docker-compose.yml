@@ -8,13 +8,29 @@ services:
     container_name: easywall
     restart: unless-stopped
 
-    # nftables requires host networking and NET_ADMIN capability
+    # nftables acts on the host's network namespace, so easywall shares it and
+    # needs NET_ADMIN to issue the netlink calls that reach host tables.
+    #
+    # NET_ADMIN, and nothing beyond it. SYS_MODULE used to be here as well, which
+    # is the capability to load kernel modules — from a container that already
+    # shares the host's network, that is root on the host by another name, and it
+    # is not something a firewall's own compose file should hand out to save a
+    # modprobe. The documented capability list never mentioned it either. If
+    # nf_tables is not loaded on the host, load it there:
+    #
+    #   modprobe nf_tables
+    #
+    # A host running nftables at all already has it.
     network_mode: host
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
     security_opt:
-      - no-new-privileges:false
+      # supervisord drops from root to the easywall user for the web process,
+      # which is a privilege drop and unaffected by this. Nothing here needs a
+      # setuid binary, so refusing new privileges outright costs nothing. It read
+      # `no-new-privileges:false` before — the Docker default written out as
+      # though it were a requirement.
+      - no-new-privileges:true
 
     volumes:
       # Persistent config — edit web.toml and easywall.toml here
@@ -26,8 +42,14 @@ services:
       # Audit and application logs
       - easywall_logs:/var/log/easywall
 
+    # Both processes, not just the core. This tested the core's socket alone,
+    # so the container reported healthy while easywall-web was in a restart
+    # loop and the interface answered nothing at all — which is the state a
+    # bind-mounted ./config used to leave it in. The socket says the core is
+    # up; the request says the thing you came for is up. The address follows
+    # bind_addr in config/web.toml — change one and change the other.
     healthcheck:
-      test: ["CMD", "sh", "-c", "test -S /run/easywall/core.sock"]
+      test: ["CMD", "sh", "-c", "test -S /run/easywall/core.sock && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/login"]
       interval: 10s
       timeout: 5s
       retries: 3
