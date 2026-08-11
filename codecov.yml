@@ -1,0 +1,48 @@
+# Coverage is uploaded twice per commit: the unit suite, and the integration
+# suite that needs a kernel and CAP_NET_ADMIN. Both halves have to be declared
+# here as flags, or the report is whatever arrived and nobody can tell which.
+#
+# The number this file exists to fix: codecov reported 68.81% for main while
+# `go tool cover` reported 81.3%, and both were right about different things —
+# codecov counts *lines*, `go tool cover` counts *statements*. Recomputing the
+# same profile as lines gives 71.69%, which is the same order as codecov's
+# figure and nothing like the merged one. With the integration profile included
+# the tree measures 91.52% of lines. CONTRIBUTING.md asks for 80% without saying
+# which of the three it means.
+coverage:
+  status:
+    project:
+      default:
+        # Not the absolute 80% CONTRIBUTING.md names, yet: the integration flag
+        # has never reached codecov (its flag list is empty), so an absolute
+        # gate would fail every pull request for a reason that has nothing to do
+        # with the pull request. "Does not drop" is enforceable today and is the
+        # half of the rule that matters on a change-by-change basis. Move this to
+        # `target: 80%` once the integration upload is confirmed arriving.
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+# carryforward keeps the other half of the number when only one job ran — a
+# docs-only pull request does not run the integration suite, and without this
+# its absence reads as a coverage collapse.
+flag_management:
+  default_rules:
+    carryforward: true
+
+flags:
+  unit:
+    paths:
+      - internal/
+    carryforward: true
+  integration:
+    paths:
+      - internal/core/
+    carryforward: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: true
