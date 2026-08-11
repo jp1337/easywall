@@ -110,7 +110,8 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetryStop = make(chan struct{})
 	}
 
-	// Load templates — non-fatal if not yet created (Phase 4)
+	// Non-fatal here so tests can build a Server without the asset tree; Start()
+	// refuses to serve without it.
 	tmpl, err := loadTemplates(cfg.TemplatesDir())
 	if err != nil {
 		slog.Warn("templates not loaded", "dir", cfg.TemplatesDir(), "error", err)
@@ -139,6 +140,23 @@ func NewServer(cfg *Config) (*Server, error) {
 
 // Start begins serving HTTPS traffic. Blocks until Stop() is called.
 func (s *Server) Start() error {
+	// Templates before binding, for the same reason as the certificate below.
+	// Without them the process started, systemd reported the unit active, the
+	// port answered, and every page returned 503 "Web interface not ready
+	// (templates missing — run Phase 4)" — a phase number from this project's
+	// own development that means nothing to whoever is reading it. The only
+	// other signal was one WARN line at startup.
+	//
+	// The directories are resolved relative to the working directory, so this
+	// is what a wrong or missing WorkingDirectory= looks like, and it is worth
+	// naming both in the message.
+	if s.tmpl == nil {
+		wd, _ := os.Getwd()
+		return fmt.Errorf("no templates in %s (working directory %s): easywall-web "+
+			"serves its interface from files installed beside it, and cannot serve "+
+			"anything without them", s.cfg.TemplatesDir(), wd)
+	}
+
 	// Load the certificate before binding. Serving the port and failing every
 	// handshake looks, from the outside, like a broken network rather than a
 	// missing file; refusing to start says which.
@@ -275,7 +293,7 @@ func (s *Server) currentCredential() func() string {
 // render executes a named template with common page data.
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page string, data interface{}) {
 	if s.tmpl == nil {
-		http.Error(w, "Web interface not ready (templates missing — run Phase 4)", http.StatusServiceUnavailable)
+		http.Error(w, "Web interface not ready: its templates are not installed", http.StatusServiceUnavailable)
 		return
 	}
 

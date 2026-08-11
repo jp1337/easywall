@@ -492,6 +492,12 @@ func TestServer_StartStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
+	// NewServer resolves the asset directories against the working directory,
+	// which under `go test` is this package. Start refuses to serve without
+	// templates — on purpose — so hand it the ones that ship.
+	if s.tmpl, err = loadTemplates(repoTemplates(t)); err != nil {
+		t.Fatalf("loadTemplates: %v", err)
+	}
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- s.Start() }()
@@ -538,9 +544,17 @@ func TestServer_Start_MissingCert(t *testing.T) {
 	// binds the port, rather than accepting connections it cannot complete.
 	s.certs.certPath = dir + "/nonexistent.pem"
 	s.certs.cert = nil
+	// Templates first, so the error below is the certificate's and not the
+	// missing-asset check that also guards Start.
+	if s.tmpl, err = loadTemplates(repoTemplates(t)); err != nil {
+		t.Fatalf("loadTemplates: %v", err)
+	}
 
 	err = s.Start()
 	if err == nil {
-		t.Error("expected error when TLS cert file doesn't exist")
+		t.Fatal("expected error when TLS cert file doesn't exist")
+	}
+	if !strings.Contains(err.Error(), "TLS certificate") {
+		t.Errorf("error %q is not about the certificate", err)
 	}
 }
