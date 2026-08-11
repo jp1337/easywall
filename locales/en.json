@@ -127,6 +127,7 @@
   {"id": "password_mismatch",    "translation": "Passwords do not match."},
   {"id": "internal_error",       "translation": "An internal error occurred."},
   {"id": "apply_error",          "translation": "Failed to apply rules."},
+  {"id": "apply_already_running", "translation": "An apply is already running and nothing was started a second time. Confirm it while the window is open, or wait for it to expire and the previous rules to come back."},
   {"id": "accept_error",         "translation": "Failed to confirm rules."},
   {"id": "rules_accepted",       "translation": "Rules accepted and applied successfully."},
   {"id": "accept_too_late",      "translation": "Too late — the confirmation window had already closed, and the previous rules are back. Your edits are still staged; apply them again when you are ready."},

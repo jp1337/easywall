@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -28,7 +29,16 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleApplyStart(w http.ResponseWriter, r *http.Request) {
 	if err := s.client.ApplyRules(); err != nil {
 		slog.Warn("apply rules error", "error", err)
-		s.setFlash(w, r, "apply_error")
+		// The core refuses a second apply while a window is open, and that is
+		// not a failure to report as one: it is the safety mechanism doing its
+		// job, and the operator's next move is to confirm the apply they already
+		// started. The page hides the Start button in that state, so getting
+		// here means a second tab, a double submit, or the back button.
+		flash := "apply_error"
+		if strings.Contains(err.Error(), shared.ErrApplyInProgressText) {
+			flash = "apply_already_running"
+		}
+		s.setFlash(w, r, flash)
 		http.Redirect(w, r, "/apply", http.StatusSeeOther)
 		return
 	}

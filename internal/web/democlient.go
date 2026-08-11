@@ -383,6 +383,14 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 }
 
 func (d *demoState) handleApplyRules() shared.Response {
+	// Refused while a window is open, exactly as the core refuses it. The demo
+	// used to accept it and silently restart the window instead — a third
+	// behaviour, in the one place where visitors form their idea of what the
+	// product does. The core's reason is in core.ErrApplyInProgress.
+	if d.acceptance == shared.AcceptancePending {
+		return shared.Response{Success: false, Error: shared.ErrApplyInProgressText}
+	}
+
 	// Cancel any in-flight pending timer so we don't roll back twice.
 	if d.acceptanceTimer != nil {
 		d.acceptanceTimer.Stop()

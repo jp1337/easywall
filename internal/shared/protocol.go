@@ -49,6 +49,15 @@ type AcceptResult struct {
 	Accepted bool `json:"accepted"`
 }
 
+// ErrApplyInProgressText is the exact Response.Error the core returns when
+// APPLY_RULES arrives while a cycle is already running.
+//
+// It lives here because both sides have to agree on it: the core writes it, and
+// the web process has to recognise it to say "an apply is already running"
+// rather than reporting a generic failure. Response carries no error code, and
+// adding one for a single case is more protocol than this needs.
+const ErrApplyInProgressText = "an apply is already in progress"
+
 // ValidateCustomPayload is the payload for CmdValidateCustom.
 type ValidateCustomPayload struct {
 	Rules []string `json:"rules"`
