@@ -50,4 +50,4 @@ easywall is designed with a layered approach — each layer independently limits
 - **XSS prevention** — Go's `html/template` auto-escapes all output by default.
 - **Two-step activation** — firewall changes require confirmation within a configurable window, preventing accidental lockouts.
 
-See the full [Security Model](https://jp1337.github.io/easywall/security/) in the documentation.
+See the full [Security Model](https://easywall-project.org/security/) in the documentation.

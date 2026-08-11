@@ -3,8 +3,8 @@ enabled = true
 
 [[schema.associations]]
 glob    = "**/easywall.toml"
-url     = "https://jp1337.github.io/easywall/schemas/easywall.schema.json"
+url     = "https://easywall-project.org/schemas/easywall.schema.json"
 
 [[schema.associations]]
 glob    = "**/web.toml"
-url     = "https://jp1337.github.io/easywall/schemas/web.schema.json"
+url     = "https://easywall-project.org/schemas/web.schema.json"

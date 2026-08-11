@@ -88,6 +88,7 @@ every port; a blacklisted one is dropped before the whitelist is ever consulted.
 | Run it in a container | [Docker]({{ '/installation/docker/' | relative_url }}) |
 | Build from source | [Manual install]({{ '/installation/manual/' | relative_url }}) |
 | Understand the design | [Architecture]({{ '/architecture/' | relative_url }}) · [Security]({{ '/security/' | relative_url }}) |
+| Ask a question | [Discord ↗]({{ site.discord }}) · [GitHub issues ↗](https://github.com/jp1337/easywall/issues) |
 
 <section class="docs-cta" markdown="0">
   <div class="docs-cta-glow"></div>

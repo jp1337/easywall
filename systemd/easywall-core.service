@@ -1,6 +1,6 @@
 [Unit]
 Description=easywall Core Daemon (nftables firewall backend)
-Documentation=https://jp1337.github.io/easywall
+Documentation=https://easywall-project.org
 After=network.target
 Wants=network.target
 

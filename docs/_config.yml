@@ -1,7 +1,10 @@
 title: easywall
 description: Linux firewall management with a web interface — built for 2026.
-baseurl: "/easywall"
-url: "https://jp1337.github.io"
+# Apex custom domain, so there is no path prefix. Every internal link goes
+# through relative_url, which reads this — the one exception was the logo
+# below, which carried the prefix by hand.
+baseurl: ""
+url: "https://easywall-project.org"
 
 author:
   name: jp1337
@@ -16,12 +19,19 @@ timezone: Europe/Berlin
 version: "2.5.0"
 
 tagline: "Your firewall. Your rules. No surprises."
-logo: /easywall/assets/img/icon.svg
+logo: /assets/img/icon.svg
+
+# The support server. A permanent invite — checked against Discord's own invite
+# API, which reports no expiry — so it can be printed in a README that outlives
+# any one release. Set here once; the footer and the pages read it from the site
+# config rather than repeating the code.
+discord: https://discord.gg/3zJMvChvUA
 
 social:
   name: jp1337
   links:
     - https://github.com/jp1337/easywall
+    - https://discord.gg/3zJMvChvUA
 
 theme: null
 layouts_dir: _layouts

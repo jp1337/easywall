@@ -6,17 +6,27 @@
 
 <p align="center"><em>Your firewall. Your rules. No surprises.</em></p>
 
+<!-- One badge service, so the set shares a shape, a typeface and a logo
+     treatment. The three status badges read from the workflows by name; the
+     version, licence and Go badges read from the repository and go.mod, so
+     none of them can drift the way a hand-written "Go 1.25+" could. -->
 <p align="center">
-  <a href="https://github.com/jp1337/easywall/actions/workflows/test.yml"><img src="https://github.com/jp1337/easywall/actions/workflows/test.yml/badge.svg" alt="Build"></a>
-  <a href="https://github.com/jp1337/easywall/actions/workflows/security.yml"><img src="https://github.com/jp1337/easywall/actions/workflows/security.yml/badge.svg" alt="Security"></a>
-  <a href="https://codecov.io/gh/jp1337/easywall"><img src="https://codecov.io/gh/jp1337/easywall/graph/badge.svg" alt="Coverage"></a>
-  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?logo=opensourceinitiative&logoColor=white" alt="GPL-3.0"></a>
-  <a href="https://go.dev"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white" alt="Go 1.25+"></a>
+  <a href="https://github.com/jp1337/easywall/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/test.yml?branch=main&label=tests&logo=github&logoColor=white" alt="Tests"></a>
+  <a href="https://github.com/jp1337/easywall/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/build.yml?branch=main&label=build&logo=github&logoColor=white" alt="Build"></a>
+  <a href="https://github.com/jp1337/easywall/actions/workflows/security.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/security.yml?branch=main&label=security&logo=github&logoColor=white" alt="Security"></a>
+  <a href="https://codecov.io/gh/jp1337/easywall"><img src="https://img.shields.io/codecov/c/github/jp1337/easywall?logo=codecov&logoColor=white&label=coverage" alt="Coverage"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/jp1337/easywall/releases/latest"><img src="https://img.shields.io/github/v/release/jp1337/easywall?logo=github&logoColor=white&label=release" alt="Latest release"></a>
+  <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/jp1337/easywall?logo=go&logoColor=white&label=go" alt="Go version"></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/github/license/jp1337/easywall?logo=opensourceinitiative&logoColor=white&label=license&color=blue" alt="GPL-3.0"></a>
+  <a href="https://discord.gg/3zJMvChvUA"><img src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
 <p align="center">
   <a href="https://easywall.wdkro.de"><strong>Live demo</strong></a> ·
-  <a href="https://jp1337.github.io/easywall"><strong>Documentation</strong></a> ·
+  <a href="https://easywall-project.org"><strong>Documentation</strong></a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
@@ -51,7 +61,7 @@ Two processes. The one exposed to the network holds no privilege worth stealing.
 A complete rewrite of the original easywall — Python, Flask, `iptables` via
 subprocess — which was archived in 2022 after a CVE. Both root causes are gone:
 the privileges live in a different process, and the apply path builds Go structs
-instead of a command line. [How it works →](https://jp1337.github.io/easywall/architecture/)
+instead of a command line. [How it works →](https://easywall-project.org/architecture/)
 
 ## Install
 
@@ -147,6 +157,14 @@ lock everyone else out), every switch on the options page reaches the firewall
 (17 of 31 did not), port forwarding goes the direction it says, rules that
 cannot become rules are refused instead of silently skipped, and the dashboard's
 "rules are live" is asked of the kernel rather than assumed.
+
+## Getting help
+
+| | |
+|---|---|
+| A question, or something not behaving | [Discord](https://discord.gg/3zJMvChvUA) |
+| A bug, or a feature you want | [GitHub issues](https://github.com/jp1337/easywall/issues) |
+| A security vulnerability | [Security advisory](https://github.com/jp1337/easywall/security/advisories/new) — **not** Discord, and not a public issue |
 
 ## Contributing
 
