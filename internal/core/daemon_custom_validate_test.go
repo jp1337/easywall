@@ -2,9 +2,11 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -25,7 +27,7 @@ func nftAvailable() bool {
 func TestValidateCustomRules_EmptyAndComments(t *testing.T) {
 	// Empty lines and comment lines must be skipped without calling nft.
 	// This works even without nft installed.
-	errs := validateCustomRules([]string{"", "  ", "# this is a comment", "  # indented comment"})
+	errs, _ := validateCustomRules([]string{"", "  ", "# this is a comment", "  # indented comment"})
 	if len(errs) != 0 {
 		t.Errorf("expected no errors for blank/comment lines, got %v", errs)
 	}
@@ -35,7 +37,7 @@ func TestValidateCustomRules_ValidRule(t *testing.T) {
 	if !nftAvailable() {
 		t.Skip("nft not available")
 	}
-	errs := validateCustomRules([]string{"tcp dport 80 accept"})
+	errs, _ := validateCustomRules([]string{"tcp dport 80 accept"})
 	if len(errs) != 0 {
 		t.Errorf("expected no errors for valid rule, got %v", errs)
 	}
@@ -45,7 +47,7 @@ func TestValidateCustomRules_InvalidRule(t *testing.T) {
 	if !nftAvailable() {
 		t.Skip("nft not available")
 	}
-	errs := validateCustomRules([]string{"this is not valid nftables syntax !!!"})
+	errs, _ := validateCustomRules([]string{"this is not valid nftables syntax !!!"})
 	if len(errs) == 0 {
 		t.Error("expected an error for invalid rule")
 	}
@@ -65,7 +67,7 @@ func TestValidateCustomRules_MixedRules(t *testing.T) {
 		"",                     // blank, index 3
 		"udp dport 53 accept",  // valid, index 4
 	}
-	errs := validateCustomRules(rules)
+	errs, _ := validateCustomRules(rules)
 	if _, ok := errs[2]; !ok {
 		t.Errorf("expected error at index 2 for invalid rule, got %v", errs)
 	}
@@ -139,5 +141,67 @@ func TestDaemonDispatch_ValidateCustom_InvalidPayload(t *testing.T) {
 	resp := d.dispatch(shared.Command{Type: shared.CmdValidateCustom, Payload: []byte(`{not json`)})
 	if resp.Success {
 		t.Error("expected failure for invalid JSON payload")
+	}
+}
+
+// One request must not be able to hold the root daemon for as long as it likes.
+//
+// Every statement used to get its own nft subprocess and its own 30-second
+// timeout, with no cap on the count — measured at ~15 ms each, so the 64 KB a
+// form body can carry asked for roughly 50 seconds of serial forking, per
+// request, with nothing cancelling it when the web process gave up after five.
+func TestValidateCustomRules_RefusesMoreThanTheLimit(t *testing.T) {
+	rules := make([]string, maxCustomRules+1)
+	for i := range rules {
+		rules[i] = "accept"
+	}
+
+	if _, err := validateCustomRules(rules); err == nil {
+		t.Fatalf("%d rules were accepted for checking; the limit is %d", len(rules), maxCustomRules)
+	}
+
+	atLimit := make([]string, maxCustomRules)
+	for i := range atLimit {
+		atLimit[i] = "accept"
+	}
+	if _, err := validateCustomRules(atLimit); err != nil {
+		t.Errorf("exactly the limit should be allowed, got %v", err)
+	}
+}
+
+// A valid rule set costs one subprocess, not one per rule. The per-rule pass
+// exists only to say which line is wrong, so it should not run when none is.
+func TestValidateCustomRules_ValidSetChecksInOnePass(t *testing.T) {
+	if _, err := exec.LookPath(nftBinary); err != nil {
+		t.Skip("nft not installed")
+	}
+	// nft opens a netlink socket even for --check, so without CAP_NET_ADMIN it
+	// refuses every statement and there is no fast path to measure. That is the
+	// unprivileged unit run; the integration job has the capability.
+	if probe, _ := validateCustomRules([]string{"tcp dport 80 accept"}); len(probe) > 0 {
+		t.Skip("nft cannot reach netlink here — run with CAP_NET_ADMIN")
+	}
+
+	rules := make([]string, 100)
+	for i := range rules {
+		rules[i] = fmt.Sprintf("tcp dport %d accept", 1024+i)
+	}
+
+	start := time.Now()
+	errs, err := validateCustomRules(rules)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if len(errs) != 0 {
+		t.Fatalf("expected no errors, got %v", errs)
+	}
+
+	// One run of nft against a hundred statements, not a hundred runs. The
+	// bound is deliberately loose — this asserts the shape, not a benchmark.
+	if perRule := elapsed / time.Duration(len(rules)); perRule > 3*time.Millisecond {
+		t.Errorf("checking %d valid rules took %s (%s each), which is the per-rule path; "+
+			"a valid set should need a single nft run", len(rules), elapsed, perRule)
 	}
 }

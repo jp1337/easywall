@@ -341,7 +341,11 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &incoming); err != nil {
 			return errResp(fmt.Errorf("invalid import data: %w", err))
 		}
-		if errs := validateCustomRules(incoming.Custom); len(errs) > 0 {
+		errs, err := validateCustomRules(incoming.Custom)
+		if err != nil {
+			return errResp(err)
+		}
+		if len(errs) > 0 {
 			lines := make([]string, 0, len(errs))
 			for i, msg := range errs {
 				lines = append(lines, fmt.Sprintf("custom rule %d: %s", i+1, msg))
@@ -363,7 +367,10 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		if err := json.Unmarshal(cmd.Payload, &payload); err != nil {
 			return errResp(fmt.Errorf("invalid payload: %w", err))
 		}
-		errs := validateCustomRules(payload.Rules)
+		errs, err := validateCustomRules(payload.Rules)
+		if err != nil {
+			return errResp(err)
+		}
 		result := shared.ValidateCustomResult{Errors: errs}
 		data, _ := json.Marshal(result)
 		return shared.Response{Success: true, Data: data}
@@ -457,10 +464,64 @@ func tailFile(path string, max int64) ([]byte, bool, error) {
 	return data, true, err
 }
 
-// validateCustomRules checks each rule by wrapping it in a minimal nft table
-// and passing it to "nft --check --file -". Returns a map of line-index to
-// error string for any rule that fails; an empty map means all rules are valid.
-func validateCustomRules(rules []string) map[int]string {
+// maxCustomRules bounds how many statements one request may ask the daemon to
+// check. Well above any real rule set — the editor is a textarea and a long one
+// holds a few dozen lines — and far below what a 64 KB form body can carry,
+// which is about three thousand.
+const maxCustomRules = 256
+
+// validateCustomRules checks the rules with "nft --check" and returns a map of
+// line-index to error string; an empty map means all of them are valid.
+//
+// Two passes, because one fork is cheap and N is not. Every statement goes into
+// a single script first, which answers the ordinary case — a rule set that is
+// valid — with one subprocess. Only when that script is rejected does it fall
+// back to checking each statement on its own, which is the only way to say
+// *which* line is wrong.
+//
+// It matters because this runs on the root daemon, once per keystroke pause in
+// the editor, and there was no bound on it at all: measured at ~15 ms per
+// statement, a 64 KB body of one-line rules asked for roughly 50 seconds of
+// forking, serially, per request — with nothing cancelling it when the web
+// process gave up after five. The count is capped and the whole validation
+// shares one deadline rather than granting each statement its own.
+func validateCustomRules(rules []string) (map[int]string, error) {
+	if len(rules) > maxCustomRules {
+		return nil, fmt.Errorf("too many custom rules: %d, the limit is %d", len(rules), maxCustomRules)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), nftTimeout)
+	defer cancel()
+
+	if checkCustomScript(ctx, rules) == nil {
+		return map[int]string{}, nil
+	}
+	return validateCustomRulesEach(ctx, rules), nil
+}
+
+// checkCustomScript checks every statement in one table, in one nft run.
+func checkCustomScript(ctx context.Context, rules []string) error {
+	var body strings.Builder
+	found := false
+	for _, rule := range rules {
+		rule = strings.TrimSpace(rule)
+		if rule == "" || strings.HasPrefix(rule, "#") {
+			continue
+		}
+		body.WriteString("    " + rule + "\n")
+		found = true
+	}
+	if !found {
+		return nil
+	}
+	_, err := runNftCheck(ctx,
+		"table inet easywall_validate {\n  chain test_input {\n    type filter hook input priority 0;\n"+
+			body.String()+"  }\n}\n")
+	return err
+}
+
+// validateCustomRulesEach attributes failures to individual lines.
+func validateCustomRulesEach(ctx context.Context, rules []string) map[int]string {
 	errs := make(map[int]string)
 	for i, rule := range rules {
 		rule = strings.TrimSpace(rule)
@@ -469,29 +530,16 @@ func validateCustomRules(rules []string) map[int]string {
 		}
 		// Wrap in a test table context for nft -c
 		script := "table inet easywall_validate {\n  chain test_input {\n    type filter hook input priority 0;\n    " + rule + "\n  }\n}\n"
-		// Bounded, like the apply path: the web client gives up after five
-		// seconds, but an unbounded nft here would leave the goroutine behind
-		// for the life of the process, once per validation request.
-		ctx, cancel := context.WithTimeout(context.Background(), nftTimeout)
-		cmd := exec.CommandContext(ctx, nftBinary, "--check", "--file", "-")
-		// Killing the process is not enough on its own: CombinedOutput waits for
-		// the output pipes to close, and anything the child spawned still holds
-		// them. WaitDelay bounds that too, so a cancelled command really does
-		// return.
-		cmd.WaitDelay = nftWaitDelay
-		cmd.Stdin = strings.NewReader(script)
-		out, err := cmd.CombinedOutput()
-		timedOut := errors.Is(ctx.Err(), context.DeadlineExceeded)
-		cancel()
-		// Specifically DeadlineExceeded: cancel() above makes ctx.Err() non-nil
-		// either way, so a plain nil check reports every successful validation
-		// as a timeout.
-		if timedOut {
+		out, err := runNftCheck(ctx, script)
+		// The deadline is shared by the whole validation rather than granted to
+		// each statement: one request must not be able to hold the daemon for
+		// the timeout times the number of lines.
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			errs[i] = fmt.Sprintf("syntax check timed out after %s", nftTimeout)
 			continue
 		}
 		if err != nil {
-			msg := strings.TrimSpace(string(out))
+			msg := strings.TrimSpace(out)
 			if msg == "" {
 				msg = err.Error()
 			}
@@ -501,6 +549,18 @@ func validateCustomRules(rules []string) map[int]string {
 		}
 	}
 	return errs
+}
+
+// runNftCheck passes a script to "nft --check --file -" and returns its output.
+func runNftCheck(ctx context.Context, script string) (string, error) {
+	cmd := exec.CommandContext(ctx, nftBinary, "--check", "--file", "-")
+	// Killing the process is not enough on its own: CombinedOutput waits for the
+	// output pipes to close, and anything the child spawned still holds them.
+	// WaitDelay bounds that too, so a cancelled command really does return.
+	cmd.WaitDelay = nftWaitDelay
+	cmd.Stdin = strings.NewReader(script)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }
 
 // groupFilePath is the path to the system group file; overridden in tests.
