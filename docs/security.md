@@ -16,7 +16,7 @@ holds no privilege worth stealing.
 
 | Threat | Mitigation |
 |---|---|
-| Rule or command injection | netlink API — no subprocess and no string interpolation in the apply path |
+| Rule or command injection | Every typed rule goes to the kernel as a Go struct over netlink — no shell, no argv, nothing to escape. Custom rules are the one exception and are handled below |
 | Escalation from the web process | It has no kernel access. Reaching nftables needs a command the typed protocol accepts |
 | Auth brute force | Argon2id, plus 5 attempts per 10 minutes per source address |
 | CSRF | Go 1.25 `net/http.CrossOriginProtection` — `Origin` and `Sec-Fetch-Site` on every unsafe method |
@@ -56,6 +56,29 @@ changes, so an ACME client renewing it in place needs no restart either.
 cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 ```
+
+### The one place a string reaches a command
+
+Custom rules are nftables statements typed by the operator, and the netlink
+library takes typed expressions rather than text — so they are the one thing
+easywall applies by writing `add rule inet easywall input <your rule>` into
+`nft -f -`. Saying "no subprocess in the apply path", as this page did, was not
+true, and the mitigation is worth stating instead of hidden behind a claim.
+
+`nft` reads a newline and a semicolon as the end of one command and the start of
+the next. A rule carrying either is therefore not a rule but a second command,
+run by the root daemon, able to reach tables easywall does not own —
+demonstrated against a real kernel, where an imported rule containing a newline
+wrote into a neighbouring table. Both characters are refused, structurally,
+before anything is stored:
+
+- refused on save, on import, and inside the core, by the same check
+- refused on the *shape* of the input, not by a parser — it does not depend on
+  nft's grammar, on a subprocess being available, or on the syntax-check wrapper
+  happening to be unbalanced
+
+What remains is what the feature is for: an operator with an account can write
+firewall rules, which is also true of every other page.
 
 ### Nothing is loaded from a third party
 
