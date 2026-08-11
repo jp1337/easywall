@@ -400,14 +400,25 @@ func (d *demoState) handleApplyRules() shared.Response {
 	// Snapshot the current rules as backup; promote staged → current.
 	d.rules.Backup = d.rules.Current
 	d.rules.Current = d.rules.Staged
-	d.lastApply = time.Now().Format(time.RFC3339)
-	d.audit("apply_accepted", "", "")
 
+	// The order the core writes these in, because the audit log is the thing a
+	// visitor reads to understand what easywall records.
+	//
+	// This used to write apply_accepted here, before the confirmation window had
+	// even opened, and stamp the last-apply time with it. An apply nobody
+	// confirmed therefore produced "Rules accepted" immediately followed by
+	// "Rules rolled back" for the same apply — a pair the real product cannot
+	// produce — and left the dashboard reporting a successful apply that had been
+	// undone. audit-log.md teaches operators to read exactly those two lines.
 	if d.system.Acceptance.Enabled {
+		d.audit("apply_started", "all", "")
 		d.acceptance = shared.AcceptancePending
 		dur := time.Duration(d.system.Acceptance.Duration) * time.Second
 		d.acceptanceTimer = time.AfterFunc(dur, d.rollback)
 	} else {
+		d.audit("apply_started", "all", "acceptance window disabled — applied without confirmation")
+		d.lastApply = time.Now().Format(time.RFC3339)
+		d.audit("apply_accepted", "all", "no confirmation required")
 		d.acceptance = shared.AcceptanceAccepted
 		// Match the real core: brief "accepted" pulse, then drop back to idle.
 		go d.delayedReset()
@@ -429,6 +440,10 @@ func (d *demoState) handleAccept() shared.Response {
 		d.acceptanceTimer.Stop()
 		d.acceptanceTimer = nil
 	}
+	// Confirmation is what makes an apply final, so this is where the log records
+	// it and where the dashboard's "last apply" is stamped.
+	d.lastApply = time.Now().Format(time.RFC3339)
+	d.audit("apply_accepted", "all", "")
 	d.acceptance = shared.AcceptanceAccepted
 	go d.delayedReset()
 	return demoOK(shared.AcceptResult{Accepted: true})
@@ -442,7 +457,7 @@ func (d *demoState) rollback() {
 	defer d.mu.Unlock()
 	d.rules.Current = d.rules.Backup
 	d.acceptance = shared.AcceptanceRolledBack
-	d.audit("apply_rolledback", "", "timeout") // the token the real core writes
+	d.audit("apply_rolledback", "all", "timeout") // the token the real core writes
 	d.acceptanceTimer = nil
 }
 

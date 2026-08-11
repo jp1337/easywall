@@ -403,3 +403,76 @@ func TestDemoSend_RejectsWhatTheCoreWouldReject(t *testing.T) {
 		t.Errorf("a valid list with comments must be accepted: %v", err)
 	}
 }
+
+// The demo's audit log has to read like the product's.
+//
+// Apply used to write apply_accepted straight away, before the confirmation
+// window opened, and stamp the last-apply time with it. An apply nobody
+// confirmed then produced "Rules accepted" followed by "Rules rolled back" for
+// the same apply — a pair the real core cannot produce — and the dashboard
+// reported a successful apply that had just been undone. The demo is what
+// people judge easywall by before installing it.
+func TestDemo_ApplyLogsStartedNotAccepted(t *testing.T) {
+	d := newDemoState()
+	d.system.Acceptance.Enabled = true
+	d.system.Acceptance.Duration = 120
+
+	d.mu.Lock()
+	d.rules.Staged.TCP = append(d.rules.Staged.TCP, shared.PortRule{Port: "8080", Description: "test"})
+	seeded := d.lastApply // the demo starts with a plausible history
+	d.mu.Unlock()
+
+	if resp := d.Send(shared.Command{Type: shared.CmdApplyRules}); !resp.Success {
+		t.Fatalf("apply failed: %s", resp.Error)
+	}
+
+	d.mu.Lock()
+	newest := d.auditLog[0]
+	last := d.lastApply
+	d.mu.Unlock()
+
+	if newest.Action != "apply_started" {
+		t.Errorf("the newest entry after an apply is %q, want apply_started — "+
+			"the window has not been confirmed yet", newest.Action)
+	}
+	if last != seeded {
+		t.Errorf("last apply moved to %q before anyone confirmed", last)
+	}
+
+	if resp := d.Send(shared.Command{Type: shared.CmdAccept}); !resp.Success {
+		t.Fatalf("accept failed: %s", resp.Error)
+	}
+
+	d.mu.Lock()
+	newest = d.auditLog[0]
+	last = d.lastApply
+	d.mu.Unlock()
+
+	if newest.Action != "apply_accepted" {
+		t.Errorf("after confirming, the newest entry is %q, want apply_accepted", newest.Action)
+	}
+	if last == seeded {
+		t.Error("confirming an apply did not stamp the last-apply time")
+	}
+}
+
+// With the window switched off an apply is final at once, and the log says so
+// in the same two lines the core writes.
+func TestDemo_ApplyWithoutAcceptanceWindowLogsBoth(t *testing.T) {
+	d := newDemoState()
+	d.system.Acceptance.Enabled = false
+
+	if resp := d.Send(shared.Command{Type: shared.CmdApplyRules}); !resp.Success {
+		t.Fatalf("apply failed: %s", resp.Error)
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.auditLog[0].Action != "apply_accepted" || d.auditLog[1].Action != "apply_started" {
+		t.Errorf("expected apply_started then apply_accepted, got %q then %q",
+			d.auditLog[1].Action, d.auditLog[0].Action)
+	}
+	if d.lastApply == "" {
+		t.Error("an apply that needs no confirmation left the last-apply time empty")
+	}
+}
