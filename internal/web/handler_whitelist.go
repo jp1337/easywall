@@ -25,9 +25,7 @@ func (s *Server) handleWhitelistPOST(w http.ResponseWriter, r *http.Request) {
 	// a whitelist entry that never becomes a rule silently withdraws access
 	// the operator believes they granted.
 	if errs := validateIPListEntries(raw); len(errs) > 0 {
-		slog.Info("rejected whitelist save", "invalid_lines", len(errs))
-		s.setFlash(w, r, "save_invalid_entries")
-		http.Redirect(w, r, "/whitelist", http.StatusSeeOther)
+		s.rejectIPList(w, r, "whitelist", raw, errs)
 		return
 	}
 

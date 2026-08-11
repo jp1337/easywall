@@ -1,6 +1,8 @@
 package web
 
 import (
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -99,5 +101,60 @@ func TestParseIPList_ReturnsSliceNotNil(t *testing.T) {
 	result := parseIPList("")
 	if result == nil {
 		t.Error("expected non-nil empty slice")
+	}
+}
+
+// A rejected list must come back with the operator's text and the line numbers.
+//
+// Both editors used to redirect, which repopulated the textarea from the stored
+// list — so paste forty addresses with one typo among them and all forty were
+// gone, under a message saying "the line numbers are listed above the editor"
+// pointing at an empty panel.
+func TestHandleBlacklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	var reached bool
+	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
+
+	entries := "# a note I just wrote\n192.168.1.999\n203.0.113.77"
+	rec := doAuthFormRequest(t, s, "/blacklist", "entries="+urlEncode(entries))
+
+	if reached {
+		t.Error("an invalid address list was forwarded to the core")
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected the editor to be re-rendered, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	for _, want := range []string{"a note I just wrote", "192.168.1.999", "203.0.113.77"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the response lost %q — everything typed must survive a rejection", want)
+		}
+	}
+	// The line number of the bad address, which is what the message promises.
+	if !strings.Contains(body, "2") || !strings.Contains(body, "validate_invalid") && !strings.Contains(body, "Invalid entries") {
+		t.Error("the response does not name the rejected line")
+	}
+}
+
+func TestHandleWhitelistPOST_RejectedListKeepsTheText(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	var reached bool
+	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
+
+	rec := doAuthFormRequest(t, s, "/whitelist", "entries="+urlEncode("203.0.113.10\nnot-an-address"))
+
+	if reached {
+		t.Error("an invalid address list was forwarded to the core")
+	}
+	if !strings.Contains(rec.Body.String(), "not-an-address") {
+		t.Error("the rejected line is not in the response")
+	}
+	if !strings.Contains(rec.Body.String(), "203.0.113.10") {
+		t.Error("the valid line the operator also typed was lost")
 	}
 }

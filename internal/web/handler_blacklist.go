@@ -9,6 +9,39 @@ import (
 type ipListData struct {
 	Title   string
 	Entries []string
+
+	// Validation is nil until a save was rejected, and then holds the same
+	// shape the HTMX endpoint returns so both paths render through one
+	// template — the arrangement the custom rules editor already uses.
+	Validation *validationData
+}
+
+// iplistValidation turns rejected lines into the fragment the editor renders.
+func iplistValidation(errs []lineError) *validationData {
+	return &validationData{
+		Errors:   errs,
+		TitleKey: "validate_invalid_entries",
+		OKKey:    "validate_iplist_ok",
+	}
+}
+
+// rejectIPList re-renders a list editor with the submitted text and the reasons
+// it was refused.
+//
+// Redirecting instead, which is what both editors did, threw the operator's
+// typing away and left the message pointing at nothing: it says the line numbers
+// are listed above the editor, and after a redirect that panel is empty and the
+// textarea has been repopulated from the stored list. Paste forty addresses with
+// one typo among them and all forty were gone, with no indication of which one
+// was wrong.
+func (s *Server) rejectIPList(w http.ResponseWriter, r *http.Request, page, raw string, errs []lineError) {
+	slog.Info("rejected address list", "list", page, "invalid_lines", len(errs))
+	s.setFlash(w, r, "save_invalid_entries")
+	s.render(w, r, page+".html", page, &ipListData{
+		Title:      page,
+		Entries:    parseIPList(raw),
+		Validation: iplistValidation(errs),
+	})
 }
 
 func (s *Server) handleBlacklistGET(w http.ResponseWriter, r *http.Request) {
@@ -33,9 +66,7 @@ func (s *Server) handleBlacklistPOST(w http.ResponseWriter, r *http.Request) {
 	// and then silently skipped when the rules were applied. Refuse the save
 	// instead, and say which line.
 	if errs := validateIPListEntries(raw); len(errs) > 0 {
-		slog.Info("rejected blacklist save", "invalid_lines", len(errs))
-		s.setFlash(w, r, "save_invalid_entries")
-		http.Redirect(w, r, "/blacklist", http.StatusSeeOther)
+		s.rejectIPList(w, r, "blacklist", raw, errs)
 		return
 	}
 
