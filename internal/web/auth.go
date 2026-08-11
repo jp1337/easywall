@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -107,6 +108,27 @@ func HashPassword(password string) (string, error) {
 		argon2.Version, p.memory, p.iterations, p.parallelism, b64salt, b64hash), nil
 }
 
+// Why a stored hash cannot be used, in words that carry nothing from the value
+// itself.
+//
+// A fixed set rather than an error wrapped around the parser's, and that is the
+// point: this text is written to the journal, the value it describes is the
+// credential, and an error built by wrapping a parser can carry pieces of its
+// input along with it — `fmt.Errorf("decode salt: %w", err)` is one library
+// change away from printing what it failed to decode. Constants cannot.
+var (
+	errHashFormat      = errors.New("it is not the $argon2id$… form easywall writes")
+	errHashVersion     = errors.New("it names an argon2 version this build cannot read")
+	errHashParams      = errors.New("its cost parameters cannot be read")
+	errHashSaltEncode  = errors.New("its salt is not valid base64")
+	errHashKeyEncode   = errors.New("its key is not valid base64")
+	errHashEmptySalt   = errors.New("it has an empty salt")
+	errHashEmptyKey    = errors.New("it has an empty key; the value looks truncated")
+	errHashParallelism = errors.New("its parallelism is below 1")
+	errHashIterations  = errors.New("its iteration count is below 1")
+	errHashMemory      = errors.New("its memory cost is below argon2's minimum for that parallelism")
+)
+
 // VerifyPassword returns true if password matches the argon2id encoded hash.
 //
 // A stored hash that cannot be used is reported, not just refused. This is the
@@ -117,13 +139,15 @@ func HashPassword(password string) (string, error) {
 // will never work into something they can fix.
 //
 // Logging here is safe from the outside: the hash comes from the config file, so
-// a wrong password never reaches this branch and nobody can make it noisy.
+// a wrong password never reaches this branch and nobody can make it noisy. And
+// safe on the inside because the reason is one of the constants above — the
+// stored credential does not reach the journal even in pieces.
 func VerifyPassword(password, encodedHash string) bool {
 	p, salt, hash, err := decodeArgon2Hash(encodedHash)
 	if err != nil {
 		slog.Error("the stored password hash cannot be used, so no password can match it; "+
 			"replace the password line in web.toml with a hash easywall produced, or clear it "+
-			"to reopen the first-run wizard", "error", err)
+			"to reopen the first-run wizard", "reason", err.Error())
 		return false
 	}
 	other := argon2.IDKey([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
@@ -135,30 +159,27 @@ func decodeArgon2Hash(encoded string) (argon2Params, []byte, []byte, error) {
 	parts := strings.Split(encoded, "$")
 	// expected: ["", "argon2id", "v=19", "m=65536,t=3,p=4", "<salt>", "<hash>"]
 	if len(parts) != 6 || parts[1] != "argon2id" {
-		return argon2Params{}, nil, nil, fmt.Errorf("invalid argon2id hash format")
+		return argon2Params{}, nil, nil, errHashFormat
 	}
 
 	var version int
-	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
-		return argon2Params{}, nil, nil, fmt.Errorf("parse version: %w", err)
-	}
-	if version != argon2.Version {
-		return argon2Params{}, nil, nil, fmt.Errorf("unsupported argon2 version %d", version)
+	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil || version != argon2.Version {
+		return argon2Params{}, nil, nil, errHashVersion
 	}
 
 	var p argon2Params
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &p.memory, &p.iterations, &p.parallelism); err != nil {
-		return argon2Params{}, nil, nil, fmt.Errorf("parse params: %w", err)
+		return argon2Params{}, nil, nil, errHashParams
 	}
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return argon2Params{}, nil, nil, fmt.Errorf("decode salt: %w", err)
+		return argon2Params{}, nil, nil, errHashSaltEncode
 	}
 
 	hash, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return argon2Params{}, nil, nil, fmt.Errorf("decode hash: %w", err)
+		return argon2Params{}, nil, nil, errHashKeyEncode
 	}
 
 	p.saltLength = uint32(len(salt))
@@ -179,17 +200,16 @@ func decodeArgon2Hash(encoded string) (argon2Params, []byte, []byte, error) {
 	// Refused with a description instead, which VerifyPassword logs.
 	switch {
 	case len(salt) == 0:
-		return argon2Params{}, nil, nil, fmt.Errorf("argon2id hash has an empty salt")
+		return argon2Params{}, nil, nil, errHashEmptySalt
 	case len(hash) == 0:
-		return argon2Params{}, nil, nil, fmt.Errorf("argon2id hash has an empty key; the value looks truncated")
+		return argon2Params{}, nil, nil, errHashEmptyKey
 	case p.parallelism < 1:
-		return argon2Params{}, nil, nil, fmt.Errorf("argon2id parallelism must be at least 1, got %d", p.parallelism)
+		return argon2Params{}, nil, nil, errHashParallelism
 	case p.iterations < 1:
-		return argon2Params{}, nil, nil, fmt.Errorf("argon2id iterations must be at least 1, got %d", p.iterations)
+		return argon2Params{}, nil, nil, errHashIterations
 	case p.memory < 8*uint32(p.parallelism):
 		// argon2's own lower bound: fewer blocks than lanes has no meaning.
-		return argon2Params{}, nil, nil, fmt.Errorf("argon2id memory must be at least %d for parallelism %d, got %d",
-			8*uint32(p.parallelism), p.parallelism, p.memory)
+		return argon2Params{}, nil, nil, errHashMemory
 	}
 
 	return p, salt, hash, nil
