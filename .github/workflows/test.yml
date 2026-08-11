@@ -39,12 +39,22 @@ jobs:
       - name: Unit tests with race detector
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
 
+      # The profile has to exist and have something in it before anyone is told
+      # about it. This check fails; the upload below does not, and that pairing
+      # is how an upload that never landed stayed invisible.
+      - name: The coverage profile is not empty
+        run: |
+          set -euo pipefail
+          test -s coverage.out || { echo "::error::coverage.out is missing or empty"; exit 1; }
+          echo "$(( $(wc -l < coverage.out) - 1 )) covered blocks recorded"
+
       - name: Upload coverage
         uses: codecov/codecov-action@v7
         continue-on-error: true  # Dependabot PRs lack CODECOV_TOKEN; don't block CI
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
+          flags: unit
           fail_ci_if_error: true
 
   test-integration:
@@ -77,6 +87,22 @@ jobs:
       # the coverage report said the firewall's core logic was untested while
       # the suite above was testing it against a real kernel. A number that
       # wrong is worse than no number: it hid which parts genuinely had none.
+      # The suite runs under sudo, so the profile belongs to root and inherits
+      # root's umask. The uploader runs as the runner user; a profile it cannot
+      # read is an upload that does not happen, behind a step that cannot fail.
+      # Codecov's flag list for this repository is empty, which is what "the
+      # integration half has never arrived" looks like from outside — this is
+      # the cheapest of the candidate causes and the only one reachable from
+      # here. Whether it is *the* cause is not something this repository can
+      # prove; the check below at least stops the file itself being the problem.
+      - name: The integration profile is readable and not empty
+        run: |
+          set -euo pipefail
+          sudo chown "$(id -u):$(id -g)" coverage-integration.out
+          test -s coverage-integration.out || {
+            echo "::error::coverage-integration.out is missing or empty"; exit 1; }
+          echo "$(( $(wc -l < coverage-integration.out) - 1 )) covered blocks recorded"
+
       - name: Upload integration coverage
         uses: codecov/codecov-action@v7
         continue-on-error: true # Dependabot PRs lack CODECOV_TOKEN; don't block CI
