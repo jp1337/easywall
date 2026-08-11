@@ -13,7 +13,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gorilla/sessions"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -198,14 +197,11 @@ key  = ""
 
 	client := NewCoreClient(fc.socketPath)
 
-	store := sessions.NewCookieStore([]byte("test-session-key-32bytes-padding!"))
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   SessionLifetime,
-		HttpOnly: true,
-		Secure:   false, // allow non-HTTPS in tests
-		SameSite: http.SameSiteLaxMode,
-	}
+	// Built the way production builds it, so the session lifetime a test sees is
+	// the one the server enforces. Secure is relaxed afterwards: the test
+	// requests are plain HTTP.
+	store := newSessionStore("test-session-key-32bytes-padding!")
+	store.Options.Secure = false
 
 	bundle := NewBundle(repoLocales(t))
 
@@ -257,14 +253,11 @@ key  = ""
 
 	client := NewCoreClient(fc.socketPath)
 
-	store := sessions.NewCookieStore([]byte("test-session-key-32bytes-padding!"))
-	store.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   SessionLifetime,
-		HttpOnly: true,
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
-	}
+	// Built the way production builds it, so the session lifetime a test sees is
+	// the one the server enforces. Secure is relaxed afterwards: the test
+	// requests are plain HTTP.
+	store := newSessionStore("test-session-key-32bytes-padding!")
+	store.Options.Secure = false
 
 	bundle := NewBundle(repoLocales(t))
 	tmpl, err := loadTemplates(repoTemplates(t))
