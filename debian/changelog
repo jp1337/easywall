@@ -1,3 +1,23 @@
+easywall (2.5.0) unstable; urgency=high
+
+  * Fix: the packaged core daemon could not talk to the web interface at all.
+    CapabilityBoundingSet=CAP_NET_ADMIN leaves a root service without CAP_CHOWN
+    and CAP_DAC_OVERRIDE, so the control socket stayed root:root and the web
+    user was refused on connect, and /var/lib/easywall — owned by that user —
+    was unreadable to the daemon, which never wrote rules.json. The unit now
+    runs the daemon in the easywall group and the data directory is group
+    writable; neither needs a wider capability set
+  * Fix: a session cookie was accepted for thirty days rather than the
+    documented ten minutes, and logging out therefore wore off — replaying the
+    cookie once the revocation record had expired signed the visitor back in
+  * Fix: the version was never compiled in. It was a constant, and the linker's
+    -X silently does nothing to a constant, so every build reported the literal
+    in the source whatever tag it came from. Both binaries now accept --version
+  * Firewall rule ordering, per-source rate limiting, logging, the acceptance
+    window, first-run wizard and Debian layout fixes — see CHANGELOG.md
+
+ -- Jochen Pylypiw <jochen.pylypiw@googlemail.com>  Tue, 11 Aug 2026 00:00:00 +0000
+
 easywall (2.0.0) unstable; urgency=medium
 
   * Complete rewrite in Go (nftables via netlink, no Python dependency)
