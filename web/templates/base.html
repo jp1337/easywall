@@ -33,7 +33,7 @@
        indicator rules live in app.css instead. "style" is removed from
        attributesToSettle so a swapped response cannot smuggle one in. */}}
   <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"attributesToSettle":["class","width","height"],"inlineScriptNonce":"{{.Nonce}}","selfRequestsOnly":true}'>
-  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx.min.js?v={{.Asset}}" defer></script>
 </head>
 <body>
 <div class="layout">
@@ -215,7 +215,7 @@
 
 {{define "foot"}}
   <div id="toast-container" class="toast-container"></div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v={{.Asset}}"></script>
 </body>
 </html>
 {{end}}

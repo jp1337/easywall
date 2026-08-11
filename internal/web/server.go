@@ -43,9 +43,12 @@ type PageData struct {
 	// added client-side — which is not in the rendered HTML to read back out.
 	Strings map[string]string
 
-	// Asset is appended to static stylesheet URLs. Without it an operator who
-	// upgrades easywall keeps the cached stylesheet from the previous version
-	// and sees a broken interface until they force-reload.
+	// Asset is appended to every versioned static URL — the stylesheet and both
+	// scripts. Without it an operator who upgrades easywall keeps the cached
+	// copy from the previous version and sees a broken interface until they
+	// force-reload. It was on the stylesheet alone for a while, which was the
+	// worse of the two states: the new stylesheet arrived and app.js did not,
+	// so the upgraded page ran the previous release's JavaScript.
 	Asset string
 	Data  interface{}
 }
@@ -210,7 +213,8 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Use(func(next http.Handler) http.Handler { return cop.Handler(next) })
 
 	// Static assets
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir(cfg.StaticDir()))))
+	r.Handle("/static/*", staticCacheHeaders(
+		http.StripPrefix("/static/", http.FileServer(http.Dir(cfg.StaticDir())))))
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -281,6 +285,30 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	})
 
 	return r
+}
+
+// staticCacheHeaders says how long a static file may be reused, instead of
+// leaving it to the browser to guess.
+//
+// http.FileServer sends Last-Modified and nothing else, and a response with no
+// freshness information is cached heuristically: browsers reuse it for roughly
+// a tenth of its age without asking the server. dpkg preserves the build mtime,
+// so on a packaged installation "its age" is however long ago the release was
+// built — days to weeks of serving a file the server has already replaced.
+//
+// A URL carrying ?v= names one release's copy of the file and can be kept for
+// as long as the browser likes; the upgrade changes the URL. Everything else —
+// fonts, icons, the manifest — must be revalidated, which costs one conditional
+// request answered with 304.
+func staticCacheHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // currentCredential returns the fingerprint of the password in force now, as a
