@@ -1,0 +1,204 @@
+#!/usr/bin/env node
+/**
+ * Drives the interface in a real browser and fails the build on what a
+ * stylesheet diff and a Go test cannot see.
+ *
+ * Two kinds of check, and the split matters:
+ *
+ *   - Regressions. Specific bugs that shipped, each with the input that produced
+ *     them. A forwarding port of "1E+04" was stored as port 1 because the editor
+ *     re-parsed the field's text with parseInt instead of reading the number the
+ *     field holds; the page said "Changes saved.". Nothing in the Go suite can
+ *     see that, because the mistake is a disagreement with the browser about what
+ *     a number is.
+ *   - Health. No console error, no failed request, no horizontal overflow, on
+ *     every page in both themes. Cheap, and it is how a CSP violation or a
+ *     missing asset gets caught across the whole app at once.
+ *
+ * Expects easywall-web already running in demo mode with no password set, so the
+ * run starts at the first-run wizard and sets up its own account. Usage:
+ *
+ *   EASYWALL_URL=https://127.0.0.1:12227 node scripts/ui-check.mjs
+ *
+ * The browser is Playwright's own Chromium — install it with
+ * `npx playwright-core install chromium`. Set CHROME_PATH to use a different
+ * build instead; that is how it runs against a Chromium already on the machine.
+ */
+import { chromium } from 'playwright-core';
+
+const BASE = process.env.EASYWALL_URL || 'https://127.0.0.1:12227';
+const USER = 'ui-check';
+const PASS = 'ui-check-password-2026';
+
+const PAGES = [
+  '/dashboard', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
+  '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
+  '/log', '/apply',
+];
+
+const failures = [];
+const fail = (what, detail) => {
+  failures.push(`${what}: ${detail}`);
+  console.error(`  FAIL ${what}\n       ${detail}`);
+};
+
+/**
+ * Complete the first-run wizard if it is still being served.
+ *
+ * Presence of the form, not the URL: once an account exists the route is not
+ * registered at all, so the request 404s and the URL still says /firstrun. The
+ * wizard also writes the credentials into the config file, so a second run
+ * against the same config legitimately finds nothing to do.
+ */
+async function setUpAccount(page) {
+  await page.goto(`${BASE}/firstrun`, { waitUntil: 'load' });
+  if (!(await page.$('input[name=password_confirm]'))) {
+    console.log('  ok   an account already exists; skipping the wizard');
+    return;
+  }
+  await page.fill('input[name=username]', USER);
+  await page.fill('input[name=password]', PASS);
+  await page.fill('input[name=password_confirm]', PASS);
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("form[action='/firstrun'] button[type=submit]"),
+  ]);
+  if (page.url().includes('/firstrun')) {
+    const alert = await page.textContent('[role=alert]').catch(() => '(none)');
+    throw new Error(`the first-run wizard refused its own valid input: ${alert}`);
+  }
+}
+
+async function signIn(page) {
+  await page.goto(`${BASE}/login`, { waitUntil: 'load' });
+  await page.fill('input[name=username]', USER);
+  await page.fill('input[name=password]', PASS);
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("form[action='/login'] button[type=submit]"),
+  ]);
+  if (page.url().includes('/login')) {
+    throw new Error(`could not sign in: still at ${page.url()}`);
+  }
+}
+
+/**
+ * A forwarding port must be stored as the number the field holds.
+ *
+ * "1E+04" is what a spreadsheet writes for 10000. The number input accepts it as
+ * valid, and parseInt("1E+04", 10) is 1 — so the rule that got saved was port 1,
+ * privileged and not the one anyone asked for, reported as success.
+ */
+async function checkForwardingPortIsNotReparsed(page) {
+  await page.goto(`${BASE}/forwarding`, { waitUntil: 'networkidle' });
+  const before = JSON.parse((await page.inputValue('#fwd-json')) || '[]');
+
+  await page.click('#add-fwd-btn');
+  const rows = await page.$$('#fwd-tbody tr[data-idx]');
+  const row = rows[rows.length - 1];
+  await (await row.$('.f-src')).click();
+  await page.keyboard.type('1E+04');
+  await (await row.$('.f-dst')).click();
+  await page.keyboard.type('9999');
+
+  const payload = JSON.parse((await page.inputValue('#fwd-json')) || '[]');
+  const added = payload.slice(before.length);
+  if (added.length !== 1) {
+    fail('forwarding payload', `expected 1 new row in the payload, got ${added.length}`);
+    return;
+  }
+  if (added[0].source_port !== 10000) {
+    fail('forwarding port re-parsed',
+      `typed "1E+04" (ten thousand); the payload carries source_port ${added[0].source_port}. ` +
+      'The editor is re-parsing the field text instead of reading valueAsNumber.');
+    return;
+  }
+
+  // And it survives the round trip, because the payload being right is only half
+  // of it — the server has to accept and store the same number.
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#fwd-form button[type=submit]"),
+  ]);
+  await page.goto(`${BASE}/forwarding`, { waitUntil: 'networkidle' });
+  const stored = JSON.parse((await page.inputValue('#fwd-json')) || '[]');
+  // Stated as a positive and a negative, so the check does not depend on how many
+  // rules were already there: the rule asked for must exist, and the rule the bug
+  // produced must not.
+  const wanted = stored.some(r => r.source_port === 10000 && r.dest_port === 9999);
+  const truncated = stored.some(r => r.source_port === 1 && r.dest_port === 9999);
+  if (truncated) {
+    fail('forwarding round trip',
+      'a rule was stored forwarding privileged port 1 — the "1E+04" was truncated to its first digit');
+  } else if (!wanted) {
+    fail('forwarding round trip',
+      `no stored rule forwards 10000 -> 9999; stored: ${JSON.stringify(stored)}`);
+  } else {
+    console.log('  ok   a forwarding port of "1E+04" is stored as 10000');
+  }
+}
+
+/** Every page renders without complaint, and without scrolling sideways. */
+async function checkPageHealth(ctx, theme) {
+  const page = await ctx.newPage();
+  const seen = [];
+  page.on('console', m => { if (m.type() === 'error') seen.push(`console: ${m.text()}`); });
+  page.on('pageerror', e => seen.push(`pageerror: ${e.message}`));
+  page.on('requestfailed', r => seen.push(`requestfailed: ${r.url()}`));
+
+  await signIn(page);
+  for (const path of PAGES) {
+    seen.length = 0;
+    await page.goto(BASE + path, { waitUntil: 'networkidle' });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (overflow > 0) {
+      fail(`horizontal overflow [${theme}]`, `${path} scrolls ${overflow}px sideways`);
+    }
+    for (const problem of seen) {
+      fail(`page problem [${theme}]`, `${path} — ${problem}`);
+    }
+  }
+  console.log(`  ok   ${PAGES.length} pages clean in ${theme}`);
+  await page.close();
+}
+
+const launch = process.env.CHROME_PATH
+  ? { executablePath: process.env.CHROME_PATH }
+  : {};
+
+const browser = await chromium.launch(launch);
+try {
+  console.log(`Driving ${BASE}`);
+  const setup = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await setup.newPage();
+  await setUpAccount(page);
+  await setup.close();
+
+  for (const theme of ['dark', 'light']) {
+    const ctx = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1600, height: 1000 },
+    });
+    await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
+    await checkPageHealth(ctx, theme);
+    await ctx.close();
+  }
+
+  const ctx = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: { width: 1600, height: 1000 },
+  });
+  const p = await ctx.newPage();
+  await signIn(p);
+  await checkForwardingPortIsNotReparsed(p);
+  await ctx.close();
+} finally {
+  await browser.close();
+}
+
+if (failures.length) {
+  console.error(`\n${failures.length} UI check(s) failed`);
+  process.exit(1);
+}
+console.log('\nUI checks passed');
