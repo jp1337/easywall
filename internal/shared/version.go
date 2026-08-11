@@ -13,10 +13,22 @@ import (
 	"time"
 )
 
-const (
-	// CurrentVersion is updated at build time via -ldflags.
-	CurrentVersion = "2.4.2"
+// CurrentVersion is the release this binary belongs to. Every build overrides it
+// with -ldflags "-X github.com/jp1337/easywall/internal/shared.CurrentVersion=…".
+//
+// It is a var, and it has to be: the linker's -X can only write to a variable,
+// and it reports nothing when asked to write to a constant. This was a const,
+// so every -ldflags in the repository — Makefile, .goreleaser.yaml, Dockerfile,
+// debian/rules and two workflows — succeeded and changed nothing. Released
+// binaries all carried the literal below whatever tag they were built from,
+// which meant the dashboard advertised an update to a version that was already
+// installed, the installation count reported every host on one release, and the
+// stylesheet URL never changed across an upgrade even though it is versioned
+// precisely so that it does. `easywall-core --version` prints this, so a build
+// can be checked rather than assumed.
+var CurrentVersion = "2.5.0"
 
+const (
 	// cacheMaxAge is how long a successful check is trusted.
 	cacheMaxAge = 24 * time.Hour
 

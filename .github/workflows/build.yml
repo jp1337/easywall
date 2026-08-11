@@ -67,6 +67,20 @@ jobs:
             -o bin/easywall-web-${{ matrix.goos }}-${{ matrix.goarch }} \
             ./cmd/easywall-web
 
+      # -X writes to a variable and silently does nothing to a constant, which is
+      # what CurrentVersion used to be. Ask the binary rather than trusting the
+      # flag — only possible on the native architecture.
+      - name: Check the version was compiled in
+        if: matrix.goarch == 'amd64'
+        run: |
+          set -euo pipefail
+          got=$(./bin/easywall-core-${{ matrix.goos }}-${{ matrix.goarch }} --version | awk '{print $2}')
+          echo "easywall-core --version -> $got"
+          [ "$got" = "dev" ] || {
+            echo "::error::built with -X …CurrentVersion=dev but the binary reports $got"
+            exit 1
+          }
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -180,6 +194,22 @@ jobs:
             exit 1
           fi
           echo "the core configuration is out of the web user's reach"
+
+      # The version reaches the binary. It is written in with -ldflags -X, which
+      # does nothing at all when the target is a constant — as it was, so every
+      # released binary reported the literal in the source instead of its tag.
+      - name: Check the version was compiled in
+        run: |
+          set -euo pipefail
+          want=$(dpkg-parsechangelog --show-field Version)
+          for bin in easywall-core easywall-web; do
+            got=$(/usr/sbin/$bin --version | awk '{print $2}')
+            echo "$bin --version -> $got (package $want)"
+            [ "$got" = "$want" ] || {
+              echo "::error::$bin reports $got but the package is $want — the -ldflags version injection is not landing"
+              exit 1
+            }
+          done
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v7
