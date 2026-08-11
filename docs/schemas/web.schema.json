@@ -5,7 +5,17 @@
   "description": "Configuration for the easywall-web daemon. See https://jp1337.github.io/easywall/configuration",
   "type": "object",
   "additionalProperties": false,
-  "required": ["bind_addr", "socket_path", "ssl_dir", "session_key"],
+  "required": ["bind_addr", "ssl_dir"],
+  "if": {
+    "properties": { "demo_mode": { "const": true } },
+    "required": ["demo_mode"]
+  },
+  "then": {
+    "description": "Demo mode runs against an in-memory mock, so there is no core socket to name."
+  },
+  "else": {
+    "required": ["socket_path"]
+  },
   "properties": {
     "bind_addr": {
       "type": "string",
@@ -40,8 +50,8 @@
     },
     "session_key": {
       "type": "string",
-      "description": "Secret key for signing session cookies. Must be at least 32 bytes (64 hex characters). Generate with: openssl rand -hex 32",
-      "minLength": 64,
+      "description": "Secret key for signing session cookies. Generate with: openssl rand -hex 32, which gives the recommended 64 hex characters. Optional: a key that is absent, shorter than 32 characters, or still the CHANGE_ME placeholder is replaced with a fresh one at startup and written back to this file. Anything shorter than 32 is therefore accepted by the file and discarded by the daemon, which is why the limit below is 32 and not 64.",
+      "minLength": 32,
       "examples": ["a3f8c2d1e4b5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1"]
     },
     "username": {
