@@ -25,10 +25,18 @@ case "$1" in
     # "permission denied" reading its own configuration, so a freshly installed
     # package had no web interface. Nothing in CI installs the package, so
     # nothing noticed.
+    #
+    # /var/lib/easywall is shared: the root core writes rules.json and the
+    # last-apply marker, the web user writes the version cache and the
+    # installation identifier. It was easywall:easywall 0750, which the core
+    # could not write — root only reaches a directory it does not own through
+    # CAP_DAC_OVERRIDE, and the unit's capability set does not include it. Owned
+    # by root with group write, both processes get in on their own merits and
+    # nobody else does.
     install -d -m 0750 -o root     -g easywall /run/easywall
     install -d -m 0750 -o root     -g easywall /etc/easywall
     install -d -m 0750 -o easywall -g easywall /etc/easywall/ssl
-    install -d -m 0750 -o easywall -g easywall /var/lib/easywall
+    install -d -m 0770 -o root     -g easywall /var/lib/easywall
     install -d -m 0750 -o root     -g easywall /var/log/easywall
 
     # ── Generate web.toml from template if not already present ───────────
