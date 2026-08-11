@@ -112,6 +112,51 @@ jobs:
           flags: integration
           fail_ci_if_error: true
 
+  # Both stylesheets and every diagram are generated files that are committed, so
+  # a release does not need the Node toolchain. Nothing verified they were
+  # current: `npm run check:diagrams` was written for exactly this and CONTRIBUTING.md
+  # names it as the guard, but no workflow ever called it, and the docs
+  # stylesheet had already drifted from its source by the time anyone looked.
+  # A generated file with no freshness check is a file that is stale eventually.
+  assets:
+    name: Generated assets are current
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+
+      # Rebuild in place and let git report the difference — the diff names the
+      # rule that is missing, which "files differ" would not.
+      - name: Stylesheets match their sources
+        run: |
+          npm run build:css
+          npm run build:docs-css
+          git diff --exit-code --stat -- web/static/style.css docs/assets/css/style.css
+
+      - name: Diagrams match their .mmd sources
+        run: npm run check:diagrams
+
+      # htmx is the third committed artefact and the only one nothing checked.
+      # web/static/htmx.min.js is served to every page and is a copy of the
+      # dependency pinned in package.json; the two are kept in step by hand, so
+      # a version bump — or Dependabot's — updates the lockfile and leaves the
+      # served copy on the old release. Nothing errors: the interface simply runs
+      # a version of htmx the project no longer claims to ship.
+      - name: The served htmx matches the pinned dependency
+        run: |
+          cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js
+          git diff --exit-code --stat -- web/static/htmx.min.js || {
+            echo "::error::web/static/htmx.min.js is not the htmx pinned in package.json."
+            echo "Run: cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js"
+            exit 1
+          }
+
   lint:
     name: Lint
     runs-on: ubuntu-24.04
