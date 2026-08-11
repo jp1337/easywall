@@ -517,14 +517,21 @@ func TestIntegration_Apply_BogonFilter_AddsOneRulePerRange(t *testing.T) {
 	base := baseInputRules(t, m)
 
 	applyEmpty(t, m, shared.FirewallOptions{Bogons: true})
-	count := ruleCount(t, m, "input")
+
+	// The drops live in their own chain, so an address the operator allowed can
+	// `return` past them — a return in the base chain would fall through to the
+	// drop policy instead. The input chain therefore gains exactly one rule, the
+	// jump that carries the family and interface tests.
+	if count := ruleCount(t, m, "input"); count != base+1 {
+		t.Errorf("Bogons: expected %d input rules (base=%d + the jump), got %d",
+			base+1, base, count)
+	}
 
 	// Eleven ranges — the same eleven filters.md lists. It used to list two
 	// that were not here and omit two that were.
 	const bogonCount = 11
-	if count != base+bogonCount {
-		t.Errorf("Bogons: expected %d rules (base=%d + %d bogons), got %d",
-			base+bogonCount, base, bogonCount, count)
+	if count := ruleCount(t, m, "bogon"); count != bogonCount {
+		t.Errorf("Bogons: expected %d drops in the bogon chain, got %d", bogonCount, count)
 	}
 }
 

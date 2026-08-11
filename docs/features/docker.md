@@ -43,6 +43,12 @@ afterwards needs another apply, or an entry in `custom_networks`.
 > [`[routing]`]({{ '/configuration/' | relative_url }}#routing) if this host routes
 > for some other reason as well.
 
+> **The bogon filter and bridge networks get along.** Bridge ranges are RFC 1918,
+> which is exactly what that module drops — so it reads the networks listed here and
+> exempts them. Before it did, switching the filter on silently undid Docker
+> coexistence: the packet was dropped long before the rule allowing it was reached.
+> See [firewall filters]({{ '/features/filters/' | relative_url }}).
+
 ## Three ways to run them together
 
 | | Setup | Container ports reachable from outside | Good for |
