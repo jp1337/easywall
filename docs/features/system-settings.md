@@ -1,12 +1,18 @@
 ---
 layout: default
-title: System Settings
-description: The acceptance window — the one setting that decides whether a bad rule is recoverable.
+title: System & Network Settings
+description: The acceptance window that makes a bad rule recoverable, and the Network page that decides what IPv6, routed traffic and Docker are allowed to do.
 ---
 
-# System Settings
+# System & Network Settings
 
-One page, one idea: how long easywall waits for you to confirm before undoing what
+Two pages in the interface, and both of them decide something the rule pages
+cannot: **System** holds the acceptance window, and **Network** holds the three
+dispositions that apply before any rule is consulted.
+
+## The acceptance window
+
+One idea: how long easywall waits for you to confirm before undoing what
 you just applied.
 
 {% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
@@ -37,15 +43,37 @@ too long is an exposure window.
 Long enough to open a second connection and test what you changed; short enough that
 a lockout resolves itself before it costs you the afternoon.
 
+## The Network page
+
+Three dispositions, all of them settled before any rule on any other page is
+consulted.
+
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/settings" ext="png"
+     alt="The Network settings page: an IPv6 card offering filter, leave alone or drop; a Routed traffic card offering route nothing, route these networks with a CIDR list, or leave routed traffic alone; and a Docker card with bridge detection, allowing detected bridges, and a list of additional networks." %}
+  <figcaption>Each card decides something the rule pages cannot express.</figcaption>
+</figure>
+
+| Card | Decides | Detail |
+|---|---|---|
+| **IPv6** | whether IPv6 goes through the same rules, past them, or nowhere | [`[ipv6]`]({{ '/configuration/' | relative_url }}#ipv6) |
+| **Routed traffic** | what may cross the `forward` chain — nothing, a named list, or everything | [`[routing]`]({{ '/configuration/' | relative_url }}#routing) |
+| **Docker** | which container networks are allowed, on input *and* forward | [Docker coexistence]({{ '/features/docker/' | relative_url }}) |
+
+> **The two lists are not the same list.** Docker's networks cross the `forward`
+> chain whatever the routing mode says, because switching coexistence on is
+> already that statement. `routing.networks` is for everything that routes and is
+> not Docker — a VPN gateway, a second interface.
+
 ## Saving
 
 Changes persist the moment you toggle or type — a toast confirms it, and the value
 goes to the core and into `easywall.toml`. No restart. The Save button stays for
-browsers with JavaScript disabled. The [options]({{ '/features/filters/' | relative_url }})
-and network pages behave the same way.
+browsers with JavaScript disabled. Both pages behave the same way, as does
+[options]({{ '/features/filters/' | relative_url }}).
 
 Editing the file directly works too. `SIGHUP` reloads `[firewall]`,
-`[acceptance]`, `[ipv6]` and `[docker]` without dropping the socket; the paths are
+`[acceptance]`, `[ipv6]`, `[docker]` and `[routing]` without dropping the socket; the paths are
 bound at startup and a change to one is logged and ignored until a restart. A file
 that does not parse or does not validate is refused and the running configuration
 stays — a typo must not disarm anything.

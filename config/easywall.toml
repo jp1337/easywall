@@ -22,6 +22,22 @@ enabled              = false  # set to true to auto-detect Docker bridge network
 allow_bridge_networks = true
 custom_networks      = []
 
+# ─── Routed traffic ─────────────────────────────────────────────────────────
+# What happens to traffic this host passes on rather than receives — between two
+# interfaces, or out of a container. easywall's forward chain drops by default,
+# and a drop there is final: a rule in another table that accepts the same packet
+# does not save it. A plain server routes nothing and loses nothing by this.
+#
+#   closed    pass nothing on beyond what Docker coexistence above allows
+#   networks  also pass on the networks listed below, in either direction
+#   open      leave routed traffic alone; easywall filters only what arrives here
+#
+# Docker's networks cross regardless of this setting — switching coexistence on
+# is already that statement, and they do not belong in the list below.
+[routing]
+mode     = "closed"
+networks = []
+
 [firewall]
 # ─── SSH brute-force prevention ─────────────────────────────────────────────
 ssh_brute_force                  = true

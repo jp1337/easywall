@@ -163,6 +163,58 @@ type IPv6Config struct {
 	ICMPAllowNeighborAdvertisement bool `toml:"icmp_allow_neighbor_advertisement" json:"icmp_allow_neighbor_advertisement"`
 }
 
+// RoutingMode says what the firewall does with traffic this host would route
+// rather than receive — between two interfaces, out of a container, into a
+// published container port.
+//
+// A three-way choice for the same reason IPv6Mode is one: the two useful
+// answers at the ends are "nothing is routed" and "routing is somebody else's
+// business", and between them sits the case most hosts actually have, which is
+// a named list. A boolean can express two of the three, and the one it drops is
+// the one a VPN gateway needs.
+//
+// This exists because the forward chain used to be a base chain with policy
+// drop and no rules in it, which is not neutrality: it destroyed every routed
+// packet, including ones another table's forward chain had already accepted,
+// and nothing in the configuration or the documentation mentioned it.
+type RoutingMode string
+
+const (
+	// RoutingClosed routes nothing beyond what Docker coexistence has allowed.
+	// The default, and what easywall has always done — a plain server routes
+	// nothing and loses nothing by it.
+	RoutingClosed RoutingMode = "closed"
+
+	// RoutingNetworks additionally lets the networks in RoutingConfig.Networks
+	// cross the forward chain, in either direction.
+	RoutingNetworks RoutingMode = "networks"
+
+	// RoutingOpen leaves routed traffic alone: the forward chain accepts, and
+	// easywall filters what arrives for this host only. For a router whose
+	// peers change — a VPN concentrator — where there is no list to write down.
+	RoutingOpen RoutingMode = "open"
+)
+
+// Valid reports whether m is a mode the core knows how to apply.
+func (m RoutingMode) Valid() bool {
+	switch m {
+	case RoutingClosed, RoutingNetworks, RoutingOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// RoutingConfig controls what crosses the forward chain.
+type RoutingConfig struct {
+	Mode RoutingMode `toml:"mode" json:"mode"`
+
+	// Networks are the networks allowed across, consulted under
+	// RoutingNetworks. Traffic with a source or a destination inside one of
+	// them may cross; everything else still meets the drop policy.
+	Networks []string `toml:"networks" json:"networks"`
+}
+
 // DockerConfig controls Docker coexistence mode.
 type DockerConfig struct {
 	Enabled             bool     `toml:"enabled"`               // auto-detect Docker bridges
@@ -176,6 +228,7 @@ type CoreConfig struct {
 	Acceptance AcceptanceConfig `toml:"acceptance"`
 	IPv6       IPv6Config       `toml:"ipv6"`
 	Docker     DockerConfig     `toml:"docker"`
+	Routing    RoutingConfig    `toml:"routing"`
 	SocketPath string           `toml:"socket_path"`
 	DataDir    string           `toml:"data_dir"`
 	LogDir     string           `toml:"log_dir"`
@@ -221,10 +274,13 @@ type WebConfig struct {
 	DemoMode bool `toml:"demo_mode"`
 }
 
-// NetworkSettings groups IPv6 and Docker configuration for IPC transport.
+// NetworkSettings groups the IPv6, Docker and routing configuration for IPC
+// transport. These are the three questions the Network page asks, and an apply
+// needs all of them at once.
 type NetworkSettings struct {
-	IPv6   IPv6Config   `json:"ipv6"`
-	Docker DockerConfig `json:"docker"`
+	IPv6    IPv6Config    `json:"ipv6"`
+	Docker  DockerConfig  `json:"docker"`
+	Routing RoutingConfig `json:"routing"`
 }
 
 // SystemSettings groups the acceptance window configuration for IPC transport.

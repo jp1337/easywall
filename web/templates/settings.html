@@ -92,6 +92,52 @@
             </label>
           </div>
 
+          <div class="card mb-4">
+            <div class="section-head">
+              <div class="section-head-text">
+                <h2 class="section-title">{{T "settings_routing"}}</h2>
+                <p class="section-desc">{{T "settings_routing_desc"}}</p>
+              </div>
+            </div>
+
+            {{$rmode := "closed"}}{{if $ns}}{{$rmode = $ns.Routing.Mode}}{{end}}
+            <fieldset class="choice-group">
+              <legend class="sr-only">{{T "settings_routing"}}</legend>
+              <label class="choice-row">
+                <input type="radio" name="routing_mode" value="closed" class="radio"
+                       {{if eq (printf "%s" $rmode) "closed"}}checked{{end}}>
+                <span class="switch-text">
+                  <span class="switch-name">{{T "settings_routing_closed"}}</span>
+                  <span class="switch-desc">{{T "settings_routing_closed_desc"}}</span>
+                </span>
+              </label>
+              <label class="choice-row">
+                <input type="radio" name="routing_mode" value="networks" class="radio"
+                       {{if eq (printf "%s" $rmode) "networks"}}checked{{end}}>
+                <span class="switch-text">
+                  <span class="switch-name">{{T "settings_routing_networks"}}</span>
+                  <span class="switch-desc">{{T "settings_routing_networks_desc"}}</span>
+                </span>
+              </label>
+              <label class="choice-row">
+                <input type="radio" name="routing_mode" value="open" class="radio"
+                       {{if eq (printf "%s" $rmode) "open"}}checked{{end}}>
+                <span class="switch-text">
+                  <span class="switch-name">{{T "settings_routing_open"}}</span>
+                  <span class="switch-desc">{{T "settings_routing_open_desc"}}</span>
+                </span>
+              </label>
+            </fieldset>
+
+            <div class="switch-detail">
+              <label class="field-label" for="routing_networks">{{T "settings_routing_networks_label"}}</label>
+              <textarea id="routing_networks" name="routing_networks" rows="4"
+                        class="input input-data w-full mt-1.5"
+                        placeholder="10.8.0.0/24&#10;192.168.50.0/24">{{.RoutingNetworks}}</textarea>
+              <p class="field-help">{{richText (T "settings_routing_networks_help")}}</p>
+            </div>
+          </div>
+
           <div class="card">
             <div class="section-head">
               <div class="section-head-text">
@@ -143,6 +189,15 @@
               {{T "settings_ipv6_warn_title"}}
             </h2>
             <p>{{richText (T "settings_ipv6_warn_body")}}</p>
+          </div>
+
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+              {{T "settings_routing_card_title"}}
+            </h2>
+            <p>{{T "settings_routing_card_body"}}</p>
+            <p>{{T "settings_routing_card_note"}}</p>
           </div>
 
           <div class="aside-card">

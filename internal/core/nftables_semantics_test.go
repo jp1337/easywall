@@ -169,7 +169,7 @@ func TestIntegration_Blacklist_DropsTheSourceAddress(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
 	state.Current.Blacklist = []string{"192.0.2.1"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -190,7 +190,7 @@ func TestIntegration_Blacklist_IPv6UsesTheSourceOffset(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
 	state.Current.Blacklist = []string{"2001:db8::1"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -204,7 +204,7 @@ func TestIntegration_Whitelist_AcceptsRatherThanDrops(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
 	state.Current.Whitelist = []string{"10.0.0.0/8"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -228,7 +228,7 @@ func TestIntegration_BlacklistIsEvaluatedBeforeWhitelist(t *testing.T) {
 	state := emptyState()
 	state.Current.Blacklist = []string{"192.0.2.1"}
 	state.Current.Whitelist = []string{"192.0.2.0/24"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -262,7 +262,7 @@ func TestIntegration_Forwarding_MatchesIncomingAndRedirectsToTarget(t *testing.T
 	state.Current.Forwarding = []shared.ForwardingRule{
 		{Protocol: "tcp", SourcePort: 2222, DestPort: 22},
 	}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -349,7 +349,7 @@ func TestIntegration_Apply_RefusesAnUnparseableEntry(t *testing.T) {
 	state := emptyState()
 	state.Current.Blacklist = []string{"192.0.2.1", "192.168.1.999"}
 
-	err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{})
+	err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{})
 	if err == nil {
 		t.Fatal("Apply accepted an address that cannot become a rule; it would be " +
 			"listed as blocked and never enforced")
@@ -366,14 +366,14 @@ func TestIntegration_Apply_RefusalLeavesThePreviousRulesInPlace(t *testing.T) {
 
 	good := emptyState()
 	good.Current.Blacklist = []string{"192.0.2.1"}
-	if err := m.Apply(good, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(good, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("first Apply: %v", err)
 	}
 	before := ruleset(t)
 
 	bad := emptyState()
 	bad.Current.Blacklist = []string{"not-an-address"}
-	if err := m.Apply(bad, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err == nil {
+	if err := m.Apply(bad, shared.FirewallOptions{}, shared.NetworkSettings{}); err == nil {
 		t.Fatal("expected refusal")
 	}
 
@@ -422,7 +422,7 @@ func TestIntegration_LogBlacklist_LabelsHitsBeforeDropping(t *testing.T) {
 	state := emptyState()
 	state.Current.Blacklist = []string{"192.0.2.1"}
 	opts := shared.FirewallOptions{LogBlacklist: true, LogBlacklistLimit: 20}
-	if err := m.Apply(state, opts, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -445,7 +445,7 @@ func TestIntegration_PortRange_ReachesTheKernelAsARange(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "8000:9000"}}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	mustContain(t, ruleset(t), "dport 8000-9000",
@@ -465,7 +465,7 @@ func TestIntegration_SSHFlaggedPort_IsMeteredAndReachable(t *testing.T) {
 	state := emptyState()
 	state.Current.TCP = []shared.PortRule{{Port: "2222", SSH: true}}
 	opts := shared.FirewallOptions{SSHBruteForce: true}
-	if err := m.Apply(state, opts, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -501,7 +501,7 @@ func TestIntegration_IPv6Mode(t *testing.T) {
 	t.Run("filter applies every rule to IPv6", func(t *testing.T) {
 		m := newIntegrationManager(t)
 		cfg := shared.IPv6Config{Mode: shared.IPv6Filter, ICMPAllowNeighborAdvertisement: true}
-		if err := m.Apply(state(), shared.FirewallOptions{}, cfg, shared.DockerConfig{}); err != nil {
+		if err := m.Apply(state(), shared.FirewallOptions{}, shared.NetworkSettings{IPv6: cfg}); err != nil {
 			t.Fatalf("Apply: %v", err)
 		}
 		rs := ruleset(t)
@@ -513,7 +513,7 @@ func TestIntegration_IPv6Mode(t *testing.T) {
 	t.Run("passthrough accepts IPv6 before any rule", func(t *testing.T) {
 		m := newIntegrationManager(t)
 		cfg := shared.IPv6Config{Mode: shared.IPv6Passthrough}
-		if err := m.Apply(state(), shared.FirewallOptions{}, cfg, shared.DockerConfig{}); err != nil {
+		if err := m.Apply(state(), shared.FirewallOptions{}, shared.NetworkSettings{IPv6: cfg}); err != nil {
 			t.Fatalf("Apply: %v", err)
 		}
 		rs := ruleset(t)
@@ -536,7 +536,7 @@ func TestIntegration_IPv6Mode(t *testing.T) {
 	t.Run("block drops IPv6 but never loopback", func(t *testing.T) {
 		m := newIntegrationManager(t)
 		cfg := shared.IPv6Config{Mode: shared.IPv6Block}
-		if err := m.Apply(state(), shared.FirewallOptions{}, cfg, shared.DockerConfig{}); err != nil {
+		if err := m.Apply(state(), shared.FirewallOptions{}, shared.NetworkSettings{IPv6: cfg}); err != nil {
 			t.Fatalf("Apply: %v", err)
 		}
 		rs := ruleset(t)
@@ -559,8 +559,8 @@ func TestIntegration_IPv6Mode(t *testing.T) {
 // through any caller that built the struct by hand.
 func TestIntegration_IPv6Mode_ZeroValueFilters(t *testing.T) {
 	m := newIntegrationManager(t)
-	if err := m.Apply(emptyState(), shared.FirewallOptions{},
-		shared.IPv6Config{ICMPAllowNeighborAdvertisement: true}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(emptyState(), shared.FirewallOptions{}, shared.NetworkSettings{
+		IPv6: shared.IPv6Config{ICMPAllowNeighborAdvertisement: true}}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 	rs := ruleset(t)
@@ -711,7 +711,7 @@ func TestIntegration_ListComments_ProduceNoRulesAndBlockNothingElse(t *testing.T
 		"203.0.113.10",
 	}
 
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -730,12 +730,12 @@ func TestIntegration_ListComments_DoNotMakeApplyRefuseTheSet(t *testing.T) {
 	state := emptyState()
 	state.Current.Blacklist = []string{"# a note", "", "192.0.2.1"}
 
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("a list with comments must apply: %v", err)
 	}
 	// And an actual malformed address still refuses.
 	state.Current.Blacklist = []string{"# a note", "192.168.1.999"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err == nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err == nil {
 		t.Error("a malformed address must still be refused")
 	}
 }
@@ -765,7 +765,7 @@ func TestIntegration_CustomRules_CannotReachAnotherTable(t *testing.T) {
 	state := emptyState()
 	state.Current.Custom = []string{"accept\nadd rule inet bystander c drop"}
 
-	err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{})
+	err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{})
 	if err == nil {
 		t.Error("a custom rule carrying a second command must be refused")
 	}
@@ -786,7 +786,7 @@ func TestIntegration_CustomRules_OrdinaryOnesStillApply(t *testing.T) {
 		"ip saddr 192.0.2.50 tcp dport 9100 accept",
 		"tcp dport { 8080, 8443 } accept",
 	}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 

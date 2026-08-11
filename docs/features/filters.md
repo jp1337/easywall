@@ -41,6 +41,37 @@ Compiled into every rule set. There is no switch for these.
 | ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
 | ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/features/system-settings/' | relative_url }}) |
 
+## The three chains
+
+Everything above is the `input` chain — traffic addressed to this host. easywall
+creates two more, and what they do has consequences worth knowing.
+
+| Chain | Policy | What reaches it |
+|---|---|---|
+| `input` | **drop** | Traffic addressed to this host. Everything on this page. |
+| `output` | **accept** | Traffic this host sends. easywall does not filter it. |
+| `forward` | **drop** by default | Traffic this host would *route* — between two interfaces, out of a container, into a published container port. Governed by `[routing]` |
+
+> **`forward` is closed by default, and that is not the same as unfiltered.** A base
+> chain whose rules give no verdict falls through to its policy, so an empty chain
+> with `policy drop` drops everything at that hook — including packets another
+> table's forward chain has already accepted. A drop here is final: a forward chain
+> of your own in another table cannot overrule it, and
+> [custom rules]({{ '/features/custom-rules/' | relative_url }}) are appended to
+> `input`. On a plain server nothing is routed and this costs nothing. On a host
+> that routes — a container host, a VPN gateway — it stops the traffic dead, which
+> is what it did to every Docker container until 2.5.0.
+
+Two things cross that chain:
+
+- The [Docker]({{ '/features/docker/' | relative_url }}) networks you have allowed,
+  whatever `routing.mode` says. Switching coexistence on is already the statement
+  that this host carries container traffic.
+- Whatever `[routing]` names. Its three positions — route nothing, route these
+  networks, leave routed traffic alone — are on the
+  [Network page]({{ '/features/system-settings/' | relative_url }}#the-network-page)
+  and in [configuration]({{ '/configuration/' | relative_url }}#routing).
+
 ## Attack protection
 
 | Module | Drops | Tuning | Default |

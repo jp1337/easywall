@@ -101,6 +101,29 @@
         }
       }
     },
+    "routing": {
+      "type": "object",
+      "description": "What crosses the forward chain — traffic this host passes on rather than receives. The chain drops by default and a drop there is final, so a host that routes has to say so here.",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["closed", "networks", "open"],
+          "description": "closed: pass nothing on beyond what Docker coexistence allows. networks: also pass on the networks listed below, in either direction. open: leave routed traffic alone entirely.",
+          "default": "closed"
+        },
+        "networks": {
+          "type": "array",
+          "description": "Networks that may be routed (CIDR notation). Read only when mode is \"networks\". Docker networks cross regardless of the mode and do not belong here.",
+          "items": {
+            "type": "string",
+            "pattern": "^(\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$|^[0-9a-fA-F:]+/\\d{1,3}$",
+            "examples": ["10.8.0.0/24", "192.168.50.0/24"]
+          },
+          "default": []
+        }
+      }
+    },
     "firewall": {
       "type": "object",
       "description": "Protection modules. All filters are applied via nftables directly — no subprocess, no injection risk.",

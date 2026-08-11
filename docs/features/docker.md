@@ -28,9 +28,20 @@ Detection reads the interfaces named `docker*` or `br-*` and takes the CIDR of
 each. It runs **when rules are applied**, not continuously — a network created
 afterwards needs another apply, or an entry in `custom_networks`.
 
-> **Turn off the bogon filter on a container host.** Bridge ranges are RFC 1918,
-> which is exactly what that module drops. See
-> [firewall filters]({{ '/features/filters/' | relative_url }}).
+> **The networks listed here are also what opens the `forward` chain.** Container
+> traffic is routed, not addressed to the host: out of the bridge, through the
+> forward hook, on to the world — and back the same way for a published port,
+> which Docker translates before easywall's chain sees it. easywall's `forward`
+> chain has `policy drop`, and until 2.5.0 it had no rules at all, which is not
+> neutrality: an empty base chain drops everything at its hook regardless of what
+> Docker's own chain has already accepted. Every arrangement below was dead.
+> Traffic with a source *or* a destination in one of these networks now crosses
+> that chain, and does so **whatever `routing.mode` is set to** — anything else
+> would take a host's containers off the network the first time it upgraded
+> without discovering the new key. See
+> [firewall filters]({{ '/features/filters/' | relative_url }}), and
+> [`[routing]`]({{ '/configuration/' | relative_url }}#routing) if this host routes
+> for some other reason as well.
 
 ## Three ways to run them together
 
