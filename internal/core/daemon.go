@@ -228,6 +228,16 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdApplyRules:
+		// The slot is claimed here, synchronously, before anything is reported.
+		// This used to start the goroutine unconditionally and answer "started"
+		// every time, which was untrue for the second request: it did not start,
+		// it queued inside Apply's mutex until the open acceptance window closed,
+		// and then ran on its own. See ErrApplyInProgress for what that did to an
+		// operator, and to shutdown.
+		if !d.firewall.beginApply() {
+			return errResp(ErrApplyInProgress)
+		}
+
 		// Apply runs asynchronously to avoid blocking the socket.
 		// The caller must poll CmdGetStatus to track acceptance progress.
 		//
@@ -238,12 +248,13 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		d.wg.Add(1)
 		go func() {
 			defer d.wg.Done()
+			defer d.firewall.endApply()
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("apply panic recovered", "error", r)
 				}
 			}()
-			if err := d.firewall.Apply("web"); err != nil {
+			if err := d.firewall.apply("web"); err != nil {
 				slog.Error("apply error", "error", err)
 			}
 		}()
