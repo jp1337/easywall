@@ -9,10 +9,14 @@
 
    Compiled with: npx @tailwindcss/cli -i web/src/docs.css -o docs/assets/css/style.css --minify */
 
-@import "tailwindcss";
+/* Restrict the source set to docs files so app-template patterns are not pulled
+   in. `source(none)` is what does the restricting: Tailwind v4 scans the whole
+   working directory by default and @source only *adds* to that, so the line
+   below on its own said "docs as well", not "docs only". The published
+   stylesheet carried the application's utilities as a result — 32,586 bytes
+   before the fix, 28,213 after. */
+@import "tailwindcss" source(none);
 
-/* Tailwind v4 scans for utility classes. Restrict the source set to docs
-   files so we don't pull in app-template patterns (and vice versa). */
 @source "../../docs/**/*.{html,md}";
 
 /* Self-hosted, same subsets the application ships. Paths are relative to the

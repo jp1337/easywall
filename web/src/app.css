@@ -12,7 +12,15 @@
    Build: npx @tailwindcss/cli -i web/src/app.css -o web/static/style.css --minify
    ══════════════════════════════════════════════════════════════════════════ */
 
-@import "tailwindcss";
+/* `source(none)` is load-bearing, not tidiness. Tailwind v4 scans the whole
+   working directory by default, and an @source line *adds* to that scan rather
+   than replacing it — so these two lines read like a restriction and were not
+   one. Every class-shaped word anywhere in the repository ended up here:
+   DESIGN.md and CONTRIBUTING.md name utilities in prose, and the docs pages use
+   their own, and all of it was compiled into the stylesheet the application
+   serves. Measured at the time of the fix: 49,151 bytes shipped, 45,954 with
+   the scan actually restricted to the two sources below. */
+@import "tailwindcss" source(none);
 
 @source "../templates/**/*.html";
 @source "../static/app.js";
