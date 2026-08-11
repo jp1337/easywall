@@ -1,24 +1,77 @@
 name: Docs
 
+# The site was only ever built on the way out. This workflow ran on push to main
+# and nowhere else, so a change that stops Jekyll building — a mistyped Liquid
+# tag, an include that moved, front matter with a stray colon — was merged first
+# and discovered afterwards, as a red deploy on main with the site already stale.
+# The build now also runs on a pull request that touches docs/, without the
+# permissions or the environment that deploying needs.
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
 
+# Read-only by default. Publishing rights are granted to the deploy job alone, so
+# a pull-request run cannot reach GitHub Pages even in principle.
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Does the site build at all? The one question a pull request could not answer.
+  build:
+    name: Site builds
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: docs
+
+      # Same command and the same JEKYLL_ENV as the deploy below, or this proves
+      # something about a build nobody ships.
+      - name: Build docs
+        working-directory: docs
+        run: bundle exec jekyll build
+        env:
+          JEKYLL_ENV: production
+
+      # Jekyll exits 0 having written an empty site if every page were skipped,
+      # so count what came out. Nine feature pages, the installation pages and the
+      # landing page are the floor; a build that produces fewer has dropped
+      # something without saying so.
+      - name: The site is not empty
+        working-directory: docs
+        run: |
+          set -euo pipefail
+          pages=$(find _site -name '*.html' | wc -l)
+          echo "$pages HTML pages built"
+          test -f _site/index.html || { echo "::error::no landing page was built"; exit 1; }
+          [ "$pages" -ge 15 ] || {
+            echo "::error::only $pages pages built; the site has more than that, so something was dropped"
+            exit 1
+          }
+
+  deploy:
+    name: Deploy to Pages
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
