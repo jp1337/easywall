@@ -160,8 +160,13 @@ jobs:
         run: |
           set -euo pipefail
           fail=0
+          # Through sudo, because the layout being checked is the reason a plain
+          # stat cannot do it: /etc/easywall is 0750 root:easywall and the runner
+          # user is in neither. The check that reads the permissions has to be
+          # allowed past them, or it reports "Permission denied" for the
+          # arrangement working exactly as intended.
           check() { # path expected_owner expected_mode
-            actual=$(stat -c '%U:%G %a' "$1")
+            actual=$(sudo stat -c '%U:%G %a' "$1")
             if [ "$actual" != "$2 $3" ]; then
               echo "::error::$1 is '$actual', expected '$2 $3'"
               fail=1
