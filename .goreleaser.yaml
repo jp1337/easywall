@@ -42,6 +42,12 @@ archives:
       - LICENSE
       - CHANGELOG.md
 
+release:
+  # A tag carrying a prerelease part is published as a prerelease on GitHub, so
+  # it does not become "the latest release" there either — the same decision the
+  # `latest` image tag makes above, in the other place that decides it.
+  prerelease: auto
+
 checksum:
   name_template: "checksums.txt"
 
@@ -87,12 +93,28 @@ dockers_v2:
       - "docker.io/{{ .Env.DOCKERHUB_USERNAME }}/easywall"
     tags:
       - "{{ .Tag }}"
-      - "latest"
+      # `latest` only for a stable release. release.yml triggers on `v*.*.*`,
+      # which also matches `v2.6.0-rc1`, and this list used to say `latest`
+      # unconditionally — so publishing a release candidate moved the tag that
+      # installation/docker.md calls the production one, and every `docker
+      # compose pull` on `:latest` would have taken the candidate.
+      #
+      # A prerelease repeats the version tag rather than rendering an empty
+      # string: `-t v2.6.0-rc1 -t v2.6.0-rc1` is a no-op, and an empty tag is
+      # not something to find out about during a release. The build itself is
+      # deliberately not duplicated into a second entry — two blocks that must
+      # stay identical apart from the tag is how the `latest` image comes to be
+      # built from a different file list than the version it claims to be.
+      - '{{ if eq .Prerelease "" }}latest{{ else }}{{ .Tag }}{{ end }}'
     platforms:
       - linux/amd64
       - linux/arm64
     build_args:
       VERSION: "{{ .Version }}"
+      # The commit the release was cut from. The Dockerfile turns it into
+      # org.opencontainers.image.revision, which installation/docker.md tells
+      # operators to read back — and which release images did not carry at all.
+      REVISION: "{{ .FullCommit }}"
     extra_files:
       - go.mod
       - go.sum
@@ -113,12 +135,28 @@ dockers_v2:
       - "quay.io/{{ .Env.QUAY_NAMESPACE }}/easywall"
     tags:
       - "{{ .Tag }}"
-      - "latest"
+      # `latest` only for a stable release. release.yml triggers on `v*.*.*`,
+      # which also matches `v2.6.0-rc1`, and this list used to say `latest`
+      # unconditionally — so publishing a release candidate moved the tag that
+      # installation/docker.md calls the production one, and every `docker
+      # compose pull` on `:latest` would have taken the candidate.
+      #
+      # A prerelease repeats the version tag rather than rendering an empty
+      # string: `-t v2.6.0-rc1 -t v2.6.0-rc1` is a no-op, and an empty tag is
+      # not something to find out about during a release. The build itself is
+      # deliberately not duplicated into a second entry — two blocks that must
+      # stay identical apart from the tag is how the `latest` image comes to be
+      # built from a different file list than the version it claims to be.
+      - '{{ if eq .Prerelease "" }}latest{{ else }}{{ .Tag }}{{ end }}'
     platforms:
       - linux/amd64
       - linux/arm64
     build_args:
       VERSION: "{{ .Version }}"
+      # The commit the release was cut from. The Dockerfile turns it into
+      # org.opencontainers.image.revision, which installation/docker.md tells
+      # operators to read back — and which release images did not carry at all.
+      REVISION: "{{ .FullCommit }}"
     extra_files:
       - go.mod
       - go.sum
