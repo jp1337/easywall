@@ -1,0 +1,12 @@
+flowchart TD
+  P(["Packet arrives on 2222"]) --> N["nat prerouting<br/>redirect to :22"]
+  N --> F["input filter<br/>now sees port 22"]
+  F --> Q{"Is 22 in the port rules?"}
+  Q -->|yes| A(["ACCEPT — reaches the service on 22"])
+  Q -->|no| X(["DROP — chain policy"])
+  Q -.- H["Open 22, not 2222.<br/>The redirect happens first."]
+
+  classDef note fill:none,stroke-dasharray:3 3
+  class H note
+  style A stroke:#3ecf8e
+  style X stroke:#f2555a

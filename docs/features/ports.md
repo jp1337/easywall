@@ -24,7 +24,7 @@ tabs; a rule is a port, an optional SSH mark, and a description for your own ben
 
 1–65535, ranges ascending. Every rule applies to all interfaces — to restrict by
 source, use the [whitelist]({{ '/features/blacklist/' | relative_url }}) or a
-[custom rule]({{ '/configuration/' | relative_url }}).
+[custom rule]({{ '/features/custom-rules/' | relative_url }}).
 
 ## Mark your SSH port
 
