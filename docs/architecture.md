@@ -30,8 +30,10 @@ validation permits.
 > via `subprocess` — ran everything as one root process and passed user strings as
 > command-line arguments. A web-layer bug was a firewall bug, and arguments could be
 > injected. It was archived in 2022 after a CVE. Both root causes are gone here:
-> the privileges are in a different process, and the apply path builds Go structs
-> instead of a command line.
+> the privileges are in a different process, and every typed rule reaches the
+> kernel as a Go struct rather than a command line. Custom rules are the one
+> string that still meets `nft`, and what keeps that safe is written out under
+> [Security]({{ '/security/' | relative_url }}).
 
 ## Three rule sets
 

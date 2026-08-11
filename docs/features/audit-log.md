@@ -86,5 +86,6 @@ Rotation is `logrotate`'s job — the Debian package installs a config for it.
 |---|---|
 | The table is empty | Nothing recorded yet, or the core cannot write to `log_dir` |
 | Older entries missing | The viewer caps at 200. The file has them all |
+| A search finds nothing you know is in the log | The filter searches the same newest 200, not the file. `grep` the file for anything older |
 | Wrong timezone | Timestamps follow the server clock — `timedatectl set-timezone` |
-| A filter finds nothing | It matches action, rule type, detail and user; not the timestamp |
+| A filter finds nothing | It matches action, rule type, detail and user; not the timestamp — and only within the 200 entries the page was given |

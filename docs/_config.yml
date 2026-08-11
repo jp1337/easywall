@@ -72,6 +72,10 @@ nav:
         path: /features/ports/
       - title: Blacklist & Whitelist
         path: /features/blacklist/
+      - title: Port Forwarding
+        path: /features/forwarding/
+      - title: Custom Rules
+        path: /features/custom-rules/
       - title: Firewall Filters
         path: /features/filters/
       - title: Docker Coexistence
@@ -80,7 +84,7 @@ nav:
         path: /features/export-import/
       - title: Audit Log
         path: /features/audit-log/
-      - title: System Settings
+      - title: System & Network Settings
         path: /features/system-settings/
   - title: Security
     path: /security/
