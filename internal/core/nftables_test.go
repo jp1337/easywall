@@ -233,7 +233,7 @@ func TestNftablesManager_Reset_NilConn(t *testing.T) {
 
 func TestNftablesManager_Apply_NilConn(t *testing.T) {
 	m := &NftablesManager{} // conn is nil — Apply calls Reset which checks nil
-	err := m.Apply(shared.RulesState{}, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{})
+	err := m.Apply(shared.RulesState{}, shared.FirewallOptions{}, shared.NetworkSettings{})
 	if err == nil {
 		t.Error("expected error for nil connection")
 	}

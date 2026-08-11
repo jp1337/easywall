@@ -89,6 +89,30 @@ Disable `enabled` only on servers with no IPv6 addressing. Disabling individual 
 
 See [Docker Coexistence]({{ '/features/docker/' | relative_url }}) for the full setup guide.
 
+### `[routing]`
+
+Traffic this host passes on rather than receives — between two interfaces, out of a
+container, into a published container port.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `mode` | string | `"closed"` | `closed`, `networks` or `open` — see below |
+| `networks` | list | `[]` | CIDRs that may be routed, in either direction. Read only under `mode = "networks"` |
+
+| `mode` | What crosses the `forward` chain |
+|---|---|
+| `closed` | Nothing, beyond what `[docker]` allows. Correct for a plain server |
+| `networks` | Also anything with a source *or* a destination in `networks` |
+| `open` | Everything. easywall filters only what arrives for this host |
+
+> **A closed `forward` chain is not the same as an unfiltered one.** A base chain
+> whose rules give no verdict falls through to its policy, so an empty chain with
+> `policy drop` destroys every routed packet — including ones another table's
+> forward chain has already accepted. Until 2.5.0 that was the only behaviour and
+> nothing said so, which meant every Docker container lost its network the moment
+> easywall applied. Docker's networks now cross regardless of `mode`; anything else
+> that routes needs this key.
+
 ### `[firewall]` — Protection Modules
 
 Each module has a matching `_log` boolean and one or more numeric threshold keys. The table shows the primary on/off toggle; see [Firewall Filters]({{ '/features/filters/' | relative_url }}) for details on each module.

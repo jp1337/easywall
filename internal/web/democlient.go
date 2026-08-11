@@ -149,6 +149,10 @@ func (d *demoState) seed() {
 			AllowBridgeNetworks: true,
 			CustomNetworks:      []string{"172.20.0.0/16"},
 		},
+		Routing: shared.RoutingConfig{
+			Mode:     shared.RoutingClosed,
+			Networks: []string{},
+		},
 	}
 	d.system = shared.SystemSettings{
 		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},

@@ -196,7 +196,7 @@ func TestIntegration_Apply_Docker_IPv6CIDR(t *testing.T) {
 		AllowBridgeNetworks: false,
 		CustomNetworks:      []string{"fd00::/8"},
 	}
-	if err := m.Apply(emptyState(), shared.FirewallOptions{}, shared.IPv6Config{}, docker); err != nil {
+	if err := m.Apply(emptyState(), shared.FirewallOptions{}, shared.NetworkSettings{Docker: docker}); err != nil {
 		t.Fatalf("Apply with IPv6 Docker CIDR: %v", err)
 	}
 
@@ -216,7 +216,7 @@ func TestIntegration_Apply_Docker_IPv4CustomNetwork(t *testing.T) {
 		AllowBridgeNetworks: false,
 		CustomNetworks:      []string{"192.168.100.0/24", "172.20.0.0/16"},
 	}
-	if err := m.Apply(emptyState(), shared.FirewallOptions{}, shared.IPv6Config{}, docker); err != nil {
+	if err := m.Apply(emptyState(), shared.FirewallOptions{}, shared.NetworkSettings{Docker: docker}); err != nil {
 		t.Fatalf("Apply with Docker custom networks: %v", err)
 	}
 
@@ -236,7 +236,7 @@ func TestIntegration_Apply_Blacklist_IPv6CIDR(t *testing.T) {
 
 	state := emptyState()
 	state.Current.Blacklist = []string{"2001:db8::/32"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -258,7 +258,7 @@ func TestIntegration_Apply_Whitelist_PlainIPv4(t *testing.T) {
 	// Plain IPv4 address (not CIDR) exercises the ip4 != nil branch.
 	state := emptyState()
 	state.Current.Whitelist = []string{"10.0.0.1", "192.168.1.100"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -274,7 +274,7 @@ func TestIntegration_Apply_Whitelist_PlainIPv6(t *testing.T) {
 
 	state := emptyState()
 	state.Current.Whitelist = []string{"2001:db8::1"}
-	if err := m.Apply(state, shared.FirewallOptions{}, shared.IPv6Config{}, shared.DockerConfig{}); err != nil {
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
