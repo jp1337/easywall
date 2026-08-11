@@ -115,9 +115,30 @@ spoofed — nothing on the public internet legitimately has such a source addres
 this one: `fe80::/10` is link-local, and IPv6 needs neighbour discovery on it to
 function at all.
 
-> **Not for hosts behind NAT.** On a cloud instance or a LAN, RFC 1918 *is* the real
-> network and this filter drops your own traffic. Same for container hosts — see
-> [Docker coexistence]({{ '/features/docker/' | relative_url }}).
+### What it does not drop
+
+Anything on the whitelist, and any Docker bridge network, is exempt. Both are lists
+of RFC 1918 addresses, which is exactly what this filter drops — and it runs before
+either of them, so switching it on used to turn both features off without saying so.
+Whitelisting `192.168.1.0/24` had no effect at all, and neither did letting Docker's
+`172.17.0.0/16` through.
+
+An exemption is narrow: it covers what you allowed and nothing more. Whitelist
+`192.168.1.0/24` and the rest of `192.168.0.0/16` is still dropped.
+
+```
+# nft list chain inet easywall bogon
+ip saddr 192.168.1.0/24 return      ← whitelisted
+ip saddr 172.17.0.0/16 return       ← Docker bridge
+ip saddr 10.0.0.0/8 drop
+ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
+...
+```
+
+> **Still not for every host.** If you administer the machine from an RFC 1918
+> address, whitelist that address first — the exemption is what makes this filter
+> safe to switch on, and it only covers what is on the list when the rules are
+> applied.
 >
 > **Not for a DHCP server either.** A client requesting a lease has no address yet and
 > sends from `0.0.0.0`, which this filter drops.
@@ -173,8 +194,8 @@ This is the *kernel* log — packets. Administrative changes are in the
 | Host | Turn on | Leave off |
 |---|---|---|
 | Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop, unless you know your traffic |
-| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets | Bogon filter, broadcast/multicast/anycast |
-| Container host | The defaults | Bogon filter — bridge ranges are RFC 1918 |
+| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
+| Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
 
 The interface writes the same `[firewall]` section you would edit by hand; every key
 is listed under [Configuration]({{ '/configuration/' | relative_url }}).
