@@ -32,12 +32,25 @@ type RulesStore struct {
 
 // NewRulesStore creates a RulesStore backed by the given JSON file path.
 // If the file does not exist it is initialised with empty rules.
+// A stat error that is not "no such file" is fatal rather than ignored. It used
+// to fall through to "the file exists, carry on", and the case that produces it
+// is precisely the one that matters: a data directory the daemon cannot enter.
+// The packaged unit created exactly that — /var/lib/easywall belongs to the web
+// user, and CapabilityBoundingSet=CAP_NET_ADMIN leaves root without
+// CAP_DAC_OVERRIDE — so the daemon started, announced itself, never wrote
+// rules.json, and answered every request with a permission error from deep
+// inside the call. A firewall manager that cannot reach its own rules should say
+// so at startup, once, in words.
 func NewRulesStore(path string) (*RulesStore, error) {
 	s := &RulesStore{path: path}
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	switch _, err := os.Stat(path); {
+	case err == nil:
+	case os.IsNotExist(err):
 		if err := s.save(emptyState()); err != nil {
 			return nil, fmt.Errorf("initialise rules store: %w", err)
 		}
+	default:
+		return nil, fmt.Errorf("rules store at %s is unreachable: %w", path, err)
 	}
 	return s, nil
 }

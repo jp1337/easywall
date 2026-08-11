@@ -7,14 +7,31 @@ Wants=network.target
 [Service]
 Type=simple
 User=root
-Group=root
+# Group easywall, not root, and this is load-bearing.
+#
+# CapabilityBoundingSet below leaves this process with CAP_NET_ADMIN and nothing
+# else — including no CAP_CHOWN and no CAP_DAC_OVERRIDE, which root normally
+# leans on without noticing. With Group=root the daemon could not hand the
+# control socket to the easywall group, so it stayed root:root 0660 and
+# easywall-web, which runs as easywall, got "permission denied" on connect: a
+# freshly installed package had a web interface that could not reach the core at
+# all. Nor could it write /var/lib/easywall, which belongs to the web user.
+#
+# Being a member of the group solves both without widening the capability set:
+# the owner of a file may give it to a group it belongs to, and the data
+# directory is group-writable.
+Group=easywall
 ExecStart=/usr/sbin/easywall-core --config /etc/easywall/easywall.toml
 ExecReload=/bin/kill -HUP $MAINPID
 
-# Runtime socket directory (owned root, group easywall, mode 750)
+# Runtime socket directory. systemd creates it owned by this unit's User= and
+# Group=, which is root:easywall — the ownership the web process needs to reach
+# the socket. There is no RuntimeDirectoryGroup= directive; a line saying so sat
+# here and systemd logged "Unknown key 'RuntimeDirectoryGroup' in section
+# [Service], ignoring" on every load. The group was right anyway, by way of
+# Group= above, which is the thing actually holding it up.
 RuntimeDirectory=easywall
 RuntimeDirectoryMode=0750
-RuntimeDirectoryGroup=easywall
 
 # Logging
 StandardOutput=journal
@@ -28,10 +45,18 @@ StartLimitInterval=60s
 StartLimitBurst=3
 
 # Security hardening
+NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
-ReadWritePaths=/var/lib/easywall /var/log/easywall /run/easywall
-# nftables requires CAP_NET_ADMIN + direct kernel access
+# ProtectSystem is what gives ReadWritePaths anything to do: without it every
+# path is writable already and the list below states a restriction that is not
+# in force. "full" leaves /usr and /etc read-only apart from what is named here;
+# /etc/easywall is named because the options and settings pages write
+# easywall.toml through this daemon.
+ProtectSystem=full
+ReadWritePaths=/etc/easywall /var/lib/easywall /var/log/easywall /run/easywall
+# nftables requires CAP_NET_ADMIN + direct kernel access. Nothing else is needed
+# — see Group= above for why that is only true with the group membership.
 AmbientCapabilities=CAP_NET_ADMIN
 CapabilityBoundingSet=CAP_NET_ADMIN
 

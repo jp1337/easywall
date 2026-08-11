@@ -81,13 +81,35 @@ func (d *Daemon) Start() error {
 		d.mu.Unlock()
 	}
 
-	// Set socket permissions: root:easywall 0660
+	// Set socket permissions: root:easywall 0660.
+	//
+	// The group is the entire link to the web process: it runs as easywall, and
+	// a socket left owned by root:root is one it cannot connect to at all. That
+	// is what the packaged unit produced — CapabilityBoundingSet=CAP_NET_ADMIN
+	// leaves a root process without CAP_CHOWN, the chown failed, and this was a
+	// warning nobody reads on a daemon that then reported "daemon listening" as
+	// though the interface would work. It never did.
+	//
+	// Passing -1 for the owner asks only for the group to change, which the
+	// owner of a file may do for a group it belongs to without any capability.
+	// The unit puts the daemon in the easywall group for exactly that reason.
 	if err := os.Chmod(d.cfg.SocketPath, 0660); err != nil {
 		slog.Warn("could not chmod socket", "error", err)
 	}
-	if gid, err := lookupGroup("easywall"); err == nil {
-		if err := os.Chown(d.cfg.SocketPath, 0, gid); err != nil {
-			slog.Warn("could not chown socket to easywall group", "error", err)
+	gid, err := lookupGroup("easywall")
+	switch {
+	case err != nil:
+		// No such group: a manual installation that runs both processes as the
+		// same user. Nothing to hand over.
+		slog.Warn("no easywall group; leaving the socket's group as it is", "error", err)
+	default:
+		if err := os.Chown(d.cfg.SocketPath, -1, gid); err != nil {
+			slog.Error("could not give the socket to the easywall group — "+
+				"easywall-web runs as that user and will not be able to connect, "+
+				"so the whole interface will report the core as unreachable. "+
+				"Run the core as a member of the easywall group (Group=easywall in "+
+				"easywall-core.service) or grant it CAP_CHOWN",
+				"socket", d.cfg.SocketPath, "error", err)
 		}
 	}
 

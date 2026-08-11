@@ -173,16 +173,72 @@ jobs:
           check /etc/easywall/web.toml   easywall:easywall 600
           check /etc/easywall/easywall.toml root:root      600
           check /etc/easywall/ssl        easywall:easywall 750
-          check /var/lib/easywall        easywall:easywall 750
+          # Shared between the two processes: the root core writes rules.json,
+          # the web user writes its caches. Owned by root with group write, so
+          # the core does not need CAP_DAC_OVERRIDE to reach it.
+          check /var/lib/easywall        root:easywall     770
           exit $fail
 
-      - name: Check the web service starts and the core config stays out of reach
+      # The package starts both services itself. Everything below asks the
+      # installed system what it is doing rather than starting a second copy by
+      # hand — which is what the previous version of this step did, so a core
+      # daemon that never came up would not have been noticed.
+      - name: Check both services are running
         run: |
           set -euo pipefail
-          cd /usr/share/easywall
-          sudo -u easywall /usr/sbin/easywall-web --config /etc/easywall/web.toml &
+          for unit in easywall-core easywall-web; do
+            for i in $(seq 1 20); do
+              systemctl is-active --quiet $unit && break
+              sleep 0.5
+            done
+            systemctl is-active --quiet $unit || {
+              echo "::error::$unit is not running"
+              systemctl status $unit --no-pager -l || true
+              journalctl -u $unit --no-pager -n 50 || true
+              exit 1
+            }
+            echo "ok  $unit is active"
+          done
+
+      # The regression that made a fresh install useless: the unit reduces the
+      # daemon's capabilities to CAP_NET_ADMIN, which also removes CAP_CHOWN, so
+      # the socket stayed root:root and the web user was refused on connect.
+      # Nothing in CI ever ran the core, so nothing caught it.
+      - name: Check the web user can reach the core
+        run: |
+          set -euo pipefail
+          ls -l /run/easywall/core.sock
+          [ "$(stat -c '%U:%G' /run/easywall/core.sock)" = "root:easywall" ] || {
+            echo "::error::the control socket is $(stat -c '%U:%G' /run/easywall/core.sock), not root:easywall — easywall-web cannot connect"
+            exit 1
+          }
+          sudo -u easywall python3 - <<'PY'
+          import json, socket, sys
+          s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+          s.settimeout(5)
+          try:
+              s.connect("/run/easywall/core.sock")
+          except OSError as e:
+              print(f"::error::the web user cannot connect to the core socket: {e}")
+              sys.exit(1)
+          s.sendall(json.dumps({"type": "GET_RULES"}).encode())
+          s.shutdown(socket.SHUT_WR)
+          reply = json.loads(s.recv(65536))
+          if not reply.get("success"):
+              print(f"::error::the core refused a plain GET_RULES: {reply}")
+              sys.exit(1)
+          print("the core answered the web user:", str(reply)[:80])
+          PY
+          test -s /var/lib/easywall/rules.json || {
+            echo "::error::the core never wrote its rule store — it cannot reach /var/lib/easywall"
+            exit 1
+          }
+
+      - name: Check the interface answers and the core config stays out of reach
+        run: |
+          set -euo pipefail
           for i in $(seq 1 20); do
-            if curl -sk -o /dev/null https://127.0.0.1:12227/firstrun; then break; fi
+            curl -sk -o /dev/null https://127.0.0.1:12227/firstrun && break
             sleep 0.5
           done
           code=$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:12227/firstrun)
