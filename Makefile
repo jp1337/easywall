@@ -43,9 +43,10 @@ lint:
 vuln:
 	govulncheck ./...
 
-## Security linter
+## Security linter. -tests is what makes -tags do anything: everything behind
+## the integration tag is a _test.go file, and gosec skips those unless asked.
 gosec:
-	gosec -fmt text ./...
+	gosec -tests -tags integration -fmt text ./...
 
 ## Update i18n messages (requires go-i18n CLI)
 i18n-extract:
