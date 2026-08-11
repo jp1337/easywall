@@ -359,7 +359,8 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addFragmentDrop(table, inputChain, opts)
 	}
 	if opts.Bogons {
-		m.addBogonFilter(table, inputChain, opts)
+		m.addBogonFilter(table, inputChain, opts,
+			append(append([]string(nil), state.Current.Whitelist...), dockerCIDRs...))
 	}
 	if opts.ICMPFlood {
 		m.addICMPFloodProtection(table, inputChain, opts)
@@ -694,7 +695,29 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 		logSpec{enabled: opts.FragmentsLog, prefix: logPrefixFragment})
 }
 
-func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
+// addBogonFilter drops sources that cannot legitimately reach a public
+// interface — with an exception for the ones the operator has said can.
+//
+// exempt holds the whitelist and the Docker bridge networks. They are needed
+// here because both are lists of RFC-1918 addresses, which is exactly what this
+// module drops, and it runs first: with the filter on, whitelisting 192.168.1.0/24
+// or letting Docker's 172.17.0.0/16 through did nothing at all, because the
+// packet was already gone by the time either rule was reached. Measured against
+// a kernel — the drop for 172.16.0.0/12 sat at position 17 and the accept for
+// 172.17.0.0/16 at 23.
+//
+// The exceptions go in front of the drops rather than the whole module moving
+// after the whitelist, because the order the rest of the chain runs in is
+// documented on four pages and is right: a protection module *should* see a
+// packet before an accept rule does. What was wrong is narrower than that. This
+// module's premise is "nothing legitimately has this source address", and an
+// operator who whitelists a private network has just said otherwise about part
+// of it. Everything else in the range is still dropped.
+//
+// The drops live in their own chain so an exception can `return` from it and
+// carry on down the input chain; a `return` in a base chain would fall through
+// to the drop policy instead, which is the opposite of an exception.
+func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions, exempt []string) {
 	// Drop packets from RFC-1918 and special ranges arriving from non-loopback interfaces.
 	// These are "impossible" sources on the public internet.
 	// filters.md listed "this network" and loopback among the ranges this drops,
@@ -720,42 +743,93 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 		"240.0.0.0/4",     // reserved
 	}
 
-	for _, cidr := range bogons {
-		_, ipNet, err := net.ParseCIDR(cidr)
-		if err != nil {
-			continue
-		}
-		ip := ipNet.IP.To4()
-		mask := []byte(ipNet.Mask)
-		if ip == nil {
-			continue
-		}
+	bogonChain := m.conn.AddChain(&nftables.Chain{Name: "bogon", Table: t})
 
-		match := []expr.Any{
-			// Only for IPv4
+	// The exceptions come first, so a source the operator has allowed leaves
+	// this chain before any drop can see it and carries on down the input chain.
+	for _, cidr := range exempt {
+		match := ipv4SourceMatch(cidr)
+		if match == nil {
+			continue // a comment, an IPv6 address, or unparseable — not for this filter
+		}
+		m.conn.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: bogonChain,
+			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictReturn}),
+		})
+	}
+
+	for _, cidr := range bogons {
+		match := ipv4SourceMatch(cidr)
+		if match == nil {
+			continue
+		}
+		m.addFiltered(t, bogonChain, match, &expr.Verdict{Kind: expr.VerdictDrop},
+			logSpec{enabled: opts.BogonsLog, prefix: logPrefixBogon})
+	}
+
+	// The family and interface tests sit on the jump rather than on each of the
+	// eleven drops. They have to be somewhere: the source-address offset below
+	// is only correct for IPv4, and loopback legitimately carries 127.0.0.0/8.
+	m.conn.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: c,
+		Exprs: []expr.Any{
 			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
 			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
-			// Not loopback interface
 			&expr.Meta{Key: expr.MetaKeyIIFNAME, Register: 1},
 			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte("lo\x00")},
-			// Match source IP in bogon range
-			&expr.Payload{
-				DestRegister: 1,
-				Base:         expr.PayloadBaseNetworkHeader,
-				Offset:       12, // src IP offset in IPv4 header
-				Len:          4,
-			},
-			&expr.Bitwise{
-				SourceRegister: 1,
-				DestRegister:   1,
-				Len:            4,
-				Mask:           mask,
-				Xor:            []byte{0, 0, 0, 0},
-			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip},
+			&expr.Verdict{Kind: expr.VerdictJump, Chain: bogonChain.Name},
+		},
+	})
+}
+
+// ipv4SourceMatch matches an IPv4 source address or network. A bare address is
+// treated as a /32. Returns nil for anything that is not an IPv4 entry —
+// comments, IPv6, and text that does not parse — so callers can skip it.
+func ipv4SourceMatch(entry string) []expr.Any {
+	if shared.IsListComment(entry) {
+		return nil
+	}
+	entry = strings.TrimSpace(entry)
+
+	var ipNet *net.IPNet
+	if ip := net.ParseIP(entry); ip != nil {
+		ip4 := ip.To4()
+		if ip4 == nil {
+			return nil
 		}
-		m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
-			logSpec{enabled: opts.BogonsLog, prefix: logPrefixBogon})
+		ipNet = &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}
+	} else {
+		_, parsed, err := net.ParseCIDR(entry)
+		if err != nil || parsed.IP.To4() == nil {
+			return nil
+		}
+		ipNet = &net.IPNet{IP: parsed.IP.To4(), Mask: parsed.Mask}
+	}
+
+	return []expr.Any{
+		// The family test is redundant inside a chain only reached for IPv4, and
+		// it stays because nft needs it to print the rule as `ip saddr
+		// 10.0.0.0/8` rather than `@nh,96,32 & 0xff000000 == 0xa000000`. An
+		// operator checking the firewall reads `nft list ruleset`, and a rule
+		// they cannot read is one they cannot check.
+		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       12, // src IP offset in IPv4 header
+			Len:          4,
+		},
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            4,
+			Mask:           []byte(ipNet.Mask),
+			Xor:            []byte{0, 0, 0, 0},
+		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ipNet.IP},
 	}
 }
 

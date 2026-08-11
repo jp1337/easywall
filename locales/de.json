@@ -305,7 +305,7 @@
   {"id": "opt_fragments", "translation": "Fragmente verwerfen"},
   {"id": "opt_fragments_desc", "translation": "Verwirft IP-fragmentierte Pakete"},
   {"id": "opt_bogons", "translation": "Bogon-Filter"},
-  {"id": "opt_bogons_desc", "translation": "Verwirft RFC-1918-Quellen, die an externen Schnittstellen ankommen"},
+  {"id": "opt_bogons_desc", "translation": "Verwirft RFC-1918-Quellen, die an externen Schnittstellen ankommen. Adressen auf der Whitelist und Docker-Bridge-Netze sind ausgenommen"},
   {"id": "opt_conn_limit", "translation": "Verbindungsgrenze"},
   {"id": "opt_conn_limit_desc", "translation": "Deckelt gleichzeitige Verbindungen je Quelladresse"},
   {"id": "opt_tcp_rst", "translation": "TCP-RST-Flut"},

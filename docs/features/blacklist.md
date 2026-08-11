@@ -31,7 +31,7 @@ the blacklist instead.
 | Effect | DROP | ACCEPT |
 | Evaluated | before the whitelist | after the blacklist, before the ports |
 | Reaches closed ports | — | **yes, every port** |
-| Skips the protection modules | no — those run first | no — those run first |
+| Skips the protection modules | no — those run first | no — those run first, except the bogon filter, which reads this list |
 | Use it for | a scanner, an abusive network | the address you administer from |
 
 > **A whitelisted source reaches services you never opened.** It does not pass the
@@ -59,8 +59,12 @@ changing port rules. It survives a closed SSH port and every port rule you chang
 **It does not exempt you from the protection modules.** Those are evaluated before the
 whitelist, as the diagram above shows — a packet a module drops never reaches it. That
 matters least for the rate limits, which are counted per source address, so somebody
-else's flood cannot consume your budget; it matters most for the bogon filter, which
-will drop you outright if you administer the host from an RFC 1918 address.
+else's flood cannot consume your budget.
+
+The one exception is the [bogon filter]({{ '/features/filters/' | relative_url }}),
+which reads the whitelist itself. It drops private source addresses, so without that
+it would drop you outright for administering the host from one — and the whitelist
+entry meant to prevent exactly that could never be reached.
 
 Together with the [acceptance window]({{ '/architecture/' | relative_url }}) that is two
 independent ways not to lose access to your own machine.
@@ -69,7 +73,7 @@ independent ways not to lose access to your own machine.
 
 | Symptom | Cause |
 |---|---|
-| A whitelisted address is still blocked | It is on the blacklist too — that is checked first. Or a protection module dropped it, which also happens before the whitelist |
+| A whitelisted address is still blocked | It is on the blacklist too — that is checked first. Or a protection module dropped it, which happens before the whitelist. The bogon filter is the exception: it honours the whitelist |
 | A blacklisted address still gets through | The connection was already established; the list only affects new ones |
 | Nothing changed after saving | Saving stages. It goes live on [Apply]({{ '/architecture/' | relative_url }}) |
 | The editor names a line number | That line is not a valid address or CIDR; the message says why |

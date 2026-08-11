@@ -305,7 +305,7 @@
   {"id": "opt_fragments", "translation": "Fragment drop"},
   {"id": "opt_fragments_desc", "translation": "Drops IP-fragmented packets"},
   {"id": "opt_bogons", "translation": "Bogon filter"},
-  {"id": "opt_bogons_desc", "translation": "Drops RFC 1918 sources arriving on external interfaces"},
+  {"id": "opt_bogons_desc", "translation": "Drops RFC 1918 sources arriving on external interfaces. Whitelisted addresses and Docker bridge networks are exempt"},
   {"id": "opt_conn_limit", "translation": "Connection limit"},
   {"id": "opt_conn_limit_desc", "translation": "Caps concurrent connections per source address"},
   {"id": "opt_tcp_rst", "translation": "TCP RST flood"},
