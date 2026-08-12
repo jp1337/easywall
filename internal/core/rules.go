@@ -327,7 +327,16 @@ func WriteAuditLog(logPath, action, ruleType, detail, user string) {
 		return
 	}
 
-	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	// 0600, and the group bit is gone on purpose. This is the record of who
+	// changed the firewall and when, and the only process that reads it is this
+	// one: the web interface asks for entries over the socket (GET_AUDIT_LOG)
+	// and never opens the file. It was 0640 root:easywall, which handed the
+	// whole history to a network-facing process that has no use for it.
+	// Reading it by hand is a `sudo` away, and logrotate recreates it the same
+	// way — see debian/easywall.logrotate.
+	// #nosec G304 -- logPath is cfg.AuditLogPath(), built from log_dir in the
+	// daemon's config; no request can name it.
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		slog.Error("could not open audit log", "path", logPath, "error", err)
 		return

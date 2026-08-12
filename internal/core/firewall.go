@@ -126,7 +126,11 @@ func (f *Firewall) setLastApply(t time.Time) {
 	f.lastApplyMu.Unlock()
 
 	path := f.cfg.LastApplyPath()
-	if err := os.WriteFile(path, []byte(t.UTC().Format(time.RFC3339)), 0640); err != nil {
+	// 0600 for the same reason as the audit log: only this process reads it —
+	// the dashboard's "last apply" comes over the socket with the status, not
+	// from this file — so the group bit gave the web process a read it never
+	// takes.
+	if err := os.WriteFile(path, []byte(t.UTC().Format(time.RFC3339)), 0600); err != nil {
 		// Not fatal: the rules are applied and accepted either way. The
 		// dashboard will just show "never" again after a restart.
 		slog.Warn("could not record last apply time", "path", path, "error", err)

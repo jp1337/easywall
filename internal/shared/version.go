@@ -289,6 +289,8 @@ func splitVersion(v string) ([]int, string, bool) {
 }
 
 func loadCache(path string) (*VersionInfo, bool) {
+	// #nosec G304 -- the cache path is built from data_dir in the config, not from
+	// anything the network supplied.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, false

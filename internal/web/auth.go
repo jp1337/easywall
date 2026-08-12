@@ -24,6 +24,10 @@ const (
 	// force when the session was created.
 	SessionCredentialKey = "cred"
 
+	// maxHashPart bounds the salt and the key read out of a stored hash. Both are
+	// tens of bytes in anything easywall writes.
+	maxHashPart = 1024
+
 	// minPasswordLen is the shortest password accepted, by the first-run wizard
 	// and by the change-password page. It was written as a bare 12 in both,
 	// which is one place too many for a rule the interface also states in words.
@@ -134,6 +138,7 @@ var (
 	errHashParallelism = errors.New("its parallelism is below 1")
 	errHashIterations  = errors.New("its iteration count is below 1")
 	errHashMemory      = errors.New("its memory cost is below argon2's minimum for that parallelism")
+	errHashOversized   = errors.New("its salt or key is longer than any hash easywall writes")
 )
 
 // VerifyPassword returns true if password matches the argon2id encoded hash.
@@ -189,7 +194,17 @@ func decodeArgon2Hash(encoded string) (argon2Params, []byte, []byte, error) {
 		return argon2Params{}, nil, nil, errHashKeyEncode
 	}
 
+	// Bounded before the conversion, not after: these two widths are handed
+	// straight to argon2.IDKey, which allocates from them. easywall writes a
+	// 16-byte salt and a 32-byte key; anything past a kilobyte is not a hash this
+	// program produced, and there is no reason to let a config file ask for an
+	// arbitrary allocation on every login attempt.
+	if len(salt) > maxHashPart || len(hash) > maxHashPart {
+		return argon2Params{}, nil, nil, errHashOversized
+	}
+	// #nosec G115 -- both lengths are bounded by maxHashPart immediately above.
 	p.saltLength = uint32(len(salt))
+	// #nosec G115 -- likewise.
 	p.keyLength = uint32(len(hash))
 
 	// The parameters were parsed but never checked for being usable, and

@@ -136,6 +136,8 @@ func (m *certManager) close() {
 
 // certNeedsRenewal returns true if the cert doesn't exist or expires within 30 days.
 func certNeedsRenewal(certPath string) bool {
+	// #nosec G304 -- certPath comes from ssl_dir in the config; the operator names
+	// the directory, a request never does.
 	data, err := os.ReadFile(certPath)
 	if err != nil {
 		return true

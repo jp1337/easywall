@@ -52,6 +52,8 @@ func (c *Config) PasswordHash() string {
 
 // LoadConfig reads and parses the TOML config at path.
 func LoadConfig(path string) (*Config, error) {
+	// #nosec G304 -- path is the --config argument this process was started with,
+	// never anything a request supplied.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
@@ -341,6 +343,11 @@ var managedKeys = []string{"session_key", "username", "password", "telemetry"}
 
 // encode renders the whole configuration as TOML, comments and all discarded.
 // The fallback path — see mergeConfig for when it is taken. c.mu must be held.
+//
+// #nosec G117 -- the struct being encoded *is* web.toml, and session_key belongs
+// in it: easywall generates one on first start and writes it back here, which is
+// the only place it is kept. The file is 0600 and owned by the web user. There is
+// nothing to redact from a value whose destination is the file it came from.
 func (c *Config) encode() ([]byte, error) {
 	buf := bytes.NewBufferString(configHeader)
 	if err := toml.NewEncoder(buf).Encode(c.WebConfig); err != nil {
