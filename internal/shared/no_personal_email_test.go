@@ -69,6 +69,59 @@ func TestNoPersonalEmailAddressesAreTracked(t *testing.T) {
 	}
 }
 
+// Nor does any funding link.
+//
+// .github/FUNDING.yml carried a `custom:` entry pointing at a payment handle
+// built from the maintainer's real name, in a public repository, rendered by
+// GitHub as a Sponsor button on every page of it. Same shape as the address in
+// debian/control: written once when the project started, never reread.
+//
+// The handle itself is deliberately not quoted here — this test scans every
+// tracked file, its own source included, and an example would make it fail on
+// itself. That is the correct behaviour, and the reason this comment describes
+// rather than demonstrates.
+//
+// GitHub Sponsors does the same job through an account that is already public.
+// This test exists because the funding file is edited roughly never, so a
+// reintroduction would sit there just as long as the first one did.
+func TestNoPersonalPaymentLinksAreTracked(t *testing.T) {
+	root := repoRoot(t)
+
+	out, err := exec.Command("git", "-C", root, "ls-files", "-z").Output()
+	if err != nil {
+		t.Skipf("not a git checkout: %v", err)
+	}
+
+	// Payment services whose URL carries a handle. The handle is what matters,
+	// not the platform: ko-fi.com/jp1337 is the same public identity as the
+	// GitHub account this repository lives under, and paypal.me/<real name> is
+	// not. So: match the links, then allow the ones that are already public.
+	link := regexp.MustCompile(`(?i)\b(?:paypal\.me|paypal\.com/paypalme|ko-fi\.com|buymeacoffee\.com|liberapay\.com|patreon\.com)/([A-Za-z0-9_.-]+)`)
+
+	// The project's public identity, the same string as the GitHub account.
+	const publicHandle = "jp1337"
+
+	for _, name := range strings.Split(strings.TrimRight(string(out), "\x00"), "\x00") {
+		// The changelog records what happened, including that a funding platform
+		// was once added; rewriting history is not this test's business.
+		if name == "" || skipPath(name) || name == "CHANGELOG.md" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, name)) // #nosec G304 -- a path git listed in this repository
+		if err != nil {
+			continue
+		}
+		for _, m := range link.FindAllStringSubmatch(string(data), -1) {
+			if strings.EqualFold(m[1], publicHandle) {
+				continue
+			}
+			t.Errorf("%s links %q — a payment handle that is not %q is a personal "+
+				"identifier in a public repository. See the note on this test.",
+				name, m[0], publicHandle)
+		}
+	}
+}
+
 // skipPath drops what cannot usefully be scanned: binaries, generated bundles
 // and the vendored htmx, all of which are noise rather than authorship.
 func skipPath(name string) bool {
