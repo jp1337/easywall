@@ -46,22 +46,29 @@ sudo useradd  --system --no-create-home --shell /usr/sbin/nologin \
 sudo install -d -m 0750 -o root     -g easywall /run/easywall
 sudo install -d -m 0750 -o root     -g easywall /etc/easywall
 sudo install -d -m 0750 -o easywall -g easywall /etc/easywall/ssl
-sudo install -d -m 0750 -o easywall -g easywall /var/lib/easywall
+sudo install -d -m 0770 -o root     -g easywall /var/lib/easywall
 sudo install -d -m 0750 -o root     -g easywall /var/log/easywall
 
 sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 ```
 
-The ownership is the point, not a detail. `easywall-web` runs as the `easywall`
-user, so it needs to traverse `/etc/easywall` and read and rewrite its own
-`web.toml` — the first-run wizard writes the password hash there. It must **not**
-be able to write `easywall.toml`, which is the configuration the root daemon
-loads: a network-facing process that can change what root reads has undone the
-two-process split. Hence root-owned directory, group `easywall` for traverse, and
-one file each side of the line.
+**The ownership is the point, not a detail.**
 
-`ssl_dir` belongs to `easywall` because easywall generates its own certificate
-there and replaces it before it expires.
+| Path | Why that owner and mode |
+|---|---|
+| `/etc/easywall` — `root:easywall` `0750` | the web user must **traverse** it to reach its own config, and must not write in it |
+| `easywall.toml` — `root:root` `0600` | the root daemon reads this. A network-facing process that can change what root reads has undone the two-process split |
+| `web.toml` — `easywall:easywall` `0600` | the wizard writes the password hash here, and the password page rewrites it |
+| `ssl_dir` — `easywall:easywall` `0750` | easywall generates its own certificate there and replaces it before it expires |
+| `/var/lib/easywall` — `root:easywall` `0770` | **shared**: the root core writes `rules.json`, the web user writes its caches. Group-writable so the core does not need `CAP_DAC_OVERRIDE` |
+| `/run/easywall` — `root:easywall` `0750` | holds the control socket the web process connects to |
+
+> **`/var/lib/easywall` used to be listed here as `easywall:easywall`, and that does
+> not work.** The unit reduces the daemon to `CAP_NET_ADMIN`, which for a root
+> service also removes `CAP_DAC_OVERRIDE` — so root cannot enter a directory it does
+> not own, `rules.json` is never written, and every request fails on a permission
+> error raised deep inside the call. The package had the same bug and it is what the
+> `0770 root:easywall` above fixes.
 
 ## Configure
 

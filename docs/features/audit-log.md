@@ -42,17 +42,17 @@ coloured tag would stop meaning anything.
 | Action | The identifier, rendered in your language |
 | Rule type | `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `all` |
 | Detail | What changed — the addresses added and removed, or the settings that moved |
-| User | The account that made the change |
+| User | Always `web`. It names the **process**, not the person — see below |
 
 ## What is not in it
 
 | Not recorded | Where to look instead |
 |---|---|
-| Logins, failed logins, logouts | `journalctl -u easywall-web` |
+| Which account made a change | nowhere. Every entry says `web`, because the socket protocol carries no identity yet — [roadmap]({{ '/roadmap/' | relative_url }}) |
+| Logins and failed logins | `journalctl -u easywall-web` |
+| Logouts | nowhere, though a logout does end the session immediately |
 | Read-only page views | nowhere — not recorded at all |
 | Edits made directly to `easywall.toml` | your own change management |
-| Which account made a change | every entry is attributed to `web`; the socket protocol carries no identity yet |
-| Logouts | recorded nowhere, though a logout does end the session immediately |
 
 > **The detail column was empty until 2.5.0.** Every save wrote a blank, so the
 > column meant to answer *what changed* was a dash on every line. It now names
@@ -71,7 +71,7 @@ tail -f /var/log/easywall/audit.log
 ```json
 {"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blacklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
 {"time":"2026-08-09T14:25:43Z","action":"options_saved","rule_type":"","detail":"changed port_scan, tcp_rst_flood","user":"web"}
-{"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"admin"}
+{"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"web"}
 ```
 
 `rollback_failed` is the one worth alerting on: it means the new rules did not

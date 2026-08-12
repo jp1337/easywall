@@ -19,16 +19,31 @@ The same value arriving through the interface is refused instead, with the key n
 Nothing is substituted quietly in either direction — that used to be five rate limits,
 and the file and the running firewall could disagree with nothing to say so.
 
-| | Owned by | Holds |
+| | Owner and mode | Holds |
 |---|---|---|
-| `easywall.toml` | core, root | firewall options, acceptance window, IPv6, Docker |
-| `web.toml` | web, `root:easywall` `0640` | bind address, TLS, session secret, credentials |
+| `easywall.toml` | `root:root` `0600` | firewall options, acceptance window, IPv6, Docker, routing |
+| `web.toml` | `easywall:easywall` `0600` | bind address, TLS, session secret, credentials |
 
-Both binaries can write a commented default:
+The split is the point: the web process rewrites its own file — the wizard and the
+password page write into it — and must not be able to touch the one the root daemon
+reads.
+
+The package installs both, already filled in. The commented originals are
+[`config/easywall.toml`](https://github.com/jp1337/easywall/blob/main/config/easywall.toml)
+and [`config/web.toml`](https://github.com/jp1337/easywall/blob/main/config/web.toml)
+in the repository.
+
+## The command line
+
+Both binaries take two flags and nothing else.
+
+| | |
+|---|---|
+| `-config <path>` | which file to read. Defaults to `/etc/easywall/easywall.toml` and `/etc/easywall/web.toml` |
+| `-version` | print the version and exit — what the binary was actually built as |
 
 ```bash
-sudo easywall-core --write-config /etc/easywall/easywall.toml
-sudo easywall-web  --write-config /etc/easywall/web.toml
+easywall-core --version     # easywall-core {{ site.version }}
 ```
 
 ---
@@ -77,7 +92,9 @@ is already accepted and under `block` already gone.
 > IPv6 came out filtered *and* non-functional. A config still carrying the key loads,
 > and both old values become `mode = "filter"`.
 
-Disable `enabled` only on servers with no IPv6 addressing. Disabling individual ICMPv6 RA/NA types will break IPv6 connectivity.
+Turning either ICMPv6 key off breaks IPv6 on most networks — SLAAC and neighbour
+discovery are how an address is obtained and kept reachable. They exist for hosts
+with static addressing that genuinely need neither.
 
 ### `[docker]`
 
@@ -115,39 +132,34 @@ container, into a published container port.
 
 ### `[firewall]` — Protection Modules
 
-Each module has a matching `_log` boolean and one or more numeric threshold keys. The table shows the primary on/off toggle; see [Firewall Filters]({{ '/features/filters/' | relative_url }}) for details on each module.
+One row per module: the switch that turns it on, what it may be tuned with, and
+its own logging switch. Every threshold is **per source address**. All booleans
+default to what the "on" column says; the numbers are the defaults shown.
 
-| Key | Type | Default | Description |
+What each module actually drops is on
+[Firewall Filters]({{ '/features/filters/' | relative_url }}); this is the key
+reference.
+
+| Module | Switch — default | Tuning | Logging |
 |---|---|---|---|
-| `ssh_brute_force` | bool | `true` | Rate-limit new connections to SSH-tagged ports |
-| `ssh_brute_force_log` | bool | `false` | Log rate-limited SSH attempts |
-| `ssh_brute_force_connection_limit` | int | `5` | New SSH connections per minute from one source address |
-| `ssh_brute_force_log_limit` | int | `60` | Log entries per minute |
-| `icmp_flood` | bool | `true` | Rate-limit echo requests per source address — ICMP type 8 and ICMPv6 type 128 |
-| `icmp_flood_log` | bool | `false` | Log rate-limited ICMP |
-| `icmp_flood_connection_limit` | int | `10` | Echo requests per second from one source address |
-| `icmp_flood_log_limit` | int | `60` | Log entries per minute |
-| `syn_flood` | bool | `true` | Rate-limit new TCP connections per source address |
-| `syn_flood_log` | bool | `false` | Log rate-limited SYN packets |
-| `syn_flood_limit` | int | `100` | New TCP connections per second from one source address |
-| `port_scan` | bool | `true` | Drop TCP packets with suspicious flag combos |
-| `port_scan_log` | bool | `false` | Log dropped port scan packets |
-| `drop_invalid_packets` | bool | `true` | Drop packets in INVALID conntrack state |
-| `drop_invalid_packets_log` | bool | `false` | Log dropped invalid packets |
-| `drop_fragments` | bool | `false` | Drop IP-fragmented packets |
-| `drop_fragments_log` | bool | `false` | Log dropped fragments |
-| `bogon_filter` | bool | `false` | Drop impossible IPv4 source addresses arriving on a non-loopback interface |
-| `bogon_filter_log` | bool | `false` | Log bogon-filtered packets |
-| `connection_limit_per_ip` | bool | `false` | Limit simultaneous connections per source IP |
-| `connection_limit_max` | int | `100` | Max simultaneous connections per source IP |
-| `tcp_rst_flood` | bool | `false` | Rate-limit inbound TCP RST packets per source address |
-| `tcp_rst_flood_log` | bool | `false` | Log rate-limited RST packets |
-| `tcp_rst_flood_limit` | int | `100` | RST packets per second from one source address |
-| `drop_broadcast` | bool | `false` | Drop broadcast-destination packets |
-| `drop_multicast` | bool | `false` | Drop multicast-destination packets |
-| `drop_anycast` | bool | `false` | Drop anycast packets |
-| `log_blocked_connections` | bool | `false` | Add rate-limited log rule before the final DROP |
-| `log_blocked_connections_limit` | int | `60` | Log entries per minute for the final DROP log |
+| SSH brute-force | `ssh_brute_force` — **on** | `ssh_brute_force_connection_limit` `5`/min | `ssh_brute_force_log`, `ssh_brute_force_log_limit` `60`/min |
+| ICMP flood | `icmp_flood` — **on** | `icmp_flood_connection_limit` `10`/s | `icmp_flood_log`, `icmp_flood_log_limit` `60`/min |
+| SYN flood | `syn_flood` — **on** | `syn_flood_limit` `100`/s | `syn_flood_log` |
+| Port scan | `port_scan` — **on** | — | `port_scan_log` |
+| Invalid packets | `drop_invalid_packets` — **on** | — | `drop_invalid_packets_log` |
+| Fragments (IPv4) | `drop_fragments` — off | — | `drop_fragments_log` |
+| Bogon filter (IPv4) | `bogon_filter` — off | — | `bogon_filter_log` |
+| Connection limit | `connection_limit_per_ip` — off | `connection_limit_max` `100` | — |
+| TCP RST flood | `tcp_rst_flood` — off | `tcp_rst_flood_limit` `100`/s | `tcp_rst_flood_log` |
+| Broadcast | `drop_broadcast` — off | — | — |
+| Multicast | `drop_multicast` — off | — | — |
+| Anycast | `drop_anycast` — off | — | — |
+
+Two logging switches belong to no module and are set here as well:
+
+| | Logs | Rate |
+|---|---|---|
+| `log_blocked_connections` | everything the final policy drops | `log_blocked_connections_limit` `60`/min |
 | `log_blacklist_connections` | bool | `false` | Log packets matched by the blacklist |
 | `log_blacklist_connections_limit` | int | `60` | Log entries per minute for blacklist drops |
 
@@ -186,7 +198,8 @@ Highest priority first:
 The languages on offer are whatever `locales/*.json` contains, and each file names
 itself through its own `language_name` key — so `Deutsch` reads as `Deutsch`
 whatever language the interface is currently in. Adding a locale file is all it
-takes for it to appear in the switch; see [Adding a Language](contributing.md).
+takes for it to appear in the switch; see
+[Adding a language]({{ '/contributing/' | relative_url }}#adding-a-language).
 
 ```bash
 openssl rand -hex 32     # session_key
@@ -222,22 +235,34 @@ Set both `cert` and `key` or neither. Setting one alone is refused at startup: e
 would otherwise pair your file with the other half of its own generated pair, and TLS
 fails with a key-mismatch error naming a certificate you never configured.
 
-## The update check
+## Every request that leaves the host
 
-The dashboard asks `api.github.com` once a day whether there is a newer release, and
-shows a banner if so. It is never in the way of a page: the answer comes from a cache on disk, and a stale cache is
-refreshed in the background. On a host with no route out, the failure is remembered for
-an hour rather than retried on every load.
+Two, and this is the whole list.
 
-Set `update_check = false` to switch it off entirely. Nothing else changes; the version
-easywall is running is shown either way.
+| | Update check | Counting installations |
+|---|---|---|
+| Key | `update_check` | `telemetry` |
+| Default | **on** | **off** until you switch it on |
+| Destination | `api.github.com` | `telemetry.wdkro.de` |
+| How often | once a day | once a day |
+| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below |
+| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface |
 
-## Counting installations
+Neither delays a page. The update check is served from a cache on disk and
+refreshed in the background, and a failure is remembered for an hour so a host with
+no route out is not retrying on every load. The count runs in the background and
+gives up after ten seconds.
 
-Off unless you switch it on, and the first-run wizard asks rather than assumes. A
-critical bug matters differently at ten installations than at ten thousand, and the
-count is the only way to know which this is — or to say that a fix has reached most
-of them.
+### The update check
+
+A banner appears when a newer release exists. Switching it off changes nothing
+else — the version easywall is running is shown either way.
+
+### Counting installations
+
+The first-run wizard asks rather than assumes. A critical bug matters differently
+at ten installations than at ten thousand, and the count is the only way to know
+which this is — or to say a fix has reached most of them.
 
 What it sends, in full — once a day, nothing else, ever:
 
@@ -245,21 +270,15 @@ What it sends, in full — once a day, nothing else, ever:
 GET https://telemetry.wdkro.de/v1/count?id=<32 hex characters>&v=<version>
 ```
 
-Not the hostname, not an address, not a rule, not a count of anything you have
-configured. The identifier is 16 random bytes generated on your machine and kept in
-`<data_dir>/telemetry.json`; delete that file and the next report is a new
-installation as far as anyone can tell. It is random rather than derived from the
-hostname or the machine-id on purpose: a derived identifier can be reproduced by
-anyone who knows the host, which turns a count into a lookup.
+| | |
+|---|---|
+| **Not** sent | the hostname, any address, any rule, any count of what you have configured |
+| The identifier | 16 random bytes generated on your machine, in `<data_dir>/telemetry.json`. Delete the file and the next report is a new installation as far as anyone can tell |
+| Why random | a value derived from the hostname or machine-id can be reproduced by anyone who knows the host, which turns a count into a lookup |
+| At the far end | one line — timestamp, identifier, version — and a 204. **Your address is not recorded**: it rate-limits the endpoint and never reaches disk. Lines are kept 35 days, then only the rolled-up number |
 
-The receiving end writes one line — the timestamp, the identifier, the version — and
-answers 204. **Your address is not recorded**: it is used to rate-limit the endpoint
-and never reaches disk. Lines are kept 35 days, after which only the rolled-up number
-remains.
-
-Switch it off under **System** in the interface, or set `telemetry = false`. Turning it
-off does not need the core process to be running — consent that can only be withdrawn
-while another daemon is reachable would not be consent.
+Turning it off does not need the core process to be running — consent that can only
+be withdrawn while another daemon is reachable would not be consent.
 
 > The number is a lower bound and cannot be made tamper-proof: the endpoint is open, so
 > anyone can invent identifiers. It is good enough to tell ten installations from ten
