@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Nothing was watching the Go toolchain, and it had drifted apart in five places.** `go.mod` said `go 1.25.0`, ten `go-version:` pins across four workflows said `1.25`, the `Dockerfile` said `golang:1.26-alpine`, `debian/control` asked for `golang-go (>= 1.21)` and the documentation told contributors to install `1.25+`. So the published container was compiled by a Go version no test ever ran against. The cause was mechanical rather than careless: Dependabot understands a Docker tag and none of the other four — the Go directive ([#9527](https://github.com/dependabot/dependabot-core/issues/9527)) and the toolchain directive ([#13520](https://github.com/dependabot/dependabot-core/issues/13520)) are open, untriaged feature requests, and there is no regex manager for a workflow input. The one place it could reach walked off on its own. Dependency updates move to **Renovate**, which covers all five, and `go.mod` gains a `toolchain` line as the single source: `actions/setup-go` reads it in preference to the `go` directive, so every workflow now says `go-version-file: go.mod` and no version is written down twice. Renovate keeps that line current by default and moves the Dockerfile tag, `debian/control` and the four prose pins with it in one pull request. `TestGoToolchainIsTheSameEverywhere` fails if any of them disagree — watched red for each one in turn. The toolchain is now 1.26.5, the current stable release
+- **`debian/control` asked for a Go it does not need and could not build with.** `golang-go (>= 1.21)` since the 2.0.0 rewrite, while `internal/web/server.go` calls `http.NewCrossOriginProtection` — a Go 1.25 API. It now names the version the `toolchain` line pins. Debian trixie ships Go 1.24, so building the package there needs golang from backports; the manual-install page says so
+- The `go` directive stays at 1.25.0 on purpose and Renovate is configured not to touch it. It states the oldest Go this code compiles with, which is a claim about the source and not about the machine that builds it; Go's own guidance is to leave it alone until an API forces it
+
 ## [2.5.1] — 2026-08-12
 
 ### Fixed
