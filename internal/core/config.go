@@ -65,6 +65,8 @@ func (c *Config) SystemSettings() shared.SystemSettings {
 // LoadConfig reads and parses the TOML config at path.
 // Returns a descriptive error if the file cannot be read or parsed.
 func LoadConfig(path string) (*Config, error) {
+	// #nosec G304 -- path is the --config argument this daemon was started with.
+	// Nothing from a request reaches it; there is no other way to name a file here.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config %s: %w", path, err)

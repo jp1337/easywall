@@ -7,7 +7,12 @@
     compress
     delaycompress
     notifempty
-    create 640 root easywall
+    # 600 root:root, matching what the daemon itself creates. The audit log is
+    # the record of who changed the firewall; only easywall-core reads it, and
+    # the web interface asks for entries over the socket rather than opening the
+    # file. A rotation that recreated it 640 root:easywall would have handed
+    # that read back every night.
+    create 600 root root
 }
 
 # There is deliberately no postrotate here.
