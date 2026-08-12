@@ -11,6 +11,16 @@ permissions:
   contents: read
   security-events: write
 
+# A superseded run is finished work nobody reads. Renovate rebases its branches
+# whenever main moves (rebaseWhen: behind-base-branch), and every push to a pull
+# request used to leave its predecessor running to completion.
+#
+# Deliberately not on main: a cancelled run there could skip publishing an edge
+# image or a deployment, and the point of a push to main is that it completes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   codeql:
     name: CodeQL
