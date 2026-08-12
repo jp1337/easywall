@@ -139,3 +139,65 @@ func TestCodeQLBuildsEverything(t *testing.T) {
 		t.Error("the codeql job does not build the whole module between init and analyze")
 	}
 }
+
+// Every architecture that gets an image gets a package.
+//
+// The container has been published for linux/amd64 and linux/arm64 since it
+// existed; the .deb was amd64 only, and nothing connected the two — so the gap
+// was invisible in both files. It is the same shape as the release that carried
+// no .deb at all: an artefact somebody assumed was there.
+//
+// Reading .goreleaser.yaml's platforms and release.yml's matrix and comparing
+// the sets means adding an architecture to the images without adding it to the
+// packages fails here, in words, rather than as a missing download six months
+// later.
+func TestEveryImageArchitectureAlsoGetsAPackage(t *testing.T) {
+	images := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^\s+- linux/(\w+)\s*$`).
+		FindAllStringSubmatch(repoFile(t, ".goreleaser.yaml"), -1) {
+		images[m[1]] = true
+	}
+	if len(images) == 0 {
+		t.Fatal(".goreleaser.yaml lists no image platforms; this test compares against them")
+	}
+
+	block := jobBlock(t, repoFile(t, ".github", "workflows", "release.yml"), "debian")
+	packages := map[string]bool{}
+	for _, m := range regexp.MustCompile(`(?m)^\s+- arch: (\w+)\s*$`).
+		FindAllStringSubmatch(block, -1) {
+		packages[m[1]] = true
+	}
+	if len(packages) == 0 {
+		t.Fatal("the release's debian job has no architecture matrix")
+	}
+
+	for arch := range images {
+		if !packages[arch] {
+			t.Errorf("images are built for %s but no .deb is: someone on that architecture "+
+				"can run the container and has no dpkg path", arch)
+		}
+	}
+	for arch := range packages {
+		if !images[arch] {
+			t.Errorf("a .deb is built for %s but no image is — one of the two lists has "+
+				"moved without the other", arch)
+		}
+	}
+}
+
+// The package job has to install what it builds, on the architecture it built
+// it for. A cross-built package that nothing installs is how this repository
+// shipped a .deb with no binaries in it for its whole existence.
+func TestBothPackageArchitecturesAreInstalledNatively(t *testing.T) {
+	block := jobBlock(t, repoFile(t, ".github", "workflows", "build.yml"), "build-deb")
+
+	for _, want := range []string{"ubuntu-24.04\n", "ubuntu-24.04-arm"} {
+		if !strings.Contains(block, want) {
+			t.Errorf("the package job does not run on %q, so that architecture is either "+
+				"cross-built or not built at all", strings.TrimSpace(want))
+		}
+	}
+	if !strings.Contains(block, "apt-get install -y ./dist/*.deb") {
+		t.Error("the package job no longer installs the package it builds")
+	}
+}

@@ -112,10 +112,29 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ── Validate Debian package can be built ─────────────────────────────────
+  # ── Validate Debian package can be built, installed and started ──────────
+  #
+  # One leg per architecture, each on its own native runner — the same shape as
+  # the image build in publish-edge.yml and for the same reason: a cross-built
+  # package is a package nobody installs, and everything below this build step
+  # installs it, starts both services and talks to the socket. arm64 runners are
+  # free for public repositories, so the second leg costs nothing and runs in
+  # parallel.
+  #
+  # No GOARCH anywhere: debian/control says `Architecture: any` and debian/rules
+  # calls a plain `go build`, so the runner decides what comes out. That is also
+  # what makes the file name right — dpkg names it from DEB_HOST_ARCH.
   build-deb:
-    name: Debian Package
-    runs-on: ubuntu-24.04
+    name: Debian Package (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v7
@@ -143,6 +162,28 @@ jobs:
 
       - name: Collect .deb
         run: mkdir -p dist && mv ../*.deb dist/
+
+      # The one mistake a file name cannot show: a package that says arm64 and
+      # carries amd64 binaries. Ask the artefact for both.
+      - name: It is a package for this architecture
+        run: |
+          set -euo pipefail
+          deb=$(ls dist/*.deb)
+          got=$(dpkg-deb --field "$deb" Architecture)
+          [ "$got" = "${{ matrix.arch }}" ] || {
+            echo "::error::$deb is Architecture=$got on a ${{ matrix.arch }} runner"
+            exit 1
+          }
+          dpkg-deb --fsys-tarfile "$deb" | tar -xO ./usr/sbin/easywall-core > /tmp/core
+          file /tmp/core
+          case "${{ matrix.arch }}" in
+            amd64) file /tmp/core | grep -q "x86-64" ;;
+            arm64) file /tmp/core | grep -q "aarch64" ;;
+          esac || {
+            echo "::error::the binary inside the ${{ matrix.arch }} package is not ${{ matrix.arch }}"
+            exit 1
+          }
+          echo "ok  $deb is $got and carries a $got binary"
 
       # Building the package proved it compiles. It never proved it installs —
       # and it did not: postinst left /etc/easywall unreadable by the user the
@@ -284,6 +325,6 @@ jobs:
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v7
         with:
-          name: debian-package
+          name: debian-package-${{ matrix.arch }}
           path: dist/*.deb
           retention-days: 7

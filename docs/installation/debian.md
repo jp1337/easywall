@@ -35,10 +35,17 @@ not need editing for each release.
 > fact; from 2.5.1 the release publishes it itself, and refuses to publish one that
 > does not contain both binaries, which is the other half of what was wrong with it.
 
-**On arm64**, take `easywall_<version>_linux_arm64.tar.gz` from the same release page,
-or build from source. The package is amd64 only for now: cross-building it is not
-exercised anywhere in CI, and this page has already spent a release promising a file
-that was not there.
+**On arm64** — a Raspberry Pi, an arm64 VPS — take `easywall_arm64.deb` instead:
+
+```bash
+wget https://github.com/jp1337/easywall/releases/latest/download/easywall_arm64.deb
+sudo dpkg -i easywall_arm64.deb && sudo apt-get install -f
+```
+
+Both packages are built on a runner of their own architecture, never cross-compiled, and
+each one is installed and started on that architecture in CI before it is published —
+the same checks the amd64 package goes through. The release refuses to publish a package
+whose `Architecture` field or whose binaries do not match the leg that built it.
 
 ## Where everything lives
 
