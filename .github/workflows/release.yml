@@ -98,10 +98,24 @@ jobs:
   # be a second thing to keep in step, and the release would ship the copy
   # nobody tests. Two definitions of one artefact is how a package comes to
   # contain no binaries.
+  #
+  # One leg per architecture on its own native runner, matching the images: the
+  # container is published for linux/amd64 and linux/arm64, and a package for
+  # only one of them leaves the hosts a small firewall interface is most at home
+  # on — a Pi, an arm64 VPS — with no dpkg path at all. Nothing is cross-built;
+  # debian/control is `Architecture: any` and the runner decides.
   debian:
-    name: Debian Package
+    name: Debian Package (${{ matrix.arch }})
     needs: goreleaser
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v7
@@ -144,7 +158,25 @@ jobs:
             echo "::error::the package says $got but the tag is $want"
             exit 1
           }
-          echo "ok  $deb carries both binaries and version $got"
+          # The asset is named by architecture, so the architecture has to be
+          # checked before the name is chosen — otherwise a swapped matrix
+          # publishes an amd64 package as easywall_arm64.deb and the first
+          # person to find out is whoever installs it.
+          arch=$(dpkg-deb --field "$deb" Architecture)
+          [ "$arch" = "${{ matrix.arch }}" ] || {
+            echo "::error::$deb is Architecture=$arch, this leg builds ${{ matrix.arch }}"
+            exit 1
+          }
+          dpkg-deb --fsys-tarfile "$deb" | tar -xO ./usr/sbin/easywall-core > /tmp/core
+          file /tmp/core
+          case "$arch" in
+            amd64) file /tmp/core | grep -q "x86-64" ;;
+            arm64) file /tmp/core | grep -q "aarch64" ;;
+          esac || {
+            echo "::error::the binary inside the $arch package is not $arch"
+            exit 1
+          }
+          echo "ok  $deb is $arch, version $got, and carries a $arch binary"
 
       # A stable name, because the documented command asks for exactly this file
       # under /releases/latest/download/. The version is in the package metadata
@@ -154,6 +186,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          cp ../easywall_*.deb easywall_amd64.deb
-          gh release upload "$GITHUB_REF_NAME" easywall_amd64.deb --clobber
-          echo "uploaded easywall_amd64.deb to $GITHUB_REF_NAME"
+          cp ../easywall_*.deb "easywall_${{ matrix.arch }}.deb"
+          gh release upload "$GITHUB_REF_NAME" "easywall_${{ matrix.arch }}.deb" --clobber
+          echo "uploaded easywall_${{ matrix.arch }}.deb to $GITHUB_REF_NAME"

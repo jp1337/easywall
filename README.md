@@ -72,6 +72,7 @@ instead of a command line. [How it works →](https://easywall-project.org/archi
 
 ```bash
 # Debian / Ubuntu
+# amd64 — on arm64 (Raspberry Pi, arm64 VPS) swap amd64 for arm64
 wget https://github.com/jp1337/easywall/releases/latest/download/easywall_amd64.deb
 sudo dpkg -i easywall_amd64.deb && sudo apt-get install -f
 
