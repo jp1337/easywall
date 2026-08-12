@@ -70,6 +70,13 @@ func newSessionStore(key string) *sessions.CookieStore {
 // operator changing the password because they suspect someone else is signed in
 // is actually asking for. It is derived from the hash, never from the password,
 // and it is only ever compared with itself.
+//
+// CodeQL reports this as password hashing with a weak algorithm
+// (go/weak-sensitive-data-hashing, alert 197) and it is dismissed as a false
+// positive. What goes in is an argon2id digest — 16 random salt bytes and a
+// 32-byte key, already slow-hashed — not a password; what comes out is a marker
+// compared on every request, which is precisely where the remedy the query asks
+// for, an expensive KDF, cannot go. Read that before "fixing" it.
 func credentialFingerprint(passwordHash string) string {
 	sum := sha256.Sum256([]byte("easywall-session-v1:" + passwordHash))
 	return base64.RawStdEncoding.EncodeToString(sum[:16])
