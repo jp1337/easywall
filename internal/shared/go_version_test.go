@@ -1,6 +1,10 @@
 package shared
 
 import (
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -142,4 +146,112 @@ func toolchainVersion(t *testing.T) (full, short string) {
 	full = m[1]
 	parts := strings.Split(full, ".")
 	return full, strings.Join(parts[:2], ".")
+}
+
+// What renovate.json will actually rewrite, applied to the tree it will rewrite.
+//
+// A configuration that validates is not a configuration that matches the right
+// lines. Both of these were live for one Renovate run:
+//
+//   - README.md carried an HTML comment saying badges "cannot drift the way a
+//     hand-written Go 1.25+ could" — a sentence warning about a stale pin, with
+//     a stale pin in it. The prose manager matched it, so Renovate had found a
+//     dependency that would be out of date for ever.
+//   - debian/control repeated its own Build-Depends line verbatim in the comment
+//     above it, so the same file matched twice.
+//
+// Neither is visible in a config validator; both are obvious the moment the
+// patterns are run over the files. This test runs them, and requires every value
+// they capture to be the toolchain — anything else is a line Renovate would edit
+// into a lie, or a pin that has been left behind.
+func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
+	_, short := toolchainVersion(t)
+
+	var cfg struct {
+		CustomManagers []struct {
+			Description         string   `json:"description"`
+			ManagerFilePatterns []string `json:"managerFilePatterns"`
+			MatchStrings        []string `json:"matchStrings"`
+		} `json:"customManagers"`
+	}
+	if err := json.Unmarshal([]byte(repoFile(t, "renovate.json")), &cfg); err != nil {
+		t.Fatalf("renovate.json does not parse: %v", err)
+	}
+	if len(cfg.CustomManagers) == 0 {
+		t.Fatal("renovate.json declares no customManagers; the documentation pins " +
+			"and debian/control are then updated by nobody")
+	}
+
+	root := repoRootDir(t)
+	for _, cm := range cfg.CustomManagers {
+		for _, raw := range cm.ManagerFilePatterns {
+			// Renovate writes a regex between slashes; a bare string is a glob.
+			pathRe := regexp.MustCompile(strings.Trim(raw, "/"))
+			for _, rel := range trackedFiles(t, root) {
+				if !pathRe.MatchString(rel) {
+					continue
+				}
+				body := readRepoPath(t, root, rel)
+				for _, ms := range cm.MatchStrings {
+					re, err := regexp.Compile(ms)
+					if err != nil {
+						t.Errorf("matchStrings %q does not compile in Go's regexp: %v", ms, err)
+						continue
+					}
+					idx := re.SubexpIndex("currentValue")
+					if idx < 0 {
+						t.Errorf("matchStrings %q has no currentValue group, so Renovate "+
+							"cannot know what to replace", ms)
+						continue
+					}
+					for _, m := range re.FindAllStringSubmatch(body, -1) {
+						if m[idx] != short {
+							t.Errorf("%s: renovate.json manages a Go pin reading %q, the toolchain is %q\n"+
+								"  pattern: %s\n"+
+								"  either the pin was left behind, or the pattern caught a sentence "+
+								"that is not a pin — see the note on this test", rel, m[idx], short, ms)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// repoRootDir returns the directory holding go.mod.
+func repoRootDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		dir = filepath.Dir(dir)
+	}
+	t.Fatal("no go.mod above the package directory")
+	return ""
+}
+
+// trackedFiles lists what git tracks, so the scan follows the repository rather
+// than whatever happens to be lying in the working tree.
+func trackedFiles(t *testing.T, root string) []string {
+	t.Helper()
+	out, err := exec.Command("git", "-C", root, "ls-files").Output()
+	if err != nil {
+		t.Skipf("not a git checkout: %v", err)
+	}
+	return strings.Split(strings.TrimSpace(string(out)), "\n")
+}
+
+// readRepoPath reads one tracked file by its repository-relative path.
+func readRepoPath(t *testing.T, root, rel string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, rel)) // #nosec G304 -- a path git listed
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	return string(data)
 }

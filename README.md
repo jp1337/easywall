@@ -9,7 +9,7 @@
 <!-- One badge service, so the set shares a shape, a typeface and a logo
      treatment. The three status badges read from the workflows by name; the
      version, licence and Go badges read from the repository and go.mod, so
-     none of them can drift the way a hand-written "Go 1.25+" could. -->
+     none of them can drift the way a hand-written version number could. -->
 <p align="center">
   <a href="https://github.com/jp1337/easywall/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/test.yml?branch=main&label=tests&logo=github&logoColor=white" alt="Tests"></a>
   <a href="https://github.com/jp1337/easywall/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/build.yml?branch=main&label=build&logo=github&logoColor=white" alt="Build"></a>
