@@ -71,6 +71,8 @@ nav:
         path: /installation/manual/
       - title: Demo Mode
         path: /installation/demo/
+      - title: First Run
+        path: /installation/first-run/
   - title: Architecture
     path: /architecture/
   - title: Configuration
@@ -78,6 +80,10 @@ nav:
   - title: Features
     group: true
     children:
+      - title: Dashboard
+        path: /features/dashboard/
+      - title: Applying Rules
+        path: /features/apply/
       - title: Ports
         path: /features/ports/
       - title: Blacklist & Whitelist
@@ -98,5 +104,7 @@ nav:
         path: /features/system-settings/
   - title: Security
     path: /security/
+  - title: Roadmap
+    path: /roadmap/
   - title: Contributing
     path: /contributing/
