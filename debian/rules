@@ -10,12 +10,28 @@ LDFLAGS := -s -w -X github.com/jp1337/easywall/internal/shared.CurrentVersion=$(
 %:
 	dh $@
 
+# Built into bin/ and installed below, rather than written straight into
+# debian/easywall.
+#
+# dh_prep runs between these two targets, and emptying debian/easywall is its
+# entire job — so everything the build wrote there was deleted before the
+# package was assembled. "Binaries already placed by build step", this file
+# said, and the .deb that came out held the units, the assets and the config
+# and not one executable.
+#
+# Nothing noticed for as long as the package has existed: CI built the .deb and
+# uploaded it without ever installing it. A downloaded artefact from a green run
+# on main has no /usr/sbin entry at all, and on a host that installed it systemd
+# answers status=203/EXEC — cannot execute — every five seconds, for ever.
 override_dh_auto_build:
-	go build -ldflags "$(LDFLAGS)" -o debian/easywall/usr/sbin/easywall-core ./cmd/easywall-core
-	go build -ldflags "$(LDFLAGS)" -o debian/easywall/usr/sbin/easywall-web  ./cmd/easywall-web
+	go build -ldflags "$(LDFLAGS)" -o bin/easywall-core ./cmd/easywall-core
+	go build -ldflags "$(LDFLAGS)" -o bin/easywall-web  ./cmd/easywall-web
 
 override_dh_auto_install:
-	# Binaries already placed by build step
+	# The two binaries this package exists to deliver
+	install -d debian/easywall/usr/sbin
+	install -m 0755 bin/easywall-core debian/easywall/usr/sbin/easywall-core
+	install -m 0755 bin/easywall-web  debian/easywall/usr/sbin/easywall-web
 	# Assets
 	install -d debian/easywall/usr/share/easywall
 	cp -r web locales debian/easywall/usr/share/easywall/
@@ -34,3 +50,6 @@ override_dh_auto_install:
 
 override_dh_auto_test:
 	go test ./internal/...
+
+override_dh_auto_clean:
+	rm -rf bin
