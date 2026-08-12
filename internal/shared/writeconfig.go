@@ -43,7 +43,11 @@ func WriteDefaultConfig(path string, content []byte) error {
 	// O_EXCL rather than a second existence check: between the Stat above and
 	// this call another process may have created the file, and the kernel is
 	// the only thing that can answer that without a race.
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	//
+	// The path is a variable because naming it is the entire point of the flag.
+	// It crosses no privilege boundary: whoever runs this could write the same
+	// file with an editor, and O_EXCL means an existing one is never touched.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) // #nosec G304 -- the operator names this path; the flag exists to write it
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			return fmt.Errorf("%s: %w", path, ErrConfigExists)
@@ -51,8 +55,13 @@ func WriteDefaultConfig(path string, content []byte) error {
 		return err
 	}
 	if _, err := f.Write(content); err != nil {
-		f.Close()
+		// The write error is the one worth reporting; the close is discarded
+		// explicitly rather than silently, and the file is left for the
+		// operator to see rather than removed behind their back.
+		_ = f.Close()
 		return err
 	}
+	// Not deferred: on the success path the close is where the data is finally
+	// handed over, so its error is the caller's business.
 	return f.Close()
 }
