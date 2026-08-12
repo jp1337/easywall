@@ -11,20 +11,23 @@ permissions:
 
 jobs:
   test:
-    name: Test (${{ matrix.os }} / Go ${{ matrix.go }})
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04]
-        go: ["1.25"]
 
     steps:
       - uses: actions/checkout@v7
 
+      # The toolchain comes from go.mod's `toolchain` line, here and in every
+      # other job. It used to be written out as "1.25" in ten places while the
+      # Dockerfile said 1.26 — so the image was built by a Go version nothing
+      # tested with, and no tool could see the disagreement.
       - uses: actions/setup-go@v7
         with:
-          go-version: ${{ matrix.go }}
+          go-version-file: go.mod
           cache: true
 
       - name: Download dependencies
@@ -66,7 +69,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
           cache: true
 
       - name: Download dependencies
@@ -175,7 +178,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
           cache: true
 
       - uses: actions/setup-node@v7
@@ -249,7 +252,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
           cache: true
 
       - name: golangci-lint

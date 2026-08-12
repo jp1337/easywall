@@ -30,7 +30,7 @@ description: Linux firewall management with a web interface. Go, nftables via ne
   </div>
 
   <div class="docs-hero-meta">
-    <span><strong>Go 1.25</strong></span>
+    <span><strong>Go 1.26</strong></span>
     <span class="docs-hero-meta-sep">·</span>
     <span><strong>GPL-3.0</strong></span>
     <span class="docs-hero-meta-sep">·</span>
