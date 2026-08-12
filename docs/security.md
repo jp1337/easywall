@@ -23,8 +23,9 @@ holds no privilege worth stealing.
 | XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
 | Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime, and every session ends the moment the password changes |
 | Locking the admin out | The acceptance window rolls back on its own |
-| Known CVEs in dependencies | `govulncheck` on every PR and weekly |
-| Dependency hijacking | Dependabot, secret scanning, dependency review |
+| Known CVEs in dependencies | `govulncheck` on every pull request and weekly, plus CodeQL and `gosec` |
+| Dependency hijacking | Renovate raises every update, patch releases auto-merge only once CI is green, minor and major wait for a person; plus secret scanning and dependency review |
+| A spoofed source address | `X-Forwarded-For` is **not** trusted — see [behind a reverse proxy](#behind-a-reverse-proxy) |
 
 ## Authentication
 
@@ -34,10 +35,26 @@ holds no privilege worth stealing.
 | Default password | none. The first-run wizard is mandatory |
 | Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
 | Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
-| Cookie signing key | Generated on first start unless one is configured. A key that is missing, too short, or still the placeholder in the sample config is replaced and written back — the placeholder is published in this repository, and a cookie signed with a published key is a login |
-| Logout | Ends that session immediately. A signed cookie is self-contained, so telling the browser to drop it left the value working for the rest of its lifetime; the identifier is recorded as revoked instead. Other browsers are unaffected. The record is in memory, so a restart within the same ten minutes forgets it |
-| Password change | Ends every other session at once. Sessions live in a signed cookie with nothing to revoke server-side, so each one carries a fingerprint of the password hash it was issued under and is refused as soon as that stops matching. The browser making the change stays signed in |
-| Recovery | none by design — no mail, no outside service. Editing `web.toml` on the host is the only way back. Clear the `password` line to reopen the first-run wizard; a hash easywall cannot use is refused and says so in the log, rather than failing the login page silently |
+| Cookie signing key | generated on first start unless configured. Anyone holding it can forge a session, and the placeholder in the sample config is published here — so a missing, short or placeholder key is replaced and written back |
+| Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
+| Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
+| Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
+
+## Behind a reverse proxy
+
+easywall terminates TLS itself and does **not** believe `X-Forwarded-For`,
+`X-Real-IP` or `True-Client-IP`. It is not assumed to sit behind a trusted proxy,
+and a client that can set its own source address walks straight past the login
+rate limiter.
+
+| | |
+|---|---|
+| What stays authoritative | `r.RemoteAddr` — the actual TCP peer |
+| The cost behind a proxy | every request looks like it comes from the proxy, so the limit of five attempts per ten minutes is shared by everyone. One person getting it wrong repeatedly locks the rest out until it refills |
+| What to do about it | reach easywall directly, or on a private network. A configurable list of trusted proxies is on the [roadmap]({{ '/roadmap/' | relative_url }}) — a list of addresses, never a boolean |
+
+This only affects the *login* limiter. The firewall's own protection modules count
+per source address in the kernel and are unaffected by any HTTP header.
 
 ## Transport
 
@@ -59,23 +76,19 @@ key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 
 ### The one place a string reaches a command
 
-Custom rules are nftables statements typed by the operator, and the netlink
-library takes typed expressions rather than text — so they are the one thing
-easywall applies by writing `add rule inet easywall input <your rule>` into
-`nft -f -`. Saying "no subprocess in the apply path", as this page did, was not
-true, and the mitigation is worth stating instead of hidden behind a claim.
+Every typed rule reaches the kernel as a Go struct over netlink. **Custom rules are
+the exception**: the netlink library takes typed expressions rather than text, so a
+statement you write by hand is applied by putting
+`add rule inet easywall input <your rule>` into `nft -f -`. Saying "no subprocess
+in the apply path", as this page once did, was not true.
 
-`nft` reads a newline and a semicolon as the end of one command and the start of
-the next. A rule carrying either is therefore not a rule but a second command,
-run by the root daemon, able to reach tables easywall does not own —
-demonstrated against a real kernel, where an imported rule containing a newline
-wrote into a neighbouring table. Both characters are refused, structurally,
-before anything is stored:
-
-- refused on save, on import, and inside the core, by the same check
-- refused on the *shape* of the input, not by a parser — it does not depend on
-  nft's grammar, on a subprocess being available, or on the syntax-check wrapper
-  happening to be unbalanced
+| | |
+|---|---|
+| The risk | `nft` reads a newline and a semicolon as the end of one command and the start of the next, so a rule carrying either is a **second command run by the root daemon** |
+| Demonstrated | not theoretical — an imported rule containing a newline wrote into a neighbouring table on a real kernel |
+| The mitigation | both characters refused on save, on import, and again inside the core, by the same check |
+| Why on the *shape* | a check that parsed nftables would depend on nft's grammar, on a subprocess being available, and on the syntax-check wrapper happening to be balanced. This one depends on none of them |
+| Also bounded | 256 statements per check |
 
 What remains is what the feature is for: an operator with an account can write
 firewall rules, which is also true of every other page.
@@ -109,34 +122,29 @@ Two, and this is the whole list.
 | Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
 
-Neither delays a page. The update check is served from a cache and refreshed in the
-background, and a failure is remembered for an hour so a host with no route out is not
-retrying on every load. The count runs in the background and gives up after ten seconds.
-
-The count is off unless someone said yes — the first-run wizard asks, and the System page
-switches it back off without needing the core process to be reachable. What it sends is
-listed above and in [configuration]({{ '/configuration/' | relative_url }}) in full; the
-identifier lives in `<data_dir>/telemetry.json` and deleting it is allowed and harmless.
-
-> On a host with no route out, both simply fail and nothing else changes. easywall is
-> built for those hosts; neither request is on the path of anything that matters.
+Neither is on the path of a page, and on a host with no route out both simply fail
+and nothing else changes. The exact request the count makes is printed verbatim
+under [Configuration]({{ '/configuration/' | relative_url }}#counting-installations).
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
-> event, which htmx does not emit. The listener never ran, so `allowEval` stayed at
-> its default of `true` and the script nonce was never applied. Configuration now
-> goes through the `meta[name=htmx-config]` tag htmx reads while initialising, with
-> `allowEval` and `allowScriptTags` disabled. Found by tightening `style-src`, which
-> surfaced the inline `<style>` block htmx had been injecting unnoticed.
+> event, which htmx does not emit — so `allowEval` stayed at its default of `true`
+> and the script nonce was never applied. It goes through the
+> `meta[name=htmx-config]` tag now. Found by tightening `style-src`, which surfaced
+> an inline `<style>` block htmx had been injecting unnoticed.
 
 ## What the audit log actually records
 
 One JSON object per line in `<log_dir>/audit.log`, rotated daily, 30 days kept:
 
 ```json
-{"time":"2026-08-04T14:25:13Z","action":"apply_started","rule_type":"all","detail":"","user":"admin"}
-{"time":"2026-08-04T14:25:43Z","action":"apply_accepted","rule_type":"all","detail":"","user":"admin"}
-{"time":"2026-08-04T14:30:00Z","action":"apply_rolledback","rule_type":"all","detail":"timeout","user":"admin"}
+{"time":"2026-08-04T14:25:13Z","action":"apply_started","rule_type":"all","detail":"","user":"web"}
+{"time":"2026-08-04T14:25:43Z","action":"apply_accepted","rule_type":"all","detail":"","user":"web"}
+{"time":"2026-08-04T14:30:00Z","action":"apply_rolledback","rule_type":"all","detail":"timeout","user":"web"}
 ```
+
+`user` is always `web`, whichever account signed in: the socket protocol carries
+no identity yet. It names the process, not the person — see the
+[roadmap]({{ '/roadmap/' | relative_url }}).
 
 | Recorded | **Not** recorded |
 |---|---|
@@ -145,11 +153,10 @@ One JSON object per line in `<log_dir>/audit.log`, rotated daily, 30 days kept:
 | `rules_saved` · `rules_imported` | the source address of a change |
 | `options_saved` · `settings_saved` · `system_saved` | which account made the change |
 
-> **Authentication events are not in the audit log.** An earlier version of this page
-> listed `login_success`, `login_failed` and `logout` among the event types. Nothing
-> writes them, and nothing ever did. For evidence of failed logins use the web
-> process's own output — `journalctl -u easywall-web` — where the rate limiter and
-> the auth handler log. Recording them in the audit log is a gap, not a feature.
+> **Authentication events are not in the audit log** — this page once listed
+> `login_success`, `login_failed` and `logout`, and nothing has ever written them.
+> For failed logins use `journalctl -u easywall-web`, where the rate limiter and the
+> auth handler log. It is a gap, not a feature.
 
 Reading it: [Audit log]({{ '/features/audit-log/' | relative_url }}).
 
@@ -167,10 +174,12 @@ disclosure. Four root causes, and what replaced each:
 
 ## What this does not protect you from
 
-- **A compromised root account.** Root owns the core.
-- **A vulnerability in the kernel's nftables subsystem.** That is below easywall.
-- **A legitimate administrator making a bad rule.** The audit log records it;
-  nothing prevents it.
+| | |
+|---|---|
+| A compromised root account | root owns the core |
+| A kernel nftables vulnerability | that is below easywall entirely |
+| An administrator writing a bad rule | the [audit log]({{ '/features/audit-log/' | relative_url }}) records it; nothing prevents it |
+| Anyone holding `session_key` | it signs the cookies, so it *is* a login. Keep it out of backups you share |
 
 ## Reporting a vulnerability
 
