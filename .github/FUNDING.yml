@@ -1,5 +1,9 @@
 # These are supported funding model platforms
 ---
+# The custom entry that used to sit here pointed at a payment handle built from
+# the maintainer's real name — in a public repository, rendered by GitHub as a
+# Sponsor button on every page of it, in a file nobody rereads after writing it
+# once. Same shape of leak as the private address that was in debian/control;
+# TestNoPersonalPaymentLinksAreTracked now guards against both.
 github: jp1337
-ko_fi: jpylypiw
-custom: ['https://paypal.me/JPylypiw']
+ko_fi: jp1337
