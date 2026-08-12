@@ -2,7 +2,7 @@ Source: easywall
 Section: net
 Priority: optional
 Maintainer: easywall maintainers <12394156+jp1337@users.noreply.github.com>
-# golang-go (>= 2:1.26~) is what the source actually needs: go.mod pins the
+# The golang-go floor below is what the source actually needs: go.mod pins the
 # toolchain to 1.26.5, and a build with GOTOOLCHAIN=local refuses anything older.
 # It said >= 1.21 since the 2.0.0 rewrite, which was already false — the web
 # process calls http.NewCrossOriginProtection, a Go 1.25 API. Debian trixie ships
