@@ -71,10 +71,10 @@ instead of a command line. [How it works →](https://easywall-project.org/archi
 </picture>
 
 ```bash
-# Debian / Ubuntu
-# amd64 — on arm64 (Raspberry Pi, arm64 VPS) swap amd64 for arm64
-wget https://github.com/jp1337/easywall/releases/latest/download/easywall_amd64.deb
-sudo dpkg -i easywall_amd64.deb && sudo apt-get install -f
+# Debian / Ubuntu — amd64 and arm64
+ARCH=$(dpkg --print-architecture)
+wget https://github.com/jp1337/easywall/releases/latest/download/easywall_$ARCH.deb
+sudo dpkg -i easywall_$ARCH.deb && sudo apt-get install -f
 
 # Docker
 git clone https://github.com/jp1337/easywall.git && cd easywall && docker compose up -d
@@ -85,7 +85,8 @@ make build && sudo make install
 sudo systemctl enable --now easywall-core easywall-web
 ```
 
-Then open `https://localhost:12227`. The first visit runs the setup wizard.
+Then open `https://localhost:12227`. The first visit
+[sets up the account and stages the first rules](https://easywall-project.org/installation/first-run/).
 
 ## What you get
 
@@ -119,45 +120,15 @@ Then open `https://localhost:12227`. The first visit runs the setup wizard.
 Correctness first: a firewall that quietly does less than it says is worse than
 one that does less and says so.
 
-**2.6 — proof, not counts.** The integration tests assert rule counts. A rule
-that dropped where it should accept, or matched the destination where it should
-match the source, would pass them. Moving to assertions on meaning is under way;
-next is sending real packets through a veth pair in the test namespace.
+| | |
+|---|---|
+| **2.6** | Integration tests that assert *meaning*, not rule counts |
+| **2.7** | Identity — a user in the socket protocol, then login events, then multiple accounts, then 2FA |
+| **2.8** | A REST API with token auth, ACME as an option, opt-in trusted reverse proxy |
+| **2.9** | An opt-in count of installations |
 
-**2.7 — identity.** The socket protocol carries no user, so every audit entry is
-attributed to `web` and logins are not recorded at all. A `user` field comes
-first, then login events, then multiple accounts, and only then 2FA/TOTP — a
-second factor on a single account in `web.toml` is not worth much.
-
-**2.8 — reach.** A REST API with token authentication for Ansible and scripting,
-built on the accounts from 2.7. Let's Encrypt/ACME as a strictly optional
-alternative to a reverse proxy; running without any outbound connection stays
-the default.
-
-**2.9 — knowing how many machines this runs on.** A critical bug matters
-differently at ten installations and at ten thousand, and right now nobody knows
-which this is. An **opt-in** count, off unless switched on, sending a random
-identifier generated on the machine plus the version — enough to count distinct
-installations and to say "the fix reached 80% of them", and not enough to
-describe anyone. What it sends will be printed verbatim in the documentation,
-and the switch will sit next to the update check rather than buried.
-
-Opt-in and not opt-out, because this page and `security.md` promise that the
-update check is the *only* outbound request, and because an administrative
-interface quietly reporting to its author is the thing easywall removed Google
-Fonts to avoid. A security tool that has to explain a surprising connection has
-already lost the argument.
-
-Worth checking first: the update check already reaches `api.github.com` daily
-from every installation that has not disabled it, and release assets record
-their own download counts. That is a usable lower bound today, for nothing.
-
-Done in 2.5: every rate limit is counted per source address (four modules held
-one counter for the whole machine, so an attacker could spend the budget and
-lock everyone else out), every switch on the options page reaches the firewall
-(17 of 31 did not), port forwarding goes the direction it says, rules that
-cannot become rules are refused instead of silently skipped, and the dashboard's
-"rules are live" is asked of the kernel rather than assumed.
+Why each comes when it does, and what the count would send:
+[Roadmap →](https://easywall-project.org/roadmap/)
 
 ## Getting help
 
