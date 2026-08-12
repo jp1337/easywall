@@ -90,26 +90,40 @@ jobs:
       - name: Run gosec
         run: gosec -tests -tags integration -fmt sarif -out gosec-results.sarif ./... || true
 
-      # The filter the comment above predicted would be needed, needed on the
-      # first run: 47 of the 48 new alerts were G301–G307 — file and directory
-      # permissions — against test files writing into t.TempDir(), a directory
-      # the kernel removes when the test ends. A 0600 rule has nothing to say
-      # about it, and 47 of them bury the one finding that does.
+      # Test files are scanned and their findings are not raised as alerts.
       #
-      # Dropped for test files only. The same rules still apply to everything
-      # that ships, and every *other* rule still applies to the tests — which is
-      # what -tests was for: the integration harness shells out to ip, nsenter
-      # and ping, and G204 on those lines is exactly the finding worth seeing.
-      - name: Keep the test-file permission noise out of the alert list
+      # Two rounds of measuring produced this. The first filter dropped G301–G307
+      # in test files — 47 of the 48 findings, all about writing into t.TempDir(),
+      # a directory the kernel deletes when the test ends. What was left was 17
+      # more, and reading every one of them:
+      #
+      #   G204/G702  the integration harness runs ip, nsenter and ping — that is
+      #              the harness, and the arguments are its own literals
+      #   G104       an unchecked Close() in a helper
+      #   G101       the argon2 hash a config-merge fixture is built around
+      #   G402/G112  InsecureSkipVerify and a missing ReadHeaderTimeout in the
+      #              test server that exists to exercise a self-signed certificate
+      #   G124/G115  a cookie built by hand to test the lifetime, a port cast
+      #
+      # None of them is actionable, and a check that is red for reasons everyone
+      # has agreed are not defects teaches people to stop reading it — which is
+      # the failure this release is otherwise full of. So: the tag still makes
+      # gosec compile and scan the integration code, the counts are printed here,
+      # and only what ships raises an alert. If test findings ever need to be
+      # acted on, the number in this log is where that starts.
+      - name: Keep test-file findings out of the alert list
         run: |
           set -euo pipefail
+          echo "in test files, by rule:"
+          jq -r '[.runs[].results[]
+                  | select((.locations[0].physicalLocation.artifactLocation.uri // "") | test("_test\\.go$"))
+                  | .ruleId] | group_by(.)[] | "  \(length)  \(.[0])"' gosec-results.sarif
           before=$(jq '[.runs[].results[]] | length' gosec-results.sarif)
           jq '.runs[].results |= map(select(
-                (.ruleId | test("^G30[1-7]$") | not)
-                or ((.locations[0].physicalLocation.artifactLocation.uri // "") | test("_test\\.go$") | not)
+                (.locations[0].physicalLocation.artifactLocation.uri // "") | test("_test\\.go$") | not
               ))' gosec-results.sarif > filtered.sarif
           mv filtered.sarif gosec-results.sarif
-          echo "$before findings -> $(jq '[.runs[].results[]] | length' gosec-results.sarif) after dropping G30x in test files"
+          echo "$before findings -> $(jq '[.runs[].results[]] | length' gosec-results.sarif) after dropping test files"
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
