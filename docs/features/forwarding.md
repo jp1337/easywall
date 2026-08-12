@@ -51,14 +51,11 @@ the port your [port rules]({{ '/features/ports/' | relative_url }}) must open.
 
 ## What it is not
 
-- **Not forwarding to another machine.** The kernel statement is `redirect`,
-  which retargets a port on this host. There is no field for a destination
-  address, and easywall writes no rule that can send traffic elsewhere.
-- **Not a way past the firewall.** The redirected packet still goes through the
-  input chain like any other, so the blacklist, the protection modules and the
-  port rules all apply to it.
-- **Not for traffic passing through.** Only packets addressed to this host are
-  redirected. The forward chain's policy is drop and easywall puts nothing in it.
+| | Why |
+|---|---|
+| **Not** forwarding to another machine | the kernel statement is `redirect`, which retargets a port on *this* host. There is no destination-address field, and easywall writes no rule that can send traffic elsewhere |
+| **Not** a way past the firewall | the redirected packet goes through the input chain like any other — blacklist, protection modules and port rules all apply |
+| **Not** for traffic passing through | only packets addressed to this host are redirected |
 
 ## Ports below 1024
 
@@ -75,9 +72,8 @@ on it, and the redirect will not say so.
 
 ## Nothing happens until you apply
 
-Saving stages the change. The running firewall is untouched until
-[Apply]({{ '/architecture/' | relative_url }}), and stays changed only if you
-confirm inside the window.
+Saving stages. It reaches the firewall on
+[Apply]({{ '/features/apply/' | relative_url }}).
 
 ## When it does not work
 

@@ -8,7 +8,7 @@ description: The whole rule set as one JSON file — for migration, for a backup
 
 The buttons sit top-right on the dashboard. Export downloads the **staged** rule set;
 import replaces it. Neither touches the running firewall — that still needs an
-[apply]({{ '/architecture/' | relative_url }}).
+[apply]({{ '/features/apply/' | relative_url }}).
 
 | | |
 |---|---|
@@ -46,21 +46,18 @@ rules of that kind.
 
 ## What gets rejected
 
-Import validates before staging anything. A file with one bad entry imports nothing.
+Import validates before staging anything. **A file with one bad entry imports
+nothing.**
 
-- A port outside 1–65535
-- Malformed CIDR, such as `192.168.1.1/33`
-- An address that does not parse
-- A forwarding protocol other than `tcp` or `udp`
-- A custom rule containing a newline or a semicolon. nft reads both as the end of
-  one command and the start of another, so such a "rule" is a second command —
-  and it would be run by the root daemon. The editor splits on newlines and
-  never produced one; a file can, so a file is checked for it
-- A custom rule `nft --check` rejects. The editor has always checked as you type;
-  imported rules were not checked at all
-- A file over **512 KB**. That is room for several thousand addresses; a rule set
-  larger than that is easier to place in `rules.json` directly than to push through a
-  browser upload
+| Refused | Example | Why |
+|---|---|---|
+| A port outside 1–65535 | `70000` | |
+| A malformed CIDR | `192.168.1.1/33` | |
+| An address that does not parse | `192.0.2.999` | |
+| A forwarding protocol that is not `tcp` or `udp` | `sctp` | |
+| A custom rule containing a newline or a semicolon | | nft reads both as the end of one command, so it would be a **second command run by the root daemon**. The editor splits on newlines and never produced one; a file can |
+| A custom rule `nft --check` rejects | | the editor has always checked as you type; imported rules were not checked at all |
+| A file over **512 KB** | | room for several thousand addresses. A larger set is easier to place in `rules.json` directly than to push through a browser upload |
 
 ## Worth doing
 

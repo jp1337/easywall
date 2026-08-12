@@ -28,55 +28,39 @@ Detection reads the interfaces named `docker*` or `br-*` and takes the CIDR of
 each. It runs **when rules are applied**, not continuously — a network created
 afterwards needs another apply, or an entry in `custom_networks`.
 
-> **The networks listed here are also what opens the `forward` chain.** Container
-> traffic is routed, not addressed to the host: out of the bridge, through the
-> forward hook, on to the world — and back the same way for a published port,
-> which Docker translates before easywall's chain sees it. easywall's `forward`
-> chain has `policy drop`, and until 2.5.0 it had no rules at all, which is not
-> neutrality: an empty base chain drops everything at its hook regardless of what
-> Docker's own chain has already accepted. Every arrangement below was dead.
-> Traffic with a source *or* a destination in one of these networks now crosses
-> that chain, and does so **whatever `routing.mode` is set to** — anything else
-> would take a host's containers off the network the first time it upgraded
-> without discovering the new key. See
-> [firewall filters]({{ '/features/filters/' | relative_url }}), and
-> [`[routing]`]({{ '/configuration/' | relative_url }}#routing) if this host routes
-> for some other reason as well.
+> **These networks are also what opens the `forward` chain.** Container traffic is
+> routed, not addressed to the host, and an empty base chain with `policy drop`
+> destroys it at the hook whatever Docker's own chain accepted — until 2.5.0 that
+> killed every arrangement below. Traffic with a source *or* destination in these
+> networks now crosses it **whatever `routing.mode` says**: anything else would take
+> a host's containers off the network on the first upgrade.
 
-> **The bogon filter and bridge networks get along.** Bridge ranges are RFC 1918,
-> which is exactly what that module drops — so it reads the networks listed here and
-> exempts them. Before it did, switching the filter on silently undid Docker
-> coexistence: the packet was dropped long before the rule allowing it was reached.
-> See [firewall filters]({{ '/features/filters/' | relative_url }}).
+> **The bogon filter exempts them.** Bridge ranges are RFC 1918, exactly what that
+> module drops. Before the exemption, switching it on silently undid coexistence.
+
+See [firewall filters]({{ '/features/filters/' | relative_url }}), and
+[`[routing]`]({{ '/configuration/' | relative_url }}#routing) if this host routes for
+some other reason as well.
 
 ## Three ways to run them together
 
-| | Setup | Container ports reachable from outside | Good for |
-|---|---|---|---|
-| **1** | `enabled = true` — *recommended* | yes, Docker publishes them | Most hosts |
-| **2** | `enabled = true`, Docker with `{"iptables": false}` | **only if you add a port rule** — and outbound needs a masquerade rule of your own | One firewall, one place to look |
-| **3** | `enabled = false` | no — and containers reach nothing outbound either | A host that runs no containers |
+| | Setup | Inbound to published ports | Outbound from containers | Good for |
+|---|---|---|---|---|
+| **1** | `enabled = true` — *recommended* | yes, Docker publishes them | works | most hosts |
+| **2** | `enabled = true`, Docker with `{"iptables": false}` | only with a [port rule]({{ '/features/ports/' | relative_url }}) per port | **needs a masquerade rule you write yourself** | one firewall, one place to look |
+| **3** | `enabled = false` | no | **no** | a host that runs no containers |
 
-> **Option 3 is "no containers", not "quiet containers".** `enabled = false` leaves
-> the `forward` chain closed, and a container's outbound traffic is routed through
-> it like any other. It used to read as though outbound-only containers were fine
-> under this setting; they were not, and under any of the other settings either.
+> **Option 3 is "no containers", not "quiet containers".** The `forward` chain stays
+> closed, and a container's outbound traffic is routed through it like any other. This
+> page used to read as though outbound-only containers were fine here. They are not.
 
-> **Option 2 has two sharp edges.** With `iptables: false` in
-> `/etc/docker/daemon.json`, `-p 80:80` no longer opens anything: every container
-> port you want reachable needs its own
-> [port rule]({{ '/features/ports/' | relative_url }}).
->
-> And **outbound stops working too**. This page used to say it kept working
-> "through Docker's NAT" — but Docker's NAT *is* iptables, and the setting removes
-> it. Measured against Docker 29.7.2 with a peer reachable only by leaving the
-> bridge: with the daemon as it comes, one `MASQUERADE` rule and seven `DOCKER`
-> filter rules, peer reachable; with `{"iptables": false}`, none of either, peer
-> unreachable. A container's packets leave with a `172.17.x.x` source and nothing
-> comes back. If you choose this option you have to supply the masquerade
-> yourself — easywall cannot do it for you, because
-> [custom rules]({{ '/features/custom-rules/' | relative_url }}) are appended to
-> its `input` chain and this needs a `postrouting` chain in a table of your own.
+> **Option 2, measured — not assumed.** Docker's NAT *is* iptables, and the setting
+> removes it. Against Docker 29.7.2, with a peer reachable only by leaving the bridge:
+> stock daemon → one `MASQUERADE` rule, seven `DOCKER` filter rules, peer reachable.
+> With `{"iptables": false}` → neither, peer unreachable; packets leave with a
+> `172.17.x.x` source and nothing comes back. easywall cannot supply the masquerade
+> for you: [custom rules]({{ '/features/custom-rules/' | relative_url }}) go into its
+> `input` chain, and this needs a `postrouting` chain in a table of your own.
 
 ## Checking it worked
 

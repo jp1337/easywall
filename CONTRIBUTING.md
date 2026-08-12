@@ -150,12 +150,31 @@ warnings are expected and are explained inside the file.
 
 ## Documentation
 
-Maximum information, minimum text. Reach for a diagram before a paragraph, a table
-before a list of sentences, and a screenshot before a description of the screen. A
-thorough page nobody finishes is worth less than a short one that gets read.
+There are two kinds, and they are kept apart on purpose.
 
-Diagrams are `.mmd` sources in `docs/_diagrams/`, rendered to committed SVGs — see the
-[README](docs/_diagrams/README.md) there for how to reference one.
+| | For | Where |
+|---|---|---|
+| **User documentation** | whoever runs easywall | `docs/` — published as easywall-project.org |
+| **Technical documentation** | whoever maintains this repository | [`docs-tech/`](docs-tech/) and [`CLAUDE.md`](CLAUDE.md) — **not** published |
+
+`docs/` is the entire Jekyll source, so nothing outside it can reach the site. That
+is what keeps the second kind unpublished, rather than a list of exclusions someone
+has to remember to extend, and `TestTheTechnicalDocsAreNotPublished` holds it.
+
+**User pages: maximum information, minimum text.** Reach for a diagram before a
+paragraph, a table before a list of sentences, and a screenshot before a description
+of a screen. A thorough page nobody finishes is worth less than a short one that gets
+read. Diagrams are `.mmd` sources in `docs/_diagrams/`, rendered to committed SVGs —
+see the [README](docs/_diagrams/README.md) there for how to reference one.
+
+**Technical pages: the rule *and* the incident behind it.** Without the incident a
+rule gets optimised away at the next rewrite — which is how the Debian package came
+to ship with no binaries in it. Never write a version number there; nothing updates
+it, and `go.mod` is one file away.
+
+A new page in the interface needs a page in `docs/`:
+`TestEveryPageIsDocumented` derives the list from the router and fails on a route it
+has never heard of.
 
 ## Dependencies and the Go toolchain
 
