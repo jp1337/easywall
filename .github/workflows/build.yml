@@ -219,9 +219,14 @@ jobs:
       - name: Check the web user can reach the core
         run: |
           set -euo pipefail
-          ls -l /run/easywall/core.sock
-          [ "$(stat -c '%U:%G' /run/easywall/core.sock)" = "root:easywall" ] || {
-            echo "::error::the control socket is $(stat -c '%U:%G' /run/easywall/core.sock), not root:easywall — easywall-web cannot connect"
+          # sudo for the same reason as the layout check: /run/easywall is 0750
+          # root:easywall and the runner is in neither, which is the arrangement
+          # being verified. Only the reading is privileged — the connection below
+          # is made as the easywall user, which is the thing under test.
+          sudo ls -l /run/easywall/core.sock
+          owner=$(sudo stat -c '%U:%G' /run/easywall/core.sock)
+          [ "$owner" = "root:easywall" ] || {
+            echo "::error::the control socket is $owner, not root:easywall — easywall-web cannot connect"
             exit 1
           }
           sudo -u easywall python3 - <<'PY'
@@ -241,7 +246,7 @@ jobs:
               sys.exit(1)
           print("the core answered the web user:", str(reply)[:80])
           PY
-          test -s /var/lib/easywall/rules.json || {
+          sudo test -s /var/lib/easywall/rules.json || {
             echo "::error::the core never wrote its rule store — it cannot reach /var/lib/easywall"
             exit 1
           }
