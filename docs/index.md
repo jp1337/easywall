@@ -84,10 +84,13 @@ every port; a blacklisted one is dropped before the whitelist is ever consulted.
 | You want to | Go to |
 |---|---|
 | Try it without installing anything | [Live demo ↗](https://easywall.wdkro.de) · [Demo mode]({{ '/installation/demo/' | relative_url }}) |
-| Install on Debian or Ubuntu | [.deb package]({{ '/installation/debian/' | relative_url }}) |
+| Install on Debian or Ubuntu — amd64 or arm64 | [.deb package]({{ '/installation/debian/' | relative_url }}) |
 | Run it in a container | [Docker]({{ '/installation/docker/' | relative_url }}) |
 | Build from source | [Manual install]({{ '/installation/manual/' | relative_url }}) |
+| Know what the setup page is asking | [First run]({{ '/installation/first-run/' | relative_url }}) |
+| Put rules into the kernel, safely | [Applying rules]({{ '/features/apply/' | relative_url }}) |
 | Understand the design | [Architecture]({{ '/architecture/' | relative_url }}) · [Security]({{ '/security/' | relative_url }}) |
+| See what is planned | [Roadmap]({{ '/roadmap/' | relative_url }}) |
 | Ask a question | [Discord ↗]({{ site.discord }}) · [GitHub issues ↗](https://github.com/jp1337/easywall/issues) |
 
 <section class="docs-cta" markdown="0">

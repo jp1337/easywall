@@ -48,28 +48,28 @@ it to **Current**, and **Backup** is what comes back if you do not confirm.
 {% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
    alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
-**Applying is reversible by doing nothing.** If the new rules cut your connection,
+**Applying is reversible by doing nothing.** If the new rules cut your connection
 you cannot click Confirm — and that is exactly what restores the previous set.
-Default window: 120 seconds, configurable from 10 to 3600.
 
-Stopping the core while a window is open counts as not confirming: the rules roll
-back before the daemon exits. A restart in those two minutes is an ordinary event,
-and it used to leave the unconfirmed set in place with nothing left to undo it.
+| | |
+|---|---|
+| Window | 120 seconds by default, 10 to 3600 |
+| Where the timer lives | the core daemon. Closing the tab or restarting `easywall-web` confirms nothing |
+| Stopping the core mid-window | counts as not confirming: the rules roll back before it exits |
+| The same idea as | `commit confirmed` on a Cisco router, or the `at now + 5 minutes; iptables -F` experienced operators type before a risky change — here it is the default rather than a habit |
 
-The same idea as `commit confirmed` on a Cisco router, or the `at now + 5 minutes;
-iptables -F` that experienced operators type before a risky change. Here it is the
-default path rather than a habit you have to remember.
+Step by step: [Applying rules]({{ '/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
 Fifteen message kinds, declared as Go structs on both sides. Adding an operation
 means adding a constant to both ends.
 
-One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}`, and
-the core re-encodes it to JSON and decodes it into the concrete type named by
-`rule_type`. An unknown `rule_type` is rejected, and since 2.5.0 the decoded
-rules are validated before they are stored — but the field itself is not typed
-at the protocol level, and this page used to claim it was.
+One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
+core re-encodes and decodes into the type named by `rule_type`. An unknown
+`rule_type` is rejected and the decoded rules are validated before they are stored
+— but the field is not typed at the protocol level, and this page used to claim the
+whole protocol was.
 
 | Command | Purpose |
 |---|---|
@@ -101,4 +101,7 @@ Full list: [`internal/shared/protocol.go`](https://github.com/jp1337/easywall/bl
 
 ---
 
-**Next:** [Configuration]({{ '/configuration/' | relative_url }}) · [Security]({{ '/security/' | relative_url }}) · [How rules are ordered]({{ '/features/filters/' | relative_url }})
+**Next:** [Applying rules]({{ '/features/apply/' | relative_url }}) ·
+[Configuration]({{ '/configuration/' | relative_url }}) ·
+[Security]({{ '/security/' | relative_url }}) ·
+[How rules are ordered]({{ '/features/filters/' | relative_url }})

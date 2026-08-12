@@ -7,45 +7,39 @@ description: The .deb package — two systemd units, config in /etc/easywall, do
 # Debian / Ubuntu
 
 ```bash
-wget https://github.com/jp1337/easywall/releases/latest/download/easywall_amd64.deb
-sudo dpkg -i easywall_amd64.deb && sudo apt-get install -f
+ARCH=$(dpkg --print-architecture)      # amd64 or arm64
+wget https://github.com/jp1337/easywall/releases/latest/download/easywall_$ARCH.deb
+sudo dpkg -i easywall_$ARCH.deb && sudo apt-get install -f
 ```
 
-Then open `https://<server>:12227`. The certificate is self-signed on first start, so
-the browser will warn — accept it, or [configure your own](#your-own-certificate).
+| Architecture | File | Typical host |
+|---|---|---|
+| `amd64` | `easywall_amd64.deb` | a VPS, a physical server |
+| `arm64` | `easywall_arm64.deb` | a Raspberry Pi, an arm64 VPS, Apple-silicon VMs |
 
-The setup wizard asks for two things: the account, and how this host should start
-out — which port SSH is on, whether 80 and 443 should be open, what happens to IPv6,
-and whether this installation may be counted. Everything but the account is *staged*:
-nothing reaches the firewall until you review it and apply, and an apply undoes itself
-unless you confirm it.
+The name never carries a version — that lives inside the package, where
+`dpkg -l easywall` and `apt policy easywall` read it from, so the command does not
+need editing for each release.
 
-The port easywall itself is served on is staged too, and the wizard says so. The
-firewall drops what it was not told to allow, this page included — a rule set without
-it makes the interface unreachable on the first apply.
+Those two are the whole list. If `dpkg --print-architecture` says anything else —
+`armhf` on a 32-bit Raspberry Pi image, for instance — there is no package for it and
+the download 404s; build [from source]({{ '/installation/manual/' | relative_url }})
+instead.
 
-The file is always `easywall_amd64.deb` — the version is inside the package, where
-`dpkg -l easywall` and `apt policy easywall` read it from, so the command above does
-not need editing for each release.
+Then open `https://<server>:12227` and complete the
+[setup]({{ '/installation/first-run/' | relative_url }}). The certificate is
+self-signed on first start, so the browser will warn — accept it, or
+[configure your own](#your-own-certificate).
 
-> **Every release before 2.5.0 was missing this file.** No release carried a `.deb` at
-> all — it was built by CI and kept as a seven-day artefact that needed a GitHub login
-> to fetch, so the documented install path for the platform easywall targets first had
-> never worked for anyone. The 2.5.0 package was attached to its release after the
-> fact; from 2.5.1 the release publishes it itself, and refuses to publish one that
-> does not contain both binaries, which is the other half of what was wrong with it.
+Both packages are built on a runner of their **own** architecture, never
+cross-compiled, and each is installed and started on that architecture in CI before
+it is published. The release refuses to publish a package whose `Architecture` field
+or whose binaries do not match the leg that built it.
 
-**On arm64** — a Raspberry Pi, an arm64 VPS — take `easywall_arm64.deb` instead:
-
-```bash
-wget https://github.com/jp1337/easywall/releases/latest/download/easywall_arm64.deb
-sudo dpkg -i easywall_arm64.deb && sudo apt-get install -f
-```
-
-Both packages are built on a runner of their own architecture, never cross-compiled, and
-each one is installed and started on that architecture in CI before it is published —
-the same checks the amd64 package goes through. The release refuses to publish a package
-whose `Architecture` field or whose binaries do not match the leg that built it.
+> **Every release before 2.5.0 was missing this file.** No release carried a `.deb`
+> at all — it was a CI artefact that expired after seven days and needed a GitHub
+> login, so the documented install path never worked for anyone. From 2.5.1 the
+> release publishes it and refuses to publish one without binaries in it.
 
 ## Where everything lives
 

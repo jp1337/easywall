@@ -56,9 +56,8 @@ The mark alone does nothing unless the module is switched on under
 
 ## Nothing happens until you apply
 
-Saving stages the change. The running firewall is untouched until
-[Apply]({{ '/architecture/' | relative_url }}), and stays changed only if you confirm
-inside the window. Deleting works the same way — the rule keeps working until applied.
+Saving stages. Deleting stages too — the rule keeps working until you
+[apply]({{ '/features/apply/' | relative_url }}).
 
 ## When it does not work
 

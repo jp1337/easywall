@@ -14,17 +14,15 @@ docker compose up -d
 
 Open `https://localhost:12227` and complete the setup wizard.
 
-> **`./config` changes owner on first start, and needs to.** The compose file
-> mounts it at `/etc/easywall`, which replaces the ownership the image sets — so
-> the files arrive belonging to whoever cloned the repository, in a directory the
-> container's `easywall` user cannot write. easywall-web has to write `web.toml`
-> (it generates the session key into it, and the wizard and the password page
-> rewrite it) and to create its certificate in `config/ssl/`. It could do neither:
-> the process exited before binding, supervisor restarted it for ever, and the
-> container reported healthy because the healthcheck only looked at the core's
-> socket. The entrypoint now puts that directory into the same shape the Debian
-> package installs — `web.toml` and `ssl/` to `easywall`, `easywall.toml` to
-> `root`, both `0600`. Editing them on the host afterwards needs `sudo`.
+Then complete the [setup]({{ '/installation/first-run/' | relative_url }}).
+
+> **`./config` changes owner on first start, and needs to.** The mount replaces the
+> ownership the image sets, so the files arrive belonging to whoever cloned the
+> repository — and `easywall-web` must write `web.toml` and create its certificate in
+> `config/ssl/`. It could do neither, and the container reported healthy anyway
+> because the healthcheck only looked at the core's socket. The entrypoint now puts
+> the directory into the shape the Debian package installs. **Editing those files on
+> the host afterwards needs `sudo`.**
 
 ## Where to pull from
 

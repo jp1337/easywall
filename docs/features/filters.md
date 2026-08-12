@@ -8,7 +8,18 @@ description: The protection modules — what each one drops, how to tune it, and
 
 Optional modules that harden the host beyond opening and closing ports. All of them
 are native nftables rules in `table inet easywall` — no subprocess, nothing to inject
-into. Toggling one is staged like any other change and takes effect on **Apply**.
+into. Toggling one is staged like any other change and takes effect on
+[Apply]({{ '/features/apply/' | relative_url }}).
+
+## Which to turn on
+
+The question most people arrive with. Details for each module are below.
+
+| Host | Turn on | Leave off |
+|---|---|---|
+| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop, unless you know your traffic |
+| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
+| Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/options" ext="png"
@@ -52,15 +63,12 @@ creates two more, and what they do has consequences worth knowing.
 | `output` | **accept** | Traffic this host sends. easywall does not filter it. |
 | `forward` | **drop** by default | Traffic this host would *route* — between two interfaces, out of a container, into a published container port. Governed by `[routing]` |
 
-> **`forward` is closed by default, and that is not the same as unfiltered.** A base
-> chain whose rules give no verdict falls through to its policy, so an empty chain
-> with `policy drop` drops everything at that hook — including packets another
-> table's forward chain has already accepted. A drop here is final: a forward chain
-> of your own in another table cannot overrule it, and
-> [custom rules]({{ '/features/custom-rules/' | relative_url }}) are appended to
-> `input`. On a plain server nothing is routed and this costs nothing. On a host
-> that routes — a container host, a VPN gateway — it stops the traffic dead, which
-> is what it did to every Docker container until 2.5.0.
+> **Closed is not the same as unfiltered.** A base chain whose rules give no verdict
+> falls through to its policy, so an empty `forward` chain with `policy drop` destroys
+> every routed packet at that hook — including ones another table has already
+> accepted. The drop is final: a forward chain of your own cannot overrule it, and
+> [custom rules]({{ '/features/custom-rules/' | relative_url }}) go into `input`.
+> Costs nothing on a plain server; stopped every Docker container dead until 2.5.0.
 
 Two things cross that chain:
 
@@ -86,16 +94,12 @@ Two things cross that chain:
 | **Connection limit** | Simultaneous connections from one source above its cap | `connection_limit_max` — 100 | off |
 | **TCP RST flood** | Inbound RST packets from one source above its rate | `tcp_rst_flood_limit` — 100/s | off |
 
-> **Every rate is counted per source address.** The kernel keeps one counter per
-> address, in a set whose entries expire when that source goes quiet, so a flood from
-> one host cannot consume the budget that keeps another host — or you — connected.
+> **Every rate is counted per source address** — one kernel counter per address, in a
+> set whose entries expire when that source goes quiet. A flood from one host cannot
+> spend the budget that keeps you connected.
 >
-> **This was not true before 2.5.0.** Four of these modules held a single counter for
-> all traffic, while the interface, this page and the JSON schema all described a
-> per-source rate. Five SSH connection attempts a minute from anywhere exhausted the
-> budget, and every further SSH connection was dropped, the administrator's included:
-> the module meant to prevent a lockout produced one, from a single attacker, at
-> negligible cost.
+> Not true before 2.5.0: four modules held a single counter for the whole machine, so
+> five SSH attempts a minute from anywhere locked out the administrator too.
 
 ### What the bogon filter drops
 
@@ -135,13 +139,10 @@ ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
 ...
 ```
 
-> **Still not for every host.** If you administer the machine from an RFC 1918
-> address, whitelist that address first — the exemption is what makes this filter
-> safe to switch on, and it only covers what is on the list when the rules are
-> applied.
->
-> **Not for a DHCP server either.** A client requesting a lease has no address yet and
-> sends from `0.0.0.0`, which this filter drops.
+| Before switching it on | Why |
+|---|---|
+| Whitelist the address you administer from, if it is RFC 1918 | the exemption only covers what is on the list when the rules are applied |
+| Not on a DHCP server | a client requesting a lease has no address yet and sends from `0.0.0.0`, which this filter drops |
 
 ## Traffic filtering
 
@@ -180,22 +181,13 @@ journalctl -k -f | grep easywall
 Each log rule sits directly in front of the drop it belongs to and carries the
 same match, so what appears in the log is exactly what was dropped.
 
-> **None of this worked before 2.5.0.** Eight of these switches produced no rule
-> at all, and the one that did carried no prefix: the log expression's `Key`
-> field is a bitmask over attribute indices and was being set to a bare
-> attribute number, so the kernel received an empty log group instead. The
+> **None of this worked before 2.5.0.** Eight switches produced no rule at all, and
+> the one that did carried no prefix — the log expression's `Key` field is a bitmask
+> and was set to a bare attribute number, so the kernel got an empty log group. The
 > command above matched nothing, whatever was switched on.
 
 This is the *kernel* log — packets. Administrative changes are in the
 [audit log]({{ '/features/audit-log/' | relative_url }}) instead.
 
-## Which to turn on
-
-| Host | Turn on | Leave off |
-|---|---|---|
-| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop, unless you know your traffic |
-| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
-| Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
-
 The interface writes the same `[firewall]` section you would edit by hand; every key
-is listed under [Configuration]({{ '/configuration/' | relative_url }}).
+is listed under [Configuration]({{ '/configuration/' | relative_url }}#firewall--protection-modules).

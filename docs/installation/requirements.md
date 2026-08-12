@@ -70,4 +70,5 @@ sudo ip6tables -F && sudo ip6tables -X
 **Next:** [Debian / Ubuntu]({{ '/installation/debian/' | relative_url }}) ·
 [Docker]({{ '/installation/docker/' | relative_url }}) ·
 [From source]({{ '/installation/manual/' | relative_url }}) ·
-[Demo mode]({{ '/installation/demo/' | relative_url }})
+[Demo mode]({{ '/installation/demo/' | relative_url }}) ·
+[First run]({{ '/installation/first-run/' | relative_url }})

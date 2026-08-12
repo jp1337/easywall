@@ -86,10 +86,10 @@ claiming your rules are valid.
 
 ## Nothing happens until you apply
 
-Saving stages the change, like every other page. A statement that passes the
-syntax check can still be refused by the kernel at apply time — a chain that does
-not exist, a set that is not defined — and an apply that fails rolls back to the
-previous rules.
+Saving stages, like every other page. Worth knowing here: a statement that passes
+the syntax check can still be refused by the **kernel** at
+[apply]({{ '/features/apply/' | relative_url }}) time — a chain that does not exist,
+a set that is not defined — and a failed apply rolls back to the previous rules.
 
 ## When it does not work
 
