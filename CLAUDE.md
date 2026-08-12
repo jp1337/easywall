@@ -12,7 +12,8 @@ Every apply reverts itself after 120 seconds unless it is confirmed.
 
 | | |
 |---|---|
-| `cmd/easywall-core`, `cmd/easywall-web` | the two entry points; both take `-config` and `-version`, nothing else |
+| `cmd/easywall-core`, `cmd/easywall-web` | the two entry points; both take `-config`, `-write-config` and `-version`, nothing else |
+| `config/` | the two commented TOML defaults — the files the package installs, `go:embed`ed by `config/embed.go` so `-write-config` can produce them. The only embed in the tree; no asset is embedded |
 | `internal/core/` | daemon, nftables rule building, the acceptance timer, the audit log |
 | `internal/web/` | HTTP handlers, sessions, i18n, the demo mock |
 | `internal/shared/` | the socket protocol, config structs, validation — and most of the repository's guard tests |

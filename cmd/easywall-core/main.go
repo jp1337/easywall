@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jp1337/easywall/config"
 	"github.com/jp1337/easywall/internal/core"
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -18,10 +19,25 @@ func main() {
 	// by the linker, and when that silently did nothing there was no way to see
 	// it from outside the binary.
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	// The documentation described this flag for a long time before it existed,
+	// and the command it published exited 2. It exists now: the commented
+	// default is embedded, so a host with nothing but this binary can produce
+	// one. It never overwrites.
+	writeConfig := flag.String("write-config", "",
+		"write a commented default configuration to this path and exit")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Println("easywall-core", shared.CurrentVersion)
+		return
+	}
+
+	if *writeConfig != "" {
+		if err := shared.WriteDefaultConfig(*writeConfig, config.Core); err != nil {
+			fmt.Fprintln(os.Stderr, "easywall-core:", err)
+			os.Exit(1)
+		}
+		fmt.Println("wrote", *writeConfig)
 		return
 	}
 
