@@ -93,6 +93,9 @@ func (d *Daemon) Start() error {
 	// Passing -1 for the owner asks only for the group to change, which the
 	// owner of a file may do for a group it belongs to without any capability.
 	// The unit puts the daemon in the easywall group for exactly that reason.
+	// #nosec G302 -- 0660 is the point of the socket, not an oversight: the web
+	// process runs as easywall and connecting needs write. Read the note above for
+	// what the group ownership is doing, and what happened when it was missing.
 	if err := os.Chmod(d.cfg.SocketPath, 0660); err != nil {
 		slog.Warn("could not chmod socket", "error", err)
 	}
@@ -440,6 +443,8 @@ func readAuditLog(path string, n int) ([]shared.AuditLogEntry, error) {
 // tailFile returns at most max bytes from the end of the file, and whether it
 // had to skip anything to do so.
 func tailFile(path string, max int64) ([]byte, bool, error) {
+	// #nosec G304 -- the only caller passes cfg.AuditLogPath(), built from log_dir
+	// in the daemon's own config. No request names a file to read.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, false, err

@@ -1418,7 +1418,7 @@ func cidrMatch(entry string, pos addrPos) []expr.Any {
 		family, offset, length, addr = unix.NFPROTO_IPV4, pos.v4, 4, ip4
 	}
 	mask := []byte(ipNet.Mask)
-	if uint32(len(mask)) != length || addr == nil {
+	if len(mask) != int(length) || addr == nil {
 		return nil
 	}
 
@@ -1791,16 +1791,10 @@ func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.F
 					Offset:       2, // dest port
 					Len:          2,
 				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{
-					byte(rule.SourcePort >> 8), // the incoming port
-					byte(rule.SourcePort),
-				}},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: portBytes(rule.SourcePort)}, // the incoming port
 				&expr.Immediate{
 					Register: 1,
-					Data: []byte{
-						byte(rule.DestPort >> 8), // the port that serves it
-						byte(rule.DestPort),
-					},
+					Data:     portBytes(rule.DestPort), // the port that serves it
 				},
 				&expr.Redir{
 					RegisterProtoMin: 1,
@@ -1845,6 +1839,8 @@ func parsePort(s string) uint16 {
 	if err != nil {
 		return 0
 	}
+	// #nosec G115 -- ParsePortNumber returned without error, which it only does
+	// for 1–65535. The bound is the line above.
 	return uint16(p)
 }
 
@@ -1869,12 +1865,36 @@ func buildPortExprs(port string) []expr.Any {
 				Offset:       2, // dest port
 				Len:          2,
 			},
-			&expr.Cmp{Op: expr.CmpOpGte, Register: 1, Data: []byte{byte(start >> 8), byte(start)}},
-			&expr.Cmp{Op: expr.CmpOpLte, Register: 1, Data: []byte{byte(end >> 8), byte(end)}},
+			&expr.Cmp{Op: expr.CmpOpGte, Register: 1, Data: portBytes(start)},
+			&expr.Cmp{Op: expr.CmpOpLte, Register: 1, Data: portBytes(end)},
 		}
 	}
 
 	return matchPortEq(parsePort(port))
+}
+
+// portBytes packs a port into the two bytes a netlink comparison expects, most
+// significant first — the wire order of a TCP or UDP header.
+//
+// It takes an int and bounds it *here* rather than trusting that something
+// upstream did. Apply refuses any rule set ValidateRules rejects and that bounds
+// every port to 1–65535, so nothing out of range reaches this today — but that
+// is a guarantee held three functions away from the conversion, and a silent
+// truncation is how port 70000 would become port 4464 in the kernel while the
+// interface still said 70000. Out of range yields port 0, which matches no real
+// packet: the same choice buildPortExprs already makes for a malformed range.
+//
+// One helper because this split was written out at seven call sites, and each
+// one was a conversion someone had to reason about separately.
+func portBytes(p int) []byte {
+	if p < 1 || p > 65535 {
+		return []byte{0, 0}
+	}
+	// #nosec G115 -- bounded three lines up, and both halves of the uint16 are
+	// written: this is the split the wire format asks for, not a truncation.
+	v := uint16(p)
+	// #nosec G115 -- the two halves of v, high byte first.
+	return []byte{byte(v >> 8), byte(v)}
 }
 
 // matchPortEq matches a single destination port.
@@ -1886,7 +1906,7 @@ func matchPortEq(p uint16) []expr.Any {
 			Offset:       2, // dest port
 			Len:          2,
 		},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(p >> 8), byte(p)}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: portBytes(int(p))},
 	}
 }
 
