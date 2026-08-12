@@ -261,7 +261,9 @@ jobs:
           code=$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:12227/firstrun)
           echo "GET /firstrun -> $code"
           [ "$code" = "200" ] || { echo "::error::the web interface did not come up"; exit 1; }
-          test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
+          # sudo again: ssl/ is 0750 easywall:easywall, so only the web user and
+          # root can see the certificate it generates — which is the point of it.
+          sudo test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
           if sudo -u easywall sh -c 'echo x >> /etc/easywall/easywall.toml' 2>/dev/null; then
             echo "::error::the web user can write the core's configuration"
             exit 1
