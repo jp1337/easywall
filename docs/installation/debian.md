@@ -24,7 +24,21 @@ The port easywall itself is served on is staged too, and the wizard says so. The
 firewall drops what it was not told to allow, this page included — a rule set without
 it makes the interface unreachable on the first apply.
 
-`arm64` packages are on the same release page.
+The file is always `easywall_amd64.deb` — the version is inside the package, where
+`dpkg -l easywall` and `apt policy easywall` read it from, so the command above does
+not need editing for each release.
+
+> **Every release before 2.5.0 was missing this file.** No release carried a `.deb` at
+> all — it was built by CI and kept as a seven-day artefact that needed a GitHub login
+> to fetch, so the documented install path for the platform easywall targets first had
+> never worked for anyone. The 2.5.0 package was attached to its release after the
+> fact; from 2.5.1 the release publishes it itself, and refuses to publish one that
+> does not contain both binaries, which is the other half of what was wrong with it.
+
+**On arm64**, take `easywall_<version>_linux_arm64.tar.gz` from the same release page,
+or build from source. The package is amd64 only for now: cross-building it is not
+exercised anywhere in CI, and this page has already spent a release promising a file
+that was not there.
 
 ## Where everything lives
 

@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The documented Debian install command has always been a 404.** `installation/debian.md` tells operators to `wget .../releases/latest/download/easywall_amd64.deb`, and no release has ever carried a `.deb` — v2.5.0, v2.4.2, v2.4.1, v2.4.0 and v2.3.0 all hold two tarballs and a checksum file. The package was built by the Build workflow and kept as a CI artefact, which expires after seven days and cannot be fetched without a GitHub login. So the install path for the platform easywall targets first has never worked, on top of the package containing no binaries when it was built at all. The release now builds it with `dpkg-buildpackage` — the same `debian/` definition the Build workflow installs and checks on every pull request, deliberately not a second description in `.goreleaser.yaml` — verifies the artefact contains both binaries and carries the tag's version, and uploads it as `easywall_amd64.deb`. The v2.5.0 release was given its package after the fact. The page's claim that arm64 packages are "on the same release page" was untrue as well and now points at the tarball, because no cross-build of the package is exercised anywhere
+- **The maintainer's private address was in the packaging.** `debian/control` and two `debian/changelog` sign-offs carried a personal Gmail address, in a public repository, since the 2.0.0 rewrite in April. Replaced with a GitHub noreply address, which does the same job and is public by construction. A test walks every tracked file and fails on any address that is not a noreply or a reserved documentation domain, so the next changelog entry copied from the one above it cannot bring it back
+
 ## [2.5.0] — 2026-08-11
 
 ### Fixed
