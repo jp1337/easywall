@@ -72,30 +72,27 @@ sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 
 ## Configure
 
-One secret is needed — the key that signs session cookies:
+Both binaries carry their own commented default and will write it out. Neither
+overwrites an existing file.
 
 ```bash
-sudo tee /etc/easywall/web.toml > /dev/null <<EOF
-bind_addr   = "0.0.0.0:12227"
-socket_path = "/run/easywall/core.sock"
-ssl_dir     = "/etc/easywall/ssl"
-data_dir    = "/var/lib/easywall"
-language    = "en"
-session_key = "$(openssl rand -hex 32)"
-username    = ""
-password    = ""
-[tls]
-cert = ""
-key  = ""
-EOF
+sudo easywall-web  --write-config /etc/easywall/web.toml
+sudo chown easywall:easywall      /etc/easywall/web.toml
 
-sudo chown easywall:easywall /etc/easywall/web.toml
-sudo chmod 0600              /etc/easywall/web.toml
+sudo easywall-core --write-config /etc/easywall/easywall.toml
 ```
 
-Leave `session_key` out and easywall generates one on first start and writes it
-back — but generating it here is better, because then it exists before the port
-is ever open.
+Both land as `0600`; the `chown` is what makes `web.toml` writable by the process
+that has to rewrite it. Every key is explained in
+[Configuration]({{ '/configuration/' | relative_url }}).
+
+The session key ships as an obvious placeholder and easywall replaces it on first
+start. Generating it yourself is better — then it exists before the port is ever
+open:
+
+```bash
+sudo sed -i "s|CHANGE_ME[A-Z0-9_]*|$(openssl rand -hex 32)|" /etc/easywall/web.toml
+```
 
 > **No `csrf_key` is needed.** CSRF protection is Go 1.25's
 > `net/http.CrossOriginProtection`, which checks `Origin` and `Sec-Fetch-Site` instead

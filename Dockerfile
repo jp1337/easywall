@@ -55,8 +55,8 @@ COPY locales/ /usr/share/easywall/locales/
 # Default configs — can be overridden with a bind mount, which is why a pristine
 # copy stays here as well: a bind mount of an empty directory brings no
 # configuration with it, and the entrypoint installs these into it.
-COPY config/  /etc/easywall/
-COPY config/  /usr/share/easywall/config/
+COPY config/*.toml /etc/easywall/
+COPY config/*.toml /usr/share/easywall/config/
 
 # Runtime directories
 # Ownership mirrors the Debian layout, and for the same reason: /etc/easywall

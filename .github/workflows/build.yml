@@ -41,9 +41,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # No npm: this job builds two Go binaries and uploads them. Nothing is
-      # embedded — there is no go:embed in the tree, the assets are read from
-      # disk at runtime — so a stylesheet has no part in it.
+      # No npm: this job builds two Go binaries and uploads them. No asset is
+      # embedded — templates, locales and stylesheets are read from disk at
+      # runtime — so a stylesheet has no part in it. The one go:embed in the
+      # tree is config/embed.go, which carries the two commented TOML defaults
+      # that --write-config produces, and npm has nothing to do with those.
       - name: Download dependencies
         run: go mod download
 

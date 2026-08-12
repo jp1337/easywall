@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jp1337/easywall/config"
 	"github.com/jp1337/easywall/internal/shared"
 	"github.com/jp1337/easywall/internal/web"
 )
@@ -16,10 +17,24 @@ func main() {
 	configPath := flag.String("config", "/etc/easywall/web.toml", "path to web config file")
 	// So a build can be checked rather than assumed — see easywall-core.
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	// See easywall-core: the commented default is embedded and this never
+	// overwrites, which matters more here — web.toml holds the session key and
+	// the password hash.
+	writeConfig := flag.String("write-config", "",
+		"write a commented default configuration to this path and exit")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Println("easywall-web", shared.CurrentVersion)
+		return
+	}
+
+	if *writeConfig != "" {
+		if err := shared.WriteDefaultConfig(*writeConfig, config.Web); err != nil {
+			fmt.Fprintln(os.Stderr, "easywall-web:", err)
+			os.Exit(1)
+		}
+		fmt.Println("wrote", *writeConfig)
 		return
 	}
 

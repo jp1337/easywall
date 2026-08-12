@@ -28,18 +28,27 @@ The split is the point: the web process rewrites its own file — the wizard and
 password page write into it — and must not be able to touch the one the root daemon
 reads.
 
-The package installs both, already filled in. The commented originals are
-[`config/easywall.toml`](https://github.com/jp1337/easywall/blob/main/config/easywall.toml)
-and [`config/web.toml`](https://github.com/jp1337/easywall/blob/main/config/web.toml)
-in the repository.
+The package and the container install both, already filled in. Either binary can
+also write a commented default — it carries one, so this works on a host that has
+nothing but the binary:
+
+```bash
+sudo easywall-core --write-config /etc/easywall/easywall.toml
+sudo easywall-web  --write-config /etc/easywall/web.toml
+```
+
+**It never overwrites.** Both paths hold a working firewall's settings once
+easywall is running, and `web.toml` also holds the session key and the password
+hash; pointed at a file that exists, the command says so and changes nothing.
 
 ## The command line
 
-Both binaries take two flags and nothing else.
+Three flags, and nothing else.
 
 | | |
 |---|---|
 | `-config <path>` | which file to read. Defaults to `/etc/easywall/easywall.toml` and `/etc/easywall/web.toml` |
+| `-write-config <path>` | write the commented default to that path, `0600`, and exit. Refuses if the file exists, and does not create the directory |
 | `-version` | print the version and exit — what the binary was actually built as |
 
 ```bash
