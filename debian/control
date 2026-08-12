@@ -1,7 +1,7 @@
 Source: easywall
 Section: net
 Priority: optional
-Maintainer: Jochen Pylypiw <jochen.pylypiw@googlemail.com>
+Maintainer: easywall maintainers <12394156+jp1337@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21)
 Standards-Version: 4.6.2
 Homepage: https://easywall-project.org

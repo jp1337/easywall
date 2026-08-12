@@ -16,7 +16,7 @@ easywall (2.5.0) unstable; urgency=high
   * Firewall rule ordering, per-source rate limiting, logging, the acceptance
     window, first-run wizard and Debian layout fixes — see CHANGELOG.md
 
- -- Jochen Pylypiw <jochen.pylypiw@googlemail.com>  Tue, 11 Aug 2026 00:00:00 +0000
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Tue, 11 Aug 2026 00:00:00 +0000
 
 easywall (2.0.0) unstable; urgency=medium
 
@@ -34,4 +34,4 @@ easywall (2.0.0) unstable; urgency=medium
   * logrotate config for audit log
   * CI: GitHub Actions, Dependabot, CodeQL, govulncheck
 
- -- Jochen Pylypiw <jochen.pylypiw@googlemail.com>  Fri, 25 Apr 2026 00:00:00 +0000
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Fri, 25 Apr 2026 00:00:00 +0000
