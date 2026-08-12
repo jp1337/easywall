@@ -9,7 +9,7 @@ started and what we expect from contributions.
 git clone https://github.com/jp1337/easywall.git
 cd easywall
 
-# Install Go 1.25+
+# Install Go 1.26+  (the toolchain go.mod pins; workflows read it from there)
 # https://go.dev/dl/
 
 # Download dependencies
@@ -156,6 +156,25 @@ thorough page nobody finishes is worth less than a short one that gets read.
 
 Diagrams are `.mmd` sources in `docs/_diagrams/`, rendered to committed SVGs — see the
 [README](docs/_diagrams/README.md) there for how to reference one.
+
+## Dependencies and the Go toolchain
+
+Renovate raises the update pull requests; there is no `dependabot.yml`. Patch updates
+merge themselves once CI is green, minor and major ones wait for a person.
+
+**The Go toolchain lives in exactly one place: the `toolchain` line in `go.mod`.**
+`actions/setup-go` reads it in preference to the `go` directive, so no workflow spells a
+version out — they all say `go-version-file: go.mod`. Four other places quote that
+version (the `Dockerfile` tag, `debian/control`, the install instructions, the
+install-choice diagram) and Renovate moves all of them in one pull request.
+
+`TestGoToolchainIsTheSameEverywhere` fails if any of them disagree. It exists because
+they did: the Dockerfile spent months on Go 1.26 while every test ran on 1.25, and the
+only tool watching could read a Docker tag and nothing else.
+
+The `go` directive is a different thing and moves for a different reason — it is the
+oldest Go this code compiles with, so it changes when the code starts using a newer API,
+not when a new Go appears.
 
 ## Security Issues
 

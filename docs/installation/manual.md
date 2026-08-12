@@ -11,7 +11,9 @@ For distributions without a package. Check
 
 ## Build
 
-Go 1.25+ on the **build** machine — not on the target.
+Go 1.26+ on the **build** machine — not on the target. That is the toolchain
+`go.mod` pins; on Debian trixie it comes from backports, since trixie itself ships
+Go 1.24.
 
 ```bash
 git clone https://github.com/jp1337/easywall.git

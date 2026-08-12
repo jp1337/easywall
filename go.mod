@@ -1,6 +1,15 @@
 module github.com/jp1337/easywall
 
+// The minimum this code needs: internal/web/server.go calls
+// http.NewCrossOriginProtection, which arrived in Go 1.25. It moves when the code
+// starts using a newer API, and not before — raising it costs every consumer.
 go 1.25.0
+
+// What we build with. actions/setup-go reads this in preference to the directive
+// above, so every workflow, the release and the Debian package compile with
+// exactly this toolchain; Renovate keeps the line current on its own, which is
+// the whole reason it is here rather than spelled out in ten workflow steps.
+toolchain go1.26.5
 
 require (
 	github.com/BurntSushi/toml v1.6.0
