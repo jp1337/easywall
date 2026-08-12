@@ -1,3 +1,14 @@
+easywall (2.5.1) unstable; urgency=medium
+
+  * Fix: the .deb is published on the release. The documented install command
+    fetched it from the releases page, where no release has ever carried one —
+    it existed only as a seven-day CI artefact behind a GitHub login. The
+    release now builds it from this debian/ directory, checks the artefact
+    holds both binaries and the tag's version, and uploads it
+  * Fix: the maintainer field no longer carries a private address
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Wed, 12 Aug 2026 00:00:00 +0000
+
 easywall (2.5.0) unstable; urgency=high
 
   * Fix: the packaged core daemon could not talk to the web interface at all.

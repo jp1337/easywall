@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.5.1] — 2026-08-12
 
 ### Fixed
 
@@ -236,6 +236,7 @@ Eight statements that were not true, several of them security-relevant:
 
 Also now stated rather than omitted: the audit log's `detail` column is empty for every save and apply, so the column that should answer *what changed* is almost always a dash.
 
+[2.5.1]: https://github.com/jp1337/easywall/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/jp1337/easywall/compare/v2.4.2...v2.5.0
 [2.4.2]: https://github.com/jp1337/easywall/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/jp1337/easywall/compare/v2.4.0...v2.4.1
