@@ -1,6 +1,51 @@
 package shared
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
+
+// NftTimeout bounds every call the core makes to the nft binary.
+//
+// It lives here because the web process has to know it. Two commands run nft
+// while the caller waits — VALIDATE_CUSTOM and IMPORT_RULES — so the client's
+// deadline has to be longer than this one, or the client gives up on work the
+// core then finishes. See CommandTimeout.
+const NftTimeout = 30 * time.Second
+
+// defaultCommandTimeout is how long the web process waits for a command that
+// only touches files. Generous for a local socket and a few kilobytes of JSON.
+const defaultCommandTimeout = 5 * time.Second
+
+// CommandTimeout is how long easywall-web waits for a reply to cmd.
+//
+// One number for all fifteen commands was wrong, and it was wrong in the
+// direction that loses data. IMPORT_RULES runs every custom rule past
+// `nft --check` before storing anything, which the core bounds at NftTimeout —
+// six times the five seconds the client allowed. Measured against a real socket
+// with an nft that takes eight seconds:
+//
+//	POST /import      -> HTTP 303 after 5.007s
+//	web log           -> import rules error: read response: i/o timeout
+//	the operator sees -> the import failed
+//	the audit log     -> rules_imported
+//	staged custom     -> [] before, ["tcp dport 8443 accept"] after
+//
+// So the import succeeded, the staged rule set was replaced, and the interface
+// said it had not been — and the obvious next move after "import failed" is to
+// try again or to apply, on top of a rule set that is not the one on screen.
+//
+// The two nft-backed commands get NftTimeout plus room for the core's own work
+// either side of it; everything else keeps the short deadline, because a status
+// poll that hangs for half a minute is its own problem.
+func CommandTimeout(cmd CommandType) time.Duration {
+	switch cmd {
+	case CmdImportRules, CmdValidateCustom:
+		return NftTimeout + defaultCommandTimeout
+	default:
+		return defaultCommandTimeout
+	}
+}
 
 // CommandType identifies which operation the core daemon should perform.
 type CommandType string
