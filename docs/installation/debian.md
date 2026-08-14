@@ -49,8 +49,26 @@ or whose binaries do not match the leg that built it.
 | `/etc/easywall/web.toml` | web: auth, TLS, language, bind address |
 | `/var/lib/easywall/rules.json` | the three rule sets |
 | `/var/log/easywall/audit.log` | [audit log]({{ '/features/audit-log/' | relative_url }}), rotated daily |
+| `/etc/easywall/*.toml.template` | the commented defaults the package carries |
 
 Full key reference: [Configuration]({{ '/configuration/' | relative_url }}).
+
+**Upgrades never touch your two `.toml` files.** The package installs the
+templates and creates each real file only when it is missing, so neither is a
+dpkg conffile and an upgrade cannot prompt about one or overwrite it. easywall
+edits both itself — the settings pages write `easywall.toml`, the wizard and the
+password page write `web.toml` — and a file a program rewrites has no business
+being managed by the package manager. The templates are also where to look for a
+key a newer release added: they are replaced on upgrade, your files are not.
+
+To start over from a default, delete the file and reinstall the package, or copy
+the template yourself:
+
+```bash
+sudo cp /etc/easywall/easywall.toml.template /etc/easywall/easywall.toml
+sudo chown root:root /etc/easywall/easywall.toml && sudo chmod 600 /etc/easywall/easywall.toml
+sudo systemctl restart easywall-core
+```
 
 ## Running it
 
