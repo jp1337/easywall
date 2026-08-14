@@ -28,9 +28,12 @@ The split is the point: the web process rewrites its own file — the wizard and
 password page write into it — and must not be able to touch the one the root daemon
 reads.
 
-The package and the container install both, already filled in. Either binary can
-also write a commented default — it carries one, so this works on a host that has
-nothing but the binary:
+The package and the container install both, already filled in — from
+`*.toml.template`, created once and never touched again, because easywall edits
+both files itself and a file a program rewrites must not be managed by the
+package manager. An upgrade replaces the templates and leaves your two files
+alone. Either binary can also write a commented default — it carries one, so this
+works on a host that has nothing but the binary:
 
 ```bash
 sudo easywall-core --write-config /etc/easywall/easywall.toml

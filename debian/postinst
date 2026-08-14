@@ -55,11 +55,25 @@ case "$1" in
     chown easywall:easywall /etc/easywall/web.toml
     chmod 0600 /etc/easywall/web.toml
 
-    # ── The core's config stays root-only ────────────────────────────────
-    if [ -f /etc/easywall/easywall.toml ]; then
-      chown root:root /etc/easywall/easywall.toml
-      chmod 0600 /etc/easywall/easywall.toml
+    # ── Generate easywall.toml from template if not already present ──────
+    #
+    # Installed from a template for the same reason web.toml is, and it took
+    # longer to notice: easywall rewrites this file every time a setting is
+    # saved, so shipping it under its own name made it a dpkg conffile that a
+    # script modifies. An upgrade that also changed the shipped default then
+    # asked about it, and an unattended one answered EOF — leaving the package
+    # "unpacked" rather than "installed", with postinst unrun and the services
+    # never restarted. See debian/rules.
+    #
+    # Existing installations keep the file they already have: it is not created
+    # when one is there, and dpkg no longer tracks it either way.
+    if [ ! -f /etc/easywall/easywall.toml ]; then
+      cp /etc/easywall/easywall.toml.template /etc/easywall/easywall.toml
     fi
+
+    # ── The core's config stays root-only ────────────────────────────────
+    chown root:root /etc/easywall/easywall.toml
+    chmod 0600 /etc/easywall/easywall.toml
 
     # ── Enable and start services ─────────────────────────────────────────
     if [ -d /run/systemd/system ]; then
