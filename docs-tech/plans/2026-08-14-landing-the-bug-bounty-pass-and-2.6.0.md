@@ -17,11 +17,13 @@
 - **Conventional Commits**, per `CONTRIBUTING.md`: `fix`, `feat`, `security`, `docs`, `chore`, `refactor`, `test`. Scope in parentheses.
 - **Every commit carries its own `CHANGELOG.md` paragraph**, its tests and its documentation. A commit that changes behaviour without its changelog line is incomplete.
 - **Every commit must build**: `go build ./... && go vet ./...` at each one, enforced once over the series with `git rebase --exec`.
-- **Commit message trailers** — every commit ends with:
-  ```
-  Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM
-  ```
+- **Commit message trailers** — every commit ends with the same two-line
+  `Co-Authored-By` / `Claude-Session` block the commits already on this branch
+  carry. Copy it verbatim from `git log -1 --pretty=%B | tail -2`; `<TRAILERS>`
+  in the commands below stands for exactly those two lines. It is not spelled
+  out here because `TestNoPersonalEmailAddressesAreTracked` refuses that address
+  in a tracked file — in commit metadata it is fine, in file content it is not,
+  and this plan is a tracked file.
 - **Never write a version number into `docs-tech/`.** Nothing updates it there.
 - **The snapshot directory** is `$SNAP` throughout:
   `/tmp/claude-1000/-var-home-jpy-projects-easywall/20bb8b7d-794d-4f61-88f8-b42eb031a4e8/scratchpad/final`
@@ -190,8 +192,7 @@ default stopped at the conffile prompt and left the package 'install ok
 unpacked': new binaries on disk, postinst never run, the old processes still
 serving. web.toml has had the template arrangement all along, for this reason.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 - [ ] **Step 5: Verify the tree still builds**
@@ -237,8 +238,7 @@ staged rule set had been replaced and the interface reported the import as
 failed — and the next move after that is to retry, or to apply, on top of a
 set that is not the one on screen.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 - [ ] **Step 4: Verify**
@@ -311,8 +311,7 @@ including the two log limits nothing validated at all. Out of range in the
 file is clamped and said out loud; out of range from the interface is refused
 with the key named.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -352,8 +351,7 @@ reported as three, including a decoy(0) — a chain that is not in that table,
 reported as existing and empty, because the lookup failed and the count kept
 its zero value. This file is what an operator opens after a lockout.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 - [ ] **Step 3: Verify**
@@ -422,8 +420,7 @@ as it did; only the method changed. check:ui now drives the button rather than
 the URL, because a template that goes back to an anchor leaves every Go test
 green.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -520,8 +517,7 @@ drop policy without a word.
 shared.ValidateNetworkList is the one definition now; comments and blanks are
 skipped, as everywhere else a list is typed by hand.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -560,8 +556,7 @@ not sign in', which reads as a broken login page. CI never saw it: a fresh
 runner each time. So it was a trap set for whoever ran the checks locally
 twice while working on something.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -597,8 +592,7 @@ can be removed, and the failure would be silent. The unit would fall back to
 the manager defaults and a crash-looping firewall daemon would keep restarting
 instead of stopping.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -658,8 +652,7 @@ sources and the same mermaid. The digest could not see it, so --check called
 them current. Inter is embedded and awaited now, and the font is part of the
 digest.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -727,8 +720,7 @@ changed token would have left fourteen committed pictures in the old palette
 with check:diagrams still calling them current — the digest covers the source
 and the mermaid version, not the colours. Each was watched red.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -788,8 +780,7 @@ Acceptance.Start promised an error it never returns, which made the error
 check at its one call site read as the guard against a second apply — that is
 beginApply.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 ```
 
 ---
@@ -1051,8 +1042,7 @@ A minor, because it carries features: --write-config, the arm64 package, and
 four documented pages the interface already had. The roadmap's themes each
 move up one number — proof-not-counts is 2.7.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_019GDuzEucHPoB2cBmFYSiPM"
+<TRAILERS>"
 git push
 ```
 
