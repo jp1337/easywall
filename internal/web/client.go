@@ -10,7 +10,9 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-const clientTimeout = 5 * time.Second
+// dialTimeout bounds only reaching the socket. Connecting to a local Unix
+// socket is immediate or it is not going to happen, whatever the command is.
+const dialTimeout = 5 * time.Second
 
 // CoreClient communicates with the easywall-core daemon over a Unix socket,
 // or — when demo is non-nil — with an in-memory mock for the public demo
@@ -45,12 +47,16 @@ func (c *CoreClient) Send(cmd shared.Command) (shared.Response, error) {
 	if c.demo != nil {
 		return c.demo.Send(cmd), nil
 	}
-	conn, err := net.DialTimeout("unix", c.socketPath, clientTimeout)
+	conn, err := net.DialTimeout("unix", c.socketPath, dialTimeout)
 	if err != nil {
 		return shared.Response{}, fmt.Errorf("connect to core: %w", err)
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(clientTimeout))
+	// Per command, not one number for all fifteen. Two of them run nft while
+	// the caller waits and the core bounds that at shared.NftTimeout, so a flat
+	// five seconds meant giving up on work the core went on to finish — see
+	// shared.CommandTimeout for the import that reported failure and succeeded.
+	_ = conn.SetDeadline(time.Now().Add(shared.CommandTimeout(cmd.Type)))
 
 	out, err := json.Marshal(cmd)
 	if err != nil {

@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
   `unpacked` means dpkg stopped at the prompt and **postinst never ran**: the new binaries were on disk and the services were never restarted. Any upgrade path that does not pass `--force-confold` takes it, and a package may not assume the administrator's does. It ships as `easywall.toml.template` now and postinst copies it into place when there is none — the arrangement `web.toml` has always had, for exactly this reason. Verified across the change in the same container: upgrading from a 2.5.1 that *did* carry the conffile leaves the operator's file untouched at `root:root 0600` with their settings intact, says nothing, and ends `install ok installed`; a fresh install produces the same layout the Build workflow asserts. `TestNeitherConfigIsShippedAsAConffile` keeps both files out of the conffile list
+- **An import that succeeded was reported as failed.** The web process used one five-second deadline for all fifteen socket commands, and `IMPORT_RULES` runs every custom rule past `nft --check` before storing anything — which the core bounds at thirty seconds. Measured through a real socket with an nft that takes eight:
+
+  ```
+  POST /import      -> HTTP 303 after 5.007s
+  web log           -> import rules error: read response: i/o timeout
+  the operator sees -> the import failed
+  the audit log     -> rules_imported
+  staged custom     -> [] before, ["tcp dport 8443 accept"] after
+  ```
+
+  So the staged rule set had been replaced and the interface said it had not — and the obvious next move after "import failed" is to try again, or to apply, on top of a set that is not the one on screen. The deadline is per command now (`shared.CommandTimeout`), derived from the same `NftTimeout` the core enforces, so the client cannot give up on work the core will finish; a status poll keeps the short one. The same harness now reports *Rules imported successfully*
 - **The configuration reference gave the wrong permissions for `web.toml`.** It said `root:easywall 0640`; `debian/postinst` sets `easywall:easywall 0600`, and the Build workflow asserts exactly that on a freshly installed package. Anyone following the page would have taken the file away from the process that has to rewrite it
 - **The manual-install page created a data directory the daemon cannot write.** `install -d -m 0750 -o easywall -g easywall /var/lib/easywall` — the same layout that made a packaged installation useless before 2.5.0, for the same reason: the unit reduces the core to `CAP_NET_ADMIN`, which also removes `CAP_DAC_OVERRIDE`, so root cannot enter a directory it does not own and `rules.json` is never written. Now `0770 root:easywall`, matching the package
 - **The audit log's `user` column was documented twice, and once wrongly.** One line called it "the account that made the change" while another on the same page said every entry is attributed to `web` — and the JSON examples on two pages showed `"user":"admin"`. The code writes the literal `web` at every call site, because the socket protocol carries no identity. The column names the process, not the person, and the pages say so once
