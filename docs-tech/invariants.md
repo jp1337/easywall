@@ -49,6 +49,7 @@ The background is in [dependencies](dependencies.md).
 | `TestGermanTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
 | `TestMarkupStringsAreRenderedThroughRichText` | a message with a link or a `code` span stays one message |
 | `TestClientStringsCoverWhatAppJSAsksFor` | text `app.js` builds has its key in `clientStringKeys` |
+| `TestClientStringsCarryNoMarkupAppJSCannotRender` | a string inlined for `app.js` has no `` ` `` or `*` — it escapes them, so the markers would be shown literally |
 | `TestTemplateClassesExistInStylesheet` | a template does not name a class Tailwind no longer generates |
 | `TestDocsStylesheetKeepsLoadBearingRules`, `…CodeBlockHasASingleFrame`, `…InlineCodeIsNotThemeScoped` | the documentation site's stylesheet after a Tailwind rebuild |
 | `TestVersionedStaticAssetsCarryTheReleaseInTheirURL`, `TestStaticFilesSayHowLongTheyMayBeKept` | an upgrade actually changes the stylesheet URL |
@@ -68,6 +69,8 @@ where the page looks right on the machine that has the old file cached.
 | `TestCoreWritesItsFilesForRootOnly` | the audit log and the last-apply marker are `0600` | |
 | `TestShippedConfigsMatchTheStructsTheyConfigure` | `config/*.toml` — what the package installs — still parses | `config/easywall.toml` shipped the obsolete `ipv6.enabled` a release after `mode` replaced it |
 | `TestNoPersonalEmailAddressesAreTracked` | no personal address in any tracked file | one was in `debian/control` and two changelog sign-offs, in a public repository, for four months |
+| `TestTheNetworkEditorRefusesExactlyWhatTheCoreRefuses` | the Network page and `shared.ValidateNetworkList` accept the same set | they were three different sets — the editor's, the core's and the demo's. A blank line between two networks, a `#` note, or a bare address passed the page and was refused by the core, and the operator was told to *check core connection* |
+| `TestABadNetworkInTheConfigFileStopsTheDaemon` | `docker.custom_networks` and `routing.networks` are validated when read, not only when saved | a hand-edited `10.9.0.0-24` started the daemon with no warning and produced no rule — a network listed as routable, destroyed by the forward policy |
 | `TestSnapshotAttributesEachChainToItsOwnFamily` (integration) | the post-incident snapshot lists a table's own chains, and says when a count could not be read | chains were matched by name only, so each table was credited with the union across families, and a failed lookup was rendered as `rules: 0` |
 | `TestEnforcingIgnoresASameNamedTableInAnotherFamily` (integration) | `Enforcing()` answers about `table inet easywall` alone | it was already right, for a reason — the chain is used only for its name — that nothing stated |
 

@@ -65,6 +65,12 @@ consulted.
 > already that statement. `routing.networks` is for everything that routes and is
 > not Docker — a VPN gateway, a second interface.
 
+Both take **one CIDR network per line** — `192.168.1.0/24`, not `192.168.1.5` — and,
+like the address lists, treat a blank line or a line beginning with `#` as a comment.
+An entry that is not a network is named on save rather than stored, and the same
+check runs when the file is read, so a hand-edited network cannot reach the kernel
+as nothing.
+
 ## Saving
 
 Changes persist the moment you toggle or type — a toast confirms it, and the value

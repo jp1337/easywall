@@ -117,6 +117,7 @@ function initHtmxToast() {
     system_saved:             { text: str('system_saved'), kind: 'success' },
     save_error:               { text: str('save_error'), kind: 'error' },
     system_invalid_duration:  { text: str('system_invalid_duration'), kind: 'warning' },
+    settings_invalid_network: { text: str('settings_invalid_network'), kind: 'warning' },
     options_invalid_limit:    { text: str('options_invalid_limit'), kind: 'warning' },
   };
 

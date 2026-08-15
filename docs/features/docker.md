@@ -28,6 +28,10 @@ Detection reads the interfaces named `docker*` or `br-*` and takes the CIDR of
 each. It runs **when rules are applied**, not continuously — a network created
 afterwards needs another apply, or an entry in `custom_networks`.
 
+Entries there are CIDR networks — `172.20.0.0/16`, not a single container address —
+with `#` comments allowed. Anything else is refused by name rather than accepted and
+silently skipped.
+
 > **These networks are also what opens the `forward` chain.** Container traffic is
 > routed, not addressed to the host, and an empty base chain with `policy drop`
 > destroys it at the hook whatever Docker's own chain accepted — until 2.5.0 that

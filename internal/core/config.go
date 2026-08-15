@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -153,6 +152,26 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("routing.mode must be one of %q, %q or %q, got %q",
 			shared.RoutingClosed, shared.RoutingNetworks, shared.RoutingOpen, c.Routing.Mode)
 	}
+
+	// The two network lists, checked here and not only on the way in from the
+	// interface. Nothing looked at them when they arrived in the file, and
+	// system-settings.md tells operators to edit easywall.toml and send SIGHUP —
+	// so a mistyped network reached the kernel as nothing at all. Measured
+	// against a real kernel with routing.mode = "networks" and
+	// networks = ["10.8.0.0/24", "10.9.0.0-24"]: the daemon started with three
+	// INFO lines and no warning, and the forward chain came up holding the accept
+	// for 10.8.0.0/24 and none for the other — a network the operator had listed
+	// as routable, destroyed by the drop policy without a word.
+	//
+	// Refused rather than skipped, because configuration.md's rule is that a
+	// value which cannot be interpreted stops the daemon with the key named,
+	// while one that is merely out of range is clamped. A network that will not
+	// parse is the first kind. Stopping is safe here: the rules already in the
+	// kernel stay exactly as they are, which is the same thing an invalid
+	// ipv6.mode has always done.
+	if err := checkNetworkLists(c.Docker.CustomNetworks, c.Routing.Networks); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -284,10 +303,7 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	// entry was listed here as whitelisted and never reached the kernel — the
 	// same silent skip the blacklist had, in the direction where the operator
 	// finds out because something they expected to work does not.
-	if err := checkCIDRList("docker custom network", s.Docker.CustomNetworks); err != nil {
-		return err
-	}
-	if err := checkCIDRList("routing network", s.Routing.Networks); err != nil {
+	if err := checkNetworkLists(s.Docker.CustomNetworks, s.Routing.Networks); err != nil {
 		return err
 	}
 	c.mu.Lock()
@@ -298,16 +314,16 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	return c.saveLocked()
 }
 
-// checkCIDRList refuses a list holding anything the apply step could not turn
-// into a rule. Shared by the two lists on the Network page so they cannot come
-// to disagree about what a network is.
-func checkCIDRList(what string, entries []string) error {
-	for _, cidr := range entries {
-		if _, _, err := net.ParseCIDR(cidr); err != nil {
-			return fmt.Errorf("%s %q: not a CIDR network", what, cidr)
-		}
+// checkNetworkLists refuses a pair of lists holding anything the apply step
+// could not turn into a rule. The two lists on the Network page go through one
+// function so they cannot come to disagree about what a network is, and the
+// definition itself lives in shared so the web process and the demo enforce the
+// same one — see shared.ValidateNetworkList.
+func checkNetworkLists(dockerNetworks, routingNetworks []string) error {
+	if err := shared.ValidateNetworkList("docker custom network", dockerNetworks); err != nil {
+		return err
 	}
-	return nil
+	return shared.ValidateNetworkList("routing network", routingNetworks)
 }
 
 // SaveFirewallOptions updates the [firewall] section and atomically persists the config.

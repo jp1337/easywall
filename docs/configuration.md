@@ -118,6 +118,21 @@ with static addressing that genuinely need neither.
 
 See [Docker Coexistence]({{ '/features/docker/' | relative_url }}) for the full setup guide.
 
+Both this list and `routing.networks` below hold **CIDR networks** — `192.168.1.0/24`,
+not `192.168.1.5`. A blank line or a line beginning with `#` is a comment, as in the
+address list editors, and is skipped. Anything else stops the daemon with the entry
+named, at startup and on `SIGHUP`.
+
+> **Nothing checked these two lists when they arrived in the file.** Only the
+> Network page checked, and only on the way in — so an entry edited in by hand
+> reached the kernel as no rule at all. With `routing.mode = "networks"` and
+> `networks = ["10.8.0.0/24", "10.9.0.0-24"]` the daemon started with no warning
+> and the `forward` chain came up holding the accept for the first network and
+> none for the second, which the drop policy then destroyed. The page had the
+> opposite failure: it validated with the address-list rules, which accept a bare
+> address, so `192.168.1.5` passed there, was refused by the core, and was
+> reported as *Failed to save changes. Check core connection.*
+
 ### `[routing]`
 
 Traffic this host passes on rather than receives — between two interfaces, out of a

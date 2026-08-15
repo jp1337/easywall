@@ -120,6 +120,39 @@ func validateCustomRule(rule string) error {
 	return nil
 }
 
+// ValidateNetworkList is the one definition of what the two network lists on the
+// Network page hold: `docker.custom_networks` and `routing.networks`.
+//
+// It lives here for the same reason ValidateRules does — three places have to
+// agree on it. The core must not trust what the web process sends; the web
+// process owes the operator a message naming the entry rather than a generic
+// "check core connection"; and the demo represents the product to everyone who
+// has not installed it yet.
+//
+// They had three different answers. The editor validated with the blacklist's
+// rules, which accept a bare address and skip comments and blanks; the core
+// demanded net.ParseCIDR of every element including those; and the demo checked
+// nothing. So a blank line between two networks, a `#` note, or a bare address
+// was accepted by the page, refused by the core, and reported as "Failed to save
+// changes. Check core connection." — with a working core.
+//
+// Comments and blank lines are skipped rather than refused, because that is what
+// the rest of the product does with a list an operator types: the editors keep
+// them, countEntries ignores them, and addCIDRAccept and cidrMatch in the core
+// already skip them when building rules. This function was the only place that
+// did not.
+func ValidateNetworkList(what string, entries []string) error {
+	for _, entry := range entries {
+		if IsListComment(entry) {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(strings.TrimSpace(entry)); err != nil {
+			return fmt.Errorf("%s %q: not a CIDR network", what, entry)
+		}
+	}
+	return nil
+}
+
 // ParsePortNumber parses a complete port number, rejecting anything else.
 func ParsePortNumber(s string) (int, error) {
 	p, err := strconv.Atoi(s)
