@@ -86,7 +86,7 @@ func TestLogoutSurvivesTheRevocationRecordExpiring(t *testing.T) {
 		t.Fatalf("setup: the session should start out valid, got %d", rec.Code)
 	}
 
-	doRequest(s, "GET", "/logout", nil, cookie)
+	doRequest(s, "POST", "/logout", nil, cookie)
 
 	if rec := doRequest(s, "GET", "/dashboard", nil, cookie); rec.Code != http.StatusSeeOther {
 		t.Fatalf("the cookie still worked immediately after logout: %d", rec.Code)
