@@ -64,6 +64,24 @@ func NewNftablesManager() (*NftablesManager, error) {
 // Snapshot captures the current kernel nftables state as structured JSON.
 // For each table it records chain names and rule counts, providing a meaningful
 // diagnostic snapshot for post-incident analysis.
+//
+// A chain belongs to a table by name *and family*. Matching on the name alone —
+// which this did — credits every table with the chains of every same-named table
+// in another family, and the numbers beside them are read from the wrong table.
+// A name collision is not exotic: `easywall` in the ip family is what a
+// hand-written ruleset alongside easywall looks like, and nft itself allows it.
+// Measured against a kernel holding `table ip easywall` (chains input, decoy)
+// and `table inet easywall` (chain input):
+//
+//	ip   easywall: input(1), decoy(1), input(1)   ← two chains reported as three
+//	inet easywall: input(1), decoy(0), input(1)   ← one chain reported as three
+//
+// Each table listed the union, the `inet` table was credited with a `decoy` it
+// does not have, and that entry's `0` was a failed lookup — GetRules errored and
+// the count stayed at its zero value, which reads as a chain that exists and is
+// empty. This file is written to log_dir on every apply and is the thing an
+// operator opens after a lockout, so a chain that is not there and a rule count
+// that was never read are the two worst things it could contain.
 func (m *NftablesManager) Snapshot() ([]byte, error) {
 	if m.conn == nil {
 		return nil, fmt.Errorf("nftables connection not available")
@@ -74,45 +92,57 @@ func (m *NftablesManager) Snapshot() ([]byte, error) {
 	}
 
 	type chainSnap struct {
-		Name  string `json:"name"`
-		Rules int    `json:"rules"`
+		Name string `json:"name"`
+		// Rules is nil when the count could not be read. Distinguished from 0 on
+		// purpose: "empty" and "not known" are different states, and conflating
+		// them is what made a chain that does not exist look like an empty one.
+		Rules *int   `json:"rules"`
+		Error string `json:"error,omitempty"`
 	}
 	type tableSnap struct {
 		Name   string      `json:"name"`
 		Family string      `json:"family"`
 		Chains []chainSnap `json:"chains"`
+		Error  string      `json:"error,omitempty"`
 	}
+
+	// Once, not once per table. This was inside the loop, which asked the kernel
+	// for the whole chain list again for every table it had.
+	chains, chainsErr := m.conn.ListChains()
 
 	tableSnaps := make([]tableSnap, 0, len(tables))
 	for _, tbl := range tables {
-		var chainSnaps []chainSnap
-		if chains, err := m.conn.ListChains(); err == nil {
-			for _, ch := range chains {
-				if ch.Table == nil || ch.Table.Name != tbl.Name {
-					continue
-				}
-				ruleCount := 0
-				if rules, err := m.conn.GetRules(tbl, ch); err == nil {
-					ruleCount = len(rules)
-				}
-				chainSnaps = append(chainSnaps, chainSnap{Name: ch.Name, Rules: ruleCount})
-			}
+		snap := tableSnap{Name: tbl.Name, Family: tableFamilyName(tbl.Family)}
+		if chainsErr != nil {
+			snap.Error = "list chains: " + chainsErr.Error()
+			tableSnaps = append(tableSnaps, snap)
+			continue
 		}
-		tableSnaps = append(tableSnaps, tableSnap{
-			Name:   tbl.Name,
-			Family: tableFamilyName(tbl.Family),
-			Chains: chainSnaps,
-		})
+		for _, ch := range chains {
+			if ch.Table == nil || ch.Table.Name != tbl.Name || ch.Table.Family != tbl.Family {
+				continue
+			}
+			cs := chainSnap{Name: ch.Name}
+			rules, err := m.conn.GetRules(tbl, ch)
+			if err != nil {
+				cs.Error = err.Error()
+			} else {
+				n := len(rules)
+				cs.Rules = &n
+			}
+			snap.Chains = append(snap.Chains, cs)
+		}
+		tableSnaps = append(tableSnaps, snap)
 	}
 
-	snap := struct {
+	out := struct {
 		Timestamp string      `json:"timestamp"`
 		Tables    []tableSnap `json:"tables"`
 	}{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Tables:    tableSnaps,
 	}
-	return json.Marshal(snap)
+	return json.Marshal(out)
 }
 
 // tableFamilyName maps a nftables TableFamily constant to its canonical string name.
