@@ -35,11 +35,20 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The core refuses an unparseable network, but a redirect with a generic
-	// "save failed" leaves the operator hunting. Name the lines here.
+	// The core refuses an unparseable network, so this has to refuse exactly the
+	// same set — no more and no less.
+	//
+	// It used to check with validateIPListEntries, the blacklist's validator,
+	// which accepts a bare address. The core stores these with net.ParseCIDR and
+	// does not, so `192.168.1.5` passed here, was refused there, and the operator
+	// was shown "Failed to save changes. Check core connection." with a core that
+	// was answering perfectly. The message it did send on a rejection was no
+	// better: save_invalid_entries says the line numbers are listed above the
+	// editor, and this page — unlike the list editors — has no panel to list them
+	// in, because it saves itself on every change rather than on a button.
 	for _, field := range []string{"custom_networks", "routing_networks"} {
-		if errs := validateIPListEntries(r.FormValue(field)); len(errs) > 0 {
-			s.respondPartialError(w, r, "/settings", "save_invalid_entries")
+		if errs := validateCIDRListEntries(r.FormValue(field)); len(errs) > 0 {
+			s.respondPartialError(w, r, "/settings", "settings_invalid_network")
 			return
 		}
 	}
