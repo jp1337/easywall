@@ -106,8 +106,9 @@ func (c *Config) Validate() error {
 		c.Acceptance.Duration = clamped
 	}
 
-	for _, l := range firewallLimits(&c.Firewall) {
-		if *l.value > 0 || !*l.enabled {
+	for _, l := range shared.FirewallLimits {
+		enabled, value := l.Enabled(&c.Firewall), l.Value(&c.Firewall)
+		if !*enabled || l.InRange(*value) {
 			continue
 		}
 		// Substituted rather than refused, for the same reason the acceptance
@@ -115,9 +116,24 @@ func (c *Config) Validate() error {
 		// than one running a documented default. But it is said out loud —
 		// configuration.md promised "never a silent fallback", and this was five
 		// of them.
-		slog.Warn("firewall limit is not a positive number; using the default",
-			"key", l.key, "configured", *l.value, "using", l.fallback)
-		*l.value = l.fallback
+		//
+		// Both ends now. Only the lower one was checked, and a value above the
+		// range is the more dangerous half: these numbers reach 32-bit nftables
+		// fields, so `connection_limit_max = 4294967296` wrapped to `ct count
+		// over 0` — a rule that drops every connection from every source — with
+		// nothing logged and the interface reporting the number the operator
+		// typed.
+		switch {
+		case *value <= 0:
+			slog.Warn("firewall limit is not a positive number; using the default",
+				"key", l.Key, "configured", *value, "using", l.Default)
+			*value = l.Default
+		default:
+			clamped := l.Clamp(*value)
+			slog.Warn("firewall limit is outside the permitted range; using the nearest permitted value",
+				"key", l.Key, "configured", *value, "using", clamped, "min", l.Min, "max", l.Max)
+			*value = clamped
+		}
 	}
 
 	c.migrateIPv6Mode()
@@ -140,26 +156,15 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// firewallLimit ties a numeric limit to the module that uses it, so validation
-// and the save path cannot disagree about which values matter.
-type firewallLimit struct {
-	key      string
-	enabled  *bool
-	value    *int
-	fallback int
-}
-
-func firewallLimits(o *shared.FirewallOptions) []firewallLimit {
-	return []firewallLimit{
-		{"ssh_brute_force_connection_limit", &o.SSHBruteForce, &o.SSHBruteForceConnectionLimit, 5},
-		{"icmp_flood_connection_limit", &o.ICMPFlood, &o.ICMPFloodConnectionLimit, 10},
-		{"syn_flood_limit", &o.SYNFlood, &o.SYNFloodLimit, 100},
-		{"tcp_rst_flood_limit", &o.TCPRSTFlood, &o.TCPRSTFloodLimit, 100},
-		{"connection_limit_max", &o.ConnectionLimit, &o.ConnectionLimitMax, 100},
-		{"log_blocked_connections_limit", &o.LogBlocked, &o.LogBlockedLimit, 60},
-		{"log_blacklist_connections_limit", &o.LogBlacklist, &o.LogBlacklistLimit, 60},
-	}
-}
+// The table that used to live here — key, module switch, value, fallback — is
+// now shared.FirewallLimits, and it carries the permitted range as well. It
+// moved because three places had an opinion about these numbers and only two of
+// them were in the repository's own reach: the JSON Schemas an operator's editor
+// enforces, and the `max` attribute on the options page. Neither is the daemon.
+// A guard test now derives both from the Go table.
+//
+// It also gained the two log limits it never had: ssh_brute_force_log_limit and
+// icmp_flood_log_limit were the only numeric options nothing validated at all.
 
 // migrateIPv6Mode fills in ipv6.mode for a config written before 2.5.0.
 //
@@ -312,9 +317,9 @@ func checkCIDRList(what string, entries []string) error {
 // refused rather than replaced. Storing 100 when the operator asked for 0 leaves
 // the file and the interface disagreeing about what the firewall is doing.
 func (c *Config) SaveFirewallOptions(opts shared.FirewallOptions) error {
-	for _, l := range firewallLimits(&opts) {
-		if *l.enabled && *l.value <= 0 {
-			return fmt.Errorf("%s must be a positive number, got %d", l.key, *l.value)
+	for _, l := range shared.FirewallLimits {
+		if v := *l.Value(&opts); *l.Enabled(&opts) && !l.InRange(v) {
+			return fmt.Errorf("%s must be between %d and %d, got %d", l.Key, l.Min, l.Max, v)
 		}
 	}
 

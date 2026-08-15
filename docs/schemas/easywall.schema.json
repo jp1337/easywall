@@ -150,6 +150,7 @@
           "type": "integer",
           "description": "Maximum log entries per minute for SSH brute-force drops.",
           "minimum": 1,
+          "maximum": 10000,
           "default": 60
         },
         "icmp_flood": {
@@ -173,6 +174,7 @@
           "type": "integer",
           "description": "Maximum log entries per minute for ICMP flood drops.",
           "minimum": 1,
+          "maximum": 10000,
           "default": 60
         },
         "syn_flood": {
@@ -285,6 +287,7 @@
           "type": "integer",
           "description": "Maximum log entries per minute for general blocked connections.",
           "minimum": 1,
+          "maximum": 10000,
           "default": 60
         },
         "log_blacklist_connections": {
@@ -296,6 +299,7 @@
           "type": "integer",
           "description": "Maximum log entries per minute for blacklisted connections.",
           "minimum": 1,
+          "maximum": 10000,
           "default": 60
         }
       }

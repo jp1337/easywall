@@ -50,11 +50,11 @@
           </label>
           <label class="field-inline">
             <span>{{T "param_max_conn"}}</span>
-            <input type="number" name="ssh_brute_force_connection_limit" value="{{$o.SSHBruteForceConnectionLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="ssh_brute_force_connection_limit" value="{{$o.SSHBruteForceConnectionLimit}}" min="1" max="100" class="input input-sm input-data">
           </label>
           <label class="field-inline">
             <span>{{T "param_log_limit"}}</span>
-            <input type="number" name="ssh_brute_force_log_limit" value="{{$o.SSHBruteForceLogLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="ssh_brute_force_log_limit" value="{{$o.SSHBruteForceLogLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
       </div>
@@ -74,11 +74,11 @@
           </label>
           <label class="field-inline">
             <span>{{T "param_max_rate"}}</span>
-            <input type="number" name="icmp_flood_connection_limit" value="{{$o.ICMPFloodConnectionLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="icmp_flood_connection_limit" value="{{$o.ICMPFloodConnectionLimit}}" min="1" max="1000" class="input input-sm input-data">
           </label>
           <label class="field-inline">
             <span>{{T "param_log_limit"}}</span>
-            <input type="number" name="icmp_flood_log_limit" value="{{$o.ICMPFloodLogLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="icmp_flood_log_limit" value="{{$o.ICMPFloodLogLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
       </div>
@@ -98,7 +98,7 @@
           </label>
           <label class="field-inline">
             <span>{{T "param_limit_per_s"}}</span>
-            <input type="number" name="syn_flood_limit" value="{{$o.SYNFloodLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="syn_flood_limit" value="{{$o.SYNFloodLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
       </div>
@@ -178,7 +178,7 @@
         <div class="module-params">
           <label class="field-inline">
             <span>{{T "param_max_connections"}}</span>
-            <input type="number" name="connection_limit_max" value="{{$o.ConnectionLimitMax}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="connection_limit_max" value="{{$o.ConnectionLimitMax}}" min="1" max="100000" class="input input-sm input-data">
           </label>
         </div>
       </div>
@@ -198,7 +198,7 @@
           </label>
           <label class="field-inline">
             <span>{{T "param_limit_per_s"}}</span>
-            <input type="number" name="tcp_rst_flood_limit" value="{{$o.TCPRSTFloodLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="tcp_rst_flood_limit" value="{{$o.TCPRSTFloodLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
       </div>
@@ -253,7 +253,7 @@
         <div class="module-params">
           <label class="field-inline">
             <span>{{T "param_log_limit"}}</span>
-            <input type="number" name="log_blocked_connections_limit" value="{{$o.LogBlockedLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="log_blocked_connections_limit" value="{{$o.LogBlockedLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
       </div>
@@ -269,7 +269,7 @@
         <div class="module-params">
           <label class="field-inline">
             <span>{{T "param_log_limit"}}</span>
-            <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="9999" class="input input-sm input-data">
+            <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
       </div>

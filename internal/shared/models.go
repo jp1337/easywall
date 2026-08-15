@@ -90,6 +90,87 @@ type FirewallOptions struct {
 	LogBlacklistLimit int  `toml:"log_blacklist_connections_limit"`
 }
 
+// FirewallLimit describes one numeric option: what it is called, the range it
+// may hold, the value used when it is absent, and how to reach it in a
+// FirewallOptions.
+//
+// One table, because there were three and they disagreed. The options page
+// offered `max="9999"` on all nine fields, the JSON Schemas said 100, 1000,
+// 10000 and 100000 for five of them and nothing for the other four, and the
+// daemon had no upper bound at all — it checked only that an enabled module's
+// limit was positive. An HTML max is a hint to the browser and nothing more,
+// which is the same discovery that produced AcceptanceDurationMin/Max; these
+// nine were left behind by it.
+//
+// What the missing bound cost, measured against a real kernel. The limits are
+// handed to nftables expressions whose fields are 32 bits, so a large value does
+// not fail — it wraps:
+//
+//	connection_limit_max = 5000000000  ->  ct count over 705032704
+//	connection_limit_max = 4294967296  ->  ct count over 0           ← drops everything
+//	syn_flood_limit      = 3000000000  ->  limit rate over 3000000000/second burst 1705032704
+//
+// `ct count over 0` matches every connection from every source and drops it.
+// One number, entered on the options page or edited into easywall.toml, turns
+// the firewall into a total block — on a product whose first sentence is that it
+// cannot lock you out. The daemon logged nothing on any of the three.
+type FirewallLimit struct {
+	Key     string
+	Min     int
+	Max     int
+	Default int
+
+	// Enabled is the module switch this limit belongs to. A limit only has to be
+	// usable when its module is on.
+	Enabled func(*FirewallOptions) *bool
+	// Value is the limit itself.
+	Value func(*FirewallOptions) *int
+}
+
+// FirewallLimits is the one description of every numeric firewall option.
+//
+// The maxima are the ones the JSON Schemas already published where they had an
+// opinion, because those were considered and are what an operator's editor has
+// been enforcing. The four log limits had none: they are lines per minute, and
+// 10000 is 166 a second, which is far past what any disk wants and nowhere near
+// where the 32-bit fields wrap.
+var FirewallLimits = []FirewallLimit{
+	{"ssh_brute_force_connection_limit", 1, 100, 5,
+		func(o *FirewallOptions) *bool { return &o.SSHBruteForce },
+		func(o *FirewallOptions) *int { return &o.SSHBruteForceConnectionLimit }},
+	{"ssh_brute_force_log_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.SSHBruteForceLog },
+		func(o *FirewallOptions) *int { return &o.SSHBruteForceLogLimit }},
+	{"icmp_flood_connection_limit", 1, 1000, 10,
+		func(o *FirewallOptions) *bool { return &o.ICMPFlood },
+		func(o *FirewallOptions) *int { return &o.ICMPFloodConnectionLimit }},
+	{"icmp_flood_log_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.ICMPFloodLog },
+		func(o *FirewallOptions) *int { return &o.ICMPFloodLogLimit }},
+	{"syn_flood_limit", 1, 10000, 100,
+		func(o *FirewallOptions) *bool { return &o.SYNFlood },
+		func(o *FirewallOptions) *int { return &o.SYNFloodLimit }},
+	{"tcp_rst_flood_limit", 1, 10000, 100,
+		func(o *FirewallOptions) *bool { return &o.TCPRSTFlood },
+		func(o *FirewallOptions) *int { return &o.TCPRSTFloodLimit }},
+	{"connection_limit_max", 1, 100000, 100,
+		func(o *FirewallOptions) *bool { return &o.ConnectionLimit },
+		func(o *FirewallOptions) *int { return &o.ConnectionLimitMax }},
+	{"log_blocked_connections_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.LogBlocked },
+		func(o *FirewallOptions) *int { return &o.LogBlockedLimit }},
+	{"log_blacklist_connections_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.LogBlacklist },
+		func(o *FirewallOptions) *int { return &o.LogBlacklistLimit }},
+}
+
+// InRange reports whether v is a value this limit may hold.
+func (l FirewallLimit) InRange(v int) bool { return v >= l.Min && v <= l.Max }
+
+// Clamp brings v into range, for the file path where refusing to start is the
+// worse outcome.
+func (l FirewallLimit) Clamp(v int) int { return min(max(v, l.Min), l.Max) }
+
 // AcceptanceConfig controls the two-step activation safety mechanism.
 type AcceptanceConfig struct {
 	Enabled  bool `toml:"enabled"`

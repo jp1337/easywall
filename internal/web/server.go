@@ -670,6 +670,7 @@ func shortTime(v string) string {
 var clientStringKeys = []string{
 	"saved", "options_saved", "settings_saved", "system_saved",
 	"save_error", "system_invalid_duration",
+	"options_invalid_limit",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast",
@@ -696,6 +697,7 @@ func templateFuncs() template.FuncMap {
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
 		"system_invalid_duration": true,
+		"options_invalid_limit":   true,
 		// Nothing went wrong here: the core declined a second apply while a
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,

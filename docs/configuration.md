@@ -167,6 +167,32 @@ reference.
 | Multicast | `drop_multicast` — off | — | — |
 | Anycast | `drop_anycast` — off | — | — |
 
+Every number above has a permitted range, and it is the daemon that holds it —
+the `max` on the options page and the `maximum` in the JSON Schema are hints to a
+browser and an editor, and neither reaches a `curl` or a hand-edited file:
+
+| Key | Range | Default |
+|---|---|---|
+| `ssh_brute_force_connection_limit` | 1–100 | 5 |
+| `ssh_brute_force_log_limit` | 1–10000 | 60 |
+| `icmp_flood_connection_limit` | 1–1000 | 10 |
+| `icmp_flood_log_limit` | 1–10000 | 60 |
+| `syn_flood_limit` | 1–10000 | 100 |
+| `tcp_rst_flood_limit` | 1–10000 | 100 |
+| `connection_limit_max` | 1–100000 | 100 |
+| `log_blocked_connections_limit` | 1–10000 | 60 |
+| `log_blacklist_connections_limit` | 1–10000 | 60 |
+
+Out of range in the file is clamped and logged; out of range from the interface is
+refused with the key named — the same split as `acceptance.duration`.
+
+> **There was no upper bound at all until now, and these numbers reach 32-bit
+> fields.** So too large did not fail, it wrapped. Measured against a kernel:
+> `connection_limit_max = 5000000000` arrived as `ct count over 705032704`, and
+> `4294967296` arrived as `ct count over 0` — a rule matching every connection
+> from every source and dropping it. One number, entered on a page whose product
+> promises it cannot lock you out, with nothing logged.
+
 Two logging switches belong to no module and are set here as well:
 
 | | Logs | Rate |
