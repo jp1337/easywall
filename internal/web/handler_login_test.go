@@ -80,7 +80,7 @@ func TestHandleLogout_ClearsSession(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
-	rec := doAuthRequest(t, s, "GET", "/logout", nil)
+	rec := doAuthRequest(t, s, "POST", "/logout", nil)
 	assertRedirect(t, rec, "/login")
 
 	for _, cookie := range rec.Result().Cookies() {
@@ -94,7 +94,7 @@ func TestHandleLogout_WithoutSession(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
-	rec := doRequest(s, "GET", "/logout", nil)
+	rec := doRequest(s, "POST", "/logout", nil)
 	assertRedirect(t, rec, "/login")
 }
 
@@ -183,7 +183,7 @@ func TestHandleLogout_EndsTheSessionForACookieStillHeld(t *testing.T) {
 		t.Fatalf("the session should work before logout, got %d", before.Code)
 	}
 
-	if out := doRequest(s, "GET", "/logout", nil, cookie); out.Code != http.StatusSeeOther {
+	if out := doRequest(s, "POST", "/logout", nil, cookie); out.Code != http.StatusSeeOther {
 		t.Fatalf("logout should redirect, got %d", out.Code)
 	}
 
@@ -203,7 +203,7 @@ func TestHandleLogout_LeavesOtherSessionsAlone(t *testing.T) {
 	laptop := makeAuthCookie(t, s)
 	phone := makeAuthCookie(t, s)
 
-	doRequest(s, "GET", "/logout", nil, laptop)
+	doRequest(s, "POST", "/logout", nil, laptop)
 
 	if still := doRequest(s, "GET", "/dashboard", nil, phone); still.Code != http.StatusOK {
 		t.Errorf("signing out in one browser must not sign out the other, got %d", still.Code)
@@ -269,7 +269,7 @@ func TestSessionRefusal_DoesNotBounceBetweenLoginAndDashboard(t *testing.T) {
 		s := newTestServer(t, fc)
 		cookie := makeAuthCookie(t, s)
 
-		doRequest(s, "GET", "/logout", nil, cookie)
+		doRequest(s, "POST", "/logout", nil, cookie)
 
 		if stop := follow(t, s, cookie, "/dashboard"); stop != "/login" {
 			t.Errorf("a logged-out cookie should come to rest on /login, got %s", stop)

@@ -138,6 +138,44 @@ async function checkForwardingPortIsNotReparsed(page) {
   }
 }
 
+/**
+ * Signing out has to end the session by pressing the control the operator sees.
+ *
+ * The Go suite proves the *route* is right: GET /logout answers 405, a
+ * cross-origin POST answers 403, a same-origin POST answers 303. What it cannot
+ * see is which of those the sidebar actually sends. Sign out was an
+ * `<a href="/logout">` until the route moved to POST, and a template that goes
+ * back to an anchor — or a form that loses its method — leaves every Go test
+ * green while the button quietly answers 405 and the operator stays signed in.
+ *
+ * So this drives the control rather than the URL: click it, then ask for a page
+ * behind the login and see where it lands.
+ */
+async function checkSignOutEndsTheSession(page) {
+  await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+
+  const anchors = await page.locator('.nav-footer a').count();
+  if (anchors > 0) {
+    fail('sign out', `.nav-footer holds ${anchors} link(s); the sign-out control must be a form submit, ` +
+      'because GET /logout is refused with 405 and an anchor would sign nobody out');
+  }
+
+  const button = page.locator('.nav-footer .logout-btn');
+  if (await button.count() === 0) {
+    fail('sign out', 'no .logout-btn in the sidebar footer — nothing to sign out with');
+    return;
+  }
+  await button.click();
+  await page.waitForLoadState('networkidle');
+
+  await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+  if (!page.url().includes('/login')) {
+    fail('sign out', `after pressing sign out, /dashboard still answered as ${page.url()} — the session survived it`);
+  } else {
+    console.log('  ok   sign out ends the session');
+  }
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme) {
   const page = await ctx.newPage();
@@ -192,6 +230,7 @@ try {
   const p = await ctx.newPage();
   await signIn(p);
   await checkForwardingPortIsNotReparsed(p);
+  await checkSignOutEndsTheSession(p);
   await ctx.close();
 } finally {
   await browser.close();

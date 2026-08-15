@@ -220,7 +220,13 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
 		r.With(LoginRateLimit).Post("/login", s.handleLoginPOST)
-		r.Get("/logout", s.handleLogout)
+		// POST, so CrossOriginProtection covers it. It was a GET, and that
+		// middleware exempts safe methods by design — measured: a request
+		// carrying Origin: https://evil.example and Sec-Fetch-Site: cross-site
+		// answered 303 and ended the session, while the same request to a POST
+		// route answered 403. Any page the operator had open could sign them out
+		// of their firewall's interface with an <img> tag.
+		r.Post("/logout", s.handleLogout)
 		// Outside RequireAuth on purpose: someone who cannot read the login page
 		// has no way to sign in and change the language afterwards.
 		r.Post("/language", s.handleLanguage)

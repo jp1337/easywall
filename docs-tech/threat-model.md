@@ -17,7 +17,7 @@ access to misuse.
 | Lifetime | `SessionLifetime` = 600 s, in `internal/web/auth.go` |
 | Constructed by | `newSessionStore` — the **only** place a store is built |
 | Password change | every other session is refused at once |
-| Logout | that session's identifier is recorded as revoked |
+| Logout | `POST /logout` — that session's identifier is recorded as revoked |
 
 `newSessionStore` exists because getting this right is not obvious.
 `sessions.NewCookieStore` sets the codec's maximum age from its own default —
@@ -33,6 +33,22 @@ interface, with nothing to see. Measured before the fix: `/dashboard` answered 2
 with a cookie 29 days old, and 200 again after the logout record had been swept.
 
 `store.MaxAge()` sets both halves. Write that, never `Options.MaxAge`.
+
+Signing out is a `POST` for a related reason. `CrossOriginProtection` checks the
+`Origin` and `Sec-Fetch-Site` headers of **unsafe methods only** — `GET`, `HEAD`
+and `OPTIONS` are exempt, because a safe method is not supposed to change
+anything. `/logout` was a `GET`, so it sat outside that protection entirely and
+any page the operator had open could end their session with an `<img>` tag.
+Measured before the change:
+
+```
+GET  /logout    Origin: https://evil.example, Sec-Fetch-Site: cross-site  → 303
+GET  /dashboard with the same cookie                                      → 303  (signed out)
+POST /settings  Origin: https://evil.example                              → 403
+```
+
+The rule that follows: **a route that changes state is never a `GET`**, however
+convenient a link would be. The sidebar control is a form styled as one.
 
 A session also carries `SessionCredentialKey`: a non-reversible fingerprint of the
 password hash it was issued under. There is nothing to revoke server-side in a

@@ -402,20 +402,35 @@ body {
     border-top: 1px solid var(--color-rule);
   }
 
-  .nav-footer a {
+  /* Sign out is a submit button inside a form, because it changes state and a
+     GET was reachable cross-origin. The button resets live here rather than in
+     a variant, so it still reads as the row of controls it sits in.
+
+     `.nav-footer a` used to lead this selector, from when sign out was an
+     anchor. Nothing in the footer is a link any more — it holds the language
+     form, the theme toggle and this button — so that half matched nothing and
+     shipped in the stylesheet anyway. Rendered and measured: querySelector('a')
+     on .nav-footer returns null on every page. */
+  .nav-footer .logout-btn {
     display: flex;
     align-items: center;
     gap: 9px;
+    width: 100%;
     padding: 6px 10px;
+    border: none;
     border-radius: var(--radius-md);
+    background: transparent;
     color: var(--color-ink-muted);
+    font-family: var(--font-ui);
     font-size: 13px;
+    text-align: left;
     text-decoration: none;
+    cursor: pointer;
     transition: background var(--motion-instant) var(--motion-ease),
                 color var(--motion-instant) var(--motion-ease);
   }
 
-  .nav-footer a:hover {
+  .nav-footer .logout-btn:hover {
     background: var(--wash-crit);
     color: var(--color-state-crit-on-wash);
     text-decoration: none;

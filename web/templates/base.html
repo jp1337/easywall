@@ -169,10 +169,17 @@
       </span>
       <div class="toggle-switch" aria-hidden="true"></div>
     </button>
-    <a href="/logout">
-      <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
-      {{T "nav_logout"}}
-    </a>
+    {{/* A form, not a link. Signing out changes state, and Go's
+         CrossOriginProtection exempts safe methods by design — so as a GET this
+         was reachable from any page the operator happened to have open: one
+         <img src="https://their-host:12227/logout"> ended the session. It looks
+         and reads exactly as it did; only the method changed. */}}
+    <form method="POST" action="/logout">
+      <button type="submit" class="logout-btn">
+        <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"/></svg>
+        {{T "nav_logout"}}
+      </button>
+    </form>
   </div>
 </nav>
 <div class="overlay" id="overlay"></div>
