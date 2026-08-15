@@ -54,6 +54,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
   The `decoy(0)` is the worse half: the lookup failed and the count stayed at its zero value, so a chain that is not in that table was reported as one that exists and is empty. This file is written to `log_dir` on every apply and is what an operator opens after a lockout. Chains are matched on name *and* family now, an unreadable count is `null` with the error beside it rather than `0`, and the chain list is fetched once instead of once per table. `Enforcing()` was checked at the same time and was already correct — it uses the chain only for its name — which is now stated by a test rather than by luck
+- **Any page the operator had open could sign them out of the firewall's interface.** `/logout` was a `GET`, and Go's `CrossOriginProtection` — the CSRF defence every other state-changing route sits behind — checks `Origin` and `Sec-Fetch-Site` on **unsafe methods only**, because a safe method is not supposed to change anything. So one `<img src="https://the-host:12227/logout">` on an unrelated site ended the session and revoked the cookie. Measured against the running server:
+
+  ```
+  GET  /logout    Origin: https://evil.example, Sec-Fetch-Site: cross-site  → 303
+  GET  /dashboard with the same cookie                                      → 303  (signed out)
+  POST /settings  Origin: https://evil.example                              → 403  (the protection working)
+  ```
+
+  It is a `POST` now, and the sidebar control is a form styled to be indistinguishable from the links beside it — same icon, same spacing, same red hover, verified in a browser in both themes. Nuisance rather than escalation: it cost a re-login and nothing else. But it was the one route that changed state without the protection the others have, and the rule it breaks is worth stating — a route that changes state is never a `GET`
 - **The configuration reference gave the wrong permissions for `web.toml`.** It said `root:easywall 0640`; `debian/postinst` sets `easywall:easywall 0600`, and the Build workflow asserts exactly that on a freshly installed package. Anyone following the page would have taken the file away from the process that has to rewrite it
 - **The manual-install page created a data directory the daemon cannot write.** `install -d -m 0750 -o easywall -g easywall /var/lib/easywall` — the same layout that made a packaged installation useless before 2.5.0, for the same reason: the unit reduces the core to `CAP_NET_ADMIN`, which also removes `CAP_DAC_OVERRIDE`, so root cannot enter a directory it does not own and `rules.json` is never written. Now `0770 root:easywall`, matching the package
 - **The audit log's `user` column was documented twice, and once wrongly.** One line called it "the account that made the change" while another on the same page said every entry is attributed to `web` — and the JSON examples on two pages showed `"user":"admin"`. The code writes the literal `web` at every call site, because the socket protocol carries no identity. The column names the process, not the person, and the pages say so once
