@@ -489,6 +489,16 @@ func (d *demoState) handleSaveSettings(payload []byte) shared.Response {
 	if err := json.Unmarshal(payload, &s); err != nil {
 		return demoErr(fmt.Errorf("invalid payload: %w", err))
 	}
+	// The same check the core runs, for the same reason the custom-rule page
+	// reports its checker as unavailable rather than answering "no errors": the
+	// demo is the product to everyone who has not installed it. It accepted every
+	// network here, including ones a real installation refuses.
+	if err := shared.ValidateNetworkList("docker custom network", s.Docker.CustomNetworks); err != nil {
+		return demoErr(err)
+	}
+	if err := shared.ValidateNetworkList("routing network", s.Routing.Networks); err != nil {
+		return demoErr(err)
+	}
 	before := d.settings
 	d.settings = s
 	d.audit("settings_saved", "", shared.DescribeStructChange(before, s))

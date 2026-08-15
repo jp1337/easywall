@@ -63,6 +63,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```
 
   It is a `POST` now, and the sidebar control is a form styled to be indistinguishable from the links beside it — same icon, same spacing, same red hover, verified in a browser in both themes. Nuisance rather than escalation: it cost a re-login and nothing else. But it was the one route that changed state without the protection the others have, and the rule it breaks is worth stating — a route that changes state is never a `GET`
+- **A blank line between two networks on the Network page made the save fail, and blamed the core for it.** The two lists there — Docker's additional networks and the routable ones — were validated in three places that did not agree. The editor checked them with the blacklist's validator, which skips blanks and `#` comments and accepts a bare address; the core stored them with `net.ParseCIDR` over every element, blanks and comments included; the demo checked nothing at all. So a separator line, a note, or `192.168.1.5` was accepted by the page, refused by the core, and reported to the operator as *Failed to save changes. Check core connection.* — with a core that was answering perfectly. Measured through the real socket, on a config that had `mode = "closed"` before and after:
+
+  ```
+  routing_networks = "10.8.0.0/24\n\n10.9.0.0/24"
+    web:  save settings error error="core error: routing network \"\": not a CIDR network"
+    page: Failed to save changes. Check core connection.
+  ```
+
+  There is one definition now, `shared.ValidateNetworkList`, and the core, the page and the demo all use it: comments and blank lines are skipped, exactly as `addCIDRAccept` and `cidrMatch` in the core already skipped them when building rules, and an entry that is not a network is named on its own line instead of arriving as a sentence about the socket. Both help texts say that `#` is a comment, both schemas accept one so an editor does not underline a working file, and the message the page shows on a genuinely bad entry no longer promises line numbers on a page that has nowhere to put them
+- **A mistyped network in `easywall.toml` reached the kernel as no rule at all.** Nothing validated `docker.custom_networks` or `routing.networks` when they arrived in the file — only the Network page did, and only on the way in — while `features/system-settings.md` tells operators to edit the file and send `SIGHUP`. Measured against a real kernel with `routing.mode = "networks"` and `networks = ["10.8.0.0/24", "10.9.0.0-24"]`:
+
+  ```
+  daemon startup:  INFO easywall-core started / INFO daemon listening      ← no warning
+  nft list chain inet easywall forward:
+          type filter hook forward priority filter; policy drop;
+          ct state established,related accept
+          ip saddr 10.8.0.0/24 accept
+          ip daddr 10.8.0.0/24 accept                ← and nothing for 10.9.0.0
+  ```
+
+  The second network was listed by the operator as routable and destroyed by the drop policy, silently. `Config.Validate` checks both lists now, so the daemon stops with the entry named — which is what `configuration.md` has always said happens to a value that cannot be interpreted, and what an unknown `ipv6.mode` already did. A reload is refused the same way and leaves the running configuration alone
 - **The configuration reference gave the wrong permissions for `web.toml`.** It said `root:easywall 0640`; `debian/postinst` sets `easywall:easywall 0600`, and the Build workflow asserts exactly that on a freshly installed package. Anyone following the page would have taken the file away from the process that has to rewrite it
 - **The manual-install page created a data directory the daemon cannot write.** `install -d -m 0750 -o easywall -g easywall /var/lib/easywall` — the same layout that made a packaged installation useless before 2.5.0, for the same reason: the unit reduces the core to `CAP_NET_ADMIN`, which also removes `CAP_DAC_OVERRIDE`, so root cannot enter a directory it does not own and `rules.json` is never written. Now `0770 root:easywall`, matching the package
 - **The audit log's `user` column was documented twice, and once wrongly.** One line called it "the account that made the change" while another on the same page said every entry is attributed to `web` — and the JSON examples on two pages showed `"user":"admin"`. The code writes the literal `web` at every call site, because the socket protocol carries no identity. The column names the process, not the person, and the pages say so once
