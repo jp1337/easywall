@@ -83,11 +83,36 @@ const MERMAID_VERSION = JSON.parse(
   await readFile(new URL('../node_modules/mermaid/package.json', import.meta.url), 'utf8'),
 ).version;
 
+// The font is part of the input for the same reason the renderer is, and it is
+// the larger of the two: mermaid sizes every box from the text inside it, so the
+// face doing the measuring decides the whole layout. Replacing inter-var.woff2
+// would move every edge in every diagram, and hashing the .mmd alone would call
+// them current.
+const FONT = path.join(ROOT, 'docs', 'assets', 'fonts', 'inter-var.woff2');
+const FONT_BYTES = await readFile(FONT);
+const FONT_DIGEST = createHash('sha256').update(FONT_BYTES).digest('hex').slice(0, 16);
+
 const digest = (s) =>
-  createHash('sha256').update(`${MERMAID_VERSION}\n${s.trim()}`).digest('hex').slice(0, 16);
+  createHash('sha256')
+    .update(`${MERMAID_VERSION}\n${FONT_DIGEST}\n${s.trim()}`)
+    .digest('hex')
+    .slice(0, 16);
 
 // Written into the SVG so --check can tell "not rendered yet" from "rendered
 // from an older version of the source, or by an older mermaid".
+//
+// The stamp describes the *inputs*, not the bytes, and it has to: `build:diagrams`
+// is not byte-reproducible even on one machine. Six of the fourteen files differ
+// between two consecutive runs, always in the same place — the `label-container
+// outer-path` of a rounded container, whose intermediate cubic control points
+// mermaid distributes along each straight edge at run-dependent positions.
+//
+// It is invisible, and that is measured rather than assumed: across two runs,
+// 4532 of those control points were checked for their perpendicular distance
+// from the straight line between their own segment's endpoints, and the largest
+// was 0.000000 px. They all lie on the line, so every curve drawn is the same
+// line. What it costs is a dirty diff on those six files after any rebuild —
+// worth knowing before spending an afternoon on it.
 const STAMP = 'data-source-digest';
 
 async function sources() {
@@ -163,6 +188,38 @@ async function main() {
   const browser = await chromium.launch({ executablePath: await findChromium() });
   const page = await browser.newPage();
   await page.setContent('<!doctype html><body></body>');
+
+  // Inter, from the file the documentation site serves, before anything is
+  // measured.
+  //
+  // The themes ask for `Inter, system-ui, sans-serif` and nothing ever loaded
+  // Inter into this page, so the layout was done in whatever the rendering
+  // machine happened to resolve that to. mermaid sizes every node from the text
+  // inside it, so the font decides the box widths, which decide the edge
+  // geometry: re-rendering on a host without Inter installed moved the bezier
+  // control points in six of the fourteen committed files, with the same mermaid
+  // and the same sources. The digest could not see it — it covers the .mmd and
+  // the mermaid version — so `--check` called them current while they no longer
+  // matched what the toolchain produced.
+  //
+  // Embedded rather than linked: this page has no origin to resolve a relative
+  // URL against, and a diagram build must not depend on the network.
+  await page.addStyleTag({
+    content:
+      `@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;` +
+      `font-display:block;src:url(data:font/woff2;base64,${FONT_BYTES.toString('base64')}) format('woff2');}`,
+  });
+  // addStyleTag does not wait for the face to be usable, and a measurement taken
+  // before it is would silently fall back — the very thing this is here to stop.
+  await page.evaluate(async () => {
+    await document.fonts.load('400 17px Inter');
+    await document.fonts.load('700 17px Inter');
+    await document.fonts.ready;
+    if (!document.fonts.check('400 17px Inter')) {
+      throw new Error('Inter did not load; the layout would be measured in a fallback font');
+    }
+  });
+
   await page.addScriptTag({ content: lib });
 
   for (const d of diagrams) {
