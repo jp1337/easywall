@@ -58,6 +58,12 @@ kramdown:
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
+  - jekyll-redirect-from
+
+collections:
+  docs:
+    output: true
+    permalink: /docs/:path/
 
 exclude:
   - Gemfile
