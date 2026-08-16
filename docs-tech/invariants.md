@@ -73,6 +73,8 @@ where the page looks right on the machine that has the old file cached.
 | `TestABadNetworkInTheConfigFileStopsTheDaemon` | `docker.custom_networks` and `routing.networks` are validated when read, not only when saved | a hand-edited `10.9.0.0-24` started the daemon with no warning and produced no rule — a network listed as routable, destroyed by the forward policy |
 | `TestSnapshotAttributesEachChainToItsOwnFamily` (integration) | the post-incident snapshot lists a table's own chains, and says when a count could not be read | chains were matched by name only, so each table was credited with the union across families, and a failed lookup was rendered as `rules: 0` |
 | `TestEnforcingIgnoresASameNamedTableInAnotherFamily` (integration) | `Enforcing()` answers about `table inet easywall` alone | it was already right, for a reason — the chain is used only for its name — that nothing stated |
+| `TestThePackageVersionIsTheReleaseVersion` | `debian/changelog` and `shared.CurrentVersion` agree | the package version was the only version in the tree tied to nothing; the release compared it to the tag *after* publishing the images |
+| `TestTheDiagramPaletteIsTheDocumentationPalette` | the colours in `render-diagrams.mjs` are the tokens in `web/src/docs.css` | two copies under a "keep them in step" comment, and the diagram staleness digest cannot see a palette change |
 
 ## The technical documentation stays unpublished
 
