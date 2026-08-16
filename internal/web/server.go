@@ -124,10 +124,16 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	s.router = s.buildRouter(cfg)
 	s.httpSrv = &http.Server{
-		Addr:         cfg.BindAddr,
-		Handler:      s.router,
+		Addr:    cfg.BindAddr,
+		Handler: s.router,
+		// A request that waits on the core synchronously — POST /import and
+		// POST /validate — cannot be cut off before shared.CommandTimeout gives
+		// up on the same command, or a reply the core finishes writing never
+		// gets written: the client would report a dropped connection for an
+		// import that had already succeeded. 10s of margin on top covers this
+		// handler's own work assembling the response.
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		WriteTimeout: writeTimeout(),
 		IdleTimeout:  60 * time.Second,
 		// The certificate comes from the manager on every handshake instead of
 		// being read once from disk, so a renewed or replaced certificate takes
@@ -139,6 +145,23 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// writeTimeout is the HTTP server's WriteTimeout: long enough to outlast the
+// slowest command a handler can be waiting on when it writes its reply.
+//
+// POST /import and POST /validate call the core synchronously, and both carry
+// shared.CommandTimeout's longest budget — CmdImportRules and CmdValidateCustom
+// both wait out shared.NftTimeout plus a margin. The two are equal today; the
+// max is taken anyway so this does not silently fall behind if one of them
+// changes without the other. 10s on top of that is this handler's own room to
+// marshal the response and write it out.
+func writeTimeout() time.Duration {
+	longest := shared.CommandTimeout(shared.CmdImportRules)
+	if v := shared.CommandTimeout(shared.CmdValidateCustom); v > longest {
+		longest = v
+	}
+	return longest + 10*time.Second
 }
 
 // Start begins serving HTTPS traffic. Blocks until Stop() is called.
