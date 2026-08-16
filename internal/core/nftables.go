@@ -1541,6 +1541,7 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 	if shared.IsListComment(cidr) {
 		return // a note or a spacer, not an address
 	}
+	cidr = strings.TrimSpace(cidr)
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return
