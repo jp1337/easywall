@@ -69,16 +69,41 @@ async function setUpAccount(page) {
   }
 }
 
+/**
+ * Sign in once. The result is reused by every context below.
+ *
+ * Once, and not once per context, because /login is rate limited to five
+ * attempts per ten minutes per source address — which this script used to spend
+ * three of on every run, one for each context it opened. Two runs inside ten
+ * minutes therefore hit the limiter on the sixth attempt, and the failure named
+ * the wrong thing entirely:
+ *
+ *   run 1: UI checks passed
+ *   run 2: Error: could not sign in: still at https://127.0.0.1:12227/login
+ *   server: WARN login rate limit exceeded ip=127.0.0.1
+ *
+ * CI never saw it — a fresh runner each time — so it was a trap set for whoever
+ * ran the checks locally twice while working on something, and it reads as a
+ * broken login page. The status code is now part of the message so a 429 can
+ * never be mistaken for one again.
+ */
 async function signIn(page) {
   await page.goto(`${BASE}/login`, { waitUntil: 'load' });
   await page.fill('input[name=username]', USER);
   await page.fill('input[name=password]', PASS);
-  await Promise.all([
-    page.waitForNavigation(),
+  const [response] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/login') && r.request().method() === 'POST'),
     page.click("form[action='/login'] button[type=submit]"),
   ]);
+  await page.waitForLoadState('load');
+  if (response.status() === 429) {
+    throw new Error(
+      'the login endpoint answered 429: five attempts per ten minutes per address. ' +
+      'This run did not get that far on its own — wait for the window to pass, or restart ' +
+      'easywall-web, which holds the buckets in memory.');
+  }
   if (page.url().includes('/login')) {
-    throw new Error(`could not sign in: still at ${page.url()}`);
+    throw new Error(`could not sign in (POST /login -> ${response.status()}): still at ${page.url()}`);
   }
 }
 
@@ -177,27 +202,27 @@ async function checkSignOutEndsTheSession(page) {
 }
 
 /** Every page renders without complaint, and without scrolling sideways. */
-async function checkPageHealth(ctx, theme) {
+async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
   const seen = [];
   page.on('console', m => { if (m.type() === 'error') seen.push(`console: ${m.text()}`); });
   page.on('pageerror', e => seen.push(`pageerror: ${e.message}`));
   page.on('requestfailed', r => seen.push(`requestfailed: ${r.url()}`));
 
-  await signIn(page);
+  const where = `${theme} ${width}px`;
   for (const path of PAGES) {
     seen.length = 0;
     await page.goto(BASE + path, { waitUntil: 'networkidle' });
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     if (overflow > 0) {
-      fail(`horizontal overflow [${theme}]`, `${path} scrolls ${overflow}px sideways`);
+      fail(`horizontal overflow [${where}]`, `${path} scrolls ${overflow}px sideways`);
     }
     for (const problem of seen) {
-      fail(`page problem [${theme}]`, `${path} — ${problem}`);
+      fail(`page problem [${where}]`, `${path} — ${problem}`);
     }
   }
-  console.log(`  ok   ${PAGES.length} pages clean in ${theme}`);
+  console.log(`  ok   ${PAGES.length} pages clean at ${where}`);
   await page.close();
 }
 
@@ -205,31 +230,48 @@ const launch = process.env.CHROME_PATH
   ? { executablePath: process.env.CHROME_PATH }
   : {};
 
+// The three widths CLAUDE.md names: a desktop, a narrow window, a phone. Only
+// 1600 was ever driven here, so "both themes, three widths" was a rule the
+// repository stated and checked a third of — and a mobile layout that scrolls
+// sideways is invisible at 1600.
+const WIDTHS = [1600, 900, 390];
+
 const browser = await chromium.launch(launch);
 try {
   console.log(`Driving ${BASE}`);
   const setup = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await setup.newPage();
   await setUpAccount(page);
+  await signIn(page);
+  // One sign-in for the whole run — see signIn for what doing it per context
+  // cost. Every context below starts already authenticated.
+  const session = await setup.storageState();
   await setup.close();
 
   for (const theme of ['dark', 'light']) {
-    const ctx = await browser.newContext({
-      ignoreHTTPSErrors: true,
-      viewport: { width: 1600, height: 1000 },
-    });
-    await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
-    await checkPageHealth(ctx, theme);
-    await ctx.close();
+    for (const width of WIDTHS) {
+      const ctx = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width, height: 1000 },
+        storageState: session,
+      });
+      // After storageState, so the theme this pass is checking wins over
+      // whatever the signed-in context happened to leave behind.
+      await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
+      await checkPageHealth(ctx, theme, width);
+      await ctx.close();
+    }
   }
 
   const ctx = await browser.newContext({
     ignoreHTTPSErrors: true,
     viewport: { width: 1600, height: 1000 },
+    storageState: session,
   });
   const p = await ctx.newPage();
-  await signIn(p);
   await checkForwardingPortIsNotReparsed(p);
+  // Last, and deliberately: signing out revokes the session id every context
+  // above is sharing, so anything after it would be driving a signed-out browser.
   await checkSignOutEndsTheSession(p);
   await ctx.close();
 } finally {
