@@ -231,6 +231,21 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdApplyRules:
+		// Checked synchronously, before the slot and before the goroutine, for
+		// the same reason ErrApplyInProgress is checked synchronously below:
+		// the answer the caller needs is "did this start", and apply() already
+		// refuses this case on its own — but apply() runs inside the goroutine
+		// below, where its error is only logged. Without this, a browser
+		// clicking Apply while the console has run `panic` got back
+		// {"status":"started"} and never anything else; the operator had no
+		// way to learn their apply did nothing short of reading the daemon's
+		// own log. This check can still race a `panic` that lands after it and
+		// before beginApply — apply()'s own check is what closes that window;
+		// this one only makes the ordinary case visible.
+		if d.firewall.PanicEngaged() {
+			return errResp(ErrPanicEngaged)
+		}
+
 		// The slot is claimed here, synchronously, before anything is reported.
 		// This used to start the goroutine unconditionally and answer "started"
 		// every time, which was untrue for the second request: it did not start,

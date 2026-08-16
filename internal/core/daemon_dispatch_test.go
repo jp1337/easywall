@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -60,6 +61,54 @@ func TestDispatch_SaveOptions_SaveError(t *testing.T) {
 	resp := d.dispatch(shared.Command{Type: shared.CmdSaveOptions, Payload: payload})
 	if resp.Success {
 		t.Error("expected failure when config dir is read-only")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CmdApplyRules
+// ---------------------------------------------------------------------------
+
+// APPLY_RULES has to refuse synchronously, the same way ErrApplyInProgress
+// does, or the refusal never reaches the caller at all: the goroutine that
+// runs apply() only logs its error, and the immediate response was already
+// {"status":"started"} by the time apply() ran and found the marker. A
+// browser tab clicking Apply after `panic` ran at the console needs to be
+// told so, not left to infer it from a status page that never changes.
+func TestDispatch_ApplyRules_RefusedWhilePanicIsEngaged(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	resp := d.dispatch(shared.Command{Type: shared.CmdApplyRules})
+	if resp.Success {
+		t.Fatalf("APPLY_RULES succeeded while panic mode was engaged: %+v", resp)
+	}
+	if resp.Error != shared.ErrPanicEngagedText {
+		t.Errorf("Response.Error = %q, want %q — the web process matches on this exact "+
+			"string to explain the refusal instead of reporting a generic failure",
+			resp.Error, shared.ErrPanicEngagedText)
+	}
+
+	// No goroutine was started: the slot was never claimed, so beginApply
+	// still succeeds, and nothing is tracked in d.wg for Stop to wait on.
+	if !fw.beginApply() {
+		t.Error("the apply slot was claimed even though the request was refused before beginApply")
+	}
+	fw.endApply()
+
+	done := make(chan struct{})
+	go func() {
+		d.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not return promptly; a refused APPLY_RULES left something running")
 	}
 }
 
