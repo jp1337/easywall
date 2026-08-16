@@ -327,7 +327,6 @@ func checkNetworkLists(dockerNetworks, routingNetworks []string) error {
 }
 
 // SaveFirewallOptions updates the [firewall] section and atomically persists the config.
-// SaveFirewallOptions updates the [firewall] section and atomically persists the config.
 //
 // A limit arriving here is being chosen now, so a value that cannot work is
 // refused rather than replaced. Storing 100 when the operator asked for 0 leaves

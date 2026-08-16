@@ -92,7 +92,7 @@
   {"id": "options_title",    "translation": "Firewall-Optionen"},
   {"id": "options_save",     "translation": "Optionen speichern"},
   {"id": "options_saved",    "translation": "Optionen gespeichert. Regeln anwenden, um Änderungen zu aktivieren."},
-  {"id": "options_invalid_limit", "translation": "Es wurde nichts gespeichert: einer der Grenzwerte ist keine ganze Zahl im erlaubten Bereich. Der Bereich steht am Feld."},
+  {"id": "options_invalid_limit", "translation": "Es wurde nichts gespeichert: einer der Grenzwerte ist keine ganze Zahl im erlaubten Bereich. Das Feld erzwingt diesen Bereich."},
 
   {"id": "settings_title",   "translation": "Netzwerk-Einstellungen"},
   {"id": "settings_save",    "translation": "Einstellungen speichern"},
