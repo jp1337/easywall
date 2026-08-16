@@ -22,6 +22,7 @@
   <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/jp1337/easywall?logo=go&logoColor=white&label=go" alt="Go version"></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/github/license/jp1337/easywall?logo=opensourceinitiative&logoColor=white&label=license&color=blue" alt="GPL-3.0"></a>
   <a href="https://discord.gg/3zJMvChvUA"><img src="https://img.shields.io/badge/discord-join-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://ko-fi.com/jp1337"><img src="https://img.shields.io/badge/ko--fi-support-13C3FF?logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
 <p align="center">
