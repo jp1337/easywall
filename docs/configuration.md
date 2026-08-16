@@ -213,8 +213,7 @@ Two logging switches belong to no module and are set here as well:
 | | Logs | Rate |
 |---|---|---|
 | `log_blocked_connections` | everything the final policy drops | `log_blocked_connections_limit` `60`/min |
-| `log_blacklist_connections` | bool | `false` | Log packets matched by the blacklist |
-| `log_blacklist_connections_limit` | int | `60` | Log entries per minute for blacklist drops |
+| `log_blacklist_connections` | blacklist hits, before the drop | `log_blacklist_connections_limit` `60`/min |
 
 ---
 

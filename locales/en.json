@@ -92,7 +92,7 @@
   {"id": "options_title",    "translation": "Firewall Options"},
   {"id": "options_save",     "translation": "Save options"},
   {"id": "options_saved",    "translation": "Options saved. Apply rules to activate changes."},
-  {"id": "options_invalid_limit", "translation": "Nothing was saved: one of the limits is not a whole number within its permitted range. The range is shown on the field."},
+  {"id": "options_invalid_limit", "translation": "Nothing was saved: one of the limits is not a whole number within its permitted range. The field enforces that range."},
 
   {"id": "settings_title",   "translation": "Network Settings"},
   {"id": "settings_save",    "translation": "Save settings"},
