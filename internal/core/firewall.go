@@ -60,6 +60,22 @@ type Firewall struct {
 // not get to depend on the browser hiding a control.
 var ErrApplyInProgress = errors.New(shared.ErrApplyInProgressText)
 
+// ErrPanicEngaged is returned when an apply is asked for while panic mode is
+// engaged.
+//
+// beginApply claims the slot before this is checked, so a refused apply still
+// releases it immediately — nothing is left holding it open. The check has to
+// live in apply, not Apply: the daemon calls beginApply() and then apply()
+// directly (see dispatch's CmdApplyRules case), so a guard only on the
+// exported wrapper would never run on the path a real request actually takes.
+//
+// This is what makes Panic's refusal to be undone by the browser. Nothing
+// stops an operator's other browser tab, or a request queued before they ran
+// `panic` at the console, from reaching this function afterwards; without the
+// check it would re-open the table the console just closed, which is exactly
+// the outcome panic mode exists to rule out.
+var ErrPanicEngaged = errors.New(shared.ErrPanicEngagedText)
+
 // beginApply claims the right to run one apply cycle, reporting false when one
 // is already running. endApply releases it.
 //
@@ -156,6 +172,20 @@ func (f *Firewall) Apply(user string) error {
 // *synchronously*, so it can answer the request truthfully, and only then hand
 // the cycle itself to a goroutine.
 func (f *Firewall) apply(user string) error {
+	// The marker outranks the slot. beginApply only proves nobody else is
+	// mid-cycle; it says nothing about whether the console has taken the
+	// firewall down since. Checking here, inside the function every real
+	// request path reaches, means a request that arrived before `panic` ran,
+	// one queued in another tab, or a client that simply has not been told
+	// yet all land on the same refusal rather than three different races
+	// against Reset().
+	if f.PanicEngaged() {
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_refused_panic", "all",
+			"an apply was refused because panic mode is engaged at the console", user)
+		slog.Warn("apply refused: panic mode is engaged", "user", user)
+		return ErrPanicEngaged
+	}
+
 	slog.Info("starting rule apply", "user", user)
 
 	state, err := f.rules.GetState()
@@ -247,6 +277,26 @@ func (f *Firewall) apply(user string) error {
 // was the original error. A failed rollback gets its own audit entry, because
 // it is the line an operator needs to find first.
 func (f *Firewall) rollback(previous shared.RulesState, user string) {
+	// The check that makes Panic's marker authoritative rather than advisory.
+	//
+	// Panic does not take the apply slot — it has to be able to interrupt a
+	// cycle that already holds it, from the console, which is the whole point
+	// of a panic button. That leaves this as the only place left to stop an
+	// apply's rollback from flushing the previous rules back into the kernel
+	// on top of the teardown Panic just did: cancelling the acceptance window
+	// is what *starts* the rollback (Wait() sees the cancel and returns
+	// false), not what stops it. Refusing here, on the current state of the
+	// marker rather than on anything decided earlier in the cycle, is also
+	// what catches the slower variant: Panic landing between beginApply and
+	// acceptance.Start, where CancelAcceptance has nothing pending to cancel
+	// and the window still runs its full length before rollback is ever
+	// called.
+	if f.PanicEngaged() {
+		WriteAuditLog(f.cfg.AuditLogPath(), "rollback_skipped", "all",
+			"panic mode is engaged, so the previous rules were not restored", user)
+		return
+	}
+
 	var failures []string
 
 	if err := f.rules.Rollback(); err != nil {
