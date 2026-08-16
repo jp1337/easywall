@@ -280,6 +280,15 @@ func (c *Config) LastApplyPath() string {
 	return c.DataDir + "/last_apply"
 }
 
+// PanicMarkerPath returns the path of the file that records panic mode.
+//
+// In the data directory rather than the config file because it is written by a
+// console command and read at startup before the configuration has been proved
+// usable — see panicmode.go.
+func (c *Config) PanicMarkerPath() string {
+	return c.DataDir + "/panic"
+}
+
 // SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.
 func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	// Unset means filter, the same as everywhere else — a caller that omits the
