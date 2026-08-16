@@ -163,3 +163,63 @@ func TestApply_RecordsAFailureToReadTheRules(t *testing.T) {
 		t.Errorf("want exactly one apply_failed entry, got %v", got)
 	}
 }
+
+// Panic writes the marker even when tearing down the table fails. The order
+// matters: an operator who ran `panic` and then rebooted must not come back to
+// the rules that made them run it.
+func TestPanic_WritesTheMarkerEvenWhenTeardownFails(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg) // nil netlink connection: Reset will fail
+
+	err := fw.Panic("console")
+	if err == nil {
+		t.Fatal("with no netlink connection the teardown must be reported")
+	}
+	if !PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("the marker must be written even when the teardown failed")
+	}
+	if got := auditActions(t, cfg); len(got) != 1 || got[0] != "panic_engaged" {
+		t.Errorf("want one panic_engaged entry, got %v", got)
+	}
+}
+
+// Panic during an open acceptance window has to end the window, or the apply
+// goroutine waiting on it rolls back on top of the operator's flush.
+func TestPanic_EndsAnOpenAcceptanceWindow(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := fw.acceptance.Start(cfg.AcceptanceDuration()); err != nil {
+		t.Fatalf("start acceptance: %v", err)
+	}
+	if got := fw.acceptance.Status(); got != shared.AcceptancePending {
+		t.Fatalf("precondition: acceptance status = %q", got)
+	}
+
+	_ = fw.Panic("console")
+
+	if got := fw.acceptance.Status(); got == shared.AcceptancePending {
+		t.Error("panic must not leave an acceptance window open")
+	}
+}
+
+// Resume clears the marker first and only then restores, so a restore that fails
+// does not leave the machine claiming to be in panic mode when it is not.
+func TestResume_ClearsTheMarker(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	_ = fw.Resume("console") // the restore fails on the nil connection; the clear must not
+
+	if PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("resume must clear the marker even when the restore that follows fails")
+	}
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[0] != "panic_resumed" {
+		t.Errorf("want panic_resumed first, got %v", got)
+	}
+}
