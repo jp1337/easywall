@@ -32,7 +32,11 @@ linters:
         - G117  # SessionKey field in TOML config — TOML config files are always operator-managed (alert #46 dismissed)
         - G120  # MaxBytesReader applied globally in MaxBodySize middleware (server.go)
         - G301  # Directory permissions: test code uses 0755 for temp dirs; not a production issue
-        - G302  # File permissions: socket (0660 group-read for easywall) and audit log (0640) are intentional (alerts #29, #30 dismissed)
+        # The control socket is 0660 root:easywall on purpose — that group is the
+        # only path the web process has to the core. The audit log is *not* an
+        # exception here: it is 0600 (see WriteAuditLog), and this line claimed
+        # 0640 for a release after the group bit was deliberately removed.
+        - G302  # Socket permissions: 0660 group-write for easywall is the design (alerts #29, #30 dismissed)
         - G304  # File path from variable — expected for config/rules loading (all G304 alerts dismissed)
         - G306  # WriteFile permissions: test code uses 0644 for temp files; not a production issue
         - G706  # Log injection false-positive: IP from net.SplitHostPort, not raw user input (alert #34 dismissed)
