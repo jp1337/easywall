@@ -119,3 +119,22 @@ func TestTheClientOutwaitsWhatTheCoreMaySpendOnNft(t *testing.T) {
 		t.Error("GET_STATUS runs no subprocess; it should not carry the nft deadline")
 	}
 }
+
+// The HTTP server's own WriteTimeout is a third deadline in the same chain,
+// and nothing before this test tied it to the other two: POST /import and
+// POST /validate call the core synchronously, so a WriteTimeout shorter than
+// shared.CommandTimeout(CmdImportRules) cuts the connection before a reply
+// the core is still writing can reach the client — the same failure mode
+// TestAnImportIsNotAbandonedWhileTheCoreIsStillValidatingIt covers one layer
+// down, reappearing at the HTTP layer where that test cannot see it.
+func TestTheHTTPWriteDeadlineOutwaitsTheLongestCommand(t *testing.T) {
+	longest := shared.CommandTimeout(shared.CmdImportRules)
+	if v := shared.CommandTimeout(shared.CmdValidateCustom); v > longest {
+		longest = v
+	}
+	if got := writeTimeout(); got <= longest {
+		t.Errorf("http.Server.WriteTimeout = %s, but the client may wait %s for a reply "+
+			"the handler is blocked on — the server would cut the connection first",
+			got, longest)
+	}
+}
