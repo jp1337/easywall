@@ -1,3 +1,44 @@
+easywall (2.6.0) unstable; urgency=medium
+
+  * Fix: connection_limit_max and eight other firewall limits had three
+    different sets of bounds and none of them was enforced. A limit landing
+    in a 32-bit nftables field did not fail when too large — it wrapped:
+    4294967296 arrived as `ct count over 0`, a rule that drops every
+    connection from every source, with nothing logged. One table now carries
+    the range for all nine, and the daemon enforces it rather than the page
+    or the schema hinting at it
+  * Security: GET /logout sat outside Go's CrossOriginProtection, which
+    exempts safe methods by design, so any page the operator had open could
+    end their session with a single cross-site image tag. It is a POST now
+  * Fix: an unattended package upgrade could leave easywall unconfigured,
+    with the old processes still serving. easywall.toml was shipped as a
+    dpkg conffile, and easywall rewrites it on every saved setting, which
+    dpkg reads as locally modified — a release that also changed the
+    shipped default stopped the upgrade at the conffile prompt and left it
+    "install ok unpacked": new binaries on disk, postinst never run. It
+    ships as easywall.toml.template now, the arrangement web.toml has
+    always had
+  * Fix: the post-incident nftables snapshot attributed chains to the wrong
+    table when a same-named table existed in another family, and reported
+    an unreadable rule count as zero rather than as unreadable
+  * Fix: a mistyped or padded network in easywall.toml's Docker or routing
+    lists reached the kernel as no rule at all, or as a rule in one chain
+    and not its neighbour; the network editor, the core and the demo now
+    share one definition of what a network is
+  * Fix: an import that succeeded could be reported as failed under a slow
+    nft --check; the client's deadline now matches the one the core itself
+    enforces
+  * Feat: --write-config, the flag the documentation had already promised,
+    writes either binary's commented default configuration file
+  * Feat: a Debian package for arm64, built and verified on a runner of its
+    own architecture
+  * Four documented pages the interface already had: First Run, Applying
+    Rules, Dashboard, and a Roadmap page
+  * Diagram rendering, CI guards and further documentation corrections —
+    see CHANGELOG.md
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Sun, 16 Aug 2026 00:00:00 +0000
+
 easywall (2.5.1) unstable; urgency=medium
 
   * Fix: the .deb is published on the release. The documented install command
