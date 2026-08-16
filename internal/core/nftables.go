@@ -298,12 +298,21 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	// calls. The custom rules assume the table Apply just built is still
 	// there; releasing the lock in between would let a concurrent Reset()
 	// (Panic, from the console) delete it out from under the `nft -f -` that
-	// is still writing to it. The cost is on the read side: Enforcing(),
-	// which Status() calls and the dashboard polls every few seconds, can
-	// block for as long as this holds the lock — worst case a little over
-	// 30s, when a custom rule set is slow or the process has to be killed and
-	// waited out. Correctness is not optional here; a dashboard poll that
-	// waits 30 seconds once in a while is a cost worth paying for it.
+	// is still writing to it.
+	//
+	// The cost is on the read side: Enforcing(), which Status() calls, and
+	// Snapshot() both block for as long as this holds the lock — worst case a
+	// little over 30s, when a custom rule set is slow or the process has to be
+	// killed and waited out. That is longer than shared.CommandTimeout gives
+	// any command except the two nft-backed ones (5s), so it is not "the
+	// dashboard waits 30 seconds" — the web process's read deadline expires
+	// first, at 5s, and GET_STATUS comes back to the operator as the core
+	// being unreachable, for every command and not only that one, until the
+	// custom-rules step finishes and the next poll gets through. Correctness
+	// is not optional here; a status page that reports "unreachable" for a few
+	// seconds during a slow custom-rules apply is a cost worth paying for it —
+	// the alternative is Reset() deleting a table a subprocess is still
+	// writing to.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
