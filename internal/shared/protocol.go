@@ -103,6 +103,19 @@ type AcceptResult struct {
 // adding one for a single case is more protocol than this needs.
 const ErrApplyInProgressText = "an apply is already in progress"
 
+// ErrPanicEngagedText is the exact Response.Error the core returns when
+// APPLY_RULES arrives while panic mode is engaged.
+//
+// It lives here for the same reason as ErrApplyInProgressText: the core
+// writes it and the web process has to recognise it, to say plainly that the
+// firewall was taken down at the console rather than reporting a generic
+// failure. The case this guards is a browser tab left open across a `panic`
+// run at the console — the maintainer has ruled that the web interface may
+// not be the thing that re-arms a firewall someone disarmed by hand, and this
+// is the string that lets the interface explain the refusal instead of just
+// showing it.
+const ErrPanicEngagedText = "panic mode is engaged"
+
 // ValidateCustomPayload is the payload for CmdValidateCustom.
 type ValidateCustomPayload struct {
 	Rules []string `json:"rules"`

@@ -2,9 +2,11 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -183,8 +185,20 @@ func TestPanic_WritesTheMarkerEvenWhenTeardownFails(t *testing.T) {
 	}
 }
 
-// Panic during an open acceptance window has to end the window, or the apply
-// goroutine waiting on it rolls back on top of the operator's flush.
+// Panic during an open acceptance window has to end the window without
+// letting the apply goroutine waiting on it roll back on top of the
+// teardown.
+//
+// The previous version of this test started a window with nothing ever
+// calling Wait() on it, and asserted only that the status changed. That
+// passed because Panic called f.acceptance.Reset() directly — a call with no
+// purpose except making this assertion true, since a plain Reset() sets the
+// status to idle regardless of anything CancelAcceptance did. The assertion
+// would have passed with CancelAcceptance() deleted from Panic entirely, and
+// deleting it is exactly the bug this whole task exists to fix. This version
+// puts a real goroutine in Wait() — the way an apply actually does — and
+// follows it all the way to the rollback that Wait() returning false
+// triggers, which is where the actual protection now lives.
 func TestPanic_EndsAnOpenAcceptanceWindow(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
@@ -196,10 +210,122 @@ func TestPanic_EndsAnOpenAcceptanceWindow(t *testing.T) {
 		t.Fatalf("precondition: acceptance status = %q", got)
 	}
 
-	_ = fw.Panic("console")
+	// Stands in for the tail of Firewall.apply: a goroutine blocked in
+	// Wait(), which on a cancel writes apply_rolledback and calls rollback —
+	// exactly what apply() does when its window is not accepted.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if accepted := fw.acceptance.Wait(); !accepted {
+			WriteAuditLog(cfg.AuditLogPath(), "apply_rolledback", "all", "timeout", "apply-goroutine")
+			fw.rollback(shared.RulesState{}, "apply-goroutine")
+		}
+	}()
+
+	if err := fw.Panic("console"); err == nil {
+		t.Fatal("with no netlink connection Panic's own teardown must be reported as failed")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the apply goroutine never returned from Wait(); Panic did not end the window")
+	}
 
 	if got := fw.acceptance.Status(); got == shared.AcceptancePending {
 		t.Error("panic must not leave an acceptance window open")
+	}
+
+	actions := auditActions(t, cfg)
+	if len(actions) == 0 || actions[0] != "panic_engaged" {
+		t.Fatalf("want panic_engaged written first, got %v", actions)
+	}
+	var sawSkip bool
+	for _, a := range actions {
+		switch a {
+		case "rollback_skipped":
+			sawSkip = true
+		case "rollback_failed":
+			// rollback_failed would mean the rollback goroutine reached
+			// nft.Apply(previous) and raced Panic's own nft.Reset() on the
+			// same connection — the exact defect this task fixes.
+			t.Errorf("the rollback attempted to touch nftables after panic mode was engaged; got %v", actions)
+		}
+	}
+	if !sawSkip {
+		t.Errorf("want a rollback_skipped entry once panic mode is engaged, got %v", actions)
+	}
+}
+
+// A second apply — another browser tab, a request queued before the console
+// ran `panic`, a client that has not been told yet — must not be able to
+// re-arm a firewall the console just disarmed.
+func TestApply_RefusedWhilePanicIsEngaged(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	err := fw.apply("web")
+	if !errors.Is(err, ErrPanicEngaged) {
+		t.Errorf("apply() during panic mode = %v, want ErrPanicEngaged", err)
+	}
+
+	got := auditActions(t, cfg)
+	if len(got) != 1 || got[0] != "apply_refused_panic" {
+		t.Errorf("want exactly one apply_refused_panic entry, got %v", got)
+	}
+}
+
+// The exported Apply must refuse the same way — beginApply claims the slot
+// and then apply() finds the marker, so the slot has to come back too, or a
+// refused apply would wedge every apply after it.
+func TestApply_ExportedRefusesWhilePanicIsEngagedAndReleasesTheSlot(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	if err := fw.Apply("web"); !errors.Is(err, ErrPanicEngaged) {
+		t.Errorf("Apply() during panic mode = %v, want ErrPanicEngaged", err)
+	}
+	if !fw.beginApply() {
+		t.Error("the apply slot was not released after a refusal; no further apply could ever run")
+	}
+	fw.endApply()
+}
+
+// Resume ends panic mode unconditionally, but the restore that follows can
+// lose the apply slot to a cycle that is already running. That path used to
+// write nothing: the operator was left with a log that said panic mode had
+// ended and no line anywhere saying the rules never came back.
+func TestResume_RecordsWhenAnApplyHoldsTheSlot(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+	if !fw.beginApply() {
+		t.Fatal("could not claim the apply slot in the test")
+	}
+	defer fw.endApply()
+
+	err := fw.Resume("console")
+	if !errors.Is(err, ErrApplyInProgress) {
+		t.Errorf("Resume() while an apply holds the slot = %v, want ErrApplyInProgress", err)
+	}
+	if PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("Resume must clear the marker even when the restore behind it cannot run")
+	}
+
+	got := auditActions(t, cfg)
+	if len(got) != 2 || got[0] != "panic_resumed" || got[1] != "resume_restore_skipped" {
+		t.Errorf("want [panic_resumed resume_restore_skipped], got %v", got)
 	}
 }
 

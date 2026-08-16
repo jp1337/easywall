@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 )
@@ -86,18 +87,32 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 // it. A marker without a teardown leaves a machine that is still filtered and
 // says so; a teardown without a marker leaves a machine that filters again at
 // the next restart, silently.
+//
+// The same order also settles a race this function used to lose. An apply can
+// be sitting in its acceptance window when this runs, blocked in Wait() on
+// another goroutine. Cancelling that window does not stop its rollback —
+// cancelling is what *starts* it: Wait() sees the cancel and returns false,
+// and the caller runs rollback() as if the window had simply timed out. What
+// stops that rollback from flushing the previous rules back into the kernel
+// on top of the teardown below is Firewall.rollback refusing to act once the
+// marker is set. For that guard to be reliable, the marker has to already be
+// on disk by the time the cancel below can wake anything up — which is why
+// EngagePanic and the audit entry that follows come first, and
+// CancelAcceptance comes after them, never before.
 func (f *Firewall) Panic(user string) error {
-	// An apply waiting on its acceptance window would roll back on top of this.
-	// Cancelling counts as "not confirmed", which is accurate: nobody confirmed,
-	// and the reason nobody confirmed is that the firewall is being taken down.
-	f.CancelAcceptance()
-	f.acceptance.Reset()
-
 	if err := EngagePanic(f.cfg.PanicMarkerPath()); err != nil {
 		return fmt.Errorf("engage panic mode: %w", err)
 	}
 	WriteAuditLog(f.cfg.AuditLogPath(), "panic_engaged", "all",
 		"the firewall was taken down from the console", user)
+
+	// Now that the marker rollback checks for is in place, ending an open
+	// window is safe: whatever goroutine Wait() wakes up will find
+	// PanicEngaged() true and refuse to touch the rules. Not cancelling here
+	// would instead leave that window running for up to an hour, after which
+	// the very rollback this ordering protects against would still run — just
+	// late.
+	f.CancelAcceptance()
 
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode is recorded but the table could not be torn down; "+
@@ -121,5 +136,18 @@ func (f *Firewall) Resume(user string) error {
 	WriteAuditLog(f.cfg.AuditLogPath(), "panic_resumed", "all",
 		"panic mode was ended from the console", user)
 
-	return f.RestoreCurrent(RestoreReasonResume)
+	err := f.RestoreCurrent(RestoreReasonResume)
+	if errors.Is(err, ErrApplyInProgress) {
+		// RestoreCurrent takes the same slot an apply does and refuses rather
+		// than wait for it, which is correct — but until now that refusal
+		// wrote nothing here. The operator was left with a log that said
+		// panic mode had ended and no line anywhere saying the rules it was
+		// supposed to bring back never arrived: the marker was gone, an apply
+		// still held the slot, and the machine stayed unfiltered with nothing
+		// on record to explain why.
+		WriteAuditLog(f.cfg.AuditLogPath(), "resume_restore_skipped", "all",
+			"an apply held the slot; the stored rules were not restored — resume again once it finishes",
+			user)
+	}
+	return err
 }
