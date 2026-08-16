@@ -3,7 +3,6 @@ layout: default
 title: easywall — how it works and where things are
 description: The easywall documentation — install, configure, and understand the nftables firewall that cannot lock you out.
 permalink: /docs/
-sitemap: false
 ---
 
 The old home page's exposition now lives here: the idea, what the product is
