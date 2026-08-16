@@ -4,6 +4,17 @@ Documentation=https://easywall-project.org
 After=network.target
 Wants=network.target
 
+# The start rate limit belongs to the unit, not to the service. systemd moved
+# these two out of [Service] in v229 and keeps the old spelling working as a
+# compatibility alias — measured on systemd 259, `StartLimitInterval=60s` in
+# [Service] still reports StartLimitIntervalUSec=1min — so this was doing its
+# job. It is written where it is documented anyway: a compatibility alias is a
+# thing that can be removed, and the failure mode when it is would be silent.
+# The unit would fall back to the manager defaults, 5 starts in 10s, and a
+# crash-looping firewall daemon would keep restarting instead of stopping.
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+
 [Service]
 Type=simple
 User=root
@@ -38,11 +49,10 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=easywall-core
 
-# Restart on failure with back-off
+# Restart on failure with back-off. The rate limit that bounds it is in [Unit]
+# above, which is where systemd documents it.
 Restart=on-failure
 RestartSec=5s
-StartLimitInterval=60s
-StartLimitBurst=3
 
 # Security hardening
 NoNewPrivileges=yes
