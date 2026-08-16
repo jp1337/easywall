@@ -39,6 +39,42 @@ freshly installed package.
 | `/var/log/easywall` | `root:easywall` | 0750 | audit log, rotated by logrotate |
 | `/run/easywall` | `root:easywall` | 0750 | created by systemd from the unit's `User=`/`Group=` |
 
+## Neither config is shipped under its own name
+
+Both TOMLs arrive as `easywall.toml.template` and `web.toml.template`, and
+`postinst` copies each into place only when the real file is absent. That is
+what keeps them out of dpkg's conffile list — and it has to, because **easywall
+rewrites both while it runs**: the settings pages write `easywall.toml` through
+the core, the wizard and the password page write `web.toml`.
+
+`web.toml` always did this, for its secrets. `easywall.toml` did not, and dpkg
+therefore tracked a file a script edits. Measured in a `debian:trixie` container,
+upgrading 2.5.1 → 2.5.2 with one setting saved beforehand and a plain
+`apt-get install -y`:
+
+```
+Configuration file '/etc/easywall/easywall.toml'
+ ==> Modified (by you or by a script) since installation.
+ end of file on stdin at conffile prompt
+dpkg-query: install ok unpacked 2.5.2
+```
+
+`unpacked`, not `installed`: dpkg stopped at the prompt, so **postinst never ran**
+— the new binaries were on disk and the services were never restarted. Any
+upgrade path that does not pass `--force-confold` takes it, and a package may not
+assume the administrator's does. The prompt only appears when the shipped default
+also changed, which is exactly what a release that fixes a key looks like;
+`config/easywall.toml` carried the obsolete `ipv6.enabled` for a release.
+
+Removing a conffile is its own hazard, so the direction that matters was measured
+too: upgrading *from* a package that still carried it leaves
+`/etc/easywall/easywall.toml` untouched at `root:root 0600` with the operator's
+settings intact, prints nothing, and ends `install ok installed`. A fresh install
+produces the layout in the table above.
+
+`TestNeitherConfigIsShippedAsAConffile` reads `debian/rules` and `debian/postinst`
+and fails if either file goes back to being installed directly.
+
 Two of these were wrong at once and made a packaged installation useless:
 
 - `/etc/easywall` was `0750 root:root`, so `easywall-web` could not traverse to

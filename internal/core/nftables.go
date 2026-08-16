@@ -24,8 +24,11 @@ import (
 // nftBinary is the nft executable, and nftTimeout bounds every call to it.
 // Both are vars so a test can substitute a program that hangs.
 var (
-	nftBinary  = "nft"
-	nftTimeout = 30 * time.Second
+	nftBinary = "nft"
+	// The value lives in shared because easywall-web needs it: two commands run
+	// nft while the caller waits, so the client's deadline is derived from this
+	// one. A var here so a test can substitute a shorter bound.
+	nftTimeout = shared.NftTimeout
 	// nftWaitDelay bounds how long Wait may keep waiting on the output pipes
 	// after the process itself has been killed.
 	nftWaitDelay = 2 * time.Second
