@@ -92,6 +92,23 @@ jobs:
         env:
           JEKYLL_ENV: production
 
+      # The same floor the pull-request build asserts. It was on that job alone,
+      # which is the one path where nothing is published — so the check existed
+      # everywhere except where it would have mattered. Jekyll exits 0 having
+      # written an empty site if every page were skipped, and this job uploads
+      # whatever _site holds.
+      - name: The site is not empty
+        working-directory: docs
+        run: |
+          set -euo pipefail
+          pages=$(find _site -name '*.html' | wc -l)
+          echo "$pages HTML pages built"
+          test -f _site/index.html || { echo "::error::no landing page was built"; exit 1; }
+          [ "$pages" -ge 15 ] || {
+            echo "::error::only $pages pages built; the site has more than that, so something was dropped"
+            exit 1
+          }
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
