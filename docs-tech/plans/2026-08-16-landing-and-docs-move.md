@@ -216,7 +216,7 @@ done
 grep -l "http-equiv=\"refresh\"" _site/architecture/index.html _site/configuration/index.html >/dev/null
 test -f _site/docs/index.html && echo "overview OK"
 ```
-Expected: no MISSING lines, the overview exists at `/docs`, and the old stubs redirect. Also check the sitemap lists `/docs/…` URLs and no old `/installation/…`, `/features/…`, `/architecture/…`, `/configuration/…`, `/security/…`, `/roadmap/…`, `/contributing/…`, `/docs/`.
+Expected: no MISSING lines, the overview exists at `/docs`, and the old stubs redirect. Also check the sitemap lists `/docs/` and `/docs/…` URLs and none of the old top-level prefixes (`/installation/…`, `/features/…`, `/architecture/…`, `/configuration/…`, `/security/…`, `/roadmap/…`, `/contributing/…`).
 
 - [ ] **Step 4: Commit**
 
