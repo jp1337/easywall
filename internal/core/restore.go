@@ -58,6 +58,10 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 
 	state, err := f.rules.GetState()
 	if err != nil {
+		// The audit log is what the operator looks at when the interface says
+		// the firewall is off; a failure that only reaches the journal is invisible.
+		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",
+			fmt.Sprintf("%s: %s", reason, err.Error()), "core")
 		return fmt.Errorf("get rules: %w", err)
 	}
 
