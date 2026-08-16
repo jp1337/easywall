@@ -37,8 +37,16 @@ func (a *Acceptance) Status() shared.AcceptanceStatus {
 }
 
 // Start begins a new acceptance window of the given length. It must be called
-// before nftables rules are applied. Returns an error if an acceptance is
-// already in progress.
+// before nftables rules are applied.
+//
+// It returns nil, always, and starting while a window is already open is a
+// no-op rather than an error — TestAcceptance_StartIdempotent pins that. The
+// comment here used to promise the opposite ("returns an error if an acceptance
+// is already in progress"), which made the error check at the one call site in
+// Firewall.apply read as the guard against a second apply. It is not: that guard
+// is beginApply, which claims the slot synchronously and refuses with
+// ErrApplyInProgress. The error return is kept because a future window that
+// cannot be opened is a real possibility, but nothing produces one today.
 //
 // The length is passed in per apply rather than fixed when the controller is
 // built. It used to be captured once, at daemon start, so changing the duration
