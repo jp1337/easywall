@@ -118,3 +118,48 @@ func TestFirewall_PanicEngagedReflectsTheMarker(t *testing.T) {
 		t.Error("the marker is there; PanicEngaged must say so")
 	}
 }
+
+// A restore that cannot read the rules must record the failure. The audit log
+// is what the operator looks at when the interface says the firewall is off.
+func TestRestoreCurrent_RecordsAFailureToReadTheRules(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	// Corrupt the rules file so GetState fails
+	if err := os.WriteFile(cfg.RulesPath(), []byte("not json"), 0600); err != nil {
+		t.Fatalf("corrupt rules file: %v", err)
+	}
+
+	err := fw.RestoreCurrent(RestoreReasonBoot)
+	if err == nil {
+		t.Fatal("with corrupted rules the restore must fail")
+	}
+
+	got := auditActions(t, cfg)
+	if len(got) != 1 || got[0] != "boot_enforce_failed" {
+		t.Errorf("want exactly one boot_enforce_failed entry, got %v", got)
+	}
+}
+
+// An apply that cannot read the rules must record the failure. The audit log
+// is what the operator looks at when the interface says the firewall is off.
+func TestApply_RecordsAFailureToReadTheRules(t *testing.T) {
+	cfg := newTestConfig(t)
+	cfg.Acceptance.Enabled = false
+	fw := newTestFirewall(t, cfg)
+
+	// Corrupt the rules file so GetState fails
+	if err := os.WriteFile(cfg.RulesPath(), []byte("not json"), 0600); err != nil {
+		t.Fatalf("corrupt rules file: %v", err)
+	}
+
+	err := fw.Apply("test")
+	if err == nil {
+		t.Fatal("with corrupted rules the apply must fail")
+	}
+
+	got := auditActions(t, cfg)
+	if len(got) != 1 || got[0] != "apply_failed" {
+		t.Errorf("want exactly one apply_failed entry, got %v", got)
+	}
+}

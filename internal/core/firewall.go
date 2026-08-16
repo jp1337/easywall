@@ -160,6 +160,9 @@ func (f *Firewall) apply(user string) error {
 
 	state, err := f.rules.GetState()
 	if err != nil {
+		// The audit log is what the operator looks at when the interface says
+		// the firewall is off; a failure that only reaches the journal is invisible.
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all", err.Error(), user)
 		return fmt.Errorf("get rules: %w", err)
 	}
 
