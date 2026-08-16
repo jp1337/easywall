@@ -77,3 +77,49 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	slog.Info("the stored rules are in force again", "reason", reason)
 	return nil
 }
+
+// Panic tears the firewall down and records that it was done on purpose.
+//
+// The order is the whole design. The marker is written first and the table torn
+// down second, because the failure that matters is the one where the operator
+// runs this, believes it worked, reboots, and meets the rules that made them run
+// it. A marker without a teardown leaves a machine that is still filtered and
+// says so; a teardown without a marker leaves a machine that filters again at
+// the next restart, silently.
+func (f *Firewall) Panic(user string) error {
+	// An apply waiting on its acceptance window would roll back on top of this.
+	// Cancelling counts as "not confirmed", which is accurate: nobody confirmed,
+	// and the reason nobody confirmed is that the firewall is being taken down.
+	f.CancelAcceptance()
+	f.acceptance.Reset()
+
+	if err := EngagePanic(f.cfg.PanicMarkerPath()); err != nil {
+		return fmt.Errorf("engage panic mode: %w", err)
+	}
+	WriteAuditLog(f.cfg.AuditLogPath(), "panic_engaged", "all",
+		"the firewall was taken down from the console", user)
+
+	if err := f.nft.Reset(); err != nil {
+		slog.Error("panic mode is recorded but the table could not be torn down; "+
+			"the machine may still be filtering", "error", err)
+		return fmt.Errorf("tear down the table: %w", err)
+	}
+
+	slog.Warn("panic mode: this machine is now unfiltered", "user", user)
+	return nil
+}
+
+// Resume ends panic mode and puts the stored rules back.
+//
+// The marker is cleared before the restore is attempted, so a restore that fails
+// does not leave a machine that is unfiltered *and* claims to be in panic mode —
+// two different problems reported as one.
+func (f *Firewall) Resume(user string) error {
+	if err := ClearPanic(f.cfg.PanicMarkerPath()); err != nil {
+		return fmt.Errorf("end panic mode: %w", err)
+	}
+	WriteAuditLog(f.cfg.AuditLogPath(), "panic_resumed", "all",
+		"panic mode was ended from the console", user)
+
+	return f.RestoreCurrent(RestoreReasonResume)
+}
