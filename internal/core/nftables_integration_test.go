@@ -687,6 +687,29 @@ func TestIntegration_Apply_SSHBruteForce_MetersAPortRange(t *testing.T) {
 	}
 }
 
+// A Docker network with padding survives shared.ValidateNetworkList (which
+// trims before parsing) and addForwardExceptions' cidrMatch (which also
+// trims), so it reaches the kernel with a forward exception — but
+// addCIDRAccept did not trim, so the same list got no input accept. Half of
+// what the operator asked for, with nothing said. Reachable only through a
+// hand-edited easywall.toml and SIGHUP, since parseIPList trims what arrives
+// from the web interface.
+func TestIntegration_Apply_DockerNetworkAcceptsPaddedCIDR(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+
+	docker := shared.DockerConfig{Enabled: true, CustomNetworks: []string{"  10.8.0.0/24  "}}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{Docker: docker}); err != nil {
+		t.Fatalf("Apply with a padded docker network: %v", err)
+	}
+
+	rules := inputChainText(t, m)
+	if indexOfRule(rules, "10.8.0.0/24", "accept") < 0 {
+		t.Errorf("padded docker network %q got no input accept; input chain holds:\n%s",
+			docker.CustomNetworks[0], strings.Join(rules, "\n"))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Apply — port forwarding
 // ---------------------------------------------------------------------------
