@@ -56,6 +56,7 @@ jobs:
           pages=$(find _site -name '*.html' | wc -l)
           echo "$pages HTML pages built"
           test -f _site/index.html || { echo "::error::no landing page was built"; exit 1; }
+          test -f _site/sitemap.xml || { echo "::error::no sitemap.xml was built; the sitemap plugin is broken"; exit 1; }
           [ "$pages" -ge 15 ] || {
             echo "::error::only $pages pages built; the site has more than that, so something was dropped"
             exit 1
@@ -104,6 +105,7 @@ jobs:
           pages=$(find _site -name '*.html' | wc -l)
           echo "$pages HTML pages built"
           test -f _site/index.html || { echo "::error::no landing page was built"; exit 1; }
+          test -f _site/sitemap.xml || { echo "::error::no sitemap.xml was built; the sitemap plugin is broken"; exit 1; }
           [ "$pages" -ge 15 ] || {
             echo "::error::only $pages pages built; the site has more than that, so something was dropped"
             exit 1
