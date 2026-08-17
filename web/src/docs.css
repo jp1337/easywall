@@ -417,15 +417,17 @@ html, body {
   }
 
   /* Subtle radial-gradient glow + dotted-grid pattern behind the hero
-     content — distinctive without being noisy. Sits behind via z-index. */
+     content — distinctive without being noisy. Sits behind via z-index.
+     No opaque surface cap over the top edge: that rendered as a solid dark
+     band across the hero wherever the mask is not applied, so the glow is
+     made of tinted accents only and can never paint a full-width bar. */
   .docs-hero-glow {
     position: absolute;
     inset: 0;
     z-index: -1;
     background:
       radial-gradient(900px 350px at 18% 0%, var(--accent-dim), transparent 70%),
-      radial-gradient(700px 280px at 85% 100%, rgba(45,212,191,0.08), transparent 70%),
-      linear-gradient(180deg, var(--surface) 0%, transparent 100%);
+      radial-gradient(700px 280px at 85% 100%, rgba(45,212,191,0.08), transparent 70%);
     mask-image: radial-gradient(circle at center, black, black 70%, transparent 100%);
   }
 
