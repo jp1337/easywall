@@ -546,8 +546,15 @@ func TestDispatch_PanicEngagesAndResumeClears(t *testing.T) {
 		}
 	}
 
-	d.dispatch(shared.Command{Type: shared.CmdResume})
+	// Resume clears the marker and then tries to restore the stored rules. With
+	// the nil netlink connection, the restore fails, so the response reports
+	// failure — but the marker is still cleared, the symmetric behaviour to
+	// PANIC: a marker left behind survives a reboot.
+	resp = d.dispatch(shared.Command{Type: shared.CmdResume})
+	if resp.Success {
+		t.Error("with no netlink connection RESUME must report the restore failure")
+	}
 	if PanicEngaged(cfg.PanicMarkerPath()) {
-		t.Error("RESUME must clear the marker")
+		t.Error("RESUME must clear the marker even when the restore failed")
 	}
 }

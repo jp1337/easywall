@@ -81,6 +81,7 @@ whole protocol was.
 | `GET_STATUS` · `GET_LOG` | dashboard · last 200 audit entries |
 | `EXPORT_RULES` · `IMPORT_RULES` | backup and restore as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
+| `PANIC` · `RESUME` | tear the table down and record it · end that and restore |
 
 Full list: [`internal/shared/protocol.go`](https://github.com/jp1337/easywall/blob/main/internal/shared/protocol.go).
 
