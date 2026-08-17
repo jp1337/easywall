@@ -115,6 +115,9 @@ func TestRunSubcommand_ResumeReportsSuccess(t *testing.T) {
 	if code := runSubcommand("resume", []string{"-config", cfgPath}, &out, &errOut); code != 0 {
 		t.Fatalf("exit code %d, stderr: %s", code, errOut.String())
 	}
+	if !strings.Contains(out.String(), "back in force") {
+		t.Errorf("resume must say plainly that the stored rules are back in force:\n%s", out.String())
+	}
 }
 
 // An error from the core is the operator's, not a stack trace.

@@ -37,8 +37,6 @@ const (
 
 // runSubcommand executes one console subcommand and returns the process exit
 // code. Writers are parameters so the tests can read what an operator would see.
-//
-//nolint:errcheck // every write here goes to the operator's own terminal; if that pipe is gone there is nothing further to report to
 func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("easywall-core "+name, flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -50,13 +48,13 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 	switch name {
 	case "status", "panic", "resume":
 	default:
-		fmt.Fprintf(stderr, "easywall-core: unknown command %q\n\n%s", name, subcommandUsage)
+		_, _ = fmt.Fprintf(stderr, "easywall-core: unknown command %q\n\n%s", name, subcommandUsage)
 		return exitFailed
 	}
 
 	cfg, err := core.LoadConfig(*configPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "easywall-core: cannot read %s: %v\n", *configPath, err)
+		_, _ = fmt.Fprintf(stderr, "easywall-core: cannot read %s: %v\n", *configPath, err)
 		return exitFailed
 	}
 
@@ -70,43 +68,42 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-//nolint:errcheck // every write here goes to the operator's own terminal; if that pipe is gone there is nothing further to report to
 func runStatus(cfg *core.Config, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
 	if err != nil {
-		fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+		_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
 			cfg.SocketPath, err)
 		return exitFailed
 	}
 	if !resp.Success {
-		fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
+		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
 		return exitFailed
 	}
 
 	var status shared.FirewallStatus
 	if err := json.Unmarshal(resp.Data, &status); err != nil {
-		fmt.Fprintf(stderr, "easywall-core: cannot read the reply: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "easywall-core: cannot read the reply: %v\n", err)
 		return exitFailed
 	}
 
 	switch {
 	case status.Panic:
-		fmt.Fprintln(stdout, "firewall:   PANIC MODE — deliberately not enforcing")
-		fmt.Fprintln(stdout, "            run `easywall-core resume` to put the stored rules back")
+		_, _ = fmt.Fprintln(stdout, "firewall:   PANIC MODE — deliberately not enforcing")
+		_, _ = fmt.Fprintln(stdout, "            run `easywall-core resume` to put the stored rules back")
 	case status.Active:
-		fmt.Fprintln(stdout, "firewall:   enforcing")
+		_, _ = fmt.Fprintln(stdout, "firewall:   enforcing")
 	default:
-		fmt.Fprintln(stdout, "firewall:   NOT enforcing")
+		_, _ = fmt.Fprintln(stdout, "firewall:   NOT enforcing")
 	}
 
-	fmt.Fprintf(stdout, "acceptance: %s\n", status.Acceptance)
+	_, _ = fmt.Fprintf(stdout, "acceptance: %s\n", status.Acceptance)
 	if status.LastApply != "" {
-		fmt.Fprintf(stdout, "last apply: %s\n", status.LastApply)
+		_, _ = fmt.Fprintf(stdout, "last apply: %s\n", status.LastApply)
 	} else {
-		fmt.Fprintln(stdout, "last apply: never")
+		_, _ = fmt.Fprintln(stdout, "last apply: never")
 	}
 	if status.HasPending {
-		fmt.Fprintln(stdout, "pending:    there are staged changes that are not live")
+		_, _ = fmt.Fprintln(stdout, "pending:    there are staged changes that are not live")
 	}
 
 	// A monitoring check has to be able to read this without parsing the words.
@@ -118,35 +115,33 @@ func runStatus(cfg *core.Config, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-//nolint:errcheck // every write here goes to the operator's own terminal; if that pipe is gone there is nothing further to report to
 func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdPanic})
 	if err != nil {
-		fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+		_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
 			cfg.SocketPath, err)
 		return exitFailed
 	}
 	if !resp.Success {
-		fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
+		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
 		return exitFailed
 	}
-	fmt.Fprintln(stdout, "The firewall is down. This machine is unfiltered, and stays that way")
-	fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
+	_, _ = fmt.Fprintln(stdout, "The firewall is down. This machine is unfiltered, and stays that way")
+	_, _ = fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
 	return exitOK
 }
 
-//nolint:errcheck // every write here goes to the operator's own terminal; if that pipe is gone there is nothing further to report to
 func runResume(cfg *core.Config, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdResume})
 	if err != nil {
-		fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+		_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
 			cfg.SocketPath, err)
 		return exitFailed
 	}
 	if !resp.Success {
-		fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
+		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
 		return exitFailed
 	}
-	fmt.Fprintln(stdout, "Panic mode is over and the stored rules are back in force.")
+	_, _ = fmt.Fprintln(stdout, "Panic mode is over and the stored rules are back in force.")
 	return exitOK
 }
