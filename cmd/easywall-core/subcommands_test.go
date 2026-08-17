@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -209,5 +212,90 @@ func TestRunSubcommand_StatusWithoutADaemon(t *testing.T) {
 	}
 	if !strings.Contains(out.String()+errOut.String(), "not running") {
 		t.Errorf("it must say the daemon is not running:\n%s%s", out.String(), errOut.String())
+	}
+}
+
+// TestDaemonAbsent pins the classification daemonAbsent exists to make: the
+// three tests above all dial a path that never existed, so on their own they
+// only ever exercise the ENOENT branch. Hard-code daemonAbsent to `return
+// true` and every test in this package still goes green — nothing else here
+// ever produces a transport error at all, let alone one of the other shapes.
+// This is the test that actually pins the errno list, the timeout exclusion
+// ahead of it, and the ordering between the two.
+func TestDaemonAbsent(t *testing.T) {
+	// wrapDial mimics exactly what shared.SendCommand produces on a failed
+	// dial: net.DialTimeout returns a *net.OpError wrapping a *os.SyscallError
+	// wrapping the raw errno, and SendCommand wraps that again with
+	// fmt.Errorf("connect to core: %w", ...).
+	wrapDial := func(errno syscall.Errno) error {
+		return fmt.Errorf("connect to core: %w", &net.OpError{
+			Op:  "dial",
+			Net: "unix",
+			Err: &os.SyscallError{Syscall: "connect", Err: errno},
+		})
+	}
+	wrapRead := func(err error) error {
+		return fmt.Errorf("read response: %w", &net.OpError{Op: "read", Net: "unix", Err: err})
+	}
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "a deadline exceeded reads as a timeout: a slow daemon is still a daemon",
+			err:  wrapRead(os.ErrDeadlineExceeded),
+			want: false,
+		},
+		{
+			// A full accept backlog returns EAGAIN. That is caught here by the
+			// timeout branch, not by the errno list below — syscall.Errno.Timeout()
+			// reports EAGAIN (and EWOULDBLOCK, and ETIMEDOUT) as a timeout, and the
+			// timeout check runs first. EAGAIN never reaches the errors.Is calls.
+			// Swap the order of the two checks and this case flips to "no daemon"
+			// while the backlog is merely full.
+			name: "a full accept backlog (EAGAIN) is caught by the timeout branch ahead of the errno list",
+			err:  wrapDial(syscall.EAGAIN),
+			want: false,
+		},
+		{
+			name: "EACCES: a live daemon whose socket denies this caller",
+			err:  wrapDial(syscall.EACCES),
+			want: false,
+		},
+		{
+			name: "EPIPE: the write failed after connecting, so a daemon was there",
+			err:  fmt.Errorf("send command: %w", syscall.EPIPE),
+			want: false,
+		},
+		{
+			name: "ECONNRESET: the read failed after connecting, so a daemon was there",
+			err:  fmt.Errorf("read response: %w", syscall.ECONNRESET),
+			want: false,
+		},
+		{
+			name: "ENOENT wrapped the way SendCommand wraps a dial failure",
+			err:  wrapDial(syscall.ENOENT),
+			want: true,
+		},
+		{
+			name: "ECONNREFUSED wrapped the way SendCommand wraps a dial failure",
+			err:  wrapDial(syscall.ECONNREFUSED),
+			want: true,
+		},
+		{
+			name: "a plain error that is not an errno at all",
+			err:  errors.New("parse response: unexpected end of JSON input"),
+			want: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := daemonAbsent(c.err); got != c.want {
+				t.Errorf("daemonAbsent(%v) = %v, want %v", c.err, got, c.want)
+			}
+		})
 	}
 }
