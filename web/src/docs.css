@@ -410,8 +410,16 @@ html, body {
   /* === Hero (homepage) — large, atmospheric, on-brand =================== */
   .docs-hero {
     position: relative;
-    margin: 0 -1rem 4rem;
-    padding: 2rem 1rem 3.5rem;
+    /* Top margin cancels .content's own top padding exactly (-1.75rem here
+       matches .content's padding-top below), so the glow/dotted texture
+       starts at the very top of the content column instead of leaving a
+       flat, textureless gap above the hero. That gap — empty either way,
+       just a different height — was still reading as a bar over the
+       content even after it was shrunk once. Padding-top now controls the
+       pill's offset alone, and every pixel of it is inside the textured
+       hero, not blank background. */
+    margin: -1.75rem -1rem 4rem;
+    padding: 1.5rem 1rem 3.5rem;
     overflow: hidden;
     isolation: isolate;
   }
