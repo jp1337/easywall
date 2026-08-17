@@ -524,15 +524,14 @@ In `docs/_layouts/default.html`, inside the existing `{%- if page.seo == "softwa
 
 - [ ] **Step 2: Build and assert both schemas live only on the landing**
 
-Run the canonical build. Then:
+Run the canonical build. Then (type-presence gate; do NOT count total `ld+json` blocks — jekyll-seo-tag emits its own WebSite JSON-LD on every page):
 ```bash
-test "$(grep -c 'application/ld+json' _site/index.html)" -eq 2
 grep -q '"@type": "WebSite"' _site/index.html
 grep -q '"@type": "SoftwareApplication"' _site/index.html
 grep -q 'ko-fi.com/jp1337' _site/index.html
-test "$(grep -c 'application/ld+json' _site/docs/architecture/index.html)" -eq 0
+test "$(grep -c '"@type": "SoftwareApplication"' _site/docs/architecture/index.html)" -eq 0
 ```
-Expected: two JSON-LD blocks on the landing, both types present for the brand, zero on a doc page.
+Expected: the brand's SoftwareApplication + WebSite(+ sameAs) appear on the landing and on no doc page.
 
 - [ ] **Step 3: Commit**
 
