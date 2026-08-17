@@ -171,6 +171,8 @@ func TestAllCommandTypesMatchesTheProtocolSource(t *testing.T) {
 	protocolSource := repoFile(t, "internal", "shared", "protocol.go")
 
 	// Extract all CommandType constant declarations: CmdSomething = "VALUE"
+	// This pattern handles extra whitespace, trailing comments, but NOT grouped
+	// declarations like "CmdFoo, CmdBar CommandType = "FOO", "BAR"".
 	constPattern := regexp.MustCompile(`(Cmd\w+)\s+CommandType\s*=\s*"([^"]+)"`)
 	matches := constPattern.FindAllStringSubmatch(protocolSource, -1)
 
@@ -179,13 +181,51 @@ func TestAllCommandTypesMatchesTheProtocolSource(t *testing.T) {
 			"the pattern no longer matches or the file is missing declarations")
 	}
 
+	// Check for unparsed declarations: a line that contains multiple Cmd* names
+	// but the regex only matches one is a grouped declaration the pattern cannot
+	// handle. For example: CmdFoo, CmdBar CommandType = "FOO", "BAR"
+	// The regex matches CmdBar but misses CmdFoo, so we catch it by counting
+	// how many Cmd* names appear on the line vs. how many the pattern captured.
+	lines := strings.Split(protocolSource, "\n")
+	cmdNamePattern := regexp.MustCompile(`Cmd\w+`)
+	for _, line := range lines {
+		// Find all Cmd* names on this line (could be 0, 1, or multiple)
+		cmdNames := cmdNamePattern.FindAllString(line, -1)
+		if len(cmdNames) == 0 {
+			continue
+		}
+
+		// Find all regex matches on this line (one match = one captured Cmd* name)
+		lineMatches := constPattern.FindAllStringSubmatch(line, -1)
+
+		// If the line has Cmd* names but the regex didn't match any on it, or
+		// if the line has multiple Cmd* names but the regex only got one, that
+		// is a declaration shape we don't understand.
+		if len(cmdNames) > 0 && len(lineMatches) == 0 {
+			// Line has Cmd* names but no regex match
+			if strings.Contains(line, "CommandType") && strings.Contains(line, "=") {
+				t.Errorf("line contains CommandType declaration but was not parsed by the regex: %s",
+					strings.TrimSpace(line))
+			}
+		} else if len(cmdNames) > len(lineMatches) {
+			// Line has more Cmd* names than regex matches (grouped declaration)
+			if strings.Contains(line, "CommandType") && strings.Contains(line, "=") {
+				t.Errorf("line contains %d constant names but regex only matched %d; "+
+					"this looks like a grouped declaration the pattern cannot handle: %s",
+					len(cmdNames), len(lineMatches), strings.TrimSpace(line))
+			}
+		}
+	}
+
 	// Build a map of declared values for comparison.
+	// Store the raw count of matches separately to catch deduplication bugs.
 	declaredValues := make(map[string]string) // value -> name, for error reporting
 	for _, m := range matches {
 		name := m[1]
 		value := m[2]
 		declaredValues[value] = name
 	}
+	rawMatchCount := len(matches) // Count of all matches, before deduplication
 
 	// Every declared constant's value must appear in AllCommandTypes.
 	for value, name := range declaredValues {
@@ -210,10 +250,13 @@ func TestAllCommandTypesMatchesTheProtocolSource(t *testing.T) {
 	}
 
 	// Sanity check: the list and source must have the same count.
-	// If this fails, something is wrong with the list or the source parsing.
-	if len(AllCommandTypes) != len(declaredValues) {
-		t.Errorf("AllCommandTypes has %d entries but protocol.go declares %d constants",
-			len(AllCommandTypes), len(declaredValues))
+	// This is layered on the two loops above, not a replacement: the loops catch
+	// drift, the count check catches both sides being wrong by the same amount.
+	// Compare against raw match count, not deduplicated values, so two constants
+	// sharing a value are caught.
+	if len(AllCommandTypes) != rawMatchCount {
+		t.Errorf("AllCommandTypes has %d entries but protocol.go declares %d constant declarations",
+			len(AllCommandTypes), rawMatchCount)
 	}
 }
 
