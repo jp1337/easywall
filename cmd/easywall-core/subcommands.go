@@ -2,9 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
+	"net"
+	"syscall"
 
 	"github.com/jp1337/easywall/internal/core"
 	"github.com/jp1337/easywall/internal/shared"
@@ -68,12 +72,49 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 	}
 }
 
+// daemonAbsent reports whether err from shared.SendCommand means there is no
+// daemon, as opposed to a daemon that answered badly.
+//
+// This is the whole safety argument for touching nftables from here. The daemon
+// is the only writer of table inet easywall; the CLI may write it *only* when
+// there is no daemon, and a refused connection to a Unix socket is what that
+// looks like. A timeout is not: a daemon that is slow is still a daemon, and two
+// writers would be worse than a slow one.
+func daemonAbsent(err error) bool {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return false
+	}
+	return errors.Is(err, syscall.ENOENT) ||
+		errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, fs.ErrNotExist)
+}
+
+// tearDownDirectly removes the easywall table without going through the daemon.
+func tearDownDirectly() error {
+	nft, err := core.NewNftablesManager()
+	if err != nil {
+		return fmt.Errorf("reach nftables: %w", err)
+	}
+	return nft.Reset()
+}
+
 func runStatus(cfg *core.Config, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
-			cfg.SocketPath, err)
-		return exitFailed
+		if !daemonAbsent(err) {
+			_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+				cfg.SocketPath, err)
+			return exitFailed
+		}
+		_, _ = fmt.Fprintln(stdout, "daemon:     not running")
+		if core.PanicEngaged(cfg.PanicMarkerPath()) {
+			_, _ = fmt.Fprintln(stdout, "panic mode: engaged — the rules will NOT come back on start")
+			_, _ = fmt.Fprintln(stdout, "            run `easywall-core resume` first")
+		} else {
+			_, _ = fmt.Fprintln(stdout, "panic mode: not engaged — the rules come back when the daemon starts")
+		}
+		return exitNotFiltered
 	}
 	if !resp.Success {
 		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
@@ -118,9 +159,30 @@ func runStatus(cfg *core.Config, stdout, stderr io.Writer) int {
 func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdPanic})
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
-			cfg.SocketPath, err)
-		return exitFailed
+		if !daemonAbsent(err) {
+			_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+				cfg.SocketPath, err)
+			return exitFailed
+		}
+
+		// No daemon, so nothing else is writing the table and this may.
+		//
+		// The marker first, for the same reason the daemon writes it first: an
+		// operator who runs this, believes it worked and reboots must not meet
+		// the rules that made them run it.
+		_, _ = fmt.Fprintln(stdout, "The core daemon is not running.")
+		if err := core.EngagePanic(cfg.PanicMarkerPath()); err != nil {
+			_, _ = fmt.Fprintf(stderr, "easywall-core: %v\n", err)
+			return exitFailed
+		}
+		if err := tearDownDirectly(); err != nil {
+			_, _ = fmt.Fprintf(stderr, "easywall-core: panic mode is recorded, but the table "+
+				"could not be torn down: %v\n", err)
+			return exitFailed
+		}
+		_, _ = fmt.Fprintln(stdout, "The firewall is down. This machine is unfiltered, and stays that way")
+		_, _ = fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
+		return exitOK
 	}
 	if !resp.Success {
 		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
@@ -134,9 +196,22 @@ func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 func runResume(cfg *core.Config, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdResume})
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
-			cfg.SocketPath, err)
-		return exitFailed
+		if !daemonAbsent(err) {
+			_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+				cfg.SocketPath, err)
+			return exitFailed
+		}
+		// Only the marker. Putting the rules back is the daemon's job and it will
+		// do it the moment it starts — restoring from here would install a rule
+		// set nothing is then supervising.
+		_, _ = fmt.Fprintln(stdout, "The core daemon is not running.")
+		if err := core.ClearPanic(cfg.PanicMarkerPath()); err != nil {
+			_, _ = fmt.Fprintf(stderr, "easywall-core: %v\n", err)
+			return exitFailed
+		}
+		_, _ = fmt.Fprintln(stdout, "Panic mode is over. The rules come back when easywall-core starts:")
+		_, _ = fmt.Fprintln(stdout, "  systemctl start easywall-core")
+		return exitOK
 	}
 	if !resp.Success {
 		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)

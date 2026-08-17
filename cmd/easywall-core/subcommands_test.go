@@ -142,3 +142,72 @@ func TestRunSubcommand_UnknownSubcommand(t *testing.T) {
 		t.Errorf("the error should list the subcommands that do exist:\n%s", errOut.String())
 	}
 }
+
+// With no daemon at all, panic still has to work — that is the situation it
+// exists for. It writes the marker directly, so the next start of the daemon
+// does not put the rules back.
+func TestRunSubcommand_PanicWithoutADaemonWritesTheMarker(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "easywall.toml")
+	body := "socket_path = \"" + filepath.Join(dir, "absent.sock") + "\"\n" +
+		"data_dir = \"" + dir + "\"\n" +
+		"log_dir = \"" + dir + "\"\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := runSubcommand("panic", []string{"-config", cfgPath}, &out, &errOut)
+
+	// Tearing down the table needs CAP_NET_ADMIN, which the test process does
+	// not have, so the exit code depends on the environment. The marker does
+	// not: it must be there either way.
+	if _, err := os.Stat(filepath.Join(dir, "panic")); err != nil {
+		t.Errorf("the marker must be written even with no daemon running: %v (exit %d, stderr %s)",
+			err, code, errOut.String())
+	}
+	if !strings.Contains(out.String()+errOut.String(), "not running") {
+		t.Errorf("the output must say the daemon was not running:\n%s%s", out.String(), errOut.String())
+	}
+}
+
+func TestRunSubcommand_ResumeWithoutADaemonClearsTheMarker(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "easywall.toml")
+	body := "socket_path = \"" + filepath.Join(dir, "absent.sock") + "\"\n" +
+		"data_dir = \"" + dir + "\"\n" +
+		"log_dir = \"" + dir + "\"\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "panic"), nil, 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	runSubcommand("resume", []string{"-config", cfgPath}, &out, &errOut)
+
+	if _, err := os.Stat(filepath.Join(dir, "panic")); !os.IsNotExist(err) {
+		t.Errorf("the marker must be cleared with no daemon running, stat err = %v", err)
+	}
+}
+
+// status without a daemon must still say something useful, and must not exit 0.
+func TestRunSubcommand_StatusWithoutADaemon(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "easywall.toml")
+	body := "socket_path = \"" + filepath.Join(dir, "absent.sock") + "\"\n" +
+		"data_dir = \"" + dir + "\"\n" +
+		"log_dir = \"" + dir + "\"\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	if code := runSubcommand("status", []string{"-config", cfgPath}, &out, &errOut); code == 0 {
+		t.Error("no daemon must not exit 0")
+	}
+	if !strings.Contains(out.String()+errOut.String(), "not running") {
+		t.Errorf("it must say the daemon is not running:\n%s%s", out.String(), errOut.String())
+	}
+}
