@@ -39,13 +39,20 @@ const (
 	exitNotFiltered = 2
 )
 
+// auditUserNoDaemon marks an audit entry written by this fallback rather than
+// by the daemon on the console's behalf. The daemon already writes "console"
+// for a CmdPanic/CmdResume it dispatched, so panic_engaged and panic_resumed
+// can come from two different processes; the log has to say which one wrote
+// a given line without an operator having to guess from the timestamp.
+const auditUserNoDaemon = "console (no daemon)"
+
 // runSubcommand executes one console subcommand and returns the process exit
 // code. Writers are parameters so the tests can read what an operator would see.
 func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("easywall-core "+name, flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	configPath := fs.String("config", "/etc/easywall/easywall.toml", "path to core config file")
-	if err := fs.Parse(args); err != nil {
+	flags := flag.NewFlagSet("easywall-core "+name, flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	configPath := flags.String("config", "/etc/easywall/easywall.toml", "path to core config file")
+	if err := flags.Parse(args); err != nil {
 		return exitFailed
 	}
 
@@ -97,6 +104,15 @@ func tearDownDirectly() error {
 		return fmt.Errorf("reach nftables: %w", err)
 	}
 	return nft.Reset()
+}
+
+// printPanicEngaged is what an operator sees once panic mode is in force,
+// whichever route got it there — through the daemon, or with none running.
+// One copy, not two, so the daemon path and the fallback path cannot drift
+// apart the way only a diff would notice.
+func printPanicEngaged(stdout io.Writer) {
+	_, _ = fmt.Fprintln(stdout, "The firewall is down. This machine is unfiltered, and stays that way")
+	_, _ = fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
 }
 
 func runStatus(cfg *core.Config, stdout, stderr io.Writer) int {
@@ -165,7 +181,12 @@ func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 			return exitFailed
 		}
 
-		// No daemon, so nothing else is writing the table and this may.
+		// A refused socket means no daemon is accepting — not that nothing is
+		// still writing. Two windows say otherwise: the boot restore runs before
+		// net.Listen, and Stop's rollback can still be flushing after the
+		// listener is closed and unlinked. Both are survivable because the
+		// marker goes on disk before this teardown, and every daemon-side writer
+		// of the table checks it first.
 		//
 		// The marker first, for the same reason the daemon writes it first: an
 		// operator who runs this, believes it worked and reboots must not meet
@@ -175,21 +196,21 @@ func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 			_, _ = fmt.Fprintf(stderr, "easywall-core: %v\n", err)
 			return exitFailed
 		}
+		core.WriteAuditLog(cfg.AuditLogPath(), "panic_engaged", "all",
+			"the firewall was taken down from the console with no daemon running", auditUserNoDaemon)
 		if err := tearDownDirectly(); err != nil {
 			_, _ = fmt.Fprintf(stderr, "easywall-core: panic mode is recorded, but the table "+
 				"could not be torn down: %v\n", err)
 			return exitFailed
 		}
-		_, _ = fmt.Fprintln(stdout, "The firewall is down. This machine is unfiltered, and stays that way")
-		_, _ = fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
+		printPanicEngaged(stdout)
 		return exitOK
 	}
 	if !resp.Success {
 		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
 		return exitFailed
 	}
-	_, _ = fmt.Fprintln(stdout, "The firewall is down. This machine is unfiltered, and stays that way")
-	_, _ = fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
+	printPanicEngaged(stdout)
 	return exitOK
 }
 
@@ -209,6 +230,8 @@ func runResume(cfg *core.Config, stdout, stderr io.Writer) int {
 			_, _ = fmt.Fprintf(stderr, "easywall-core: %v\n", err)
 			return exitFailed
 		}
+		core.WriteAuditLog(cfg.AuditLogPath(), "panic_resumed", "all",
+			"panic mode was ended from the console with no daemon running", auditUserNoDaemon)
 		_, _ = fmt.Fprintln(stdout, "Panic mode is over. The rules come back when easywall-core starts:")
 		_, _ = fmt.Fprintln(stdout, "  systemctl start easywall-core")
 		return exitOK

@@ -79,6 +79,7 @@ where the page looks right on the machine that has the old file cached.
 | `TestThePackageVersionIsTheReleaseVersion` | `debian/changelog` and `shared.CurrentVersion` agree | the package version was the only version in the tree tied to nothing; the release compared it to the tag *after* publishing the images |
 | `TestAnImportIsNotAbandonedWhileTheCoreIsStillValidatingIt`, `TestTheClientOutwaitsWhatTheCoreMaySpendOnNft` | the client's deadline outlasts what the core may spend in `nft` | one flat 5 s for all fifteen commands meant an import that succeeded was reported as failed, with the staged rule set already replaced |
 | `TestTheDiagramPaletteIsTheDocumentationPalette` | the colours in `render-diagrams.mjs` are the tokens in `web/src/docs.css` | two copies under a "keep them in step" comment, and the diagram staleness digest cannot see a palette change |
+| `TestDaemonAbsent` | `daemonAbsent` treats only a refused Unix socket as "no daemon" — the errno list, and the timeout check that runs ahead of it and excludes EAGAIN's backlog-full case from that list | the three tests exercising the no-daemon fallback all dial a path that never existed, so hard-coding `daemonAbsent` to `return true` left the whole package green; nothing pinned the timeout exclusion, the branch order, or that EACCES and a full accept backlog must not read as "no daemon" — the one distinction the CLI is allowed to write nftables on |
 
 ## The technical documentation stays unpublished
 
