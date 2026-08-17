@@ -3,16 +3,9 @@ package web
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net"
-	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
-
-// dialTimeout bounds only reaching the socket. Connecting to a local Unix
-// socket is immediate or it is not going to happen, whatever the command is.
-const dialTimeout = 5 * time.Second
 
 // CoreClient communicates with the easywall-core daemon over a Unix socket,
 // or — when demo is non-nil — with an in-memory mock for the public demo
@@ -43,44 +36,15 @@ func (c *CoreClient) IsDemo() bool {
 // Send sends a typed command to the core daemon and returns its response.
 // In demo mode, the command is dispatched to the in-memory state machine
 // instead of the Unix socket — same return shape, no network I/O.
+//
+// The transport itself is shared.SendCommand: the console subcommands on
+// easywall-core need the same thing, and the privileged binary must not import
+// this package to get it.
 func (c *CoreClient) Send(cmd shared.Command) (shared.Response, error) {
 	if c.demo != nil {
 		return c.demo.Send(cmd), nil
 	}
-	conn, err := net.DialTimeout("unix", c.socketPath, dialTimeout)
-	if err != nil {
-		return shared.Response{}, fmt.Errorf("connect to core: %w", err)
-	}
-	defer conn.Close()
-	// Per command, not one number for all fifteen. Two of them run nft while
-	// the caller waits and the core bounds that at shared.NftTimeout, so a flat
-	// five seconds meant giving up on work the core went on to finish — see
-	// shared.CommandTimeout for the import that reported failure and succeeded.
-	_ = conn.SetDeadline(time.Now().Add(shared.CommandTimeout(cmd.Type)))
-
-	out, err := json.Marshal(cmd)
-	if err != nil {
-		return shared.Response{}, fmt.Errorf("marshal command: %w", err)
-	}
-	if _, err := conn.Write(out); err != nil {
-		return shared.Response{}, fmt.Errorf("send command: %w", err)
-	}
-
-	// Signal EOF so the daemon's io.ReadAll returns
-	if tc, ok := conn.(*net.UnixConn); ok {
-		_ = tc.CloseWrite()
-	}
-
-	data, err := io.ReadAll(io.LimitReader(conn, 1<<20))
-	if err != nil {
-		return shared.Response{}, fmt.Errorf("read response: %w", err)
-	}
-
-	var resp shared.Response
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return shared.Response{}, fmt.Errorf("parse response: %w", err)
-	}
-	return resp, nil
+	return shared.SendCommand(c.socketPath, cmd)
 }
 
 // GetStatus returns the current firewall status.
