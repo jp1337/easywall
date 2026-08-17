@@ -46,9 +46,12 @@ type Firewall struct {
 	// has nothing to do with that promise. A field this narrow gets a lock this
 	// narrow.
 	bootBridgesMu sync.Mutex
-	// bootBridges records the Docker bridge networks that existed when the boot
-	// restore ran, so reconcileDockerBridges can tell "none yet" from "none at
-	// all". See dockerreconcile.go.
+	// bootBridges records the Docker bridge networks the most recent restore
+	// baked into the rules — not only the boot one. RestoreCurrent is shared
+	// with Resume, so this is overwritten on every restore, whichever reason
+	// triggered it. It exists so reconcileDockerBridges can tell "none yet"
+	// from "none at all" the one time it checks, right after the boot restore.
+	// See dockerreconcile.go.
 	bootBridges []string
 
 	// reconcilePoll and reconcileWait bound that watch. Fields rather than

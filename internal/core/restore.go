@@ -68,9 +68,15 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 
 	// What this apply is about to bake in, so reconcileDockerBridges can tell
 	// "no bridges yet" from "no bridges at all". Guarded, not a plain field
-	// write: reconcileDockerBridges reads and writes the same field from the
-	// goroutine Daemon.Start launches, which runs concurrently with a
-	// panic-mode RESUME calling RestoreCurrent from the socket handler.
+	// write, because reconcileDockerBridges reads and writes the same field
+	// from the goroutine Daemon.Start launches. At this commit that goroutine
+	// and this call never actually overlap — Start's own boot restore is a
+	// plain, sequential call that finishes before the reconciler goroutine is
+	// even launched, and Resume has no production caller yet, so nothing else
+	// can reach RestoreCurrent while the reconciler is running. The guard is
+	// deliberate hardening ahead of Resume being wired to the socket handler,
+	// where RESUME can arrive at any time — not a fix for a race that exists
+	// today.
 	f.setBootBridges(detectDockerBridges())
 
 	if err := f.nft.Apply(state, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
