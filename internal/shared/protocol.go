@@ -66,6 +66,14 @@ const (
 	CmdExportRules    CommandType = "EXPORT_RULES"
 	CmdImportRules    CommandType = "IMPORT_RULES"
 	CmdValidateCustom CommandType = "VALIDATE_CUSTOM"
+
+	// CmdPanic tears the firewall down and records that it was deliberate;
+	// CmdResume ends that and puts the stored rules back. Both are sent by the
+	// `easywall-core` console subcommands rather than by the web process, so
+	// that there is one writer to the table even while somebody is standing at
+	// the machine — see internal/core/restore.go.
+	CmdPanic  CommandType = "PANIC"
+	CmdResume CommandType = "RESUME"
 )
 
 // Command is sent from easywall-web to easywall-core over the Unix socket.

@@ -412,13 +412,14 @@ func TestDaemonDispatch_HandlesEveryDeclaredCommand(t *testing.T) {
 		shared.CmdGetSettings, shared.CmdSaveSettings, shared.CmdGetSystem,
 		shared.CmdSaveSystem, shared.CmdGetLog, shared.CmdExportRules,
 		shared.CmdImportRules, shared.CmdValidateCustom,
+		shared.CmdPanic, shared.CmdResume,
 	}
 
 	// Guard against the list above drifting from the constants: protocol.go is
 	// the source of truth for how many there are, and architecture.md says
-	// fifteen.
-	if len(all) != 15 {
-		t.Fatalf("the protocol declares 15 commands; this test lists %d", len(all))
+	// seventeen.
+	if len(all) != 17 {
+		t.Fatalf("the protocol declares 17 commands; this test lists %d", len(all))
 	}
 
 	cfg := newTestConfig(t)
@@ -513,5 +514,40 @@ func TestDaemonDispatch_ApplyDoesNotRaceWithASettingsSave(t *testing.T) {
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			t.Errorf("a custom network came out torn: %q", cidr)
 		}
+	}
+}
+
+func TestDispatch_PanicEngagesAndResumeClears(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	defer d.Stop()
+
+	// The teardown fails on the nil netlink connection, so the reply is a
+	// failure — and the marker is still written, which is the behaviour that
+	// keeps a reboot from undoing the operator's decision.
+	resp := d.dispatch(shared.Command{Type: shared.CmdPanic})
+	if resp.Success {
+		t.Error("with no netlink connection PANIC must report the teardown failure")
+	}
+	if !PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("PANIC must leave the marker behind even when the teardown failed")
+	}
+
+	if got := d.dispatch(shared.Command{Type: shared.CmdGetStatus}); !got.Success {
+		t.Fatalf("GET_STATUS failed: %s", got.Error)
+	} else {
+		var status shared.FirewallStatus
+		if err := json.Unmarshal(got.Data, &status); err != nil {
+			t.Fatalf("parse status: %v", err)
+		}
+		if !status.Panic {
+			t.Error("GET_STATUS must report panic mode")
+		}
+	}
+
+	d.dispatch(shared.Command{Type: shared.CmdResume})
+	if PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("RESUME must clear the marker")
 	}
 }
