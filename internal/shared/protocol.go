@@ -35,12 +35,16 @@ const defaultCommandTimeout = 5 * time.Second
 // said it had not been — and the obvious next move after "import failed" is to
 // try again or to apply, on top of a rule set that is not the one on screen.
 //
-// The two nft-backed commands get NftTimeout plus room for the core's own work
-// either side of it; everything else keeps the short deadline, because a status
-// poll that hangs for half a minute is its own problem.
+// The nft-backed commands, plus PANIC, get NftTimeout plus room for the core's
+// own work either side. PANIC can queue behind an apply's nft subprocess — it is
+// designed to win rather than to fail fast — so the client must wait as long as
+// the server might. RESUME restores through beginApply and returns ErrApplyInProgress
+// immediately rather than blocking, so it belongs on the short deadline.
+// Everything else keeps the short deadline, because a status poll that hangs for
+// half a minute is its own problem.
 func CommandTimeout(cmd CommandType) time.Duration {
 	switch cmd {
-	case CmdImportRules, CmdValidateCustom:
+	case CmdImportRules, CmdValidateCustom, CmdPanic:
 		return NftTimeout + defaultCommandTimeout
 	default:
 		return defaultCommandTimeout
