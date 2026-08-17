@@ -307,12 +307,17 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	// any command except the two nft-backed ones (5s), so it is not "the
 	// dashboard waits 30 seconds" — the web process's read deadline expires
 	// first, at 5s, and GET_STATUS comes back to the operator as the core
-	// being unreachable, for every command and not only that one, until the
-	// custom-rules step finishes and the next poll gets through. Correctness
-	// is not optional here; a status page that reports "unreachable" for a few
-	// seconds during a slow custom-rules apply is a cost worth paying for it —
-	// the alternative is Reset() deleting a table a subprocess is still
-	// writing to.
+	// being unreachable, rather than the dashboard actually waiting, until the
+	// custom-rules step finishes and the next poll gets through. GET_STATUS is
+	// the one command this affects: it is the only one whose handler reaches
+	// this manager at all — Status() asks the kernel whether the rules are
+	// live rather than inferring it from anything in memory, and Enforcing()
+	// is that question. Every other command touches only the rules store, the
+	// config or the audit log, on its own connection's goroutine, so nothing
+	// else is dragged behind this lock. Correctness is not optional here; a
+	// status page that reports "unreachable" for a few seconds during a slow
+	// custom-rules apply is a cost worth paying for it — the alternative is
+	// Reset() deleting a table a subprocess is still writing to.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
