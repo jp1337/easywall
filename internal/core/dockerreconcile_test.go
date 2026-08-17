@@ -65,6 +65,15 @@ func TestReconcileDockerBridges_DoesNothingWhenBridgesWereAlreadyThere(t *testin
 	fakeBridges(t, map[string]string{"docker0": "172.17.0.0/16"})
 
 	fw.bootBridges = []string{"172.17.0.0/16"}
+	// If the bootBridges check did not fire, the zero-value reconcilePoll and
+	// reconcileWait left by newTestFirewall would make the next line panic
+	// (time.NewTicker rejects a non-positive interval) rather than fail this
+	// test cleanly. Setting both to an hour turns that failure mode into the
+	// one this test already asserts on: the goroutine blocks past the 2s
+	// timeout below and t.Fatal reports it, instead of the whole test binary
+	// crashing on an unrelated stack trace.
+	fw.reconcilePoll = time.Hour
+	fw.reconcileWait = time.Hour
 
 	done := make(chan struct{})
 	go func() { defer close(done); fw.reconcileDockerBridges(make(chan struct{})) }()
@@ -113,9 +122,23 @@ func TestReconcileDockerBridges_GivesUpAfterTheDeadline(t *testing.T) {
 
 	start := time.Now()
 	fw.reconcileDockerBridges(make(chan struct{}))
+	elapsed := time.Since(start)
 
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("it waited %v; the deadline was 100ms", elapsed)
+	// Both bounds matter, and neither is optional. The lower bound pins which
+	// branch actually returned: only the deadline case waits out reconcileWait
+	// before it does, so a bug that made this return early — wrongly, for any
+	// reason — would finish in near-zero time and slip straight past a test
+	// that checked only the upper bound, which is exactly what the previous
+	// version of this test did. The upper bound stays generous, rather than
+	// tight against 100ms, so a loaded machine's scheduler cannot turn this
+	// into a flake; it is here to catch "never returns", not to time the
+	// poller.
+	if elapsed < fw.reconcileWait {
+		t.Errorf("it returned after %v, before its own %v deadline; something "+
+			"other than the deadline made it return", elapsed, fw.reconcileWait)
+	}
+	if elapsed > time.Second {
+		t.Errorf("it waited %v; the deadline was %v", elapsed, fw.reconcileWait)
 	}
 	if got := auditActions(t, cfg); len(got) != 0 {
 		t.Errorf("no bridge appeared, so no restore should have run, got %v", got)

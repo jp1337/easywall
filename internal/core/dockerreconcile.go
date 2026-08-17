@@ -59,7 +59,16 @@ func (f *Firewall) reconcileDockerBridges(quit <-chan struct{}) {
 			}
 			slog.Info("docker bridges appeared after startup; putting the rules back "+
 				"so they name them", "bridges", found)
-			f.setBootBridges(found)
+			// Not f.setBootBridges(found) here too: RestoreCurrent already
+			// records what it saw on every path that reaches its own write —
+			// see the comment there — and this function returns unconditionally
+			// on the very next line regardless of what RestoreCurrent did, so
+			// nothing downstream of here ever reads the field again. A second
+			// write at this call site would only be observable on the path
+			// where RestoreCurrent returns before reaching its own write —
+			// panic mode, or the apply slot already taken — and even then it
+			// changes nothing, because this function has already committed to
+			// returning either way.
 			if err := f.RestoreCurrent(RestoreReasonBoot); err != nil {
 				slog.Error("could not restore after the docker bridges appeared", "error", err)
 			}
