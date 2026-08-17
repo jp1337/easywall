@@ -5,10 +5,6 @@ description: The easywall documentation — install, configure, and understand t
 permalink: /docs/
 ---
 
-The old home page's exposition now lives here: the idea, what the product is
-made of, and the rule order are the orientation you need before or after
-installing.
-
 ## The idea
 
 A firewall you edit over the network can lock you out of the machine you are editing it on. easywall makes that recoverable by default.
