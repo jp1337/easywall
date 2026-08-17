@@ -66,6 +66,13 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		return fmt.Errorf("get rules: %w", err)
 	}
 
+	// What this apply is about to bake in, so reconcileDockerBridges can tell
+	// "no bridges yet" from "no bridges at all". Guarded, not a plain field
+	// write: reconcileDockerBridges reads and writes the same field from the
+	// goroutine Daemon.Start launches, which runs concurrently with a
+	// panic-mode RESUME calling RestoreCurrent from the socket handler.
+	f.setBootBridges(detectDockerBridges())
+
 	if err := f.nft.Apply(state, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
 		// the machine came up unfiltered and nobody can say why.

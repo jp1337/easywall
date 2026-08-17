@@ -96,6 +96,19 @@ func (d *Daemon) Start() error {
 		}
 	}()
 
+	// Tracked in wg so Stop waits for it rather than leaving it polling into a
+	// closed daemon. Deliberately outside the closure above: that one releases
+	// its wg slot the instant the boot restore returns, specifically so d.wg
+	// does not span the whole daemon lifetime (see the comment on it). This
+	// goroutine's job only starts once the boot restore has already run, and
+	// it can poll for up to reconcileWait — Stop has to wait for it to notice
+	// d.quit, not for the boot restore that came before it.
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		d.firewall.reconcileDockerBridges(d.quit)
+	}()
+
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
 
