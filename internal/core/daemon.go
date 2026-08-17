@@ -80,13 +80,21 @@ func (d *Daemon) Start() error {
 	// stored rules on a daemon that is shutting down leaves the kernel holding
 	// exactly what the machine is supposed to have, and the next start would do
 	// the same thing anyway.
+	//
+	// The WaitGroup exists so Stop() waits for kernel work, not for client connections.
+	// Its scope is the restore only, not the accept loop, so the counter is released
+	// the moment the restore returns. Extending it over the loop would couple
+	// shutdown correctness to Stop() closing the listener first, a dependency that
+	// is not obvious and should not exist.
 	d.wg.Add(1)
-	defer d.wg.Done()
-	if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
-		slog.Error("could not put the stored rules back at startup; this machine "+
-			"is not filtering — open the interface and apply, or run "+
-			"`easywall-core status` to see why", "error", err)
-	}
+	func() {
+		defer d.wg.Done()
+		if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
+			slog.Error("could not put the stored rules back at startup; this machine "+
+				"is not filtering — open the interface and apply, or run "+
+				"`easywall-core status` to see why", "error", err)
+		}
+	}()
 
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
