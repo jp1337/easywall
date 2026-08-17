@@ -442,6 +442,18 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		data, _ := json.Marshal(result)
 		return shared.Response{Success: true, Data: data}
 
+	case shared.CmdPanic:
+		if err := d.firewall.Panic("console"); err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true}
+
+	case shared.CmdResume:
+		if err := d.firewall.Resume("console"); err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true}
+
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}
 	}

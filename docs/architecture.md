@@ -62,7 +62,7 @@ Step by step: [Applying rules]({{ '/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
-Fifteen message kinds, declared as Go structs on both sides. Adding an operation
+Seventeen message kinds, declared as Go structs on both sides. Adding an operation
 means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
