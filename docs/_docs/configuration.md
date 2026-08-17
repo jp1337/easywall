@@ -116,7 +116,7 @@ with static addressing that genuinely need neither.
 | `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
 | `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
 
-See [Docker Coexistence]({{ '/features/docker/' | relative_url }}) for the full setup guide.
+See [Docker Coexistence]({{ '/docs/features/docker/' | relative_url }}) for the full setup guide.
 
 Both this list and `routing.networks` below hold **CIDR networks** — `192.168.1.0/24`,
 not `192.168.1.5`. A blank line or a line beginning with `#` is a comment, as in the
@@ -164,7 +164,7 @@ its own logging switch. Every threshold is **per source address**. All booleans
 default to what the "on" column says; the numbers are the defaults shown.
 
 What each module actually drops is on
-[Firewall Filters]({{ '/features/filters/' | relative_url }}); this is the key
+[Firewall Filters]({{ '/docs/features/filters/' | relative_url }}); this is the key
 reference.
 
 | Module | Switch — default | Tuning | Logging |
@@ -251,7 +251,7 @@ The languages on offer are whatever `locales/*.json` contains, and each file nam
 itself through its own `language_name` key — so `Deutsch` reads as `Deutsch`
 whatever language the interface is currently in. Adding a locale file is all it
 takes for it to appear in the switch; see
-[Adding a language]({{ '/contributing/' | relative_url }}#adding-a-language).
+[Adding a language]({{ '/docs/contributing/' | relative_url }}#adding-a-language).
 
 ```bash
 openssl rand -hex 32     # session_key

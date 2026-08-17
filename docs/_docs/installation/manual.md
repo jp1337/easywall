@@ -7,7 +7,7 @@ description: Build the two binaries and install them yourself, when there is no 
 # Manual Installation
 
 For distributions without a package. Check
-[Requirements]({{ '/installation/requirements/' | relative_url }}) first.
+[Requirements]({{ '/docs/installation/requirements/' | relative_url }}) first.
 
 ## Build
 
@@ -84,7 +84,7 @@ sudo easywall-core --write-config /etc/easywall/easywall.toml
 
 Both land as `0600`; the `chown` is what makes `web.toml` writable by the process
 that has to rewrite it. Every key is explained in
-[Configuration]({{ '/configuration/' | relative_url }}).
+[Configuration]({{ '/docs/configuration/' | relative_url }}).
 
 The session key ships as an obvious placeholder and easywall replaces it on first
 start. Generating it yourself is better — then it exists before the port is ever

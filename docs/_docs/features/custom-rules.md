@@ -47,7 +47,7 @@ on import, and again inside the core.
 > never looks at another" says cannot happen. The check is on the *shape* of the
 > input rather than on nft's grammar, so it does not depend on a subprocess being
 > available or on a wrapper happening to be unbalanced. The reasoning is in
-> [Security]({{ '/security/' | relative_url }}).
+> [Security]({{ '/docs/security/' | relative_url }}).
 
 There is also a ceiling of **256 statements** per check, which is far above any
 real rule set and far below what a form body can carry.
@@ -80,7 +80,7 @@ line it was.
 | A line number | That statement is not valid nftables syntax; the message is nft's own |
 | "Validation unavailable" | The core is not reachable, so nothing was checked — not "everything is fine" |
 
-In [demo mode]({{ '/installation/demo/' | relative_url }}) there is no `nft`
+In [demo mode]({{ '/docs/installation/demo/' | relative_url }}) there is no `nft`
 behind the interface, so it reports the checker as unavailable rather than
 claiming your rules are valid.
 
@@ -88,7 +88,7 @@ claiming your rules are valid.
 
 Saving stages, like every other page. Worth knowing here: a statement that passes
 the syntax check can still be refused by the **kernel** at
-[apply]({{ '/features/apply/' | relative_url }}) time — a chain that does not exist,
+[apply]({{ '/docs/features/apply/' | relative_url }}) time — a chain that does not exist,
 a set that is not defined — and a failed apply rolls back to the previous rules.
 
 ## When it does not work

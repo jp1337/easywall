@@ -8,7 +8,7 @@ description: The whole rule set as one JSON file — for migration, for a backup
 
 The buttons sit top-right on the dashboard. Export downloads the **staged** rule set;
 import replaces it. Neither touches the running firewall — that still needs an
-[apply]({{ '/features/apply/' | relative_url }}).
+[apply]({{ '/docs/features/apply/' | relative_url }}).
 
 | | |
 |---|---|

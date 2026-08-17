@@ -9,7 +9,7 @@ description: The protection modules — what each one drops, how to tune it, and
 Optional modules that harden the host beyond opening and closing ports. All of them
 are native nftables rules in `table inet easywall` — no subprocess, nothing to inject
 into. Toggling one is staged like any other change and takes effect on
-[Apply]({{ '/features/apply/' | relative_url }}).
+[Apply]({{ '/docs/features/apply/' | relative_url }}).
 
 ## Which to turn on
 
@@ -33,7 +33,7 @@ Before the blacklist, before the whitelist, before any port is considered. A mod
 that drops a packet drops it whatever else you have allowed.
 
 Two things come earlier still: loopback, always, and the [IPv6
-mode]({{ '/features/system-settings/' | relative_url }}) — set to `passthrough` or
+mode]({{ '/docs/features/system-settings/' | relative_url }}) — set to `passthrough` or
 `block`, IPv6 is decided before any module sees it.
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
@@ -50,7 +50,7 @@ Compiled into every rule set. There is no switch for these.
 | Return traffic | `ct state {related, established} accept` | Replies to what you started |
 | ICMPv4 | types 0, 3, 11, 12 | Echo reply, unreachable, TTL exceeded, parameter problem |
 | ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
-| ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/features/system-settings/' | relative_url }}) |
+| ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
 
 ## The three chains
 
@@ -67,24 +67,24 @@ creates two more, and what they do has consequences worth knowing.
 > falls through to its policy, so an empty `forward` chain with `policy drop` destroys
 > every routed packet at that hook — including ones another table has already
 > accepted. The drop is final: a forward chain of your own cannot overrule it, and
-> [custom rules]({{ '/features/custom-rules/' | relative_url }}) go into `input`.
+> [custom rules]({{ '/docs/features/custom-rules/' | relative_url }}) go into `input`.
 > Costs nothing on a plain server; stopped every Docker container dead until 2.5.0.
 
 Two things cross that chain:
 
-- The [Docker]({{ '/features/docker/' | relative_url }}) networks you have allowed,
+- The [Docker]({{ '/docs/features/docker/' | relative_url }}) networks you have allowed,
   whatever `routing.mode` says. Switching coexistence on is already the statement
   that this host carries container traffic.
 - Whatever `[routing]` names. Its three positions — route nothing, route these
   networks, leave routed traffic alone — are on the
-  [Network page]({{ '/features/system-settings/' | relative_url }}#the-network-page)
-  and in [configuration]({{ '/configuration/' | relative_url }}#routing).
+  [Network page]({{ '/docs/features/system-settings/' | relative_url }}#the-network-page)
+  and in [configuration]({{ '/docs/configuration/' | relative_url }}#routing).
 
 ## Attack protection
 
 | Module | Drops | Tuning | Default |
 |---|---|---|---|
-| **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
+| **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/docs/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
 | **ICMP flood** | Echo requests from one source above its rate — ICMP type 8 and ICMPv6 type 128 | `icmp_flood_connection_limit` — 10/s | **on** |
 | **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
 | **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |
@@ -187,7 +187,7 @@ same match, so what appears in the log is exactly what was dropped.
 > command above matched nothing, whatever was switched on.
 
 This is the *kernel* log — packets. Administrative changes are in the
-[audit log]({{ '/features/audit-log/' | relative_url }}) instead.
+[audit log]({{ '/docs/features/audit-log/' | relative_url }}) instead.
 
 The interface writes the same `[firewall]` section you would edit by hand; every key
-is listed under [Configuration]({{ '/configuration/' | relative_url }}#firewall--protection-modules).
+is listed under [Configuration]({{ '/docs/configuration/' | relative_url }}#firewall--protection-modules).

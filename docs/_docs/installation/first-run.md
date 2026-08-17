@@ -19,7 +19,7 @@ and nothing else. It asks for two things.
 
 | | |
 |---|---|
-| How many | one. easywall has no user management yet — [roadmap]({{ '/roadmap/' | relative_url }}) |
+| How many | one. easywall has no user management yet — [roadmap]({{ '/docs/roadmap/' | relative_url }}) |
 | Password | at least 12 characters, hashed with Argon2id and a per-password salt |
 | Recovery | **none by design.** No mail, no outside service — see [below](#if-you-lose-the-password) |
 
@@ -31,11 +31,11 @@ and nothing else. It asks for two things.
 | **Port 12227** | added for you, because the firewall drops what it was not told to allow — including this page |
 | **Also open 80 and 443** | two more staged ports, for a host serving a website |
 | **IPv6** | filter it (almost always right), leave it alone, or drop it. Saved as a **setting**, not staged — it decides how every later rule is evaluated |
-| **Count this installation** | off unless you switch it on. What it sends is printed in full under [Configuration]({{ '/configuration/' | relative_url }}#counting-installations) |
+| **Count this installation** | off unless you switch it on. What it sends is printed in full under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations) |
 
 **Staged means nothing is live yet.** After signing in, review it on
-[Ports]({{ '/features/ports/' | relative_url }}) and push it with
-[Apply]({{ '/features/apply/' | relative_url }}) — which still undoes itself unless
+[Ports]({{ '/docs/features/ports/' | relative_url }}) and push it with
+[Apply]({{ '/docs/features/apply/' | relative_url }}) — which still undoes itself unless
 you confirm. The setup page is the worst possible moment to make an exception:
 nobody has yet checked that they can still reach the machine.
 
@@ -96,12 +96,12 @@ budget refills. Reaching easywall directly, or on a private network, avoids it.
 | The setup page 404s | an account already exists | go to `/login`; clear the `password` line to start over |
 | "That is not a port number" | the SSH port is outside 1–65535 | |
 | "the choices could not be staged" | the core daemon was not reachable | `systemctl status easywall-core`, then set the ports by hand |
-| The browser warns about the certificate | it is self-signed on first start | accept it, or [configure your own]({{ '/installation/debian/' | relative_url }}#your-own-certificate) |
+| The browser warns about the certificate | it is self-signed on first start | accept it, or [configure your own]({{ '/docs/installation/debian/' | relative_url }}#your-own-certificate) |
 | Signed in, but every page says the core is unreachable | the socket is not reachable by the web user | `ls -l /run/easywall/core.sock` — it must be `root:easywall` |
 | "Too Many Requests" on sign-in | five failed attempts in ten minutes from your address | wait; one attempt is returned every two minutes |
 
 ---
 
-**Next:** [Applying rules]({{ '/features/apply/' | relative_url }}) ·
-[Ports]({{ '/features/ports/' | relative_url }}) ·
-[Configuration]({{ '/configuration/' | relative_url }})
+**Next:** [Applying rules]({{ '/docs/features/apply/' | relative_url }}) ·
+[Ports]({{ '/docs/features/ports/' | relative_url }}) ·
+[Configuration]({{ '/docs/configuration/' | relative_url }})

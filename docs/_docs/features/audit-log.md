@@ -48,7 +48,7 @@ coloured tag would stop meaning anything.
 
 | Not recorded | Where to look instead |
 |---|---|
-| Which account made a change | nowhere. Every entry says `web`, because the socket protocol carries no identity yet — [roadmap]({{ '/roadmap/' | relative_url }}) |
+| Which account made a change | nowhere. Every entry says `web`, because the socket protocol carries no identity yet — [roadmap]({{ '/docs/roadmap/' | relative_url }}) |
 | Logins and failed logins | `journalctl -u easywall-web` |
 | Logouts | nowhere, though a logout does end the session immediately |
 | Read-only page views | nowhere — not recorded at all |

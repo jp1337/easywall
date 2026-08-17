@@ -14,7 +14,7 @@ docker compose up -d
 
 Open `https://localhost:12227` and complete the setup wizard.
 
-Then complete the [setup]({{ '/installation/first-run/' | relative_url }}).
+Then complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}).
 
 > **`./config` changes owner on first start, and needs to.** The mount replaces the
 > ownership the image sets, so the files arrive belonging to whoever cloned the
@@ -45,7 +45,7 @@ authentication.
 |---|---|---|
 | `:latest` | on **stable** releases only — a release candidate does not move it | **production** |
 | `:vX.Y.Z` | never | pinning, e.g. `v{{ site.version }}` |
-| `:edge` | after every green build on `main` | tracking development, [demo mode]({{ '/installation/demo/' | relative_url }}) |
+| `:edge` | after every green build on `main` | tracking development, [demo mode]({{ '/docs/installation/demo/' | relative_url }}) |
 | `:sha-<commit>` | never | rollback and debugging |
 
 ```yaml
@@ -77,7 +77,7 @@ page never listed. It is gone; applying a full rule set was verified without it.
 already running nftables has it.
 
 This is also why easywall in a container still coexists with Docker's own rules —
-it owns [`table inet easywall`]({{ '/features/docker/' | relative_url }}) and nothing else.
+it owns [`table inet easywall`]({{ '/docs/features/docker/' | relative_url }}) and nothing else.
 
 ## Needs
 

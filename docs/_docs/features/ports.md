@@ -23,8 +23,8 @@ tabs; a rule is a port, an optional SSH mark, and a description for your own ben
 | Range | `8000:9000` | 8000 to 9000, inclusive |
 
 1–65535, ranges ascending. Every rule applies to all interfaces — to restrict by
-source, use the [whitelist]({{ '/features/blacklist/' | relative_url }}) or a
-[custom rule]({{ '/features/custom-rules/' | relative_url }}).
+source, use the [whitelist]({{ '/docs/features/blacklist/' | relative_url }}) or a
+[custom rule]({{ '/docs/features/custom-rules/' | relative_url }}).
 
 ## Mark your SSH port
 
@@ -36,12 +36,12 @@ rate-limits new connections per source address.
 > protects 22 by default, which is the wrong port on a hardened host.
 
 Each source address gets its own budget, so somebody else being rate-limited does not
-affect you. A [whitelist]({{ '/features/blacklist/' | relative_url }}) entry does not
+affect you. A [whitelist]({{ '/docs/features/blacklist/' | relative_url }}) entry does not
 exempt you from it, though — protection modules are consulted before the whitelist,
-as the [rule order]({{ '/features/filters/' | relative_url }}) shows.
+as the [rule order]({{ '/docs/features/filters/' | relative_url }}) shows.
 
 The mark alone does nothing unless the module is switched on under
-[options]({{ '/features/filters/' | relative_url }}) — it is on by default, limit 5.
+[options]({{ '/docs/features/filters/' | relative_url }}) — it is on by default, limit 5.
 
 ## Common sets
 
@@ -57,7 +57,7 @@ The mark alone does nothing unless the module is switched on under
 ## Nothing happens until you apply
 
 Saving stages. Deleting stages too — the rule keeps working until you
-[apply]({{ '/features/apply/' | relative_url }}).
+[apply]({{ '/docs/features/apply/' | relative_url }}).
 
 ## When it does not work
 
@@ -65,6 +65,6 @@ Saving stages. Deleting stages too — the rule keeps working until you
 |---|---|---|
 | Port open, connection refused | Nothing is listening | `ss -tlnp \| grep <port>` |
 | Port listed, still blocked | Not applied yet | Go to **Apply rules** |
-| Blocked despite being open | The source is on the [blacklist]({{ '/features/blacklist/' | relative_url }}), which is checked first | |
+| Blocked despite being open | The source is on the [blacklist]({{ '/docs/features/blacklist/' | relative_url }}), which is checked first | |
 | SSH drops right after Apply | That is the design — do nothing and the old rules come back | |
 | Your own SSH is rate-limited | You hit your own brute-force budget | Wait a minute, or raise `ssh_brute_force_connection_limit`. The whitelist does **not** help: modules run before it |

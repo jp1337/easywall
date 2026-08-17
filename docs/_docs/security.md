@@ -38,7 +38,7 @@ holds no privilege worth stealing.
 | Cookie signing key | generated on first start unless configured. Anyone holding it can forge a session, and the placeholder in the sample config is published here — so a missing, short or placeholder key is replaced and written back |
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
-| Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
+| Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/docs/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
 
 ## Behind a reverse proxy
 
@@ -51,7 +51,7 @@ rate limiter.
 |---|---|
 | What stays authoritative | `r.RemoteAddr` — the actual TCP peer |
 | The cost behind a proxy | every request looks like it comes from the proxy, so the limit of five attempts per ten minutes is shared by everyone. One person getting it wrong repeatedly locks the rest out until it refills |
-| What to do about it | reach easywall directly, or on a private network. A configurable list of trusted proxies is on the [roadmap]({{ '/roadmap/' | relative_url }}) — a list of addresses, never a boolean |
+| What to do about it | reach easywall directly, or on a private network. A configurable list of trusted proxies is on the [roadmap]({{ '/docs/roadmap/' | relative_url }}) — a list of addresses, never a boolean |
 
 This only affects the *login* limiter. The firewall's own protection modules count
 per source address in the kernel and are unaffected by any HTTP header.
@@ -124,7 +124,7 @@ Two, and this is the whole list.
 
 Neither is on the path of a page, and on a host with no route out both simply fail
 and nothing else changes. The exact request the count makes is printed verbatim
-under [Configuration]({{ '/configuration/' | relative_url }}#counting-installations).
+under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
 > event, which htmx does not emit — so `allowEval` stayed at its default of `true`
@@ -144,7 +144,7 @@ One JSON object per line in `<log_dir>/audit.log`, rotated daily, 30 days kept:
 
 `user` is always `web`, whichever account signed in: the socket protocol carries
 no identity yet. It names the process, not the person — see the
-[roadmap]({{ '/roadmap/' | relative_url }}).
+[roadmap]({{ '/docs/roadmap/' | relative_url }}).
 
 | Recorded | **Not** recorded |
 |---|---|
@@ -158,7 +158,7 @@ no identity yet. It names the process, not the person — see the
 > For failed logins use `journalctl -u easywall-web`, where the rate limiter and the
 > auth handler log. It is a gap, not a feature.
 
-Reading it: [Audit log]({{ '/features/audit-log/' | relative_url }}).
+Reading it: [Audit log]({{ '/docs/features/audit-log/' | relative_url }}).
 
 ## The CVE that shaped this
 
@@ -178,7 +178,7 @@ disclosure. Four root causes, and what replaced each:
 |---|---|
 | A compromised root account | root owns the core |
 | A kernel nftables vulnerability | that is below easywall entirely |
-| An administrator writing a bad rule | the [audit log]({{ '/features/audit-log/' | relative_url }}) records it; nothing prevents it |
+| An administrator writing a bad rule | the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) records it; nothing prevents it |
 | Anyone holding `session_key` | it signs the cookies, so it *is* a login. Keep it out of backups you share |
 
 ## Reporting a vulnerability

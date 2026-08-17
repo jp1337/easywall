@@ -36,7 +36,7 @@ redirect happens.
 
 NAT prerouting runs before the input filter. By the time the filter looks at the
 packet, its destination is already the port you redirected **to** — so that is
-the port your [port rules]({{ '/features/ports/' | relative_url }}) must open.
+the port your [port rules]({{ '/docs/features/ports/' | relative_url }}) must open.
 
 | Redirect | Open in port rules | Not |
 |---|---|---|
@@ -73,13 +73,13 @@ on it, and the redirect will not say so.
 ## Nothing happens until you apply
 
 Saving stages. It reaches the firewall on
-[Apply]({{ '/features/apply/' | relative_url }}).
+[Apply]({{ '/docs/features/apply/' | relative_url }}).
 
 ## When it does not work
 
 | Symptom | Cause | Check |
 |---|---|---|
-| Connection refused on the incoming port | The **destination** port is not open in the port rules | Add it under [Ports]({{ '/features/ports/' | relative_url }}) |
+| Connection refused on the incoming port | The **destination** port is not open in the port rules | Add it under [Ports]({{ '/docs/features/ports/' | relative_url }}) |
 | Nothing listening on the destination | The redirect succeeded and there is no service | `ss -tlnp \| grep <dest>` |
 | Works locally, not from outside | A redirect on `lo` is a different path; test from another host | |
 | Saved but nothing changed | Not applied yet | Go to **Apply rules** |

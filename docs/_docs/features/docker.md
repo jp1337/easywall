@@ -42,8 +42,8 @@ silently skipped.
 > **The bogon filter exempts them.** Bridge ranges are RFC 1918, exactly what that
 > module drops. Before the exemption, switching it on silently undid coexistence.
 
-See [firewall filters]({{ '/features/filters/' | relative_url }}), and
-[`[routing]`]({{ '/configuration/' | relative_url }}#routing) if this host routes for
+See [firewall filters]({{ '/docs/features/filters/' | relative_url }}), and
+[`[routing]`]({{ '/docs/configuration/' | relative_url }}#routing) if this host routes for
 some other reason as well.
 
 ## Three ways to run them together
@@ -51,7 +51,7 @@ some other reason as well.
 | | Setup | Inbound to published ports | Outbound from containers | Good for |
 |---|---|---|---|---|
 | **1** | `enabled = true` — *recommended* | yes, Docker publishes them | works | most hosts |
-| **2** | `enabled = true`, Docker with `{"iptables": false}` | only with a [port rule]({{ '/features/ports/' | relative_url }}) per port | **needs a masquerade rule you write yourself** | one firewall, one place to look |
+| **2** | `enabled = true`, Docker with `{"iptables": false}` | only with a [port rule]({{ '/docs/features/ports/' | relative_url }}) per port | **needs a masquerade rule you write yourself** | one firewall, one place to look |
 | **3** | `enabled = false` | no | **no** | a host that runs no containers |
 
 > **Option 3 is "no containers", not "quiet containers".** The `forward` chain stays
@@ -63,7 +63,7 @@ some other reason as well.
 > stock daemon → one `MASQUERADE` rule, seven `DOCKER` filter rules, peer reachable.
 > With `{"iptables": false}` → neither, peer unreachable; packets leave with a
 > `172.17.x.x` source and nothing comes back. easywall cannot supply the masquerade
-> for you: [custom rules]({{ '/features/custom-rules/' | relative_url }}) go into its
+> for you: [custom rules]({{ '/docs/features/custom-rules/' | relative_url }}) go into its
 > `input` chain, and this needs a `postrouting` chain in a table of your own.
 
 ## Checking it worked
