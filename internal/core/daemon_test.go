@@ -751,10 +751,11 @@ func waitForSocket(t *testing.T, path string) {
 	t.Fatalf("socket %s never came up", path)
 }
 
-// The daemon must have tried to restore before the socket exists. A client that
-// connects the instant the socket appears and asks for status must never see a
-// window in which the rules had not been put back.
-func TestDaemonStart_RestoresBeforeTheSocketAccepts(t *testing.T) {
+// The daemon must have run a restore attempt at startup. This catches the
+// restore being removed or made request-triggered, but cannot prove strict
+// ordering: the restore might run in a concurrent goroutine and still finish
+// by luck before the test reads the audit log.
+func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
@@ -765,10 +766,43 @@ func TestDaemonStart_RestoresBeforeTheSocketAccepts(t *testing.T) {
 	waitForSocket(t, cfg.SocketPath)
 
 	// The restore fails on the nil netlink connection, and that failure is the
-	// observable proof it was attempted — before anything could connect.
+	// observable proof it was attempted.
 	got := auditActions(t, cfg)
 	if len(got) == 0 || got[0] != "boot_enforce_failed" {
-		t.Errorf("want a restore attempt recorded before the socket accepted, got %v", got)
+		t.Errorf("want a restore attempt recorded at startup, got %v", got)
+	}
+}
+
+// No command is served before the restore attempt has completed. This proves
+// the restore runs in the same goroutine before the accept loop, not in a
+// concurrent goroutine. A restore moved after Accept would fail this test.
+//
+// A unit test here cannot catch a restore moved into a concurrent goroutine
+// that happens to finish first by luck, so the strict guarantee rests on the
+// code structure with the restore before the loop in the same goroutine.
+func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+	t.Cleanup(d.Stop)
+
+	waitForSocket(t, cfg.SocketPath)
+
+	// Send a GetStatus command and wait for the response.
+	resp := sendDaemonCmd(t, cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
+	if !resp.Success {
+		t.Fatalf("GetStatus failed: %s", resp.Error)
+	}
+
+	// By the time we've received this response, the restore must have already
+	// recorded its audit entry. If the restore were moved after the accept loop,
+	// this assertion would fail because a rapid client connection could be served
+	// before the restore has written anything to the audit log.
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[0] != "boot_enforce_failed" {
+		t.Errorf("restore must have completed before command was served, got audit %v", got)
 	}
 }
 
@@ -784,5 +818,29 @@ func TestStatus_ReportsPanicMode(t *testing.T) {
 	}
 	if !fw.Status().Panic {
 		t.Error("Status must report panic mode so the interface can show it on every page")
+	}
+}
+
+// Stop must wait for the restore to complete. Once Stop() returns, the audit
+// log must already contain the restore attempt record.
+func TestDaemonStop_WaitsForRestore(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+
+	// Wait for the daemon to be listening.
+	waitForSocket(t, cfg.SocketPath)
+
+	// Stop the daemon and wait for it to return.
+	d.Stop()
+
+	// After Stop() returns, the restore must have completed and written its
+	// audit entry. This fails if Stop() is called before the restore finishes,
+	// or if the restore is not tracked in d.wg.
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[0] != "boot_enforce_failed" {
+		t.Errorf("after Stop() returns, restore must be complete with audit entry, got %v", got)
 	}
 }
