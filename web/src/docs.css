@@ -372,7 +372,7 @@ html, body {
   .content {
     margin-left: var(--sidebar-w);
     min-height: 100vh;
-    padding: 3rem var(--content-pad) 3rem;
+    padding: 1.75rem var(--content-pad) 3rem;
     /* Reserved for the on-page contents. Zero until the viewport earns it. */
     padding-right: calc(var(--content-pad) + var(--toc-w));
     animation: fade-in 0.25s ease;
@@ -411,7 +411,7 @@ html, body {
   .docs-hero {
     position: relative;
     margin: 0 -1rem 4rem;
-    padding: 4.5rem 1rem 3.5rem;
+    padding: 2rem 1rem 3.5rem;
     overflow: hidden;
     isolation: isolate;
   }
