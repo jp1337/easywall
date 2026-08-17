@@ -735,3 +735,54 @@ func TestDaemonStart_AcceptsAndResponds(t *testing.T) {
 		t.Fatalf("GetStatus via running Start: %s", resp.Error)
 	}
 }
+
+// waitForSocket blocks until the daemon's socket accepts a connection.
+func waitForSocket(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("unix", path, 200*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("socket %s never came up", path)
+}
+
+// The daemon must have tried to restore before the socket exists. A client that
+// connects the instant the socket appears and asks for status must never see a
+// window in which the rules had not been put back.
+func TestDaemonStart_RestoresBeforeTheSocketAccepts(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+	t.Cleanup(d.Stop)
+
+	waitForSocket(t, cfg.SocketPath)
+
+	// The restore fails on the nil netlink connection, and that failure is the
+	// observable proof it was attempted — before anything could connect.
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[0] != "boot_enforce_failed" {
+		t.Errorf("want a restore attempt recorded before the socket accepted, got %v", got)
+	}
+}
+
+func TestStatus_ReportsPanicMode(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if fw.Status().Panic {
+		t.Error("a fresh install is not in panic mode")
+	}
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+	if !fw.Status().Panic {
+		t.Error("Status must report panic mode so the interface can show it on every page")
+	}
+}
