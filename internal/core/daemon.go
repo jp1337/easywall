@@ -118,6 +118,24 @@ func (d *Daemon) Start() error {
 
 	slog.Info("daemon listening", "socket", d.cfg.SocketPath)
 
+	// Before the first connection is accepted, not after.
+	//
+	// nftables rules do not survive a reboot, and until 2.7 nothing put them
+	// back: the machine came up unfiltered and stayed that way until somebody
+	// opened the interface and pressed Apply. Doing it here rather than in
+	// NewFirewall means a client that connects the instant the socket appears
+	// cannot observe a window in which the rules are not yet in force.
+	//
+	// A failure is logged and the daemon carries on. Refusing to start would
+	// leave the operator with an unfiltered machine *and* no interface to fix it
+	// from, which is strictly worse than an unfiltered machine that says so on
+	// its dashboard.
+	if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
+		slog.Error("could not put the stored rules back at startup; this machine "+
+			"is not filtering — open the interface and apply, or run "+
+			"`easywall-core status` to see why", "error", err)
+	}
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {

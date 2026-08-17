@@ -397,4 +397,9 @@ type FirewallStatus struct {
 	Acceptance AcceptanceStatus `json:"acceptance"`
 	HasPending bool             `json:"has_pending"`
 	LastApply  string           `json:"last_apply"` // RFC3339 timestamp or empty
+	// Panic is true while this installation is deliberately unfiltered. It is
+	// carried in the status rather than read from disk by the web process
+	// because only the core knows where its data directory is — the two may be
+	// configured apart — and because the interface has to show it on every page.
+	Panic bool `json:"panic"`
 }

@@ -348,6 +348,7 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		Acceptance: f.acceptance.Status(),
 		HasPending: pending,
 		LastApply:  lastApply,
+		Panic:      f.PanicEngaged(),
 	}
 }
 
