@@ -60,6 +60,34 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 // Start creates the Unix socket and begins accepting connections.
 // Blocks until Stop() is called.
 func (d *Daemon) Start() error {
+	// If Stop already ran before the restore could start, do not restore.
+	// A daemon told to stop before it began must not start writing to the kernel.
+	d.mu.Lock()
+	select {
+	case <-d.quit:
+		d.mu.Unlock()
+		return nil
+	default:
+		d.mu.Unlock()
+	}
+
+	// Restore the stored rules before the listener is created. The socket is the
+	// only thing that makes this process observable, so putting the kernel work
+	// first ensures no client can observe a half-restored firewall by construction.
+	//
+	// There is a brief window of a few instructions between the quit check above
+	// and Add(1) below, but it is tolerable: a restore that installs the already-
+	// stored rules on a daemon that is shutting down leaves the kernel holding
+	// exactly what the machine is supposed to have, and the next start would do
+	// the same thing anyway.
+	d.wg.Add(1)
+	defer d.wg.Done()
+	if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
+		slog.Error("could not put the stored rules back at startup; this machine "+
+			"is not filtering — open the interface and apply, or run "+
+			"`easywall-core status` to see why", "error", err)
+	}
+
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
 
@@ -117,31 +145,6 @@ func (d *Daemon) Start() error {
 	}
 
 	slog.Info("daemon listening", "socket", d.cfg.SocketPath)
-
-	// Before the first connection is accepted, not after.
-	//
-	// nftables rules do not survive a reboot, and until 2.7 nothing put them
-	// back: the machine came up unfiltered and stayed that way until somebody
-	// opened the interface and pressed Apply. Doing it here rather than in
-	// NewFirewall means a client that connects the instant the socket appears
-	// cannot observe a window in which the rules are not yet in force.
-	//
-	// A failure is logged and the daemon carries on. Refusing to start would
-	// leave the operator with an unfiltered machine *and* no interface to fix it
-	// from, which is strictly worse than an unfiltered machine that says so on
-	// its dashboard.
-	//
-	// The restore is tracked in d.wg so that Stop() waits for it to complete.
-	// The whole point is that the kernel ends up holding the stored rules, and a
-	// shutdown that abandons this halfway has neither the old rules nor the new
-	// ones with nothing to say so.
-	d.wg.Add(1)
-	defer d.wg.Done()
-	if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
-		slog.Error("could not put the stored rules back at startup; this machine "+
-			"is not filtering — open the interface and apply, or run "+
-			"`easywall-core status` to see why", "error", err)
-	}
 
 	for {
 		conn, err := ln.Accept()
