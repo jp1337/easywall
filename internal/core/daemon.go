@@ -130,6 +130,13 @@ func (d *Daemon) Start() error {
 	// leave the operator with an unfiltered machine *and* no interface to fix it
 	// from, which is strictly worse than an unfiltered machine that says so on
 	// its dashboard.
+	//
+	// The restore is tracked in d.wg so that Stop() waits for it to complete.
+	// The whole point is that the kernel ends up holding the stored rules, and a
+	// shutdown that abandons this halfway has neither the old rules nor the new
+	// ones with nothing to say so.
+	d.wg.Add(1)
+	defer d.wg.Done()
 	if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
 		slog.Error("could not put the stored rules back at startup; this machine "+
 			"is not filtering — open the interface and apply, or run "+
