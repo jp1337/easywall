@@ -34,6 +34,27 @@ type Firewall struct {
 	// page hang for the entire time it matters most.
 	lastApplyMu sync.Mutex
 	lastApply   time.Time
+
+	// bootBridgesMu guards bootBridges. RestoreCurrent writes it while holding
+	// the apply slot; reconcileDockerBridges both reads and writes it from the
+	// goroutine Daemon.Start launches, which runs concurrently with everything
+	// else the daemon does. Neither applyMu nor lastApplyMu fits: applyMu's
+	// scope is "is a cycle running", answered without waiting, and this field
+	// needs the opposite — a lock held across the read-then-write in the
+	// reconciler's loop; lastApplyMu's scope is deliberately kept short so the
+	// dashboard's Status calls never wait on an apply in flight, and bootBridges
+	// has nothing to do with that promise. A field this narrow gets a lock this
+	// narrow.
+	bootBridgesMu sync.Mutex
+	// bootBridges records the Docker bridge networks that existed when the boot
+	// restore ran, so reconcileDockerBridges can tell "none yet" from "none at
+	// all". See dockerreconcile.go.
+	bootBridges []string
+
+	// reconcilePoll and reconcileWait bound that watch. Fields rather than
+	// constants so the tests do not take ninety seconds.
+	reconcilePoll time.Duration
+	reconcileWait time.Duration
 }
 
 // ErrApplyInProgress is returned when an apply is asked for while a cycle is
@@ -111,10 +132,12 @@ func NewFirewall(cfg *Config) (*Firewall, error) {
 	}
 
 	f := &Firewall{
-		cfg:        cfg,
-		nft:        nft,
-		rules:      store,
-		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
+		cfg:           cfg,
+		nft:           nft,
+		rules:         store,
+		acceptance:    NewAcceptance(cfg.AcceptanceDuration()),
+		reconcilePoll: 2 * time.Second,
+		reconcileWait: 90 * time.Second,
 	}
 	f.lastApply = readLastApply(cfg.LastApplyPath())
 	return f, nil
@@ -133,6 +156,23 @@ func readLastApply(path string) time.Time {
 		return time.Time{}
 	}
 	return t
+}
+
+// setBootBridges records the Docker bridges an apply just baked into the
+// rules, so reconcileDockerBridges can compare against them later. Guarded by
+// bootBridgesMu — see the comment on that field for why it is not applyMu or
+// lastApplyMu.
+func (f *Firewall) setBootBridges(bridges []string) {
+	f.bootBridgesMu.Lock()
+	f.bootBridges = bridges
+	f.bootBridgesMu.Unlock()
+}
+
+// getBootBridges returns what setBootBridges last recorded.
+func (f *Firewall) getBootBridges() []string {
+	f.bootBridgesMu.Lock()
+	defer f.bootBridgesMu.Unlock()
+	return f.bootBridges
 }
 
 // setLastApply records the time of an accepted apply, in memory and on disk.
