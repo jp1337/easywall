@@ -28,7 +28,7 @@ firewall, and it is the only page that changes what the kernel is doing.
 
 **Doing nothing is the recovery.** If the new rules cut your connection you cannot
 click Confirm, and not confirming is exactly what brings the old rules back. The
-window is 120 seconds by default, [configurable]({{ '/features/system-settings/' | relative_url }})
+window is 120 seconds by default, [configurable]({{ '/docs/features/system-settings/' | relative_url }})
 from 10 to 3600.
 
 ## What the status card says
@@ -60,21 +60,21 @@ that caused it are still on their pages.
 
 An apply is then final and there is no automatic way back. That setting exists for
 machines you can physically reach — see
-[system settings]({{ '/features/system-settings/' | relative_url }}).
+[system settings]({{ '/docs/features/system-settings/' | relative_url }}).
 
 ## When it does not work
 
 | Symptom | Cause | Check |
 |---|---|---|
-| "Nothing staged to apply" | you saved nothing since the last apply | the [dashboard]({{ '/features/dashboard/' | relative_url }}) says whether changes are pending |
-| Applied, then everything came back as it was | the window closed without a confirmation | the [audit log]({{ '/features/audit-log/' | relative_url }}) shows `apply_rolledback` with detail `timeout` |
-| The apply failed outright | the kernel refused a rule — usually a [custom rule]({{ '/features/custom-rules/' | relative_url }}) | `journalctl -u easywall-core` carries nft's own message |
+| "Nothing staged to apply" | you saved nothing since the last apply | the [dashboard]({{ '/docs/features/dashboard/' | relative_url }}) says whether changes are pending |
+| Applied, then everything came back as it was | the window closed without a confirmation | the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) shows `apply_rolledback` with detail `timeout` |
+| The apply failed outright | the kernel refused a rule — usually a [custom rule]({{ '/docs/features/custom-rules/' | relative_url }}) | `journalctl -u easywall-core` carries nft's own message |
 | `rollback_failed` in the log | the new rules did not take **and** the old ones did not come back | the worst outcome there is; check the daemon's log and the running table with `nft list table inet easywall` |
 | Your SSH dropped right after applying | that is the design | do nothing; the window restores the previous rules |
 | An apply is "already running" | one window is open | confirm it, or wait for it to expire |
 
 ---
 
-**Next:** [Dashboard]({{ '/features/dashboard/' | relative_url }}) ·
-[System settings]({{ '/features/system-settings/' | relative_url }}) ·
-[Architecture]({{ '/architecture/' | relative_url }})
+**Next:** [Dashboard]({{ '/docs/features/dashboard/' | relative_url }}) ·
+[System settings]({{ '/docs/features/system-settings/' | relative_url }}) ·
+[Architecture]({{ '/docs/architecture/' | relative_url }})

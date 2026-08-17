@@ -23,11 +23,11 @@ need editing for each release.
 
 Those two are the whole list. If `dpkg --print-architecture` says anything else —
 `armhf` on a 32-bit Raspberry Pi image, for instance — there is no package for it and
-the download 404s; build [from source]({{ '/installation/manual/' | relative_url }})
+the download 404s; build [from source]({{ '/docs/installation/manual/' | relative_url }})
 instead.
 
 Then open `https://<server>:12227` and complete the
-[setup]({{ '/installation/first-run/' | relative_url }}). The certificate is
+[setup]({{ '/docs/installation/first-run/' | relative_url }}). The certificate is
 self-signed on first start, so the browser will warn — accept it, or
 [configure your own](#your-own-certificate).
 
@@ -48,10 +48,10 @@ or whose binaries do not match the leg that built it.
 | `/etc/easywall/easywall.toml` | core: firewall options, acceptance window, Docker |
 | `/etc/easywall/web.toml` | web: auth, TLS, language, bind address |
 | `/var/lib/easywall/rules.json` | the three rule sets |
-| `/var/log/easywall/audit.log` | [audit log]({{ '/features/audit-log/' | relative_url }}), rotated daily |
+| `/var/log/easywall/audit.log` | [audit log]({{ '/docs/features/audit-log/' | relative_url }}), rotated daily |
 | `/etc/easywall/*.toml.template` | the commented defaults the package carries |
 
-Full key reference: [Configuration]({{ '/configuration/' | relative_url }}).
+Full key reference: [Configuration]({{ '/docs/configuration/' | relative_url }}).
 
 **Upgrades never touch your two `.toml` files.** The package installs the
 templates and creates each real file only when it is missing, so neither is a

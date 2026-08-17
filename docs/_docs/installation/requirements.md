@@ -49,12 +49,12 @@ There is no plaintext port. The two processes talk over a Unix socket, not a por
   itself, so it renders correctly on an air-gapped host. Two things reach out and
   both fail quietly: the update check, which is on and can be switched off, and the
   installation count, which is off until someone switches it on. Both are listed in
-  full under [Security]({{ '/security/' | relative_url }})
+  full under [Security]({{ '/docs/security/' | relative_url }})
 
 ## Coming from easywall v1
 
 v1 used iptables and YAML; v2 uses nftables and JSON. The rule file cannot be
-imported — recreate the rules, or use [export/import]({{ '/features/export-import/' | relative_url }})
+imported — recreate the rules, or use [export/import]({{ '/docs/features/export-import/' | relative_url }})
 once v2 is running.
 
 ```bash
@@ -67,8 +67,8 @@ sudo iptables -F && sudo iptables -X
 sudo ip6tables -F && sudo ip6tables -X
 ```
 
-**Next:** [Debian / Ubuntu]({{ '/installation/debian/' | relative_url }}) ·
-[Docker]({{ '/installation/docker/' | relative_url }}) ·
-[From source]({{ '/installation/manual/' | relative_url }}) ·
-[Demo mode]({{ '/installation/demo/' | relative_url }}) ·
-[First run]({{ '/installation/first-run/' | relative_url }})
+**Next:** [Debian / Ubuntu]({{ '/docs/installation/debian/' | relative_url }}) ·
+[Docker]({{ '/docs/installation/docker/' | relative_url }}) ·
+[From source]({{ '/docs/installation/manual/' | relative_url }}) ·
+[Demo mode]({{ '/docs/installation/demo/' | relative_url }}) ·
+[First run]({{ '/docs/installation/first-run/' | relative_url }})

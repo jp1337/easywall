@@ -19,14 +19,14 @@ one that does less and says so.
 
 ## On counting installations
 
-Opt-in and not opt-out, because this site and [Security]({{ '/security/' | relative_url }})
+Opt-in and not opt-out, because this site and [Security]({{ '/docs/security/' | relative_url }})
 promise that the update check is the *only* outbound request, and because an
 administrative interface quietly reporting to its author is the thing easywall
 removed Google Fonts to avoid. A security tool that has to explain a surprising
 connection has already lost the argument.
 
 What it sends is printed verbatim in
-[Configuration]({{ '/configuration/' | relative_url }}#counting-installations): a
+[Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations): a
 random identifier generated on the machine, and the version. Enough to count
 distinct installations and to say "the fix reached 80% of them", and not enough to
 describe anyone.
@@ -62,6 +62,6 @@ download counts. That is a usable lower bound today, for nothing.
 
 ---
 
-**Next:** [Architecture]({{ '/architecture/' | relative_url }}) ·
-[Security]({{ '/security/' | relative_url }}) ·
-[Contributing]({{ '/contributing/' | relative_url }})
+**Next:** [Architecture]({{ '/docs/architecture/' | relative_url }}) ·
+[Security]({{ '/docs/security/' | relative_url }}) ·
+[Contributing]({{ '/docs/contributing/' | relative_url }})

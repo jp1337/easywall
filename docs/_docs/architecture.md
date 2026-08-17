@@ -33,7 +33,7 @@ validation permits.
 > the privileges are in a different process, and every typed rule reaches the
 > kernel as a Go struct rather than a command line. Custom rules are the one
 > string that still meets `nft`, and what keeps that safe is written out under
-> [Security]({{ '/security/' | relative_url }}).
+> [Security]({{ '/docs/security/' | relative_url }}).
 
 ## Three rule sets
 
@@ -58,7 +58,7 @@ you cannot click Confirm — and that is exactly what restores the previous set.
 | Stopping the core mid-window | counts as not confirming: the rules roll back before it exits |
 | The same idea as | `commit confirmed` on a Cisco router, or the `at now + 5 minutes; iptables -F` experienced operators type before a risky change — here it is the default rather than a habit |
 
-Step by step: [Applying rules]({{ '/features/apply/' | relative_url }}).
+Step by step: [Applying rules]({{ '/docs/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
@@ -97,11 +97,11 @@ Full list: [`internal/shared/protocol.go`](https://github.com/jp1337/easywall/bl
 |---|---|
 | A compromised root account | root owns the core |
 | A kernel nftables vulnerability | below easywall entirely |
-| A legitimate admin making a bad rule | the [audit log]({{ '/features/audit-log/' | relative_url }}) records it, nothing prevents it |
+| A legitimate admin making a bad rule | the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) records it, nothing prevents it |
 
 ---
 
-**Next:** [Applying rules]({{ '/features/apply/' | relative_url }}) ·
-[Configuration]({{ '/configuration/' | relative_url }}) ·
-[Security]({{ '/security/' | relative_url }}) ·
-[How rules are ordered]({{ '/features/filters/' | relative_url }})
+**Next:** [Applying rules]({{ '/docs/features/apply/' | relative_url }}) ·
+[Configuration]({{ '/docs/configuration/' | relative_url }}) ·
+[Security]({{ '/docs/security/' | relative_url }}) ·
+[How rules are ordered]({{ '/docs/features/filters/' | relative_url }})

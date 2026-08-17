@@ -56,9 +56,9 @@ consulted.
 
 | Card | Decides | Detail |
 |---|---|---|
-| **IPv6** | whether IPv6 goes through the same rules, past them, or nowhere | [`[ipv6]`]({{ '/configuration/' | relative_url }}#ipv6) |
-| **Routed traffic** | what may cross the `forward` chain — nothing, a named list, or everything | [`[routing]`]({{ '/configuration/' | relative_url }}#routing) |
-| **Docker** | which container networks are allowed, on input *and* forward | [Docker coexistence]({{ '/features/docker/' | relative_url }}) |
+| **IPv6** | whether IPv6 goes through the same rules, past them, or nowhere | [`[ipv6]`]({{ '/docs/configuration/' | relative_url }}#ipv6) |
+| **Routed traffic** | what may cross the `forward` chain — nothing, a named list, or everything | [`[routing]`]({{ '/docs/configuration/' | relative_url }}#routing) |
+| **Docker** | which container networks are allowed, on input *and* forward | [Docker coexistence]({{ '/docs/features/docker/' | relative_url }}) |
 
 > **The two lists are not the same list.** Docker's networks cross the `forward`
 > chain whatever the routing mode says, because switching coexistence on is
@@ -76,7 +76,7 @@ as nothing.
 Changes persist the moment you toggle or type — a toast confirms it, and the value
 goes to the core and into `easywall.toml`. No restart. The Save button stays for
 browsers with JavaScript disabled. Both pages behave the same way, as does
-[options]({{ '/features/filters/' | relative_url }}).
+[options]({{ '/docs/features/filters/' | relative_url }}).
 
 Editing the file directly works too. `SIGHUP` reloads `[firewall]`,
 `[acceptance]`, `[ipv6]`, `[docker]` and `[routing]` without dropping the socket; the paths are
@@ -103,5 +103,5 @@ sudo systemctl reload easywall-core   # or: kill -HUP $(pidof easywall-core)
 | Symptom | Cause |
 |---|---|
 | The apply used the old duration | A running timer keeps the value it started with. The next apply reads the current one |
-| The window expired before you could confirm | Raise the duration. The rollback is in the [audit log]({{ '/features/audit-log/' | relative_url }}) as `apply_rolledback` with detail `timeout` |
+| The window expired before you could confirm | Raise the duration. The rollback is in the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) as `apply_rolledback` with detail `timeout` |
 | The field rejects a value | Outside 10–3600 |
