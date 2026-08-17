@@ -58,6 +58,12 @@ kramdown:
 plugins:
   - jekyll-seo-tag
   - jekyll-sitemap
+  - jekyll-redirect-from
+
+collections:
+  docs:
+    output: true
+    permalink: /docs/:path/
 
 exclude:
   - Gemfile
@@ -69,53 +75,52 @@ exclude:
 nav:
   - title: Home
     path: /
-  - title: Installation
+  - title: Docs
     group: true
     children:
+      - title: Overview
+        path: /docs/
       - title: Requirements
-        path: /installation/requirements/
+        path: /docs/installation/requirements/
       - title: Debian / Ubuntu
-        path: /installation/debian/
+        path: /docs/installation/debian/
       - title: Docker
-        path: /installation/docker/
+        path: /docs/installation/docker/
       - title: Manual (Source)
-        path: /installation/manual/
+        path: /docs/installation/manual/
       - title: Demo Mode
-        path: /installation/demo/
+        path: /docs/installation/demo/
       - title: First Run
-        path: /installation/first-run/
-  - title: Architecture
-    path: /architecture/
-  - title: Configuration
-    path: /configuration/
-  - title: Features
-    group: true
-    children:
+        path: /docs/installation/first-run/
+      - title: Architecture
+        path: /docs/architecture/
+      - title: Configuration
+        path: /docs/configuration/
+      - title: Security
+        path: /docs/security/
       - title: Dashboard
-        path: /features/dashboard/
+        path: /docs/features/dashboard/
       - title: Applying Rules
-        path: /features/apply/
+        path: /docs/features/apply/
       - title: Ports
-        path: /features/ports/
+        path: /docs/features/ports/
       - title: Blacklist & Whitelist
-        path: /features/blacklist/
+        path: /docs/features/blacklist/
       - title: Port Forwarding
-        path: /features/forwarding/
+        path: /docs/features/forwarding/
       - title: Custom Rules
-        path: /features/custom-rules/
+        path: /docs/features/custom-rules/
       - title: Firewall Filters
-        path: /features/filters/
+        path: /docs/features/filters/
       - title: Docker Coexistence
-        path: /features/docker/
+        path: /docs/features/docker/
       - title: Export & Import
-        path: /features/export-import/
+        path: /docs/features/export-import/
       - title: Audit Log
-        path: /features/audit-log/
+        path: /docs/features/audit-log/
       - title: System & Network Settings
-        path: /features/system-settings/
-  - title: Security
-    path: /security/
-  - title: Roadmap
-    path: /roadmap/
-  - title: Contributing
-    path: /contributing/
+        path: /docs/features/system-settings/
+      - title: Roadmap
+        path: /docs/roadmap/
+      - title: Contributing
+        path: /docs/contributing/

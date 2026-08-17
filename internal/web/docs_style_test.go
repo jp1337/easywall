@@ -135,7 +135,7 @@ func TestDocsVersionMatchesRelease(t *testing.T) {
 // rollback_failed — the entry the same page calls the one worth alerting on.
 func TestAuditColourTableMatchesTheCode(t *testing.T) {
 	root := filepath.Dir(localesDir(t))
-	raw, err := os.ReadFile(filepath.Join(root, "docs", "features", "audit-log.md"))
+	raw, err := os.ReadFile(filepath.Join(root, "docs", "_docs", "features", "audit-log.md"))
 	if err != nil {
 		t.Fatalf("read audit-log.md: %v", err)
 	}

@@ -16,7 +16,7 @@ import "testing"
 //	        dereference, golang.org/x/crypto/blake2b.(*digest).Write
 //	after:  POST /login -> HTTP 303, and one ERROR line naming the problem
 //
-// This matters more than a malformed config usually would. docs/security.md
+// This matters more than a malformed config usually would. docs/_docs/security.md
 // offers no password recovery beyond "editing web.toml on the host is the only
 // way back", so the person who mangles that line is already locked out, and a 500
 // with a stack trace is the least useful thing to hand them.
