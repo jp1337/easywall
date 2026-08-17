@@ -150,3 +150,30 @@ func TestTheTechnicalDocsAreNotPublished(t *testing.T) {
 			len(builds), len(dirs))
 	}
 }
+
+// Every command the protocol declares must be documented in both the operator
+// documentation and the technical documentation. This catches drifts like the
+// one where PANIC was added to the constants and the architecture table but
+// nothing told the next person to do that: now, adding a command and forgetting
+// a table is caught immediately.
+//
+// The list is derived from AllCommandTypes, which is published by the protocol
+// itself, so this test catches failures at the source.
+func TestEveryCommandIsDocumentedInBothPublishedAndTechnicalDocs(t *testing.T) {
+	archDocs := repoFile(t, "docs", "architecture.md")
+	techDocs := repoFile(t, "docs-tech", "protocol.md")
+
+	if len(AllCommandTypes) == 0 {
+		t.Fatal("AllCommandTypes is empty; the list has not been populated or has been broken")
+	}
+
+	for _, cmd := range AllCommandTypes {
+		cmdStr := "`" + string(cmd) + "`"
+		if !strings.Contains(archDocs, cmdStr) {
+			t.Errorf("docs/architecture.md does not document command %s", cmdStr)
+		}
+		if !strings.Contains(techDocs, cmdStr) {
+			t.Errorf("docs-tech/protocol.md does not document command %s", cmdStr)
+		}
+	}
+}

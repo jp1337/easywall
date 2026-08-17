@@ -80,6 +80,20 @@ const (
 	CmdResume CommandType = "RESUME"
 )
 
+// AllCommandTypes is the complete list of every command the protocol declares.
+// It is exported so other packages and tests can verify that the commands they
+// handle match what the documentation claims. The protocol's caller — the web
+// process — and its documentation must agree on what commands exist, and this
+// list is the authoritative answer.
+var AllCommandTypes = []CommandType{
+	CmdGetRules, CmdSaveRules, CmdApplyRules, CmdAccept,
+	CmdGetStatus, CmdGetOptions, CmdSaveOptions,
+	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
+	CmdSaveSystem, CmdGetLog, CmdExportRules,
+	CmdImportRules, CmdValidateCustom,
+	CmdPanic, CmdResume,
+}
+
 // Command is sent from easywall-web to easywall-core over the Unix socket.
 type Command struct {
 	Type    CommandType     `json:"type"`
