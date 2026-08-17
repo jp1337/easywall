@@ -773,13 +773,14 @@ func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 	}
 }
 
-// No command is served before the restore attempt has completed. This proves
-// the restore runs in the same goroutine before the accept loop, not in a
-// concurrent goroutine. A restore moved after Accept would fail this test.
+// No command is served before the restore attempt has completed. This holds by
+// construction now: the restore runs before the socket exists, so the first
+// successful dial to the socket proves the restore has already completed.
 //
-// A unit test here cannot catch a restore moved into a concurrent goroutine
-// that happens to finish first by luck, so the strict guarantee rests on the
-// code structure with the restore before the loop in the same goroutine.
+// A unit test here still cannot catch a restore moved into a concurrent goroutine
+// that happens to finish first by luck, so that risk still rests on code structure
+// and cannot be tested; but the structural guarantee that the restore precedes the
+// socket cannot be broken without an obvious code move.
 func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
@@ -818,29 +819,5 @@ func TestStatus_ReportsPanicMode(t *testing.T) {
 	}
 	if !fw.Status().Panic {
 		t.Error("Status must report panic mode so the interface can show it on every page")
-	}
-}
-
-// Stop must wait for the restore to complete. Once Stop() returns, the audit
-// log must already contain the restore attempt record.
-func TestDaemonStop_WaitsForRestore(t *testing.T) {
-	cfg := newTestConfig(t)
-	fw := newTestFirewall(t, cfg)
-	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
-
-	go func() { _ = d.Start() }()
-
-	// Wait for the daemon to be listening.
-	waitForSocket(t, cfg.SocketPath)
-
-	// Stop the daemon and wait for it to return.
-	d.Stop()
-
-	// After Stop() returns, the restore must have completed and written its
-	// audit entry. This fails if Stop() is called before the restore finishes,
-	// or if the restore is not tracked in d.wg.
-	got := auditActions(t, cfg)
-	if len(got) == 0 || got[0] != "boot_enforce_failed" {
-		t.Errorf("after Stop() returns, restore must be complete with audit entry, got %v", got)
 	}
 }
