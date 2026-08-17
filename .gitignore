@@ -49,7 +49,16 @@ debian/*.debhelper
 *.log
 node_modules/
 tmp/
+
+# Whatever agent runner or editor the person at the keyboard happens to use.
+# Not project files, and not a statement about which tool anyone should use.
+#
+# .opencode/ is here the hard way: a blanket `git add -A` during the 2.7 work
+# swept .opencode/opencode.json into a commit about the firewall daemon. The
+# directory also carries its own node_modules, which line 50 above would have
+# caught — the config file at its root was exactly the part that got through.
 .claude/
+.opencode/
 
 # Playwright storage state from documentation screenshot runs — it holds a
 # session cookie and once got committed into the published assets directory.
