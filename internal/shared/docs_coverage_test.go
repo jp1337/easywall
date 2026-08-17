@@ -151,6 +151,72 @@ func TestTheTechnicalDocsAreNotPublished(t *testing.T) {
 	}
 }
 
+// AllCommandTypes is the root of three guards — it is what the dispatch test
+// iterates to verify handlers exist, and what the docs guard iterates to verify
+// documentation. If an entry is deleted from this list, all three guards stop
+// checking it. If a command is added to the const block without being listed,
+// it ships both unhandled and undocumented.
+//
+// This test reads protocol.go's own source and verifies the list matches what
+// is declared there. Go has no runtime enumeration of constants, so reading the
+// source is the only way to make the list checkable. The cost — a test that
+// fails loudly if protocol.go is renamed or the const syntax changes — is the
+// acceptable price of having three other guards that can rely on this list
+// being complete and accurate.
+//
+// The test compares on the constant *values* (what CommandType holds: "PANIC",
+// "GET_RULES", etc), not their names (CmdPanic, CmdGetRules), because that is
+// what appears in the list and what matters to the protocol.
+func TestAllCommandTypesMatchesTheProtocolSource(t *testing.T) {
+	protocolSource := repoFile(t, "internal", "shared", "protocol.go")
+
+	// Extract all CommandType constant declarations: CmdSomething = "VALUE"
+	constPattern := regexp.MustCompile(`(Cmd\w+)\s+CommandType\s*=\s*"([^"]+)"`)
+	matches := constPattern.FindAllStringSubmatch(protocolSource, -1)
+
+	if len(matches) == 0 {
+		t.Fatal("could not find any CommandType constants in protocol.go; " +
+			"the pattern no longer matches or the file is missing declarations")
+	}
+
+	// Build a map of declared values for comparison.
+	declaredValues := make(map[string]string) // value -> name, for error reporting
+	for _, m := range matches {
+		name := m[1]
+		value := m[2]
+		declaredValues[value] = name
+	}
+
+	// Every declared constant's value must appear in AllCommandTypes.
+	for value, name := range declaredValues {
+		found := false
+		for _, cmd := range AllCommandTypes {
+			if string(cmd) == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("constant %s (value %q) is declared but not listed in AllCommandTypes", name, value)
+		}
+	}
+
+	// Every entry in AllCommandTypes must correspond to a declared constant.
+	for _, cmd := range AllCommandTypes {
+		if _, ok := declaredValues[string(cmd)]; !ok {
+			t.Errorf("AllCommandTypes lists %q but no constant with that value is declared in protocol.go",
+				string(cmd))
+		}
+	}
+
+	// Sanity check: the list and source must have the same count.
+	// If this fails, something is wrong with the list or the source parsing.
+	if len(AllCommandTypes) != len(declaredValues) {
+		t.Errorf("AllCommandTypes has %d entries but protocol.go declares %d constants",
+			len(AllCommandTypes), len(declaredValues))
+	}
+}
+
 // Every command the protocol declares must be documented in both the operator
 // documentation and the technical documentation. This catches drifts like the
 // one where PANIC was added to the constants and the architecture table but
