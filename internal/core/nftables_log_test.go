@@ -109,7 +109,7 @@ func TestLogPrefixesAreDocumented(t *testing.T) {
 	}
 	var docs string
 	for i := 0; i < 5; i++ {
-		if data, err := os.ReadFile(filepath.Join(dir, "docs", "features", "filters.md")); err == nil {
+		if data, err := os.ReadFile(filepath.Join(dir, "docs", "_docs", "features", "filters.md")); err == nil {
 			docs = string(data)
 			break
 		}
