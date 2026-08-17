@@ -339,7 +339,7 @@ type WebConfig struct {
 	// failing quietly.
 	//
 	// One of the two requests easywall can make. The other is Telemetry below,
-	// which is off unless someone switches it on. docs/security.md lists both.
+	// which is off unless someone switches it on. docs/_docs/security.md lists both.
 	UpdateCheck *bool `toml:"update_check"`
 
 	// Telemetry records whether the operator agreed to easywall counting this
