@@ -85,7 +85,7 @@ No cloud, no account, no telemetry you did not agree to.
 * Docker coexistence — owns `table inet easywall`, touches nothing else
 * English & German, light & dark
 
-[What it can do →]({{ '/docs/features/' | relative_url }})
+[What it can do →]({{ '/docs/' | relative_url }})
 
 <section class="docs-cta" markdown="0">
   <div class="docs-cta-glow"></div>
