@@ -30,19 +30,49 @@ import (
 // the one outcome this file exists to prevent. Refusing to filter is visible in
 // the interface and in `easywall-core status`; filtering when told not to is
 // discovered by being locked out.
+//
+// That default is right for a caller deciding whether to *start* filtering and
+// wrong for one deciding whether to stop — see PanicState, and Firewall.rollback
+// for the caller that needs the difference.
 func PanicEngaged(markerPath string) bool {
-	_, err := os.Stat(markerPath)
+	engaged, _, _ := PanicState(markerPath)
+	return engaged
+}
+
+// PanicState answers the same question as PanicEngaged in three values instead
+// of two: whether panic mode is engaged, whether that is actually known, and the
+// error that made it unknown.
+//
+// The two-valued form has one safe direction and one unsafe one, and which is
+// which depends on what the caller is about to do. "Cannot read the marker →
+// assume engaged" is right for the boot restore and defensible for an apply:
+// both would otherwise start filtering a machine somebody deliberately
+// unfiltered, and both refuse loudly enough to be noticed — `easywall-core
+// resume` reports the real permission error, a refused apply is an error in
+// front of an operator who is watching.
+//
+// It inverts at Firewall.rollback. There, "engaged" withdraws the acceptance
+// window's automatic undo — the one promise easywall makes that everything else
+// is built to keep — so a chmod on the data directory would quietly turn a
+// firewall that always lets you back in into one that does not, and the audit
+// entry would explain it as a decision somebody made at the console. A caller
+// like that needs to know the difference between "engaged" and "cannot tell",
+// which is what this returns. engaged still carries the fail-safe default when
+// known is false, so a caller that only reads the first value behaves exactly as
+// it did before.
+func PanicState(markerPath string) (engaged, known bool, err error) {
+	_, statErr := os.Stat(markerPath)
 	switch {
-	case err == nil:
-		return true
-	case errors.Is(err, fs.ErrNotExist):
-		return false
+	case statErr == nil:
+		return true, true, nil
+	case errors.Is(statErr, fs.ErrNotExist):
+		return false, true, nil
 	default:
 		slog.Error("cannot tell whether panic mode is engaged, so assuming it is "+
 			"and leaving the firewall alone; fix the permissions on the data "+
 			"directory and run `easywall-core resume`",
-			"marker", markerPath, "error", err)
-		return true
+			"marker", markerPath, "error", statErr)
+		return true, false, statErr
 	}
 }
 

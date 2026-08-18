@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -444,5 +445,91 @@ func TestRollback_UnderPanicStillRevertsTheRulesFile(t *testing.T) {
 	}
 	if !sawSkip {
 		t.Error("a rollback that left the kernel torn down must say so in the audit log")
+	}
+}
+
+// lockedMarkerFirewall returns a Firewall whose panic marker cannot be read
+// while its rules file and audit log still can.
+//
+// The three normally live in the same two directories, so a plain chmod would
+// make every one of them unreadable and the test would prove nothing about the
+// marker in particular. The rules store is therefore built from the good path
+// first and DataDir is repointed afterwards: NewRulesStore keeps the path it was
+// given, and DataDir is read again only by PanicMarkerPath.
+func lockedMarkerFirewall(t *testing.T) (*Firewall, *Config) {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: a 0000 directory is still traversable")
+	}
+	cfg := newTestConfig(t)
+	store, err := NewRulesStore(cfg.RulesPath())
+	if err != nil {
+		t.Fatalf("NewRulesStore: %v", err)
+	}
+	locked := filepath.Join(t.TempDir(), "locked")
+	if err := os.Mkdir(locked, 0o000); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o750) })
+	cfg.DataDir = locked
+
+	if _, known, _ := PanicState(cfg.PanicMarkerPath()); known {
+		t.Skip("this filesystem lets the marker be stat'ed anyway; nothing to test")
+	}
+	return &Firewall{
+		cfg:        cfg,
+		nft:        &NftablesManager{},
+		rules:      store,
+		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
+	}, cfg
+}
+
+// An unreadable marker must not withdraw the acceptance window's automatic undo.
+//
+// PanicEngaged reads "cannot tell" as "engaged", which is the safe default for
+// the boot restore and the wrong one here: a permission fault on the data
+// directory would silently turn a firewall that always lets you back in into one
+// that does not, and the audit entry would blame a decision at the console.
+func TestRollback_ProceedsWhenTheMarkerCannotBeRead(t *testing.T) {
+	fw, cfg := lockedMarkerFirewall(t)
+
+	fw.rollback(shared.RulesState{}, "web")
+
+	for _, e := range auditEntries(t, cfg) {
+		if e.Action == "rollback_skipped" {
+			t.Errorf("an unreadable marker must not be reported as an engaged one: %q", e.Detail)
+		}
+	}
+	// The kernel write was attempted: the test firewall has a nil netlink
+	// connection, so the attempt is what produces rollback_failed.
+	var tried bool
+	for _, e := range auditEntries(t, cfg) {
+		if e.Action == "rollback_failed" && strings.Contains(e.Detail, "nftables") {
+			tried = true
+		}
+	}
+	if !tried {
+		t.Error("the rollback must reach nftables when the marker state is unknown")
+	}
+}
+
+// The fault is reported once, loudly, where an operator can act on it: an
+// unreadable marker means the machine comes up unfiltered while every surface
+// that shows panic mode shows one boolean and cannot tell the two apart.
+func TestDaemonStart_RecordsAMarkerItCannotRead(t *testing.T) {
+	fw, cfg := lockedMarkerFirewall(t)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+	t.Cleanup(d.Stop)
+	waitForSocket(t, cfg.SocketPath)
+
+	entries := auditEntries(t, cfg)
+	if len(entries) == 0 || entries[0].Action != "boot_enforce_failed" {
+		t.Fatalf("want boot_enforce_failed first, got %v", auditActions(t, cfg))
+	}
+	if !strings.Contains(entries[0].Detail, cfg.PanicMarkerPath()) ||
+		!strings.Contains(entries[0].Detail, "cannot read the panic marker") {
+		t.Errorf("the entry must name the marker and the errno, got %q", entries[0].Detail)
 	}
 }
