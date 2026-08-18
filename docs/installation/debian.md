@@ -80,7 +80,9 @@ systemctl restart easywall-core easywall-web
 ```
 
 `easywall-core` runs as root; `easywall-web` runs as the unprivileged `easywall`
-user. Both start on boot.
+user. Both start on boot, and the core now puts the last confirmed rules back
+into the kernel when it does — see
+[Recovery & Panic Mode]({{ '/features/recovery/' | relative_url }}).
 
 ## Your own certificate
 
