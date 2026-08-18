@@ -95,8 +95,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		f.panicLandedDuringWrite(
 			"boot_enforce_failed",
 			fmt.Sprintf("%s: panic mode was engaged while a failing restore was writing, "+
-				"rules can reach the kernel before nft.Apply reports an error, so the table "+
-				"was taken down again", reason),
+				"and rules can reach the kernel before nft.Apply reports an error", reason),
 			"core",
 		)
 		return fmt.Errorf("restore rules: %w", err)
@@ -109,8 +108,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// panicLandedDuringWrite.
 	if f.panicLandedDuringWrite(
 		"boot_enforce_failed",
-		fmt.Sprintf("%s: panic mode was engaged while the rules were being restored, "+
-			"so the table was taken down again", reason),
+		fmt.Sprintf("%s: panic mode was engaged while the rules were being restored", reason),
 		"core",
 	) {
 		// Not an error: the machine is in the state the console asked for. The
@@ -156,7 +154,13 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 // It also removes an audit-log lie. A panic landing mid-restore used to log
 // panic_engaged and then boot_enforced — "the stored rules are in force again"
 // as the last word on an unfiltered machine.
-func (f *Firewall) panicLandedDuringWrite(action, detail, user string) bool {
+// The caller passes the *situation* — what was being written when the marker
+// turned up — and this function appends what came of it. Neither half asserts an
+// outcome it did not observe: Reset() can fail, and a detail reading "the table
+// was taken down again" on a machine that is still filtering would be the same
+// class of untrue sentence this release has spent a fortnight removing from
+// comments.
+func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) bool {
 	if !f.PanicEngaged() {
 		return false
 	}
@@ -164,16 +168,20 @@ func (f *Firewall) panicLandedDuringWrite(action, detail, user string) bool {
 	// is built for. An unreadable marker here costs a teardown of a table that
 	// is about to be rebuilt by the next apply or restore; the other way round
 	// costs a machine that filters while the console believes it does not.
+	action, detail := requested, situation
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode was engaged while the rules were being written and the "+
 			"table could not be torn down again; this machine may be filtering while "+
 			"panic mode is recorded — run `nft delete table inet easywall`",
 			"error", err)
-		detail += "; the table could not be torn down: " + err.Error()
+		detail += "; the table could not be torn down (" + err.Error() + "), so this " +
+			"machine may still be filtering while panic mode is recorded"
+	} else {
+		detail += "; the table was taken down again"
 	}
 	WriteAuditLog(f.cfg.AuditLogPath(), action, "all", detail, user)
-	slog.Warn("panic mode was engaged while the rules were being written; the table has "+
-		"been taken down again", "detail", detail)
+	slog.Warn("panic mode was engaged while the rules were being written",
+		"outcome", detail)
 	return true
 }
 

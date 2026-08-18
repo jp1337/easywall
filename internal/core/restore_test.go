@@ -577,11 +577,15 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 	if !strings.Contains(entries[0].Detail, "the console got there first") {
 		t.Errorf("the caller's situation must survive, got %q", entries[0].Detail)
 	}
-	// The fixture cannot reach nftables, and a teardown that did not happen is
-	// the one thing an operator has to be told about: the machine may still be
-	// filtering while the marker says it is not.
-	if !strings.Contains(entries[0].Detail, "could not be torn down") {
-		t.Errorf("a failed teardown must be named in the entry, got %q", entries[0].Detail)
+	// The detail says what happened rather than asserting an outcome. "The table
+	// was taken down again" would be false here.
+	if !strings.Contains(entries[0].Detail, "could not be torn down") ||
+		!strings.Contains(entries[0].Detail, "may still be filtering") {
+		t.Errorf("a failed teardown must be named, and its consequence stated, got %q",
+			entries[0].Detail)
+	}
+	if strings.Contains(entries[0].Detail, "was taken down again") {
+		t.Errorf("the detail asserts a teardown that did not happen: %q", entries[0].Detail)
 	}
 	if entries[0].User != "core" {
 		t.Errorf("user = %q, want core", entries[0].User)
