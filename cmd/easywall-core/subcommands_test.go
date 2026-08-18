@@ -332,3 +332,48 @@ func TestDaemonAbsent(t *testing.T) {
 		})
 	}
 }
+
+// The audit user string has no map and no view function: it renders literally in
+// the log table, so a rename here leaves two spellings for the same event and
+// nothing notices. Pinned the honest way — the fallback path is made to write an
+// entry and the entry's user is read back — rather than by comparing the constant
+// with itself.
+//
+// resume, not panic, because resume's fallback needs no CAP_NET_ADMIN: it clears
+// the marker and writes the entry, and never touches nftables.
+func TestRunSubcommand_NoDaemonFallbackNamesItselfInTheAuditLog(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "easywall.toml")
+	body := "socket_path = \"" + filepath.Join(dir, "absent.sock") + "\"\n" +
+		"data_dir = \"" + dir + "\"\n" +
+		"log_dir = \"" + dir + "\"\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "panic"), nil, 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	if code := runSubcommand("resume", []string{"-config", cfgPath}, &out, &errOut); code != exitOK {
+		t.Fatalf("resume with no daemon = %d, want %d (stderr %s)", code, exitOK, errOut.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, "audit.log"))
+	if err != nil {
+		t.Fatalf("read audit log: %v", err)
+	}
+	var entry shared.AuditLogEntry
+	line := strings.TrimSpace(string(data))
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		t.Fatalf("audit line is not JSON: %q", line)
+	}
+	if entry.Action != "panic_resumed" {
+		t.Errorf("action = %q, want panic_resumed", entry.Action)
+	}
+	if entry.User != "console-no-daemon" {
+		t.Errorf("audit user = %q, want console-no-daemon — this string is rendered "+
+			"literally in the log table, and `console` is what the daemon-mediated "+
+			"route writes for the same action", entry.User)
+	}
+}
