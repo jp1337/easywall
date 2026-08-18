@@ -366,7 +366,25 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 	// acceptance.Start, where CancelAcceptance has nothing pending to cancel
 	// and the window still runs its full length before rollback is ever
 	// called.
-	if f.PanicEngaged() {
+	//
+	// PanicState, not PanicEngaged, and the difference is the point.
+	// PanicEngaged answers "cannot read the marker" with "engaged", which is
+	// the safe default for a caller about to start filtering and the unsafe one
+	// here: it would withdraw the acceptance window's automatic undo — the
+	// promise this product is built around — because of a permission fault on
+	// the data directory, and record it as though somebody had chosen it at the
+	// console. When the state is unknown this rollback goes ahead, exactly as
+	// it did before panic mode existed. The loud report belongs at startup,
+	// once, where an operator can act on it (see Daemon.Start), not in the
+	// middle of the one operation that must not be second-guessed.
+	engaged, known, markerErr := PanicState(f.cfg.PanicMarkerPath())
+	if !known {
+		slog.Error("cannot tell whether panic mode is engaged; rolling back anyway, "+
+			"because withdrawing the acceptance window's automatic undo on an "+
+			"unreadable marker is the worse failure",
+			"marker", f.cfg.PanicMarkerPath(), "error", markerErr)
+	}
+	if engaged && known {
 		WriteAuditLog(f.cfg.AuditLogPath(), "rollback_skipped", "all",
 			"panic mode is engaged ("+f.cfg.PanicMarkerPath()+"): the stored rules were "+
 				"reverted to the set in force before this apply, and the kernel was "+

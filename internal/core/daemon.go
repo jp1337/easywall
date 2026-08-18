@@ -71,6 +71,31 @@ func (d *Daemon) Start() error {
 		d.mu.Unlock()
 	}
 
+	// One loud entry, once, if the panic marker cannot be read at all.
+	//
+	// PanicEngaged answers an unreadable marker with "engaged", so the restore
+	// below will decline to filter and the machine comes up open. That default
+	// is right — the alternative is filtering a machine somebody deliberately
+	// unfiltered — but it is indistinguishable from real panic mode everywhere
+	// an operator looks: the banner, `easywall-core status` and the status reply
+	// all read one boolean. Worse, the same unreadable marker reaches
+	// Firewall.rollback, which now goes ahead when the state is unknown
+	// precisely because it must not withdraw the acceptance window's undo on a
+	// permission fault. So the fault is reported here, in the audit log, with
+	// the path and the errno — the one place a fault this systemic is worth a
+	// line — rather than by every caller that trips over it.
+	//
+	// boot_enforce_failed, not an action of its own: the consequence is exactly
+	// what that action already means. The stored rules are not going into the
+	// kernel at this start, and it is already registered in auditActionLabels,
+	// auditActionTones, both locales and the documented colour table.
+	if _, known, markerErr := PanicState(d.cfg.PanicMarkerPath()); !known {
+		WriteAuditLog(d.cfg.AuditLogPath(), "boot_enforce_failed", "all",
+			fmt.Sprintf("%s: cannot read the panic marker %s: %v — the stored rules are "+
+				"not being restored, and this machine is not filtering",
+				RestoreReasonBoot, d.cfg.PanicMarkerPath(), markerErr), "core")
+	}
+
 	// Restore the stored rules before the listener is created. The socket is the
 	// only thing that makes this process observable, so putting the kernel work
 	// first ensures no client can observe a half-restored firewall by construction.
