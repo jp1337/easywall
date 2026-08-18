@@ -232,7 +232,11 @@ func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
 		t.Fatalf("EngagePanic: %v", err)
 	}
 
-	if !fw.panicLandedDuringWrite("boot_enforce_failed", "test: the console got there first", "core") {
+	// apply_refused_panic is what the apply path requests. Asking for it here also
+	// pins the other half of the substitution rule: the requested action is what
+	// gets written when the teardown *works*. The unit test covers the failing
+	// teardown, which no fixture with a live connection can produce.
+	if !fw.panicLandedDuringWrite("apply_refused_panic", "test: the console got there first", "web") {
 		t.Fatal("the marker is on disk; the check has to see it")
 	}
 	if fw.nft.Enforcing() {
@@ -248,8 +252,9 @@ func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
 		t.Fatal("the interrupted write recorded nothing")
 	}
 	last := entries[len(entries)-1]
-	if last.Action != "boot_enforce_failed" {
-		t.Errorf("last action = %q, want boot_enforce_failed", last.Action)
+	if last.Action != "apply_refused_panic" {
+		t.Errorf("last action = %q, want apply_refused_panic: the teardown succeeded, so the "+
+			"requested action stands and boot_enforce_failed is not substituted", last.Action)
 	}
 	if !strings.Contains(last.Detail, "the table was taken down again") {
 		t.Errorf("the detail must record the teardown that actually happened, got %q", last.Detail)

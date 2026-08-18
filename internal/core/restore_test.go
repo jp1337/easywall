@@ -564,15 +564,24 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 		t.Fatalf("EngagePanic: %v", err)
 	}
 
-	if !fw.panicLandedDuringWrite("boot_enforce_failed", "the console got there first", "core") {
+	// apply_refused_panic is what the apply path asks for, and the teardown below
+	// cannot work on this fixture — so this also pins the substitution.
+	if !fw.panicLandedDuringWrite("apply_refused_panic", "the console got there first", "web") {
 		t.Fatal("a marker that appeared during the write must be reported")
 	}
 	entries := auditEntries(t, cfg)
 	if len(entries) != 1 {
 		t.Fatalf("want exactly one entry, got %v", auditActions(t, cfg))
 	}
+	// The worst state in the release: filtering, with the marker, the banner and
+	// `easywall-core status` all reporting panic mode. It is the same machine
+	// state boot_enforce_failed describes on the restore path, where it is
+	// coloured crit — so a failed teardown is recorded under that action whatever
+	// the caller asked for, rather than rendering one state in two colours.
 	if entries[0].Action != "boot_enforce_failed" {
-		t.Errorf("action = %q, want the action the caller asked for", entries[0].Action)
+		t.Errorf("action = %q, want boot_enforce_failed: a teardown that failed leaves the "+
+			"machine filtering behind a marker that says it is not, and "+
+			"apply_refused_panic is neutral", entries[0].Action)
 	}
 	if !strings.Contains(entries[0].Detail, "the console got there first") {
 		t.Errorf("the caller's situation must survive, got %q", entries[0].Detail)
@@ -587,7 +596,7 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 	if strings.Contains(entries[0].Detail, "was taken down again") {
 		t.Errorf("the detail asserts a teardown that did not happen: %q", entries[0].Detail)
 	}
-	if entries[0].User != "core" {
-		t.Errorf("user = %q, want core", entries[0].User)
+	if entries[0].User != "web" {
+		t.Errorf("user = %q, want web", entries[0].User)
 	}
 }

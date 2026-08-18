@@ -29,7 +29,7 @@ coloured tag would stop meaning anything.
 | 🔴 | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
 | 🔴 | `rollback_failed` | Rollback failed | The worst outcome there is: the new rules did not take **and** the old ones did not come back |
 | 🟢 | `boot_enforced` | Rules restored at startup | The stored rules were back in the kernel before anything else started |
-| 🔴 | `boot_enforce_failed` | Rules could not be restored at startup | The machine came up and is not filtering — nothing on this list is worse. Also written when the panic marker cannot be read at all, and when panic mode was engaged from the console while the restore was still writing: the detail says which |
+| 🔴 | `boot_enforce_failed` | Rules could not be restored at startup | The machine came up and is not filtering — nothing on this list is worse. Also written when the panic marker cannot be read at all, when panic mode was engaged from the console while the restore was still writing, and whenever a panic teardown itself failed and the machine may still be filtering behind a marker that says it is not. The detail says which |
 | 🔴 | `panic_engaged` | Panic mode engaged | A human at the console took the firewall down on purpose. Deliberate does not make it neutral: the machine is unfiltered either way |
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
 | 🔴 | `resume_restore_skipped` | Resume could not restore the rules | Resume cleared the panic marker but an apply held the slot, so the stored rules never made it back — the machine is left exactly as unfiltered as `boot_enforce_failed` describes |
