@@ -463,9 +463,26 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		// rules this rollback just restored on the strength of a permission
 		// fault. That is F5's finding again, one statement further on. Only a
 		// marker that is known to be present earns a teardown at this site.
+		//
+		// rollback_skipped, the same action the branch above writes, because the
+		// machine ends in the same state: the rules file reverted, the table
+		// down, the marker present. Requesting rollback_failed here — which is
+		// crit, while rollback_skipped is neutral — coloured one machine state
+		// two ways depending on which code path reached it, which is the exact
+		// sentence R5 exists to enforce and which is quoted in
+		// panicLandedDuringWrite's own comment. It also wrote a second
+		// rollback_failed for the same event whenever the write above had
+		// already put one in the failures list below, with a detail that
+		// contradicted it.
+		//
+		// The loud case stays loud without a second action: the substitution in
+		// panicLandedDuringWrite promotes this to boot_enforce_failed when its
+		// Reset() fails, which is the one outcome here that is genuinely worse
+		// than the branch above — a machine still filtering behind a marker
+		// that says it is not.
 		if engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath()); engagedNow && knownNow {
 			f.panicLandedDuringWrite(
-				"rollback_failed",
+				"rollback_skipped",
 				"panic mode was engaged while the previous rules were being written back",
 				user,
 			)
