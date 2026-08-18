@@ -751,10 +751,19 @@ func waitForSocket(t *testing.T, path string) {
 	t.Fatalf("socket %s never came up", path)
 }
 
-// The daemon must have run a restore attempt at startup. This catches the
-// restore being removed or made request-triggered, but cannot prove strict
-// ordering: the restore might run in a concurrent goroutine and still finish
-// by luck before the test reads the audit log.
+// The daemon must have run a restore attempt at startup.
+//
+// What this pins: that a restore is attempted at all, and that it happens on the
+// way up rather than in response to a request.
+//
+// What it does not pin, measured rather than assumed: the ordering. Move the
+// restore into `go func(){ … }()` and this test still passes, every time — the
+// restore's own audit write is far quicker than the test's dial, write and read,
+// so it always wins the race it is supposed to detect. The same is true of
+// TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun below. The ordering is
+// held by the structure of Daemon.Start, and it is
+// TestDaemonStart_SourceRestoresBeforeItListens in daemon_source_order_test.go
+// that asserts that structure.
 func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
@@ -774,13 +783,18 @@ func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 }
 
 // No command is served before the restore attempt has completed. This holds by
-// construction now: the restore runs before the socket exists, so the first
+// construction: the restore runs before the socket exists, so the first
 // successful dial to the socket proves the restore has already completed.
 //
-// A unit test here still cannot catch a restore moved into a concurrent goroutine
-// that happens to finish first by luck, so that risk still rests on code structure
-// and cannot be tested; but the structural guarantee that the restore precedes the
-// socket cannot be broken without an obvious code move.
+// What this pins is that a served command is answered on a machine whose restore
+// has already been attempted — the observable half of the guarantee.
+//
+// It does not pin the construction that makes it true, and the difference has
+// been measured: with the restore moved into a goroutine this test still passes,
+// because the restore's audit write beats the test's dial-write-read every time.
+// The structure itself is asserted by
+// TestDaemonStart_SourceRestoresBeforeItListens in daemon_source_order_test.go,
+// which reads daemon.go and fails on both the reordering and the goroutine.
 func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
@@ -797,10 +811,12 @@ func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
 		t.Fatalf("GetStatus failed: %s", resp.Error)
 	}
 
-	// By the time we've received this response, the restore must have already
-	// recorded its audit entry. If the restore were moved after the accept loop,
-	// this assertion would fail because a rapid client connection could be served
-	// before the restore has written anything to the audit log.
+	// By the time this response has arrived, the restore must already have
+	// recorded its audit entry. If the restore were moved after the accept loop
+	// this assertion would fail — a client connection served before the restore
+	// wrote anything. A restore merely moved into a goroutine ahead of the
+	// listener is a different mutation and this assertion does not catch it; see
+	// the note above the function.
 	got := auditActions(t, cfg)
 	if len(got) == 0 || got[0] != "boot_enforce_failed" {
 		t.Errorf("restore must have completed before command was served, got audit %v", got)
