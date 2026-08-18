@@ -1,3 +1,30 @@
+easywall (2.7.0) unstable; urgency=medium
+
+  * Fix: nftables forgets every rule on a restart, and nothing put them back —
+    a reboot left the machine unfiltered until somebody opened the web
+    interface and pressed Apply. The core now restores the stored rule set
+    into the kernel before its socket accepts a single connection, with no
+    acceptance window: that ruleset already survived one on the way in
+  * Feat: easywall-core panic / resume / status, a console-only way back into
+    a machine your own rules have shut you out of. The marker at
+    /var/lib/easywall/panic survives a restart on purpose, and the interface
+    shows a loud banner with no button — ending panic mode is console-only,
+    without exception
+  * Fix: every timestamp in the interface was compared in the wrong zone, so
+    "how long ago" and the date-format boundary could both be wrong, including
+    the calendar day. Nothing stored on disk changes; the container image was
+    also missing tzdata on its runtime stage
+  * PANIC and RESUME are the sixteenth and seventeenth socket commands, now
+    tied to one declared list instead of three independently maintained counts
+  * One mutex now guards every method on NftablesManager; panic outranks an
+    in-flight apply; the panic marker is re-read after every kernel write, not
+    only checked before one, and fsynced before panic reports success
+  * A man page, easywall-core(1), and features/recovery.md
+  * See CHANGELOG.md for the complete account, including the audit actions
+    this release adds and the earlier defects the panic-marker work closed
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Tue, 18 Aug 2026 00:00:00 +0000
+
 easywall (2.6.0) unstable; urgency=medium
 
   * Fix: connection_limit_max and eight other firewall limits had three
