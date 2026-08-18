@@ -87,9 +87,79 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		return fmt.Errorf("restore rules: %w", err)
 	}
 
+	// The marker again, now that the rules are actually in the kernel. The check
+	// at the top of this function was made before two file reads and a netlink
+	// write; `panic` can have landed in between, from the console, in the very
+	// window where this daemon has no socket for it to reach — see
+	// panicLandedDuringWrite.
+	if f.panicLandedDuringWrite(
+		"boot_enforce_failed",
+		fmt.Sprintf("%s: panic mode was engaged while the rules were being restored, "+
+			"so the table was taken down again", reason),
+		"core",
+	) {
+		// Not an error: the machine is in the state the console asked for. The
+		// caller logs a failure and tells the operator to apply, which is the
+		// wrong advice for a deliberately unfiltered machine.
+		return nil
+	}
+
 	WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforced", "all", reason, "core")
 	slog.Info("the stored rules are in force again", "reason", reason)
 	return nil
+}
+
+// panicLandedDuringWrite reports whether panic mode was engaged while a write to
+// the kernel was in flight, and tears the table down again if it was. Call it
+// immediately after nft.Apply returns; action and detail are what to record.
+//
+// Every other panic check in this package runs *before* a write and none ran
+// after one, under a comment in cmd/easywall-core/subcommands.go asserting that
+// "every daemon-side writer of the table checks it first" made a direct teardown
+// survivable. Checking first is necessary and it is not sufficient, for two
+// separate reasons.
+//
+// In-process, the gap is not small. Between apply's marker check and its
+// nft.Apply sit two reads of the rules file, two atomic rewrites and a full
+// Snapshot() — netlink list calls plus a file write. On the Raspberry Pi class
+// of machine this product is written for that is tens to hundreds of
+// milliseconds, not microseconds, and a `panic` at the console lands inside it
+// often enough to matter.
+//
+// Cross-process, no mutex can help. `easywall-core panic` falls back to tearing
+// the table down itself whenever the socket refuses, and there are two windows
+// where a live daemon writes the kernel with no socket present: startup, because
+// the boot restore deliberately runs before net.Listen, and shutdown, because
+// Stop closes and unlinks the listener before CancelAcceptance() and wg.Wait().
+// If the daemon's Flush lands after the CLI's teardown, the machine is filtering
+// with the marker on disk — and every surface says the opposite, because
+// runStatus tests status.Panic before status.Active and the web banner reads the
+// same flag. That is the migration scenario exactly: somebody upgrading from
+// 2.6, who reboots to escape their own rules, finds the rules restored, and
+// reaches for `panic` while the machine is coming up.
+//
+// It also removes an audit-log lie. A panic landing mid-restore used to log
+// panic_engaged and then boot_enforced — "the stored rules are in force again"
+// as the last word on an unfiltered machine.
+func (f *Firewall) panicLandedDuringWrite(action, detail, user string) bool {
+	if !f.PanicEngaged() {
+		return false
+	}
+	// PanicEngaged, not PanicState: this is the direction its fail-safe default
+	// is built for. An unreadable marker here costs a teardown of a table that
+	// is about to be rebuilt by the next apply or restore; the other way round
+	// costs a machine that filters while the console believes it does not.
+	if err := f.nft.Reset(); err != nil {
+		slog.Error("panic mode was engaged while the rules were being written and the "+
+			"table could not be torn down again; this machine may be filtering while "+
+			"panic mode is recorded — run `nft delete table inet easywall`",
+			"error", err)
+		detail += "; the table could not be torn down: " + err.Error()
+	}
+	WriteAuditLog(f.cfg.AuditLogPath(), action, "all", detail, user)
+	slog.Warn("panic mode was engaged while the rules were being written; the table has "+
+		"been taken down again", "detail", detail)
+	return true
 }
 
 // Panic tears the firewall down and records that it was done on purpose.
