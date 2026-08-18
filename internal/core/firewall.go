@@ -390,9 +390,13 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 	// state.Backup and an atomic rewrite. It cannot fight Panic's teardown,
 	// because it never speaks to the kernel. Only f.nft.Apply below can, so
 	// only f.nft.Apply is guarded.
-	if err := f.rules.Rollback(); err != nil {
-		slog.Error("rollback rules file failed", "error", err)
-		failures = append(failures, "rules file: "+err.Error())
+	// revertErr is kept rather than only logged: the rollback_skipped entry below
+	// reports what the revert did, and it cannot do that from a message that has
+	// already gone to the journal.
+	revertErr := f.rules.Rollback()
+	if revertErr != nil {
+		slog.Error("rollback rules file failed", "error", revertErr)
+		failures = append(failures, "rules file: "+revertErr.Error())
 	}
 
 	// The check that makes Panic's marker authoritative rather than advisory,
@@ -429,15 +433,25 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			"marker", f.cfg.PanicMarkerPath(), "error", markerErr)
 	}
 	if engaged && known {
-		// What this function did, not what the kernel now holds. The detail used
-		// to assert "the kernel was left torn down", which is a claim about
-		// Panic's teardown rather than about anything observed here — and Reset()
-		// can fail, in which case the sentence was false in the log of the one
-		// machine state where being told the truth matters most.
+		// What this function did, not what the kernel now holds, in both clauses.
+		//
+		// The second clause used to assert "the kernel was left torn down" — a
+		// claim about Panic's teardown rather than about anything observed here,
+		// and false whenever that Reset() failed. The first clause had the same
+		// defect one line earlier: it said the stored rules *were* reverted, when
+		// f.rules.Rollback() above can fail, and its error went only into the
+		// separate rollback_failed entry. The log then carried two entries for one
+		// event of which one lied, and the lying one was the entry that explains
+		// why the rollback did what it did.
+		reverted := "the stored rules were reverted to the set in force before this apply"
+		if revertErr != nil {
+			reverted = "the stored rules could not be reverted (" + revertErr.Error() +
+				"), so Current still holds the set this apply promoted"
+		}
 		WriteAuditLog(f.cfg.AuditLogPath(), "rollback_skipped", "all",
-			"panic mode is engaged ("+f.cfg.PanicMarkerPath()+"): the stored rules were "+
-				"reverted to the set in force before this apply, and nothing was written "+
-				"to the kernel — the table is in whatever state panic mode left it", user)
+			"panic mode is engaged ("+f.cfg.PanicMarkerPath()+"): "+reverted+
+				", and nothing was written to the kernel — the table is in whatever "+
+				"state panic mode left it", user)
 	} else {
 		if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 			slog.Error("rollback nftables failed", "error", err)
