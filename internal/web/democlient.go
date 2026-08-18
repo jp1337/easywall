@@ -168,9 +168,20 @@ func (d *demoState) seed() {
 	// Audit log: 18 entries spanning the last ~30 hours to simulate
 	// realistic operator activity (apply cycles, individual rule edits,
 	// option toggles, an import, a rollback). Newest first.
-	now := time.Now()
+	//
+	// UTC, exactly as the core writes it — core/rules.go:319 and
+	// core/firewall.go:286. The demo used to store local time, which made it the
+	// only installation whose stamps carried an offset other than Z, and
+	// therefore the one place shortTime's offset-preserving behaviour looked
+	// correct. A demo that does not behave like the product cannot be used to
+	// check the product.
+	now := time.Now().UTC()
 	d.auditLog = buildSeedAuditLog(now)
-	d.lastApply = now.Add(-2 * time.Hour).Format(time.RFC3339)
+
+	// Recent, not two hours stale. The demo is reset every few hours and this is
+	// the first number a visitor reads; opening on a last apply from two hours
+	// ago reads as an installation nobody is looking after.
+	d.lastApply = now.Add(-4 * time.Minute).Format(time.RFC3339)
 }
 
 // buildSeedAuditLog returns ~18 plausible audit entries, newest first.
@@ -191,8 +202,8 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		user     string
 	}
 	entries := []e{
-		{-2 * time.Hour, "apply_accepted", "", "", "demo"},
-		{-2*time.Hour - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
+		{-4 * time.Minute, "apply_accepted", "", "", "demo"},
+		{-4*time.Minute - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
 		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log", "demo"},
 		{-4 * time.Hour, "rules_saved", "blacklist", "+192.0.2.42", "demo"},
 		{-4*time.Hour - 12*time.Second, "rules_saved", "blacklist", "+192.0.2.118", "demo"},
@@ -203,8 +214,14 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32", "demo"},
 		{-12 * time.Hour, "rules_saved", "udp", "+51820", "demo"},
 		{-14 * time.Hour, "rules_imported", "", "rules-2026-05-02.json", "demo"},
-		{-18 * time.Hour, "apply_rolledback", "", "timeout", "demo"},
+		// The re-apply happened two minutes after the rollback it followed, which
+		// makes it the more recent of the pair — so in a newest-first list it goes
+		// above the rollback, not below. Listed the other way round for a while:
+		// same two offsets, swapped positions, and the log read as a rollback that
+		// happened after the apply it was rolling back, which is a sequence the
+		// real core cannot produce.
 		{-18*time.Hour + 2*time.Minute, "apply_accepted", "", "", "demo"},
+		{-18 * time.Hour, "apply_rolledback", "", "timeout", "demo"},
 		{-20 * time.Hour, "options_saved", "", "syn_flood_limit=100", "demo"},
 		{-24 * time.Hour, "rules_saved", "custom", "+1", "demo"},
 		{-26 * time.Hour, "apply_accepted", "", "", "demo"},
@@ -319,7 +336,7 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 // the real core's behavior.
 func (d *demoState) audit(action, ruleType, detail string) {
 	e := shared.AuditLogEntry{
-		Time:     time.Now().Format(time.RFC3339),
+		Time:     time.Now().UTC().Format(time.RFC3339),
 		Action:   action,
 		RuleType: ruleType,
 		Detail:   detail,
@@ -445,7 +462,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 		d.acceptanceTimer = time.AfterFunc(dur, d.rollback)
 	} else {
 		d.audit("apply_started", "all", "acceptance window disabled — applied without confirmation")
-		d.lastApply = time.Now().Format(time.RFC3339)
+		d.lastApply = time.Now().UTC().Format(time.RFC3339)
 		d.audit("apply_accepted", "all", "no confirmation required")
 		d.acceptance = shared.AcceptanceAccepted
 		// Match the real core: brief "accepted" pulse, then drop back to idle.
@@ -470,7 +487,7 @@ func (d *demoState) handleAccept() shared.Response {
 	}
 	// Confirmation is what makes an apply final, so this is where the log records
 	// it and where the dashboard's "last apply" is stamped.
-	d.lastApply = time.Now().Format(time.RFC3339)
+	d.lastApply = time.Now().UTC().Format(time.RFC3339)
 	d.audit("apply_accepted", "all", "")
 	d.acceptance = shared.AcceptanceAccepted
 	go d.delayedReset()
