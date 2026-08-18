@@ -273,6 +273,26 @@ func (f *Firewall) apply(user string) error {
 		return fmt.Errorf("apply nftables rules: %w", err)
 	}
 
+	// The marker again, now that the rules are actually in the kernel. The check
+	// at the top of this function was made before two rules-file reads, two
+	// atomic rewrites and a full Snapshot(); `panic` can have landed anywhere in
+	// that gap, including through the CLI's own teardown while this daemon's
+	// socket was not yet listening — see panicLandedDuringWrite.
+	if f.panicLandedDuringWrite(
+		"apply_refused_panic",
+		"panic mode was engaged while this apply was being written, so the rules it "+
+			"installed were taken down again",
+		user,
+	) {
+		// The file half matters as much as the kernel half. PromoteStaged above
+		// has already made Current the set this apply was trying out, and
+		// nobody has confirmed it — leaving it there is what would be restored,
+		// with no acceptance window, at the next boot or resume. rollback puts
+		// Current back and, because the marker is set, leaves the kernel down.
+		f.rollback(state, user)
+		return ErrPanicEngaged
+	}
+
 	// 5. Acceptance window, unless it has been switched off.
 	//
 	// acceptance.enabled was never read until 2.5.0. The system settings page

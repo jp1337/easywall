@@ -533,3 +533,44 @@ func TestDaemonStart_RecordsAMarkerItCannotRead(t *testing.T) {
 		t.Errorf("the entry must name the marker and the errno, got %q", entries[0].Detail)
 	}
 }
+
+// The post-write marker check, on the two things a unit test can see: the
+// verdict and the audit entry. That a real table actually comes down is the
+// integration half — see TestIntegration_PanicLandingAfterAWriteLeavesNoRules,
+// because this fixture has a nil netlink connection and nft.Apply never gets far
+// enough to reach the check on its own.
+func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if fw.panicLandedDuringWrite("boot_enforce_failed", "no marker here", "core") {
+		t.Error("with no marker on disk the write that just happened stands")
+	}
+	if got := auditActions(t, cfg); len(got) != 0 {
+		t.Errorf("a write nobody interrupted must record nothing here, got %v", got)
+	}
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	if !fw.panicLandedDuringWrite("boot_enforce_failed", "boot: the console got there first", "core") {
+		t.Fatal("a marker that appeared during the write must be reported")
+	}
+	entries := auditEntries(t, cfg)
+	if len(entries) != 1 || entries[0].Action != "boot_enforce_failed" {
+		t.Fatalf("want one boot_enforce_failed entry, got %v", auditActions(t, cfg))
+	}
+	if !strings.Contains(entries[0].Detail, "boot: the console got there first") {
+		t.Errorf("the caller's detail must survive, got %q", entries[0].Detail)
+	}
+	// The fixture cannot reach nftables, and a teardown that did not happen is
+	// the one thing an operator has to be told about: the machine may still be
+	// filtering while the marker says it is not.
+	if !strings.Contains(entries[0].Detail, "could not be torn down") {
+		t.Errorf("a failed teardown must be named in the entry, got %q", entries[0].Detail)
+	}
+	if entries[0].User != "core" {
+		t.Errorf("user = %q, want core", entries[0].User)
+	}
+}

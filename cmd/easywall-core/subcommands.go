@@ -184,9 +184,13 @@ func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 		// A refused socket means no daemon is accepting — not that nothing is
 		// still writing. Two windows say otherwise: the boot restore runs before
 		// net.Listen, and Stop's rollback can still be flushing after the
-		// listener is closed and unlinked. Both are survivable because the
-		// marker goes on disk before this teardown, and every daemon-side writer
-		// of the table checks it first.
+		// listener is closed and unlinked. What makes those survivable is the
+		// marker going on disk before this teardown *and* the daemon re-reading
+		// it after each write to the table, not before only: a check before a
+		// write cannot see a marker that appears during it, and the loser of
+		// that race would be a machine filtering with panic mode recorded, which
+		// every status surface reports as "deliberately not enforcing". See
+		// Firewall.panicLandedDuringWrite for the second half.
 		//
 		// The marker first, for the same reason the daemon writes it first: an
 		// operator who runs this, believes it worked and reboots must not meet

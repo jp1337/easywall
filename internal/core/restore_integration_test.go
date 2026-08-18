@@ -175,3 +175,75 @@ func TestIntegration_PanicModeSurvivesARestart(t *testing.T) {
 		t.Error("Enforcing() is false after Resume; ending panic mode must put the stored rules back")
 	}
 }
+
+// A panic that lands *during* a write to the table has to leave the table down.
+//
+// Every panic check in this package used to run before a write and none after
+// one, so the loser of that race was a machine filtering with the marker on
+// disk — reported by `easywall-core status` and the web banner as "deliberately
+// not enforcing", because both test the panic flag before the enforcing one.
+// Firewall.panicLandedDuringWrite closes it by re-reading the marker once
+// nft.Apply has returned and tearing the table down again if it has appeared.
+//
+// The unit half of this (the verdict and the audit entry) is
+// TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown. What needs a real
+// kernel is the teardown itself: that after this runs there is no ruleset left,
+// not merely that a function returned true.
+//
+// The window is not opened artificially here — a marker cannot be made to appear
+// between two adjacent statements from outside the process without a hook this
+// code deliberately does not have. So the test writes the marker after a genuine
+// apply has put real rules in the kernel and then runs the check exactly where
+// apply and RestoreCurrent run it, which is the same state those two are in when
+// they call it.
+//
+//	sudo go test -tags integration ./internal/core/ -run 'PanicLandingAfterAWrite' -v
+func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
+	_ = newIntegrationManager(t)
+
+	cfg := newTestConfig(t)
+	cfg.Acceptance.Enabled = false // the confirmation window is not what this is about
+
+	fw, err := NewFirewall(cfg)
+	if err != nil {
+		t.Fatalf("NewFirewall: %v", err)
+	}
+	t.Cleanup(func() { _ = fw.nft.Reset() })
+
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "9101", Description: "open"}}); err != nil {
+		t.Fatalf("SaveStaged: %v", err)
+	}
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if !fw.nft.Enforcing() {
+		t.Fatal("precondition failed: Enforcing() is false right after an accepted Apply, " +
+			"so the teardown below would prove nothing")
+	}
+	mustContain(t, ruleset(t), "tcp dport 9101 accept",
+		"the rules this test is about to see taken down have to be there first")
+
+	// The console: `easywall-core panic` with no daemon answering writes the
+	// marker and tears the table down itself. This is the ordering where its
+	// teardown loses — it lands before the daemon's write, so the daemon's write
+	// is what the kernel ends up holding.
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	if !fw.panicLandedDuringWrite("boot_enforce_failed", "test: the console got there first", "core") {
+		t.Fatal("the marker is on disk; the check has to see it")
+	}
+	if fw.nft.Enforcing() {
+		t.Error("Enforcing() is true after a panic that landed during the write — the machine " +
+			"is filtering while every status surface reports panic mode, which is the one " +
+			"outcome panic mode exists to rule out")
+	}
+	mustNotContain(t, ruleset(t), "9101",
+		"no rule from the interrupted write may survive; the table is supposed to be empty")
+
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[len(got)-1] != "boot_enforce_failed" {
+		t.Errorf("the last word in the log must not be boot_enforced on an unfiltered machine, got %v", got)
+	}
+}
