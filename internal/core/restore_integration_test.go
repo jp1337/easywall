@@ -3,6 +3,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -249,6 +250,9 @@ func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
 	last := entries[len(entries)-1]
 	if last.Action != "boot_enforce_failed" {
 		t.Errorf("last action = %q, want boot_enforce_failed", last.Action)
+	}
+	if !strings.Contains(last.Detail, "the table was taken down again") {
+		t.Errorf("the detail must record the teardown that actually happened, got %q", last.Detail)
 	}
 	for _, e := range entries {
 		if e.Action == "boot_enforced" {

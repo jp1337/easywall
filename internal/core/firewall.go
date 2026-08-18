@@ -290,8 +290,8 @@ func (f *Firewall) apply(user string) error {
 		// teardown, which is the guard F1 rests on.
 		f.panicLandedDuringWrite(
 			"apply_refused_panic",
-			"panic mode was engaged while a failing apply was writing, rules can reach "+
-				"the kernel before nft.Apply reports an error, so the table was taken down again",
+			"panic mode was engaged while a failing apply was writing, and rules can "+
+				"reach the kernel before nft.Apply reports an error",
 			user,
 		)
 		f.rollback(state, user)
@@ -305,8 +305,7 @@ func (f *Firewall) apply(user string) error {
 	// socket was not yet listening — see panicLandedDuringWrite.
 	if f.panicLandedDuringWrite(
 		"apply_refused_panic",
-		"panic mode was engaged while this apply was being written, so the rules it "+
-			"installed were taken down again",
+		"panic mode was engaged while this apply was being written",
 		user,
 	) {
 		// The file half matters as much as the kernel half. PromoteStaged above
@@ -430,10 +429,15 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			"marker", f.cfg.PanicMarkerPath(), "error", markerErr)
 	}
 	if engaged && known {
+		// What this function did, not what the kernel now holds. The detail used
+		// to assert "the kernel was left torn down", which is a claim about
+		// Panic's teardown rather than about anything observed here — and Reset()
+		// can fail, in which case the sentence was false in the log of the one
+		// machine state where being told the truth matters most.
 		WriteAuditLog(f.cfg.AuditLogPath(), "rollback_skipped", "all",
 			"panic mode is engaged ("+f.cfg.PanicMarkerPath()+"): the stored rules were "+
-				"reverted to the set in force before this apply, and the kernel was "+
-				"left torn down", user)
+				"reverted to the set in force before this apply, and nothing was written "+
+				"to the kernel — the table is in whatever state panic mode left it", user)
 	} else {
 		if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 			slog.Error("rollback nftables failed", "error", err)
@@ -462,8 +466,7 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		if engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath()); engagedNow && knownNow {
 			f.panicLandedDuringWrite(
 				"rollback_failed",
-				"panic mode was engaged while the previous rules were being written back, so "+
-					"the table was taken down again",
+				"panic mode was engaged while the previous rules were being written back",
 				user,
 			)
 		}
