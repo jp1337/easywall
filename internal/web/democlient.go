@@ -35,6 +35,14 @@ type demoState struct {
 	// User identity recorded in audit log entries — overridable but
 	// "demo" by default since we don't have a real session here.
 	actor string
+
+	// panicMode mirrors shared.FirewallStatus.Panic. The demo has no kernel and
+	// no marker file, so this bool is the whole of panic mode here: CmdPanic
+	// sets it, CmdResume clears it, and statusLocked reports it the way the
+	// real core reports whatever EngagePanic/ClearPanic left on disk. Named
+	// panicMode rather than panic so nothing here reads like a call to the
+	// builtin.
+	panicMode bool
 }
 
 // newDemoState constructs the demo state machine and seeds it with a
@@ -262,6 +270,10 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true, Data: raw}
 	case shared.CmdImportRules:
 		return d.handleImportRules(cmd.Payload)
+	case shared.CmdPanic:
+		return d.handlePanic()
+	case shared.CmdResume:
+		return d.handleResume()
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
 }
@@ -290,7 +302,13 @@ func (d *demoState) hasPendingLocked() bool {
 
 func (d *demoState) statusLocked() shared.FirewallStatus {
 	return shared.FirewallStatus{
-		Active:     true,
+		// The real core reports Active false the moment Panic tears the table
+		// down; there is no kernel here to ask, so panicMode is the only signal
+		// this mock has and Active follows its negation the same way the rest
+		// of this struct's derived fields (HasPending) follow the state
+		// underneath them rather than being tracked independently.
+		Active:     !d.panicMode,
+		Panic:      d.panicMode,
 		Acceptance: d.acceptance,
 		HasPending: d.hasPendingLocked(),
 		LastApply:  d.lastApply,
@@ -383,6 +401,16 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 }
 
 func (d *demoState) handleApplyRules() shared.Response {
+	// Refused for the same reason the real core refuses it: a human at the
+	// console took the firewall down on purpose, and the web interface does
+	// not get to override that by pushing a new apply through. Checked before
+	// the acceptance-window refusal below because panic mode outranks it —
+	// the marker, not any in-flight window, is what decides whether an apply
+	// may run at all.
+	if d.panicMode {
+		return shared.Response{Success: false, Error: shared.ErrPanicEngagedText}
+	}
+
 	// Refused while a window is open, exactly as the core refuses it. The demo
 	// used to accept it and silently restart the window instead — a third
 	// behaviour, in the one place where visitors form their idea of what the
@@ -533,5 +561,24 @@ func (d *demoState) handleImportRules(payload []byte) shared.Response {
 	d.rules.Staged = imported
 	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
 		len(imported.TCP), len(imported.UDP), len(imported.Blacklist), len(imported.Whitelist)))
+	return shared.Response{Success: true}
+}
+
+// handlePanic mirrors core.Firewall.Panic for a visitor with no kernel behind
+// them: there is no table to tear down, so setting panicMode and writing the
+// same audit action the real core writes is the whole of it.
+func (d *demoState) handlePanic() shared.Response {
+	d.panicMode = true
+	d.audit("panic_engaged", "all", "the firewall was taken down from the console")
+	return shared.Response{Success: true}
+}
+
+// handleResume mirrors core.Firewall.Resume. The real core restores the
+// stored rules from disk here; the demo has no disk-backed "current" separate
+// from what panicMode already suppresses, so clearing the flag is the
+// restore.
+func (d *demoState) handleResume() shared.Response {
+	d.panicMode = false
+	d.audit("panic_resumed", "all", "panic mode was ended from the console")
 	return shared.Response{Success: true}
 }

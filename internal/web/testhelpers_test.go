@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -335,6 +336,29 @@ func doFormRequest(s *Server, method, url, formBody string, cookies ...*http.Coo
 	rec := httptest.NewRecorder()
 	s.router.ServeHTTP(rec, req)
 	return rec
+}
+
+// newTestServerCountingStatusCalls builds a server backed by a fresh fakeCore
+// and returns a counter that ticks up once for every GET_STATUS the server
+// sends it. It exists for TestRender_LoginPageDoesNotAskTheCoreForStatus: the
+// login page has no session yet, and render() must not reach for the core on
+// its behalf, since the core is not guaranteed to be reachable at all before
+// anyone has signed in.
+//
+// The observer fires on the fakeCore's own connection-handling goroutine, so
+// the counter is an int32 read and written with atomic ops rather than a
+// plain int — a bug that made the login page call the core would otherwise
+// race the test's read against the observer's write instead of just failing
+// the assertion.
+func newTestServerCountingStatusCalls(t *testing.T) (*Server, *int32) {
+	t.Helper()
+	fc := newFakeCore(t)
+	var calls int32
+	fc.OnCommand(shared.CmdGetStatus, func(shared.Command) {
+		atomic.AddInt32(&calls, 1)
+	})
+	s := newTestServer(t, fc)
+	return s, &calls
 }
 
 // doAuthRequest performs an authenticated request (with session cookie).

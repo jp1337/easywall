@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -206,6 +207,28 @@ func TestRender_WithFlash(t *testing.T) {
 	s.router.ServeHTTP(rec2, req2)
 	// Dashboard should render successfully
 	assertStatus(t, rec2, http.StatusOK)
+}
+
+// The login page must not reach the core: it is served before anyone is
+// authenticated, and it has to work when the core is down.
+//
+// The other two panic-banner tests the design for this render() change calls
+// for — one asserting the banner text appears on every authenticated page,
+// one asserting it is absent outside panic mode — are deferred to the task
+// that adds the "panicbanner" template block; neither can pass before that
+// markup exists. This one needs no template change and stands on its own.
+func TestRender_LoginPageDoesNotAskTheCoreForStatus(t *testing.T) {
+	srv, calls := newTestServerCountingStatusCalls(t)
+
+	rec := httptest.NewRecorder()
+	srv.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/login", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /login = %d", rec.Code)
+	}
+	if got := atomic.LoadInt32(calls); got != 0 {
+		t.Errorf("the login page made %d status calls to the core; want 0", got)
+	}
 }
 
 func TestRender_NonceFromContext(t *testing.T) {
