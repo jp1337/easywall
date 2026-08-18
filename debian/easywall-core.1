@@ -25,7 +25,8 @@ no acceptance window: the rule set being restored has already survived one.
 Report whether the firewall is enforcing, whether an acceptance window is open,
 and when rules were last applied. Exits 0 when the firewall is enforcing or when
 panic mode says it was meant not to be, and 2 when the machine is simply not
-filtering \- so it can be used from a monitoring check.
+filtering or when the daemon is not running \- so it can be used from a
+monitoring check.
 .TP
 .B panic
 Take the firewall down and record that it was deliberate. The machine is
@@ -35,8 +36,9 @@ back into a machine your own rules have shut you out of.
 .B panic
 waits for the nftables lock, which an in-flight
 .B apply
-holds while its custom-rules syntax check runs. If the firewall appears to be
-hung, this is probably the wait. It is not hung.
+holds while it writes custom rules through
+.BR nft .
+If the firewall appears to be hung, this is probably the wait. It is not hung.
 .TP
 .B resume
 End panic mode and put the stored rules back.
@@ -46,6 +48,17 @@ Exits 0 even when no daemon is running. In that case
 clears the panic marker and stops; restoring the rules is the daemon's job and it
 does it on start. To complete the recovery, start the service:
 .B systemctl start easywall-core
+.PP
+When the daemon is running,
+.B resume
+clears the panic marker and then attempts to restore. If an
+.B apply
+holds the nftables lock, the restore is refused with exit 1; but the marker is
+already cleared. Check
+.B status
+and run
+.B resume
+again once the apply finishes.
 .SH OPTIONS
 .TP
 .BR \-config " " \fIpath\fR
@@ -65,9 +78,10 @@ and exit. Never overwrites an existing file.
 Reload
 .RI [ firewall ],
 .RI [ acceptance ],
-.RI [ ipv6 ]
+.RI [ ipv6 ],
+.RI [ docker ],
 and
-.RI [ docker ]
+.RI [ routing ]
 without dropping the socket. Paths stay bound to what the daemon started with. A
 file that does not parse is refused and the running configuration is kept.
 .SH FILES
@@ -85,16 +99,25 @@ While it exists, an
 is refused and an acceptance rollback does not run. The acceptance window's
 automatic undo is inactive in panic mode.
 .TP
+.I /var/lib/easywall/last_apply
+When rules were last applied and accepted.
+.TP
 .I /var/log/easywall/audit.log
 One JSON object per line: what changed, when, and by whom.
 .TP
 .I /run/easywall/core.sock
 The control socket, root:easywall 0660.
 .SH SHUTDOWN
-Stopping the daemon waits for a startup restore that may still be writing to the
-kernel, and can take up to about thirty seconds. systemd's default
-.B TimeoutStopSec
-is 90 seconds and provides room for this.
+Stopping the daemon waits for an in-flight apply's rollback to the kernel,
+which can take up to about thirty seconds. A startup restore may also be
+writing at the same time. The unit sets no override of systemd's default
+.B TimeoutStopSec,
+so the manager's configured default applies; check it with:
+.B systemctl show --property=DefaultTimeoutStopUSec
+.PP
+A host configured with
+.B DefaultTimeoutStopUSec
+below the worst case can send SIGKILL during a restore or rollback.
 .SH EXIT STATUS
 .TP
 .B 0
@@ -105,7 +128,9 @@ The command failed. The reason is on standard error.
 .TP
 .B 2
 .B status
-only: the machine is not filtering and panic mode is not engaged.
+only: the machine is not filtering and panic mode is not engaged, or the daemon
+is not running. A machine with no daemon running is not in the state it should
+be, because nothing will restore the rules when the daemon starts.
 .SH SEE ALSO
 .BR easywall\-web (1),
 .BR nft (8)
