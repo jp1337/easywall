@@ -3,7 +3,6 @@
 package core
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -82,18 +81,23 @@ func TestIntegration_RulesAreBackAfterTheTableIsFlushed(t *testing.T) {
 			"that the firewall comes back after a reboot — does not hold")
 	}
 
-	// And it has to be *these* rules, not merely some rules. A restore that
-	// came back empty, or with the wrong port open, would still leave
-	// Enforcing() true.
+	// And it has to be *these* rules, with *this* verdict — not merely some
+	// rules that happen to name the right port. "tcp dport 9101" alone would
+	// still be found in a rule reading `tcp dport 9101 drop`, which is the
+	// exact inversion this test exists to catch; the accept has to be part of
+	// what is matched, the same way the semantics tests elsewhere in this
+	// package assert "...accept" and "...drop" rather than the address alone.
 	dump := ruleset(t)
-	if !strings.Contains(dump, "9101") {
-		t.Errorf("the restored ruleset does not mention port 9101, which was staged and applied "+
-			"before the reboot — RestoreCurrent put something back, but not what was stored:\n%s", dump)
-	}
-	if strings.Contains(dump, "9102") {
-		t.Errorf("the restored ruleset mentions port 9102, which was never staged at all — "+
-			"RestoreCurrent must not invent rules that were never asked for:\n%s", dump)
-	}
+	mustContain(t, dump, "tcp dport 9101 accept",
+		"port 9101 was staged and applied before the reboot, and RestoreCurrent must put back "+
+			"a rule that accepts it — not merely one that mentions the number 9101")
+	// Unqualified on purpose: 9102 was never staged, so no rule of any kind —
+	// accept, drop, or otherwise — should name it anywhere in the table.
+	// Qualifying this one with a verdict would only make it easier to pass by
+	// accident; the correct claim is total absence, and that is a stronger
+	// check than "absent with the wrong verdict" would be.
+	mustNotContain(t, dump, "9102",
+		"RestoreCurrent must not invent rules for a port that was never staged")
 }
 
 // TestIntegration_PanicModeSurvivesARestart is the test for the escape route
