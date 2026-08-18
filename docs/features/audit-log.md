@@ -51,13 +51,24 @@ coloured tag would stop meaning anything.
 | Action | The identifier, rendered in your language |
 | Rule type | `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `all` |
 | Detail | What changed — the addresses added and removed, or the settings that moved |
-| User | Always `web`. It names the **process**, not the person — see below |
+| User | The **process** that wrote the entry, not the person — one of four values, listed below |
+
+## The user column
+
+It names the process, and since 2.7 there are four of them:
+
+| Value | Written by |
+|---|---|
+| `web` | the web interface — every rule, option and setting change, and every apply you start from a page |
+| `core` | the daemon itself, for work no operator asked for in the moment: the boot restore and the restore that follows the end of panic mode |
+| `console` | `easywall-core panic` or `resume`, carried out by the running daemon on the console's behalf |
+| `console-no-daemon` | the same two commands with no daemon running, where the console tool writes the marker and the entry itself — the lockout path, so it says which process was there |
 
 ## What is not in it
 
 | Not recorded | Where to look instead |
 |---|---|
-| Which account made a change | nowhere. Every entry says `web`, because the socket protocol carries no identity yet — [roadmap]({{ '/roadmap/' | relative_url }}) |
+| Which account made a change | nowhere. `web` names the process, not the person, because the socket protocol carries no identity yet — [roadmap]({{ '/roadmap/' | relative_url }}) |
 | Logins and failed logins | `journalctl -u easywall-web` |
 | Logouts | nowhere, though a logout does end the session immediately |
 | Read-only page views | nowhere — not recorded at all |
@@ -81,6 +92,8 @@ tail -f /var/log/easywall/audit.log
 {"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blacklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
 {"time":"2026-08-09T14:25:43Z","action":"options_saved","rule_type":"","detail":"changed port_scan, tcp_rst_flood","user":"web"}
 {"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"web"}
+{"time":"2026-08-10T06:14:07Z","action":"boot_enforced","rule_type":"all","detail":"daemon start","user":"core"}
+{"time":"2026-08-10T09:02:55Z","action":"panic_engaged","rule_type":"all","detail":"the firewall was taken down from the console","user":"console"}
 ```
 
 Each line stores its time as RFC 3339 in UTC. The interface converts it to the
