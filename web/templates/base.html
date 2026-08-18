@@ -209,6 +209,28 @@
   </div>
   {{end}}
 </div>
+{{template "panicbanner" .}}
+{{end}}
+
+{{/* Rendered from inside "topbar" rather than from each page: a banner every
+     page has to remember to include is a banner some page will not include,
+     and panic mode is the one state where not being noticed is the entire
+     problem. There is deliberately no control here that ends panic mode —
+     that would let the network-facing process re-arm a firewall someone
+     disarmed at the console, reachable by a stolen session. Whoever ran
+     `easywall-core panic` is standing at that console already; the banner
+     only tells them, and everyone else, what to type there. */}}
+{{define "panicbanner"}}
+{{if .Panic}}
+<div role="alert" class="panic-banner">
+  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+  <div class="panic-banner-text">
+    <strong>{{T "panic_banner_title"}}</strong>
+    <span>{{T "panic_banner_body"}}</span>
+  </div>
+  <code class="panic-banner-cmd">easywall-core resume</code>
+</div>
+{{end}}
 {{end}}
 
 {{define "flash"}}

@@ -368,6 +368,26 @@ func doAuthRequest(t *testing.T, s *Server, method, url string, body io.Reader) 
 	return doRequest(s, method, url, body, cookie)
 }
 
+// getAuthenticated performs an authenticated GET, the shape the panic-banner
+// tests need across several pages: they only ever read the body of a
+// successful GET, so the fuller doAuthRequest's method/body parameters would
+// be dead weight repeated at every call site.
+func getAuthenticated(t *testing.T, s *Server, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	return doAuthRequest(t, s, http.MethodGet, path, nil)
+}
+
+// newTestServerWithStatus builds a server backed by a fake core that answers
+// every GET_STATUS with the given status. render() calls GetStatus once per
+// authenticated page to fill PageData.Panic, and the panic-banner tests need
+// to control what comes back without caring about any other command.
+func newTestServerWithStatus(t *testing.T, status *shared.FirewallStatus) *Server {
+	t.Helper()
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetStatus, successResp(*status))
+	return newTestServer(t, fc)
+}
+
 // doAuthFormRequest performs an authenticated POST with URL-encoded form data.
 func doAuthFormRequest(t *testing.T, s *Server, url, formBody string) *httptest.ResponseRecorder {
 	t.Helper()
