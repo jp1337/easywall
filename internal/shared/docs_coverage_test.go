@@ -26,23 +26,26 @@ import (
 // A new route therefore has to be answered here: name the page that documents it,
 // or say why it is not a page. Both are cheap; neither happens by itself.
 func TestEveryPageIsDocumented(t *testing.T) {
-	// route → the page that describes it, relative to docs/.
+	// route → the page that describes it, relative to docs/. The Jekyll
+	// collection holds the actual content under _docs/; the old paths outside
+	// it are redirect stubs that would satisfy os.Stat without proving anything
+	// is documented.
 	documented := map[string]string{
-		"/login":      "installation/first-run.md",
-		"/firstrun":   "installation/first-run.md",
-		"/password":   "installation/first-run.md",
-		"/dashboard":  "features/dashboard.md",
-		"/apply":      "features/apply.md",
-		"/ports":      "features/ports.md",
-		"/blacklist":  "features/blacklist.md",
-		"/whitelist":  "features/blacklist.md",
-		"/forwarding": "features/forwarding.md",
-		"/custom":     "features/custom-rules.md",
-		"/options":    "features/filters.md",
-		"/settings":   "features/system-settings.md",
-		"/system":     "features/system-settings.md",
-		"/log":        "features/audit-log.md",
-		"/export":     "features/export-import.md",
+		"/login":      "_docs/installation/first-run.md",
+		"/firstrun":   "_docs/installation/first-run.md",
+		"/password":   "_docs/installation/first-run.md",
+		"/dashboard":  "_docs/features/dashboard.md",
+		"/apply":      "_docs/features/apply.md",
+		"/ports":      "_docs/features/ports.md",
+		"/blacklist":  "_docs/features/blacklist.md",
+		"/whitelist":  "_docs/features/blacklist.md",
+		"/forwarding": "_docs/features/forwarding.md",
+		"/custom":     "_docs/features/custom-rules.md",
+		"/options":    "_docs/features/filters.md",
+		"/settings":   "_docs/features/system-settings.md",
+		"/system":     "_docs/features/system-settings.md",
+		"/log":        "_docs/features/audit-log.md",
+		"/export":     "_docs/features/export-import.md",
 	}
 
 	// Not pages: redirects, polling endpoints, fragments answered into a page
@@ -269,7 +272,10 @@ func TestAllCommandTypesMatchesTheProtocolSource(t *testing.T) {
 // The list is derived from AllCommandTypes, which is published by the protocol
 // itself, so this test catches failures at the source.
 func TestEveryCommandIsDocumentedInBothPublishedAndTechnicalDocs(t *testing.T) {
-	archDocs := repoFile(t, "docs", "architecture.md")
+	// The published content lives under docs/_docs/ since the Jekyll collection
+	// restructure; docs/architecture.md is now a redirect stub and would never
+	// contain a command table again.
+	archDocs := repoFile(t, "docs", "_docs", "architecture.md")
 	techDocs := repoFile(t, "docs-tech", "protocol.md")
 
 	if len(AllCommandTypes) == 0 {
@@ -279,7 +285,7 @@ func TestEveryCommandIsDocumentedInBothPublishedAndTechnicalDocs(t *testing.T) {
 	for _, cmd := range AllCommandTypes {
 		cmdStr := "`" + string(cmd) + "`"
 		if !strings.Contains(archDocs, cmdStr) {
-			t.Errorf("docs/architecture.md does not document command %s", cmdStr)
+			t.Errorf("docs/_docs/architecture.md does not document command %s", cmdStr)
 		}
 		if !strings.Contains(techDocs, cmdStr) {
 			t.Errorf("docs-tech/protocol.md does not document command %s", cmdStr)

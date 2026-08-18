@@ -1,7 +1,8 @@
 ---
 layout: default
-title: Home
+title: easywall — nftables firewall with a web interface
 description: Linux firewall management with a web interface. Go, nftables via netlink, two-process privilege isolation, and an apply that undoes itself if you get it wrong.
+seo: software
 ---
 
 <div class="docs-hero">
@@ -9,7 +10,7 @@ description: Linux firewall management with a web interface. Go, nftables via ne
 
   <div class="docs-hero-pill">
     <span class="docs-hero-pill-dot"></span>
-    <span>v{{ site.version }} — Graphite UI · English &amp; German · Language switch</span>
+    <span>A firewall for your server that<em> cannot lock you out.</em></span>
   </div>
 
   <h1 class="docs-hero-title">
@@ -19,14 +20,16 @@ description: Linux firewall management with a web interface. Go, nftables via ne
   </h1>
 
   <p class="docs-hero-desc">
-    nftables through a web interface that cannot lock you out:
-    every apply reverts itself unless you confirm it.
+    easywall is a web interface for the Linux nftables firewall. Every apply
+    reverts itself after 120 seconds unless you confirm it — so editing your
+    firewall over the network can never cut you off. Runs on a home server, a
+    Raspberry Pi, or a rented VPS.
   </p>
 
   <div class="docs-hero-buttons">
-    <a href="{{ '/installation/debian/' | relative_url }}" class="btn btn-primary btn-lg">Get started</a>
-    <a href="https://easywall.wdkro.de" class="btn btn-soft btn-lg" target="_blank" rel="noopener">Live demo ↗</a>
-    <a href="https://github.com/jp1337/easywall" class="btn btn-ghost btn-lg" target="_blank" rel="noopener">GitHub ↗</a>
+    <a href="{{ '/docs/installation/debian/' | relative_url }}" class="btn btn-primary btn-lg">Install</a>
+    <a href="https://easywall.wdkro.de" class="btn btn-soft btn-lg">Live demo ↗</a>
+    <a href="{{ '/docs/' | relative_url }}" class="btn btn-ghost btn-lg">Documentation</a>
   </div>
 
   <div class="docs-hero-meta">
@@ -42,56 +45,47 @@ description: Linux firewall management with a web interface. Go, nftables via ne
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/dashboard" ext="png"
-     alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP ports, UDP ports, blacklist, whitelist, custom rules and forwarding; and a recent-activity list." %}
+     alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP and UDP ports, blacklist, whitelist, custom rules and forwarding; recent-activity list." %}
   <figcaption>The dashboard answers one question first: what is this firewall enforcing right now?</figcaption>
 </figure>
 
-## The idea
+<section class="docs-landstrip">
+  <div class="docs-cardgrid">
+    <div class="docs-card">
+      <h2>Debian / Ubuntu</h2>
+      <p class="mono">sudo dpkg -i easywall_amd64.deb</p>
+      <p>amd64 and arm64, one package, a systemd unit and HTTPS built in.</p>
+      <a href="{{ '/docs/installation/debian/' | relative_url }}">Install →</a>
+    </div>
+    <div class="docs-card">
+      <h2>Docker</h2>
+      <p class="mono">docker compose up -d</p>
+      <p>Lives in its own nftables table and touches nothing else on the host.</p>
+      <a href="{{ '/docs/installation/docker/' | relative_url }}">Run it →</a>
+    </div>
+    <div class="docs-card">
+      <h2>From source</h2>
+      <p class="mono">make build && sudo make install</p>
+      <p>Go 1.26, no runtime dependencies beyond the kernel.</p>
+      <a href="{{ '/docs/installation/manual/' | relative_url }}">Build it →</a>
+    </div>
+  </div>
+</section>
 
-A firewall you edit over the network can lock you out of the machine you are editing
-it on. easywall makes that recoverable by default.
+## A firewall you keep your hands on
 
-{% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
-   alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
+Everything lives on your own box: ports TCP/UDP, blacklist and whitelist, port
+forwarding, custom nftables rules, protection modules, a theft-proof audit log.
+No cloud, no account, no telemetry you did not agree to.
 
-Editing changes nothing. Applying changes everything — for 120 seconds. If the new
-rules cut your connection you cannot click Confirm, and *not* confirming is what
-brings the old rules back.
+* Ports — single or range, with per-rule SSH brute-force routing
+* Blacklist & whitelist — IPv4, IPv6, CIDR, evaluated before any port rule
+* Port forwarding — NAT redirects with protocol selection
+* Custom rules — raw nftables, syntax-checked before it is ever applied
+* Docker coexistence — owns `table inet easywall`, touches nothing else
+* English & German, light & dark
 
-## What it is made of
-
-| | |
-|---|---|
-| **Two processes** | the web interface runs unprivileged and has no path to the kernel |
-| **netlink, not a shell** | rules are Go structs, so there is no command line to inject into |
-| **Three rule sets** | Staged, Current, Backup — editing and enforcing are separate |
-| **Audit log** | every change records what moved and when, in one JSON object per line |
-| **Coexists with Docker** | easywall owns `table inet easywall` and touches nothing else |
-| **English and German** | switchable in the interface, including before you sign in |
-
-[How it works →]({{ '/architecture/' | relative_url }})
-
-## The order rules are evaluated
-
-The one thing worth knowing before you write a rule. A whitelisted address reaches
-every port; a blacklisted one is dropped before the whitelist is ever consulted.
-
-{% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback first, then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then established connections and ICMP, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
-
-## Where to start
-
-| You want to | Go to |
-|---|---|
-| Try it without installing anything | [Live demo ↗](https://easywall.wdkro.de) · [Demo mode]({{ '/installation/demo/' | relative_url }}) |
-| Install on Debian or Ubuntu — amd64 or arm64 | [.deb package]({{ '/installation/debian/' | relative_url }}) |
-| Run it in a container | [Docker]({{ '/installation/docker/' | relative_url }}) |
-| Build from source | [Manual install]({{ '/installation/manual/' | relative_url }}) |
-| Know what the setup page is asking | [First run]({{ '/installation/first-run/' | relative_url }}) |
-| Put rules into the kernel, safely | [Applying rules]({{ '/features/apply/' | relative_url }}) |
-| Understand the design | [Architecture]({{ '/architecture/' | relative_url }}) · [Security]({{ '/security/' | relative_url }}) |
-| See what is planned | [Roadmap]({{ '/roadmap/' | relative_url }}) |
-| Ask a question | [Discord ↗]({{ site.discord }}) · [GitHub issues ↗](https://github.com/jp1337/easywall/issues) |
+[What it can do →]({{ '/docs/' | relative_url }})
 
 <section class="docs-cta" markdown="0">
   <div class="docs-cta-glow"></div>
@@ -99,7 +93,14 @@ every port; a blacklisted one is dropped before the whitelist is ever consulted.
   <p>A full interface running against an in-memory mock. Nothing reaches a real firewall.</p>
   <div class="docs-cta-buttons">
     <a href="https://easywall.wdkro.de" class="btn btn-primary btn-lg" target="_blank" rel="noopener">Open the demo ↗</a>
-    <a href="{{ '/installation/requirements/' | relative_url }}" class="btn btn-soft btn-lg">Requirements</a>
+    <a href="{{ '/docs/installation/requirements/' | relative_url }}" class="btn btn-soft btn-lg">Requirements</a>
   </div>
   <p class="docs-cta-credentials">Sign in with <code>demo</code> / <code>demo</code></p>
 </section>
+
+## Built as open source, for 2026
+
+Go, GPL-3.0, nftables via netlink. The apply can never lock you out. Take a
+look at the [architecture]({{ '/docs/architecture/' | relative_url }}) and the
+[security model]({{ '/docs/security/' | relative_url }}). Find us on
+[Discord]({{ site.discord }}) and [GitHub](https://github.com/jp1337/easywall).

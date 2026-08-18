@@ -63,7 +63,7 @@ func tomlKeys(t reflect.Type) []string {
 // The list is derived from the structs, so adding a key without documenting it
 // fails here rather than shipping.
 func TestEveryConfigKeyIsDocumented(t *testing.T) {
-	docs := repoFile(t, "docs", "configuration.md")
+	docs := repoFile(t, "docs", "_docs", "configuration.md")
 
 	core := tomlKeys(reflect.TypeOf(CoreConfig{}))
 	web := tomlKeys(reflect.TypeOf(WebConfig{}))
