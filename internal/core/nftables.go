@@ -303,21 +303,40 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	// The cost is on the read side: Enforcing(), which Status() calls, and
 	// Snapshot() both block for as long as this holds the lock — worst case a
 	// little over 30s, when a custom rule set is slow or the process has to be
-	// killed and waited out. That is longer than shared.CommandTimeout gives
-	// any command except the two nft-backed ones (5s), so it is not "the
-	// dashboard waits 30 seconds" — the web process's read deadline expires
-	// first, at 5s, and GET_STATUS comes back to the operator as the core
-	// being unreachable, rather than the dashboard actually waiting, until the
-	// custom-rules step finishes and the next poll gets through. GET_STATUS is
-	// the one command this affects: it is the only one whose handler reaches
-	// this manager at all — Status() asks the kernel whether the rules are
-	// live rather than inferring it from anything in memory, and Enforcing()
-	// is that question. Every other command touches only the rules store, the
-	// config or the audit log, on its own connection's goroutine, so nothing
-	// else is dragged behind this lock. Correctness is not optional here; a
-	// status page that reports "unreachable" for a few seconds during a slow
-	// custom-rules apply is a cost worth paying for it — the alternative is
-	// Reset() deleting a table a subprocess is still writing to.
+	// killed and waited out.
+	//
+	// Two commands reach this manager from the dispatch switch while an apply
+	// holds the lock, and they want opposite things:
+	//
+	//   - GET_STATUS, through Status() -> Enforcing(), which asks the kernel
+	//     whether the rules are live rather than inferring it from anything in
+	//     memory. It has the short shared.CommandTimeout (5s), so it is not
+	//     "the dashboard waits 30 seconds": the web process's read deadline
+	//     expires first and the operator is told the core is unreachable, until
+	//     the custom-rules step finishes and the next poll gets through.
+	//   - PANIC, through Firewall.Panic -> Reset(). It deliberately bypasses
+	//     beginApply so that it outranks a running apply rather than failing
+	//     fast, which means it *will* queue on this lock for up to NftTimeout.
+	//     That is why CommandTimeout puts it on the long deadline — three
+	//     commands are on it now, IMPORT_RULES, VALIDATE_CUSTOM and PANIC, not
+	//     the two nft-backed ones this comment used to name.
+	//
+	// APPLY_RULES and RESUME also end at this manager, but never behind this
+	// lock: both go through beginApply, which refuses immediately with
+	// ErrApplyInProgress while a cycle is running. Every other command touches
+	// only the rules store, the config or the audit log, on its own connection's
+	// goroutine, so nothing else is dragged behind this lock.
+	//
+	// One consequence for anyone tidying this up: Firewall.panicLandedDuringWrite
+	// calls Reset() straight after this method returns, which is safe only
+	// because the deferred Unlock below has already run. Moving that check inside
+	// Apply would take mu twice from one goroutine and wedge the daemon — the
+	// same non-reentrancy that produced reset() (see its comment).
+	//
+	// Correctness is not optional here; a status page that reports "unreachable"
+	// for a few seconds during a slow custom-rules apply is a cost worth paying
+	// for it — the alternative is Reset() deleting a table a subprocess is still
+	// writing to.
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

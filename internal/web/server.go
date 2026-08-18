@@ -539,8 +539,10 @@ func loadTemplates(dir string) (*template.Template, error) {
 }
 
 // auditActionLabels maps the core's audit action identifiers to message ids. The
-// keys are exactly the strings written by internal/core (see firewall.go and
-// daemon.go); anything unknown falls back to a humanised form of the identifier
+// keys are exactly the strings four files write — internal/core's firewall.go,
+// daemon.go and restore.go, plus cmd/easywall-core/subcommands.go, which writes
+// panic_engaged and panic_resumed itself on the path where there is no daemon to
+// write them. Anything unknown falls back to a humanised form of the identifier
 // itself, so a new action added in the core still renders sensibly before this
 // map catches up.
 var auditActionLabels = map[string]string{
@@ -555,10 +557,18 @@ var auditActionLabels = map[string]string{
 	"settings_saved":   "audit_settings_saved",
 	"system_saved":     "audit_system_saved",
 
-	// Panic mode, and the boot-time enforcement it sits beside. All seven are
-	// written by internal/core (restore.go and firewall.go) — the four from
-	// the original panic-mode work plus three a later fix round added once
-	// the edge cases around a pending apply and a contested resume turned up.
+	// Panic mode, and the boot-time enforcement it sits beside: the four from
+	// the original panic-mode work plus three a later fix round added once the
+	// edge cases around a pending apply and a contested resume turned up.
+	//
+	// Not all seven come from internal/core, which is what this note used to
+	// claim. restore.go writes boot_enforced, boot_enforce_failed, panic_engaged,
+	// panic_resumed and resume_restore_skipped; firewall.go writes
+	// apply_refused_panic and rollback_skipped; daemon.go writes
+	// boot_enforce_failed for a panic marker it cannot read at all; and
+	// cmd/easywall-core/subcommands.go writes panic_engaged and panic_resumed
+	// from the console when no daemon is running — the same actions from a
+	// different process, distinguishable only by the user column.
 	// Left unregistered, each one still renders — actionLabel humanises an
 	// unknown identifier — but in whatever the raw snake_case says, in no
 	// language a translator chose.

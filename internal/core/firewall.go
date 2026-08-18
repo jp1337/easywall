@@ -35,16 +35,27 @@ type Firewall struct {
 	lastApplyMu sync.Mutex
 	lastApply   time.Time
 
-	// bootBridgesMu guards bootBridges. RestoreCurrent writes it while holding
-	// the apply slot; reconcileDockerBridges both reads and writes it from the
-	// goroutine Daemon.Start launches, which runs concurrently with everything
-	// else the daemon does. Neither applyMu nor lastApplyMu fits: applyMu's
-	// scope is "is a cycle running", answered without waiting, and this field
-	// needs the opposite — a lock held across the read-then-write in the
-	// reconciler's loop; lastApplyMu's scope is deliberately kept short so the
+	// bootBridgesMu guards bootBridges, which has exactly one writer and one
+	// reader in different goroutines. RestoreCurrent writes it while holding the
+	// apply slot; reconcileDockerBridges only ever reads it, from the goroutine
+	// Daemon.Start launches — twice, once before its loop and once per tick, and
+	// it deliberately does not write the field at all (dockerreconcile.go says
+	// why). So this is a plain data race on a slice header and nothing more: no
+	// read-then-write pair anywhere holds this lock across two operations, and an
+	// earlier version of this comment claiming "a lock held across the
+	// read-then-write in the reconciler's loop" described a mechanism that does
+	// not exist.
+	//
+	// Neither existing lock fits. applyMu's scope is "is a cycle running",
+	// answered without waiting; lastApplyMu's is kept deliberately short so the
 	// dashboard's Status calls never wait on an apply in flight, and bootBridges
 	// has nothing to do with that promise. A field this narrow gets a lock this
 	// narrow.
+	//
+	// The overlap is real now, which it was not when the lock was added: RESUME
+	// is wired to the socket (daemon.go's CmdResume case), so a Resume can reach
+	// RestoreCurrent's write at any moment, including while the reconciler is
+	// still polling.
 	bootBridgesMu sync.Mutex
 	// bootBridges records the Docker bridge networks the most recent restore
 	// baked into the rules — not only the boot one. RestoreCurrent is shared
