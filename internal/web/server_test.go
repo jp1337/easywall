@@ -209,14 +209,35 @@ func TestRender_WithFlash(t *testing.T) {
 	assertStatus(t, rec2, http.StatusOK)
 }
 
+// The banner has to be on every page, not only the dashboard: panic mode is the
+// state where not noticing is the entire problem.
+func TestRender_PanicBannerAppearsOnEveryAuthenticatedPage(t *testing.T) {
+	srv := newTestServerWithStatus(t, &shared.FirewallStatus{Panic: true, Acceptance: shared.AcceptanceIdle})
+
+	for _, path := range []string{"/dashboard", "/ports", "/blacklist", "/log", "/apply"} {
+		t.Run(path, func(t *testing.T) {
+			rec := getAuthenticated(t, srv, path)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("GET %s = %d", path, rec.Code)
+			}
+			if !strings.Contains(rec.Body.String(), "panic-banner") {
+				t.Errorf("no panic banner on %s", path)
+			}
+		})
+	}
+}
+
+func TestRender_NoPanicBannerWhenNotInPanicMode(t *testing.T) {
+	srv := newTestServerWithStatus(t, &shared.FirewallStatus{Panic: false, Active: true, Acceptance: shared.AcceptanceIdle})
+
+	rec := getAuthenticated(t, srv, "/dashboard")
+	if strings.Contains(rec.Body.String(), "panic-banner") {
+		t.Error("the banner must not appear when panic mode is off")
+	}
+}
+
 // The login page must not reach the core: it is served before anyone is
 // authenticated, and it has to work when the core is down.
-//
-// The other two panic-banner tests the design for this render() change calls
-// for — one asserting the banner text appears on every authenticated page,
-// one asserting it is absent outside panic mode — are deferred to the task
-// that adds the "panicbanner" template block; neither can pass before that
-// markup exists. This one needs no template change and stands on its own.
 func TestRender_LoginPageDoesNotAskTheCoreForStatus(t *testing.T) {
 	srv, calls := newTestServerCountingStatusCalls(t)
 

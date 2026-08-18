@@ -25,6 +25,9 @@
   {"id": "demo_label",       "translation": "Demo"},
   {"id": "demo_notice",      "translation": "Nichts erreicht eine echte Firewall; der Zustand wird regelmäßig zurückgesetzt."},
 
+  {"id": "panic_banner_title", "translation": "Notfallmodus: Diese Maschine wird nicht gefiltert"},
+  {"id": "panic_banner_body",  "translation": "Die Firewall wurde über die Konsole abgeschaltet und bleibt es auch nach einem Neustart. Auf der Maschine ausführen, um die Regeln zurückzuholen:"},
+
   {"id": "firstrun_title",         "translation": "Willkommen bei easywall"},
   {"id": "firstrun_subtitle",      "translation": "Konto einrichten und festlegen, wie dieser Host startet"},
   {"id": "firstrun_username",      "translation": "Benutzername"},
