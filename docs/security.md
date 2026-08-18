@@ -22,7 +22,7 @@ holds no privilege worth stealing.
 | CSRF | Go 1.25 `net/http.CrossOriginProtection` — `Origin` and `Sec-Fetch-Site` on every unsafe method |
 | XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
 | Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime, and every session ends the moment the password changes |
-| Locking the admin out | The acceptance window rolls back on its own |
+| Locking the admin out | The acceptance window rolls back on its own; if it already has and you are still shut out, `easywall-core panic` reaches the firewall from the console — see [Panic mode](#panic-mode) |
 | Known CVEs in dependencies | `govulncheck` on every pull request and weekly, plus CodeQL and `gosec` |
 | Dependency hijacking | Renovate raises every update, patch releases auto-merge only once CI is green, minor and major wait for a person; plus secret scanning and dependency review |
 | A spoofed source address | `X-Forwarded-For` is **not** trusted — see [behind a reverse proxy](#behind-a-reverse-proxy) |
@@ -39,6 +39,34 @@ holds no privilege worth stealing.
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
 | Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
+
+## Panic mode
+
+Since 2.7, `easywall-core` puts the last confirmed rule set back into the kernel
+at startup — a reboot no longer empties the firewall the way it used to, and no
+longer works as an accidental way back in. `easywall-core panic` is the
+deliberate one that replaces it: a console command that takes the firewall down
+immediately, whether or not the web interface is reachable at all.
+
+It is a new way to disable the firewall, in full, from the console — and that
+belongs on this page whether or not it feels like a feature. Two things about it
+matter for the rest of this model:
+
+- **It survives a restart on purpose.** Panic mode is recorded in a marker file
+  and the startup restore refuses to run while it exists — otherwise the next
+  reboot would put the very rules back that panic mode exists to remove.
+- **While the marker exists, an apply is refused and the acceptance rollback
+  does not run.** That is the one place in easywall where the central promise —
+  every apply reverts itself unless you confirm it — is switched off outright,
+  because there is nothing running to roll back onto. Both take effect the
+  instant the marker is written and end the instant `easywall-core resume`
+  clears it.
+
+Ending panic mode is console-only, without exception: the banner the interface
+shows carries no button. A control there would let the process reachable from
+the network re-arm a firewall a human just disarmed at the machine — on
+purpose, possibly using a stolen session. Full detail, real output, and the
+marker's path: [Recovery & Panic Mode]({{ '/features/recovery/' | relative_url }}).
 
 ## Behind a reverse proxy
 
