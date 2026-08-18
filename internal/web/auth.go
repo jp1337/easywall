@@ -144,7 +144,7 @@ var (
 // VerifyPassword returns true if password matches the argon2id encoded hash.
 //
 // A stored hash that cannot be used is reported, not just refused. This is the
-// one place that discovers it, and the operator needs to be told: docs/security.md
+// one place that discovers it, and the operator needs to be told: docs/_docs/security.md
 // offers no password recovery beyond "editing web.toml on the host", so a hash
 // that got mangled on the way into that file is reached by someone who is already
 // locked out and has no other way in. The log line is what turns a login that

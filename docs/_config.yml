@@ -21,6 +21,16 @@ version: "2.7.0"
 tagline: "Your firewall. Your rules. No surprises."
 logo: /assets/img/icon.svg
 
+# jekyll-seo-tag reads og:image / twitter:image only from page.image (front
+# matter), never from site.logo. A defaults block sets it once for every page,
+# so each share link carries the real 1200x630 image instead of no image at a
+# all. A page can still override it by declaring its own `image:`.
+defaults:
+  - scope:
+      path: ""
+    values:
+      image: /assets/img/og-image.png
+
 # The support server. A permanent invite — checked against Discord's own invite
 # API, which reports no expiry — so it can be printed in a README that outlives
 # any one release. Set here once; the footer and the pages read it from the site
@@ -47,6 +57,13 @@ kramdown:
 
 plugins:
   - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-redirect-from
+
+collections:
+  docs:
+    output: true
+    permalink: /docs/:path/
 
 exclude:
   - Gemfile
@@ -58,55 +75,54 @@ exclude:
 nav:
   - title: Home
     path: /
-  - title: Installation
+  - title: Docs
     group: true
     children:
+      - title: Overview
+        path: /docs/
       - title: Requirements
-        path: /installation/requirements/
+        path: /docs/installation/requirements/
       - title: Debian / Ubuntu
-        path: /installation/debian/
+        path: /docs/installation/debian/
       - title: Docker
-        path: /installation/docker/
+        path: /docs/installation/docker/
       - title: Manual (Source)
-        path: /installation/manual/
+        path: /docs/installation/manual/
       - title: Demo Mode
-        path: /installation/demo/
+        path: /docs/installation/demo/
       - title: First Run
-        path: /installation/first-run/
-  - title: Architecture
-    path: /architecture/
-  - title: Configuration
-    path: /configuration/
-  - title: Features
-    group: true
-    children:
+        path: /docs/installation/first-run/
+      - title: Architecture
+        path: /docs/architecture/
+      - title: Configuration
+        path: /docs/configuration/
+      - title: Security
+        path: /docs/security/
       - title: Dashboard
-        path: /features/dashboard/
+        path: /docs/features/dashboard/
       - title: Applying Rules
-        path: /features/apply/
+        path: /docs/features/apply/
       - title: Ports
-        path: /features/ports/
+        path: /docs/features/ports/
       - title: Blacklist & Whitelist
-        path: /features/blacklist/
+        path: /docs/features/blacklist/
       - title: Port Forwarding
-        path: /features/forwarding/
+        path: /docs/features/forwarding/
       - title: Custom Rules
-        path: /features/custom-rules/
+        path: /docs/features/custom-rules/
       - title: Firewall Filters
-        path: /features/filters/
+        path: /docs/features/filters/
       - title: Docker Coexistence
-        path: /features/docker/
+        path: /docs/features/docker/
       - title: Export & Import
-        path: /features/export-import/
+        path: /docs/features/export-import/
       - title: Audit Log
-        path: /features/audit-log/
+        path: /docs/features/audit-log/
       - title: Recovery & Panic Mode
-        path: /features/recovery/
+        path: /docs/features/recovery/
       - title: System & Network Settings
-        path: /features/system-settings/
-  - title: Security
-    path: /security/
-  - title: Roadmap
-    path: /roadmap/
-  - title: Contributing
-    path: /contributing/
+        path: /docs/features/system-settings/
+      - title: Roadmap
+        path: /docs/roadmap/
+      - title: Contributing
+        path: /docs/contributing/

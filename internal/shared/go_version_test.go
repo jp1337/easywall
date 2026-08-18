@@ -67,7 +67,7 @@ func TestGoToolchainIsTheSameEverywhere(t *testing.T) {
 			{[]string{"README.md"}, `From source — Go ([0-9.]+)\+`},
 			{[]string{"README.md"}, `\| Go ([0-9.]+), single binary \|`},
 			{[]string{"docs", "index.md"}, `<strong>Go ([0-9.]+)</strong>`},
-			{[]string{"docs", "installation", "manual.md"}, `Go ([0-9.]+)\+ on the \*\*build\*\* machine`},
+			{[]string{"docs", "_docs", "installation", "manual.md"}, `Go ([0-9.]+)\+ on the \*\*build\*\* machine`},
 			{[]string{"docs", "_diagrams", "install-choice.mmd"}, `From source<br/>Go ([0-9.]+) \+ make`},
 		} {
 			name := strings.Join(pin.file, "/")
@@ -117,9 +117,9 @@ func TestTheCSRFClaimNamesTheReleaseItArrivedIn(t *testing.T) {
 	for _, f := range [][]string{
 		{"README.md"},
 		{"SECURITY.md"},
-		{"docs", "security.md"},
-		{"docs", "configuration.md"},
-		{"docs", "installation", "manual.md"},
+		{"docs", "_docs", "security.md"},
+		{"docs", "_docs", "configuration.md"},
+		{"docs", "_docs", "installation", "manual.md"},
 	} {
 		name := strings.Join(f, "/")
 		body := repoFile(t, f...)

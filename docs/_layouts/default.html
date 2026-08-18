@@ -18,13 +18,59 @@
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% if page.title %}{{ page.title }} — {% endif %}easywall docs</title>
   <meta name="description" content="{% if page.description %}{{ page.description }}{% else %}{{ site.description }}{% endif %}">
   <link rel="preload" href="{{ '/assets/fonts/inter-var.woff2' | relative_url }}" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="{{ '/assets/fonts/jetbrains-mono-var.woff2' | relative_url }}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}?v=3">
   <link rel="icon" type="image/svg+xml" href="{{ '/assets/img/icon.svg' | relative_url }}">
   {% seo %}
+
+  {%- if page.seo == "software" -%}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "{{ site.title }}",
+    "url": "{{ site.url }}/",
+    "description": "{{ site.description }}",
+    "applicationCategory": "SecurityApplication",
+    "operatingSystem": "Linux",
+    "softwareVersion": "{{ site.version }}",
+    "license": "https://www.gnu.org/licenses/gpl-3.0",
+    "image": "{{ '/assets/img/og-image.png' | absolute_url }}",
+    "author": {
+      "@type": "Person",
+      "name": "{{ site.author.name }}",
+      "url": "{{ site.author.url }}"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "EUR"
+    },
+    "releaseNotes": "https://github.com/jp1337/easywall/releases/latest"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "easywall",
+    "url": "{{ site.url }}/",
+    "publisher": {
+      "@type": "Organization",
+      "name": "easywall",
+      "url": "{{ site.url }}/",
+      "logo": "{{ '/assets/img/og-image.png' | absolute_url }}",
+      "sameAs": [
+        "https://github.com/jp1337/easywall",
+        "{{ site.discord }}",
+        "https://ko-fi.com/jp1337"
+      ]
+    }
+  }
+  </script>
+  {%- endif -%}
 </head>
 <body>
 

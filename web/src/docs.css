@@ -372,7 +372,7 @@ html, body {
   .content {
     margin-left: var(--sidebar-w);
     min-height: 100vh;
-    padding: 3rem var(--content-pad) 3rem;
+    padding: 1.75rem var(--content-pad) 3rem;
     /* Reserved for the on-page contents. Zero until the viewport earns it. */
     padding-right: calc(var(--content-pad) + var(--toc-w));
     animation: fade-in 0.25s ease;
@@ -410,22 +410,32 @@ html, body {
   /* === Hero (homepage) — large, atmospheric, on-brand =================== */
   .docs-hero {
     position: relative;
-    margin: 0 -1rem 4rem;
-    padding: 4.5rem 1rem 3.5rem;
+    /* Top margin cancels .content's own top padding exactly (-1.75rem here
+       matches .content's padding-top below), so the glow/dotted texture
+       starts at the very top of the content column instead of leaving a
+       flat, textureless gap above the hero. That gap — empty either way,
+       just a different height — was still reading as a bar over the
+       content even after it was shrunk once. Padding-top now controls the
+       pill's offset alone, and every pixel of it is inside the textured
+       hero, not blank background. */
+    margin: -1.75rem -1rem 4rem;
+    padding: 1.5rem 1rem 3.5rem;
     overflow: hidden;
     isolation: isolate;
   }
 
   /* Subtle radial-gradient glow + dotted-grid pattern behind the hero
-     content — distinctive without being noisy. Sits behind via z-index. */
+     content — distinctive without being noisy. Sits behind via z-index.
+     No opaque surface cap over the top edge: that rendered as a solid dark
+     band across the hero wherever the mask is not applied, so the glow is
+     made of tinted accents only and can never paint a full-width bar. */
   .docs-hero-glow {
     position: absolute;
     inset: 0;
     z-index: -1;
     background:
       radial-gradient(900px 350px at 18% 0%, var(--accent-dim), transparent 70%),
-      radial-gradient(700px 280px at 85% 100%, rgba(45,212,191,0.08), transparent 70%),
-      linear-gradient(180deg, var(--surface) 0%, transparent 100%);
+      radial-gradient(700px 280px at 85% 100%, rgba(45,212,191,0.08), transparent 70%);
     mask-image: radial-gradient(circle at center, black, black 70%, transparent 100%);
   }
 
