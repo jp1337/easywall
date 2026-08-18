@@ -626,13 +626,21 @@ var auditActionTones = map[string]string{
 	// entry: neither one leaves the firewall doing something new. A refused
 	// apply leaves the kernel as it was, and an apply whose write raced a
 	// `panic` has that write taken down again, ending where the console's own
-	// teardown had already put it. rollback_skipped now covers a rollback that
+	// teardown had already put it. rollback_skipped covers a rollback that
 	// reverted the rules file and skipped only the kernel, which is the same
 	// answer: the file is not what this colour describes, and the table it did
 	// not write to is one the console had already emptied. Coloured, either
 	// would look like news about the firewall's state when the actual news —
 	// panic_engaged is already crit, resume_restore_skipped already crit if
 	// resume failed to undo it — is elsewhere in the same log.
+	//
+	// The one case that is *not* neutral goes elsewhere on purpose:
+	// Firewall.panicLandedDuringWrite writes boot_enforce_failed instead of the
+	// action the caller asked for when its teardown failed, because a machine
+	// that is filtering while the marker, the banner and `easywall-core status`
+	// all report panic mode is the same state boot_enforce_failed already
+	// describes, and it must not be rendered in two colours depending on which
+	// code path reached it.
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the

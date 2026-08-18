@@ -160,6 +160,15 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 // was taken down again" on a machine that is still filtering would be the same
 // class of untrue sentence this release has spent a fortnight removing from
 // comments.
+//
+// requested is the action to record if the teardown works. If it does not, the
+// entry is written as boot_enforce_failed instead, whatever the caller asked for.
+// A failed teardown leaves the machine filtering while the marker, the banner and
+// `easywall-core status` all report panic mode, which is the worst state in this
+// release — and it is the same state boot_enforce_failed already describes on the
+// restore path, where it is coloured crit. The alternative was one machine state
+// rendered in two colours depending on which code path reached it. No new action,
+// so nothing to register, translate or re-screenshot.
 func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) bool {
 	if !f.PanicEngaged() {
 		return false
@@ -174,6 +183,7 @@ func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) boo
 			"table could not be torn down again; this machine may be filtering while "+
 			"panic mode is recorded — run `nft delete table inet easywall`",
 			"error", err)
+		action = "boot_enforce_failed"
 		detail += "; the table could not be torn down (" + err.Error() + "), so this " +
 			"machine may still be filtering while panic mode is recorded"
 	} else {
