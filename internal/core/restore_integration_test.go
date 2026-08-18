@@ -242,8 +242,17 @@ func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
 	mustNotContain(t, ruleset(t), "9101",
 		"no rule from the interrupted write may survive; the table is supposed to be empty")
 
-	got := auditActions(t, cfg)
-	if len(got) == 0 || got[len(got)-1] != "boot_enforce_failed" {
-		t.Errorf("the last word in the log must not be boot_enforced on an unfiltered machine, got %v", got)
+	entries := auditEntries(t, cfg)
+	if len(entries) == 0 {
+		t.Fatal("the interrupted write recorded nothing")
+	}
+	last := entries[len(entries)-1]
+	if last.Action != "boot_enforce_failed" {
+		t.Errorf("last action = %q, want boot_enforce_failed", last.Action)
+	}
+	for _, e := range entries {
+		if e.Action == "boot_enforced" {
+			t.Error("boot_enforced must not be the story of a machine that ended up unfiltered")
+		}
 	}
 }

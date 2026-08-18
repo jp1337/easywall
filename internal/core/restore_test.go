@@ -511,6 +511,16 @@ func TestRollback_ProceedsWhenTheMarkerCannotBeRead(t *testing.T) {
 	if !tried {
 		t.Error("the rollback must reach nftables when the marker state is unknown")
 	}
+	// And the post-write check must not undo it either. The helper defaults an
+	// unreadable marker to "engaged", so calling it unguarded here would tear down
+	// the rules this rollback just restored — F5's finding, one statement further
+	// on. A teardown shows up as its own entry, under boot_enforce_failed.
+	for _, e := range auditEntries(t, cfg) {
+		if e.Action == "boot_enforce_failed" || strings.Contains(e.Detail, "torn down") {
+			t.Errorf("an unreadable marker must not trigger a teardown after the rollback: %s %q",
+				e.Action, e.Detail)
+		}
+	}
 }
 
 // The fault is reported once, loudly, where an operator can act on it: an
@@ -554,15 +564,18 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 		t.Fatalf("EngagePanic: %v", err)
 	}
 
-	if !fw.panicLandedDuringWrite("boot_enforce_failed", "boot: the console got there first", "core") {
+	if !fw.panicLandedDuringWrite("boot_enforce_failed", "the console got there first", "core") {
 		t.Fatal("a marker that appeared during the write must be reported")
 	}
 	entries := auditEntries(t, cfg)
-	if len(entries) != 1 || entries[0].Action != "boot_enforce_failed" {
-		t.Fatalf("want one boot_enforce_failed entry, got %v", auditActions(t, cfg))
+	if len(entries) != 1 {
+		t.Fatalf("want exactly one entry, got %v", auditActions(t, cfg))
 	}
-	if !strings.Contains(entries[0].Detail, "boot: the console got there first") {
-		t.Errorf("the caller's detail must survive, got %q", entries[0].Detail)
+	if entries[0].Action != "boot_enforce_failed" {
+		t.Errorf("action = %q, want the action the caller asked for", entries[0].Action)
+	}
+	if !strings.Contains(entries[0].Detail, "the console got there first") {
+		t.Errorf("the caller's situation must survive, got %q", entries[0].Detail)
 	}
 	// The fixture cannot reach nftables, and a teardown that did not happen is
 	// the one thing an operator has to be told about: the machine may still be

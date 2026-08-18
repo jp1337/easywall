@@ -84,6 +84,21 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		// the machine came up unfiltered and nobody can say why.
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",
 			fmt.Sprintf("%s: %s", reason, err.Error()), "core")
+		// The marker on the failure path too, and it is not belt-and-braces.
+		// nft.Apply returns an error from two places *after* the ruleset has
+		// been committed — the custom-rules subprocess and the final-log flush
+		// — so "the restore failed" and "there are live rules in the kernel"
+		// are not mutually exclusive. A panic landing in that window would
+		// otherwise leave the marker on disk, the machine filtering, and no
+		// teardown anywhere: exactly the defect the success path below was
+		// written to close.
+		f.panicLandedDuringWrite(
+			"boot_enforce_failed",
+			fmt.Sprintf("%s: panic mode was engaged while a failing restore was writing, "+
+				"rules can reach the kernel before nft.Apply reports an error, so the table "+
+				"was taken down again", reason),
+			"core",
+		)
 		return fmt.Errorf("restore rules: %w", err)
 	}
 

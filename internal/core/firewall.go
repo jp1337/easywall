@@ -280,6 +280,20 @@ func (f *Firewall) apply(user string) error {
 	if err := f.nft.Apply(updatedState, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 		// Rule application failed — roll back immediately without waiting
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all", err.Error(), user)
+		// The marker before the rollback, on the failure path too. nft.Apply can
+		// return an error with real rules live in the kernel — the custom-rules
+		// subprocess and the final-log flush both fail after the ruleset has been
+		// committed — so a panic landing here without this check left the marker
+		// on disk, the machine filtering, and nothing to take it down. Running it
+		// before rollback also matters: rollback then sees the marker and leaves
+		// the kernel alone rather than writing the previous rules on top of a
+		// teardown, which is the guard F1 rests on.
+		f.panicLandedDuringWrite(
+			"apply_refused_panic",
+			"panic mode was engaged while a failing apply was writing, rules can reach "+
+				"the kernel before nft.Apply reports an error, so the table was taken down again",
+			user,
+		)
 		f.rollback(state, user)
 		return fmt.Errorf("apply nftables rules: %w", err)
 	}
@@ -420,9 +434,39 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			"panic mode is engaged ("+f.cfg.PanicMarkerPath()+"): the stored rules were "+
 				"reverted to the set in force before this apply, and the kernel was "+
 				"left torn down", user)
-	} else if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
-		slog.Error("rollback nftables failed", "error", err)
-		failures = append(failures, "nftables: "+err.Error())
+	} else {
+		if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
+			slog.Error("rollback nftables failed", "error", err)
+			failures = append(failures, "nftables: "+err.Error())
+		}
+		// The third writer of table inet easywall, and it races `panic` exactly
+		// like the other two. The marker was read a few statements ago; a console
+		// teardown landing between that read and this write leaves the previous
+		// rules live with the marker on disk. It is reachable in the window the
+		// CLI's own fallback documents: Stop closes and unlinks the listener
+		// before cancelling the acceptance window, so a rollback can be flushing
+		// while `easywall-core panic` sees a refused socket and tears the table
+		// down itself.
+		//
+		// Called whether or not the write above reported success, for the reason
+		// the failure paths in apply and RestoreCurrent take the same care:
+		// nft.Apply can return an error with rules already committed.
+		//
+		// Gated on PanicState rather than left to the helper's own PanicEngaged,
+		// and this is not redundant. The helper defaults an unreadable marker to
+		// "engaged", which is the safe direction at a write that would start
+		// filtering — and the wrong one here, where it would tear down the very
+		// rules this rollback just restored on the strength of a permission
+		// fault. That is F5's finding again, one statement further on. Only a
+		// marker that is known to be present earns a teardown at this site.
+		if engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath()); engagedNow && knownNow {
+			f.panicLandedDuringWrite(
+				"rollback_failed",
+				"panic mode was engaged while the previous rules were being written back, so "+
+					"the table was taken down again",
+				user,
+			)
+		}
 	}
 
 	if len(failures) > 0 {
