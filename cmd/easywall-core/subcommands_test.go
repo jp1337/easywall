@@ -215,6 +215,35 @@ func TestRunSubcommand_StatusWithoutADaemon(t *testing.T) {
 	}
 }
 
+// status exits 2 even when panic mode is engaged but no daemon is running,
+// because the machine is not in the state it should be: nothing will restore
+// the rules when the daemon starts.
+func TestRunSubcommand_StatusWithPanicButNoDaemon(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "easywall.toml")
+	panicMarkerPath := filepath.Join(dir, "panic")
+	body := "socket_path = \"" + filepath.Join(dir, "absent.sock") + "\"\n" +
+		"data_dir = \"" + dir + "\"\n" +
+		"log_dir = \"" + dir + "\"\n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	// Write the panic marker
+	if err := os.WriteFile(panicMarkerPath, nil, 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	var out, errOut bytes.Buffer
+	code := runSubcommand("status", []string{"-config", cfgPath}, &out, &errOut)
+	if code != 2 {
+		t.Errorf("status with panic marker but no daemon must exit 2, got %d; output:\n%s%s", code, out.String(), errOut.String())
+	}
+	combined := out.String() + errOut.String()
+	if !strings.Contains(combined, "panic mode") {
+		t.Errorf("output must mention panic mode:\n%s", combined)
+	}
+}
+
 // TestDaemonAbsent pins the classification daemonAbsent exists to make: the
 // three tests above all dial a path that never existed, so on their own they
 // only ever exercise the ENOENT branch. Hard-code daemonAbsent to `return
