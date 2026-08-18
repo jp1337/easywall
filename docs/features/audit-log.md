@@ -83,6 +83,10 @@ tail -f /var/log/easywall/audit.log
 {"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"web"}
 ```
 
+Each line stores its time as RFC 3339 in UTC. The interface converts it to the
+server's local zone for display and keeps the stored value in the `title`
+attribute of the cell, so hovering shows the exact instant the core recorded.
+
 `rollback_failed` is the one worth alerting on: it means the new rules did not
 take **and** the previous ones did not come back.
 
@@ -96,5 +100,5 @@ Rotation is `logrotate`'s job — the Debian package installs a config for it.
 | The table is empty | Nothing recorded yet, or the core cannot write to `log_dir` |
 | Older entries missing | The viewer caps at 200. The file has them all |
 | A search finds nothing you know is in the log | The filter searches the same newest 200, not the file. `grep` the file for anything older |
-| Wrong timezone | Timestamps follow the server clock — `timedatectl set-timezone` |
+| Wrong timezone | Timestamps are stored in UTC and shown in the server's local zone. If the interface disagrees with your clock, it is the *server's* zone that is off — `timedatectl set-timezone Europe/Berlin`, then restart `easywall-web`. In Docker, set `TZ` on the container |
 | A filter finds nothing | It matches action, rule type, detail and user; not the timestamp — and only within the 200 entries the page was given |

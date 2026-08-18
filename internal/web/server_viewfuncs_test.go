@@ -120,15 +120,57 @@ func TestShortTime(t *testing.T) {
 	}
 }
 
-// The offset stored in the timestamp is the host's own local time and must not
-// be converted away — an operator correlating this against syslog reads it in
-// that frame.
-func TestShortTime_PreservesStoredOffset(t *testing.T) {
-	// A fixed instant, expressed in a zone deliberately far from the test host's.
-	const stamp = "2020-06-15T23:30:00+09:00"
-	if got := shortTime(stamp); got != "15 Jun 2020 23:30" {
-		t.Errorf("shortTime(%q) = %q, want %q — the +09:00 wall time, not a converted one",
-			stamp, got, "15 Jun 2020 23:30")
+// A stored stamp is rendered in the zone the web process runs in, not in the
+// zone the string happens to carry.
+//
+// This test used to assert the opposite — that a +09:00 stamp kept its wall
+// time, "not a converted one" — and the reasoning behind that was sound for an
+// input that never occurs. The core writes UTC and only UTC (core/rules.go:319,
+// core/firewall.go:286), so "preserve the offset" meant "always display UTC",
+// while journalctl next to it showed local time. Two hours apart in Berlin, on
+// every row, with a comment in shortTime explaining why it was the operator's
+// own time.
+//
+// The full stored value is still in the title attribute in log.html and
+// dashboard.html, so nothing is lost by converting the visible one.
+func TestShortTime_RendersInTheLocalZone(t *testing.T) {
+	// A fixed instant, expressed in a zone that is neither UTC nor the test
+	// machine's, so a function that failed to convert would be visibly wrong
+	// wherever this runs.
+	stamp := "2020-06-15T23:30:00+09:00"
+	instant, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	want := instant.Local().Format("2 Jan 2006 15:04")
+	if got := shortTime(stamp); got != want {
+		t.Errorf("shortTime(%q) = %q, want %q — the same instant in this host's zone",
+			stamp, got, want)
+	}
+}
+
+// The case that produced the bug report: what the core actually stores.
+func TestShortTime_ConvertsTheUTCTheCoreWrites(t *testing.T) {
+	instant := time.Now().Add(-90 * time.Minute)
+	stored := instant.UTC().Format(time.RFC3339) // exactly what rules.go:319 writes
+
+	want := instant.Local().Format("15:04:05")
+	if got := shortTime(stored); got != want {
+		t.Errorf("shortTime(%q) = %q, want %q — an operator reads their own clock",
+			stored, got, want)
+	}
+}
+
+// "Today" is decided in the viewer's zone too. A stamp from 23:30 UTC is
+// tomorrow in Berlin, and rendering it as a bare clock time under yesterday's
+// date would be worse than the bug being fixed.
+func TestShortTime_TodayIsDecidedInTheLocalZone(t *testing.T) {
+	now := time.Now()
+	stored := now.UTC().Format(time.RFC3339)
+
+	if got, want := shortTime(stored), now.Local().Format("15:04:05"); got != want {
+		t.Errorf("shortTime(now) = %q, want %q", got, want)
 	}
 }
 
