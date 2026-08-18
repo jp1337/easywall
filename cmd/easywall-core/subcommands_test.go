@@ -220,8 +220,10 @@ func TestRunSubcommand_StatusWithoutADaemon(t *testing.T) {
 // only ever exercise the ENOENT branch. Hard-code daemonAbsent to `return
 // true` and every test in this package still goes green — nothing else here
 // ever produces a transport error at all, let alone one of the other shapes.
-// This is the test that actually pins the errno list, the timeout exclusion
-// ahead of it, and the ordering between the two.
+// This is the test that actually pins the verdicts, including that EACCES and
+// a full accept backlog must not read as "no daemon". It does not pin the
+// order of the two checks inside daemonAbsent — see the EAGAIN case below for
+// why that ordering exists and why none of these cases can prove it.
 func TestDaemonAbsent(t *testing.T) {
 	// wrapDial mimics exactly what shared.SendCommand produces on a failed
 	// dial: net.DialTimeout returns a *net.OpError wrapping a *os.SyscallError
@@ -249,13 +251,15 @@ func TestDaemonAbsent(t *testing.T) {
 			want: false,
 		},
 		{
-			// A full accept backlog returns EAGAIN. That is caught here by the
-			// timeout branch, not by the errno list below — syscall.Errno.Timeout()
-			// reports EAGAIN (and EWOULDBLOCK, and ETIMEDOUT) as a timeout, and the
-			// timeout check runs first. EAGAIN never reaches the errors.Is calls.
-			// Swap the order of the two checks and this case flips to "no daemon"
-			// while the backlog is merely full.
-			name: "a full accept backlog (EAGAIN) is caught by the timeout branch ahead of the errno list",
+			// A full accept backlog returns EAGAIN, and syscall.Errno.Timeout()
+			// reports EAGAIN (with EWOULDBLOCK and ETIMEDOUT) as a timeout, so this
+			// falls out on the timeout branch. It does not, however, prove the
+			// timeout check has to run first: EAGAIN was never in the errno list
+			// below to begin with, so swapping the two checks would not change
+			// this verdict either. The ordering is defence against a *future*
+			// errno joining that list which also satisfies Timeout() — none of
+			// today's three (ENOENT, ECONNREFUSED, fs.ErrNotExist) do.
+			name: "a full accept backlog (EAGAIN) falls out on the timeout branch, not the errno list",
 			err:  wrapDial(syscall.EAGAIN),
 			want: false,
 		},
