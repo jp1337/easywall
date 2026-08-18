@@ -600,3 +600,49 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 		t.Errorf("user = %q, want web", entries[0].User)
 	}
 }
+
+// A revert that failed must not be reported as one that happened.
+//
+// rollback_skipped is the entry that explains why an acceptance rollback did what
+// it did, and its first clause used to say the stored rules "were reverted"
+// unconditionally. f.rules.Rollback() can fail — its error went only into the
+// separate rollback_failed entry — so the log carried two entries for one event
+// of which the explaining one lied.
+func TestRollback_UnderPanicSaysSoWhenTheRevertItselfFailed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: a read-only directory is still writable")
+	}
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+	// Read and execute but not write: the marker can still be stat'ed and the
+	// rules file read, while the atomic rewrite the revert needs cannot create
+	// its temporary file.
+	if err := os.Chmod(cfg.DataDir, 0o500); err != nil {
+		t.Fatalf("chmod DataDir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(cfg.DataDir, 0o750) })
+
+	fw.rollback(shared.RulesState{}, "web")
+
+	var skipped *shared.AuditLogEntry
+	for i, e := range auditEntries(t, cfg) {
+		if e.Action == "rollback_skipped" {
+			skipped = &auditEntries(t, cfg)[i]
+		}
+	}
+	if skipped == nil {
+		t.Fatalf("want a rollback_skipped entry, got %v", auditActions(t, cfg))
+	}
+	if !strings.Contains(skipped.Detail, "could not be reverted") ||
+		!strings.Contains(skipped.Detail, "Current still holds") {
+		t.Errorf("the entry must say the revert failed and what that leaves behind, got %q",
+			skipped.Detail)
+	}
+	if strings.Contains(skipped.Detail, "were reverted") {
+		t.Errorf("the entry asserts a revert that did not happen: %q", skipped.Detail)
+	}
+}
