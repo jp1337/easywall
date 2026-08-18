@@ -125,10 +125,18 @@ behind the rules you just tore down for exactly that reason — the fix for one
 lockout becoming the next one. So while panic mode is engaged, the startup
 restore does not run, and it stays that way until you run `resume`.
 
-While the marker exists, two more things stop: an apply is refused rather than
-queued behind a table that is not there, and the acceptance rollback does not
-run either — there is nothing for it to roll back onto. Both are covered on
+While the marker exists, two more things change: an apply is refused rather than
+queued behind a table that is not there, and the acceptance rollback stops short
+of the kernel. It still reverts the stored rules, so `Current` never keeps a set
+nobody confirmed — that matters, because the next restore installs `Current` with
+no acceptance window of its own — but it writes nothing into the table the console
+just took down. Both are covered on
 [Security]({{ '/security/' | relative_url }}).
+
+Engaging panic mode also wins a race it used to lose. The daemon re-reads the
+marker after every write to the table, not only before one, so a `panic` that
+lands while an apply or a startup restore is mid-write has the rules taken down
+again rather than left live behind a marker that says the machine is unfiltered.
 
 ## The marker file
 

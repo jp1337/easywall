@@ -623,13 +623,16 @@ var auditActionTones = map[string]string{
 
 	// apply_refused_panic and rollback_skipped are deliberately absent, for
 	// the same reason rules_saved and the other staging actions above have no
-	// entry: neither one changes what the firewall is doing. A refused apply
-	// leaves the kernel exactly as it was; a rollback that Panic's own
-	// teardown has already made moot restores nothing because there is
-	// nothing left for it to restore over. Coloured, either would look like
-	// news about the firewall's state when the actual news — panic_engaged is
-	// already crit, resume_restore_skipped already crit if resume failed to
-	// undo it — is elsewhere in the same log.
+	// entry: neither one leaves the firewall doing something new. A refused
+	// apply leaves the kernel as it was, and an apply whose write raced a
+	// `panic` has that write taken down again, ending where the console's own
+	// teardown had already put it. rollback_skipped now covers a rollback that
+	// reverted the rules file and skipped only the kernel, which is the same
+	// answer: the file is not what this colour describes, and the table it did
+	// not write to is one the console had already emptied. Coloured, either
+	// would look like news about the firewall's state when the actual news —
+	// panic_engaged is already crit, resume_restore_skipped already crit if
+	// resume failed to undo it — is elsewhere in the same log.
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the

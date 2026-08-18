@@ -56,11 +56,14 @@ matter for the rest of this model:
   and the startup restore refuses to run while it exists — otherwise the next
   reboot would put the very rules back that panic mode exists to remove.
 - **While the marker exists, an apply is refused and the acceptance rollback
-  does not run.** That is the one place in easywall where the central promise —
-  every apply reverts itself unless you confirm it — is switched off outright,
-  because there is nothing running to roll back onto. Both take effect the
-  instant the marker is written and end the instant `easywall-core resume`
-  clears it.
+  stops at the kernel.** The stored rules are still reverted — an apply nobody
+  confirmed never gets to keep `Current`, or the next restore would install it
+  with no window of its own — but the previous rules are not written back into a
+  table the console has deliberately torn down. That kernel half is the one place
+  in easywall where the central promise, every apply reverts itself unless you
+  confirm it, is switched off outright, because there is nothing running to roll
+  back onto. Both take effect the instant the marker is written and end the
+  instant `easywall-core resume` clears it.
 
 Ending panic mode is console-only, without exception: the banner the interface
 shows carries no button. A control there would let the process reachable from

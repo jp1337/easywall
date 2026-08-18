@@ -29,7 +29,7 @@ coloured tag would stop meaning anything.
 | 🔴 | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
 | 🔴 | `rollback_failed` | Rollback failed | The worst outcome there is: the new rules did not take **and** the old ones did not come back |
 | 🟢 | `boot_enforced` | Rules restored at startup | The stored rules were back in the kernel before anything else started |
-| 🔴 | `boot_enforce_failed` | Rules could not be restored at startup | The machine came up and is not filtering — nothing on this list is worse |
+| 🔴 | `boot_enforce_failed` | Rules could not be restored at startup | The machine came up and is not filtering — nothing on this list is worse. Also written when the panic marker cannot be read at all, and when panic mode was engaged from the console while the restore was still writing: the detail says which |
 | 🔴 | `panic_engaged` | Panic mode engaged | A human at the console took the firewall down on purpose. Deliberate does not make it neutral: the machine is unfiltered either way |
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
 | 🔴 | `resume_restore_skipped` | Resume could not restore the rules | Resume cleared the panic marker but an apply held the slot, so the stored rules never made it back — the machine is left exactly as unfiltered as `boot_enforce_failed` describes |
@@ -37,11 +37,14 @@ coloured tag would stop meaning anything.
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
 > running firewall untouched. The same goes for `apply_refused_panic` and
-> `rollback_skipped`: both record an attempt that changed nothing — an apply
-> that never reached the kernel, a rollback with nothing left to restore over
-> once Panic had already torn the table down. Only the 10 actions above
-> describe what the firewall is actually doing, however consequential an event
-> feels.
+> `rollback_skipped`: neither leaves the firewall doing anything new — an apply
+> that was refused, or whose rules were taken straight back down when panic mode
+> appeared underneath it, and a rollback that left the kernel as the console's
+> teardown had it. `rollback_skipped` does still revert the stored rules to the
+> set that was live before the apply; what it skips is the write into a table
+> nobody wants filled. The news in both cases is `panic_engaged`, which is red a
+> few lines away. Only the 10 actions above describe what the firewall is
+> actually doing, however consequential an event feels.
 
 ## The columns
 
