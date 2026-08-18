@@ -53,12 +53,12 @@ When the daemon is running,
 .B resume
 clears the panic marker and then attempts to restore. If an
 .B apply
-holds the nftables lock, the restore is refused with exit 1; but the marker is
-already cleared. Check
+is running, the restore is refused with exit 1; but the marker is already
+cleared. Check
 .B status
 and run
 .B resume
-again once the apply finishes.
+again once the cycle finishes.
 .SH OPTIONS
 .TP
 .BR \-config " " \fIpath\fR

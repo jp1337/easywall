@@ -210,7 +210,7 @@ func (c *Config) migrateIPv6Mode() {
 }
 
 // Reload re-reads the config file and adopts the sections that can change
-// while the daemon runs: [firewall], [acceptance], [ipv6] and [docker].
+// while the daemon runs: [firewall], [acceptance], [ipv6], [docker], and [routing].
 //
 // features/system-settings.md has always told operators to edit easywall.toml
 // and send SIGHUP. Nothing handled that signal, and an unhandled SIGHUP
