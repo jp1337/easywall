@@ -49,8 +49,23 @@ import (
 // That default is right for a caller deciding whether to *start* filtering and
 // wrong for one deciding whether to stop — see PanicState, and Firewall.rollback
 // for the caller that needs the difference.
+//
+// The log line lives here rather than in PanicState, and that placement is the
+// fix for a line that contradicted itself. Every caller of *this* function does
+// leave the firewall alone when the marker cannot be read, so the text is true
+// for all of them. Moved down into the shared reader, it also reached
+// Firewall.rollback — which then logged "assuming it is and leaving the firewall
+// alone" immediately before rolling back anyway, in adjacent journal lines. A
+// caller that treats "cannot tell" differently has to be free to say something
+// different.
 func PanicEngaged(markerPath string) bool {
-	engaged, _, _ := PanicState(markerPath)
+	engaged, known, err := PanicState(markerPath)
+	if !known {
+		slog.Error("cannot tell whether panic mode is engaged, so assuming it is "+
+			"and leaving the firewall alone; fix the permissions on the data "+
+			"directory and run `easywall-core resume`",
+			"marker", markerPath, "error", err)
+	}
 	return engaged
 }
 
@@ -75,6 +90,13 @@ func PanicEngaged(markerPath string) bool {
 // which is what this returns. engaged still carries the fail-safe default when
 // known is false, so a caller that only reads the first value behaves exactly as
 // it did before.
+//
+// Deliberately silent. What an unreadable marker *means* is the caller's
+// question, not this function's: PanicEngaged says the firewall is being left
+// alone, Firewall.rollback says it is rolling back anyway, and Daemon.Start
+// records it in the audit log. A log line here would be one of those sentences
+// printed at all three sites, false at two of them — which is exactly what it
+// was until this was split out.
 func PanicState(markerPath string) (engaged, known bool, err error) {
 	_, statErr := os.Stat(markerPath)
 	switch {
@@ -83,10 +105,6 @@ func PanicState(markerPath string) (engaged, known bool, err error) {
 	case errors.Is(statErr, fs.ErrNotExist):
 		return false, true, nil
 	default:
-		slog.Error("cannot tell whether panic mode is engaged, so assuming it is "+
-			"and leaving the firewall alone; fix the permissions on the data "+
-			"directory and run `easywall-core resume`",
-			"marker", markerPath, "error", statErr)
 		return true, false, statErr
 	}
 }
