@@ -26,23 +26,26 @@ import (
 // A new route therefore has to be answered here: name the page that documents it,
 // or say why it is not a page. Both are cheap; neither happens by itself.
 func TestEveryPageIsDocumented(t *testing.T) {
-	// route → the page that describes it, relative to docs/.
+	// route → the page that describes it, relative to docs/. The Jekyll
+	// collection holds the actual content under _docs/; the old paths outside
+	// it are redirect stubs that would satisfy os.Stat without proving anything
+	// is documented.
 	documented := map[string]string{
-		"/login":      "installation/first-run.md",
-		"/firstrun":   "installation/first-run.md",
-		"/password":   "installation/first-run.md",
-		"/dashboard":  "features/dashboard.md",
-		"/apply":      "features/apply.md",
-		"/ports":      "features/ports.md",
-		"/blacklist":  "features/blacklist.md",
-		"/whitelist":  "features/blacklist.md",
-		"/forwarding": "features/forwarding.md",
-		"/custom":     "features/custom-rules.md",
-		"/options":    "features/filters.md",
-		"/settings":   "features/system-settings.md",
-		"/system":     "features/system-settings.md",
-		"/log":        "features/audit-log.md",
-		"/export":     "features/export-import.md",
+		"/login":      "_docs/installation/first-run.md",
+		"/firstrun":   "_docs/installation/first-run.md",
+		"/password":   "_docs/installation/first-run.md",
+		"/dashboard":  "_docs/features/dashboard.md",
+		"/apply":      "_docs/features/apply.md",
+		"/ports":      "_docs/features/ports.md",
+		"/blacklist":  "_docs/features/blacklist.md",
+		"/whitelist":  "_docs/features/blacklist.md",
+		"/forwarding": "_docs/features/forwarding.md",
+		"/custom":     "_docs/features/custom-rules.md",
+		"/options":    "_docs/features/filters.md",
+		"/settings":   "_docs/features/system-settings.md",
+		"/system":     "_docs/features/system-settings.md",
+		"/log":        "_docs/features/audit-log.md",
+		"/export":     "_docs/features/export-import.md",
 	}
 
 	// Not pages: redirects, polling endpoints, fragments answered into a page
@@ -148,5 +151,144 @@ func TestTheTechnicalDocsAreNotPublished(t *testing.T) {
 		t.Errorf("%d jekyll build steps but only %d working-directory entries — a build "+
 			"without one runs from the repository root and would publish everything",
 			len(builds), len(dirs))
+	}
+}
+
+// AllCommandTypes is the root of three guards — it is what the dispatch test
+// iterates to verify handlers exist, and what the docs guard iterates to verify
+// documentation. If an entry is deleted from this list, all three guards stop
+// checking it. If a command is added to the const block without being listed,
+// it ships both unhandled and undocumented.
+//
+// This test reads protocol.go's own source and verifies the list matches what
+// is declared there. Go has no runtime enumeration of constants, so reading the
+// source is the only way to make the list checkable. The cost — a test that
+// fails loudly if protocol.go is renamed or the const syntax changes — is the
+// acceptable price of having three other guards that can rely on this list
+// being complete and accurate.
+//
+// The test compares on the constant *values* (what CommandType holds: "PANIC",
+// "GET_RULES", etc), not their names (CmdPanic, CmdGetRules), because that is
+// what appears in the list and what matters to the protocol.
+func TestAllCommandTypesMatchesTheProtocolSource(t *testing.T) {
+	protocolSource := repoFile(t, "internal", "shared", "protocol.go")
+
+	// Extract all CommandType constant declarations: CmdSomething = "VALUE"
+	// This pattern handles extra whitespace, trailing comments, but NOT grouped
+	// declarations like "CmdFoo, CmdBar CommandType = "FOO", "BAR"".
+	constPattern := regexp.MustCompile(`(Cmd\w+)\s+CommandType\s*=\s*"([^"]+)"`)
+	matches := constPattern.FindAllStringSubmatch(protocolSource, -1)
+
+	if len(matches) == 0 {
+		t.Fatal("could not find any CommandType constants in protocol.go; " +
+			"the pattern no longer matches or the file is missing declarations")
+	}
+
+	// Check for unparsed declarations: a line that contains multiple Cmd* names
+	// but the regex only matches one is a grouped declaration the pattern cannot
+	// handle. For example: CmdFoo, CmdBar CommandType = "FOO", "BAR"
+	// The regex matches CmdBar but misses CmdFoo, so we catch it by counting
+	// how many Cmd* names appear on the line vs. how many the pattern captured.
+	lines := strings.Split(protocolSource, "\n")
+	cmdNamePattern := regexp.MustCompile(`Cmd\w+`)
+	for _, line := range lines {
+		// Find all Cmd* names on this line (could be 0, 1, or multiple)
+		cmdNames := cmdNamePattern.FindAllString(line, -1)
+		if len(cmdNames) == 0 {
+			continue
+		}
+
+		// Find all regex matches on this line (one match = one captured Cmd* name)
+		lineMatches := constPattern.FindAllStringSubmatch(line, -1)
+
+		// If the line has Cmd* names but the regex didn't match any on it, or
+		// if the line has multiple Cmd* names but the regex only got one, that
+		// is a declaration shape we don't understand.
+		if len(cmdNames) > 0 && len(lineMatches) == 0 {
+			// Line has Cmd* names but no regex match
+			if strings.Contains(line, "CommandType") && strings.Contains(line, "=") {
+				t.Errorf("line contains CommandType declaration but was not parsed by the regex: %s",
+					strings.TrimSpace(line))
+			}
+		} else if len(cmdNames) > len(lineMatches) {
+			// Line has more Cmd* names than regex matches (grouped declaration)
+			if strings.Contains(line, "CommandType") && strings.Contains(line, "=") {
+				t.Errorf("line contains %d constant names but regex only matched %d; "+
+					"this looks like a grouped declaration the pattern cannot handle: %s",
+					len(cmdNames), len(lineMatches), strings.TrimSpace(line))
+			}
+		}
+	}
+
+	// Build a map of declared values for comparison.
+	// Store the raw count of matches separately to catch deduplication bugs.
+	declaredValues := make(map[string]string) // value -> name, for error reporting
+	for _, m := range matches {
+		name := m[1]
+		value := m[2]
+		declaredValues[value] = name
+	}
+	rawMatchCount := len(matches) // Count of all matches, before deduplication
+
+	// Every declared constant's value must appear in AllCommandTypes.
+	for value, name := range declaredValues {
+		found := false
+		for _, cmd := range AllCommandTypes {
+			if string(cmd) == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("constant %s (value %q) is declared but not listed in AllCommandTypes", name, value)
+		}
+	}
+
+	// Every entry in AllCommandTypes must correspond to a declared constant.
+	for _, cmd := range AllCommandTypes {
+		if _, ok := declaredValues[string(cmd)]; !ok {
+			t.Errorf("AllCommandTypes lists %q but no constant with that value is declared in protocol.go",
+				string(cmd))
+		}
+	}
+
+	// Sanity check: the list and source must have the same count.
+	// This is layered on the two loops above, not a replacement: the loops catch
+	// drift, the count check catches both sides being wrong by the same amount.
+	// Compare against raw match count, not deduplicated values, so two constants
+	// sharing a value are caught.
+	if len(AllCommandTypes) != rawMatchCount {
+		t.Errorf("AllCommandTypes has %d entries but protocol.go declares %d constant declarations",
+			len(AllCommandTypes), rawMatchCount)
+	}
+}
+
+// Every command the protocol declares must be documented in both the operator
+// documentation and the technical documentation. This catches drifts like the
+// one where PANIC was added to the constants and the architecture table but
+// nothing told the next person to do that: now, adding a command and forgetting
+// a table is caught immediately.
+//
+// The list is derived from AllCommandTypes, which is published by the protocol
+// itself, so this test catches failures at the source.
+func TestEveryCommandIsDocumentedInBothPublishedAndTechnicalDocs(t *testing.T) {
+	// The published content lives under docs/_docs/ since the Jekyll collection
+	// restructure; docs/architecture.md is now a redirect stub and would never
+	// contain a command table again.
+	archDocs := repoFile(t, "docs", "_docs", "architecture.md")
+	techDocs := repoFile(t, "docs-tech", "protocol.md")
+
+	if len(AllCommandTypes) == 0 {
+		t.Fatal("AllCommandTypes is empty; the list has not been populated or has been broken")
+	}
+
+	for _, cmd := range AllCommandTypes {
+		cmdStr := "`" + string(cmd) + "`"
+		if !strings.Contains(archDocs, cmdStr) {
+			t.Errorf("docs/_docs/architecture.md does not document command %s", cmdStr)
+		}
+		if !strings.Contains(techDocs, cmdStr) {
+			t.Errorf("docs-tech/protocol.md does not document command %s", cmdStr)
+		}
 	}
 }

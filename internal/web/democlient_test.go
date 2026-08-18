@@ -476,3 +476,108 @@ func TestDemo_ApplyWithoutAcceptanceWindowLogsBoth(t *testing.T) {
 		t.Error("an apply that needs no confirmation left the last-apply time empty")
 	}
 }
+
+// ── Every declared command ───────────────────────────────────────────────
+
+// The demo has to answer every command the protocol declares. It has a default
+// branch that refuses unknown ones, so a command it has never heard of fails in
+// the browser and passes the suite — which is exactly how PANIC and RESUME
+// reached this file two tasks after they were added to the protocol.
+func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
+	if len(shared.AllCommandTypes) != 17 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 17 "+
+			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
+	}
+
+	for _, cmd := range shared.AllCommandTypes {
+		d := newDemoState()
+		resp := d.Send(shared.Command{Type: cmd, Payload: []byte("null")})
+		if !resp.Success && strings.Contains(resp.Error, "unknown command") {
+			t.Errorf("the demo has no branch for %s", cmd)
+		}
+	}
+
+	d := newDemoState()
+	if resp := d.Send(shared.Command{Type: "NOT_A_COMMAND"}); resp.Success {
+		t.Error("an unknown command must still be refused as one")
+	}
+}
+
+// The demo has to store time the way the core does, or it cannot surface the
+// class of bug that made this test necessary: shortTime preserved the offset in
+// the stored string, and the demo was the only installation that ever carried
+// one other than Z, so the demo was the one place the behaviour looked right.
+func TestDemo_StoresTimestampsInUTC(t *testing.T) {
+	d := newDemoState()
+
+	stamps := []string{d.lastApply}
+	for _, e := range d.auditLog {
+		stamps = append(stamps, e.Time)
+	}
+
+	for _, s := range stamps {
+		if s == "" {
+			continue
+		}
+		if !strings.HasSuffix(s, "Z") {
+			t.Errorf("demo stored %q; the core writes UTC and so must the demo", s)
+		}
+		if _, err := time.Parse(time.RFC3339, s); err != nil {
+			t.Errorf("demo stored %q, which is not RFC 3339: %v", s, err)
+		}
+	}
+}
+
+// An apply in the demo writes the same shape.
+func TestDemo_ApplyWritesUTC(t *testing.T) {
+	d := newDemoState()
+	d.Send(shared.Command{Type: shared.CmdApplyRules})
+	d.Send(shared.Command{Type: shared.CmdAccept})
+
+	if !strings.HasSuffix(d.lastApply, "Z") {
+		t.Errorf("after an apply the demo stored %q, want a UTC stamp", d.lastApply)
+	}
+}
+
+// A demo that opens on a two-hour-old "last apply" looks broken rather than
+// used. The seed is recent enough to read as live.
+func TestDemo_LastApplyIsRecentAtStartup(t *testing.T) {
+	d := newDemoState()
+
+	last, err := time.Parse(time.RFC3339, d.lastApply)
+	if err != nil {
+		t.Fatalf("parse lastApply %q: %v", d.lastApply, err)
+	}
+	if age := time.Since(last); age > 20*time.Minute {
+		t.Errorf("the demo opens with a last apply %v old; it reads as stale rather than live", age)
+	}
+}
+
+// buildSeedAuditLog is documented "Newest first", and nothing sorts it — the
+// literal order of the offset table above is the display order. A rollback at
+// -18h followed two minutes later by a successful re-apply is the intended
+// story, but "followed two minutes later" makes the re-apply the more recent
+// of the two, so it belongs earlier in a newest-first list. This test reads
+// the seed the same way a viewer of /log does: top to bottom, expecting time
+// to run backwards, so a future entry added anywhere in the table fails here
+// without a clock and without a privileged environment.
+func TestDemo_SeededAuditLogDescends(t *testing.T) {
+	d := newDemoState()
+
+	for i := 1; i < len(d.auditLog); i++ {
+		prev, err := time.Parse(time.RFC3339, d.auditLog[i-1].Time)
+		if err != nil {
+			t.Fatalf("entry %d: parse %q: %v", i-1, d.auditLog[i-1].Time, err)
+		}
+		cur, err := time.Parse(time.RFC3339, d.auditLog[i].Time)
+		if err != nil {
+			t.Fatalf("entry %d: parse %q: %v", i, d.auditLog[i].Time, err)
+		}
+		if cur.After(prev) {
+			t.Errorf("entry %d (%s at %s) is newer than entry %d (%s at %s) above it; "+
+				"the seed is documented newest-first and nothing else enforces that order",
+				i, d.auditLog[i].Action, d.auditLog[i].Time,
+				i-1, d.auditLog[i-1].Action, d.auditLog[i-1].Time)
+		}
+	}
+}

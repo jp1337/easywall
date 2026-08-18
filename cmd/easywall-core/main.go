@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/jp1337/easywall/config"
@@ -14,6 +15,14 @@ import (
 )
 
 func main() {
+	// A subcommand is a first argument that is not a flag. Checked before
+	// flag.Parse, which would otherwise reject it: the flags this binary has
+	// always taken — -config, -version, -write-config — keep working exactly as
+	// they did, because they all start with a dash.
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		os.Exit(runSubcommand(os.Args[1], os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	configPath := flag.String("config", "/etc/easywall/easywall.toml", "path to core config file")
 	// So a build can be checked rather than assumed. The version is written in
 	// by the linker, and when that silently did nothing there was no way to see
@@ -25,6 +34,11 @@ func main() {
 	// one. It never overwrites.
 	writeConfig := flag.String("write-config", "",
 		"write a commented default configuration to this path and exit")
+	flag.Usage = func() {
+		fmt.Fprint(os.Stderr, subcommandUsage)
+		fmt.Fprintln(os.Stderr, "\nflags:")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
 	if *showVersion {

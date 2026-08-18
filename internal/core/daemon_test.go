@@ -735,3 +735,105 @@ func TestDaemonStart_AcceptsAndResponds(t *testing.T) {
 		t.Fatalf("GetStatus via running Start: %s", resp.Error)
 	}
 }
+
+// waitForSocket blocks until the daemon's socket accepts a connection.
+func waitForSocket(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("unix", path, 200*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("socket %s never came up", path)
+}
+
+// The daemon must have run a restore attempt at startup.
+//
+// What this pins: that a restore is attempted at all, and that it happens on the
+// way up rather than in response to a request.
+//
+// What it does not pin, measured rather than assumed: the ordering. Move the
+// restore into `go func(){ … }()` and this test still passes, every time — the
+// restore's own audit write is far quicker than the test's dial, write and read,
+// so it always wins the race it is supposed to detect. The same is true of
+// TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun below. The ordering is
+// held by the structure of Daemon.Start, and it is
+// TestDaemonStart_SourceRestoresBeforeItListens in daemon_source_order_test.go
+// that asserts that structure.
+func TestDaemonStart_RestoresAtStartup(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+	t.Cleanup(d.Stop)
+
+	waitForSocket(t, cfg.SocketPath)
+
+	// The restore fails on the nil netlink connection, and that failure is the
+	// observable proof it was attempted.
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[0] != "boot_enforce_failed" {
+		t.Errorf("want a restore attempt recorded at startup, got %v", got)
+	}
+}
+
+// No command is served before the restore attempt has completed. This holds by
+// construction: the restore runs before the socket exists, so the first
+// successful dial to the socket proves the restore has already completed.
+//
+// What this pins is that a served command is answered on a machine whose restore
+// has already been attempted — the observable half of the guarantee.
+//
+// It does not pin the construction that makes it true, and the difference has
+// been measured: with the restore moved into a goroutine this test still passes,
+// because the restore's audit write beats the test's dial-write-read every time.
+// The structure itself is asserted by
+// TestDaemonStart_SourceRestoresBeforeItListens in daemon_source_order_test.go,
+// which reads daemon.go and fails on both the reordering and the goroutine.
+func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	go func() { _ = d.Start() }()
+	t.Cleanup(d.Stop)
+
+	waitForSocket(t, cfg.SocketPath)
+
+	// Send a GetStatus command and wait for the response.
+	resp := sendDaemonCmd(t, cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
+	if !resp.Success {
+		t.Fatalf("GetStatus failed: %s", resp.Error)
+	}
+
+	// By the time this response has arrived, the restore must already have
+	// recorded its audit entry. If the restore were moved after the accept loop
+	// this assertion would fail — a client connection served before the restore
+	// wrote anything. A restore merely moved into a goroutine ahead of the
+	// listener is a different mutation and this assertion does not catch it; see
+	// the note above the function.
+	got := auditActions(t, cfg)
+	if len(got) == 0 || got[0] != "boot_enforce_failed" {
+		t.Errorf("restore must have completed before command was served, got audit %v", got)
+	}
+}
+
+func TestStatus_ReportsPanicMode(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if fw.Status().Panic {
+		t.Error("a fresh install is not in panic mode")
+	}
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+	if !fw.Status().Panic {
+		t.Error("Status must report panic mode so the interface can show it on every page")
+	}
+}

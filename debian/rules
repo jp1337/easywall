@@ -66,6 +66,11 @@ override_dh_auto_install:
 	# logrotate
 	install -d debian/easywall/etc/logrotate.d
 	install -m 0644 debian/easywall.logrotate debian/easywall/etc/logrotate.d/easywall
+	# Man page. The console subcommands added in 2.7 replace an escape route
+	# that used to be "reboot", and a command an operator cannot look up on the
+	# machine is half a replacement.
+	install -d debian/easywall/usr/share/man/man1
+	install -m 0644 debian/easywall-core.1 debian/easywall/usr/share/man/man1/easywall-core.1
 
 override_dh_auto_test:
 	go test ./internal/...

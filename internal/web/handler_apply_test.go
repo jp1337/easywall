@@ -165,3 +165,30 @@ func TestHandleApplyStatus_CoreError(t *testing.T) {
 		t.Errorf("expected application/json, got %s", ct)
 	}
 }
+
+// An apply refused because a human took the firewall down at the console must
+// say that, not report the generic "Failed to apply rules." — the same
+// distinction handler_apply.go already draws for ErrApplyInProgressText.
+// Mirroring shared.ErrPanicEngagedText here proves the recognition and gives
+// the browser-visible text something other than a bare core error string.
+func TestHandleApplyStart_PanicEngagedSaysSoInsteadOfGenericFailure(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdApplyRules, errorRespFor(shared.ErrPanicEngagedText))
+
+	rec := doAuthFormRequest(t, s, "/apply/start", "")
+	assertRedirect(t, rec, "/apply")
+
+	cookie := rec.Result().Cookies()
+	if len(cookie) == 0 {
+		t.Fatal("expected a flash cookie explaining what happened")
+	}
+	follow := doRequest(s, "GET", "/apply", nil, cookie[0], makeAuthCookie(t, s))
+	body := follow.Body.String()
+	if strings.Contains(body, "Failed to apply rules") {
+		t.Error("a refusal because panic mode is engaged must not read as a generic apply failure")
+	}
+	if !strings.Contains(body, "panic mode is engaged") {
+		t.Errorf("expected the page to name panic mode as the reason; body was:\n%s", body)
+	}
+}

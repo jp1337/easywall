@@ -203,6 +203,46 @@ func TestCoreClient_ApplyRules_CoreError(t *testing.T) {
 	}
 }
 
+func TestCoreClient_Panic_Success(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdPanic, shared.Response{Success: true})
+
+	client := NewCoreClient(fc.socketPath)
+	if err := client.Panic(); err != nil {
+		t.Fatalf("Panic: %v", err)
+	}
+}
+
+func TestCoreClient_Panic_CoreError(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdPanic, shared.Response{Success: false, Error: "panic failed"})
+
+	client := NewCoreClient(fc.socketPath)
+	if err := client.Panic(); err == nil {
+		t.Error("expected error on core error")
+	}
+}
+
+func TestCoreClient_Resume_Success(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdResume, shared.Response{Success: true})
+
+	client := NewCoreClient(fc.socketPath)
+	if err := client.Resume(); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+}
+
+func TestCoreClient_Resume_CoreError(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdResume, shared.Response{Success: false, Error: "resume failed"})
+
+	client := NewCoreClient(fc.socketPath)
+	if err := client.Resume(); err == nil {
+		t.Error("expected error on core error")
+	}
+}
+
 func TestCoreClient_Accept_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	fc.SetResponse(shared.CmdAccept, successResp(shared.AcceptResult{Accepted: true}))

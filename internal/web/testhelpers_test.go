@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -337,11 +338,54 @@ func doFormRequest(s *Server, method, url, formBody string, cookies ...*http.Coo
 	return rec
 }
 
+// newTestServerCountingStatusCalls builds a server backed by a fresh fakeCore
+// and returns a counter that ticks up once for every GET_STATUS the server
+// sends it. It exists for TestRender_LoginPageDoesNotAskTheCoreForStatus: the
+// login page has no session yet, and render() must not reach for the core on
+// its behalf, since the core is not guaranteed to be reachable at all before
+// anyone has signed in.
+//
+// The observer fires on the fakeCore's own connection-handling goroutine, so
+// the counter is an int32 read and written with atomic ops rather than a
+// plain int — a bug that made the login page call the core would otherwise
+// race the test's read against the observer's write instead of just failing
+// the assertion.
+func newTestServerCountingStatusCalls(t *testing.T) (*Server, *int32) {
+	t.Helper()
+	fc := newFakeCore(t)
+	var calls int32
+	fc.OnCommand(shared.CmdGetStatus, func(shared.Command) {
+		atomic.AddInt32(&calls, 1)
+	})
+	s := newTestServer(t, fc)
+	return s, &calls
+}
+
 // doAuthRequest performs an authenticated request (with session cookie).
 func doAuthRequest(t *testing.T, s *Server, method, url string, body io.Reader) *httptest.ResponseRecorder {
 	t.Helper()
 	cookie := makeAuthCookie(t, s)
 	return doRequest(s, method, url, body, cookie)
+}
+
+// getAuthenticated performs an authenticated GET, the shape the panic-banner
+// tests need across several pages: they only ever read the body of a
+// successful GET, so the fuller doAuthRequest's method/body parameters would
+// be dead weight repeated at every call site.
+func getAuthenticated(t *testing.T, s *Server, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	return doAuthRequest(t, s, http.MethodGet, path, nil)
+}
+
+// newTestServerWithStatus builds a server backed by a fake core that answers
+// every GET_STATUS with the given status. render() calls GetStatus once per
+// authenticated page to fill PageData.Panic, and the panic-banner tests need
+// to control what comes back without caring about any other command.
+func newTestServerWithStatus(t *testing.T, status *shared.FirewallStatus) *Server {
+	t.Helper()
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetStatus, successResp(*status))
+	return newTestServer(t, fc)
 }
 
 // doAuthFormRequest performs an authenticated POST with URL-encoded form data.

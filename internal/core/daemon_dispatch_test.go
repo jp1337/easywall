@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -60,6 +61,54 @@ func TestDispatch_SaveOptions_SaveError(t *testing.T) {
 	resp := d.dispatch(shared.Command{Type: shared.CmdSaveOptions, Payload: payload})
 	if resp.Success {
 		t.Error("expected failure when config dir is read-only")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// CmdApplyRules
+// ---------------------------------------------------------------------------
+
+// APPLY_RULES has to refuse synchronously, the same way ErrApplyInProgress
+// does, or the refusal never reaches the caller at all: the goroutine that
+// runs apply() only logs its error, and the immediate response was already
+// {"status":"started"} by the time apply() ran and found the marker. A
+// browser tab clicking Apply after `panic` ran at the console needs to be
+// told so, not left to infer it from a status page that never changes.
+func TestDispatch_ApplyRules_RefusedWhilePanicIsEngaged(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	resp := d.dispatch(shared.Command{Type: shared.CmdApplyRules})
+	if resp.Success {
+		t.Fatalf("APPLY_RULES succeeded while panic mode was engaged: %+v", resp)
+	}
+	if resp.Error != shared.ErrPanicEngagedText {
+		t.Errorf("Response.Error = %q, want %q — the web process matches on this exact "+
+			"string to explain the refusal instead of reporting a generic failure",
+			resp.Error, shared.ErrPanicEngagedText)
+	}
+
+	// No goroutine was started: the slot was never claimed, so beginApply
+	// still succeeds, and nothing is tracked in d.wg for Stop to wait on.
+	if !fw.beginApply() {
+		t.Error("the apply slot was claimed even though the request was refused before beginApply")
+	}
+	fw.endApply()
+
+	done := make(chan struct{})
+	go func() {
+		d.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Stop did not return promptly; a refused APPLY_RULES left something running")
 	}
 }
 
@@ -357,19 +406,16 @@ func TestDispatch_GetRules_StoreError(t *testing.T) {
 // The list is derived from the protocol rather than repeated here, so adding a
 // command without a handler fails this test instead of shipping.
 func TestDaemonDispatch_HandlesEveryDeclaredCommand(t *testing.T) {
-	all := []shared.CommandType{
-		shared.CmdGetRules, shared.CmdSaveRules, shared.CmdApplyRules, shared.CmdAccept,
-		shared.CmdGetStatus, shared.CmdGetOptions, shared.CmdSaveOptions,
-		shared.CmdGetSettings, shared.CmdSaveSettings, shared.CmdGetSystem,
-		shared.CmdSaveSystem, shared.CmdGetLog, shared.CmdExportRules,
-		shared.CmdImportRules, shared.CmdValidateCustom,
-	}
+	// Derive the list from the protocol's published list, so adding a command
+	// and forgetting a handler fails here rather than shipping. The list is in
+	// shared.AllCommandTypes; this test does not maintain its own.
+	all := shared.AllCommandTypes
 
-	// Guard against the list above drifting from the constants: protocol.go is
-	// the source of truth for how many there are, and architecture.md says
-	// fifteen.
-	if len(all) != 15 {
-		t.Fatalf("the protocol declares 15 commands; this test lists %d", len(all))
+	// Guard against an empty or truncated list: an accident in AllCommandTypes
+	// that makes this test vacuous must be caught. This is not a great check —
+	// it only catches gross errors — but even that is better than nothing.
+	if len(all) < 15 {
+		t.Fatalf("AllCommandTypes has %d entries; the protocol should have at least 15 commands", len(all))
 	}
 
 	cfg := newTestConfig(t)
@@ -464,5 +510,47 @@ func TestDaemonDispatch_ApplyDoesNotRaceWithASettingsSave(t *testing.T) {
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			t.Errorf("a custom network came out torn: %q", cidr)
 		}
+	}
+}
+
+func TestDispatch_PanicEngagesAndResumeClears(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	defer d.Stop()
+
+	// The teardown fails on the nil netlink connection, so the reply is a
+	// failure — and the marker is still written, which is the behaviour that
+	// keeps a reboot from undoing the operator's decision.
+	resp := d.dispatch(shared.Command{Type: shared.CmdPanic})
+	if resp.Success {
+		t.Error("with no netlink connection PANIC must report the teardown failure")
+	}
+	if !PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("PANIC must leave the marker behind even when the teardown failed")
+	}
+
+	if got := d.dispatch(shared.Command{Type: shared.CmdGetStatus}); !got.Success {
+		t.Fatalf("GET_STATUS failed: %s", got.Error)
+	} else {
+		var status shared.FirewallStatus
+		if err := json.Unmarshal(got.Data, &status); err != nil {
+			t.Fatalf("parse status: %v", err)
+		}
+		if !status.Panic {
+			t.Error("GET_STATUS must report panic mode")
+		}
+	}
+
+	// Resume clears the marker and then tries to restore the stored rules. With
+	// the nil netlink connection, the restore fails, so the response reports
+	// failure — but the marker is still cleared, the symmetric behaviour to
+	// PANIC: a marker left behind survives a reboot.
+	resp = d.dispatch(shared.Command{Type: shared.CmdResume})
+	if resp.Success {
+		t.Error("with no netlink connection RESUME must report the restore failure")
+	}
+	if PanicEngaged(cfg.PanicMarkerPath()) {
+		t.Error("RESUME must clear the marker even when the restore failed")
 	}
 }
