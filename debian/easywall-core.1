@@ -1,0 +1,113 @@
+.TH EASYWALL-CORE 1 "2026-08-16" "easywall" "easywall manual"
+.SH NAME
+easywall\-core \- the privileged half of easywall, and its console controls
+.SH SYNOPSIS
+.B easywall\-core
+[\fB\-config\fR \fIpath\fR]
+.br
+.B easywall\-core
+\fIcommand\fR [\fB\-config\fR \fIpath\fR]
+.SH DESCRIPTION
+.B easywall\-core
+runs as root, speaks netlink, and owns the nftables table
+.IR "inet easywall" .
+It is normally started by systemd and reached over a Unix socket by
+.BR easywall\-web (1),
+which holds no privilege of its own.
+.PP
+At startup it puts the last confirmed rule set back into the kernel. nftables
+rules do not survive a reboot, and without this the machine would come up
+unfiltered until somebody opened the web interface and applied. The restore has
+no acceptance window: the rule set being restored has already survived one.
+.SH COMMANDS
+.TP
+.B status
+Report whether the firewall is enforcing, whether an acceptance window is open,
+and when rules were last applied. Exits 0 when the firewall is enforcing or when
+panic mode says it was meant not to be, and 2 when the machine is simply not
+filtering \- so it can be used from a monitoring check.
+.TP
+.B panic
+Take the firewall down and record that it was deliberate. The machine is
+unfiltered immediately and stays unfiltered across a restart. This is the way
+back into a machine your own rules have shut you out of.
+.PP
+.B panic
+waits for the nftables lock, which an in-flight
+.B apply
+holds while its custom-rules syntax check runs. If the firewall appears to be
+hung, this is probably the wait. It is not hung.
+.TP
+.B resume
+End panic mode and put the stored rules back.
+.PP
+Exits 0 even when no daemon is running. In that case
+.B resume
+clears the panic marker and stops; restoring the rules is the daemon's job and it
+does it on start. To complete the recovery, start the service:
+.B systemctl start easywall-core
+.SH OPTIONS
+.TP
+.BR \-config " " \fIpath\fR
+Configuration file. Default
+.IR /etc/easywall/easywall.toml .
+.TP
+.B \-version
+Print the version and exit.
+.TP
+.BR \-write\-config " " \fIpath\fR
+Write a commented default configuration to
+.I path
+and exit. Never overwrites an existing file.
+.SH SIGNALS
+.TP
+.B SIGHUP
+Reload
+.RI [ firewall ],
+.RI [ acceptance ],
+.RI [ ipv6 ]
+and
+.RI [ docker ]
+without dropping the socket. Paths stay bound to what the daemon started with. A
+file that does not parse is refused and the running configuration is kept.
+.SH FILES
+.TP
+.I /etc/easywall/easywall.toml
+Core configuration.
+.TP
+.I /var/lib/easywall/rules.json
+The three rule sets: current, staged, backup.
+.TP
+.I /var/lib/easywall/panic
+Present while panic mode is engaged. Its presence stops the startup restore.
+While it exists, an
+.B apply
+is refused and an acceptance rollback does not run. The acceptance window's
+automatic undo is inactive in panic mode.
+.TP
+.I /var/log/easywall/audit.log
+One JSON object per line: what changed, when, and by whom.
+.TP
+.I /run/easywall/core.sock
+The control socket, root:easywall 0660.
+.SH SHUTDOWN
+Stopping the daemon waits for a startup restore that may still be writing to the
+kernel, and can take up to about thirty seconds. systemd's default
+.B TimeoutStopSec
+is 90 seconds and provides room for this.
+.SH EXIT STATUS
+.TP
+.B 0
+The command succeeded.
+.TP
+.B 1
+The command failed. The reason is on standard error.
+.TP
+.B 2
+.B status
+only: the machine is not filtering and panic mode is not engaged.
+.SH SEE ALSO
+.BR easywall\-web (1),
+.BR nft (8)
+.PP
+https://easywall\-project.org
