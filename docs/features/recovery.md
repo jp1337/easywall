@@ -56,22 +56,31 @@ easywall-core resume    # end panic mode and put the stored rules back
 ```
 $ easywall-core status
 firewall:   enforcing
-acceptance: confirmed
+acceptance: accepted
 last apply: 2026-08-16T09:12:03Z
 ```
 
-Or, mid-lockout:
+When the daemon cannot be reached at all — crashed, or not started yet — `status`
+falls back to reading the panic marker directly rather than asking a socket
+nothing answers on:
 
 ```
 $ easywall-core status
-firewall:   NOT enforcing
-acceptance: none
-last apply: never
+daemon:     not running
+panic mode: engaged — the rules will NOT come back on start
+            run `easywall-core resume` first
 ```
 
-Exit code 0 means enforcing (or deliberately not, in panic mode); exit code 2
-means the machine is not filtering when it should be — which is what makes it
-usable from a monitoring check.
+| Exit code | Meaning |
+|---|---|
+| `0` | The firewall is enforcing, **or** panic mode is engaged and says it was meant not to be — either way, the daemon answered |
+| `2` | The firewall is not filtering when it should be, **or** the daemon is not running at all — whether or not panic mode is engaged |
+
+That disjunction on `2` is deliberate, not an oversight: a machine with no
+daemon running is never in the state it should be, because nothing will put the
+rules back once the daemon starts and panic mode ends — so a monitoring check
+sees `2` either way, and only the printed message tells you which case you are
+in.
 
 ### `panic`
 
@@ -102,6 +111,11 @@ Panic mode is over and the stored rules are back in force.
 performs, run on demand. If the daemon is not running, `resume` can only clear
 the marker; it says so, and names the command to start the service so the
 restore actually happens.
+
+If the daemon *is* running but an apply is already in flight, `resume` still
+clears the marker — panic mode has genuinely ended — but the restore itself is
+refused and the command exits `1`. The rules are not back yet in that case.
+Run `status` to see when the apply finishes, then `resume` again.
 
 ## Panic mode survives a restart, deliberately
 
