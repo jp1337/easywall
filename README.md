@@ -118,17 +118,18 @@ Then open `https://localhost:12227`. The first visit
 ## Roadmap
 
 Correctness first: a firewall that quietly does less than it says is worse than
-one that does less and says so.
+one that does less and says so. Ordered by exposure — the holes first, then
+comprehension, then reach:
 
 | | |
 |---|---|
-| **2.6** | Integration tests that assert *meaning*, not rule counts |
-| **2.7** | Identity — a user in the socket protocol, then login events, then multiple accounts, then 2FA |
-| **2.8** | A REST API with token auth, ACME as an option, opt-in trusted reverse proxy |
-| **2.9** | An opt-in count of installations |
+| **2.7** | The firewall survives a reboot — no more accidental way back in through a restart |
+| **2.8** | A second factor — TOTP, recovery codes, and login events in the audit log |
+| **2.9** | What changes is on the screen before you apply it — and whether it cuts you off |
+| **2.10** | A rule names a service and who may reach it, from a curated catalogue |
 
-Why each comes when it does, and what the count would send:
-[Roadmap →](https://easywall-project.org/roadmap/)
+Twelve releases in total, why each comes when it does, and what is deliberately
+excluded: [Roadmap →](https://easywall-project.org/roadmap/)
 
 ## Getting help
 
