@@ -476,3 +476,29 @@ func TestDemo_ApplyWithoutAcceptanceWindowLogsBoth(t *testing.T) {
 		t.Error("an apply that needs no confirmation left the last-apply time empty")
 	}
 }
+
+// ── Every declared command ───────────────────────────────────────────────
+
+// The demo has to answer every command the protocol declares. It has a default
+// branch that refuses unknown ones, so a command it has never heard of fails in
+// the browser and passes the suite — which is exactly how PANIC and RESUME
+// reached this file two tasks after they were added to the protocol.
+func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
+	if len(shared.AllCommandTypes) != 17 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 17 "+
+			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
+	}
+
+	for _, cmd := range shared.AllCommandTypes {
+		d := newDemoState()
+		resp := d.Send(shared.Command{Type: cmd, Payload: []byte("null")})
+		if !resp.Success && strings.Contains(resp.Error, "unknown command") {
+			t.Errorf("the demo has no branch for %s", cmd)
+		}
+	}
+
+	d := newDemoState()
+	if resp := d.Send(shared.Command{Type: "NOT_A_COMMAND"}); resp.Success {
+		t.Error("an unknown command must still be refused as one")
+	}
+}

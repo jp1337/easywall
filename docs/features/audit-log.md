@@ -15,7 +15,7 @@ on disk keeps everything.
   <figcaption>The filter matches the wording on screen as well as the identifier stored on disk.</figcaption>
 </figure>
 
-## Only five entries carry colour
+## Only 10 entries carry colour
 
 Colour outside the accent family always means firewall state — green live, amber
 unconfirmed, red rolled back. If a merely informational event were tinted too, a
@@ -28,11 +28,20 @@ coloured tag would stop meaning anything.
 | 🔴 | `apply_rolledback` | Rules rolled back | The window closed unconfirmed; the previous rules are back |
 | 🔴 | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
 | 🔴 | `rollback_failed` | Rollback failed | The worst outcome there is: the new rules did not take **and** the old ones did not come back |
-| ⚪ | everything else | Rules saved, Options saved, … | Something was staged; nothing live moved |
+| 🟢 | `boot_enforced` | Rules restored at startup | The stored rules were back in the kernel before anything else started |
+| 🔴 | `boot_enforce_failed` | Rules could not be restored at startup | The machine came up and is not filtering — nothing on this list is worse |
+| 🔴 | `panic_engaged` | Panic mode engaged | A human at the console took the firewall down on purpose. Deliberate does not make it neutral: the machine is unfiltered either way |
+| 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
+| 🔴 | `resume_restore_skipped` | Resume could not restore the rules | Resume cleared the panic marker but an apply held the slot, so the stored rules never made it back — the machine is left exactly as unfiltered as `boot_enforce_failed` describes |
+| ⚪ | everything else | Rules saved, Options saved, Apply refused — panic mode is engaged, Rollback skipped — panic mode is engaged, … | Something was staged, or an attempt changed nothing live |
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
-> running firewall untouched. Only the five actions above describe what the
-> firewall is actually doing, however consequential an edit feels.
+> running firewall untouched. The same goes for `apply_refused_panic` and
+> `rollback_skipped`: both record an attempt that changed nothing — an apply
+> that never reached the kernel, a rollback with nothing left to restore over
+> once Panic had already torn the table down. Only the 10 actions above
+> describe what the firewall is actually doing, however consequential an event
+> feels.
 
 ## The columns
 

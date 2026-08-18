@@ -51,6 +51,13 @@ type PageData struct {
 	// so the upgraded page ran the previous release's JavaScript.
 	Asset string
 	Data  interface{}
+
+	// Panic is true while the core reports that this installation is
+	// deliberately unfiltered. It is on PageData rather than on one handler's
+	// data because the banner it drives belongs on every page: a warning only
+	// the dashboard carries is one an operator does not see, and not seeing it
+	// is the whole problem with panic mode.
+	Panic bool
 }
 
 // Server is the easywall web frontend.
@@ -362,6 +369,21 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 	}
 
 	user, _ := sess.Values[SessionUserKey].(string)
+
+	// One GET_STATUS per authenticated render, over a local Unix socket. The
+	// cost is deliberate and the alternative was worse: reading the marker file
+	// from here would mean guessing where the core's data directory is, and the
+	// two processes may be configured apart.
+	//
+	// Never for a signed-out visitor. /login and /firstrun are served before
+	// there is a session and have to work with no core at all.
+	panicMode := false
+	if user != "" {
+		if status, err := s.client.GetStatus(); err == nil {
+			panicMode = status.Panic
+		}
+	}
+
 	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
 	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
 
@@ -397,6 +419,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Strings: clientStrings(tFunc),
 		Asset:   shared.CurrentVersion,
 		Data:    data,
+		Panic:   panicMode,
 	}
 
 	// Render into a buffer first. Executing straight into the ResponseWriter
@@ -531,6 +554,21 @@ var auditActionLabels = map[string]string{
 	"options_saved":    "audit_options_saved",
 	"settings_saved":   "audit_settings_saved",
 	"system_saved":     "audit_system_saved",
+
+	// Panic mode, and the boot-time enforcement it sits beside. All seven are
+	// written by internal/core (restore.go and firewall.go) — the four from
+	// the original panic-mode work plus three a later fix round added once
+	// the edge cases around a pending apply and a contested resume turned up.
+	// Left unregistered, each one still renders — actionLabel humanises an
+	// unknown identifier — but in whatever the raw snake_case says, in no
+	// language a translator chose.
+	"boot_enforced":          "audit_boot_enforced",
+	"boot_enforce_failed":    "audit_boot_enforce_failed",
+	"panic_engaged":          "audit_panic_engaged",
+	"panic_resumed":          "audit_panic_resumed",
+	"apply_refused_panic":    "audit_apply_refused_panic",
+	"rollback_skipped":       "audit_rollback_skipped",
+	"resume_restore_skipped": "audit_resume_restore_skipped",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall
@@ -550,6 +588,38 @@ var auditActionTones = map[string]string{
 	// The worst outcome there is: the new rules did not take and the old ones
 	// did not come back either.
 	"rollback_failed": "crit",
+
+	// boot_enforced / boot_enforce_failed: whether the stored rules made it
+	// back into the kernel at startup is exactly "is the firewall doing its
+	// job", the same question apply_accepted/apply_failed answer for a live
+	// apply. boot_enforce_failed is the one case on this whole list where
+	// nothing is worse: the machine came up and is not filtering, with no
+	// operator watching a page to notice.
+	"boot_enforced":       "ok",
+	"boot_enforce_failed": "crit",
+
+	// panic_engaged / panic_resumed: deliberate does not make it neutral. The
+	// rule is what the firewall is doing, not whether a human meant it —
+	// engaging panic mode is the machine going unfiltered, same as any other
+	// path that gets there, and resuming is it filtering again.
+	"panic_engaged": "crit",
+	"panic_resumed": "ok",
+
+	// resume_restore_skipped: the marker says panic mode ended, but the
+	// restore an apply was holding the slot for never ran — the machine is
+	// left exactly as unfiltered as boot_enforce_failed describes, just
+	// reached from Resume instead of startup. Same question, same answer.
+	"resume_restore_skipped": "crit",
+
+	// apply_refused_panic and rollback_skipped are deliberately absent, for
+	// the same reason rules_saved and the other staging actions above have no
+	// entry: neither one changes what the firewall is doing. A refused apply
+	// leaves the kernel exactly as it was; a rollback that Panic's own
+	// teardown has already made moot restores nothing because there is
+	// nothing left for it to restore over. Coloured, either would look like
+	// news about the firewall's state when the actual news — panic_engaged is
+	// already crit, resume_restore_skipped already crit if resume failed to
+	// undo it — is elsewhere in the same log.
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the

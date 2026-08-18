@@ -131,6 +131,33 @@ func (c *CoreClient) Accept() (bool, error) {
 	return result.Accepted, nil
 }
 
+// Panic takes the firewall down through the core. The web interface does not
+// offer this — `easywall-core panic` is the console tool — but the demo needs a
+// way to reach the state, and a client method that exists is easier to keep
+// honest than one that does not.
+func (c *CoreClient) Panic() error {
+	resp, err := c.Send(shared.Command{Type: shared.CmdPanic})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("core error: %s", resp.Error)
+	}
+	return nil
+}
+
+// Resume ends panic mode through the core.
+func (c *CoreClient) Resume() error {
+	resp, err := c.Send(shared.Command{Type: shared.CmdResume})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("core error: %s", resp.Error)
+	}
+	return nil
+}
+
 // GetOptions returns the current firewall options from the core config.
 func (c *CoreClient) GetOptions() (*shared.FirewallOptions, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdGetOptions})
