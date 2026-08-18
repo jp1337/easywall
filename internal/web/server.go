@@ -738,18 +738,31 @@ func detailLabel(tFunc func(string, ...interface{}) string, detail string) strin
 func actionTone(action string) string { return auditActionTones[action] }
 
 // shortTime renders a stored RFC 3339 timestamp the way someone reads a log:
-// clock time for today, day and month before that. The full value stays in the
-// element's title attribute where the templates use it, so nothing is lost.
+// clock time for today, day and month before that. The full stored value stays
+// in the element's title attribute where the templates use it, so the exact
+// instant is never lost.
 //
-// The offset carried in the stored string is preserved rather than converted —
-// it is the host's own local time, which is the frame an operator correlating
-// this against syslog is working in.
+// Converted into the zone this process runs in, which is a correction. It used
+// to preserve whatever offset the string carried, on the stated grounds that the
+// offset "is the host's own local time, which is the frame an operator
+// correlating this against syslog is working in". The reasoning was sound and
+// the premise was not: the core writes UTC and nothing else — rules.go:319 for
+// every audit entry, firewall.go:286 for the last apply — so preserving the
+// offset meant displaying UTC to everybody. journalctl beside it shows local
+// time, so the two disagreed by the host's whole offset, and
+// features/audit-log.md told anyone who noticed to run `timedatectl
+// set-timezone`, which could not affect it.
+//
+// Storage stays UTC. One unambiguous instant on disk is right for an audit log,
+// and it is the only form that survives a daylight-saving boundary without
+// argument. This is a display decision and it belongs here.
 func shortTime(v string) string {
 	t, err := time.Parse(time.RFC3339, v)
 	if err != nil {
 		return v // not a timestamp we recognise; show it untouched
 	}
-	now := time.Now().In(t.Location())
+	t = t.Local()
+	now := time.Now()
 	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
 		return t.Format("15:04:05")
 	}
