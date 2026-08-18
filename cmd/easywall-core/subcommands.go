@@ -44,7 +44,7 @@ const (
 // for a CmdPanic/CmdResume it dispatched, so panic_engaged and panic_resumed
 // can come from two different processes; the log has to say which one wrote
 // a given line without an operator having to guess from the timestamp.
-const auditUserNoDaemon = "console (no daemon)"
+const auditUserNoDaemon = "console-no-daemon"
 
 // runSubcommand executes one console subcommand and returns the process exit
 // code. Writers are parameters so the tests can read what an operator would see.
