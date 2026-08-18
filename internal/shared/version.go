@@ -26,7 +26,7 @@ import (
 // stylesheet URL never changed across an upgrade even though it is versioned
 // precisely so that it does. `easywall-core --version` prints this, so a build
 // can be checked rather than assumed.
-var CurrentVersion = "2.6.0"
+var CurrentVersion = "2.7.0"
 
 const (
 	// cacheMaxAge is how long a successful check is trusted.

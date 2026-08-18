@@ -108,7 +108,7 @@ func TestAStatusPollStillGivesUpQuickly(t *testing.T) {
 // And the coupling itself: whatever the two deadlines become, the client's has
 // to outlast what the core is allowed to spend, or the same bug returns.
 func TestTheClientOutwaitsWhatTheCoreMaySpendOnNft(t *testing.T) {
-	for _, cmd := range []shared.CommandType{shared.CmdImportRules, shared.CmdValidateCustom} {
+	for _, cmd := range []shared.CommandType{shared.CmdImportRules, shared.CmdValidateCustom, shared.CmdPanic} {
 		if got := shared.CommandTimeout(cmd); got <= shared.NftTimeout {
 			t.Errorf("%s: the client waits %s but the core may spend %s in nft — "+
 				"it would report a failure for work that then completes",
@@ -117,6 +117,9 @@ func TestTheClientOutwaitsWhatTheCoreMaySpendOnNft(t *testing.T) {
 	}
 	if shared.CommandTimeout(shared.CmdGetStatus) >= shared.NftTimeout {
 		t.Error("GET_STATUS runs no subprocess; it should not carry the nft deadline")
+	}
+	if shared.CommandTimeout(shared.CmdResume) >= shared.NftTimeout {
+		t.Error("RESUME returns immediately or queues briefly in beginApply; it should not carry the nft deadline")
 	}
 }
 

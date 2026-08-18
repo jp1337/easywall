@@ -35,6 +35,14 @@ type demoState struct {
 	// User identity recorded in audit log entries — overridable but
 	// "demo" by default since we don't have a real session here.
 	actor string
+
+	// panicMode mirrors shared.FirewallStatus.Panic. The demo has no kernel and
+	// no marker file, so this bool is the whole of panic mode here: CmdPanic
+	// sets it, CmdResume clears it, and statusLocked reports it the way the
+	// real core reports whatever EngagePanic/ClearPanic left on disk. Named
+	// panicMode rather than panic so nothing here reads like a call to the
+	// builtin.
+	panicMode bool
 }
 
 // newDemoState constructs the demo state machine and seeds it with a
@@ -160,9 +168,20 @@ func (d *demoState) seed() {
 	// Audit log: 18 entries spanning the last ~30 hours to simulate
 	// realistic operator activity (apply cycles, individual rule edits,
 	// option toggles, an import, a rollback). Newest first.
-	now := time.Now()
+	//
+	// UTC, exactly as the core writes it — core/rules.go:319 and
+	// core/firewall.go:286. The demo used to store local time, which made it the
+	// only installation whose stamps carried an offset other than Z, and
+	// therefore the one place shortTime's offset-preserving behaviour looked
+	// correct. A demo that does not behave like the product cannot be used to
+	// check the product.
+	now := time.Now().UTC()
 	d.auditLog = buildSeedAuditLog(now)
-	d.lastApply = now.Add(-2 * time.Hour).Format(time.RFC3339)
+
+	// Recent, not two hours stale. The demo is reset every few hours and this is
+	// the first number a visitor reads; opening on a last apply from two hours
+	// ago reads as an installation nobody is looking after.
+	d.lastApply = now.Add(-4 * time.Minute).Format(time.RFC3339)
 }
 
 // buildSeedAuditLog returns ~18 plausible audit entries, newest first.
@@ -183,8 +202,8 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		user     string
 	}
 	entries := []e{
-		{-2 * time.Hour, "apply_accepted", "", "", "demo"},
-		{-2*time.Hour - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
+		{-4 * time.Minute, "apply_accepted", "", "", "demo"},
+		{-4*time.Minute - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
 		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log", "demo"},
 		{-4 * time.Hour, "rules_saved", "blacklist", "+192.0.2.42", "demo"},
 		{-4*time.Hour - 12*time.Second, "rules_saved", "blacklist", "+192.0.2.118", "demo"},
@@ -195,8 +214,14 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32", "demo"},
 		{-12 * time.Hour, "rules_saved", "udp", "+51820", "demo"},
 		{-14 * time.Hour, "rules_imported", "", "rules-2026-05-02.json", "demo"},
-		{-18 * time.Hour, "apply_rolledback", "", "timeout", "demo"},
+		// The re-apply happened two minutes after the rollback it followed, which
+		// makes it the more recent of the pair — so in a newest-first list it goes
+		// above the rollback, not below. Listed the other way round for a while:
+		// same two offsets, swapped positions, and the log read as a rollback that
+		// happened after the apply it was rolling back, which is a sequence the
+		// real core cannot produce.
 		{-18*time.Hour + 2*time.Minute, "apply_accepted", "", "", "demo"},
+		{-18 * time.Hour, "apply_rolledback", "", "timeout", "demo"},
 		{-20 * time.Hour, "options_saved", "", "syn_flood_limit=100", "demo"},
 		{-24 * time.Hour, "rules_saved", "custom", "+1", "demo"},
 		{-26 * time.Hour, "apply_accepted", "", "", "demo"},
@@ -262,6 +287,10 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true, Data: raw}
 	case shared.CmdImportRules:
 		return d.handleImportRules(cmd.Payload)
+	case shared.CmdPanic:
+		return d.handlePanic()
+	case shared.CmdResume:
+		return d.handleResume()
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
 }
@@ -290,7 +319,13 @@ func (d *demoState) hasPendingLocked() bool {
 
 func (d *demoState) statusLocked() shared.FirewallStatus {
 	return shared.FirewallStatus{
-		Active:     true,
+		// The real core reports Active false the moment Panic tears the table
+		// down; there is no kernel here to ask, so panicMode is the only signal
+		// this mock has and Active follows its negation the same way the rest
+		// of this struct's derived fields (HasPending) follow the state
+		// underneath them rather than being tracked independently.
+		Active:     !d.panicMode,
+		Panic:      d.panicMode,
 		Acceptance: d.acceptance,
 		HasPending: d.hasPendingLocked(),
 		LastApply:  d.lastApply,
@@ -301,7 +336,7 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 // the real core's behavior.
 func (d *demoState) audit(action, ruleType, detail string) {
 	e := shared.AuditLogEntry{
-		Time:     time.Now().Format(time.RFC3339),
+		Time:     time.Now().UTC().Format(time.RFC3339),
 		Action:   action,
 		RuleType: ruleType,
 		Detail:   detail,
@@ -383,6 +418,16 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 }
 
 func (d *demoState) handleApplyRules() shared.Response {
+	// Refused for the same reason the real core refuses it: a human at the
+	// console took the firewall down on purpose, and the web interface does
+	// not get to override that by pushing a new apply through. Checked before
+	// the acceptance-window refusal below because panic mode outranks it —
+	// the marker, not any in-flight window, is what decides whether an apply
+	// may run at all.
+	if d.panicMode {
+		return shared.Response{Success: false, Error: shared.ErrPanicEngagedText}
+	}
+
 	// Refused while a window is open, exactly as the core refuses it. The demo
 	// used to accept it and silently restart the window instead — a third
 	// behaviour, in the one place where visitors form their idea of what the
@@ -417,7 +462,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 		d.acceptanceTimer = time.AfterFunc(dur, d.rollback)
 	} else {
 		d.audit("apply_started", "all", "acceptance window disabled — applied without confirmation")
-		d.lastApply = time.Now().Format(time.RFC3339)
+		d.lastApply = time.Now().UTC().Format(time.RFC3339)
 		d.audit("apply_accepted", "all", "no confirmation required")
 		d.acceptance = shared.AcceptanceAccepted
 		// Match the real core: brief "accepted" pulse, then drop back to idle.
@@ -442,7 +487,7 @@ func (d *demoState) handleAccept() shared.Response {
 	}
 	// Confirmation is what makes an apply final, so this is where the log records
 	// it and where the dashboard's "last apply" is stamped.
-	d.lastApply = time.Now().Format(time.RFC3339)
+	d.lastApply = time.Now().UTC().Format(time.RFC3339)
 	d.audit("apply_accepted", "all", "")
 	d.acceptance = shared.AcceptanceAccepted
 	go d.delayedReset()
@@ -533,5 +578,24 @@ func (d *demoState) handleImportRules(payload []byte) shared.Response {
 	d.rules.Staged = imported
 	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
 		len(imported.TCP), len(imported.UDP), len(imported.Blacklist), len(imported.Whitelist)))
+	return shared.Response{Success: true}
+}
+
+// handlePanic mirrors core.Firewall.Panic for a visitor with no kernel behind
+// them: there is no table to tear down, so setting panicMode and writing the
+// same audit action the real core writes is the whole of it.
+func (d *demoState) handlePanic() shared.Response {
+	d.panicMode = true
+	d.audit("panic_engaged", "all", "the firewall was taken down from the console")
+	return shared.Response{Success: true}
+}
+
+// handleResume mirrors core.Firewall.Resume. The real core restores the
+// stored rules from disk here; the demo has no disk-backed "current" separate
+// from what panicMode already suppresses, so clearing the flag is the
+// restore.
+func (d *demoState) handleResume() shared.Response {
+	d.panicMode = false
+	d.audit("panic_resumed", "all", "panic mode was ended from the console")
 	return shared.Response{Success: true}
 }

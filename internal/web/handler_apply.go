@@ -35,8 +35,15 @@ func (s *Server) handleApplyStart(w http.ResponseWriter, r *http.Request) {
 		// started. The page hides the Start button in that state, so getting
 		// here means a second tab, a double submit, or the back button.
 		flash := "apply_error"
-		if strings.Contains(err.Error(), shared.ErrApplyInProgressText) {
+		switch {
+		case strings.Contains(err.Error(), shared.ErrApplyInProgressText):
 			flash = "apply_already_running"
+		// A human took the firewall down at the console. The web interface may
+		// not be the thing that re-arms it — that refusal is core.ErrPanicEngaged,
+		// not a bug — so the operator needs to be told why, not handed the same
+		// text a broken socket would produce.
+		case strings.Contains(err.Error(), shared.ErrPanicEngagedText):
+			flash = "apply_panic_engaged"
 		}
 		s.setFlash(w, r, flash)
 		http.Redirect(w, r, "/apply", http.StatusSeeOther)

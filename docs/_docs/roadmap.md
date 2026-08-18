@@ -1,44 +1,74 @@
 ---
 layout: default
 title: Roadmap
-description: What is planned, in which order, and why that order — correctness before reach.
+description: Twelve releases, ordered by exposure — the holes first, then comprehension, then reach.
 ---
 
 # Roadmap
 
 Correctness first: a firewall that quietly does less than it says is worse than
-one that does less and says so.
+one that does less and says so. What follows is planned in this order, not
+promised in it — it gets corrected when something changes rather than quietly
+ageing, which is exactly the failure the version before this one demonstrated.
+
+**Ordering principle: by exposure.** The two holes an attacker could actually
+walk through come first, then the releases that help you understand what you
+are doing, then the ones that let you maintain it, then reach:
+
+```
+Close the exposure       2.7   The firewall survives a reboot
+                          2.8   A second factor
+
+Understand what you do   2.9   What changes is on the screen
+                          2.10  A rule names a service and who may reach it
+                          2.11  You can see it working
+                          2.12  When something happens, you hear about it
+
+Be able to maintain it    2.13  Every entry has a why and an until
+                          2.14  Whoever knocks gets locked out
+                          2.15  Other people's lists, and countries
+
+Reach further             2.16  Outbound traffic
+                          2.17  More than one account
+                          3.0   Reachable from outside
+```
+
+One theme per release, sayable in one sentence — the changelog heading then
+writes itself. A model change travels with the feature that justifies it, never
+earlier as an end in itself and never twice.
 
 | Version | What | Why it comes when it does |
 |---|---|---|
-| **2.7** | **Proof, not counts** — tests that assert *meaning*, then real packets through a veth pair | The suite asserts rule counts today. A rule that dropped where it should accept would pass it |
-| **2.8** | **Identity** — a `user` field in the protocol, then login events, then multiple accounts, then 2FA | Every audit entry says `web` and logins are not recorded at all. The field must exist before login events mean anything, and a second factor on a single account is not worth much |
-| **2.9** | **Reach** — a REST API with token authentication for Ansible and scripting; Let's Encrypt/ACME as a strictly optional alternative to a reverse proxy | Built on the accounts from 2.8. Running with no outbound connection stays the default |
-| **2.9** | **Trusted reverse proxy**, opt-in — a list of proxy addresses whose `X-Forwarded-For` is believed | Behind a proxy today, every request looks like it comes from the proxy, so the login rate limit is shared by everyone. It must be a list of addresses and never a boolean: "trust the header" is the vulnerability, not the feature |
-| **2.10** | **Knowing how many machines this runs on** — an opt-in count | A critical bug matters differently at ten installations and at ten thousand, and right now nobody knows which this is |
+| **2.7** | **The firewall survives a reboot** — after a restart the rules that were last confirmed are in force again, with no acceptance window | Before this, a reboot emptied nftables and was the accidental way back into a machine your own rules had shut you out of. `easywall-core panic` replaces that on purpose, from the console — see [Recovery & Panic Mode]({{ '/docs/features/recovery/' | relative_url }}) |
+| **2.8** | **A second factor** — TOTP plus one-time recovery codes, and login events finally in the audit log | A stolen password alone opens everything today. The way back stays a line in `web.toml` — a second factor that needs a second emergency exit is not one |
+| **2.9** | **What changes is on the screen** — the difference between staged and current, before you press Apply, with a warning if it cuts the connection you are using | No protocol work needed; the data is already there. The warning is the real gain — knowing before the 120 seconds, not during them |
+| **2.10** | **A rule names a service and who may reach it** — a curated catalogue ("Pi-hole", "Home Assistant") with a suggested source, and a free-text option that stays | A catalogue entry without a source restriction is wrong for the interesting cases; shipping them apart would mean rewriting every entry a release later |
+| **2.11** | **You can see it working** — a counter on every rule, reset on each apply | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
+| **2.12** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
+| **2.13** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
+| **2.14** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |
+| **2.15** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
+| **2.16** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
+| **2.17** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
+| **3.0** | **Reachable from outside** — a REST API with token auth, ACME as an alternative to a reverse proxy, a trusted-proxy *list* rather than a boolean, and passkeys | A major version because an API is a second public interface and a compatibility promise easywall has not made before. Passkeys wait for a real hostname and certificate — WebAuthn rejects bare IP addresses as an RP ID |
 
-## On counting installations
+## Deliberately excluded
 
-Opt-in and not opt-out, because this site and [Security]({{ '/docs/security/' | relative_url }})
-promise that the update check is the *only* outbound request, and because an
-administrative interface quietly reporting to its author is the thing easywall
-removed Google Fonts to avoid. A security tool that has to explain a surprising
-connection has already lost the argument.
-
-What it sends is printed verbatim in
-[Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations): a
-random identifier generated on the machine, and the version. Enough to count
-distinct installations and to say "the fix reached 80% of them", and not enough to
-describe anyone.
-
-Worth checking first: the update check already reaches `api.github.com` daily from
-every installation that has not disabled it, and release assets record their own
-download counts. That is a usable lower bound today, for nothing.
+| | |
+|---|---|
+| SMTP notifications | Credentials in `web.toml`, foreign mail servers, deliverability — ntfy reaches the same phone without any of it |
+| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.14) |
+| Zones, on the firewalld model | easywall runs on hosts with one uplink; what zones would be for is covered by `routing.mode` |
+| Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
+| IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
+| Managing several hosts from one interface | The API in 3.0 makes Ansible possible. A fleet interface is a second product |
 
 ## Done in 2.6
 
 | | |
 |---|---|
+| Proof, not counts | `nftables_semantics_test.go` reads back `nft list table` and asserts verdicts, direction and evaluation order instead of a rule count; `nftables_forward_test.go` routes a real packet through the forward chain across a veth pair. A rule that dropped where it should accept used to pass — a count cannot see what a rule matches |
+| An opt-in count of installations | sends one request a day to `telemetry.wdkro.de` — a random identifier and the version, nothing else — and stays off until switched on. Withdrawable from the System page without needing the core reachable. Detail: [Security]({{ '/docs/security/' | relative_url }}#every-request-that-goes-out) |
 | The nine firewall limits | one table now carries the range for each; out of range from the interface is refused, out of range in the file is clamped and said out loud — a value too large used to wrap a 32-bit nftables field instead of failing |
 | The config file | ships as a template, not a dpkg conffile, so an upgrade that also changes the shipped default no longer stalls at a prompt with the old processes still serving |
 | The import timeout | matches what the core actually spends on `nft --check`, so a slow check is no longer reported to the operator as a failed import |

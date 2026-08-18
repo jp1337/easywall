@@ -60,6 +60,80 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 // Start creates the Unix socket and begins accepting connections.
 // Blocks until Stop() is called.
 func (d *Daemon) Start() error {
+	// If Stop already ran before the restore could start, do not restore.
+	// A daemon told to stop before it began must not start writing to the kernel.
+	d.mu.Lock()
+	select {
+	case <-d.quit:
+		d.mu.Unlock()
+		return nil
+	default:
+		d.mu.Unlock()
+	}
+
+	// One loud entry, once, if the panic marker cannot be read at all.
+	//
+	// PanicEngaged answers an unreadable marker with "engaged", so the restore
+	// below will decline to filter and the machine comes up open. That default
+	// is right — the alternative is filtering a machine somebody deliberately
+	// unfiltered — but it is indistinguishable from real panic mode everywhere
+	// an operator looks: the banner, `easywall-core status` and the status reply
+	// all read one boolean. Worse, the same unreadable marker reaches
+	// Firewall.rollback, which now goes ahead when the state is unknown
+	// precisely because it must not withdraw the acceptance window's undo on a
+	// permission fault. So the fault is reported here, in the audit log, with
+	// the path and the errno — the one place a fault this systemic is worth a
+	// line — rather than by every caller that trips over it.
+	//
+	// boot_enforce_failed, not an action of its own: the consequence is exactly
+	// what that action already means. The stored rules are not going into the
+	// kernel at this start, and it is already registered in auditActionLabels,
+	// auditActionTones, both locales and the documented colour table.
+	if _, known, markerErr := PanicState(d.cfg.PanicMarkerPath()); !known {
+		WriteAuditLog(d.cfg.AuditLogPath(), "boot_enforce_failed", "all",
+			fmt.Sprintf("%s: cannot read the panic marker %s: %v — the stored rules are "+
+				"not being restored, and this machine is not filtering",
+				RestoreReasonBoot, d.cfg.PanicMarkerPath(), markerErr), "core")
+	}
+
+	// Restore the stored rules before the listener is created. The socket is the
+	// only thing that makes this process observable, so putting the kernel work
+	// first ensures no client can observe a half-restored firewall by construction.
+	//
+	// There is a brief window of a few instructions between the quit check above
+	// and Add(1) below, but it is tolerable: a restore that installs the already-
+	// stored rules on a daemon that is shutting down leaves the kernel holding
+	// exactly what the machine is supposed to have, and the next start would do
+	// the same thing anyway.
+	//
+	// The WaitGroup exists so Stop() waits for kernel work, not for client connections.
+	// Its scope is the restore only, not the accept loop, so the counter is released
+	// the moment the restore returns. Extending it over the loop would couple
+	// shutdown correctness to Stop() closing the listener first, a dependency that
+	// is not obvious and should not exist.
+	d.wg.Add(1)
+	func() {
+		defer d.wg.Done()
+		if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
+			slog.Error("could not put the stored rules back at startup; this machine "+
+				"is not filtering — open the interface and apply, or run "+
+				"`easywall-core status` to see why", "error", err)
+		}
+	}()
+
+	// Tracked in wg so Stop waits for it rather than leaving it polling into a
+	// closed daemon. Deliberately outside the closure above: that one releases
+	// its wg slot the instant the boot restore returns, specifically so d.wg
+	// does not span the whole daemon lifetime (see the comment on it). This
+	// goroutine's job only starts once the boot restore has already run, and
+	// it can poll for up to reconcileWait — Stop has to wait for it to notice
+	// d.quit, not for the boot restore that came before it.
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		d.firewall.reconcileDockerBridges(d.quit)
+	}()
+
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
 
@@ -231,6 +305,21 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdApplyRules:
+		// Checked synchronously, before the slot and before the goroutine, for
+		// the same reason ErrApplyInProgress is checked synchronously below:
+		// the answer the caller needs is "did this start", and apply() already
+		// refuses this case on its own — but apply() runs inside the goroutine
+		// below, where its error is only logged. Without this, a browser
+		// clicking Apply while the console has run `panic` got back
+		// {"status":"started"} and never anything else; the operator had no
+		// way to learn their apply did nothing short of reading the daemon's
+		// own log. This check can still race a `panic` that lands after it and
+		// before beginApply — apply()'s own check is what closes that window;
+		// this one only makes the ordinary case visible.
+		if d.firewall.PanicEngaged() {
+			return errResp(ErrPanicEngaged)
+		}
+
 		// The slot is claimed here, synchronously, before anything is reported.
 		// This used to start the goroutine unconditionally and answer "started"
 		// every time, which was untrue for the second request: it did not start,
@@ -377,6 +466,18 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		result := shared.ValidateCustomResult{Errors: errs}
 		data, _ := json.Marshal(result)
 		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdPanic:
+		if err := d.firewall.Panic("console"); err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true}
+
+	case shared.CmdResume:
+		if err := d.firewall.Resume("console"); err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true}
 
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}

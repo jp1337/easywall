@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/nftables"
@@ -52,6 +53,22 @@ const (
 // It only ever touches "table inet easywall", leaving all other tables
 // (including Docker's chains) completely untouched.
 type NftablesManager struct {
+	// mu serialises every access to conn.
+	//
+	// Every writer used to funnel through Firewall's beginApply/endApply slot,
+	// one cycle at a time, so this connection never had two callers at once.
+	// Panic broke that: it has to be able to tear the table down while an
+	// apply already holds the slot — from the console, on demand, which is
+	// the entire point of a panic button — so it calls Reset() without ever
+	// taking it. Two goroutines on the same *nftables.Conn at once is not a
+	// data race the type happens to have; it corrupts the protocol. AddRule
+	// appends to a buffer shared by the connection, and Flush ships whatever
+	// is in that buffer and empties it for whoever calls Flush next — so
+	// goroutine A's Flush can send goroutine B's rules to the kernel, and
+	// goroutine B's own Flush then finds nothing queued and returns nil. A
+	// rollback reporting success having programmed nothing is worse than one
+	// that reports failure, because nothing afterwards ever looks again.
+	mu   sync.Mutex
 	conn *nftables.Conn
 }
 
@@ -86,6 +103,8 @@ func NewNftablesManager() (*NftablesManager, error) {
 // operator opens after a lockout, so a chain that is not there and a rule count
 // that was never read are the two worst things it could contain.
 func (m *NftablesManager) Snapshot() ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.conn == nil {
 		return nil, fmt.Errorf("nftables connection not available")
 	}
@@ -181,6 +200,8 @@ func tableFamilyName(f nftables.TableFamily) string {
 // confirm that a firewall is up is not the same as it being up, and the
 // dashboard should say so.
 func (m *NftablesManager) Enforcing() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.conn == nil {
 		return false
 	}
@@ -227,6 +248,24 @@ func (m *NftablesManager) Enforcing() bool {
 // Reset deletes and recreates the easywall table, giving us a clean slate.
 // All other tables (filter, nat, docker, etc.) are untouched.
 func (m *NftablesManager) Reset() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.reset()
+}
+
+// reset is Reset's body, split out so Apply can call it without taking mu a
+// second time.
+//
+// Apply used to call Reset() directly. Once Apply itself took the lock for
+// the whole cycle, that became Apply calling m.mu.Lock() and then, from
+// inside the same goroutine, Reset() calling m.mu.Lock() again — a plain
+// sync.Mutex is not reentrant, so the second Lock never returns. That is a
+// worse failure than anything this mutex exists to prevent: a wedged apply
+// does not time out, does not release beginApply's slot, and every method on
+// this type that also takes mu — including the one the dashboard's Status
+// polls every few seconds — hangs behind it forever. reset() assumes the
+// caller already holds mu; only Reset() and Apply() may call it.
+func (m *NftablesManager) reset() error {
 	if m.conn == nil {
 		return fmt.Errorf("nftables connection not available")
 	}
@@ -254,6 +293,53 @@ func (m *NftablesManager) Reset() error {
 // parameter too many — the caller already holds them together, and the three
 // of them describe one configuration that has to reach the kernel intact.
 func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, netCfg shared.NetworkSettings) error {
+	// Held for the whole cycle, deliberately including applyCustomRules'
+	// subprocess below — up to NftTimeout (30s) — and not just the netlink
+	// calls. The custom rules assume the table Apply just built is still
+	// there; releasing the lock in between would let a concurrent Reset()
+	// (Panic, from the console) delete it out from under the `nft -f -` that
+	// is still writing to it.
+	//
+	// The cost is on the read side: Enforcing(), which Status() calls, and
+	// Snapshot() both block for as long as this holds the lock — worst case a
+	// little over 30s, when a custom rule set is slow or the process has to be
+	// killed and waited out.
+	//
+	// Two commands reach this manager from the dispatch switch while an apply
+	// holds the lock, and they want opposite things:
+	//
+	//   - GET_STATUS, through Status() -> Enforcing(), which asks the kernel
+	//     whether the rules are live rather than inferring it from anything in
+	//     memory. It has the short shared.CommandTimeout (5s), so it is not
+	//     "the dashboard waits 30 seconds": the web process's read deadline
+	//     expires first and the operator is told the core is unreachable, until
+	//     the custom-rules step finishes and the next poll gets through.
+	//   - PANIC, through Firewall.Panic -> Reset(). It deliberately bypasses
+	//     beginApply so that it outranks a running apply rather than failing
+	//     fast, which means it *will* queue on this lock for up to NftTimeout.
+	//     That is why CommandTimeout puts it on the long deadline — three
+	//     commands are on it now, IMPORT_RULES, VALIDATE_CUSTOM and PANIC, not
+	//     the two nft-backed ones this comment used to name.
+	//
+	// APPLY_RULES and RESUME also end at this manager, but never behind this
+	// lock: both go through beginApply, which refuses immediately with
+	// ErrApplyInProgress while a cycle is running. Every other command touches
+	// only the rules store, the config or the audit log, on its own connection's
+	// goroutine, so nothing else is dragged behind this lock.
+	//
+	// One consequence for anyone tidying this up: Firewall.panicLandedDuringWrite
+	// calls Reset() straight after this method returns, which is safe only
+	// because the deferred Unlock below has already run. Moving that check inside
+	// Apply would take mu twice from one goroutine and wedge the daemon — the
+	// same non-reentrancy that produced reset() (see its comment).
+	//
+	// Correctness is not optional here; a status page that reports "unreachable"
+	// for a few seconds during a slow custom-rules apply is a cost worth paying
+	// for it — the alternative is Reset() deleting a table a subprocess is still
+	// writing to.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	ipv6, docker, routing := netCfg.IPv6, netCfg.Docker, netCfg.Routing
 	// Check the rules before Reset, not after: Reset deletes the table, so a
 	// failure past this point costs the working ruleset. The builders below
@@ -287,7 +373,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		routing.Mode = shared.RoutingClosed
 	}
 
-	if err := m.Reset(); err != nil {
+	if err := m.reset(); err != nil {
 		return fmt.Errorf("reset table: %w", err)
 	}
 

@@ -40,8 +40,13 @@ LABEL org.opencontainers.image.title="easywall" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 
-# nftables for firewall management; supervisor to run both processes; tini for signal handling
-RUN apk add --no-cache nftables supervisor tini && \
+# nftables for firewall management; supervisor to run both processes; tini for
+# signal handling; tzdata so TZ (docker-compose.yml) resolves to an actual
+# zone. Alpine carries none of the /usr/share/zoneinfo database by default —
+# without this package, Go's time.LoadLocation fails for anything but "UTC"
+# and "Local" silently means UTC regardless of what TZ says, which is a TZ
+# variable that looks respected and is not.
+RUN apk add --no-cache nftables supervisor tini tzdata && \
     addgroup -S easywall && \
     adduser  -S -G easywall easywall
 

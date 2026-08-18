@@ -210,7 +210,7 @@ func (c *Config) migrateIPv6Mode() {
 }
 
 // Reload re-reads the config file and adopts the sections that can change
-// while the daemon runs: [firewall], [acceptance], [ipv6] and [docker].
+// while the daemon runs: [firewall], [acceptance], [ipv6], [docker], and [routing].
 //
 // features/system-settings.md has always told operators to edit easywall.toml
 // and send SIGHUP. Nothing handled that signal, and an unhandled SIGHUP
@@ -278,6 +278,18 @@ func (c *Config) AuditLogPath() string {
 // the rules it referred to were still live.
 func (c *Config) LastApplyPath() string {
 	return c.DataDir + "/last_apply"
+}
+
+// PanicMarkerPath returns the path of the file that records panic mode.
+//
+// In the data directory rather than in this config file for two reasons, neither
+// of them about start-up ordering — the path is derived from DataDir here, so it
+// is only knowable once this config has parsed. A console command must not
+// rewrite the TOML the daemon owns and rewrites itself, and the web process must
+// never be able to engage or clear panic mode, which a settings key reachable
+// over the socket would let it do. See panicmode.go.
+func (c *Config) PanicMarkerPath() string {
+	return c.DataDir + "/panic"
 }
 
 // SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.

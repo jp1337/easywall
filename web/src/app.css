@@ -1171,6 +1171,55 @@ body {
     border-color: var(--color-state-ok);
   }
 
+  /* ── Panic banner ──────────────────────────────────────────────────────────
+     Rendered from inside "topbar" (base.html), so every authenticated page
+     carries it without asking. A strip, not a card: it sits flush under the
+     topbar rather than floating in the content column the way .alert does,
+     because this is not one page's message — it is true of the whole
+     installation. Same crit tokens as .alert-crit; panic mode does not get
+     its own colour, only its own shape. flex-wrap lets the command drop to
+     its own line on a narrow screen instead of colliding with the copy. */
+  .panic-banner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 18px;
+    background: var(--wash-crit);
+    border-bottom: 1px solid var(--color-state-crit);
+    color: var(--color-state-crit-on-wash);
+    font-size: 13px;
+  }
+
+  .panic-banner svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+  .panic-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .panic-banner-text strong { font-weight: 600; }
+
+  /* Pinned to the right on a wide screen, where there is room beside the
+     copy; margin-left: auto stops applying once the row wraps, so the
+     command does not leave a wide dead gap in front of it on a phone. */
+  .panic-banner-cmd {
+    margin-left: auto;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    font-family: var(--font-data);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 480px) {
+    .panic-banner-cmd { margin-left: 0; }
+  }
+
   /* ── Tabs ──────────────────────────────────────────────────────────────── */
   .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--color-rule); }
 

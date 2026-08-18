@@ -8,6 +8,13 @@ services:
     container_name: easywall
     restart: unless-stopped
 
+    environment:
+      # The interface renders timestamps in the container's zone. Without this
+      # the container is UTC, and an operator in another one reads every audit
+      # entry offset by their own — which is what happened before shortTime
+      # converted at all. Set it to yours.
+      - TZ=${TZ:-UTC}
+
     # nftables acts on the host's network namespace, so easywall shares it and
     # needs NET_ADMIN to issue the netlink calls that reach host tables.
     #
