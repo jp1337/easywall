@@ -18,9 +18,24 @@ import (
 // of. Restoring the rules at startup closes that door, and closing it without
 // opening another one would make easywall the thing it promises not to be.
 //
-// The marker is a file rather than a config key on purpose. It is written by a
-// console command, read at startup before anything else happens, and has to
-// survive a daemon that cannot parse its own configuration.
+// The marker is a file rather than a config key on purpose, and not for the
+// reason this comment used to give. It said the marker is read "before the
+// configuration has been proved usable" and "has to survive a daemon that cannot
+// parse its own configuration" — neither is true: cmd/easywall-core/main.go calls
+// cfg.Validate() before NewDaemon, and this marker's path is derived from
+// DataDir in that same validated config, so a daemon that cannot parse its
+// configuration cannot find the marker either.
+//
+// The real reasons are better ones. First, a console command must not rewrite
+// easywall.toml: that file belongs to the daemon, which reloads it on SIGHUP and
+// rewrites sections of it itself, and `easywall-core panic` has to work while a
+// daemon is running, mid-apply, or not running at all — three cases in which
+// editing a file another process owns is how configuration gets lost. Second,
+// the web process must never be able to engage or clear panic mode: it can write
+// settings *through the socket*, so a key in the TOML would be reachable by the
+// network-facing process and by a stolen session. A 0600 file in the data
+// directory is not, and that asymmetry is the point of the whole two-process
+// design.
 
 // PanicEngaged reports whether panic mode is in force.
 //

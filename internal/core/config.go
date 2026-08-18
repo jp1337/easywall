@@ -282,9 +282,12 @@ func (c *Config) LastApplyPath() string {
 
 // PanicMarkerPath returns the path of the file that records panic mode.
 //
-// In the data directory rather than the config file because it is written by a
-// console command and read at startup before the configuration has been proved
-// usable — see panicmode.go.
+// In the data directory rather than in this config file for two reasons, neither
+// of them about start-up ordering — the path is derived from DataDir here, so it
+// is only knowable once this config has parsed. A console command must not
+// rewrite the TOML the daemon owns and rewrites itself, and the web process must
+// never be able to engage or clear panic mode, which a settings key reachable
+// over the socket would let it do. See panicmode.go.
 func (c *Config) PanicMarkerPath() string {
 	return c.DataDir + "/panic"
 }
