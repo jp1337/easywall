@@ -120,6 +120,13 @@ func TestShortTime(t *testing.T) {
 	}
 }
 
+// These three assertions are about what zone the process runs in, so their
+// expectations depend on TZ at the time the test binary runs. Go's test result
+// cache does not key on TZ: `go test -run ShortTime` a second time under a
+// different TZ will happily return the previous run's cached PASS without
+// re-executing anything. Verifying this by hand across zones needs
+// `-count=1`, or the second and later runs prove nothing.
+//
 // A stored stamp is rendered in the zone the web process runs in, not in the
 // zone the string happens to carry.
 //
@@ -151,8 +158,20 @@ func TestShortTime_RendersInTheLocalZone(t *testing.T) {
 }
 
 // The case that produced the bug report: what the core actually stores.
+//
+// The instant is a couple of seconds in the past rather than "now" outright,
+// so parsing and formatting between the two Now() calls can't put it on the
+// wrong side of a boundary — but it is deliberately not offset by anything
+// round like 90 minutes. Any offset large enough to be memorable is also large
+// enough to land within that many minutes of local midnight somewhere in the
+// world the test runs, and then this test crosses a local day boundary and
+// fails for a reason that has nothing to do with shortTime. What is left is a
+// window of a few seconds around "now", which is honest: it can only fail in
+// the nanosecond slice of a run that straddles local midnight, and no
+// constant offset removes that, only widens it. Don't "fix" this back to a
+// round number.
 func TestShortTime_ConvertsTheUTCTheCoreWrites(t *testing.T) {
-	instant := time.Now().Add(-90 * time.Minute)
+	instant := time.Now().Add(-2 * time.Second)
 	stored := instant.UTC().Format(time.RFC3339) // exactly what rules.go:319 writes
 
 	want := instant.Local().Format("15:04:05")
@@ -165,12 +184,50 @@ func TestShortTime_ConvertsTheUTCTheCoreWrites(t *testing.T) {
 // "Today" is decided in the viewer's zone too. A stamp from 23:30 UTC is
 // tomorrow in Berlin, and rendering it as a bare clock time under yesterday's
 // date would be worse than the bug being fixed.
+//
+// This only checks that "now" reads as today, which holds for almost any
+// implementation and does not pin the defect this task exists to fix — see
+// TestShortTime_UTCEveningCrossesTheLocalDayInBerlin below for the
+// deterministic case that does.
 func TestShortTime_TodayIsDecidedInTheLocalZone(t *testing.T) {
 	now := time.Now()
 	stored := now.UTC().Format(time.RFC3339)
 
 	if got, want := shortTime(stored), now.Local().Format("15:04:05"); got != want {
 		t.Errorf("shortTime(now) = %q, want %q", got, want)
+	}
+}
+
+// The actual defect, pinned without depending on the clock or the machine's
+// zone: a UTC evening stamp whose local calendar day is already the next one.
+// 2020-06-15T23:30:00Z is 2020-06-16 01:30 in Berlin — a different day. 2020 is
+// also a different year from whenever this test runs, so shortTime always
+// takes its "2 Jan 2006 15:04" branch here regardless of the current date —
+// the expected string is fully determined and asserted as a literal, not
+// computed at runtime.
+//
+// Getting a fixed, non-host zone requires mutating the package-level
+// time.Local, which time.Time.Local() and time.Now() both read implicitly —
+// there is no other way to make "this host's local zone" deterministic without
+// threading a zone through shortTime's signature, which the brief does not
+// ask for. The deferred restore is not optional: leaving time.Local pointed at
+// Berlin would silently change what "local" means for every other test in
+// this package that runs afterward, including the ones above that depend on
+// the real host zone.
+func TestShortTime_UTCEveningCrossesTheLocalDayInBerlin(t *testing.T) {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatalf("LoadLocation: %v", err)
+	}
+	old := time.Local
+	time.Local = berlin
+	defer func() { time.Local = old }()
+
+	const stamp = "2020-06-15T23:30:00Z"
+	const want = "16 Jun 2020 01:30" // one day later, local, than the UTC date in the stamp
+	if got := shortTime(stamp); got != want {
+		t.Errorf("shortTime(%q) = %q, want %q — 23:30 UTC is already the 16th in Berlin",
+			stamp, got, want)
 	}
 }
 
