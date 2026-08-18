@@ -78,3 +78,23 @@ func TestConfig_PanicMarkerPath(t *testing.T) {
 		t.Errorf("PanicMarkerPath() = %q, want %q", got, want)
 	}
 }
+
+// The marker is 0600, and nothing in EngagePanic asks for that any more: the
+// explicit tmp.Chmod(0o600) was dropped because os.CreateTemp already opens the
+// file with that mode, and every extra syscall in this function is another way
+// for the one command an operator runs when nothing else works to fail. That
+// makes the mode an inherited property rather than a stated one, so it gets a
+// test of its own.
+func TestPanicMarker_IsNotReadableByTheWebProcess(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "panic")
+	if err := EngagePanic(marker); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+	info, err := os.Stat(marker)
+	if err != nil {
+		t.Fatalf("stat marker: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("panic marker mode = %04o, want 0600 — only the core reads this path", got)
+	}
+}

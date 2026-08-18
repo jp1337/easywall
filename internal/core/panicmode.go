@@ -53,20 +53,35 @@ func PanicEngaged(markerPath string) bool {
 // all is a complete one. A half-written marker would still read as engaged, so
 // the atomicity buys little today — it buys everything the moment anything is
 // ever stored inside it.
+//
+// Both fsyncs are load-bearing, and the promise printed at the console is why.
+// `easywall-core panic` tells the operator the machine "stays that way across a
+// restart"; a rename that is only in the page cache keeps that promise for a
+// clean shutdown and breaks it for the one that matters. On ext4 defaults the
+// directory entry can sit unwritten for the whole commit interval, and the next
+// thing a locked-out operator does is cut the power — after which the machine
+// comes up, finds no marker, restores the rules that shut them out, and this
+// release has no escape route left to offer. So: the file's own data first
+// (Sync before Close), then the directory that names it (a rename is a
+// directory operation, and syncing the file does not commit the entry that
+// points at it). Anything less means the marker is durable only by luck.
 func EngagePanic(markerPath string) error {
 	dir := filepath.Dir(markerPath)
+	// 0600 without a Chmod: os.CreateTemp already creates the file with mode
+	// 0600, so an explicit tmp.Chmod added nothing but two more ways for
+	// `panic` — the command an operator runs when nothing else works — to fail.
+	// Only the core reads this path; the web process learns about panic mode
+	// over the socket, in the status reply, and never opens it.
 	tmp, err := os.CreateTemp(dir, "panic-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create panic marker: %w", err)
 	}
 	tmpPath := tmp.Name()
 
-	// 0600: only the core reads it. The web process learns about panic mode over
-	// the socket, in the status reply, and never opens this path.
-	if err := tmp.Chmod(0o600); err != nil {
+	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("set panic marker mode: %w", err)
+		return fmt.Errorf("flush panic marker: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpPath)
@@ -76,7 +91,37 @@ func EngagePanic(markerPath string) error {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("place panic marker: %w", err)
 	}
+	if err := syncDir(dir); err != nil {
+		// Logged, not returned, and the marker is not undone. The rename has
+		// already happened, so panic mode is in force for this boot whatever
+		// the directory sync did; all that is uncertain is whether it survives
+		// a power cut. Returning an error here would make Firewall.Panic give
+		// up *before* tearing the table down — refusing an operator the escape
+		// they are asking for right now, on a filesystem quirk, to protect a
+		// guarantee about a reboot that has not happened yet. Wrong trade in
+		// the wrong direction.
+		slog.Error("the panic marker is in place but its directory entry could not be "+
+			"flushed to disk; panic mode holds for this boot, but a hard power cut "+
+			"before the filesystem commits could lose it and the rules would come "+
+			"back on the next start",
+			"marker", markerPath, "error", err)
+	}
 	return nil
+}
+
+// syncDir commits a directory entry — the half of a rename that fsyncing the
+// file itself does not cover.
+func syncDir(dir string) error {
+	// #nosec G304 -- dir is the data directory from the daemon's own config
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	if err := d.Sync(); err != nil {
+		_ = d.Close()
+		return err
+	}
+	return d.Close()
 }
 
 // ClearPanic removes the marker. A marker that is not there is the state the
