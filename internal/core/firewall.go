@@ -320,7 +320,39 @@ func (f *Firewall) apply(user string) error {
 // was the original error. A failed rollback gets its own audit entry, because
 // it is the line an operator needs to find first.
 func (f *Firewall) rollback(previous shared.RulesState, user string) {
-	// The check that makes Panic's marker authoritative rather than advisory.
+	var failures []string
+
+	// The rules file is reverted first, and unconditionally. Panic mode does
+	// not get a say in it — read the next paragraph before adding one, because
+	// this used to be a single early return above this line and it broke the
+	// invariant the whole 2.7 release stands on.
+	//
+	// What went wrong: an apply cuts the operator's own SSH. BackupCurrent puts
+	// the last confirmed set in Backup, PromoteStaged makes Current the
+	// *unconfirmed* set, and the window opens. The operator reaches the console
+	// and runs `panic`: the marker goes on disk, the window is cancelled, the
+	// table comes down. Wait() returns false, so the apply calls this function
+	// to undo itself — and the old guard returned here, before the file was
+	// touched. Current was left holding a set nobody ever confirmed, Staged
+	// equalled it so HasPendingChanges reported nothing outstanding, and the
+	// next `resume` installed that set with no acceptance window, because
+	// RestoreCurrent's whole justification is that Current has already survived
+	// one. It had not. The operator was locked out again with every escape gone:
+	// a reboot now restores, a restore opens no window, and an apply is refused
+	// while the marker is there, so the staged correction could not be applied
+	// either.
+	//
+	// RulesStore.Rollback is a pure file operation — state.Current =
+	// state.Backup and an atomic rewrite. It cannot fight Panic's teardown,
+	// because it never speaks to the kernel. Only f.nft.Apply below can, so
+	// only f.nft.Apply is guarded.
+	if err := f.rules.Rollback(); err != nil {
+		slog.Error("rollback rules file failed", "error", err)
+		failures = append(failures, "rules file: "+err.Error())
+	}
+
+	// The check that makes Panic's marker authoritative rather than advisory,
+	// for the kernel half only.
 	//
 	// Panic does not take the apply slot — it has to be able to interrupt a
 	// cycle that already holds it, from the console, which is the whole point
@@ -336,17 +368,10 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 	// called.
 	if f.PanicEngaged() {
 		WriteAuditLog(f.cfg.AuditLogPath(), "rollback_skipped", "all",
-			"panic mode is engaged, so the previous rules were not restored", user)
-		return
-	}
-
-	var failures []string
-
-	if err := f.rules.Rollback(); err != nil {
-		slog.Error("rollback rules file failed", "error", err)
-		failures = append(failures, "rules file: "+err.Error())
-	}
-	if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
+			"panic mode is engaged ("+f.cfg.PanicMarkerPath()+"): the stored rules were "+
+				"reverted to the set in force before this apply, and the kernel was "+
+				"left torn down", user)
+	} else if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 		slog.Error("rollback nftables failed", "error", err)
 		failures = append(failures, "nftables: "+err.Error())
 	}

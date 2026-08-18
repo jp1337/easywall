@@ -11,8 +11,9 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// auditActions returns the action of every entry in the test config's audit log.
-func auditActions(t *testing.T, cfg *Config) []string {
+// auditEntries returns every entry in the test config's audit log, in the order
+// it was written.
+func auditEntries(t *testing.T, cfg *Config) []shared.AuditLogEntry {
 	t.Helper()
 	data, err := os.ReadFile(cfg.AuditLogPath())
 	if os.IsNotExist(err) {
@@ -21,7 +22,7 @@ func auditActions(t *testing.T, cfg *Config) []string {
 	if err != nil {
 		t.Fatalf("read audit log: %v", err)
 	}
-	var actions []string
+	var entries []shared.AuditLogEntry
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
 		if line == "" {
 			continue
@@ -30,6 +31,16 @@ func auditActions(t *testing.T, cfg *Config) []string {
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			t.Fatalf("audit line is not JSON: %q", line)
 		}
+		entries = append(entries, e)
+	}
+	return entries
+}
+
+// auditActions returns the action of every entry in the test config's audit log.
+func auditActions(t *testing.T, cfg *Config) []string {
+	t.Helper()
+	var actions []string
+	for _, e := range auditEntries(t, cfg) {
 		actions = append(actions, e.Action)
 	}
 	return actions
@@ -347,5 +358,91 @@ func TestResume_ClearsTheMarker(t *testing.T) {
 	got := auditActions(t, cfg)
 	if len(got) == 0 || got[0] != "panic_resumed" {
 		t.Errorf("want panic_resumed first, got %v", got)
+	}
+}
+
+// A rollback interrupted by panic mode must still revert the rules file.
+//
+// This is the invariant RestoreCurrent's missing acceptance window rests on:
+// Current is a set that has already survived a window. The panic guard used to
+// return before the file revert as well as before the kernel write, which left
+// Current holding the set the operator had just been cut off by — unconfirmed,
+// equal to Staged so the dashboard reported nothing outstanding, and reinstalled
+// with no window by the next `resume`.
+func TestRollback_UnderPanicStillRevertsTheRulesFile(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	// The state after a confirmed apply: Current is the set that works.
+	works := []shared.PortRule{{Port: "22", Description: "ssh"}}
+	if err := fw.rules.SaveStaged("tcp", works); err != nil {
+		t.Fatalf("stage the working rules: %v", err)
+	}
+	if err := fw.rules.BackupCurrent(); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+	if err := fw.rules.PromoteStaged(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+
+	// The apply that cuts the operator off: staged, backed up, promoted, window
+	// open. `previous` is what Firewall.apply captures before promoting.
+	locksMeOut := []shared.PortRule{{Port: "9999", Description: "not ssh"}}
+	if err := fw.rules.SaveStaged("tcp", locksMeOut); err != nil {
+		t.Fatalf("stage the bad rules: %v", err)
+	}
+	previous, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatalf("read the pre-apply state: %v", err)
+	}
+	if err := fw.rules.BackupCurrent(); err != nil {
+		t.Fatalf("backup: %v", err)
+	}
+	if err := fw.rules.PromoteStaged(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+
+	// The operator reaches the console and runs `panic`.
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatalf("EngagePanic: %v", err)
+	}
+
+	fw.rollback(previous, "web")
+
+	state, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatalf("read the state after the rollback: %v", err)
+	}
+	if len(state.Current.TCP) != 1 || state.Current.TCP[0].Port != "22" {
+		t.Errorf("Current after a panic-interrupted rollback = %+v, want the pre-apply set "+
+			"(port 22); an unconfirmed set left in Current is restored with no acceptance "+
+			"window at the next boot or resume", state.Current.TCP)
+	}
+
+	pending, err := fw.rules.HasPendingChanges()
+	if err != nil {
+		t.Fatalf("HasPendingChanges: %v", err)
+	}
+	if !pending {
+		t.Error("HasPendingChanges must be true again after the revert — the operator's " +
+			"staged correction is still waiting, and the dashboard has to say so")
+	}
+
+	// The kernel half must not have been attempted: the test firewall has a nil
+	// netlink connection, so an attempt shows up as rollback_failed.
+	var sawSkip bool
+	for _, e := range auditEntries(t, cfg) {
+		switch e.Action {
+		case "rollback_skipped":
+			sawSkip = true
+			if !strings.Contains(e.Detail, cfg.PanicMarkerPath()) {
+				t.Errorf("the rollback_skipped detail must name the marker that caused it, got %q", e.Detail)
+			}
+		case "rollback_failed":
+			t.Errorf("the rollback touched nftables while panic mode was engaged: %q", e.Detail)
+		}
+	}
+	if !sawSkip {
+		t.Error("a rollback that left the kernel torn down must say so in the audit log")
 	}
 }
