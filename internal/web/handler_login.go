@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/sessions"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func (s *Server) handleLoginGET(w http.ResponseWriter, r *http.Request) {
@@ -44,6 +46,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	usernameOK := subtle.ConstantTimeCompare([]byte(username), []byte(wantUser)) == 1
 
 	if !usernameOK || !passwordOK {
+		s.recordLoginEvent(r, shared.EvLoginFailed, 0)
 		s.setFlash(w, r, "invalid_credentials")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -62,6 +65,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = sess.Save(r, w)
 
+	s.recordLoginEvent(r, shared.EvLoginOK, 0)
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }
 
@@ -78,5 +82,6 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	sess.Options.MaxAge = -1
 	_ = sess.Save(r, w)
+	s.recordLoginEvent(r, shared.EvLogout, 0)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

@@ -108,8 +108,14 @@ type rateBucket struct {
 	lastSeen time.Time
 }
 
-// LoginRateLimit limits login attempts to 5 requests per 10 minutes per source IP.
-func LoginRateLimit(next http.Handler) http.Handler {
+// LoginRateLimit limits login attempts to 5 requests per 10 minutes per source
+// IP, and calls onBlocked with the address each time it refuses one.
+//
+// The callback exists because login_ratelimited originates here and this file
+// must not know about CoreClient: a middleware that reaches for the core is a
+// middleware that cannot be tested without one, and the separation is the same
+// one the whole two-process design rests on. onBlocked may be nil.
+func LoginRateLimit(onBlocked func(ip string)) func(http.Handler) http.Handler {
 	// Start the cleanup goroutine exactly once for the process lifetime,
 	// regardless of how many times this middleware factory is called (e.g. in tests).
 	loginLimiter.once.Do(func() {
@@ -128,30 +134,35 @@ func LoginRateLimit(next http.Handler) http.Handler {
 		}()
 	})
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			ip = r.RemoteAddr
-		}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip, _, err := net.SplitHostPort(r.RemoteAddr)
+			if err != nil {
+				ip = r.RemoteAddr
+			}
 
-		loginLimiter.mu.Lock()
-		b, ok := loginLimiter.buckets[ip]
-		if !ok {
-			// 5 tokens, refills at 1 token per 2 minutes (5 per 10 min)
-			b = &rateBucket{lim: rate.NewLimiter(rate.Every(2*time.Minute), 5)}
-			loginLimiter.buckets[ip] = b
-		}
-		b.lastSeen = time.Now()
-		allowed := b.lim.Allow()
-		loginLimiter.mu.Unlock()
+			loginLimiter.mu.Lock()
+			b, ok := loginLimiter.buckets[ip]
+			if !ok {
+				// 5 tokens, refills at 1 token per 2 minutes (5 per 10 min)
+				b = &rateBucket{lim: rate.NewLimiter(rate.Every(2*time.Minute), 5)}
+				loginLimiter.buckets[ip] = b
+			}
+			b.lastSeen = time.Now()
+			allowed := b.lim.Allow()
+			loginLimiter.mu.Unlock()
 
-		if !allowed {
-			slog.Warn("login rate limit exceeded", "ip", ip)
-			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+			if !allowed {
+				slog.Warn("login rate limit exceeded", "ip", ip)
+				if onBlocked != nil {
+					onBlocked(ip)
+				}
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // MaxBodySize limits request bodies to avoid memory exhaustion. Paths listed in

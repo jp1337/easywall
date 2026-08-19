@@ -89,6 +89,11 @@ type Server struct {
 	telemetry     *shared.Reporter
 	telemetryStop chan struct{}
 	telemetryOnce sync.Once
+
+	// events carries login events to the core without a request waiting on one.
+	events     *auditEvents
+	eventsStop chan struct{}
+	eventsOnce sync.Once
 }
 
 // NewServer initialises the web server with all dependencies.
@@ -131,6 +136,9 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetry = shared.NewReporter(cfg.TelemetryStatePath(), cfg.TelemetryEnabled)
 		s.telemetryStop = make(chan struct{})
 	}
+
+	s.events = newAuditEvents(client)
+	s.eventsStop = make(chan struct{})
 
 	// Non-fatal here so tests can build a Server without the asset tree; Start()
 	// refuses to serve without it.
@@ -214,6 +222,7 @@ func (s *Server) Start() error {
 	if s.telemetry != nil {
 		go s.telemetry.Run(s.telemetryStop)
 	}
+	go s.events.run(s.eventsStop)
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
 	if err := s.httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTPS server: %w", err)
@@ -226,6 +235,9 @@ func (s *Server) Stop() {
 	s.certs.close()
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
+	}
+	if s.eventsStop != nil {
+		s.eventsOnce.Do(func() { close(s.eventsStop) })
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -261,7 +273,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
-		r.With(LoginRateLimit).Post("/login", s.handleLoginPOST)
+		r.With(LoginRateLimit(s.onLoginBlocked)).Post("/login", s.handleLoginPOST)
 		// POST, so CrossOriginProtection covers it. It was a GET, and that
 		// middleware exempts safe methods by design — measured: a request
 		// carrying Origin: https://evil.example and Sec-Fetch-Site: cross-site
@@ -364,6 +376,25 @@ func staticCacheHeaders(next http.Handler) http.Handler {
 // time.
 func (s *Server) currentCredential() func() string {
 	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
+}
+
+// recordLoginEvent is the shape every handler calls: it takes the address off
+// the request and hands the event to the buffered dispatcher.
+func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left int) {
+	if s.events == nil {
+		return // a Server built by a test that does not care about events
+	}
+	s.events.Record(ev, clientIP(r), left)
+}
+
+// onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is
+// supplied by the server when it builds the router, so middleware.go stays free
+// of the client.
+func (s *Server) onLoginBlocked(ip string) {
+	if s.events == nil {
+		return
+	}
+	s.events.Record(shared.EvRateLimited, ip, 0)
 }
 
 // render executes a named template with common page data.
