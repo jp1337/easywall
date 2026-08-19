@@ -428,3 +428,16 @@ func errorRespFor(msg string) shared.Response {
 // urlEncode escapes a value for a form body. Rule editors post JSON in a hidden
 // field, which contains braces and quotes.
 func urlEncode(v string) string { return url.QueryEscape(v) }
+
+// newDemoTestServer builds a Server the way demo_mode = true builds one: the
+// in-memory mock behind the client, and cfg.DemoMode set, so a handler asking
+// "am I the demo" gets the same answer production gives it.
+func newDemoTestServer(t *testing.T) *Server {
+	t.Helper()
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	s.cfg.DemoMode = true
+	s.client = NewDemoClient()
+	s.router = s.buildRouter(s.cfg)
+	return s
+}
