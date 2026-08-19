@@ -737,7 +737,7 @@ var auditActionTones = map[string]string{
 	//
 	// None of the nine login events is here either, and for the same reason as
 	// apply_refused_panic and rollback_skipped above: a login does not change
-	// what the firewall is doing. It is read, not signalled. That 2.12 will push
+	// what the firewall is doing. It is read, not signalled. That 2.13 will push
 	// a notification on repeated login_failed is not a contradiction — a
 	// notification is not a colour.
 }

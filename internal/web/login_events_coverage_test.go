@@ -41,7 +41,7 @@ func TestEveryLoginEventIsLabelledDocumentedAndTranslated(t *testing.T) {
 }
 
 // None of the nine gets a colour. The rule is what the firewall is doing, and a
-// failed login is read, not signalled. That 2.12 will push a notification on
+// failed login is read, not signalled. That 2.13 will push a notification on
 // login_failed is not a contradiction: a notification is not a colour.
 func TestNoLoginEventIsColoured(t *testing.T) {
 	for _, ev := range shared.AllLoginEvents {
