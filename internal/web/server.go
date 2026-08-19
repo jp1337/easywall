@@ -69,9 +69,12 @@ type PageData struct {
 
 // Server is the easywall web frontend.
 type Server struct {
-	cfg     *Config
-	client  *CoreClient
-	store   sessions.Store
+	cfg    *Config
+	client *CoreClient
+	store  sessions.Store
+	// pending holds the login's intermediate state. Separate from store on
+	// purpose — see newPendingStore.
+	pending sessions.Store
 	bundle  *i18n.Bundle
 	tmpl    *template.Template
 	router  chi.Router
@@ -110,6 +113,7 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	store := newSessionStore(cfg.SessionKey)
+	pending := newPendingStore(cfg.SessionKey)
 
 	bundle := NewBundle(cfg.LocalesDir())
 
@@ -117,6 +121,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		cfg:     cfg,
 		client:  client,
 		store:   store,
+		pending: pending,
 		bundle:  bundle,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:   certs,

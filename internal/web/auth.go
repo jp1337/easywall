@@ -65,6 +65,36 @@ func newSessionStore(key string) *sessions.CookieStore {
 	return store
 }
 
+// newPendingStore builds the store for the login's intermediate state.
+//
+// Separate from the session store, and every difference is deliberate:
+//
+//   - Path "/login", so the cookie is sent to /login and /login/verify and
+//     nowhere else. A half-login has no business appearing in a proxy log for
+//     /ports.
+//   - MaxAge pendingLifetime, three minutes: long enough to read a code off a
+//     phone, short enough that a shoulder-surfed screen is not a standing
+//     invitation.
+//   - store.MaxAge, never Options.MaxAge — for the reason newSessionStore
+//     spells out above. Assigning a fresh Options struct leaves the codec's own
+//     thirty-day max age in place, and a three-minute cookie the *server*
+//     accepts for a month is the same bug that made logging out temporary.
+//
+// It is a cookie rather than a server-side table because unauthenticated
+// requests create it: a map any stranger can fill is memory any stranger
+// occupies.
+func newPendingStore(key string) *sessions.CookieStore {
+	store := sessions.NewCookieStore([]byte(key))
+	store.Options = &sessions.Options{
+		Path:     "/login",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	store.MaxAge(pendingLifetime)
+	return store
+}
+
 // credentialFingerprint derives a short, non-reversible marker from the stored
 // password hash.
 //
