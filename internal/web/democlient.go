@@ -291,6 +291,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handlePanic()
 	case shared.CmdResume:
 		return d.handleResume()
+	case shared.CmdLogEvent:
+		return d.handleLogEvent(cmd.Payload)
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
 }
@@ -597,5 +599,29 @@ func (d *demoState) handlePanic() shared.Response {
 func (d *demoState) handleResume() shared.Response {
 	d.panicMode = false
 	d.audit("panic_resumed", "all", "panic mode was ended from the console")
+	return shared.Response{Success: true}
+}
+
+// handleLogEvent records a login event the way the core does — including
+// refusing one the protocol does not declare, because a demo that accepts what
+// production refuses is a demo that hides the refusal.
+func (d *demoState) handleLogEvent(payload []byte) shared.Response {
+	var p shared.LogEventPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return demoErr(fmt.Errorf("invalid payload: %w", err))
+	}
+	if !shared.ValidLoginEvent(p.Event) {
+		return demoErr(fmt.Errorf("unknown login event: %q", p.Event))
+	}
+	detail := ""
+	if p.Addr != "" {
+		detail = "from " + p.Addr
+	}
+	d.auditLog = append([]shared.AuditLogEntry{{
+		Time:   time.Now().UTC().Format(time.RFC3339),
+		Action: string(p.Event),
+		Detail: detail,
+		User:   "web",
+	}}, d.auditLog...)
 	return shared.Response{Success: true}
 }

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"sort"
@@ -479,6 +480,16 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		}
 		return shared.Response{Success: true}
 
+	case shared.CmdLogEvent:
+		var p shared.LogEventPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		if err := d.recordLoginEvent(p); err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true}
+
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}
 	}
@@ -492,6 +503,26 @@ func (d *Daemon) sendError(conn net.Conn, msg string) {
 
 func errResp(err error) shared.Response {
 	return shared.Response{Success: false, Error: err.Error()}
+}
+
+// recordLoginEvent writes one login event to the audit log.
+//
+// Refused before anything is written when the event is not one the protocol
+// declares: the web process is network-facing, and a failed login is
+// unauthenticated input reaching the root process's record.
+func (d *Daemon) recordLoginEvent(p shared.LogEventPayload) error {
+	if !shared.ValidLoginEvent(p.Event) {
+		return fmt.Errorf("unknown login event: %q", p.Event)
+	}
+	detail := ""
+	if addr, err := netip.ParseAddr(p.Addr); err == nil {
+		detail = "from " + addr.String()
+	}
+	if p.Event == shared.EvRecoveryUsed {
+		detail = strings.TrimSpace(detail + fmt.Sprintf(" %d recovery codes left", p.Left))
+	}
+	WriteAuditLog(d.cfg.AuditLogPath(), string(p.Event), "", detail, "web")
+	return nil
 }
 
 // auditTailBytes is how much of the end of the audit log is read to satisfy a
