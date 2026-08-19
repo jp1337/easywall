@@ -78,6 +78,12 @@ func (r *totpReplay) accept(step uint64) bool {
 		slog.Error("could not encode the TOTP replay store", "error", err)
 		return true
 	}
+	// The package's own atomic writer, from tlscert.go, unchanged. No in-place
+	// fallback here and none needed: data_dir is installed 0770 root:easywall
+	// with the web user in that group, so a temp file always works. web.toml is
+	// the case that needs one — it sits in /etc/easywall, which this process
+	// cannot create files in — and that fallback belongs in saveLocked, not in a
+	// helper the TLS key write also goes through.
 	if err := writeFileAtomic(r.path, data, 0600); err != nil {
 		slog.Warn("could not persist the last accepted TOTP step; a code used now may be "+
 			"accepted again after a restart", "path", r.path, "error", err)
