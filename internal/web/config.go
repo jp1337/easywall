@@ -219,6 +219,18 @@ func (c *Config) TelemetryStatePath() string {
 	return c.SSLDir + "/../telemetry.json"
 }
 
+// TOTPReplayPath returns the path for the last accepted TOTP step.
+//
+// In data_dir and not in web.toml: this changes once per login, and web.toml is
+// rewritten in place on a directory the packaged layout does not let this
+// process create a temp file in.
+func (c *Config) TOTPReplayPath() string {
+	if c.DataDir != "" {
+		return c.DataDir + "/totp_replay.json"
+	}
+	return c.SSLDir + "/../totp_replay.json"
+}
+
 // SaveTelemetry records the operator's answer to being counted.
 //
 // Separate from every other save on purpose: withdrawing consent must work

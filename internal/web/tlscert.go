@@ -197,10 +197,11 @@ func generateSelfSignedCert(dir string) error {
 	return nil
 }
 
-func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
 	if err != nil {
-		return err
+		return os.WriteFile(path, data, perm) // #nosec G306 -- perm is the caller's 0600
 	}
 	tmpPath := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
@@ -208,7 +209,7 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
-	if err := tmp.Chmod(mode); err != nil {
+	if err := tmp.Chmod(perm); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
 		return err
