@@ -65,6 +65,12 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/favicon.ico":   "an asset",
 		"/robots.txt":    "an asset",
 		"/.well-known/*": "an asset",
+		// All four are POST, answered in place on the password page — see the
+		// comment on the regex below for why they are inert here regardless.
+		"/password/2fa/begin":    "a form on the password page, answered in place",
+		"/password/2fa/confirm":  "a form on the password page, answered in place",
+		"/password/2fa/disable":  "a form on the password page, answered in place",
+		"/password/2fa/recovery": "a form on the password page, answered in place",
 	}
 
 	root := repoRootDir(t)

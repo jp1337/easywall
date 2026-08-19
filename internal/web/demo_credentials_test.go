@@ -16,6 +16,10 @@ var credentialWritingRoutes = []struct {
 	body string
 }{
 	{"/password", "current_password=currentpassword123&new_password=ReplacedInTheDemo1&confirm_password=ReplacedInTheDemo1"},
+	{"/password/2fa/begin", "current_password=currentpassword123"},
+	{"/password/2fa/confirm", "code=000000"},
+	{"/password/2fa/disable", "current_password=currentpassword123"},
+	{"/password/2fa/recovery", "current_password=currentpassword123"},
 }
 
 // The public demo runs the whole interface against an in-memory mock, and every
@@ -23,6 +27,13 @@ var credentialWritingRoutes = []struct {
 // writes the real file, so a visitor could change the password and lock
 // everybody else out — including anyone holding the published demo password —
 // until the process restarted.
+//
+// The four /password/2fa/* routes never touch the password hash at all — they
+// write totp_secret and recovery_codes — so a check of PasswordHash() alone
+// would pass here whether or not their own demo guard existed, which is not a
+// test of them. TOTPSecret and RecoveryCodes are checked for the same reason
+// PasswordHash is: they are the other fields SaveTOTP and SaveRecoveryCodes
+// would have written to web.toml.
 func TestDemoModeRefusesToWriteCredentials(t *testing.T) {
 	for _, tc := range credentialWritingRoutes {
 		t.Run(tc.path, func(t *testing.T) {
@@ -33,14 +44,22 @@ func TestDemoModeRefusesToWriteCredentials(t *testing.T) {
 			}
 			s.cfg.Password = hash
 			before := s.cfg.PasswordHash()
+			beforeTOTP := s.cfg.TOTPSecret()
+			beforeRecovery := len(s.cfg.RecoveryCodes())
 
 			rec := doAuthFormRequest(t, s, tc.path, tc.body)
-			if rec.Code != http.StatusSeeOther {
-				t.Fatalf("%s answered %d, want a redirect carrying the refusal", tc.path, rec.Code)
+			if rec.Code != http.StatusSeeOther && rec.Code != http.StatusOK {
+				t.Fatalf("%s answered %d", tc.path, rec.Code)
 			}
 			if after := s.cfg.PasswordHash(); after != before {
 				t.Errorf("%s changed the stored credential in demo mode; a visitor to the "+
 					"public demo can lock everybody else out", tc.path)
+			}
+			if after := s.cfg.TOTPSecret(); after != beforeTOTP {
+				t.Errorf("%s changed the stored TOTP secret in demo mode", tc.path)
+			}
+			if after := len(s.cfg.RecoveryCodes()); after != beforeRecovery {
+				t.Errorf("%s changed the stored recovery codes in demo mode", tc.path)
 			}
 		})
 	}
