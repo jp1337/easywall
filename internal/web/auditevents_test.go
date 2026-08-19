@@ -66,23 +66,58 @@ func TestAuditEvents_TheEventReachesTheCore(t *testing.T) {
 	}
 }
 
+// run() must keep draining after a send fails. If it returned on the first
+// error, an unreachable core would fill the buffer and every later event would
+// be lost silently.
+//
+// Proved by watching the socket rather than by counting drops. A drop-counting
+// version of this test is unfalsifiable at any volume below auditEventBuffer:
+// with a 64-slot buffer and ten events, `dropped() == 0` holds whether run()
+// drained them or stopped after the first. Here every event is answered with an
+// error and every event still has to arrive, which is exactly the property.
+func TestAuditEvents_AFailingCoreDoesNotStopTheDrain(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdLogEvent, errorRespFor("the core refuses everything"))
+
+	const n = 10
+	seen := make(chan struct{}, n)
+	fc.OnCommand(shared.CmdLogEvent, func(shared.Command) { seen <- struct{}{} })
+
+	a := newAuditEvents(NewCoreClient(fc.socketPath))
+	stop := make(chan struct{})
+	go a.run(stop)
+	t.Cleanup(func() { close(stop) })
+
+	for i := 0; i < n; i++ {
+		a.Record(shared.EvLoginFailed, "203.0.113.7", 0)
+	}
+	for i := 0; i < n; i++ {
+		select {
+		case <-seen:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("the core saw only %d of %d events; run() stopped draining after an error", i, n)
+		}
+	}
+}
+
 // A crashed core must not take the interface with it. The line goes to the
-// journal and the login proceeds — 2.7's principle, inverted.
+// journal and the login proceeds — 2.7's principle, inverted. There is no
+// socket at all here, which is a different failure from one that answers badly.
 func TestAuditEvents_AnUnreachableCoreDoesNotStopAnything(t *testing.T) {
 	a := newAuditEvents(NewCoreClient("/nonexistent/easywall.sock"))
 	stop := make(chan struct{})
 	go a.run(stop)
 	t.Cleanup(func() { close(stop) })
 
-	for i := 0; i < 10; i++ {
+	// More than the buffer holds, so a run() that had stopped draining would
+	// overflow and be visible in the counter.
+	for i := 0; i < auditEventBuffer*2; i++ {
 		a.Record(shared.EvLoginFailed, "203.0.113.7", 0)
 	}
-	time.Sleep(200 * time.Millisecond)
-	// Nothing to assert but the absence of a panic and of a hang: run() must
-	// keep draining after a send fails, or the buffer fills and every later
-	// event is lost.
-	if a.dropped() != 0 {
-		t.Errorf("%d event(s) were dropped against an unreachable core; run() stopped draining", a.dropped())
+	time.Sleep(500 * time.Millisecond)
+	if a.dropped() > auditEventBuffer {
+		t.Errorf("%d of %d events were dropped against an unreachable socket; run() is not "+
+			"draining at all", a.dropped(), auditEventBuffer*2)
 	}
 }
 

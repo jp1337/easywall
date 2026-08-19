@@ -54,6 +54,60 @@ key  = ""
 	}
 }
 
+// testConfigForNewServer writes a minimal web.toml — the same shape
+// TestNewServer_Success uses — in its own temp dir, and loads it with demo
+// mode set as requested.
+func testConfigForNewServer(t *testing.T, fc *fakeCore, demo bool) *Config {
+	t.Helper()
+	dir := t.TempDir()
+	sslDir := dir + "/ssl"
+	_ = os.MkdirAll(sslDir, 0750)
+	cfgPath := dir + "/web.toml"
+	_ = os.WriteFile(cfgPath, []byte(`
+bind_addr = "127.0.0.1:0"
+socket_path = "`+fc.socketPath+`"
+ssl_dir = "`+sslDir+`"
+data_dir = "`+dir+`"
+session_key = "test-session-key-32bytes-padding!"
+language = "en"
+username = ""
+password = ""
+[tls]
+cert = ""
+key  = ""
+`), 0600)
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	cfg.DemoMode = demo
+	return cfg
+}
+
+// The nil guard in recordLoginEvent makes a mis-wiring invisible: no panic, no
+// log line, just an audit trail that is permanently empty. The two setup lines
+// sit immediately after an `if !cfg.DemoMode` block, so the easy slip is moving
+// them inside it. This is what notices.
+func TestNewServer_AlwaysBuildsTheAuditEventDispatcher(t *testing.T) {
+	fc := newFakeCore(t)
+	for _, demo := range []bool{false, true} {
+		cfg := testConfigForNewServer(t, fc, demo)
+		s, err := NewServer(cfg)
+		if err != nil {
+			t.Fatalf("NewServer(demo=%v): %v", demo, err)
+		}
+		if s.events == nil {
+			t.Errorf("NewServer(demo=%v) left s.events nil; every login event is "+
+				"silently discarded and nothing says so", demo)
+		}
+		if s.eventsStop == nil {
+			t.Errorf("NewServer(demo=%v) left s.eventsStop nil; Start would never "+
+				"drain the queue", demo)
+		}
+		s.Stop()
+	}
+}
+
 func TestNewServer_SSLDirIsFile(t *testing.T) {
 	dir := t.TempDir()
 	// Create a file at the SSL dir path — os.MkdirAll will fail with ENOTDIR
