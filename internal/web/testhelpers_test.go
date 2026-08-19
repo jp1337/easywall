@@ -301,7 +301,7 @@ func makeAuthCookie(t *testing.T, s *Server) *http.Cookie {
 		t.Fatalf("store.Get: %v", err)
 	}
 	sess.Values[SessionUserKey] = "admin"
-	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password)
+	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password, s.cfg.WebConfig.TOTPSecret)
 	sess.Values[SessionIDKey] = newSessionID()
 	if err := sess.Save(req, rec); err != nil {
 		t.Fatalf("sess.Save: %v", err)

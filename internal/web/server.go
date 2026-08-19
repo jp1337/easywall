@@ -363,7 +363,7 @@ func staticCacheHeaders(next http.Handler) http.Handler {
 // function so callers see the value at the moment they ask rather than at wiring
 // time.
 func (s *Server) currentCredential() func() string {
-	return func() string { return credentialFingerprint(s.cfg.PasswordHash()) }
+	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
 }
 
 // render executes a named template with common page data.

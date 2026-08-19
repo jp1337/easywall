@@ -71,7 +71,7 @@ func (s *Server) handlePasswordPOST(w http.ResponseWriter, r *http.Request) {
 	// one so the operator who just changed it is not thrown out of the tab they
 	// are working in — anyone else signed in is.
 	if sess, err := s.store.Get(r, SessionName); err == nil {
-		sess.Values[SessionCredentialKey] = credentialFingerprint(hash)
+		sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret())
 		if err := sess.Save(r, w); err != nil {
 			slog.Warn("could not refresh session after password change", "error", err)
 		}

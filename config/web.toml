@@ -48,6 +48,20 @@ session_key = "CHANGE_ME_32_BYTES_HEX_ENCODED_SESSION_SECRET_HERE_XXXXXXXX"
 username = ""
 password = ""  # argon2id hash, set by the first-run wizard
 
+# ─── Second factor ──────────────────────────────────────────────────────────
+# Written by the interface under Password → Second factor. Leave both empty to
+# sign in with a password alone.
+#
+# totp_secret is the base32 shared secret your authenticator app holds.
+# recovery_codes holds the argon2id hashes of the eight one-time codes — never
+# the codes themselves, which are shown once and cannot be read back.
+#
+# Locked out with the phone gone and the codes gone? Empty both lines here and
+# restart easywall-web: the password alone signs you in again. That is the whole
+# way back, and it is the same file the password lives in on purpose.
+totp_secret    = ""
+recovery_codes = []
+
 [tls]
 # Leave empty to use an auto-generated self-signed certificate in ssl_dir.
 # For Let's Encrypt or custom certs, set paths here:

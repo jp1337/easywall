@@ -333,6 +333,21 @@ type WebConfig struct {
 	Username   string    `toml:"username"`
 	Password   string    `toml:"password"` // argon2id hash
 
+	// TOTPSecret is the base32 shared secret for the single account's second
+	// factor, empty when no factor is enrolled. It is written by the interface
+	// and read on every login.
+	//
+	// In web.toml rather than in data_dir because it belongs with the credential
+	// it strengthens: the way back from a lost phone is editing this file, and
+	// an operator who has been told "edit web.toml" must find everything that
+	// stands between them and the interface in the one place they were sent to.
+	TOTPSecret string `toml:"totp_secret"`
+
+	// RecoveryCodes holds the argon2id hashes of the eight one-time codes, never
+	// the codes themselves. They are shown once, at enrolment, and one is removed
+	// from this list each time it is used.
+	RecoveryCodes []string `toml:"recovery_codes"`
+
 	// UpdateCheck controls whether the dashboard asks the GitHub releases API
 	// for the newest version. Unset means on, and on an isolated network it is a
 	// request an operator may reasonably want gone entirely rather than merely

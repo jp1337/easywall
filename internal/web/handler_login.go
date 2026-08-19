@@ -51,7 +51,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values[SessionUserKey] = username
-	sess.Values[SessionCredentialKey] = credentialFingerprint(wantHash)
+	sess.Values[SessionCredentialKey] = credentialFingerprint(wantHash, s.cfg.TOTPSecret())
 	sess.Values[SessionIDKey] = newSessionID()
 	sess.Options = &sessions.Options{
 		Path:     "/",
