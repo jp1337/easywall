@@ -48,17 +48,39 @@ func TestDemoModeRefusesToWriteCredentials(t *testing.T) {
 
 // And the refusal has to say so. A form that silently does nothing reads as a
 // broken page, which is worse for a demo than a plain sentence.
+//
+// Two things this test has to get right, both found the hard way by a
+// reviewer who deleted the guard in handlePasswordPOST and watched this test
+// keep passing:
+//
+//  1. The flash lives in a signed cookie, set on the POST's own response
+//     (setFlash writes the Set-Cookie for that response, not for whatever
+//     cookie the request carried in). Reusing the pre-POST makeAuthCookie
+//     cookie for the follow-up GET carries no flash at all — the GET has to
+//     reuse the cookies the POST actually set.
+//  2. The assertion has to name text that is not also true of the page
+//     regardless of the guard. render() sets PageData.Demo unconditionally
+//     in demo mode, base.html always draws a "Demo" chip in the topbar when
+//     that's set, and password.html includes the topbar — so asserting on
+//     "demo"/"Demo" passes whether or not the refusal ever fired. "not saved"
+//     appears only in the demo_readonly translation itself.
 func TestDemoModeSaysWhyItRefused(t *testing.T) {
 	s := newDemoTestServer(t)
 	hash, _ := HashPassword("currentpassword123")
 	s.cfg.Password = hash
 
-	cookie := makeAuthCookie(t, s)
-	_ = doFormRequest(s, "POST", "/password",
+	post := doFormRequest(s, "POST", "/password",
 		"current_password=currentpassword123&new_password=ReplacedInTheDemo1&confirm_password=ReplacedInTheDemo1",
-		cookie)
-	rec := doRequest(s, "GET", "/password", nil, cookie)
-	if !strings.Contains(rec.Body.String(), "demo") && !strings.Contains(rec.Body.String(), "Demo") {
+		makeAuthCookie(t, s))
+
+	cookies := post.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("the refusal set no cookie, so it carried no flash")
+	}
+	rec := doRequest(s, "GET", "/password", nil, cookies...)
+
+	// Text unique to demo_readonly, not shared with the demo chip.
+	if !strings.Contains(rec.Body.String(), "not saved") {
 		t.Error("the demo refusal is not on the page; the form appears to do nothing at all")
 	}
 }
