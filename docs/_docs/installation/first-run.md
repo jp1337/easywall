@@ -23,6 +23,13 @@ and nothing else. It asks for two things.
 | Password | at least 12 characters, hashed with Argon2id and a per-password salt |
 | Recovery | **none by design.** No mail, no outside service — see [below](#if-you-lose-the-password) |
 
+**The wizard does not ask about a second factor.** Setting one up needs an
+authenticator app already installed and in hand, and the first run is the
+moment an operator is least likely to have one — mid-installation, on a
+machine that may not even have a browser tab to spare for scanning a QR code.
+It sits on **Password → Second factor** instead, reachable any time after
+signing in: [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}).
+
 ## First choices — all of them staged
 
 | Answer | What it does |
