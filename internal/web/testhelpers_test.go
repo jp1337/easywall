@@ -205,6 +205,9 @@ key  = ""
 	store := newSessionStore("test-session-key-32bytes-padding!")
 	store.Options.Secure = false
 
+	pendingStore := newPendingStore("test-session-key-32bytes-padding!")
+	pendingStore.Options.Secure = false
+
 	bundle := NewBundle(repoLocales(t))
 
 	tmpl, err := loadTemplates(repoTemplates(t))
@@ -216,6 +219,7 @@ key  = ""
 		cfg:     cfg,
 		client:  client,
 		store:   store,
+		pending: pendingStore,
 		bundle:  bundle,
 		tmpl:    tmpl,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
@@ -261,6 +265,9 @@ key  = ""
 	store := newSessionStore("test-session-key-32bytes-padding!")
 	store.Options.Secure = false
 
+	pendingStore := newPendingStore("test-session-key-32bytes-padding!")
+	pendingStore.Options.Secure = false
+
 	bundle := NewBundle(repoLocales(t))
 	tmpl, err := loadTemplates(repoTemplates(t))
 	if err != nil {
@@ -271,6 +278,7 @@ key  = ""
 		cfg:     cfg,
 		client:  client,
 		store:   store,
+		pending: pendingStore,
 		bundle:  bundle,
 		tmpl:    tmpl,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
