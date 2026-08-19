@@ -342,6 +342,15 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/password", s.handlePasswordGET)
 		r.Post("/password", s.handlePasswordPOST)
 
+		// All four POST, all inside this group, and therefore all under the
+		// existing http.NewCrossOriginProtection. begin, confirm and recovery
+		// render their result in place rather than redirecting to a GET, so a
+		// reload cannot mint a second secret and the eight codes have no URL.
+		r.Post("/password/2fa/begin", s.handle2FABegin)
+		r.Post("/password/2fa/confirm", s.handle2FAConfirm)
+		r.Post("/password/2fa/disable", s.handle2FADisable)
+		r.Post("/password/2fa/recovery", s.handle2FARecovery)
+
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
 		r.Post("/system/telemetry", s.handleTelemetryPOST)
@@ -879,6 +888,7 @@ var clientStringKeys = []string{
 	"ports_port_hint", "ports_desc_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
+	"totp_copy", "totp_copied",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -897,6 +907,8 @@ func templateFuncs() template.FuncMap {
 		"system_saved": true,
 		// A recovery code did exactly what it exists to do.
 		"recovery_left": true,
+		// The second factor is now doing what it was set up to do.
+		"totp_enabled": true, "totp_disabled": true, "totp_recovery_renewed": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -913,6 +925,9 @@ func templateFuncs() template.FuncMap {
 		// The code was accepted and let the operator in; the disk is what
 		// failed. Amber, not red: signing in did work.
 		"recovery_not_consumed": true,
+		// The code is right; the fault is the server's clock, not an attack —
+		// and the setup timing out is a wait, not a wrong answer.
+		"totp_clock_behind": true, "totp_clock_ahead": true, "totp_setup_expired": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

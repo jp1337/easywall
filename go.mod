@@ -13,6 +13,7 @@ toolchain go1.26.6
 
 require (
 	github.com/BurntSushi/toml v1.6.0
+	github.com/boombuler/barcode v1.1.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/google/nftables v0.3.0
 	github.com/gorilla/sessions v1.4.0

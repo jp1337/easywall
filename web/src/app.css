@@ -1125,6 +1125,33 @@ body {
     border-color: var(--color-state-crit);
   }
 
+  /* ── Second-factor enrolment ─────────────────────────────────────────────
+     A white plate in both themes. An inverted QR code is rejected by a good
+     share of scanners, which is a defect only a screenshot in the dark theme
+     shows — so this looks like a design decision and is a functional one. */
+  .qr-plate {
+    background: #fff;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    display: inline-block;
+    line-height: 0;
+  }
+  .totp-setup { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .totp-secret {
+    font-family: var(--font-data);
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    user-select: all;
+  }
+  .recovery-codes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11ch, 1fr));
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+  }
+  .recovery-code { font-family: var(--font-data); user-select: all; }
+
   /* ── Link ──────────────────────────────────────────────────────────────────
      accent-on-wash, not accent: in light mode the pale ice blue would not
      carry enough contrast inside running text. */

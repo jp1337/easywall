@@ -281,12 +281,27 @@ func (c *Config) SaveCredentials(username, passwordHash string) error {
 // a nil slice switches the factor off, and that clears both — a secret that
 // survived "turn it off" would be a factor still enforced after the interface
 // said it was not.
+//
+// The in-memory fields are rolled back when the write fails. Setting them first
+// and saving second — the shape every other Save* method here uses — would
+// leave TOTPEnabled() reporting a factor is enrolled the instant a full disk
+// refused the write that was supposed to make it so, before the operator's own
+// request had even finished. Enrolment is the one path that checks its own
+// write for exactly that reason: a pending secret is worth keeping only because
+// nothing else believes it is confirmed yet.
 func (c *Config) SaveTOTP(secret string, recoveryHashes []string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prevSecret := c.WebConfig.TOTPSecret
+	prevCodes := c.WebConfig.RecoveryCodes
 	c.WebConfig.TOTPSecret = secret
 	c.WebConfig.RecoveryCodes = append([]string(nil), recoveryHashes...)
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.WebConfig.TOTPSecret = prevSecret
+		c.WebConfig.RecoveryCodes = prevCodes
+		return err
+	}
+	return nil
 }
 
 // SaveRecoveryCodes replaces the stored hashes and leaves the secret alone. It
