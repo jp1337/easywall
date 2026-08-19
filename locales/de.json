@@ -24,6 +24,7 @@
 
   {"id": "demo_label",       "translation": "Demo"},
   {"id": "demo_notice",      "translation": "Nichts erreicht eine echte Firewall; der Zustand wird regelmäßig zurückgesetzt."},
+  {"id": "demo_readonly",    "translation": "Das ist die Demo — das Formular funktioniert, die Änderung wird nicht gespeichert."},
 
   {"id": "panic_banner_title", "translation": "Notfallmodus: Diese Maschine wird nicht gefiltert"},
   {"id": "panic_banner_body",  "translation": "Die Firewall wurde über die Konsole abgeschaltet und bleibt es auch nach einem Neustart. Auf der Maschine ausführen, um die Regeln zurückzuholen:"},

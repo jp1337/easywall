@@ -16,6 +16,19 @@ func (s *Server) handlePasswordPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The demo shows the form and writes nothing. There is nothing to
+	// demonstrate past the form here — the interesting half of changing a
+	// password is that it is stored — and web.toml is the one piece of state the
+	// in-memory mock does not cover: SaveCredentials writes the real file, so a
+	// visitor could lock every other visitor out until the process restarted.
+	// Enumerated in TestDemoModeRefusesToWriteCredentials, which a new
+	// credential-writing route has to join.
+	if s.client.IsDemo() {
+		s.setFlash(w, r, "demo_readonly")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
+
 	current := r.FormValue("current_password")
 	newPw := r.FormValue("new_password")
 	confirm := r.FormValue("confirm_password")
