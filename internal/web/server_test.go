@@ -560,6 +560,23 @@ func TestServer_StartStop(t *testing.T) {
 	}
 }
 
+func TestPageDataCarriesTheInstalledVersion(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	rec := getAuthenticated(t, s, "/dashboard")
+	assertStatus(t, rec, http.StatusOK)
+	if !strings.Contains(rec.Body.String(), shared.CurrentVersion) {
+		t.Errorf("the dashboard does not name %s anywhere; the installed version is the "+
+			"first question on every bug report", shared.CurrentVersion)
+	}
+
+	rec = getAuthenticated(t, s, "/ports")
+	if !strings.Contains(rec.Body.String(), shared.CurrentVersion) {
+		t.Errorf("the sidebar chip does not carry %s", shared.CurrentVersion)
+	}
+}
+
 func TestServer_Start_MissingCert(t *testing.T) {
 	fc := newFakeCore(t)
 	dir := t.TempDir()

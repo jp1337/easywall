@@ -218,6 +218,7 @@
   {"id": "audit_resume_restore_skipped", "translation": "Resume could not restore the rules"},
 
   {"id": "dashboard_subtitle", "translation": "What this firewall is currently enforcing."},
+  {"id": "dashboard_running", "translation": "Running version"},
   {"id": "dashboard_update_available", "translation": "Update available:"},
   {"id": "dashboard_view_release", "translation": "View release"},
   {"id": "dashboard_hero_active", "translation": "The core daemon is running and rules are live."},

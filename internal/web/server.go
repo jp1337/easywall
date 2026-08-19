@@ -50,7 +50,14 @@ type PageData struct {
 	// worse of the two states: the new stylesheet arrived and app.js did not,
 	// so the upgraded page ran the previous release's JavaScript.
 	Asset string
-	Data  interface{}
+
+	// Version is the release this binary is, for the operator to read. Asset
+	// above holds the same value today and is not the same field: Asset hangs
+	// off asset URLs and may become a build hash tomorrow without anyone
+	// thinking about it, and displaying the version through it is the coupling
+	// that produces "easywall v3f9a1c" on the first build hash.
+	Version string
+	Data    interface{}
 
 	// Panic is true while the core reports that this installation is
 	// deliberately unfiltered. It is on PageData rather than on one handler's
@@ -418,6 +425,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Path:    r.URL.RequestURI(),
 		Strings: clientStrings(tFunc),
 		Asset:   shared.CurrentVersion,
+		Version: shared.CurrentVersion,
 		Data:    data,
 		Panic:   panicMode,
 	}
