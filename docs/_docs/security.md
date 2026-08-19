@@ -39,6 +39,15 @@ holds no privilege worth stealing.
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
 | Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/docs/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
+| Second factor | optional, per the single account — [TOTP and eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
+
+With a second factor enrolled, the password step ends in a redirect rather than a
+session, and the code is checked at `/login/verify`. That step has no rate limit
+of its own and does not need one: three code attempts per intermediate state,
+five password rounds per ten minutes per address, so **fifteen code attempts per
+ten minutes per address** against a target that rotates every thirty seconds.
+`TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` is that sentence as an
+executable claim.
 
 ## Panic mode
 
@@ -179,15 +188,16 @@ no identity yet. It names the process, not the person — see the
 
 | Recorded | **Not** recorded |
 |---|---|
-| `apply_started` · `apply_accepted` · `apply_rolledback` · `apply_failed` | logins, successful or failed |
-| `rollback_failed` — new rules did not take *and* the old ones did not return | logouts |
-| `rules_saved` · `rules_imported` | the source address of a change |
-| `options_saved` · `settings_saved` · `system_saved` | which account made the change |
+| `apply_started` · `apply_accepted` · `apply_rolledback` · `apply_failed` | the source address of a change |
+| `rollback_failed` — new rules did not take *and* the old ones did not return | which account made the change |
+| `rules_saved` · `rules_imported` | |
+| `options_saved` · `settings_saved` · `system_saved` | |
 
-> **Authentication events are not in the audit log** — this page once listed
-> `login_success`, `login_failed` and `logout`, and nothing has ever written them.
-> For failed logins use `journalctl -u easywall-web`, where the rate limiter and the
-> auth handler log. It is a gap, not a feature.
+> **Since 2.8, logins are in the audit log.** Nine events — signed in, sign-in
+> failed, second factor failed, a recovery code used, sign-in attempts blocked,
+> signed out, and the second factor switched on, off or regenerated — see
+> [the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
+> None of them carries colour: a sign-in does not move the firewall.
 
 Reading it: [Audit log]({{ '/docs/features/audit-log/' | relative_url }}).
 
