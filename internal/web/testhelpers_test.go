@@ -153,6 +153,32 @@ func repoDir(t *testing.T, parts ...string) string {
 
 func repoTemplates(t *testing.T) string { return repoDir(t, "web", "templates") }
 
+// repoFile2 returns the contents of a file above the package directory,
+// walking up the same way repoDir does — repoDir stops at the first directory
+// on the path, which a file target like docs/_docs/features/audit-log.md is
+// not.
+func repoFile2(t *testing.T, parts ...string) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel := filepath.Join(parts...)
+	for i := 0; i < 5; i++ {
+		candidate := filepath.Join(dir, rel)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			raw, err := os.ReadFile(candidate)
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			return string(raw)
+		}
+		dir = filepath.Dir(dir)
+	}
+	t.Fatalf("could not locate %s above the package directory", rel)
+	return ""
+}
+
 // The real locale files too, so a handler test sees the copy that ships rather
 // than a bare message id.
 func repoLocales(t *testing.T) string { return repoDir(t, "locales") }
