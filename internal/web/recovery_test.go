@@ -51,7 +51,17 @@ func TestShapes_DoNotOverlap(t *testing.T) {
 		{"abcde fghjk", false, true},
 		{"", false, false},
 		{"ABCDE-FGHJI", false, true}, // I normalises to 1
-		{"hello world", false, false},
+		// Crockford maps L->1 and O->0, so plenty of ordinary words normalise to
+		// a valid shape: "hello world" becomes HE110-W0R1D. That is harmless and
+		// worth writing down rather than fixing. A recovery-shaped value that
+		// matches none of the eight hashes lands in exactly the same failure
+		// branch as any other wrong input, and the eight argon2 verifications it
+		// costs are bounded by the pending state's three attempts — the amplifier
+		// the design already accounts for.
+		{"hello world", false, true},
+		// The alphabet rejection still has to be covered, so here is ten
+		// characters with one that no substitution rescues.
+		{"ABCDEFGHJ@", false, false},
 	} {
 		if got := isTOTPShape(tc.in); got != tc.totp {
 			t.Errorf("isTOTPShape(%q) = %v, want %v", tc.in, got, tc.totp)
