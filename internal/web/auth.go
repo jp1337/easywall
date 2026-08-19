@@ -111,8 +111,18 @@ func newPendingStore(key string) *sessions.CookieStore {
 // 32-byte key, already slow-hashed — not a password; what comes out is a marker
 // compared on every request, which is precisely where the remedy the query asks
 // for, an expensive KDF, cannot go. Read that before "fixing" it.
-func credentialFingerprint(passwordHash string) string {
-	sum := sha256.Sum256([]byte("easywall-session-v1:" + passwordHash))
+//
+// It hashes the password hash and the TOTP secret from 2.8 on. Enabling or
+// disabling a second factor therefore ends every other session at that moment,
+// and the acting one is re-stamped exactly as a password change already does.
+// A second factor that lets previously open sessions run on protects from the
+// next login, not from now.
+//
+// The domain separator went v1 → v2 with that change, so every session in flight
+// across the upgrade ends once. That is the correct direction and it is worth a
+// changelog line.
+func credentialFingerprint(passwordHash, totpSecret string) string {
+	sum := sha256.Sum256([]byte("easywall-session-v2:" + passwordHash + "\x00" + totpSecret))
 	return base64.RawStdEncoding.EncodeToString(sum[:16])
 }
 

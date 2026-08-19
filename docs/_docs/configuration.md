@@ -231,6 +231,8 @@ Two logging switches belong to no module and are set here as well:
 | `session_key` | string | Hex secret that signs the session cookie — `openssl rand -hex 32`, which is 64 characters. Optional: one is generated on first start and written back here if the key is missing, shorter than 32 characters, or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
+| `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this and `recovery_codes` and restart to sign in with the password alone |
+| `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
 | `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of two possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
