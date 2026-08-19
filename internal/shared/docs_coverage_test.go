@@ -32,21 +32,22 @@ func TestEveryPageIsDocumented(t *testing.T) {
 	// it are redirect stubs that would satisfy os.Stat without proving anything
 	// is documented.
 	documented := map[string]string{
-		"/login":      "_docs/installation/first-run.md",
-		"/firstrun":   "_docs/installation/first-run.md",
-		"/password":   "_docs/installation/first-run.md",
-		"/dashboard":  "_docs/features/dashboard.md",
-		"/apply":      "_docs/features/apply.md",
-		"/ports":      "_docs/features/ports.md",
-		"/blacklist":  "_docs/features/blacklist.md",
-		"/whitelist":  "_docs/features/blacklist.md",
-		"/forwarding": "_docs/features/forwarding.md",
-		"/custom":     "_docs/features/custom-rules.md",
-		"/options":    "_docs/features/filters.md",
-		"/settings":   "_docs/features/system-settings.md",
-		"/system":     "_docs/features/system-settings.md",
-		"/log":        "_docs/features/audit-log.md",
-		"/export":     "_docs/features/export-import.md",
+		"/login":        "_docs/installation/first-run.md",
+		"/login/verify": "_docs/features/two-factor.md",
+		"/firstrun":     "_docs/installation/first-run.md",
+		"/password":     "_docs/installation/first-run.md",
+		"/dashboard":    "_docs/features/dashboard.md",
+		"/apply":        "_docs/features/apply.md",
+		"/ports":        "_docs/features/ports.md",
+		"/blacklist":    "_docs/features/blacklist.md",
+		"/whitelist":    "_docs/features/blacklist.md",
+		"/forwarding":   "_docs/features/forwarding.md",
+		"/custom":       "_docs/features/custom-rules.md",
+		"/options":      "_docs/features/filters.md",
+		"/settings":     "_docs/features/system-settings.md",
+		"/system":       "_docs/features/system-settings.md",
+		"/log":          "_docs/features/audit-log.md",
+		"/export":       "_docs/features/export-import.md",
 	}
 
 	// Not pages: redirects, polling endpoints, fragments answered into a page
