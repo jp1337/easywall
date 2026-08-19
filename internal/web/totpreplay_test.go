@@ -67,7 +67,7 @@ func TestTOTPReplay_AnUnwritableStoreDoesNotRefuseTheLogin(t *testing.T) {
 	if err := os.Chmod(dir, 0500); err != nil {
 		t.Skipf("cannot make the directory read-only here: %v", err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0500) })
+	t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
 
 	path := filepath.Join(dir, "totp_replay.json")
 	r := newTOTPReplay(path)
