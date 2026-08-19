@@ -116,22 +116,6 @@ Then open `https://localhost:12227`. The first visit
 | Fonts | Inter + JetBrains Mono, self-hosted, ~145 KB — works air-gapped |
 | CI | `govulncheck`, `gosec`, CodeQL, `-race`, and an integration suite against a real kernel |
 
-## Roadmap
-
-Correctness first: a firewall that quietly does less than it says is worse than
-one that does less and says so. Ordered by exposure — the holes first, then
-comprehension, then reach:
-
-| | |
-|---|---|
-| **2.7** | The firewall survives a reboot — no more accidental way back in through a restart |
-| **2.8** | A second factor — TOTP, recovery codes, and login events in the audit log |
-| **2.9** | What changes is on the screen before you apply it — and whether it cuts you off |
-| **2.10** | A rule names a service and who may reach it, from a curated catalogue |
-
-Twelve releases in total, why each comes when it does, and what is deliberately
-excluded: [Roadmap →](https://easywall-project.org/roadmap/)
-
 ## Getting help
 
 | | |
