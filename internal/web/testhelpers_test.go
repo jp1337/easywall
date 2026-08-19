@@ -224,6 +224,12 @@ key  = ""
 		tmpl:    tmpl,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 	}
+	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
+	// s.events.
+	s.events = newAuditEvents(client)
+	s.eventsStop = make(chan struct{})
+	go s.events.run(s.eventsStop)
+	t.Cleanup(func() { close(s.eventsStop) })
 	s.router = s.buildRouter(cfg)
 	return s
 }
@@ -283,6 +289,12 @@ key  = ""
 		tmpl:    tmpl,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 	}
+	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
+	// s.events.
+	s.events = newAuditEvents(client)
+	s.eventsStop = make(chan struct{})
+	go s.events.run(s.eventsStop)
+	t.Cleanup(func() { close(s.eventsStop) })
 	s.router = s.buildRouter(cfg)
 	return s
 }

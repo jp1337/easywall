@@ -238,7 +238,7 @@ func TestMaxBodySize_OverriddenPathGetsItsOwnLimit(t *testing.T) {
 
 func TestLoginRateLimit_Allows(t *testing.T) {
 	// Reset global limiter state for this test by using a new IP
-	handler := LoginRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -255,7 +255,7 @@ func TestLoginRateLimit_Allows(t *testing.T) {
 func TestLoginRateLimit_RateExceeded(t *testing.T) {
 	// Use a unique IP not used by any other test to avoid interference
 	const ip = "10.99.200.201"
-	handler := LoginRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -275,7 +275,7 @@ func TestLoginRateLimit_RateExceeded(t *testing.T) {
 
 func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
 	// RemoteAddr without port — SplitHostPort fails, falls back to full addr
-	handler := LoginRateLimit(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -286,6 +286,27 @@ func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
 	// Should still allow (first request for this "IP")
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200 for first request from addr without port, got %d", rec.Code)
+	}
+}
+
+// login_ratelimited originates in middleware, which must not know CoreClient.
+// The callback is what keeps middleware.go free of the client and makes the
+// event testable at the same time.
+func TestLoginRateLimit_TellsSomebodyWhenItBlocks(t *testing.T) {
+	var blocked []string
+	handler := LoginRateLimit(func(ip string) { blocked = append(blocked, ip) })(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	for i := 0; i < 7; i++ {
+		req := httptest.NewRequest("POST", "/login", nil)
+		req.RemoteAddr = "203.0.113.99:12345"
+		handler.ServeHTTP(httptest.NewRecorder(), req)
+	}
+	if len(blocked) == 0 {
+		t.Fatal("the limiter refused requests and told nobody; login_ratelimited can never be written")
+	}
+	if blocked[0] != "203.0.113.99" {
+		t.Errorf("onBlocked was given %q, want 203.0.113.99", blocked[0])
 	}
 }
 
