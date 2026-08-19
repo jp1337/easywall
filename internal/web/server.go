@@ -657,6 +657,21 @@ var auditActionLabels = map[string]string{
 	"apply_refused_panic":    "audit_apply_refused_panic",
 	"rollback_skipped":       "audit_rollback_skipped",
 	"resume_restore_skipped": "audit_resume_restore_skipped",
+
+	// The nine login events, new in 2.8. Where there were none at all before:
+	// features/audit-log.md sent an operator to `journalctl -u easywall-web` for
+	// a failed login, which is not where anybody looks for "who has been at the
+	// door". None of them is in auditActionTones, deliberately — see the note
+	// there.
+	"login_ok":                   "audit_login_ok",
+	"login_failed":               "audit_login_failed",
+	"login_2fa_failed":           "audit_login_2fa_failed",
+	"login_recovery_used":        "audit_login_recovery_used",
+	"login_ratelimited":          "audit_login_ratelimited",
+	"logout":                     "audit_logout",
+	"totp_enabled":               "audit_totp_enabled",
+	"totp_disabled":              "audit_totp_disabled",
+	"recovery_codes_regenerated": "audit_recovery_codes_regenerated",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall
@@ -719,6 +734,12 @@ var auditActionTones = map[string]string{
 	// all report panic mode is the same state boot_enforce_failed already
 	// describes, and it must not be rendered in two colours depending on which
 	// code path reached it.
+	//
+	// None of the nine login events is here either, and for the same reason as
+	// apply_refused_panic and rollback_skipped above: a login does not change
+	// what the firewall is doing. It is read, not signalled. That 2.12 will push
+	// a notification on repeated login_failed is not a contradiction — a
+	// notification is not a colour.
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the
