@@ -22,6 +22,15 @@
   {"id": "login_submit",     "translation": "Sign in"},
   {"id": "login_demo_notice", "translation": "Credentials are on the demo landing page. State resets when the server restarts."},
 
+  {"id": "verify_title",    "translation": "Second factor"},
+  {"id": "verify_prompt",   "translation": "Code from your app, or a recovery code"},
+  {"id": "verify_submit",   "translation": "Continue"},
+  {"id": "verify_cancel",   "translation": "Cancel and sign in again"},
+  {"id": "verify_failed",   "translation": "That code did not work."},
+  {"id": "login_again",     "translation": "Please sign in again."},
+  {"id": "recovery_left",   "translation": "Recovery code used. {{.N}} left — make new ones under Password."},
+  {"id": "recovery_not_consumed", "translation": "Recovery code accepted, but it could not be marked as used and will work again. Check the disk and make new codes under Password."},
+
   {"id": "demo_label",       "translation": "Demo"},
   {"id": "demo_notice",      "translation": "Nothing reaches a real firewall; state resets periodically."},
   {"id": "demo_readonly",    "translation": "This is the demo — the form works, the change is not saved."},

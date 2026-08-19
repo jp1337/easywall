@@ -59,6 +59,11 @@ type PageData struct {
 	Version string
 	Data    interface{}
 
+	// FlashN is the one number a flash may carry: how many recovery codes are
+	// left. A flash is a message id, not a sentence, so the count travels beside
+	// it rather than inside it.
+	FlashN int
+
 	// Panic is true while the core reports that this installation is
 	// deliberately unfiltered. It is on PageData rather than on one handler's
 	// data because the banner it drives belongs on every page: a warning only
@@ -75,6 +80,9 @@ type Server struct {
 	// pending holds the login's intermediate state. Separate from store on
 	// purpose — see newPendingStore.
 	pending sessions.Store
+	// replay remembers the last accepted TOTP step, so a code cannot be used
+	// twice inside its own thirty-second validity window.
+	replay  *totpReplay
 	bundle  *i18n.Bundle
 	tmpl    *template.Template
 	router  chi.Router
@@ -127,6 +135,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		client:  client,
 		store:   store,
 		pending: pending,
+		replay:  newTOTPReplay(cfg.TOTPReplayPath()),
 		bundle:  bundle,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:   certs,
@@ -274,6 +283,11 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
 		r.With(LoginRateLimit(s.onLoginBlocked)).Post("/login", s.handleLoginPOST)
+		// The second step. Outside RequireAuth because nobody is signed in yet,
+		// and with no rate limit of its own — see handleLoginVerifyPOST for the
+		// arithmetic that makes the password step's limit cover it.
+		r.Get("/login/verify", s.handleLoginVerifyGET)
+		r.Post("/login/verify", s.handleLoginVerifyPOST)
 		// POST, so CrossOriginProtection covers it. It was a GET, and that
 		// middleware exempts safe methods by design — measured: a request
 		// carrying Origin: https://evil.example and Sec-Fetch-Site: cross-site
@@ -406,8 +420,10 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 
 	sess, _ := s.store.Get(r, SessionName)
 	flash, _ := sess.Values["flash"].(string)
+	flashN, _ := sess.Values["flash_n"].(int)
 	if flash != "" {
 		delete(sess.Values, "flash")
+		delete(sess.Values, "flash_n")
 		_ = sess.Save(r, w)
 	}
 
@@ -464,6 +480,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Version: shared.CurrentVersion,
 		Data:    data,
 		Panic:   panicMode,
+		FlashN:  flashN,
 	}
 
 	// Render into a buffer first. Executing straight into the ResponseWriter
@@ -530,6 +547,14 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 func (s *Server) setFlash(w http.ResponseWriter, r *http.Request, msg string) {
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values["flash"] = msg
+	_ = sess.Save(r, w)
+}
+
+// setFlashN is setFlash with the one number a flash may carry.
+func (s *Server) setFlashN(w http.ResponseWriter, r *http.Request, msg string, n int) {
+	sess, _ := s.store.Get(r, SessionName)
+	sess.Values["flash"] = msg
+	sess.Values["flash_n"] = n
 	_ = sess.Save(r, w)
 }
 
@@ -870,6 +895,8 @@ func templateFuncs() template.FuncMap {
 		"saved": true, "rules_accepted": true, "import_success": true,
 		"options_saved": true, "password_changed": true, "settings_saved": true,
 		"system_saved": true,
+		// A recovery code did exactly what it exists to do.
+		"recovery_left": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -883,6 +910,9 @@ func templateFuncs() template.FuncMap {
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
+		// The code was accepted and let the operator in; the disk is what
+		// failed. Amber, not red: signing in did work.
+		"recovery_not_consumed": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)
