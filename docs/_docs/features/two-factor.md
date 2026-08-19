@@ -11,6 +11,12 @@ A stolen password alone no longer opens the firewall.
 ## Switching it on
 
 <figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/password" ext="png"
+     alt="The Password page before a second factor is enrolled: the change-password form, and a Second factor card marked Off with a single button to start setup." %}
+  <figcaption>Everyone starts here — Off, with one button. Nothing below this card exists until step 1 is entered.</figcaption>
+</figure>
+
+<figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-setup" ext="png"
      alt="The second-factor setup card on the Password page: a QR code and a typed key on the left, a field for the six-digit confirmation code on the right, and the server's own clock printed beneath the QR code." %}
   <figcaption>Nothing is saved until the code in step 3 is entered — a phone that never scanned this screen leaves no trace.</figcaption>
