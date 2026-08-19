@@ -242,9 +242,13 @@ jobs:
             echo "::error::easywall-web did not come up"; cat /tmp/easywall/web.log; exit 1;
           }
 
+      # EASYWALL_CONFIG points the script's second run at the config the wizard
+      # above just wrote, so it can read the password hash back out and start a
+      # second easywall-web with it — see checkVerifyPage in ui-check.mjs.
       - name: Drive the interface
         env:
           EASYWALL_URL: https://127.0.0.1:12227
+          EASYWALL_CONFIG: /tmp/easywall/web.toml
         run: npm run check:ui
 
       - name: The server logged nothing it should not have
