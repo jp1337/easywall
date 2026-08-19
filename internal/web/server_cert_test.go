@@ -200,6 +200,12 @@ func TestTemplateFuncs_FlashClass(t *testing.T) {
 	if c := flashClass("import_success"); c != "alert-ok" {
 		t.Errorf("import_success should be alert-ok, got: %s", c)
 	}
+	// Found by rendering the first-run wizard for a screenshot: this flash is
+	// what every install sees the moment it is set up, and it was falling
+	// through to alert-crit — red, on a message that says everything worked.
+	if c := flashClass("firstrun_done"); c != "alert-ok" {
+		t.Errorf("firstrun_done should be alert-ok, got: %s", c)
+	}
 }
 
 func TestTemplateFuncs_FlashIcon(t *testing.T) {

@@ -930,6 +930,11 @@ func templateFuncs() template.FuncMap {
 		"recovery_left": true,
 		// The second factor is now doing what it was set up to do.
 		"totp_enabled": true, "totp_disabled": true, "totp_recovery_renewed": true,
+		// The account was created and the choices staged — nothing failed here.
+		// Found by rendering the first-run flow for a screenshot: without this,
+		// the one flash every install sees renders alert-crit, in red, for a
+		// message that says everything worked.
+		"firstrun_done": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
