@@ -9,12 +9,12 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"net/netip"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -35,6 +35,11 @@ type Daemon struct {
 	// SIGTERM arriving while the socket is still being set up races the write.
 	mu       sync.Mutex
 	listener net.Listener
+
+	// login folds bursts of stranger-triggerable login events into two lines.
+	// Built on first use so a Daemon constructed by hand in a test still records.
+	loginOnce sync.Once
+	login     *loginEvents
 }
 
 // NewDaemon initialises the daemon. Call Start() to begin accepting connections.
@@ -505,24 +510,24 @@ func errResp(err error) shared.Response {
 	return shared.Response{Success: false, Error: err.Error()}
 }
 
-// recordLoginEvent writes one login event to the audit log.
-//
-// Refused before anything is written when the event is not one the protocol
-// declares: the web process is network-facing, and a failed login is
-// unauthenticated input reaching the root process's record.
+// recordLoginEvent hands one login event to the debouncer.
 func (d *Daemon) recordLoginEvent(p shared.LogEventPayload) error {
-	if !shared.ValidLoginEvent(p.Event) {
-		return fmt.Errorf("unknown login event: %q", p.Event)
-	}
-	detail := ""
-	if addr, err := netip.ParseAddr(p.Addr); err == nil {
-		detail = "from " + addr.String()
-	}
-	if p.Event == shared.EvRecoveryUsed {
-		detail = strings.TrimSpace(detail + fmt.Sprintf(" %d recovery codes left", p.Left))
-	}
-	WriteAuditLog(d.cfg.AuditLogPath(), string(p.Event), "", detail, "web")
-	return nil
+	return d.loginEventLog().record(p, time.Now())
+}
+
+// loginEventLog builds the debouncer on first use and starts its sweeper.
+func (d *Daemon) loginEventLog() *loginEvents {
+	d.loginOnce.Do(func() {
+		d.login = newLoginEvents(func(action, ruleType, detail, user string) {
+			WriteAuditLog(d.cfg.AuditLogPath(), action, ruleType, detail, user)
+		})
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			d.login.run(d.quit)
+		}()
+	})
+	return d.login
 }
 
 // auditTailBytes is how much of the end of the audit log is read to satisfy a
