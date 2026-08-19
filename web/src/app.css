@@ -321,6 +321,10 @@ body {
 
   .brand-version {
     margin-left: auto;
+    max-width: 9ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-data);
     font-size: 10px;
     letter-spacing: 0.06em;

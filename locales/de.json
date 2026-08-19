@@ -218,6 +218,7 @@
   {"id": "audit_resume_restore_skipped", "translation": "Fortsetzen konnte die Regeln nicht wiederherstellen"},
 
   {"id": "dashboard_subtitle", "translation": "Was diese Firewall gerade durchsetzt."},
+  {"id": "dashboard_running", "translation": "Laufende Version"},
   {"id": "dashboard_update_available", "translation": "Update verfügbar:"},
   {"id": "dashboard_view_release", "translation": "Release ansehen"},
   {"id": "dashboard_hero_active", "translation": "Der Core-Dienst läuft, die Regeln sind aktiv."},
