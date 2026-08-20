@@ -29,6 +29,16 @@ func localesDir(t *testing.T) string {
 	return ""
 }
 
+// strictLangSet reports whether each StrictLangs member is present, for tests
+// that hard-fail on the strict languages but only report gaps elsewhere.
+func strictLangSet() map[string]bool {
+	strict := make(map[string]bool, len(StrictLangs))
+	for _, l := range StrictLangs {
+		strict[l] = true
+	}
+	return strict
+}
+
 func localeIDs(t *testing.T, lang string) map[string]bool {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(localesDir(t), lang+".json"))
@@ -57,9 +67,12 @@ func localeIDs(t *testing.T, lang string) map[string]bool {
 
 var tCallRe = regexp.MustCompile(`\bT\s+"([a-z0-9_]+)"`)
 
-// Every message id a template asks for must exist in every locale file. T falls
-// back to returning the id, so a typo or a key added to one file only does not
-// fail anywhere — it silently renders "ports_syntax_hint" to the operator.
+// Every message id a template asks for must exist in the strict languages: T
+// falls back to returning the id, so a typo or a key added to en.json only does
+// not fail anywhere — it silently renders "ports_syntax_hint" to the operator.
+// A language outside StrictLangs may have gaps — the request falls back to
+// English rather than the raw id, since "en" is always the last candidate the
+// localizer tries — so a missing key there is reported, not failed.
 func TestTemplatesOnlyUseTranslatedKeys(t *testing.T) {
 	dir := filepath.Join(filepath.Dir(localesDir(t)), "web", "templates")
 	files, err := filepath.Glob(filepath.Join(dir, "*.html"))
@@ -67,7 +80,14 @@ func TestTemplatesOnlyUseTranslatedKeys(t *testing.T) {
 		t.Fatalf("no templates found in %s (err=%v)", dir, err)
 	}
 
-	langs := map[string]map[string]bool{"en": localeIDs(t, "en"), "de": localeIDs(t, "de")}
+	codes, err := LocaleCodes(localesDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	langs := make(map[string]map[string]bool, len(codes))
+	for _, code := range codes {
+		langs[code] = localeIDs(t, code)
+	}
 	used := make(map[string][]string) // id -> templates referencing it
 
 	for _, f := range files {
@@ -83,7 +103,8 @@ func TestTemplatesOnlyUseTranslatedKeys(t *testing.T) {
 		t.Fatal("no T calls found — the regex or the templates changed shape")
 	}
 
-	for _, lang := range []string{"en", "de"} {
+	strict := strictLangSet()
+	for _, lang := range codes {
 		var missing []string
 		for id := range used {
 			if !langs[lang][id] {
@@ -92,41 +113,54 @@ func TestTemplatesOnlyUseTranslatedKeys(t *testing.T) {
 		}
 		sort.Strings(missing)
 		for _, m := range missing {
-			t.Errorf("locales/%s.json is missing %s", lang, m)
+			if strict[lang] {
+				t.Errorf("locales/%s.json is missing %s", lang, m)
+			} else {
+				t.Logf("locales/%s.json is missing %s", lang, m)
+			}
 		}
 	}
 }
 
-// The two files must describe the same interface. A key in one and not the other
-// means one language falls back to raw ids on some page.
+// The strict languages must describe the same interface. A key in one and not
+// the other means one language falls back to raw ids on some page.
 func TestLocaleFilesAreAtParity(t *testing.T) {
-	en, de := localeIDs(t, "en"), localeIDs(t, "de")
+	if len(StrictLangs) != 2 {
+		t.Fatalf("TestLocaleFilesAreAtParity compares exactly two languages, StrictLangs has %v", StrictLangs)
+	}
+	a, b := StrictLangs[0], StrictLangs[1]
+	idsA, idsB := localeIDs(t, a), localeIDs(t, b)
 
-	var onlyEN, onlyDE []string
-	for id := range en {
-		if !de[id] {
-			onlyEN = append(onlyEN, id)
+	var onlyA, onlyB []string
+	for id := range idsA {
+		if !idsB[id] {
+			onlyA = append(onlyA, id)
 		}
 	}
-	for id := range de {
-		if !en[id] {
-			onlyDE = append(onlyDE, id)
+	for id := range idsB {
+		if !idsA[id] {
+			onlyB = append(onlyB, id)
 		}
 	}
-	sort.Strings(onlyEN)
-	sort.Strings(onlyDE)
-	if len(onlyEN) > 0 {
-		t.Errorf("in en.json but not de.json: %v", onlyEN)
+	sort.Strings(onlyA)
+	sort.Strings(onlyB)
+	if len(onlyA) > 0 {
+		t.Errorf("in %s.json but not %s.json: %v", a, b, onlyA)
 	}
-	if len(onlyDE) > 0 {
-		t.Errorf("in de.json but not en.json: %v", onlyDE)
+	if len(onlyB) > 0 {
+		t.Errorf("in %s.json but not %s.json: %v", b, a, onlyB)
 	}
 }
 
-// A translation that is byte-identical in both languages is usually a forgotten
-// one. Some genuinely are the same word — "Demo", "System", protocol names — so
+// A translation that is byte-identical to English is usually a forgotten one.
+// Some genuinely are the same word — "Demo", "System", protocol names — so
 // this is an allow-list, not a ban: adding to it should be a deliberate act.
-func TestGermanTranslationsAreNotCopiedEnglish(t *testing.T) {
+//
+// A language whose status is not reviewed is exempt: an in-house draft
+// legitimately contains untranslated fragments, and status.json is where that
+// is recorded. This test is what catches pasted English in a language that
+// claims to be finished.
+func TestTranslationsAreNotCopiedEnglish(t *testing.T) {
 	same := map[string]bool{
 		"demo_label": true, "nav_group_system": true, "nav_system": true,
 		"ports_tcp": true, "ports_udp": true, "log_col_user": true,
@@ -153,19 +187,39 @@ func TestGermanTranslationsAreNotCopiedEnglish(t *testing.T) {
 		return out
 	}
 
-	en, de := read("en"), read("de")
-	var suspects []string
-	for id, text := range en {
-		if len(text) < 12 || same[id] {
+	dir := localesDir(t)
+	codes, err := LocaleCodes(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := LoadLocaleStatus(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	en := read("en")
+
+	for _, lang := range codes {
+		if lang == "en" {
 			continue
 		}
-		if de[id] == text {
-			suspects = append(suspects, id)
+		if !status[lang].Reviewed {
+			t.Logf("%s is not reviewed — skipping the copied-English check", lang)
+			continue
 		}
-	}
-	sort.Strings(suspects)
-	for _, id := range suspects {
-		t.Errorf("%q is identical in en and de — untranslated, or add it to the allow-list", id)
+		other := read(lang)
+		var suspects []string
+		for id, text := range en {
+			if len(text) < 12 || same[id] {
+				continue
+			}
+			if other[id] == text {
+				suspects = append(suspects, id)
+			}
+		}
+		sort.Strings(suspects)
+		for _, id := range suspects {
+			t.Errorf("%q is identical in en and %s — untranslated, or add it to the allow-list", id, lang)
+		}
 	}
 }
 
@@ -342,12 +396,24 @@ func TestClientStringsCoverWhatAppJSAsksFor(t *testing.T) {
 		}
 	}
 
-	// And every shipped key must exist in both languages.
-	for _, lang := range []string{"en", "de"} {
+	// Every shipped key must exist in the strict languages — that failure is
+	// hard, because en/de must never fall back to a raw key. Anything else may
+	// have gaps, so report what is missing without failing the build.
+	strict := strictLangSet()
+	codes, err := LocaleCodes(localesDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, lang := range codes {
 		ids := localeIDs(t, lang)
 		for key := range shipped {
-			if !ids[key] {
+			if ids[key] {
+				continue
+			}
+			if strict[lang] {
 				t.Errorf("locales/%s.json has no %q, so app.js would render the key itself", lang, key)
+			} else {
+				t.Logf("locales/%s.json has no %q, so app.js would render the key itself", lang, key)
 			}
 		}
 	}
