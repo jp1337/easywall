@@ -33,7 +33,7 @@ seo: software
   </div>
 
   <div class="docs-hero-meta">
-    <span><strong>Go 1.26</strong></span>
+    <span><strong>Go 1.27</strong></span>
     <span class="docs-hero-meta-sep">·</span>
     <span><strong>GPL-3.0</strong></span>
     <span class="docs-hero-meta-sep">·</span>
@@ -66,7 +66,7 @@ seo: software
     <div class="docs-card">
       <h2>From source</h2>
       <p class="mono">make build && sudo make install</p>
-      <p>Go 1.26, no runtime dependencies beyond the kernel.</p>
+      <p>Go 1.27, no runtime dependencies beyond the kernel.</p>
       <a href="{{ '/docs/installation/manual/' | relative_url }}">Build it →</a>
     </div>
   </div>
