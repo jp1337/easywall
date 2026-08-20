@@ -4,4 +4,4 @@ flowchart TD
   Q2 -->|yes| DEB[".deb package<br/>systemd units included"]
   Q2 -->|no| Q3{"Containers already?"}
   Q3 -->|yes| DOCK["Docker<br/>host network + NET_ADMIN"]
-  Q3 -->|no| SRC["From source<br/>Go 1.26 + make"]
+  Q3 -->|no| SRC["From source<br/>Go 1.27 + make"]
