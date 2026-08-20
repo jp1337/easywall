@@ -30,15 +30,31 @@ const (
 // be tested without a filesystem.
 type writeAuditFunc func(action, ruleType, detail, user string)
 
-// debouncedEvents are the three a stranger can trigger.
+// debouncedEvents are the events an unauthenticated request can cause.
 //
-// Successes, logout and the three enrolment events are rare and operator-caused,
-// and are written immediately: an operator watching for "somebody just enrolled
-// a second factor" must not wait sixty seconds to see it.
+// That is the criterion, not "how often does this happen in practice" or
+// "who is it about": whatever an anonymous caller can trigger on demand, a
+// script can trigger in a loop, and a loop of anything not debounced here
+// erases the visible log — GET_LOG returns only the last 200 lines.
+//
+// Logout belongs here for exactly that reason even though it looks
+// operator-caused. POST /logout is in the public route group (no session
+// required to reach it, no rate limiter of its own), and the web handler
+// only skips recording when a request carries no session at all — a replayed
+// or still-valid session cookie posted in a loop still reaches this path once
+// per request. Successes and the three enrolment events stay immediate:
+// nothing unauthenticated can produce them, so there is no burst to fold.
+//
+// Debouncing does not mean silent: the first line of any burst is still
+// written the moment it opens, so an operator watching the log still sees a
+// logout — or a failed login, or a rate limit — happen in real time. It is
+// only the second and later occurrences within the window that wait for the
+// closing summary.
 var debouncedEvents = map[shared.LoginEvent]bool{
 	shared.EvLoginFailed: true,
 	shared.Ev2FAFailed:   true,
 	shared.EvRateLimited: true,
+	shared.EvLogout:      true,
 }
 
 type loginEventKey struct {

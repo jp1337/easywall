@@ -50,6 +50,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An unauthenticated request could erase the visible audit log.** `POST
+  /logout` is in the public route group with no rate limiter, and
+  `handleLogout` recorded a `logout` audit event unconditionally, even for a
+  request carrying no session at all — a bare `curl -X POST /logout` in a
+  loop, with no cookie, wrote one line per request. `GET_LOG` returns only the
+  last 200 lines, so that erased the whole visible history in well under two
+  seconds. `recordLoginEvent` now sits inside the same `id != ""` guard that
+  already gated `revokeSession`, so a request with no session behind it
+  records nothing, and `logout` joins the core's debounced events so a
+  replayed session cookie posted in a loop still folds into one line and a
+  summary rather than one line per request
 - **The interface said `v2`.** `web/templates/base.html` carried that literal in
   the sidebar — not the version, the major — and it would have read `v2` in 2.5
   and would still read it in 2.19. Both existing paths by which

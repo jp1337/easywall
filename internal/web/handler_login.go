@@ -223,12 +223,21 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// session. The cookie is a signed, self-contained token: whoever still has
 	// the value stayed signed in for the rest of its lifetime, however firmly
 	// the button said otherwise. Record it as revoked so it stops working now.
+	//
+	// The audit event is recorded inside this same guard, not after it. This
+	// route is public — POST /logout carries no session requirement, by design,
+	// so a signed-out browser can still reach it — and a request with no
+	// session id behind it is not a logout, it is a POST from a stranger who
+	// was never signed in. Recording it anyway let an unauthenticated,
+	// unthrottled request write an audit line on demand; a loop of them erased
+	// the visible log (GET_LOG returns only the last 200 lines) in under two
+	// seconds.
 	if id, _ := sess.Values[SessionIDKey].(string); id != "" {
 		revokeSession(id)
+		s.recordLoginEvent(r, shared.EvLogout, 0)
 	}
 
 	sess.Options.MaxAge = -1
 	_ = sess.Save(r, w)
-	s.recordLoginEvent(r, shared.EvLogout, 0)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

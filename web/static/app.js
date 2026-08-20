@@ -472,6 +472,16 @@ function initRecoveryCopy() {
     navigator.clipboard.writeText(codes.join('\n')).then(() => {
       btn.textContent = str('totp_copied');
       setTimeout(() => { btn.textContent = str('totp_copy'); }, 2000);
+    }).catch(() => {
+      // The codes are shown once, with no download route, by deliberate
+      // design — copy is the primary path to get them off this page. A
+      // rejection here (permission denied, an insecure context, a browser
+      // that never asked) must not read as "copied" to someone who is about
+      // to navigate away believing they have a backup. It also must not
+      // reach the console as an unhandled rejection: ui-check.mjs's health
+      // sweep treats one as a failure.
+      btn.textContent = str('totp_copy_failed');
+      setTimeout(() => { btn.textContent = str('totp_copy'); }, 4000);
     });
   });
 }

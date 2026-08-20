@@ -258,20 +258,44 @@ func (c *Config) TOTPReplayPath() string {
 // Separate from every other save on purpose: withdrawing consent must work
 // when nothing else does. It touches only web.toml, so it does not depend on
 // the core being reachable.
+//
+// Rolled back on a failed write like every Save* below: otherwise a transient
+// failure leaves consent looking withdrawn until the next restart quietly
+// brings back whatever disk still holds.
 func (c *Config) SaveTelemetry(enabled bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prev := c.Telemetry
 	c.Telemetry = &enabled
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.Telemetry = prev
+		return err
+	}
+	return nil
 }
 
 // SaveCredentials persists updated username and password hash to the config file.
+//
+// Rolled back on a failed write, the same shape as SaveTOTP: setting the
+// fields first and saving second would make currentCredential() report the
+// new password the instant a full disk refused the write meant to make it so.
+// RequireAuth compares every request's session fingerprint against that
+// value, so the operator's own session would be evicted, the internal_error
+// flash would never reach them because the redirect it fires on is keyed to
+// the credential that just changed under them, and the new password would
+// work while the old one — the one actually on disk — was refused until a
+// restart flipped the in-memory value back.
 func (c *Config) SaveCredentials(username, passwordHash string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prevUsername, prevPassword := c.Username, c.Password
 	c.Username = username
 	c.Password = passwordHash
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.Username, c.Password = prevUsername, prevPassword
+		return err
+	}
+	return nil
 }
 
 // SaveTOTP writes the second-factor secret and its recovery hashes in one write.
@@ -306,11 +330,27 @@ func (c *Config) SaveTOTP(secret string, recoveryHashes []string) error {
 
 // SaveRecoveryCodes replaces the stored hashes and leaves the secret alone. It
 // is what consuming a code and regenerating the set both come down to.
+//
+// Rolled back on a failed write, the same shape as SaveTOTP: without it, the
+// worst case is regenerating a set — the operator is holding eight new codes
+// that were never written, the write fails, and the eight the process now
+// believes in are ones nobody has ever seen. With a lost phone that is a
+// lockout until a restart discards the unsaved in-memory copy.
+//
+// The snapshot is a plain slice-header copy, safe for the same reason
+// SaveTOTP's is: the field below is always reassigned a freshly allocated
+// slice (append([]string(nil), ...) never writes into the old backing array),
+// so prevCodes keeps pointing at untouched data through the rollback.
 func (c *Config) SaveRecoveryCodes(hashes []string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prevCodes := c.WebConfig.RecoveryCodes
 	c.WebConfig.RecoveryCodes = append([]string(nil), hashes...)
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.WebConfig.RecoveryCodes = prevCodes
+		return err
+	}
+	return nil
 }
 
 // ErrAlreadySetUp is returned when the wizard is asked to create an account on
@@ -328,16 +368,28 @@ var ErrAlreadySetUp = errors.New("the account has already been created")
 // two POSTs arriving together both passed it, both wrote, and the second one
 // decided who owns the firewall. The window is small and it sits on a machine
 // that is, by definition, freshly exposed and not yet protected.
+//
+// Rolled back on a failed write, the same shape as SaveTOTP: setting c.Password
+// first and saving second would mean a transient write failure leaves the
+// in-memory password set while the disk stays empty. The operator's retry then
+// hits the ErrAlreadySetUp branch above and is redirected to /login for an
+// account that was never actually created — the wizard is dead-ended on a
+// machine that is, by definition, freshly exposed and not yet protected.
 func (c *Config) SaveFirstRun(username, passwordHash string, telemetry bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.Password != "" {
 		return ErrAlreadySetUp
 	}
+	prevUsername, prevPassword, prevTelemetry := c.Username, c.Password, c.Telemetry
 	c.Username = username
 	c.Password = passwordHash
 	c.Telemetry = &telemetry
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.Username, c.Password, c.Telemetry = prevUsername, prevPassword, prevTelemetry
+		return err
+	}
+	return nil
 }
 
 // saveLocked persists the configuration. c.mu must be held for writing, so the

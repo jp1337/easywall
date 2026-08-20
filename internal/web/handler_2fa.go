@@ -277,12 +277,21 @@ func (s *Server) restampSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// clockSkewKey picks the message that names which way the clock is wrong.
+// clockSkewKey picks the message that names which way the clock is wrong, and
+// in which grammatical number: skewMinutes(2) is 1, so an offset of 2 steps is
+// already the first value that reads "about 1 minute" rather than "about 1
+// minutes". Two full messages per direction, chosen by count, is the same
+// machinery count_entry_one/count_entry_many already use elsewhere — not a
+// second pluralisation mechanism.
 func clockSkewKey(offset int) string {
-	if offset > 0 {
-		return "totp_clock_behind" // the app is ahead of us, so this server is behind
+	base := "totp_clock_behind" // the app is ahead of us, so this server is behind
+	if offset <= 0 {
+		base = "totp_clock_ahead"
 	}
-	return "totp_clock_ahead"
+	if skewMinutes(offset) == 1 {
+		return base + "_one"
+	}
+	return base + "_many"
 }
 
 // skewMinutes turns a step offset into whole minutes, rounded up so "about 1

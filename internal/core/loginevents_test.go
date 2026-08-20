@@ -72,12 +72,19 @@ func TestLoginEvents_OneFailureIsOneLine(t *testing.T) {
 	}
 }
 
-// Only the three a stranger can trigger are debounced. Successes, logout and the
-// three enrolment events are rare and operator-caused, and are written
-// immediately — an operator watching for "somebody just enrolled a factor" must
-// not wait sixty seconds for it.
+// An event is debounced exactly when an unauthenticated request can cause it.
+// Logout belongs on that list: POST /logout is in the public route group, so a
+// replayed session cookie in a loop reaches the same path a failed login does.
+// Successes and the three enrolment events cannot be produced by an anonymous
+// caller at all, so they stay immediate.
+//
+// This is the regression for the audit-log erasure: it fails if EvLogout is
+// removed from debouncedEvents, because logout would then produce three lines
+// for three requests instead of one.
 func TestLoginEvents_OnlyTheStrangerTriggerableOnesAreDebounced(t *testing.T) {
-	debounced := []shared.LoginEvent{shared.EvLoginFailed, shared.Ev2FAFailed, shared.EvRateLimited}
+	debounced := []shared.LoginEvent{
+		shared.EvLoginFailed, shared.Ev2FAFailed, shared.EvRateLimited, shared.EvLogout,
+	}
 	for _, ev := range shared.AllLoginEvents {
 		l, got := newRecordingEvents()
 		start := time.Unix(1755600000, 0).UTC()

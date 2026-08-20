@@ -281,3 +281,26 @@ func (s *Server) pendingSecretFor(t *testing.T, cookie *http.Cookie) string {
 	}
 	return secret
 }
+
+// Regression: skewMinutes(2) is 1, and an offset of 2 is the first value that
+// reaches the clock-skew message at all (totpWindowLogin is 1). "about 1
+// minutes behind" was wrong in both locales; clockSkewKey now picks a
+// dedicated singular id the same way count_entry_one/count_entry_many are
+// picked elsewhere, rather than interpolating the number into a message
+// that only has a plural form.
+func TestClockSkewKey_SingularAndPluralMinutes(t *testing.T) {
+	cases := []struct {
+		offset int
+		want   string
+	}{
+		{2, "totp_clock_behind_one"},  // skewMinutes(2) == 1
+		{3, "totp_clock_behind_many"}, // skewMinutes(3) == 2
+		{-2, "totp_clock_ahead_one"},
+		{-3, "totp_clock_ahead_many"},
+	}
+	for _, c := range cases {
+		if got := clockSkewKey(c.offset); got != c.want {
+			t.Errorf("clockSkewKey(%d) = %q, want %q", c.offset, got, c.want)
+		}
+	}
+}

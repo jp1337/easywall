@@ -1,10 +1,13 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func TestHandleLoginGET_RedirectsToFirstRun(t *testing.T) {
@@ -96,6 +99,69 @@ func TestHandleLogout_WithoutSession(t *testing.T) {
 
 	rec := doRequest(s, "POST", "/logout", nil)
 	assertRedirect(t, rec, "/login")
+}
+
+// Regression for the audit-log erasure: POST /logout is in the public route
+// group with no rate limiter, and handleLogout used to call recordLoginEvent
+// unconditionally. A request carrying no session at all — which is exactly
+// what an unauthenticated stranger sends — wrote an audit line every time, and
+// GET_LOG returns only the last 200 lines: a loop of bare POSTs erased the
+// whole visible history in seconds.
+//
+// This fails if the recordLoginEvent call in handleLogout escapes the
+// `id != ""` guard: a request with no cookie would then reach the core with a
+// logout event, and the "no event" half below would see one arrive.
+func TestHandleLogout_WithoutSession_RecordsNoAuditEvent(t *testing.T) {
+	fc := newFakeCore(t)
+	seen := make(chan shared.Command, 8)
+	fc.OnCommand(shared.CmdLogEvent, func(c shared.Command) { seen <- c })
+
+	s := newTestServer(t, fc)
+
+	// Five bare requests — no cookie, not even a bogus one — the same shape a
+	// stranger's loop would send.
+	for i := 0; i < 5; i++ {
+		rec := doRequest(s, "POST", "/logout", nil)
+		assertRedirect(t, rec, "/login")
+	}
+
+	select {
+	case cmd := <-seen:
+		var p shared.LogEventPayload
+		_ = json.Unmarshal(cmd.Payload, &p)
+		t.Fatalf("a sessionless logout recorded an audit event (%s); "+
+			"the id != \"\" guard around recordLoginEvent was bypassed", p.Event)
+	case <-time.After(300 * time.Millisecond):
+		// Nothing arrived, which is the point: no session, no event.
+	}
+}
+
+// The other half of the same guard: a real session ending must still be
+// recorded. Without this, a fix that silences the event unconditionally would
+// also pass the test above.
+func TestHandleLogout_WithSession_RecordsOneAuditEvent(t *testing.T) {
+	fc := newFakeCore(t)
+	seen := make(chan shared.Command, 8)
+	fc.OnCommand(shared.CmdLogEvent, func(c shared.Command) { seen <- c })
+
+	s := newTestServer(t, fc)
+	cookie := makeAuthCookie(t, s)
+
+	rec := doRequest(s, "POST", "/logout", nil, cookie)
+	assertRedirect(t, rec, "/login")
+
+	select {
+	case cmd := <-seen:
+		var p shared.LogEventPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			t.Fatalf("could not decode LOG_EVENT payload: %v", err)
+		}
+		if p.Event != shared.EvLogout {
+			t.Errorf("logout recorded event %q, want %q", p.Event, shared.EvLogout)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a real logout recorded no audit event at all")
+	}
 }
 
 // TestHandleLoginPOST_SetsFlashOnInvalidCredentials verifies flash is set.
