@@ -86,6 +86,9 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	cfg.configPath = path
+	if err := shared.ApplyWebEnv(&cfg.WebConfig); err != nil {
+		return nil, fmt.Errorf("environment: %w", err)
+	}
 	return &cfg, nil
 }
 
