@@ -338,15 +338,113 @@ Expected: FAIL — `undefined: LocaleCoverage`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `internal/web/coverage.go` with `Coverage`, `Percent` and
-`LocaleCoverage`. Read each `locales/<code>.json` as `[]struct{ ID, Translation string }`
-— the same shape `localeIDs` uses in the tests. Measure every language against
-`en.json`'s ID set; `Missing` is the sorted list of IDs `en` has and the language
-does not. `Percent` returns `Have*100/Total`, except it returns at most `99` when
-`Missing` is non-empty and `0` when `Total` is `0`.
+Create `internal/web/coverage.go`:
 
-Document at the top of the file *why* the report exists: a gap that nobody can
-see is the same as a lie, and the fallback makes gaps invisible by design.
+```go
+package web
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+)
+
+// The fallback hides gaps by design: a key missing from fr.json renders the
+// English string, and the page looks finished. That is the right behaviour for
+// the operator in front of it and the wrong one for everybody else — a gap
+// nobody can see is indistinguishable from no gap. This is the accounting that
+// makes it visible again.
+//
+// English is the yardstick because it is the language every other one falls
+// back to; a key that is not in en.json cannot be rendered by anybody.
+
+// Coverage is one language measured against English.
+type Coverage struct {
+	Lang     string
+	Have     int
+	Total    int
+	Missing  []string
+	Reviewed bool
+}
+
+// Percent is how much of English this language covers.
+//
+// It never returns 100 while anything is missing. "100%" is a promise, and a
+// language one key short of 10,000 has not kept it — integer division would
+// have rounded that up and said so.
+func (c Coverage) Percent() int {
+	if c.Total == 0 {
+		return 0
+	}
+	p := c.Have * 100 / c.Total
+	if p >= 100 && len(c.Missing) > 0 {
+		return 99
+	}
+	return p
+}
+
+// LocaleCoverage measures every catalogue in dir against en.json.
+func LocaleCoverage(dir string) ([]Coverage, error) {
+	english, err := localeIDSet(dir, "en")
+	if err != nil {
+		return nil, err
+	}
+	codes, err := LocaleCodes(dir)
+	if err != nil {
+		return nil, err
+	}
+	status, err := LoadLocaleStatus(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []Coverage
+	for _, code := range codes {
+		ids, err := localeIDSet(dir, code)
+		if err != nil {
+			return nil, err
+		}
+		c := Coverage{Lang: code, Total: len(english), Reviewed: status[code].Reviewed}
+		for id := range english {
+			if ids[id] {
+				c.Have++
+			} else {
+				c.Missing = append(c.Missing, id)
+			}
+		}
+		sort.Strings(c.Missing)
+		out = append(out, c)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Lang < out[j].Lang })
+	return out, nil
+}
+
+// localeIDSet reads one catalogue and returns the IDs it actually translates.
+// An entry with an empty translation is not a translation, so it does not count
+// towards coverage — otherwise a file of 461 blanks would report 100%.
+func localeIDSet(dir, code string) (map[string]bool, error) {
+	raw, err := os.ReadFile(filepath.Join(dir, code+".json")) // #nosec G304 -- a code LocaleCodes listed
+	if err != nil {
+		return nil, fmt.Errorf("read %s.json: %w", code, err)
+	}
+	var entries []struct {
+		ID          string `json:"id"`
+		Translation string `json:"translation"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil, fmt.Errorf("parse %s.json: %w", code, err)
+	}
+	out := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		if e.Translation != "" {
+			out[e.ID] = true
+		}
+	}
+	return out, nil
+}
+```
 
 - [ ] **Step 4: Run it to verify it passes**
 
@@ -392,30 +490,88 @@ its language. A `<select>` also gives the native OS picker at 390 px.
 
 - [ ] **Step 1: Write the failing test**
 
-In `internal/web/handler_language_test.go`, add:
+Create `internal/web/langswitch_test.go`. The assertion is about *markup*, so it
+reads the template rather than standing up a server — the same approach
+`TestTemplateClassesExistInStylesheet` and `TestMarkupStringsAreRenderedThroughRichText`
+already take in this package.
 
 ```go
-// The switcher has to work with JavaScript switched off. An operator who cannot
-// read the interface must not also need JavaScript to fix that — the reason is
-// written above {{define "langswitch"}} and predates this change.
-func TestLangSwitch_SubmitsWithoutJavaScript(t *testing.T) {
-	body := renderPageForTest(t, "/login") // use the helper this file already has
-	if !strings.Contains(body, `<select`) {
-		t.Error("the language switcher is not a <select>")
+package web
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// langswitchBlock returns the body of {{define "langswitch"}} from base.html.
+func langswitchBlock(t *testing.T) string {
+	t.Helper()
+	root := filepath.Dir(localesDir(t)) // localesDir walks up to <repo>/locales
+	raw, err := os.ReadFile(filepath.Join(root, "web", "templates", "base.html"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(body, `name="lang"`) {
-		t.Error("the select does not post a lang field")
+	body := string(raw)
+	start := strings.Index(body, `{{define "langswitch"}}`)
+	if start < 0 {
+		t.Fatal(`base.html has no {{define "langswitch"}}`)
 	}
-	// The no-JS submit button must be in the markup, not added by a script.
-	if !strings.Contains(body, `lang-submit`) {
-		t.Error("no submit button in the markup; without JavaScript the form cannot be sent")
+	rest := body[start:]
+	end := strings.Index(rest, "{{end}}\n{{end}}")
+	if end < 0 {
+		t.Fatal("could not find the end of the langswitch block")
+	}
+	return rest[:end]
+}
+
+// The switcher has to work with JavaScript switched off. The reason is written
+// above {{define "langswitch"}} and predates this change: an operator who
+// cannot read the interface should not also need JavaScript to fix that.
+func TestLangSwitch_WorksWithoutJavaScript(t *testing.T) {
+	block := langswitchBlock(t)
+
+	for _, want := range []struct{ needle, why string }{
+		{"<select", "the switcher must be a select; chip buttons do not hold eleven languages"},
+		{`name="lang"`, "the select must post the lang field the handler reads"},
+		{`type="submit"`, "a submit button must be in the markup, not added by a script"},
+		{"lang-submit", "the submit button needs the class the stylesheet hides when JS is on"},
+		{`method="POST"`, "the form writes a cookie, so it must not be a GET"},
+	} {
+		if !strings.Contains(block, want.needle) {
+			t.Errorf("langswitch has no %q — %s", want.needle, want.why)
+		}
+	}
+
+	// The old chip markup must be gone, or both render and the sidebar grows.
+	if strings.Contains(block, "lang-option") && !strings.Contains(block, "lang-options-legacy") {
+		t.Error("the chip-button markup is still present alongside the select")
+	}
+}
+
+// The flag that hides the submit button is set in the head, not in app.js.
+// app.js loads at the end of <body>, so the button would render, be seen, and
+// then vanish — a visible flicker on every page load.
+func TestJSFlagIsSetInTheHeadNotInAppJS(t *testing.T) {
+	root := filepath.Dir(localesDir(t))
+	base, err := os.ReadFile(filepath.Join(root, "web", "templates", "base.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(base), "data-js") {
+		t.Error("base.html never sets data-js; the no-JS submit button would always show")
+	}
+
+	appJS, err := os.ReadFile(filepath.Join(root, "web", "static", "app.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(appJS), `setAttribute('data-js'`) {
+		t.Error("app.js sets data-js; it loads at the end of body, so the button would flicker")
 	}
 }
 ```
-
-Read the file first and reuse whatever render helper it already defines rather
-than inventing `renderPageForTest`; if none exists, follow the pattern the
-neighbouring tests use to build a request and record a response.
 
 - [ ] **Step 2: Run it to verify it fails**
 
@@ -726,10 +882,86 @@ git commit -m "feat(i18n): a French interface, shipped marked as unreviewed"
 
 - [ ] **Step 1: Write the test that stops the claim drifting again**
 
-A test that reads `CLAUDE.md` and `docs/_docs/index.md`, finds the sentence
-naming the supported languages, and requires the count to match `LocaleCodes`.
-The claim is derived, not restated — the same shape as
-`TestEveryRenovateFilePatternReachesAPin` from the environment-variable work.
+Create `internal/web/i18n_docs_test.go`:
+
+```go
+package web
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// Four documents named the two languages that existed when they were written.
+// The endonym is the thing that dates: a page saying "English and German" while
+// the switcher offers three is the same defect as a stale screenshot, and it is
+// the reason this test derives the list instead of restating it.
+//
+// It does not check the *wording*. It checks that no document names a language
+// the interface does not offer, and that every language the interface offers is
+// named where the languages are listed.
+func TestNoDocumentNamesALanguageTheInterfaceDoesNotOffer(t *testing.T) {
+	root := filepath.Dir(localesDir(t))
+
+	// The endonym is what a page shows a reader, so that is what is searched
+	// for. Add a line here when a language is added; the test below is what
+	// makes forgetting it fail.
+	endonyms := map[string]string{
+		"en": "English",
+		"de": "Deutsch",
+		"fr": "Français",
+	}
+
+	offered, err := LocaleCodes(localesDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, code := range offered {
+		if _, ok := endonyms[code]; !ok {
+			t.Fatalf("locales/%s.json exists but this test has no endonym for it; "+
+				"add one so the documents can be checked against it", code)
+		}
+	}
+
+	for _, rel := range [][]string{
+		{"CLAUDE.md"},
+		{"docs", "_docs", "index.md"},
+		{"docs", "_docs", "installation", "first-run.md"},
+		{"CONTRIBUTING.md"},
+	} {
+		name := filepath.Join(rel...)
+		raw, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(raw)
+
+		// A document that lists languages at all must list all of them.
+		listsAny := false
+		for _, code := range offered {
+			if strings.Contains(body, endonyms[code]) {
+				listsAny = true
+			}
+		}
+		if !listsAny {
+			continue // this page does not enumerate languages; nothing to keep in step
+		}
+		for _, code := range offered {
+			if !strings.Contains(body, endonyms[code]) {
+				t.Errorf("%s lists languages but never names %s (%s), which the "+
+					"interface offers", name, endonyms[code], code)
+			}
+		}
+	}
+}
+```
+
+**Note for the implementer:** this test will fail until Step 2 is done — that is
+the point. `docs/_docs/installation/first-run.md` in particular has the endonyms
+inside a screenshot `alt` attribute, so fixing it means fixing the alt text,
+which is the sentence that describes the picture Task 8 re-takes.
 
 - [ ] **Step 2: Fix the claims**
 
@@ -791,7 +1023,117 @@ git commit -m "docs: re-take the screenshots for the new language switcher"
 
 ---
 
-### Task 9: Release 2.9.0
+### Task 9: The release announces itself on Discord
+
+**Files:**
+- Modify: `.github/workflows/release.yml` — a new `announce` job after `debian` (line 107)
+- Modify: `docs-tech/ci-and-release.md` — the workflow table and the `release.yml` section
+
+**Interfaces:**
+- Consumes: the repository secret `DISCORD_WEBHOOK`, already set.
+- Produces: nothing other code uses.
+
+**Why:** 2.8.0 shipped and was announced by hand, hours later. An announcement
+that depends on somebody remembering is one that is eventually forgotten, and a
+release nobody hears about is most of a release wasted.
+
+- [ ] **Step 1: Add the job**
+
+Append to `.github/workflows/release.yml`:
+
+```yaml
+  announce:
+    name: Announce on Discord
+    needs: [goreleaser, debian]
+    runs-on: ubuntu-24.04
+    # Best-effort on purpose: the release is already published and its assets
+    # are already uploaded by the time this runs. A Discord outage must not
+    # colour a good release red — it is reported as a warning and nothing else.
+    continue-on-error: true
+    # The secret is mapped to env at job level deliberately. The `secrets`
+    # context is NOT available in a step's `if:` — only `env` is — so
+    # `if: ${{ secrets.DISCORD_WEBHOOK != '' }}` would never be true and the
+    # job would silently never post, which is the failure mode this whole task
+    # exists to remove.
+    env:
+      WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Post the release
+        # No secret, no post — a fork, or a clone with no webhook configured,
+        # skips this rather than failing on an empty URL.
+        if: env.WEBHOOK != ''
+        run: |
+          set -euo pipefail
+          # jq builds the JSON so a quote or a backtick in the release notes
+          # cannot break out of the payload.
+          payload=$(jq -n \
+            --arg title "easywall ${TAG#v}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            '{
+               username: "easywall",
+               embeds: [{
+                 title: $title,
+                 url: $url,
+                 color: 3776250,
+                 description: "A new release is out. The full account is in the release notes; the `.deb` for amd64 and arm64 is on the release page, and the images are on GHCR, Docker Hub and Quay.",
+                 footer: { text: "Every apply reverts itself after 120 seconds unless you confirm it." }
+               }]
+             }')
+          code=$(curl -sS -o /tmp/discord.out -w '%{http_code}' \
+                 -H 'Content-Type: application/json' \
+                 -X POST -d "$payload" "$WEBHOOK")
+          echo "Discord responded $code"
+          if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+            cat /tmp/discord.out
+            exit 1
+          fi
+```
+
+- [ ] **Step 2: Check the workflow parses**
+
+Run: `python3 -c "import yaml,sys;yaml.safe_load(open('.github/workflows/release.yml'));print('parses')"`
+Expected: `parses`.
+
+Also confirm `TestWorkflowsDoNotPinAGoVersionOfTheirOwn` — the subtest *no
+workflow pins a version of its own* in `TestGoToolchainIsTheSameEverywhere` —
+still passes; this job adds no `go-version:`.
+
+Run: `go test ./internal/shared/ -run TestGoToolchainIsTheSameEverywhere -v`
+
+- [ ] **Step 3: Prove the payload before trusting the workflow**
+
+The job cannot be run without cutting a release, so verify the part that can
+actually be wrong — the `jq` construction — locally:
+
+```bash
+TAG=v2.9.0 REPO=jp1337/easywall
+jq -n --arg title "easywall ${TAG#v}" \
+      --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+      '{username:"easywall",embeds:[{title:$title,url:$url,color:3776250}]}'
+```
+Expected: valid JSON with `easywall 2.9.0` and the correct URL.
+
+- [ ] **Step 4: Document it**
+
+In `docs-tech/ci-and-release.md`: add the job to the `release.yml` diagram and
+say what it is and is not. It is best-effort and `continue-on-error`, because the
+release is complete before it runs. Record that the Ko-fi post is **not** here
+and cannot be: Ko-fi has no writing API, so that post is a browser-assisted step
+a person takes, and pretending otherwise in this file would be the kind of
+documentation that sends somebody looking for a job that does not exist.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add .github/workflows/release.yml docs-tech/ci-and-release.md
+git commit -m "ci(release): announce the release on Discord"
+```
+
+---
+
+### Task 10: Release 2.9.0
 
 Only after **both** this plan and
 `docs-tech/plans/2026-08-20-docker-environment-variables-implementation.md` are
