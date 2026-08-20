@@ -66,6 +66,7 @@
   {"id": "firstrun_totp_done",        "translation": "Weiter zur Anmeldung"},
   {"id": "firstrun_done",           "translation": "Konto angelegt und deine Auswahl vorgemerkt. Melde dich an, prüfe sie und wende sie an."},
   {"id": "firstrun_choices_failed", "translation": "Konto angelegt, aber die Auswahl konnte nicht vorgemerkt werden — der Core hat nicht geantwortet. Melde dich an und setze sie selbst."},
+  {"id": "firstrun_done_choices_failed", "translation": "Konto und zweiter Faktor angelegt. Deine Wiederherstellungscodes stehen unten und werden nicht erneut angezeigt. Die ersten Entscheidungen konnten nicht vorgemerkt werden — der Core hat nicht geantwortet. Melde dich an und setze sie selbst."},
   {"id": "firstrun_notice",        "translation": "Dies ist das einzige Konto. Ein verlorenes Passwort lässt sich nur mit Shell-Zugriff auf den Server zurücksetzen."},
 
   {"id": "dashboard_title",        "translation": "Übersicht"},
