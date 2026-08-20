@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-08-20
+
 ### Added
 
 - **A stolen password alone no longer opens the firewall.** RFC 6238 TOTP for the
@@ -75,6 +77,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   records nothing, and `logout` joins the core's debounced events so a
   replayed session cookie posted in a loop still folds into one line and a
   summary rather than one line per request
+- **Renovate found every Go toolchain pin and updated none of them.** The
+  single-source arrangement 2.6.0 introduced went in with the toolchain already
+  written correctly everywhere, so nothing ever exercised it; the first real
+  bump moved `go.mod` and the `Dockerfile` and left all seven derived pins
+  behind, with no warning anywhere — the dependency dashboard listed the regex
+  dependencies, none carried a `skipReason`, and the candidate set was simply
+  empty. Two causes. The custom managers used `versioning: npm` on pins that
+  carry two components, and neither `1.26` nor the extracted `1.27` is a valid
+  semver version, so npm versioning read the current value as a range nothing
+  satisfied; they use `docker` versioning now, which treats a truncated version
+  as a version. And one file pattern still named `docs/installation/manual.md`,
+  the path that page had before the Jekyll restructure moved it under
+  `docs/_docs/` — what sits there now is a four-line `redirect_to` stub with no
+  version in it, so Renovate read the file, found nothing, and reported nothing.
+  `TestEveryRenovateFilePatternReachesAPin` is that second cause generalised: a
+  manager that reaches nothing is indistinguishable from one that works, and the
+  test that already validated Renovate's regexes could not see it, because it
+  checks the values a pattern captures and a dead pattern captures none. An
+  eighth pin turned up while fixing it, on the documentation landing page one
+  card below the badge that *was* managed; it has a manager and a test now. The
+  toolchain moves to 1.27.0 with this release
 - **The interface said `v2`.** `web/templates/base.html` carried that literal in
   the sidebar — not the version, the major — and it would have read `v2` in 2.5
   and would still read it in 2.19. Both existing paths by which
@@ -111,6 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same ending across the upgrade itself — a session issued under the old
   fingerprint scheme is, correctly, not one the new scheme recognises
 
+[2.8.0]: https://github.com/jp1337/easywall/compare/v2.7.0...v2.8.0
+
 ## [2.7.0] — 2026-08-18
 
 ### Fixed
@@ -134,6 +159,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The panic marker is flushed to disk before `panic` reports success.** It was written through a temporary file and a rename with no `fsync` anywhere, under a console message promising the machine "stays that way across a restart". On ext4 defaults the rename can sit in the page cache, so `panic` followed by the hard power-cycle a locked-out operator actually performs could come up filtered again, behind the rules they ran `panic` to escape
 - **An unreadable panic marker no longer withdraws the acceptance rollback.** `PanicEngaged` treats "cannot tell" as "engaged", which is right where the alternative is filtering a machine somebody deliberately unfiltered — and wrong at `rollback`, where it silently turned a firewall that always lets you back in into one that does not, and blamed a decision at the console. A three-way reader sits beside it; the rollback proceeds when the state is unknown, and the fault is reported once at startup as `boot_enforce_failed` with the marker path and the errno
 - **An apply started while the marker exists is refused synchronously**, in the dispatch case itself rather than inside the goroutine the daemon had already answered `{"status":"started"}` from — so the refusal reaches the caller that asked for it instead of a false "started" for work that was never going to happen
+
+[2.7.0]: https://github.com/jp1337/easywall/compare/v2.6.0...v2.7.0
 
 ## [2.6.0] — 2026-08-16
 
@@ -847,7 +874,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.2.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.8.0...HEAD
 [2.2.0]: https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0
