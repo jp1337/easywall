@@ -1163,8 +1163,8 @@ body {
      zone intact. */
   @media (max-width: 480px) {
     .qr-plate img {
-      width: 176px;
-      height: 176px;
+      width: 144px;
+      height: 144px;
     }
   }
 

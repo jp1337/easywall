@@ -28,7 +28,7 @@
       {{if .Flash}}
       <div role="alert" class="alert {{flashClass .Flash}} mb-4">
         {{flashIcon .Flash}}
-        <span>{{T .Flash}}</span>
+        <span>{{T .Flash (dict "N" .FlashN)}}</span>
       </div>
       {{end}}
 

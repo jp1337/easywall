@@ -217,6 +217,18 @@ func TestFirstRun2FA_AFarOutCodeDiagnosesTheClockAndStoresNothing(t *testing.T) 
 		t.Error("the message does not point at the clock; the fault is on the server " +
 			"and the message must not point at the human")
 	}
+	// firstrun.html renders its own flash block rather than the shared "flash"
+	// template base.html and password.html use, and that hand-rolled copy once
+	// called {{T .Flash}} without threading .FlashN through — so this message,
+	// which is entirely built from a totp_clock_*_{one,many} key plus {{.N}},
+	// rendered "about <no value> minute(s)" on this exact page while the
+	// identical string worked fine reached via /password. Guard against that
+	// regression coming back.
+	if strings.Contains(body, "no value") {
+		t.Error("the clock-skew flash rendered \"<no value>\" instead of the minute " +
+			"count; firstrun.html's flash block must pass (dict \"N\" .FlashN) to T, " +
+			"the same way base.html's shared \"flash\" template does")
+	}
 }
 
 func TestFirstRun2FA_AWrongCodeStoresNothing(t *testing.T) {
