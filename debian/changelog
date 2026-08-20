@@ -1,3 +1,44 @@
+easywall (2.8.0) unstable; urgency=medium
+
+  * Feat: a stolen password alone no longer opens the firewall. RFC 6238 TOTP
+    for the single account, verified against the RFC's own published test
+    vectors, plus eight one-time recovery codes stored argon2-hashed rather
+    than in the clear. Setup lives on Password -> Second factor and nothing is
+    written until a code confirms it. /login/verify becomes the second step of
+    signing in whenever a factor is enrolled: the password step ends in an
+    intermediate cookie, not a session, and issues no session until the code is
+    right too. There is no reset link — clear totp_secret and recovery_codes in
+    web.toml on the host, the same file the password already lives in
+  * Feat: the first-run wizard offers a second factor too, unticked by default.
+    Skipping is a first-class answer: POST /firstrun/skip creates the account
+    with a password alone regardless of what the code field held, because
+    easywall runs on boards with no RTC that come up at the epoch until NTP
+    lands, and TOTP cannot verify against a clock like that
+  * Feat: LOG_EVENT is the eighteenth command the socket protocol declares and
+    the first one the web process sends rather than receives. Nine login events
+    reach the audit log from a fixed enum rather than free text; the three a
+    stranger can trigger without any credential are debounced in the core
+  * Fix: an unauthenticated POST /logout could erase the visible audit log. The
+    route is public and unlimited and recorded an event even for a request
+    carrying no session, so a bare curl loop with no cookie pushed the whole
+    200-line history out of view in under two seconds
+  * Fix: the public demo could be locked. POST /password wrote credentials for
+    real with no demo-mode test in any handler, so a visitor could overwrite the
+    demo password and shut everyone else out until the process was restarted.
+    Every credential-writing route now refuses in demo mode
+  * Fix: the sidebar read "v2" — the major, not the version — and would have
+    read v2 in 2.19 as well. A test now scans every shipped template for a
+    version literal
+  * Fix: Renovate found all seven Go toolchain pins and updated none of them.
+    Two-component pins under npm versioning yield an empty candidate set, and
+    one file pattern still named a page the Jekyll restructure had left behind
+    as a redirect stub. The toolchain moves to 1.27.0
+  * Changed: every session in flight ends once on upgrade — the credential
+    fingerprint now covers the TOTP state as well as the password hash
+  * See CHANGELOG.md for the complete account
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Thu, 20 Aug 2026 00:00:00 +0000
+
 easywall (2.7.0) unstable; urgency=medium
 
   * Fix: nftables forgets every rule on a restart, and nothing put them back —
