@@ -47,14 +47,18 @@ Design document: `docs-tech/plans/2026-08-20-docker-environment-variables.md`.
 - Consumes: `shared.CoreConfig`, `shared.WebConfig` from `internal/shared/models.go`.
 - Produces:
   - `type EnvKind int`, constants `EnvString`, `EnvBool`
-  - `type CoreEnvVar struct { Name, TOMLKey string; Kind EnvKind; Set func(*CoreConfig, string) error }`
-  - `type WebEnvVar struct { Name, TOMLKey string; Kind EnvKind; Set func(*WebConfig, string) error }`
-  - `var CoreEnvVars []CoreEnvVar` (3 entries), `var WebEnvVars []WebEnvVar` (9 entries)
+  - `type EnvVar[T any] struct { Name, TOMLKey string; Kind EnvKind; Set func(*T, string) error }`
+  - `var CoreEnvVars []EnvVar[CoreConfig]` (3 entries),
+    `var WebEnvVars []EnvVar[WebConfig]` (9 entries)
   - `func ApplyCoreEnv(cfg *CoreConfig) error`
   - `func ApplyWebEnv(cfg *WebConfig) error`
-  - unexported `applyCoreEnv(cfg *CoreConfig, look func(string) (string, bool)) error` and
-    `applyWebEnv(cfg *WebConfig, look func(string) (string, bool)) error` — the
-    injectable form the tests drive.
+  - unexported `applyEnv[T any](cfg *T, vars []EnvVar[T], look func(string) (string, bool)) error`
+    — one loop for both configurations, and the injectable form the tests drive.
+
+**One loop, not two.** The core and web overlays differ only in their table and
+their configuration type, which is exactly what a type parameter is for. Two
+near-identical loops would be a block to keep in step by hand, and this plan
+exists partly because things kept in step by hand stop being in step.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -76,13 +80,13 @@ func lookup(pairs map[string]string) func(string) (string, bool) {
 
 func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 	var cfg CoreConfig
-	err := applyCoreEnv(&cfg, lookup(map[string]string{
+	err := applyEnv(&cfg, CoreEnvVars, lookup(map[string]string{
 		"EASYWALL_CORE_SOCKET_PATH": "/run/e.sock",
 		"EASYWALL_CORE_DATA_DIR":    "/data",
 		"EASYWALL_CORE_LOG_DIR":     "/logs",
 	}))
 	if err != nil {
-		t.Fatalf("applyCoreEnv: %v", err)
+		t.Fatalf("applyEnv: %v", err)
 	}
 	if cfg.SocketPath != "/run/e.sock" {
 		t.Errorf("SocketPath = %q, want /run/e.sock", cfg.SocketPath)
@@ -97,7 +101,7 @@ func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 
 func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 	var cfg WebConfig
-	err := applyWebEnv(&cfg, lookup(map[string]string{
+	err := applyEnv(&cfg, WebEnvVars, lookup(map[string]string{
 		"EASYWALL_WEB_BIND_ADDR":    "0.0.0.0:9999",
 		"EASYWALL_WEB_SOCKET_PATH":  "/run/w.sock",
 		"EASYWALL_WEB_SSL_DIR":      "/ssl",
@@ -109,7 +113,7 @@ func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 		"EASYWALL_WEB_DEMO_MODE":    "true",
 	}))
 	if err != nil {
-		t.Fatalf("applyWebEnv: %v", err)
+		t.Fatalf("applyEnv: %v", err)
 	}
 	if cfg.BindAddr != "0.0.0.0:9999" {
 		t.Errorf("BindAddr = %q", cfg.BindAddr)
@@ -149,8 +153,8 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := WebConfig{Language: "de"}
-			if err := applyWebEnv(&cfg, lookup(env)); err != nil {
-				t.Fatalf("applyWebEnv: %v", err)
+			if err := applyEnv(&cfg, WebEnvVars, lookup(env)); err != nil {
+				t.Fatalf("applyEnv: %v", err)
 			}
 			if cfg.Language != "de" {
 				t.Errorf("Language = %q, want the file's de", cfg.Language)
@@ -164,7 +168,7 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 // believes they switched it off.
 func TestApplyWebEnv_UnparseableBoolNamesTheVariableAndTheValue(t *testing.T) {
 	var cfg WebConfig
-	err := applyWebEnv(&cfg, lookup(map[string]string{
+	err := applyEnv(&cfg, WebEnvVars, lookup(map[string]string{
 		"EASYWALL_WEB_UPDATE_CHECK": "yes",
 	}))
 	if err == nil {
@@ -183,7 +187,7 @@ The file's imports are `"strings"` and `"testing"`.
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `go test ./internal/shared/ -run TestApply -v`
-Expected: FAIL — `undefined: applyCoreEnv`, `undefined: applyWebEnv`.
+Expected: FAIL — `undefined: applyEnv`, `undefined: CoreEnvVars`.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -220,28 +224,23 @@ const (
 	EnvBool
 )
 
-// CoreEnvVar binds one variable to the easywall.toml key it overrides.
+// EnvVar binds one variable to the TOML key it overrides, in a configuration of
+// type T.
 //
 // Set is part of the entry rather than a switch elsewhere on purpose: a table
 // beside a switch is two lists to keep in step, and one of them eventually
-// stops matching in silence.
-type CoreEnvVar struct {
+// stops matching in silence. The type parameter is there for the same reason —
+// core and web differ only in their table and their config type, and two
+// near-identical loops would be a third thing to keep in step by hand.
+type EnvVar[T any] struct {
 	Name    string
 	TOMLKey string
 	Kind    EnvKind
-	Set     func(*CoreConfig, string) error
-}
-
-// WebEnvVar binds one variable to the web.toml key it overrides.
-type WebEnvVar struct {
-	Name    string
-	TOMLKey string
-	Kind    EnvKind
-	Set     func(*WebConfig, string) error
+	Set     func(*T, string) error
 }
 
 // CoreEnvVars is every variable easywall-core reads.
-var CoreEnvVars = []CoreEnvVar{
+var CoreEnvVars = []EnvVar[CoreConfig]{
 	{"EASYWALL_CORE_SOCKET_PATH", "socket_path", EnvString,
 		func(c *CoreConfig, v string) error { c.SocketPath = v; return nil }},
 	{"EASYWALL_CORE_DATA_DIR", "data_dir", EnvString,
@@ -251,7 +250,7 @@ var CoreEnvVars = []CoreEnvVar{
 }
 
 // WebEnvVars is every variable easywall-web reads.
-var WebEnvVars = []WebEnvVar{
+var WebEnvVars = []EnvVar[WebConfig]{
 	{"EASYWALL_WEB_BIND_ADDR", "bind_addr", EnvString,
 		func(c *WebConfig, v string) error { c.BindAddr = v; return nil }},
 	{"EASYWALL_WEB_SOCKET_PATH", "socket_path", EnvString,
@@ -287,26 +286,15 @@ var WebEnvVars = []WebEnvVar{
 }
 
 // ApplyCoreEnv overlays the environment onto a parsed easywall.toml.
-func ApplyCoreEnv(cfg *CoreConfig) error { return applyCoreEnv(cfg, os.LookupEnv) }
+func ApplyCoreEnv(cfg *CoreConfig) error { return applyEnv(cfg, CoreEnvVars, os.LookupEnv) }
 
 // ApplyWebEnv overlays the environment onto a parsed web.toml.
-func ApplyWebEnv(cfg *WebConfig) error { return applyWebEnv(cfg, os.LookupEnv) }
+func ApplyWebEnv(cfg *WebConfig) error { return applyEnv(cfg, WebEnvVars, os.LookupEnv) }
 
-func applyCoreEnv(cfg *CoreConfig, look func(string) (string, bool)) error {
-	for _, v := range CoreEnvVars {
-		raw, ok := present(look, v.Name)
-		if !ok {
-			continue
-		}
-		if err := v.Set(cfg, raw); err != nil {
-			return fmt.Errorf("%s=%q: %w", v.Name, raw, err)
-		}
-	}
-	return nil
-}
-
-func applyWebEnv(cfg *WebConfig, look func(string) (string, bool)) error {
-	for _, v := range WebEnvVars {
+// applyEnv walks one table. look is injected so a test never touches the real
+// environment and can run beside its neighbours.
+func applyEnv[T any](cfg *T, vars []EnvVar[T], look func(string) (string, bool)) error {
+	for _, v := range vars {
 		raw, ok := present(look, v.Name)
 		if !ok {
 			continue
