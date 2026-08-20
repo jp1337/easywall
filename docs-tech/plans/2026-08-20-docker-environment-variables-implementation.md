@@ -67,7 +67,10 @@ Create `internal/shared/env_test.go`:
 ```go
 package shared
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // lookup builds a fake environment from pairs, so a test never touches the
 // real one and can run alongside its neighbours.
@@ -878,6 +881,37 @@ func TestEveryEnvVarIsDocumented(t *testing.T) {
 	}
 	for n := range documented {
 		t.Errorf("docs/_docs/environment.md documents %s, which nothing reads", n)
+	}
+}
+
+// Kind is not decoration: the page's type column has to agree with it.
+//
+// Without this the field is dead weight — every Set closure parses for itself,
+// so nothing in the code reads Kind at all. Deriving the documented type from it
+// is what stops the page saying "string" for a variable the code parses as a
+// boolean, which is the mistake that sends somebody debugging a value that was
+// rejected at startup for a reason the page denied.
+func TestTheEnvironmentPageStatesTheRightTypes(t *testing.T) {
+	page := repoFile(t, "docs", "_docs", "environment.md")
+	for _, v := range WebEnvVars {
+		if v.Kind != EnvBool {
+			continue
+		}
+		// The row for a boolean variable has to say so somewhere on its line.
+		var row string
+		for _, line := range strings.Split(page, "\n") {
+			if strings.Contains(line, v.Name) {
+				row = line
+				break
+			}
+		}
+		if row == "" {
+			continue // TestEveryEnvVarIsDocumented reports the missing row
+		}
+		if !strings.Contains(strings.ToLower(row), "bool") {
+			t.Errorf("%s is EnvBool in the code, and its row does not say so:\n  %s",
+				v.Name, row)
+		}
 	}
 }
 
