@@ -14,14 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   eight one-time recovery codes stored argon2-hashed rather than in the clear.
   Setup lives on **Password → Second factor**: enter the current password, scan
   a QR code or type the key by hand, then enter the six-digit code the app
-  shows — nothing is written until that third step succeeds, and the deliberate
-  absence of this from the first-run wizard is intentional, not an oversight —
-  setting one up needs an authenticator app already in hand, and the first run
-  is the moment an operator is least likely to have one. `/login/verify` is now
-  the second step of signing in whenever a factor is enrolled: the password
-  step ends in a redirect bound to an intermediate cookie, `easywall_pending`,
-  rather than a session, and issues no session at all until the code is right
-  too. That second step has its own bound rather than its own rate limiter —
+  shows — nothing is written until that third step succeeds. `/login/verify`
+  is now the second step of signing in whenever a factor is enrolled: the
+  password step ends in a redirect bound to an intermediate cookie,
+  `easywall_pending`, rather than a session, and issues no session at all
+  until the code is right too. That second step has its own bound rather than
+  its own rate limiter —
   three code attempts per intermediate cookie, and a new cookie costs a
   password round already limited to five per ten minutes per address, so
   fifteen code attempts per ten minutes per address against a target that
@@ -47,6 +45,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hour would otherwise push an `apply_rolledback` out of view entirely. None of
   the nine carries colour — colour means the firewall moved, and a sign-in
   does not move it
+- **The first-run wizard offers a second factor too, unticked by default.**
+  Ticking "Set up a second factor now" replaces Finish's immediate account
+  creation with the same setup step **Password → Second factor** shows later —
+  the QR code, the typed key, the server's own clock — and the account is
+  written only once a code confirms it, together with the eight recovery
+  codes. Skipping that step is a first-class answer, not a failure:
+  `POST /firstrun/skip` creates the account with a password alone regardless
+  of what the code field held, because easywall runs on single-board
+  computers with no RTC, which come up at the epoch until NTP lands, and TOTP
+  cannot verify against a clock like that — an optional feature must never
+  become a way of bricking the wizard on a machine already reachable from the
+  network, which is what `TestFirstRun2FA_SkipCreatesTheAccountWithoutAFactor`
+  runs rather than states. A staging failure after confirming does not cost
+  the operator their one look at the recovery codes either — they are shown
+  regardless, with the same notice used elsewhere that the initial choices
+  could not be staged and have to be set by hand
 
 ### Fixed
 

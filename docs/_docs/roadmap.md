@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Fourteen releases, ordered by exposure — the holes first, then comprehension, then reach.
+description: Fifteen releases, ordered by exposure — the holes first, then comprehension, then reach.
 ---
 
 # Roadmap
@@ -34,6 +34,7 @@ Reach further            2.17  Outbound traffic
                           2.18  More than one account
                           2.19  Nine languages
                           3.0   Reachable from outside
+                          3.1   Passkeys, as a second factor
 ```
 
 One theme per release, sayable in one sentence — the changelog heading then
@@ -61,7 +62,8 @@ earlier as an end in itself and never twice.
 | **2.17** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
 | **2.18** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
 | **2.19** | **Nine languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
-| **3.0** | **Reachable from outside** — a REST API with token auth, ACME as an alternative to a reverse proxy, a trusted-proxy *list* rather than a boolean, and passkeys | A major version because an API is a second public interface and a compatibility promise easywall has not made before. Passkeys wait for a real hostname and certificate — WebAuthn rejects bare IP addresses as an RP ID |
+| **3.0** | **Reachable from outside** — a REST API with token auth, ACME as an alternative to a reverse proxy, and a trusted-proxy *list* rather than a boolean | A major version because an API is a second public interface and a compatibility promise easywall has not made before |
+| **3.1** | **Passkeys, as a second factor** — WebAuthn alongside TOTP, never in place of the password | Wait for 3.0 on purpose: WebAuthn requires a registrable domain as its Relying Party ID and **rejects a bare IP address**, which is how most easywall installations are reached (`https://192.168.1.10:12227`) — passkeys cannot come before a real hostname and certificate exist |
 
 ## Deliberately excluded
 

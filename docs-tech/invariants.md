@@ -100,6 +100,7 @@ where the page looks right on the machine that has the old file cached.
 | `TestEveryLoginEventIsLabelledDocumentedAndTranslated` / `TestNoLoginEventIsColoured` | an event that renders as raw snake_case, and colour drifting away from "what the firewall is doing" |
 | `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` | the roadmap's requirement that the second step be bounded, as arithmetic that runs |
 | `TestConfig_TOTPKeysSurviveTheSaveRoundTrip` | `mergeConfig` silently falling back to the encoder and taking three kilobytes of comments with it |
+| `TestFirstRun2FA_SkipCreatesTheAccountWithoutAFactor` | the wizard's setup step must always offer a way past it that still creates the account. easywall runs on single-board computers with no RTC, which come up at the epoch until NTP lands; TOTP cannot verify against a clock like that. Without this branch an optional feature becomes a way of bricking the wizard on a machine that is already reachable from the network |
 
 Worth writing down beside the last one, though nothing tests it: `keyLineRe`
 matches one line, so a hand-written multi-line `recovery_codes` array makes the
