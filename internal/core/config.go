@@ -31,6 +31,16 @@ type Config struct {
 
 	// Derived fields (not in TOML)
 	configPath string
+
+	// fileConfig is the parsed file as it stood before the environment overlay.
+	// saveLocked puts its socket_path, data_dir and log_dir back before
+	// encoding, so a variable set for this process cannot become content of the
+	// file the root daemon reads. Same purpose as web's field of the same name,
+	// and simpler for one reason: web's encode() has to copy six managed keys
+	// forward from the live struct, while nothing here writes a path — the
+	// interface saves the firewall, acceptance, ipv6, docker and routing
+	// sections and nothing else.
+	fileConfig shared.CoreConfig
 }
 
 // FirewallOptions returns a copy of the [firewall] section.
@@ -76,6 +86,12 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	cfg.configPath = path
+	cfg.fileConfig = cfg.CoreConfig // before the overlay, deliberately
+	// Before the caller's Validate(), which main runs next: an environment value
+	// has to face the same checks a file value does.
+	if err := shared.ApplyCoreEnv(&cfg.CoreConfig); err != nil {
+		return nil, fmt.Errorf("environment: %w", err)
+	}
 	return &cfg, nil
 }
 
@@ -384,6 +400,18 @@ func (c *Config) saveLocked() error {
 	snapshot := c.CoreConfig
 	snapshot.Docker.CustomNetworks = append([]string(nil), c.Docker.CustomNetworks...)
 	snapshot.Routing.Networks = append([]string(nil), c.Routing.Networks...)
+
+	// The three paths shared.CoreEnvVars can override go back to what the file
+	// said. Without this, saving any section wrote the environment overlay into
+	// easywall.toml permanently: EASYWALL_CORE_DATA_DIR=/data-from-env and one
+	// press of Save on the Options page left the file naming a directory the
+	// operator never configured, and the next start — without the variable —
+	// looked for rules.json, the apply state and the panic marker there.
+	// TestEnvOverlayNeverReachesTheConfigFile walks CoreEnvVars and fails on a
+	// variable this list has not caught up with.
+	snapshot.SocketPath = c.fileConfig.SocketPath
+	snapshot.DataDir = c.fileConfig.DataDir
+	snapshot.LogDir = c.fileConfig.LogDir
 
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "core-*.toml.tmp")

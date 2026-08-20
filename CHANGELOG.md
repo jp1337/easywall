@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`EASYWALL_CORE_*` and `EASYWALL_WEB_*` — twelve variables, and the first
+  environment either binary has ever read.** `os.Getenv` appeared nowhere in
+  the non-test source before this: both processes took only `-config`, so a
+  container had no way to set a socket path, a data directory or the address
+  to bind without writing `easywall.toml` and `web.toml` onto a volume ahead
+  of the first boot. Three variables now cover what `easywall-core` needs to
+  place its socket and its state (`SOCKET_PATH`, `DATA_DIR`, `LOG_DIR`); nine
+  cover what `easywall-web` needs for the same, plus TLS, a fallback locale,
+  the update check and the public demo (`BIND_ADDR`, `SOCKET_PATH`,
+  `SSL_DIR`, `DATA_DIR`, `TLS_CERT`, `TLS_KEY`, `LANGUAGE`, `UPDATE_CHECK`,
+  `DEMO_MODE`). The overlay runs inside `LoadConfig`, ahead of the
+  `Validate()` call `main` already makes next, so a malformed value from the
+  environment is rejected exactly as a malformed one from the file always has
+  been. The list stops at deployment on purpose: the environment configures
+  *where* easywall runs, the interface configures *what the firewall does*,
+  and a variable that crossed that line would let an operator press Save on
+  the Options page, be told it was saved, and find the old value back after
+  the container's next restart re-read a value fixed at `docker run` — the
+  page would be lying about what it just did. So every rule field and limit,
+  `acceptance.duration`, `[ipv6]`, `[docker]`, `[routing]` and `telemetry`
+  are absent, and the credentials and the session key are absent on top of
+  that for a second, independent reason: an environment variable is visible
+  in `docker inspect` and in `/proc/<pid>/environ`, where `web.toml` at
+  `0600` is not. Nothing the overlay supplies can leak into that file later
+  either — `encode()`'s fallback path used to marshal the live config whole,
+  environment values included, whenever the comment-preserving merge
+  declined, so it now renders the pre-overlay parse `LoadConfig` captured and
+  takes only the six keys the interface itself owns from the live struct.
+  `TestNoEnvVarTargetsARuleField` and `TestNoEnvVarTargetsAManagedKey` derive
+  their forbidden set from the payload types the interface's Save handlers
+  send and from `managedKeys`, rather than restating either list by hand, so
+  the two sides cannot quietly drift apart. Documented in full, exclusions
+  and all, on `docs/_docs/environment.md`
+
 ## [2.8.0] — 2026-08-20
 
 ### Added
