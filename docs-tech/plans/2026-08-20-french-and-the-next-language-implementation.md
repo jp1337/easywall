@@ -150,6 +150,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -284,7 +285,11 @@ Create `internal/web/coverage_test.go`:
 ```go
 package web
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestLocaleCoverage_EnglishIsTheYardstickAndIsComplete(t *testing.T) {
 	cov, err := LocaleCoverage(localesDir(t))
@@ -315,6 +320,39 @@ func TestCoveragePercent_NeverRoundsAGapUpToAHundred(t *testing.T) {
 	full := Coverage{Have: 10, Total: 10}
 	if full.Percent() != 100 {
 		t.Errorf("a complete language reported %d%%", full.Percent())
+	}
+}
+
+// Pasting the English string must not raise the number.
+//
+// The fallback renders English for a missing key anyway, so a copied line
+// changes nothing a user sees — it only changes what the report claims. The
+// roadmap named this exact failure when it argued against exact parity.
+func TestCoverage_CopiedEnglishDoesNotCount(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("en.json", `[{"id":"a","translation":"Apply"},{"id":"b","translation":"Cancel"}]`)
+	write("xx.json", `[{"id":"a","translation":"Appliquer"},{"id":"b","translation":"Cancel"}]`)
+	write("status.json", `{"en":{"reviewed":true},"xx":{"reviewed":false}}`)
+
+	cov, err := LocaleCoverage(dir)
+	if err != nil {
+		t.Fatalf("LocaleCoverage: %v", err)
+	}
+	for _, c := range cov {
+		if c.Lang != "xx" {
+			continue
+		}
+		if c.Have != 1 {
+			t.Errorf("Have = %d, want 1 — \"Cancel\" is the English string verbatim", c.Have)
+		}
+		if len(c.Missing) != 1 || c.Missing[0] != "b" {
+			t.Errorf("Missing = %v, want [b]", c.Missing)
+		}
 	}
 }
 
@@ -387,7 +425,7 @@ func (c Coverage) Percent() int {
 
 // LocaleCoverage measures every catalogue in dir against en.json.
 func LocaleCoverage(dir string) ([]Coverage, error) {
-	english, err := localeIDSet(dir, "en")
+	english, err := localeTranslations(dir, "en")
 	if err != nil {
 		return nil, err
 	}
@@ -402,16 +440,30 @@ func LocaleCoverage(dir string) ([]Coverage, error) {
 
 	var out []Coverage
 	for _, code := range codes {
-		ids, err := localeIDSet(dir, code)
+		tr, err := localeTranslations(dir, code)
 		if err != nil {
 			return nil, err
 		}
 		c := Coverage{Lang: code, Total: len(english), Reviewed: status[code].Reviewed}
-		for id := range english {
-			if ids[id] {
-				c.Have++
-			} else {
+		for id, en := range english {
+			t, present := tr[id]
+			switch {
+			case !present:
 				c.Missing = append(c.Missing, id)
+			case code != "en" && t == en:
+				// Byte-identical to English is not a translation. It renders
+				// exactly as the fallback would, so counting it would let
+				// somebody raise the number by pasting — which is the failure
+				// the roadmap named: the rule becoming a sham because the
+				// English text was copied in to make a test green.
+				//
+				// A handful of terms are legitimately the same in both
+				// languages ("Docker", "IP"), so this understates coverage by
+				// a percent or two. That is the right direction to be wrong
+				// in: overstating is what misleads.
+				c.Missing = append(c.Missing, id)
+			default:
+				c.Have++
 			}
 		}
 		sort.Strings(c.Missing)
@@ -421,10 +473,11 @@ func LocaleCoverage(dir string) ([]Coverage, error) {
 	return out, nil
 }
 
-// localeIDSet reads one catalogue and returns the IDs it actually translates.
-// An entry with an empty translation is not a translation, so it does not count
-// towards coverage — otherwise a file of 461 blanks would report 100%.
-func localeIDSet(dir, code string) (map[string]bool, error) {
+// localeTranslations reads one catalogue as id -> translation, keeping only the
+// entries that actually carry text. An empty translation is not a translation,
+// so it does not count towards coverage — otherwise a file of 461 blanks would
+// report 100%.
+func localeTranslations(dir, code string) (map[string]string, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, code+".json")) // #nosec G304 -- a code LocaleCodes listed
 	if err != nil {
 		return nil, fmt.Errorf("read %s.json: %w", code, err)
@@ -436,10 +489,10 @@ func localeIDSet(dir, code string) (map[string]bool, error) {
 	if err := json.Unmarshal(raw, &entries); err != nil {
 		return nil, fmt.Errorf("parse %s.json: %w", code, err)
 	}
-	out := make(map[string]bool, len(entries))
+	out := make(map[string]string, len(entries))
 	for _, e := range entries {
 		if e.Translation != "" {
-			out[e.ID] = true
+			out[e.ID] = e.Translation
 		}
 	}
 	return out, nil
