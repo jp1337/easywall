@@ -76,6 +76,11 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	cfg.configPath = path
+	// Before the caller's Validate(), which main runs next: an environment value
+	// has to face the same checks a file value does.
+	if err := shared.ApplyCoreEnv(&cfg.CoreConfig); err != nil {
+		return nil, fmt.Errorf("environment: %w", err)
+	}
 	return &cfg, nil
 }
 
