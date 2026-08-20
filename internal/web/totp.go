@@ -71,6 +71,12 @@ func hotp(secret []byte, counter uint64, digits int, newHash func() hash.Hash) s
 }
 
 // stepAt returns the RFC 6238 counter for t.
+//
+// #nosec G115 -- t.Unix() is negative only for a clock set before 1970, and such
+// a clock cannot produce a matching code in any case: the operator's phone holds
+// real time, so every candidate in the window is wrong whatever this conversion
+// does. A wrong clock is a supported failure here, not a security boundary —
+// that is why the enrolment card shows the server time permanently.
 func stepAt(t time.Time) uint64 {
 	return uint64(t.Unix()) / uint64(totpPeriod/time.Second)
 }
@@ -109,6 +115,9 @@ func totpAt(secret []byte, step uint64) string {
 // still-valid step N when a code from N-1 was accepted, locking the operator out
 // for thirty seconds immediately after a successful login.
 func matchTOTP(secret []byte, now time.Time, code string, window int) (step uint64, offset int, ok bool) {
+	// #nosec G115 -- stepAt divides a Unix second count by 30, so its result is
+	// around 5.8e7 today and cannot approach the int64 ceiling from any value
+	// time.Time can hold.
 	cur := int64(stepAt(now))
 	for d := -window; d <= window; d++ {
 		c := cur + int64(d)

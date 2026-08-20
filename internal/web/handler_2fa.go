@@ -199,7 +199,13 @@ func (s *Server) renderSetupAgain(w http.ResponseWriter, r *http.Request, secret
 		return
 	}
 	s.render(w, r, "password.html", "password", s.passwordPage(&totpSetup{
-		QR:         template.URL(qrURI), //nolint:gosec // G203 — qrURI is base64 PNG bytes this process just encoded, never request input
+		// #nosec G203 -- qrURI is "data:image/png;base64," followed by base64 of
+		// PNG bytes this process just encoded. Base64 output is [A-Za-z0-9+/=],
+		// so no request input can contribute a character that leaves the
+		// attribute, whatever the username inside the QR payload happens to be.
+		// template.URL is the escaper's own sanctioned bypass; a plain string is
+		// silently defanged to #ZgotmplZ and the code never renders.
+		QR:         template.URL(qrURI), //nolint:gosec // G203 — see above
 		SecretText: formatTOTPSecret(secret),
 		ServerTime: time.Now().UTC().Format("2 Jan 2006, 15:04:05 MST"),
 	}, nil))
