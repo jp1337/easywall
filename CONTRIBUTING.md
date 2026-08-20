@@ -9,7 +9,7 @@ started and what we expect from contributions.
 git clone https://github.com/jp1337/easywall.git
 cd easywall
 
-# Install Go 1.26+  (the toolchain go.mod pins; workflows read it from there)
+# Install Go 1.27+  (the toolchain go.mod pins; workflows read it from there)
 # https://go.dev/dl/
 
 # Download dependencies

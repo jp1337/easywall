@@ -80,7 +80,7 @@ sudo dpkg -i easywall_$ARCH.deb && sudo apt-get install -f
 # Docker
 git clone https://github.com/jp1337/easywall.git && cd easywall && docker compose up -d
 
-# From source — Go 1.26+, nftables
+# From source — Go 1.27+, nftables
 git clone https://github.com/jp1337/easywall.git && cd easywall
 make build && sudo make install
 sudo systemctl enable --now easywall-core easywall-web
@@ -108,7 +108,7 @@ Then open `https://localhost:12227`. The first visit
 
 | | |
 |---|---|
-| Go 1.26, single binary | `go-chi/chi` · `html/template` |
+| Go 1.27, single binary | `go-chi/chi` · `html/template` |
 | nftables via `google/nftables` | direct netlink, no `nft` subprocess |
 | Argon2id | `golang.org/x/crypto`, 16-byte salt per password |
 | CSRF | `net/http.CrossOriginProtection`, Go 1.25 native |
