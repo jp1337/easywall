@@ -321,6 +321,10 @@ body {
 
   .brand-version {
     margin-left: auto;
+    max-width: 9ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-data);
     font-size: 10px;
     letter-spacing: 0.06em;
@@ -1119,6 +1123,55 @@ body {
     background: var(--wash-crit);
     color: var(--color-state-crit-on-wash);
     border-color: var(--color-state-crit);
+  }
+
+  /* ── Second-factor enrolment ─────────────────────────────────────────────
+     A white plate in both themes. An inverted QR code is rejected by a good
+     share of scanners, which is a defect only a screenshot in the dark theme
+     shows — so this looks like a design decision and is a functional one. */
+  .qr-plate {
+    background: #fff;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    display: inline-block;
+    line-height: 0;
+  }
+  .totp-setup { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  /* The text column's default flex-basis is its own max-content, which is
+     firstrun_totp_skip_help — the longest line on the page. That pushed the
+     basis past whatever space was left beside the QR plate and wrapped the
+     whole column beneath it, even at 1600px where there was room to spare.
+     A basis that can shrink below max-content lets it share the line instead. */
+  .totp-setup > div:last-child { flex: 1 1 260px; min-width: 0; }
+  .totp-secret {
+    font-family: var(--font-data);
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    user-select: all;
+  }
+  .recovery-codes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11ch, 1fr));
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+  }
+  .recovery-code { font-family: var(--font-data); user-select: all; }
+
+  /* The escape hatch below this card — "Continue without a second factor" —
+     exists for the operator whose clock cannot verify anything yet, and it has
+     to be reachable before the first wrong code, not after a scroll. The QR
+     only has to be scannable, not large, so at phone width it gives up the
+     pixels the fixed 256px image doesn't need: decoding a screenshot rendered
+     at this size (ZXing, the engine most camera scanners are built on) still
+     reads the otpauth:// URI cleanly. Sizing the <img> rather than .qr-plate
+     keeps the white plate's own padding, which is what keeps a scanner's quiet
+     zone intact. */
+  @media (max-width: 480px) {
+    .qr-plate img {
+      width: 144px;
+      height: 144px;
+    }
   }
 
   /* ── Link ──────────────────────────────────────────────────────────────────

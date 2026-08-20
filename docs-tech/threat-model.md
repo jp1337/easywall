@@ -58,6 +58,21 @@ works — a session whose fingerprint no longer matches is refused.
 The revocation record is in memory. A restart inside the same ten minutes forgets
 it, which is stated on the operator page rather than hidden.
 
+## Two pieces of login state, two different decisions
+
+| | Where | Why not the other way |
+|---|---|---|
+| The login's intermediate state (`easywall_pending`) | a signed cookie, `Path=/login`, 180 s, 3 attempts | **Unauthenticated** requests create it. A server-side map any stranger can fill is memory any stranger occupies |
+| The enrolment's unconfirmed secret | an in-memory table keyed by session id, 10 minutes | Enrolment is **authenticated** and there is exactly one account, so the table never holds more than a handful. And `gorilla/sessions` with only a hash key **signs but does not encrypt** — a cookie value is readable plaintext, so an unconfirmed secret has no business in one |
+
+`sessionUser()` never reads the pending cookie, and cannot: it is not the session
+cookie. That is the structural version of the rule the redirect loop taught —
+see the comment above `sessionUser` in `middleware.go`.
+
+The pending store is built with `store.MaxAge(180)`, never `Options.MaxAge`.
+`newSessionStore`'s comment records what the other one cost: a logged-out cookie
+that stayed valid to the server for thirty days.
+
 ## Passwords
 
 Argon2id, 64 MiB, 3 iterations, parallelism 4, a 16-byte salt per password.
@@ -70,6 +85,28 @@ refused with a log line rather than failing the login page silently, and the par
 never puts anything it read into that line: ten constant `errHash*` values exist so
 that no attacker-influenced text reaches the journal, and `maxHashPart` bounds what
 is decoded.
+
+### Open question: was the deployed demo ever actually lockable?
+
+`POST /password` had no demo test anywhere in a handler until the credential-
+writing guard was added — `s.client.IsDemo()` now refuses every route that
+would call `SaveCredentials`, `SaveTOTP` or `SaveRecoveryCodes`. Before that
+fix, a visitor to the public demo submitting that form called `SaveCredentials`
+for real, which writes `web.toml`.
+
+Nobody who worked on this could reach the deployed demo host to find out
+whether its `web.toml` is actually writable by the process. Both answers are
+plausible and the difference matters for how bad the pre-existing bug was:
+
+| If `web.toml` was writable | If it was read-only |
+|---|---|
+| Any visitor could overwrite the published demo password and lock out everyone else, including whoever publishes it, until the process was restarted | `SaveCredentials` would have failed on the write and returned an error, which the handler would have shown as `internal_error` rather than "Changes saved." — a confusing page, not a lockout |
+| The bug was a real, exploitable denial of service | The bug was real code with no working path to harm, which is also why nobody reported a lockout that never happened |
+
+Left open. Whoever next has shell access to the demo host can settle it with
+`ls -l web.toml` and a permission bit; until then, treat the fix as necessary
+regardless of which answer turns out to be true — the code should not have
+depended on the deployment's file permissions to be safe.
 
 ## Why `X-Forwarded-For` is ignored
 

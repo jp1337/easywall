@@ -7,6 +7,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A stolen password alone no longer opens the firewall.** RFC 6238 TOTP for the
+  single account, verified against the RFC's own published test vectors, plus
+  eight one-time recovery codes stored argon2-hashed rather than in the clear.
+  Setup lives on **Password → Second factor**: enter the current password, scan
+  a QR code or type the key by hand, then enter the six-digit code the app
+  shows — nothing is written until that third step succeeds. `/login/verify`
+  is now the second step of signing in whenever a factor is enrolled: the
+  password step ends in a redirect bound to an intermediate cookie,
+  `easywall_pending`, rather than a session, and issues no session at all
+  until the code is right too. That second step has its own bound rather than
+  its own rate limiter —
+  three code attempts per intermediate cookie, and a new cookie costs a
+  password round already limited to five per ten minutes per address, so
+  fifteen code attempts per ten minutes per address against a target that
+  rotates every thirty seconds —
+  `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` runs that
+  arithmetic rather than stating it. The way back if both the phone and the
+  recovery codes are lost is documented before this release ships rather than
+  after, the rule 2.7's removal of the accidental reboot escape hatch
+  established: clear `totp_secret` and `recovery_codes` in `web.toml` on the
+  host, the same file the password already lives in — there is no reset link,
+  because this interface sends no mail and reaches no outside service
+- `LOG_EVENT` is the eighteenth command the socket protocol declares, and the
+  first one the web process sends rather than receives. Nine login events —
+  signed in, sign-in failed, second factor failed, a recovery code used,
+  sign-in attempts blocked, signed out, and the second factor switched on, off
+  or regenerated — reach the audit log from a fixed enum rather than free text,
+  the same shape `AllCommandTypes` already enforced for the fifteen commands
+  before it. Three of the nine are events a stranger can trigger without any
+  credential at all — a failed password, a failed code, a rate-limited
+  address — and those are debounced in the core: a burst from one address
+  writes one line immediately and a summary sixty seconds later, because
+  `GET_LOG` shows only the last 200 lines and forty addresses knocking for an
+  hour would otherwise push an `apply_rolledback` out of view entirely. None of
+  the nine carries colour — colour means the firewall moved, and a sign-in
+  does not move it
+- **The first-run wizard offers a second factor too, unticked by default.**
+  Ticking "Set up a second factor now" replaces Finish's immediate account
+  creation with the same setup step **Password → Second factor** shows later —
+  the QR code, the typed key, the server's own clock — and the account is
+  written only once a code confirms it, together with the eight recovery
+  codes. Skipping that step is a first-class answer, not a failure:
+  `POST /firstrun/skip` creates the account with a password alone regardless
+  of what the code field held, because easywall runs on single-board
+  computers with no RTC, which come up at the epoch until NTP lands, and TOTP
+  cannot verify against a clock like that — an optional feature must never
+  become a way of bricking the wizard on a machine already reachable from the
+  network, which is what `TestFirstRun2FA_SkipCreatesTheAccountWithoutAFactor`
+  runs rather than states. A staging failure after confirming does not cost
+  the operator their one look at the recovery codes either — they are shown
+  regardless, with the same notice used elsewhere that the initial choices
+  could not be staged and have to be set by hand
+
+### Fixed
+
+- **An unauthenticated request could erase the visible audit log.** `POST
+  /logout` is in the public route group with no rate limiter, and
+  `handleLogout` recorded a `logout` audit event unconditionally, even for a
+  request carrying no session at all — a bare `curl -X POST /logout` in a
+  loop, with no cookie, wrote one line per request. `GET_LOG` returns only the
+  last 200 lines, so that erased the whole visible history in well under two
+  seconds. `recordLoginEvent` now sits inside the same `id != ""` guard that
+  already gated `revokeSession`, so a request with no session behind it
+  records nothing, and `logout` joins the core's debounced events so a
+  replayed session cookie posted in a loop still folds into one line and a
+  summary rather than one line per request
+- **The interface said `v2`.** `web/templates/base.html` carried that literal in
+  the sidebar — not the version, the major — and it would have read `v2` in 2.5
+  and would still read it in 2.19. Both existing paths by which
+  `shared.CurrentVersion` already reached the templates showed it nowhere: the
+  `Asset` field feeds a cache-busting query string, not the sidebar, and
+  `dashboard.html`'s `.Version.Latest` names the *new* release, only ever
+  rendered when an update is available. Whoever was current saw nothing at
+  all; whoever was not learned where to go but not where they were starting
+  from. `PageData` now carries a `Version` field deliberately separate from
+  `Asset` — coupling the two would make a future cache-busting scheme built on
+  a build hash silently start rendering "easywall v3f9a1c" — and
+  `TestNoTemplateCarriesAVersionLiteral` scans every shipped template for a
+  version literal so a fourth copy cannot come back the same way
+- **The public demo could be locked.** `POST /password` called
+  `SaveCredentials` for real, and had no demo-mode test anywhere in a handler —
+  so a visitor to the published demo could overwrite the demo password and
+  shut out everyone else, including whoever publishes it, until the process was
+  restarted. The four `/password/2fa/*` routes added by this release had the
+  identical exposure through `SaveTOTP` and `SaveRecoveryCodes`. Every
+  credential-writing route now checks `s.client.IsDemo()` before it writes
+  anything, and `TestDemoModeRefusesToWriteCredentials` enumerates the whole
+  list by hand — deliberately not a pattern match — so the next route that
+  writes a credential has to be added to it to pass review. Whether the
+  deployed public demo's `web.toml` was ever actually writable by the process
+  could not be confirmed from here; recorded as an open question in
+  `docs-tech/threat-model.md`
+
+### Changed
+
+- Every session in flight ends once on upgrade: `credentialFingerprint` now
+  covers the TOTP state as well as the password hash, so enrolling or disabling
+  a second factor ends every other session exactly as a password change
+  already does, and its domain separator moved from `v1` to `v2` to force that
+  same ending across the upgrade itself — a session issued under the old
+  fingerprint scheme is, correctly, not one the new scheme recognises
+
 ## [2.7.0] — 2026-08-18
 
 ### Fixed

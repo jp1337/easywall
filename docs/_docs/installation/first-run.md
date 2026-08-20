@@ -23,6 +23,28 @@ and nothing else. It asks for two things.
 | Password | at least 12 characters, hashed with Argon2id and a per-password salt |
 | Recovery | **none by design.** No mail, no outside service — see [below](#if-you-lose-the-password) |
 
+**The wizard offers a second factor, unticked by default.**
+
+| Answer | What happens |
+|---|---|
+| Left unticked | the account is created with a password alone, same as before |
+| Ticked | a setup step replaces Finish: the QR code, the typed key and the server's own clock, exactly as on [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}) |
+| On that step, confirmed | the six-digit code is checked; only then is the secret written, together with eight recovery codes shown once |
+| On that step, skipped | the account is still created, with a password alone — skipping is a first-class answer here, not a failure |
+
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/firstrun-2fa" ext="png"
+     alt="The first-run wizard's setup step: a QR code on a white plate, the typed key and the server's own clock on the left, a field for the six-digit confirmation code and a Confirm button on the right, and below them a Continue without a second factor button." %}
+  <figcaption>Nothing is saved until the code is confirmed — and the escape hatch beneath it is never smaller than the button that saves something.</figcaption>
+</figure>
+
+You need an authenticator app already installed and in hand to confirm it on
+this page — the first run is the moment an operator is least likely to have
+one, mid-installation, on a machine that may not even have a browser tab to
+spare for scanning a QR code. Skipping costs nothing: a second factor set up
+later works exactly the same way, reachable any time after signing in on
+**Password → Second factor**: [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}).
+
 ## First choices — all of them staged
 
 | Answer | What it does |
@@ -45,12 +67,27 @@ correct it.
 
 ## What happens when you press Finish
 
+**With the second factor left unticked:**
+
 1. The account is written first. From that moment the setup page is closed and
    `/login` is served instead.
 2. The choices are staged. If the core daemon is not answering, this is the part
    that fails — and it says so: *"Account created, but the choices could not be
    staged."* You can sign in and set them by hand.
 3. You land on the sign-in page.
+
+**With it ticked**, Finish does not write the account yet — it shows the setup
+step instead, and the account is written only once that step is confirmed or
+skipped. The choices are staged the same way either time, but the two endings
+differ: **confirming** lands you on the recovery codes, shown once and never
+again — sign-in is a deliberate click from there, not a redirect. **Skipping**
+goes straight to the sign-in page, the same as leaving the box unticked.
+
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/firstrun-codes" ext="png"
+     alt="Eight one-time recovery codes shown once, right after the first-run wizard confirms a second factor, with a Copy codes button and a Continue to sign in button." %}
+  <figcaption>The only time these eight codes are ever shown — the same screen as [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}), reached a step earlier here.</figcaption>
+</figure>
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/login" ext="png"

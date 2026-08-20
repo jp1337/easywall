@@ -23,8 +23,21 @@
  * The browser is Playwright's own Chromium — install it with
  * `npx playwright-core install chromium`. Set CHROME_PATH to use a different
  * build instead; that is how it runs against a Chromium already on the machine.
+ *
+ * A second easywall-web is started by the script itself, from `bin/easywall-web`
+ * — see checkVerifyPage — because the second login step is unreachable in the
+ * demo, where no secret is ever stored. It reads the password hash the wizard
+ * above just wrote out of EASYWALL_CONFIG (default /etc/easywall/web.toml); point
+ * that at wherever the demo's web.toml lives if it is not there.
  */
 import { chromium } from 'playwright-core';
+import { createHmac } from 'node:crypto';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import https from 'node:https';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const BASE = process.env.EASYWALL_URL || 'https://127.0.0.1:12227';
 const USER = 'ui-check';
@@ -41,6 +54,63 @@ const fail = (what, detail) => {
   failures.push(`${what}: ${detail}`);
   console.error(`  FAIL ${what}\n       ${detail}`);
 };
+
+/**
+ * RFC 6238, in the script, so the browser check needs no npm dependency and no
+ * agreement with the Go implementation beyond the standard both are reading.
+ *
+ * Deliberately a second implementation rather than a call into the server: if
+ * the two ever disagree, that is precisely the bug worth failing on.
+ */
+function totp(secretBase32, at = Date.now()) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const clean = secretBase32.replace(/[\s=-]/g, '').toUpperCase();
+  let bits = '';
+  for (const ch of clean) bits += alphabet.indexOf(ch).toString(2).padStart(5, '0');
+  const bytes = Buffer.from(bits.match(/.{8}/g).map(b => parseInt(b, 2)));
+
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 1000 / 30)));
+
+  const mac = createHmac('sha1', bytes).update(counter).digest();
+  const off = mac[mac.length - 1] & 0x0f;
+  const num = mac.readUInt32BE(off) & 0x7fffffff;
+  return String(num % 1e6).padStart(6, '0');
+}
+
+/**
+ * The hash comes out of the config run 1's wizard already wrote for PASS, so
+ * this needs no argon2 in JavaScript and no environment variable to carry it.
+ * A four-line regex read of the `password = "…"` line the wizard wrote.
+ */
+function readPasswordHash(configPath) {
+  let text;
+  try {
+    text = readFileSync(configPath, 'utf8');
+  } catch {
+    return null;
+  }
+  const m = text.match(/^\s*password\s*=\s*"([^"]*)"/m);
+  return m && m[1] ? m[1] : null;
+}
+
+/** Polls an HTTPS URL, ignoring certificate errors, until it answers or times out. */
+async function waitForPort(url, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const up = await new Promise(resolve => {
+      const req = https.get(url, { rejectUnauthorized: false, timeout: 1000 }, res => {
+        res.resume();
+        resolve(true);
+      });
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => { req.destroy(); resolve(false); });
+    });
+    if (up) return;
+    if (Date.now() > deadline) throw new Error(`${url} did not come up within ${timeoutMs}ms`);
+    await sleep(250);
+  }
+}
 
 /**
  * Complete the first-run wizard if it is still being served.
@@ -104,6 +174,134 @@ async function signIn(page) {
   }
   if (page.url().includes('/login')) {
     throw new Error(`could not sign in (POST /login -> ${response.status()}): still at ${page.url()}`);
+  }
+}
+
+/**
+ * The whole enrolment, in a browser, against the demo — which shows the flow and
+ * discards the final write. The TOTP maths is exercised end to end: the page's
+ * own displayed key becomes a code here, and the server has to accept it.
+ */
+async function checkEnrolmentFlow(page) {
+  await page.goto(`${BASE}/password`, { waitUntil: 'networkidle' });
+  await page.fill("form[action='/password/2fa/begin'] input[name=current_password]", PASS);
+  await Promise.all([
+    page.waitForLoadState('load'),
+    page.click("form[action='/password/2fa/begin'] button[type=submit]"),
+  ]);
+
+  const qr = await page.getAttribute('.qr-plate img', 'src');
+  if (!qr || !qr.startsWith('data:image/png;base64,')) {
+    fail('2fa setup', `the QR code is ${qr ? qr.slice(0, 40) : 'absent'}; the CSP allows data: URIs and nothing else`);
+    return;
+  }
+
+  const key = (await page.textContent('.totp-secret')).trim();
+  await page.fill("form[action='/password/2fa/confirm'] input[name=code]", totp(key));
+  await Promise.all([
+    page.waitForLoadState('load'),
+    page.click("form[action='/password/2fa/confirm'] button[type=submit]"),
+  ]);
+
+  const codes = await page.locator('.recovery-code').count();
+  if (codes !== 8) {
+    fail('2fa setup', `${codes} recovery codes on the page after confirm, want 8`);
+  }
+  const body = await page.textContent('body');
+  if (!/demo/i.test(body)) {
+    fail('2fa setup', 'the demo confirmed an enrolment without saying nothing was saved');
+  } else {
+    console.log('  ok   enrolment runs end to end and the demo says it saved nothing');
+  }
+}
+
+/**
+ * The verify page cannot be reached against the demo — no secret is ever stored
+ * there — and it is the page a half-locked-out human meets first. So: a second
+ * instance with prepared state.
+ *
+ * socket_path points nowhere on purpose. The login path does not need the core,
+ * and the dashboard then shows its CoreErr banner, which is itself worth seeing.
+ * This scaffolding is also the only way to take two-factor-verify-{light,dark}
+ * at all.
+ */
+async function checkVerifyPage(browser) {
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-'));
+  const secret = 'JBSWY3DPEHPK3PXP';
+  // The hash comes out of the config run 1's wizard already wrote for PASS, so
+  // this needs no argon2 in JavaScript and no environment variable. An
+  // env-gated skip would be a check that never runs anywhere but on the machine
+  // of whoever set the variable — which is the same as not having the check.
+  const hash = readPasswordHash(process.env.EASYWALL_CONFIG || '/etc/easywall/web.toml');
+  if (!hash) {
+    fail('second step', 'could not read the password hash out of the demo config; ' +
+      'set EASYWALL_CONFIG to the web.toml run 1 signed in against');
+    return;
+  }
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:12228"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `session_key = "ui-check-session-key-32-bytes-long!!"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = "${secret}"`,
+    `recovery_codes = []`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    await waitForPort('https://127.0.0.1:12228/login');
+
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 390, height: 1000 } });
+    const page = await ctx.newPage();
+
+    await page.goto('https://127.0.0.1:12228/login', { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([page.waitForLoadState('load'), page.click("form[action='/login'] button[type=submit]")]);
+
+    if (!page.url().includes('/login/verify')) {
+      fail('second step', `the password step landed on ${page.url()}, want /login/verify`);
+      return;
+    }
+
+    await page.fill('input[name=code]', totp(secret));
+    await Promise.all([page.waitForLoadState('load'), page.click("form[action='/login/verify'] button[type=submit]")]);
+    if (!page.url().includes('/dashboard')) {
+      fail('second step', `a correct code landed on ${page.url()}, want /dashboard`);
+    } else {
+      console.log('  ok   password → verify → dashboard');
+    }
+
+    // Three wrong codes and back to /login, with nothing saying which factor
+    // failed. Ending the session here means dropping the cookie, not asking for
+    // /logout: that route is refused with 405 on GET by design — see
+    // checkSignOutEndsTheSession — so a goto there leaves the browser signed in,
+    // and the /login GET below would redirect it straight past the form to
+    // /dashboard instead of presenting one to fill.
+    await ctx.clearCookies();
+    await page.goto('https://127.0.0.1:12228/login', { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([page.waitForLoadState('load'), page.click("form[action='/login'] button[type=submit]")]);
+    for (let i = 0; i < 3; i++) {
+      await page.fill('input[name=code]', '000000');
+      await Promise.all([page.waitForLoadState('load'), page.click("form[action='/login/verify'] button[type=submit]")]);
+    }
+    if (!page.url().endsWith('/login')) {
+      fail('second step', `three wrong codes left the browser at ${page.url()}, want /login`);
+    } else {
+      console.log('  ok   three wrong codes end the attempt');
+    }
+
+    await ctx.close();
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -270,6 +468,8 @@ try {
   });
   const p = await ctx.newPage();
   await checkForwardingPortIsNotReparsed(p);
+  await checkEnrolmentFlow(p);
+  await checkVerifyPage(browser);
   // Last, and deliberately: signing out revokes the session id every context
   // above is sharing, so anything after it would be driving a signed-out browser.
   await checkSignOutEndsTheSession(p);

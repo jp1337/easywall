@@ -153,6 +153,32 @@ func repoDir(t *testing.T, parts ...string) string {
 
 func repoTemplates(t *testing.T) string { return repoDir(t, "web", "templates") }
 
+// repoFile2 returns the contents of a file above the package directory,
+// walking up the same way repoDir does — repoDir stops at the first directory
+// on the path, which a file target like docs/_docs/features/audit-log.md is
+// not.
+func repoFile2(t *testing.T, parts ...string) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel := filepath.Join(parts...)
+	for i := 0; i < 5; i++ {
+		candidate := filepath.Join(dir, rel)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			raw, err := os.ReadFile(candidate)
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			return string(raw)
+		}
+		dir = filepath.Dir(dir)
+	}
+	t.Fatalf("could not locate %s above the package directory", rel)
+	return ""
+}
+
 // The real locale files too, so a handler test sees the copy that ships rather
 // than a bare message id.
 func repoLocales(t *testing.T) string { return repoDir(t, "locales") }
@@ -205,6 +231,9 @@ key  = ""
 	store := newSessionStore("test-session-key-32bytes-padding!")
 	store.Options.Secure = false
 
+	pendingStore := newPendingStore("test-session-key-32bytes-padding!")
+	pendingStore.Options.Secure = false
+
 	bundle := NewBundle(repoLocales(t))
 
 	tmpl, err := loadTemplates(repoTemplates(t))
@@ -216,10 +245,18 @@ key  = ""
 		cfg:     cfg,
 		client:  client,
 		store:   store,
+		pending: pendingStore,
+		replay:  newTOTPReplay(dir + "/totp_replay.json"),
 		bundle:  bundle,
 		tmpl:    tmpl,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 	}
+	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
+	// s.events.
+	s.events = newAuditEvents(client)
+	s.eventsStop = make(chan struct{})
+	go s.events.run(s.eventsStop)
+	t.Cleanup(func() { close(s.eventsStop) })
 	s.router = s.buildRouter(cfg)
 	return s
 }
@@ -261,6 +298,9 @@ key  = ""
 	store := newSessionStore("test-session-key-32bytes-padding!")
 	store.Options.Secure = false
 
+	pendingStore := newPendingStore("test-session-key-32bytes-padding!")
+	pendingStore.Options.Secure = false
+
 	bundle := NewBundle(repoLocales(t))
 	tmpl, err := loadTemplates(repoTemplates(t))
 	if err != nil {
@@ -271,10 +311,18 @@ key  = ""
 		cfg:     cfg,
 		client:  client,
 		store:   store,
+		pending: pendingStore,
+		replay:  newTOTPReplay(dir + "/totp_replay.json"),
 		bundle:  bundle,
 		tmpl:    tmpl,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 	}
+	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
+	// s.events.
+	s.events = newAuditEvents(client)
+	s.eventsStop = make(chan struct{})
+	go s.events.run(s.eventsStop)
+	t.Cleanup(func() { close(s.eventsStop) })
 	s.router = s.buildRouter(cfg)
 	return s
 }
@@ -293,7 +341,7 @@ func makeAuthCookie(t *testing.T, s *Server) *http.Cookie {
 		t.Fatalf("store.Get: %v", err)
 	}
 	sess.Values[SessionUserKey] = "admin"
-	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password)
+	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password, s.cfg.WebConfig.TOTPSecret)
 	sess.Values[SessionIDKey] = newSessionID()
 	if err := sess.Save(req, rec); err != nil {
 		t.Fatalf("sess.Save: %v", err)
@@ -428,3 +476,16 @@ func errorRespFor(msg string) shared.Response {
 // urlEncode escapes a value for a form body. Rule editors post JSON in a hidden
 // field, which contains braces and quotes.
 func urlEncode(v string) string { return url.QueryEscape(v) }
+
+// newDemoTestServer builds a Server the way demo_mode = true builds one: the
+// in-memory mock behind the client, and cfg.DemoMode set, so a handler asking
+// "am I the demo" gets the same answer production gives it.
+func newDemoTestServer(t *testing.T) *Server {
+	t.Helper()
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	s.cfg.DemoMode = true
+	s.client = NewDemoClient()
+	s.router = s.buildRouter(s.cfg)
+	return s
+}

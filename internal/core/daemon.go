@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -34,6 +35,11 @@ type Daemon struct {
 	// SIGTERM arriving while the socket is still being set up races the write.
 	mu       sync.Mutex
 	listener net.Listener
+
+	// login folds bursts of stranger-triggerable login events into two lines.
+	// Built on first use so a Daemon constructed by hand in a test still records.
+	loginOnce sync.Once
+	login     *loginEvents
 }
 
 // NewDaemon initialises the daemon. Call Start() to begin accepting connections.
@@ -479,6 +485,16 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		}
 		return shared.Response{Success: true}
 
+	case shared.CmdLogEvent:
+		var p shared.LogEventPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		if err := d.recordLoginEvent(p); err != nil {
+			return errResp(err)
+		}
+		return shared.Response{Success: true}
+
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}
 	}
@@ -492,6 +508,26 @@ func (d *Daemon) sendError(conn net.Conn, msg string) {
 
 func errResp(err error) shared.Response {
 	return shared.Response{Success: false, Error: err.Error()}
+}
+
+// recordLoginEvent hands one login event to the debouncer.
+func (d *Daemon) recordLoginEvent(p shared.LogEventPayload) error {
+	return d.loginEventLog().record(p, time.Now())
+}
+
+// loginEventLog builds the debouncer on first use and starts its sweeper.
+func (d *Daemon) loginEventLog() *loginEvents {
+	d.loginOnce.Do(func() {
+		d.login = newLoginEvents(func(action, ruleType, detail, user string) {
+			WriteAuditLog(d.cfg.AuditLogPath(), action, ruleType, detail, user)
+		})
+		d.wg.Add(1)
+		go func() {
+			defer d.wg.Done()
+			d.login.run(d.quit)
+		}()
+	})
+	return d.login
 }
 
 // auditTailBytes is how much of the end of the audit log is read to satisfy a

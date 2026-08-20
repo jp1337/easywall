@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Seventeen command types:
+Eighteen command types:
 
 | | |
 |---|---|
@@ -20,6 +20,7 @@ Seventeen command types:
 | `EXPORT_RULES` · `IMPORT_RULES` | the rule set as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
+| `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
 
 ## The one field that is not typed
 

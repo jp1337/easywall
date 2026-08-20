@@ -77,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ── Live entry counters for the list editors ───────────────────────── */
   initListCounter('iplist-input', 'iplist-count', str('count_entry_one'), str('count_entry_many'));
   initListCounter('custom-input', 'custom-count', str('count_rule_one'), str('count_rule_many'));
+
+  /* ── Copy recovery codes ─────────────────────────────────────────────── */
+  initRecoveryCopy();
 });
 
 /* ── List editor counter ──────────────────────────────────────────────────
@@ -449,6 +452,38 @@ function initApplyStatus() {
 
   poll();
   timer = setInterval(poll, 2000);
+}
+
+/* ── Recovery-code copy button ────────────────────────────────────────────
+   The eight codes are shown once, on the response that issues them, and never
+   served from a route — so there is nothing here to fetch, only what is
+   already on the page. navigator.clipboard needs no CSP change, unlike a
+   blob: download would. */
+function initRecoveryCopy() {
+  const btn = document.querySelector('[data-copy-codes]');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    const codes = [...document.querySelectorAll('.recovery-code')]
+      .map(li => li.textContent.trim())
+      .filter(Boolean);
+    if (codes.length === 0) return;
+
+    navigator.clipboard.writeText(codes.join('\n')).then(() => {
+      btn.textContent = str('totp_copied');
+      setTimeout(() => { btn.textContent = str('totp_copy'); }, 2000);
+    }).catch(() => {
+      // The codes are shown once, with no download route, by deliberate
+      // design — copy is the primary path to get them off this page. A
+      // rejection here (permission denied, an insecure context, a browser
+      // that never asked) must not read as "copied" to someone who is about
+      // to navigate away believing they have a backup. It also must not
+      // reach the console as an unhandled rejection: ui-check.mjs's health
+      // sweep treats one as a failure.
+      btn.textContent = str('totp_copy_failed');
+      setTimeout(() => { btn.textContent = str('totp_copy'); }, 4000);
+    });
+  });
 }
 
 /* ── Utilities ────────────────────────────────────────────────────────────── */
