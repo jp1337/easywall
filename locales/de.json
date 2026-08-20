@@ -489,6 +489,7 @@
 
   {"id": "nav_language", "translation": "Sprache"},
   {"id": "language_name", "translation": "Deutsch"},
+  {"id": "lang_apply", "translation": "Übernehmen"},
 
   {"id": "validate_line", "translation": "Zeile {{.Line}}"},
   {"id": "validate_invalid_entries", "translation": "Ungültige Einträge:"},
