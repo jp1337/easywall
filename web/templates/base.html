@@ -65,7 +65,7 @@
   <div class="sidebar-brand">
     <span class="brand-icon" aria-hidden="true"></span>
     <span class="brand-name">easywall</span>
-    <span class="brand-version">v2</span>
+    <span class="brand-version" title="{{.Version}}">{{.Version}}</span>
   </div>
 
   <div class="nav-section">
@@ -237,7 +237,7 @@
 {{if .Flash}}
 <div role="alert" class="alert {{flashClass .Flash}} mb-4" data-auto-dismiss>
   {{flashIcon .Flash}}
-  <span>{{T .Flash}}</span>
+  <span>{{T .Flash (dict "N" .FlashN)}}</span>
 </div>
 {{end}}
 {{end}}

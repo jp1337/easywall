@@ -78,6 +78,16 @@ const (
 	// the machine — see internal/core/restore.go.
 	CmdPanic  CommandType = "PANIC"
 	CmdResume CommandType = "RESUME"
+
+	// CmdLogEvent hands the core a login event to record.
+	//
+	// It exists because the audit log had no logins in it at all —
+	// features/audit-log.md sent an operator to `journalctl -u easywall-web` for
+	// them — and because the entry has to be written by the process that owns
+	// the record. The web process is network-facing; a failed login is
+	// unauthenticated input, and the payload is therefore a fixed enum with no
+	// free-text field anywhere in it. See LoginEvent below.
+	CmdLogEvent CommandType = "LOG_EVENT"
 )
 
 // AllCommandTypes is the complete list of every command the protocol declares.
@@ -91,7 +101,56 @@ var AllCommandTypes = []CommandType{
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
 	CmdImportRules, CmdValidateCustom,
-	CmdPanic, CmdResume,
+	CmdPanic, CmdResume, CmdLogEvent,
+}
+
+// LoginEvent is one of the nine things that can happen at the door. The type is
+// closed on purpose: the core refuses anything not in AllLoginEvents and writes
+// nothing, so the web process cannot compose a line of its own.
+type LoginEvent string
+
+const (
+	EvLoginOK         LoginEvent = "login_ok"
+	EvLoginFailed     LoginEvent = "login_failed"
+	Ev2FAFailed       LoginEvent = "login_2fa_failed"
+	EvRecoveryUsed    LoginEvent = "login_recovery_used"
+	EvRateLimited     LoginEvent = "login_ratelimited"
+	EvLogout          LoginEvent = "logout"
+	EvTOTPEnabled     LoginEvent = "totp_enabled"
+	EvTOTPDisabled    LoginEvent = "totp_disabled"
+	EvRecoveryRenewed LoginEvent = "recovery_codes_regenerated"
+)
+
+// AllLoginEvents is the complete list, and it is what four guards hang off:
+// the core's dispatch accepts exactly these, features/audit-log.md documents
+// each, and both locale files label each.
+var AllLoginEvents = []LoginEvent{
+	EvLoginOK, EvLoginFailed, Ev2FAFailed, EvRecoveryUsed, EvRateLimited,
+	EvLogout, EvTOTPEnabled, EvTOTPDisabled, EvRecoveryRenewed,
+}
+
+// ValidLoginEvent reports whether ev is one this protocol declares.
+func ValidLoginEvent(ev LoginEvent) bool {
+	for _, known := range AllLoginEvents {
+		if known == ev {
+			return true
+		}
+	}
+	return false
+}
+
+// LogEventPayload is the payload for CmdLogEvent.
+//
+// Three fields and not one of them is free text. Addr is run through
+// netip.ParseAddr in the core and normalised there; if that fails the entry is
+// written *without* an address rather than dropped, because the entry is the
+// record and the address is the annotation. Left is an integer and can smuggle
+// nothing. The submitted username is deliberately absent: it would be foreign
+// text in the record, and with exactly one account it says nothing.
+type LogEventPayload struct {
+	Event LoginEvent `json:"event"`
+	Addr  string     `json:"addr"`
+	Left  int        `json:"left"` // login_recovery_used only
 }
 
 // Command is sent from easywall-web to easywall-core over the Unix socket.

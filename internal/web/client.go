@@ -299,6 +299,25 @@ func (c *CoreClient) ImportRules(data []byte) error {
 	return nil
 }
 
+// LogEvent hands the core one login event for the audit log.
+//
+// Fire-and-forget from the caller's point of view — auditevents.go is what calls
+// this, from its own goroutine, so a slow or absent core never delays a login.
+func (c *CoreClient) LogEvent(ev shared.LoginEvent, addr string, left int) error {
+	payload, err := json.Marshal(shared.LogEventPayload{Event: ev, Addr: addr, Left: left})
+	if err != nil {
+		return fmt.Errorf("encode login event: %w", err)
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdLogEvent, Payload: payload})
+	if err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("core error: %s", resp.Error)
+	}
+	return nil
+}
+
 // ValidateCustom validates custom nftables rules before saving.
 // Returns a map of line-index to error string; empty map means all valid.
 func (c *CoreClient) ValidateCustom(rules []string) (map[int]string, error) {

@@ -291,6 +291,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handlePanic()
 	case shared.CmdResume:
 		return d.handleResume()
+	case shared.CmdLogEvent:
+		return d.handleLogEvent(cmd.Payload)
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
 }
@@ -333,14 +335,21 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 }
 
 // audit appends a newest-first entry to the log, capped at 200 to mirror
-// the real core's behavior.
+// the real core's behavior, attributed to the operator driving the demo.
 func (d *demoState) audit(action, ruleType, detail string) {
+	d.auditAs(action, ruleType, detail, d.actor)
+}
+
+// auditAs is audit with an explicit user. Its one caller other than audit
+// itself is handleLogEvent, which — like the real core — attributes a login
+// event to "web" rather than to whichever operator is driving the demo.
+func (d *demoState) auditAs(action, ruleType, detail, user string) {
 	e := shared.AuditLogEntry{
 		Time:     time.Now().UTC().Format(time.RFC3339),
 		Action:   action,
 		RuleType: ruleType,
 		Detail:   detail,
-		User:     d.actor,
+		User:     user,
 	}
 	d.auditLog = append([]shared.AuditLogEntry{e}, d.auditLog...)
 	if len(d.auditLog) > 200 {
@@ -597,5 +606,39 @@ func (d *demoState) handlePanic() shared.Response {
 func (d *demoState) handleResume() shared.Response {
 	d.panicMode = false
 	d.audit("panic_resumed", "all", "panic mode was ended from the console")
+	return shared.Response{Success: true}
+}
+
+// handleLogEvent records a login event on the demo's log — refusing one the
+// protocol does not declare, because a demo that accepts what production
+// refuses is a demo that hides the refusal.
+//
+// It does not record one the way the core does: the core parses p.Addr with
+// netip.ParseAddr and normalises it (loginevents.go), folds bursts of the
+// stranger-triggerable events into a debounced summary, and never repeats one
+// address twice running. This handler skips all of that and echoes p.Addr
+// verbatim. That is not a security problem — p.Addr is r.RemoteAddr, not
+// attacker-controlled input, and detailLabel returns a plain string into a
+// template that escapes it — but it is not what the core does, so the comment
+// must not claim it is.
+//
+// What it does share with the core is the log's cap: d.audit() below caps at
+// 200 entries, and a handler that appended straight to d.auditLog without that
+// cap turned 300 login attempts on the public demo into a /log page that grew
+// without bound — a slow leak, and a page that buries what the demo exists to
+// show.
+func (d *demoState) handleLogEvent(payload []byte) shared.Response {
+	var p shared.LogEventPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return demoErr(fmt.Errorf("invalid payload: %w", err))
+	}
+	if !shared.ValidLoginEvent(p.Event) {
+		return demoErr(fmt.Errorf("unknown login event: %q", p.Event))
+	}
+	detail := ""
+	if p.Addr != "" {
+		detail = "from " + p.Addr
+	}
+	d.auditAs(string(p.Event), "", detail, "web")
 	return shared.Response{Success: true}
 }

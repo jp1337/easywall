@@ -554,3 +554,57 @@ func TestDispatch_PanicEngagesAndResumeClears(t *testing.T) {
 		t.Error("RESUME must clear the marker even when the restore failed")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// CmdLogEvent
+// ---------------------------------------------------------------------------
+
+// The web process cannot invent a line. An event outside AllLoginEvents is
+// refused, and — this is the half that matters — nothing at all is written.
+func TestDispatch_LogEventRefusesAnUnknownEventAndWritesNothing(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	defer d.Stop()
+
+	before, _ := readAuditLog(cfg.AuditLogPath(), 200)
+
+	payload, _ := json.Marshal(shared.LogEventPayload{Event: "rm -rf /", Addr: "203.0.113.7"})
+	resp := d.dispatch(shared.Command{Type: shared.CmdLogEvent, Payload: payload})
+	if resp.Success {
+		t.Error("an event outside AllLoginEvents was accepted")
+	}
+
+	after, _ := readAuditLog(cfg.AuditLogPath(), 200)
+	if len(after) != len(before) {
+		t.Errorf("a refused event still wrote %d line(s) to the audit log", len(after)-len(before))
+	}
+}
+
+// An unparseable address yields an entry without an address, not a dropped
+// entry: the entry is the record and the address is the annotation.
+func TestDispatch_LogEventKeepsTheEntryWhenTheAddressIsUnusable(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	defer d.Stop()
+
+	payload, _ := json.Marshal(shared.LogEventPayload{Event: shared.EvTOTPEnabled, Addr: "not an address"})
+	if resp := d.dispatch(shared.Command{Type: shared.CmdLogEvent, Payload: payload}); !resp.Success {
+		t.Fatalf("a valid event with a bad address was refused: %s", resp.Error)
+	}
+
+	entries, err := readAuditLog(cfg.AuditLogPath(), 200)
+	if err != nil || len(entries) == 0 {
+		t.Fatalf("nothing was written (err %v)", err)
+	}
+	if entries[0].Action != string(shared.EvTOTPEnabled) {
+		t.Errorf("last entry is %q, want %q", entries[0].Action, shared.EvTOTPEnabled)
+	}
+	if strings.Contains(entries[0].Detail, "not an address") {
+		t.Errorf("the unparseable address reached the record: %q", entries[0].Detail)
+	}
+	if entries[0].User != "web" {
+		t.Errorf("user is %q, want web", entries[0].User)
+	}
+}

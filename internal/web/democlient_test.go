@@ -484,8 +484,8 @@ func TestDemo_ApplyWithoutAcceptanceWindowLogsBoth(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 17 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 17 "+
+	if len(shared.AllCommandTypes) != 18 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 18 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 

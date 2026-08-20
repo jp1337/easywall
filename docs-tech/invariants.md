@@ -90,6 +90,23 @@ where the page looks right on the machine that has the old file cached.
 | `TestEveryKernelWriteIsFollowedByThePanicCheck` | every `f.nft.Apply` in `firewall.go` and `restore.go` is followed by a `panicLandedDuringWrite`, two of them per function because `nft.Apply` reports errors from work that runs after the ruleset is committed | the check was a *missing call* to begin with, and nothing noticed one going away: deleting the one in `apply` left the whole suite green. The nothing-went-unparsed half compares the per-function tally with the file-wide count, so a fourth writer of the table fails the test instead of silently escaping it |
 | `TestRunSubcommand_NoDaemonFallbackNamesItselfInTheAuditLog` | the console fallback writes `console-no-daemon` as the audit user | `user` renders literally in the log table — no label map, no view function — so a rename would have left two spellings for the same event with every test still green |
 
+## The second factor
+
+| Test | Protects |
+|---|---|
+| `TestNoTemplateCarriesAVersionLiteral` | `base.html` said `v2` for four releases and nothing noticed |
+| `TestDemoModeRefusesToWriteCredentials` | a visitor to the public demo could change the password; the list is what a new credential-writing route has to join |
+| `TestAllLoginEventsMatchesTheProtocolSource` | the same shape as the `AllCommandTypes` guard, one release later |
+| `TestEveryLoginEventIsLabelledDocumentedAndTranslated` / `TestNoLoginEventIsColoured` | an event that renders as raw snake_case, and colour drifting away from "what the firewall is doing" |
+| `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` | the roadmap's requirement that the second step be bounded, as arithmetic that runs |
+| `TestConfig_TOTPKeysSurviveTheSaveRoundTrip` | `mergeConfig` silently falling back to the encoder and taking three kilobytes of comments with it |
+| `TestFirstRun2FA_SkipCreatesTheAccountWithoutAFactor` | the wizard's setup step must always offer a way past it that still creates the account. easywall runs on single-board computers with no RTC, which come up at the epoch until NTP lands; TOTP cannot verify against a clock like that. Without this branch an optional feature becomes a way of bricking the wizard on a machine that is already reachable from the network |
+
+Worth writing down beside the last one, though nothing tests it: `keyLineRe`
+matches one line, so a hand-written multi-line `recovery_codes` array makes the
+merge give up and re-encode. Comments are lost, nothing is corrupted, and that
+is the path's designed behaviour rather than a bug the round-trip test missed.
+
 ## The technical documentation stays unpublished
 
 `TestTheTechnicalDocsAreNotPublished` asserts that `docs-tech/` is outside `docs/`

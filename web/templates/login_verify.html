@@ -1,0 +1,68 @@
+{{define "login_verify.html"}}
+<!DOCTYPE html>
+<html lang="{{.Lang}}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>easywall — {{T "verify_title"}}</title>
+  <script nonce="{{.Nonce}}">(function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="preload" href="/static/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/jetbrains-mono-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/style.css?v={{.Asset}}">
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <div class="auth-logo">
+        <span class="auth-logo-mark" aria-hidden="true"></span>
+        <span class="auth-logo-name">easywall</span>
+      </div>
+    </div>
+
+    <div class="auth-body">
+      {{if .Flash}}
+      <div role="alert" class="alert {{flashClass .Flash}} mb-4" data-auto-dismiss>
+        {{flashIcon .Flash}}
+        <span>{{T .Flash (dict "N" .FlashN)}}</span>
+      </div>
+      {{end}}
+
+      <form method="POST" action="/login/verify" class="flex flex-col gap-3">
+        <div class="field">
+          {{/* type="text", not type="number": a recovery code has letters in it,
+               and type="number" is precisely the mistake ui-check.mjs documents
+               in its header for the forwarding ports. */}}
+          <label class="field-label" for="code">{{T "verify_prompt"}}</label>
+          <input id="code" name="code" type="text" inputmode="numeric"
+                 autocomplete="one-time-code" autocapitalize="characters"
+                 spellcheck="false" autofocus required
+                 class="input w-full">
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full mt-2">
+          {{T "verify_submit"}}
+        </button>
+      </form>
+
+      <p class="mt-4 text-center">
+        <a class="link" href="/login">{{T "verify_cancel"}}</a>
+      </p>
+    </div>
+
+    <div class="auth-footer">
+      easywall {{.Version}} · {{T "tagline"}}
+      {{/* The fourth include site, beside base.html, login.html and
+           firstrun.html. Whoever is standing at the second step must be able to
+           change language. */}}
+      {{template "langswitch" .}}
+    </div>
+  </div>
+</div>
+<script src="/static/app.js?v={{.Asset}}"></script>
+</body>
+</html>
+{{end}}

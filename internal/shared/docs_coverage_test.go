@@ -3,6 +3,7 @@ package shared
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -31,21 +32,22 @@ func TestEveryPageIsDocumented(t *testing.T) {
 	// it are redirect stubs that would satisfy os.Stat without proving anything
 	// is documented.
 	documented := map[string]string{
-		"/login":      "_docs/installation/first-run.md",
-		"/firstrun":   "_docs/installation/first-run.md",
-		"/password":   "_docs/installation/first-run.md",
-		"/dashboard":  "_docs/features/dashboard.md",
-		"/apply":      "_docs/features/apply.md",
-		"/ports":      "_docs/features/ports.md",
-		"/blacklist":  "_docs/features/blacklist.md",
-		"/whitelist":  "_docs/features/blacklist.md",
-		"/forwarding": "_docs/features/forwarding.md",
-		"/custom":     "_docs/features/custom-rules.md",
-		"/options":    "_docs/features/filters.md",
-		"/settings":   "_docs/features/system-settings.md",
-		"/system":     "_docs/features/system-settings.md",
-		"/log":        "_docs/features/audit-log.md",
-		"/export":     "_docs/features/export-import.md",
+		"/login":        "_docs/installation/first-run.md",
+		"/login/verify": "_docs/features/two-factor.md",
+		"/firstrun":     "_docs/installation/first-run.md",
+		"/password":     "_docs/installation/first-run.md",
+		"/dashboard":    "_docs/features/dashboard.md",
+		"/apply":        "_docs/features/apply.md",
+		"/ports":        "_docs/features/ports.md",
+		"/blacklist":    "_docs/features/blacklist.md",
+		"/whitelist":    "_docs/features/blacklist.md",
+		"/forwarding":   "_docs/features/forwarding.md",
+		"/custom":       "_docs/features/custom-rules.md",
+		"/options":      "_docs/features/filters.md",
+		"/settings":     "_docs/features/system-settings.md",
+		"/system":       "_docs/features/system-settings.md",
+		"/log":          "_docs/features/audit-log.md",
+		"/export":       "_docs/features/export-import.md",
 	}
 
 	// Not pages: redirects, polling endpoints, fragments answered into a page
@@ -63,6 +65,12 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/favicon.ico":   "an asset",
 		"/robots.txt":    "an asset",
 		"/.well-known/*": "an asset",
+		// All four are POST, answered in place on the password page — see the
+		// comment on the regex below for why they are inert here regardless.
+		"/password/2fa/begin":    "a form on the password page, answered in place",
+		"/password/2fa/confirm":  "a form on the password page, answered in place",
+		"/password/2fa/disable":  "a form on the password page, answered in place",
+		"/password/2fa/recovery": "a form on the password page, answered in place",
 	}
 
 	root := repoRootDir(t)
@@ -289,6 +297,72 @@ func TestEveryCommandIsDocumentedInBothPublishedAndTechnicalDocs(t *testing.T) {
 		}
 		if !strings.Contains(techDocs, cmdStr) {
 			t.Errorf("docs-tech/protocol.md does not document command %s", cmdStr)
+		}
+	}
+}
+
+// AllLoginEvents is the root of the same shape of guard AllCommandTypes has
+// carried since 2.7: dispatch knows each, audit-log.md documents each, both
+// locales label each. If an entry is deleted from this list, all three stop
+// checking it; if an event is added to the const block without being listed, it
+// ships unhandled, uncoloured and untranslated.
+func TestAllLoginEventsMatchesTheProtocolSource(t *testing.T) {
+	src := repoFile(t, "internal", "shared", "protocol.go")
+
+	constPattern := regexp.MustCompile(`(Ev\w+)\s+LoginEvent\s*=\s*"([^"]+)"`)
+	matches := constPattern.FindAllStringSubmatch(src, -1)
+	if len(matches) == 0 {
+		t.Fatal("could not find any LoginEvent constants in protocol.go; the pattern no " +
+			"longer matches or the declarations are gone")
+	}
+
+	declared := make(map[string]string, len(matches))
+	for _, m := range matches {
+		declared[m[2]] = m[1]
+	}
+	for value, name := range declared {
+		found := false
+		for _, ev := range AllLoginEvents {
+			if string(ev) == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("constant %s (value %q) is declared but not listed in AllLoginEvents", name, value)
+		}
+	}
+	for _, ev := range AllLoginEvents {
+		if _, ok := declared[string(ev)]; !ok {
+			t.Errorf("AllLoginEvents lists %q but no constant with that value is declared", string(ev))
+		}
+	}
+	if len(AllLoginEvents) != len(matches) {
+		t.Errorf("AllLoginEvents has %d entries but protocol.go declares %d constants",
+			len(AllLoginEvents), len(matches))
+	}
+}
+
+// The submitted username is never echoed into the audit record, and there is no
+// free-text field for one to arrive in. The payload carries an event from a
+// fixed enum, an address the core parses itself, and an integer.
+func TestLogEventPayloadCarriesNoFreeText(t *testing.T) {
+	typ := reflect.TypeOf(LogEventPayload{})
+	for i := 0; i < typ.NumField(); i++ {
+		f := typ.Field(i)
+		switch f.Name {
+		case "Event":
+			if f.Type.Name() != "LoginEvent" {
+				t.Errorf("Event is a %s; it must be the LoginEvent enum, or the web process can "+
+					"write any sentence it likes into the root process's record", f.Type)
+			}
+		case "Addr", "Left":
+			// Addr goes through netip.ParseAddr in the core; Left is an integer
+			// and can smuggle nothing.
+		default:
+			t.Errorf("LogEventPayload has gained a %s field (%s). If it carries text from the "+
+				"web process, it is a way to write arbitrary lines into the audit log",
+				f.Type, f.Name)
 		}
 	}
 }

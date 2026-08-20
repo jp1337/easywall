@@ -46,6 +46,37 @@ coloured tag would stop meaning anything.
 > few lines away. Only the 10 actions above describe what the firewall is
 > actually doing, however consequential an event feels.
 
+## The nine login events
+
+New in 2.8, where there were none at all: this page used to send you to
+`journalctl -u easywall-web` for a failed login.
+
+| Action | Reads as | When |
+|---|---|---|
+| `login_ok` | Signed in | A completed sign-in, both steps if a factor is enrolled |
+| `login_failed` | Sign-in failed | Wrong username or wrong password |
+| `login_2fa_failed` | Second factor failed | Wrong code, or a recovery code that is not one of the eight |
+| `login_recovery_used` | Recovery code used | The detail says how many are left |
+| `login_ratelimited` | Sign-in attempts blocked | Five attempts inside ten minutes from one address |
+| `logout` | Signed out | The button, not a timeout |
+| `totp_enabled` · `totp_disabled` | Second factor switched on / off | From the password page |
+| `recovery_codes_regenerated` | New recovery codes issued | The eight previous ones stopped working at that moment |
+
+**None of them carries colour**, and that is the same rule the table above
+states: colour means the firewall moved. A sign-in does not move it.
+
+**Three of them are folded.** `login_failed`, `login_2fa_failed` and
+`login_ratelimited` are the three a stranger can trigger, so a burst from one
+address becomes two lines — the first immediately, then a summary sixty seconds
+later saying how many followed. Without that, forty addresses knocking for an
+hour would push everything else off the 200 lines this page shows. Beyond 1024
+distinct addresses inside one window the rest are counted together, so the volume
+is still recorded while the memory is not something a stranger chooses.
+
+**The username is never recorded**, on a failed sign-in or a successful one. It
+would be foreign text in the record, and with exactly one account it says
+nothing. The `user` column says `web` for all nine.
+
 ## The columns
 
 | Column | Holds |
@@ -72,8 +103,6 @@ It names the process, and since 2.7 there are four of them:
 | Not recorded | Where to look instead |
 |---|---|
 | Which account made a change | nowhere. `web` names the process, not the person, because the socket protocol carries no identity yet — [roadmap]({{ '/docs/roadmap/' | relative_url }}) |
-| Logins and failed logins | `journalctl -u easywall-web` |
-| Logouts | nowhere, though a logout does end the session immediately |
 | Read-only page views | nowhere — not recorded at all |
 | Edits made directly to `easywall.toml` | your own change management |
 

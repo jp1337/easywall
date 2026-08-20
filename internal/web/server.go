@@ -50,7 +50,19 @@ type PageData struct {
 	// worse of the two states: the new stylesheet arrived and app.js did not,
 	// so the upgraded page ran the previous release's JavaScript.
 	Asset string
-	Data  interface{}
+
+	// Version is the release this binary is, for the operator to read. Asset
+	// above holds the same value today and is not the same field: Asset hangs
+	// off asset URLs and may become a build hash tomorrow without anyone
+	// thinking about it, and displaying the version through it is the coupling
+	// that produces "easywall v3f9a1c" on the first build hash.
+	Version string
+	Data    interface{}
+
+	// FlashN is the one number a flash may carry: how many recovery codes are
+	// left. A flash is a message id, not a sentence, so the count travels beside
+	// it rather than inside it.
+	FlashN int
 
 	// Panic is true while the core reports that this installation is
 	// deliberately unfiltered. It is on PageData rather than on one handler's
@@ -62,9 +74,15 @@ type PageData struct {
 
 // Server is the easywall web frontend.
 type Server struct {
-	cfg     *Config
-	client  *CoreClient
-	store   sessions.Store
+	cfg    *Config
+	client *CoreClient
+	store  sessions.Store
+	// pending holds the login's intermediate state. Separate from store on
+	// purpose — see newPendingStore.
+	pending sessions.Store
+	// replay remembers the last accepted TOTP step, so a code cannot be used
+	// twice inside its own thirty-second validity window.
+	replay  *totpReplay
 	bundle  *i18n.Bundle
 	tmpl    *template.Template
 	router  chi.Router
@@ -79,6 +97,11 @@ type Server struct {
 	telemetry     *shared.Reporter
 	telemetryStop chan struct{}
 	telemetryOnce sync.Once
+
+	// events carries login events to the core without a request waiting on one.
+	events     *auditEvents
+	eventsStop chan struct{}
+	eventsOnce sync.Once
 }
 
 // NewServer initialises the web server with all dependencies.
@@ -103,6 +126,7 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	store := newSessionStore(cfg.SessionKey)
+	pending := newPendingStore(cfg.SessionKey)
 
 	bundle := NewBundle(cfg.LocalesDir())
 
@@ -110,6 +134,8 @@ func NewServer(cfg *Config) (*Server, error) {
 		cfg:     cfg,
 		client:  client,
 		store:   store,
+		pending: pending,
+		replay:  newTOTPReplay(cfg.TOTPReplayPath()),
 		bundle:  bundle,
 		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:   certs,
@@ -119,6 +145,9 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetry = shared.NewReporter(cfg.TelemetryStatePath(), cfg.TelemetryEnabled)
 		s.telemetryStop = make(chan struct{})
 	}
+
+	s.events = newAuditEvents(client)
+	s.eventsStop = make(chan struct{})
 
 	// Non-fatal here so tests can build a Server without the asset tree; Start()
 	// refuses to serve without it.
@@ -202,6 +231,7 @@ func (s *Server) Start() error {
 	if s.telemetry != nil {
 		go s.telemetry.Run(s.telemetryStop)
 	}
+	go s.events.run(s.eventsStop)
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
 	if err := s.httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTPS server: %w", err)
@@ -215,9 +245,21 @@ func (s *Server) Stop() {
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = s.httpSrv.Shutdown(ctx)
+
+	// Closed only after Shutdown returns, not before. auditEvents.run exits the
+	// instant eventsStop closes, and Record only warns when its buffer is full —
+	// so closing this first meant every login and logout in flight during the
+	// shutdown's up-to-ten-second grace period queued into a channel nobody was
+	// draining anymore, and the loss was silent on both ends. Handlers still
+	// running have finished writing to the channel by the time Shutdown
+	// returns, so nothing more is enqueued after this point.
+	if s.eventsStop != nil {
+		s.eventsOnce.Do(func() { close(s.eventsStop) })
+	}
 }
 
 func (s *Server) buildRouter(cfg *Config) chi.Router {
@@ -249,7 +291,12 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
-		r.With(LoginRateLimit).Post("/login", s.handleLoginPOST)
+		r.With(LoginRateLimit(s.onLoginBlocked)).Post("/login", s.handleLoginPOST)
+		// The second step. Outside RequireAuth because nobody is signed in yet,
+		// and with no rate limit of its own — see handleLoginVerifyPOST for the
+		// arithmetic that makes the password step's limit cover it.
+		r.Get("/login/verify", s.handleLoginVerifyGET)
+		r.Post("/login/verify", s.handleLoginVerifyPOST)
 		// POST, so CrossOriginProtection covers it. It was a GET, and that
 		// middleware exempts safe methods by design — measured: a request
 		// carrying Origin: https://evil.example and Sec-Fetch-Site: cross-site
@@ -264,6 +311,13 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		if cfg.IsFirstRun() {
 			r.Get("/firstrun", s.handleFirstRunGET)
 			r.Post("/firstrun", s.handleFirstRunPOST)
+
+			// Inside this block on purpose: these write credentials, and they
+			// must stop existing the moment an account does. That is also why
+			// they are not in credentialWritingRoutes — the demo ships with a
+			// password set, so they are never registered there at all.
+			r.Post("/firstrun/confirm", s.handleFirstRunConfirm)
+			r.Post("/firstrun/skip", s.handleFirstRunSkip)
 		}
 	})
 
@@ -303,6 +357,15 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/password", s.handlePasswordGET)
 		r.Post("/password", s.handlePasswordPOST)
+
+		// All four POST, all inside this group, and therefore all under the
+		// existing http.NewCrossOriginProtection. begin, confirm and recovery
+		// render their result in place rather than redirecting to a GET, so a
+		// reload cannot mint a second secret and the eight codes have no URL.
+		r.Post("/password/2fa/begin", s.handle2FABegin)
+		r.Post("/password/2fa/confirm", s.handle2FAConfirm)
+		r.Post("/password/2fa/disable", s.handle2FADisable)
+		r.Post("/password/2fa/recovery", s.handle2FARecovery)
 
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
@@ -351,7 +414,26 @@ func staticCacheHeaders(next http.Handler) http.Handler {
 // function so callers see the value at the moment they ask rather than at wiring
 // time.
 func (s *Server) currentCredential() func() string {
-	return func() string { return credentialFingerprint(s.cfg.PasswordHash()) }
+	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
+}
+
+// recordLoginEvent is the shape every handler calls: it takes the address off
+// the request and hands the event to the buffered dispatcher.
+func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left int) {
+	if s.events == nil {
+		return // a Server built by a test that does not care about events
+	}
+	s.events.Record(ev, clientIP(r), left)
+}
+
+// onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is
+// supplied by the server when it builds the router, so middleware.go stays free
+// of the client.
+func (s *Server) onLoginBlocked(ip string) {
+	if s.events == nil {
+		return
+	}
+	s.events.Record(shared.EvRateLimited, ip, 0)
 }
 
 // render executes a named template with common page data.
@@ -363,8 +445,10 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 
 	sess, _ := s.store.Get(r, SessionName)
 	flash, _ := sess.Values["flash"].(string)
+	flashN, _ := sess.Values["flash_n"].(int)
 	if flash != "" {
 		delete(sess.Values, "flash")
+		delete(sess.Values, "flash_n")
 		_ = sess.Save(r, w)
 	}
 
@@ -418,8 +502,10 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Path:    r.URL.RequestURI(),
 		Strings: clientStrings(tFunc),
 		Asset:   shared.CurrentVersion,
+		Version: shared.CurrentVersion,
 		Data:    data,
 		Panic:   panicMode,
+		FlashN:  flashN,
 	}
 
 	// Render into a buffer first. Executing straight into the ResponseWriter
@@ -486,6 +572,14 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 func (s *Server) setFlash(w http.ResponseWriter, r *http.Request, msg string) {
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values["flash"] = msg
+	_ = sess.Save(r, w)
+}
+
+// setFlashN is setFlash with the one number a flash may carry.
+func (s *Server) setFlashN(w http.ResponseWriter, r *http.Request, msg string, n int) {
+	sess, _ := s.store.Get(r, SessionName)
+	sess.Values["flash"] = msg
+	sess.Values["flash_n"] = n
 	_ = sess.Save(r, w)
 }
 
@@ -579,6 +673,21 @@ var auditActionLabels = map[string]string{
 	"apply_refused_panic":    "audit_apply_refused_panic",
 	"rollback_skipped":       "audit_rollback_skipped",
 	"resume_restore_skipped": "audit_resume_restore_skipped",
+
+	// The nine login events, new in 2.8. Where there were none at all before:
+	// features/audit-log.md sent an operator to `journalctl -u easywall-web` for
+	// a failed login, which is not where anybody looks for "who has been at the
+	// door". None of them is in auditActionTones, deliberately — see the note
+	// there.
+	"login_ok":                   "audit_login_ok",
+	"login_failed":               "audit_login_failed",
+	"login_2fa_failed":           "audit_login_2fa_failed",
+	"login_recovery_used":        "audit_login_recovery_used",
+	"login_ratelimited":          "audit_login_ratelimited",
+	"logout":                     "audit_logout",
+	"totp_enabled":               "audit_totp_enabled",
+	"totp_disabled":              "audit_totp_disabled",
+	"recovery_codes_regenerated": "audit_recovery_codes_regenerated",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall
@@ -641,6 +750,12 @@ var auditActionTones = map[string]string{
 	// all report panic mode is the same state boot_enforce_failed already
 	// describes, and it must not be rendered in two colours depending on which
 	// code path reached it.
+	//
+	// None of the nine login events is here either, and for the same reason as
+	// apply_refused_panic and rollback_skipped above: a login does not change
+	// what the firewall is doing. It is read, not signalled. That 2.13 will push
+	// a notification on repeated login_failed is not a contradiction — a
+	// notification is not a colour.
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the
@@ -810,6 +925,7 @@ var clientStringKeys = []string{
 	"ports_port_hint", "ports_desc_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
+	"totp_copy", "totp_copied", "totp_copy_failed",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -826,6 +942,15 @@ func templateFuncs() template.FuncMap {
 		"saved": true, "rules_accepted": true, "import_success": true,
 		"options_saved": true, "password_changed": true, "settings_saved": true,
 		"system_saved": true,
+		// A recovery code did exactly what it exists to do.
+		"recovery_left": true,
+		// The second factor is now doing what it was set up to do.
+		"totp_enabled": true, "totp_disabled": true, "totp_recovery_renewed": true,
+		// The account was created and the choices staged — nothing failed here.
+		// Found by rendering the first-run flow for a screenshot: without this,
+		// the one flash every install sees renders alert-crit, in red, for a
+		// message that says everything worked.
+		"firstrun_done": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -838,6 +963,22 @@ func templateFuncs() template.FuncMap {
 		// Nothing went wrong here: the core declined a second apply while a
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
+		"demo_readonly":         true,
+		// The important half worked: the account and the second factor exist,
+		// and the codes below are shown. Only the ports/IPv6 staging failed —
+		// amber, not the red firstrun_choices_failed would otherwise imply
+		// about a page that is about to show working recovery codes.
+		"firstrun_done_choices_failed": true,
+		// The code was accepted and let the operator in; the disk is what
+		// failed. Amber, not red: signing in did work.
+		"recovery_not_consumed": true,
+		// The code is right; the fault is the server's clock, not an attack —
+		// and the setup timing out is a wait, not a wrong answer. Two ids per
+		// direction: clockSkewKey picks _one or _many so "1 minute" is never
+		// "1 minutes".
+		"totp_clock_behind_one": true, "totp_clock_behind_many": true,
+		"totp_clock_ahead_one": true, "totp_clock_ahead_many": true,
+		"totp_setup_expired": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

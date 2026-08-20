@@ -50,6 +50,28 @@ func (c *Config) PasswordHash() string {
 	return c.Password
 }
 
+// TOTPSecret returns the enrolled second-factor secret, or "" when there is none.
+func (c *Config) TOTPSecret() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.WebConfig.TOTPSecret
+}
+
+// TOTPEnabled reports whether a second factor is enrolled.
+func (c *Config) TOTPEnabled() bool { return c.TOTPSecret() != "" }
+
+// RecoveryCodes returns a copy of the stored hashes.
+//
+// A copy, because the caller consumes one and hands the rest back, and handing
+// out the slice the config holds would let that edit land without the lock.
+func (c *Config) RecoveryCodes() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]string, len(c.WebConfig.RecoveryCodes))
+	copy(out, c.WebConfig.RecoveryCodes)
+	return out
+}
+
 // LoadConfig reads and parses the TOML config at path.
 func LoadConfig(path string) (*Config, error) {
 	// #nosec G304 -- path is the --config argument this process was started with,
@@ -219,34 +241,145 @@ func (c *Config) TelemetryStatePath() string {
 	return c.SSLDir + "/../telemetry.json"
 }
 
+// TOTPReplayPath returns the path for the last accepted TOTP step.
+//
+// In data_dir and not in web.toml: this changes once per login, and web.toml is
+// rewritten in place on a directory the packaged layout does not let this
+// process create a temp file in.
+func (c *Config) TOTPReplayPath() string {
+	if c.DataDir != "" {
+		return c.DataDir + "/totp_replay.json"
+	}
+	return c.SSLDir + "/../totp_replay.json"
+}
+
 // SaveTelemetry records the operator's answer to being counted.
 //
 // Separate from every other save on purpose: withdrawing consent must work
 // when nothing else does. It touches only web.toml, so it does not depend on
 // the core being reachable.
+//
+// Rolled back on a failed write like every Save* below: otherwise a transient
+// failure leaves consent looking withdrawn until the next restart quietly
+// brings back whatever disk still holds.
 func (c *Config) SaveTelemetry(enabled bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prev := c.Telemetry
 	c.Telemetry = &enabled
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.Telemetry = prev
+		return err
+	}
+	return nil
 }
 
 // SaveCredentials persists updated username and password hash to the config file.
+//
+// Rolled back on a failed write, the same shape as SaveTOTP: setting the
+// fields first and saving second would make currentCredential() report the
+// new password the instant a full disk refused the write meant to make it so.
+// RequireAuth compares every request's session fingerprint against that
+// value, so the operator's own session would be evicted, the internal_error
+// flash would never reach them because the redirect it fires on is keyed to
+// the credential that just changed under them, and the new password would
+// work while the old one — the one actually on disk — was refused until a
+// restart flipped the in-memory value back.
 func (c *Config) SaveCredentials(username, passwordHash string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prevUsername, prevPassword := c.Username, c.Password
 	c.Username = username
 	c.Password = passwordHash
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.Username, c.Password = prevUsername, prevPassword
+		return err
+	}
+	return nil
+}
+
+// SaveTOTP writes the second-factor secret and its recovery hashes in one write.
+//
+// One write and not two: between them sits a file with a secret and no way back,
+// or eight codes for a factor that is not enrolled. Passing an empty secret and
+// a nil slice switches the factor off, and that clears both — a secret that
+// survived "turn it off" would be a factor still enforced after the interface
+// said it was not.
+//
+// The in-memory fields are rolled back when the write fails. Setting them first
+// and saving second — the shape every other Save* method here uses — would
+// leave TOTPEnabled() reporting a factor is enrolled the instant a full disk
+// refused the write that was supposed to make it so, before the operator's own
+// request had even finished. Enrolment is the one path that checks its own
+// write for exactly that reason: a pending secret is worth keeping only because
+// nothing else believes it is confirmed yet.
+func (c *Config) SaveTOTP(secret string, recoveryHashes []string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prevSecret := c.WebConfig.TOTPSecret
+	prevCodes := c.WebConfig.RecoveryCodes
+	c.WebConfig.TOTPSecret = secret
+	c.WebConfig.RecoveryCodes = append([]string(nil), recoveryHashes...)
+	if err := c.saveLocked(); err != nil {
+		c.WebConfig.TOTPSecret = prevSecret
+		c.WebConfig.RecoveryCodes = prevCodes
+		return err
+	}
+	return nil
+}
+
+// SaveRecoveryCodes replaces the stored hashes and leaves the secret alone. It
+// is what consuming a code and regenerating the set both come down to.
+//
+// Rolled back on a failed write, the same shape as SaveTOTP: without it, the
+// worst case is regenerating a set — the operator is holding eight new codes
+// that were never written, the write fails, and the eight the process now
+// believes in are ones nobody has ever seen. With a lost phone that is a
+// lockout until a restart discards the unsaved in-memory copy.
+//
+// The snapshot is a plain slice-header copy, safe for the same reason
+// SaveTOTP's is: the field below is always reassigned a freshly allocated
+// slice (append([]string(nil), ...) never writes into the old backing array),
+// so prevCodes keeps pointing at untouched data through the rollback.
+func (c *Config) SaveRecoveryCodes(hashes []string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prevCodes := c.WebConfig.RecoveryCodes
+	c.WebConfig.RecoveryCodes = append([]string(nil), hashes...)
+	if err := c.saveLocked(); err != nil {
+		c.WebConfig.RecoveryCodes = prevCodes
+		return err
+	}
+	return nil
 }
 
 // ErrAlreadySetUp is returned when the wizard is asked to create an account on
 // an installation that already has one.
 var ErrAlreadySetUp = errors.New("the account has already been created")
 
+// FirstRunAccount is everything the wizard decides about the account, in one
+// value, so the write that persists it cannot be called with the username and
+// the hash swapped — they are adjacent strings, and two of the five fields are
+// optional.
+//
+// It lives here beside Config rather than in shared: it is not protocol, and the
+// core never sees any of it.
+type FirstRunAccount struct {
+	Username     string
+	PasswordHash string
+	Telemetry    bool
+
+	// Empty and nil when no second factor was set up. They are written together
+	// with the account or not at all — there is no path that stores one without
+	// the other, which is what keeps a secret from existing for an account that
+	// does not.
+	TOTPSecret     string
+	RecoveryHashes []string
+}
+
 // SaveFirstRun persists everything the setup wizard decides, in one write.
 //
-// One write rather than three, because a failure halfway through the first run
+// One write rather than several, because a failure halfway through the first run
 // is the worst moment to leave a half-configured file behind: the wizard closes
 // as soon as a password exists, and whatever did not land cannot be asked again.
 //
@@ -255,16 +388,35 @@ var ErrAlreadySetUp = errors.New("the account has already been created")
 // two POSTs arriving together both passed it, both wrote, and the second one
 // decided who owns the firewall. The window is small and it sits on a machine
 // that is, by definition, freshly exposed and not yet protected.
-func (c *Config) SaveFirstRun(username, passwordHash string, telemetry bool) error {
+//
+// The in-memory fields are restored when the write fails, for the reason the
+// sibling savers record: a transient failure that left c.Password set would send
+// the operator's retry into the ErrAlreadySetUp branch above, dead-ending the
+// wizard with nothing on disk.
+func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.Password != "" {
 		return ErrAlreadySetUp
 	}
-	c.Username = username
-	c.Password = passwordHash
-	c.Telemetry = &telemetry
-	return c.saveLocked()
+
+	prevUser, prevPass := c.Username, c.Password
+	prevTelemetry := c.Telemetry
+	prevSecret, prevCodes := c.WebConfig.TOTPSecret, c.WebConfig.RecoveryCodes
+
+	c.Username = a.Username
+	c.Password = a.PasswordHash
+	c.Telemetry = &a.Telemetry
+	c.WebConfig.TOTPSecret = a.TOTPSecret
+	c.WebConfig.RecoveryCodes = append([]string(nil), a.RecoveryHashes...)
+
+	if err := c.saveLocked(); err != nil {
+		c.Username, c.Password = prevUser, prevPass
+		c.Telemetry = prevTelemetry
+		c.WebConfig.TOTPSecret, c.WebConfig.RecoveryCodes = prevSecret, prevCodes
+		return err
+	}
+	return nil
 }
 
 // saveLocked persists the configuration. c.mu must be held for writing, so the
@@ -335,11 +487,11 @@ const configHeader = `# easywall web configuration
 
 // managedKeys are the only keys easywall ever writes. Everything else in
 // web.toml is read and never touched, so an edit in place has to reach these
-// four and no others.
+// six and no others.
 //
 // Ordered as config/web.toml orders them, so a key that has to be appended
 // lands somewhere a reader expects it.
-var managedKeys = []string{"session_key", "username", "password", "telemetry"}
+var managedKeys = []string{"session_key", "username", "password", "telemetry", "totp_secret", "recovery_codes"}
 
 // encode renders the whole configuration as TOML, comments and all discarded.
 // The fallback path — see mergeConfig for when it is taken. c.mu must be held.
@@ -385,6 +537,14 @@ func tomlValue(v interface{}) (string, bool) {
 			return "", false // unset: leave the file's line alone
 		}
 		return strconv.FormatBool(*t), true
+	case []string:
+		// Always rendered, including as [], because clearing the second factor
+		// has to remove the previous codes rather than leave them in the file.
+		parts := make([]string, len(t))
+		for i, v := range t {
+			parts[i] = strconv.Quote(v)
+		}
+		return "[" + strings.Join(parts, ", ") + "]", true
 	default:
 		return "", false
 	}
@@ -395,10 +555,12 @@ func tomlValue(v interface{}) (string, bool) {
 func managedValues(cfg shared.WebConfig) map[string]string {
 	out := make(map[string]string, len(managedKeys))
 	for key, v := range map[string]interface{}{
-		"session_key": cfg.SessionKey,
-		"username":    cfg.Username,
-		"password":    cfg.Password,
-		"telemetry":   cfg.Telemetry,
+		"session_key":    cfg.SessionKey,
+		"username":       cfg.Username,
+		"password":       cfg.Password,
+		"telemetry":      cfg.Telemetry,
+		"totp_secret":    cfg.TOTPSecret,
+		"recovery_codes": cfg.RecoveryCodes,
 	} {
 		if rendered, ok := tomlValue(v); ok {
 			out[key] = rendered
@@ -445,7 +607,7 @@ func countSpacesBefore(s string, i int) int {
 
 // keyLineRe matches an assignment to one of the managed keys, capturing the
 // indentation, the key, the spacing around "=" and anything trailing.
-var keyLineRe = regexp.MustCompile(`^(\s*)(session_key|username|password|telemetry)(\s*=\s*)(.*)$`)
+var keyLineRe = regexp.MustCompile(`^(\s*)(session_key|username|password|telemetry|totp_secret|recovery_codes)(\s*=\s*)(.*)$`)
 
 // mergeConfig replaces the managed values inside the existing file text,
 // keeping every comment, blank line and alignment around them. It reports false
@@ -533,6 +695,17 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 func sameManagedValues(a, b shared.WebConfig) bool {
 	if a.SessionKey != b.SessionKey || a.Username != b.Username || a.Password != b.Password {
 		return false
+	}
+	if a.TOTPSecret != b.TOTPSecret {
+		return false
+	}
+	if len(a.RecoveryCodes) != len(b.RecoveryCodes) {
+		return false
+	}
+	for i := range a.RecoveryCodes {
+		if a.RecoveryCodes[i] != b.RecoveryCodes[i] {
+			return false
+		}
 	}
 	switch {
 	case a.Telemetry == nil && b.Telemetry == nil:
