@@ -792,7 +792,15 @@ plain path and the confirmed path use it and cannot drift:
 // choices staged afterwards, because the wizard closes the moment a password
 // exists: an operator with an account can still get in and set the rest by hand,
 // whereas an operator without one cannot get in at all.
-func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) bool {
+//
+// **It returns two answers, not one, and the caller must keep them apart.** The
+// write either happened or it did not; the staging is best-effort on top. A
+// confirmed second factor has eight one-time codes waiting to be shown, and they
+// must reach the operator whenever the *account* was written — losing them
+// because the *ports* could not be staged is the same class of mistake this
+// project has twice refused: it would leave a working factor whose only way back
+// nobody has ever seen, behind a message that talks about something else.
+func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) (written, staged bool) {
 	if err := s.cfg.SaveFirstRun(a); err != nil {
 		if errors.Is(err, ErrAlreadySetUp) {
 			slog.Warn("first run: a second setup arrived after the account existed")
