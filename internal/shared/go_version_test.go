@@ -67,6 +67,7 @@ func TestGoToolchainIsTheSameEverywhere(t *testing.T) {
 			{[]string{"README.md"}, `From source — Go ([0-9.]+)\+`},
 			{[]string{"README.md"}, `\| Go ([0-9.]+), single binary \|`},
 			{[]string{"docs", "index.md"}, `<strong>Go ([0-9.]+)</strong>`},
+			{[]string{"docs", "index.md"}, `Go ([0-9.]+), no runtime dependencies`},
 			{[]string{"docs", "_docs", "installation", "manual.md"}, `Go ([0-9.]+)\+ on the \*\*build\*\* machine`},
 			{[]string{"docs", "_diagrams", "install-choice.mmd"}, `From source<br/>Go ([0-9.]+) \+ make`},
 		} {
@@ -213,6 +214,70 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 						}
 					}
 				}
+			}
+		}
+	}
+}
+
+// A manager that reaches nothing is indistinguishable from one that works.
+//
+// renovate.json listed `docs/installation/manual.md` — the path that page had
+// before the Jekyll restructure moved it under `docs/_docs/`. What sits there
+// now is a four-line `redirect_to` stub with no version in it, so Renovate read
+// the file, found no pin, and reported nothing wrong. The dependency dashboard
+// showed six regex dependencies and the manager looked healthy; the seventh pin
+// was simply not being watched by anybody.
+//
+// TestRenovateEditsOnlyTheGoPinsItShould cannot see this: it checks the values a
+// pattern *captures*, and a pattern that captures nothing has no wrong value to
+// report. So this states the other half — every file pattern has to reach a real
+// pin. It is the same defect the whole arrangement exists to prevent, one level
+// up: not a version no tool knows about, but a tool that knows about no version.
+func TestEveryRenovateFilePatternReachesAPin(t *testing.T) {
+	var cfg struct {
+		CustomManagers []struct {
+			ManagerFilePatterns []string `json:"managerFilePatterns"`
+			MatchStrings        []string `json:"matchStrings"`
+		} `json:"customManagers"`
+	}
+	if err := json.Unmarshal([]byte(repoFile(t, "renovate.json")), &cfg); err != nil {
+		t.Fatalf("renovate.json does not parse: %v", err)
+	}
+
+	root := repoRootDir(t)
+	tracked := trackedFiles(t, root)
+
+	for _, cm := range cfg.CustomManagers {
+		for _, raw := range cm.ManagerFilePatterns {
+			pathRe := regexp.MustCompile(strings.Trim(raw, "/"))
+
+			var matched []string // tracked files the pattern names
+			pins := 0            // pins those files actually contain
+			for _, rel := range tracked {
+				if !pathRe.MatchString(rel) {
+					continue
+				}
+				matched = append(matched, rel)
+				body := readRepoPath(t, root, rel)
+				for _, ms := range cm.MatchStrings {
+					re, err := regexp.Compile(ms)
+					if err != nil {
+						continue // TestRenovateEditsOnlyTheGoPinsItShould reports this
+					}
+					pins += len(re.FindAllString(body, -1))
+				}
+			}
+
+			switch {
+			case len(matched) == 0:
+				t.Errorf("renovate.json managerFilePatterns %q matches no tracked file\n"+
+					"  the pin it was written for is updated by nobody — check whether the "+
+					"file moved", raw)
+			case pins == 0:
+				t.Errorf("renovate.json managerFilePatterns %q matches %v, and none of them "+
+					"contains any of the manager's matchStrings\n"+
+					"  Renovate reads the file, finds nothing and reports no problem, so the "+
+					"pin this was written for has stopped being watched", raw, matched)
 			}
 		}
 	}

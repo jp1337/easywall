@@ -23,9 +23,10 @@ a way no reviewer spotted by reading. When one fails, the useful question is not
 
 | Test | Protects |
 |---|---|
-| `TestGoToolchainIsTheSameEverywhere` | `go.mod`'s `toolchain` line, the Dockerfile tag, `debian/control` and six prose pins agree — and no workflow spells a version out |
+| `TestGoToolchainIsTheSameEverywhere` | `go.mod`'s `toolchain` line, the Dockerfile tag, `debian/control` and seven prose pins agree — and no workflow spells a version out |
 | `TestTheCSRFClaimNamesTheReleaseItArrivedIn` | the five sentences saying `CrossOriginProtection` arrived in Go 1.25 are **not** treated as version pins |
 | `TestRenovateEditsOnlyTheGoPinsItShould` | Renovate's own regexes, run against the tree, capture only the toolchain |
+| `TestEveryRenovateFilePatternReachesAPin` | every `managerFilePatterns` entry matches a tracked file, and those files contain a pin. `renovate.json` still named `docs/installation/manual.md` after the Jekyll move put the page under `docs/_docs/`; what is at the old path is a `redirect_to` stub with no version, so Renovate read it, found nothing and said nothing |
 
 The background is in [dependencies](dependencies.md).
 

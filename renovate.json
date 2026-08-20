@@ -18,31 +18,31 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "The Build-Depends floor in debian/control. No manager covers it, and it was wrong for months — it asked for golang-go 1.21 while the code already needed 1.25 for http.NewCrossOriginProtection.",
+      "description": "The Build-Depends floor in debian/control. No manager covers it, and it was wrong for months — it asked for golang-go 1.21 while the code already needed 1.25 for http.NewCrossOriginProtection. Versioning is `docker`, not `npm`: these pins carry two components, and `1.26` is not a valid semver version — under npm versioning Renovate found the dependency, listed it on the dashboard and returned an empty candidate set, so the first real toolchain bump moved go.mod and the Dockerfile and silently left every pin below behind. Docker versioning treats a truncated version as a version.",
       "managerFilePatterns": ["/^debian/control$/"],
       "matchStrings": ["golang-go \\(>= 2:(?<currentValue>\\d+\\.\\d+)~\\)"],
       "datasourceTemplate": "golang-version",
       "depNameTemplate": "go",
-      "versioningTemplate": "npm",
+      "versioningTemplate": "docker",
       "extractVersionTemplate": "^(?<version>\\d+\\.\\d+)"
     },
     {
       "customType": "regex",
-      "description": "The prose that tells a contributor which Go to install. Anchored on the trailing '+' so it cannot touch the five sentences about net/http.CrossOriginProtection — those say which release the API appeared in, and that stays 1.25 for ever.",
+      "description": "The prose that tells a contributor which Go to install. Anchored on the trailing '+' so it cannot touch the five sentences about net/http.CrossOriginProtection — those say which release the API appeared in, and that stays 1.25 for ever. Versioning is `docker`, not `npm`: these pins carry two components, and `1.26` is not a valid semver version — under npm versioning Renovate found the dependency, listed it on the dashboard and returned an empty candidate set, so the first real toolchain bump moved go.mod and the Dockerfile and silently left every pin below behind. Docker versioning treats a truncated version as a version.",
       "managerFilePatterns": [
         "/^README\\.md$/",
         "/^CONTRIBUTING\\.md$/",
-        "/^docs/installation/manual\\.md$/"
+        "/^docs/_docs/installation/manual\\.md$/"
       ],
       "matchStrings": ["Go (?<currentValue>\\d+\\.\\d+)\\+"],
       "datasourceTemplate": "golang-version",
       "depNameTemplate": "go",
-      "versioningTemplate": "npm",
+      "versioningTemplate": "docker",
       "extractVersionTemplate": "^(?<version>\\d+\\.\\d+)"
     },
     {
       "customType": "regex",
-      "description": "The three pins that carry no '+': the stack table in README, the badge on the docs landing page, and the install-choice diagram source. The diagram needs re-rendering after a bump — see the note on the Go toolchain rule.",
+      "description": "The three pins that carry no '+': the stack table in README, the badge on the docs landing page, and the install-choice diagram source. The diagram needs re-rendering after a bump — see the note on the Go toolchain rule. Versioning is `docker`, not `npm`: these pins carry two components, and `1.26` is not a valid semver version — under npm versioning Renovate found the dependency, listed it on the dashboard and returned an empty candidate set, so the first real toolchain bump moved go.mod and the Dockerfile and silently left every pin below behind. Docker versioning treats a truncated version as a version.",
       "managerFilePatterns": [
         "/^README\\.md$/",
         "/^docs/index\\.md$/",
@@ -51,11 +51,12 @@
       "matchStrings": [
         "\\| Go (?<currentValue>\\d+\\.\\d+), single binary \\|",
         "<strong>Go (?<currentValue>\\d+\\.\\d+)</strong>",
+        "Go (?<currentValue>\\d+\\.\\d+), no runtime dependencies",
         "From source<br/>Go (?<currentValue>\\d+\\.\\d+) \\+ make"
       ],
       "datasourceTemplate": "golang-version",
       "depNameTemplate": "go",
-      "versioningTemplate": "npm",
+      "versioningTemplate": "docker",
       "extractVersionTemplate": "^(?<version>\\d+\\.\\d+)"
     }
   ],
@@ -91,7 +92,7 @@
       "labels": ["renovate", "dependencies", "go", "needs-review"],
       "prBodyNotes": [
         "Re-render the diagrams after merging this: `npm run build:diagrams` — `docs/_diagrams/install-choice.mmd` names the Go version and the rendered SVGs carry a digest of it.",
-        "`internal/shared/go_version_test.go` fails if any of the five places disagree, so CI proves this PR is complete."
+        "`internal/shared/go_version_test.go` fails if any of the places that write the toolchain down disagree, so CI proves this PR is complete."
       ]
     },
     {
