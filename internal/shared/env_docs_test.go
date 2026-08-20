@@ -45,16 +45,39 @@ func TestEveryEnvVarIsDocumented(t *testing.T) {
 // is what stops the page saying "string" for a variable the code parses as a
 // boolean, which is the mistake that sends somebody debugging a value that was
 // rejected at startup for a reason the page denied.
+//
+// Both tables, and the core one only because it was checked and found to have no
+// Type column at all: this loop ran over WebEnvVars alone, so core could have
+// grown a boolean and the page would have stayed silent about it with every test
+// green.
 func TestTheEnvironmentPageStatesTheRightTypes(t *testing.T) {
 	page := repoFile(t, "docs", "_docs", "environment.md")
+
+	// The two tables carry different config types, so their rows are checked by
+	// name and kind rather than by walking one slice.
+	type documented struct {
+		name string
+		kind EnvKind
+	}
+	var vars []documented
+	for _, v := range CoreEnvVars {
+		vars = append(vars, documented{v.Name, v.Kind})
+	}
 	for _, v := range WebEnvVars {
-		if v.Kind != EnvBool {
+		vars = append(vars, documented{v.Name, v.Kind})
+	}
+
+	want := map[EnvKind]string{EnvString: "string", EnvBool: "bool"}
+	for _, v := range vars {
+		stated, ok := want[v.kind]
+		if !ok {
+			t.Errorf("%s has kind %v, which this test has no wording for", v.name, v.kind)
 			continue
 		}
-		// The row for a boolean variable has to say so somewhere on its line.
+		// The row for a variable has to state its type somewhere on its line.
 		var row string
 		for _, line := range strings.Split(page, "\n") {
-			if strings.Contains(line, v.Name) {
+			if strings.Contains(line, v.name) {
 				row = line
 				break
 			}
@@ -62,9 +85,9 @@ func TestTheEnvironmentPageStatesTheRightTypes(t *testing.T) {
 		if row == "" {
 			continue // TestEveryEnvVarIsDocumented reports the missing row
 		}
-		if !strings.Contains(strings.ToLower(row), "bool") {
-			t.Errorf("%s is EnvBool in the code, and its row does not say so:\n  %s",
-				v.Name, row)
+		if !strings.Contains(strings.ToLower(row), stated) {
+			t.Errorf("%s is %s in the code, and its row does not say so:\n  %s",
+				v.name, stated, row)
 		}
 	}
 }

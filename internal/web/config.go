@@ -515,10 +515,12 @@ func (c *Config) encode() ([]byte, error) {
 	out := c.fileConfig
 	// The six keys the interface owns come from the live struct; everything else
 	// is what the file said. See the note on fileConfig.
-	out.SessionKey = c.WebConfig.SessionKey
-	out.Username = c.WebConfig.Username
-	out.Password = c.WebConfig.Password
-	out.Telemetry = c.WebConfig.Telemetry
+	out.SessionKey = c.SessionKey
+	out.Username = c.Username
+	out.Password = c.Password
+	out.Telemetry = c.Telemetry
+	// Spelled through the embedded struct because Config has a TOTPSecret() and
+	// a RecoveryCodes() method: c.TOTPSecret is the method value, not the field.
 	out.TOTPSecret = c.WebConfig.TOTPSecret
 	out.RecoveryCodes = c.WebConfig.RecoveryCodes
 
