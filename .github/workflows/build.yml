@@ -126,9 +126,43 @@ jobs:
   # No GOARCH anywhere: debian/control says `Architecture: any` and debian/rules
   # calls a plain `go build`, so the runner decides what comes out. That is also
   # what makes the file name right — dpkg names it from DEB_HOST_ARCH.
+  #
+  # This package is a firewall, and since 2.7 (the boot-restore release)
+  # easywall-core programs nftables into the kernel the instant it starts —
+  # "default drop until confirmed" begins at process start, not at the first
+  # apply. This job used to install the .deb straight onto the runner that is
+  # executing it, via `sudo apt-get install -y ./dist/*.deb`, and postinst
+  # starts easywall-core.service unconditionally. That handed the runner its
+  # own `input policy drop`. The job did not crash — it lost its route back to
+  # the Actions service, so it froze at whatever step happened to be running
+  # when the rule landed: install, a purely local check, the artifact upload —
+  # a different step each run, because it depends on exactly when the runner's
+  # own connection got cut, not on anything the job itself does wrong. With no
+  # timeout on the job it then sat for roughly 47 minutes before the platform
+  # gave up, against ~2 minutes for a green run.
+  #
+  # release.yml builds this exact same package and has never shown any of
+  # this, for one reason: it only builds. It never installs what it builds, so
+  # postinst never runs anywhere near the machine executing the job.
+  #
+  # The fix is not to install less — the coverage that matters is that the
+  # package actually starts, because a previous release shipped one that
+  # didn't and nothing here caught it. The fix is to give the install
+  # somewhere to point nftables that isn't the runner's own network
+  # namespace: a privileged container gets its own netns, so the rules land
+  # there and the runner keeps its network throughout. The checks need
+  # systemd for real, so ubuntu:24.04 (which ships none) installs systemd and
+  # execs it as PID 1 before the package goes anywhere near apt. That last
+  # part matters on its own: debian/postinst only starts the services
+  # `if [ -d /run/systemd/system ]`, and that directory only exists once
+  # systemd is actually running — so a container where systemd never came up
+  # would "install" the package, start nothing, and every check below would
+  # report nothing running and call it a pass. Systemd's readiness is
+  # therefore asserted before the install, not inferred from it.
   build-deb:
     name: Debian Package (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -166,7 +200,9 @@ jobs:
         run: mkdir -p dist && mv ../*.deb dist/
 
       # The one mistake a file name cannot show: a package that says arm64 and
-      # carries amd64 binaries. Ask the artefact for both.
+      # carries amd64 binaries. Ask the artefact for both. Pure inspection —
+      # dpkg-deb and tar, nothing is installed — so this still runs on the
+      # runner itself.
       - name: It is a package for this architecture
         run: |
           set -euo pipefail
@@ -187,24 +223,79 @@ jobs:
           }
           echo "ok  $deb is $got and carries a $got binary"
 
+      # Uploaded here, before anything installs the package — not last, where
+      # it used to be. A hang during install used to cost the artifact too: a
+      # step with nothing to do with building lost the thing that was already
+      # built and already proven to be the right architecture.
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: debian-package-${{ matrix.arch }}
+          path: dist/*.deb
+          retention-days: 7
+
+      # ── Everything from here on installs the package. That happens inside a
+      # privileged container with its own network namespace, never on the
+      # runner — see the job-level comment for why. Docker is preinstalled on
+      # both runner flavours and ubuntu:24.04 is multi-arch, so the same
+      # recipe works unmodified on ubuntu-24.04-arm.
+      - name: Start a systemd container
+        run: |
+          docker run -d --name easywall-test \
+            --privileged --cgroupns=host \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v "${{ github.workspace }}/dist:/dist:ro" \
+            ubuntu:24.04 \
+            bash -c "apt-get update -qq && apt-get install -y systemd systemd-sysv curl python3 && exec /sbin/init"
+
+      # See the job-level comment: postinst only starts the services once
+      # /run/systemd/system exists, which only happens once systemd is truly
+      # PID 1 and running — not once the container is merely "up". Installing
+      # the package before this is confirmed would silently skip the coverage
+      # this job exists for.
+      - name: Assert systemd is actually running before installing anything
+        run: |
+          set -euo pipefail
+          state=""
+          for i in $(seq 1 60); do
+            state=$(docker exec easywall-test systemctl is-system-running 2>/dev/null || true)
+            echo "systemd state: ${state:-<not answering yet>}"
+            case "$state" in
+              running|degraded) break ;;
+            esac
+            sleep 1
+          done
+          case "$state" in
+            running|degraded) echo "ok  systemd is $state inside the container" ;;
+            *)
+              echo "::error::systemd never came up in the container (last state: '${state:-none}') — installing the package now would prove nothing"
+              docker logs easywall-test --tail 100 || true
+              exit 1
+              ;;
+          esac
+
       # Building the package proved it compiles. It never proved it installs —
       # and it did not: postinst left /etc/easywall unreadable by the user the
       # web service runs as, so a freshly installed package had no web
-      # interface at all. That shipped because nothing here went past the build.
+      # interface at all. That shipped because nothing here went past the
+      # build. apt-get, not dpkg -i, so the runtime dependencies in
+      # debian/control get pulled in inside the container, same as a real user
+      # installing the package would.
       - name: Install the package
-        run: sudo apt-get install -y ./dist/*.deb
+        run: docker exec easywall-test bash -c "apt-get update -qq && apt-get install -y /dist/*.deb"
 
       - name: Check the installed layout
         run: |
+          docker exec -i easywall-test bash -s <<'EOF'
           set -euo pipefail
           fail=0
-          # Through sudo, because the layout being checked is the reason a plain
-          # stat cannot do it: /etc/easywall is 0750 root:easywall and the runner
-          # user is in neither. The check that reads the permissions has to be
-          # allowed past them, or it reports "Permission denied" for the
-          # arrangement working exactly as intended.
+          # Plain stat, no sudo: docker exec is root by default inside the
+          # container, which is exactly the access the runner-side version of
+          # this check needed sudo for. /etc/easywall is still 0750
+          # root:easywall — that arrangement is what is under test, not worked
+          # around.
           check() { # path expected_owner expected_mode
-            actual=$(sudo stat -c '%U:%G %a' "$1")
+            actual=$(stat -c '%U:%G %a' "$1")
             if [ "$actual" != "$2 $3" ]; then
               echo "::error::$1 is '$actual', expected '$2 $3'"
               fail=1
@@ -228,6 +319,7 @@ jobs:
           # the core does not need CAP_DAC_OVERRIDE to reach it.
           check /var/lib/easywall        root:easywall     770
           exit $fail
+          EOF
 
       # The package starts both services itself. Everything below asks the
       # installed system what it is doing rather than starting a second copy by
@@ -235,6 +327,7 @@ jobs:
       # daemon that never came up would not have been noticed.
       - name: Check both services are running
         run: |
+          docker exec -i easywall-test bash -s <<'EOF'
           set -euo pipefail
           for unit in easywall-core easywall-web; do
             for i in $(seq 1 20); do
@@ -249,6 +342,7 @@ jobs:
             }
             echo "ok  $unit is active"
           done
+          EOF
 
       # The regression that made a fresh install useless: the unit reduces the
       # daemon's capabilities to CAP_NET_ADMIN, which also removes CAP_CHOWN, so
@@ -257,17 +351,17 @@ jobs:
       - name: Check the web user can reach the core
         run: |
           set -euo pipefail
-          # sudo for the same reason as the layout check: /run/easywall is 0750
-          # root:easywall and the runner is in neither, which is the arrangement
-          # being verified. Only the reading is privileged — the connection below
-          # is made as the easywall user, which is the thing under test.
-          sudo ls -l /run/easywall/core.sock
-          owner=$(sudo stat -c '%U:%G' /run/easywall/core.sock)
+          docker exec easywall-test ls -l /run/easywall/core.sock
+          owner=$(docker exec easywall-test stat -c '%U:%G' /run/easywall/core.sock)
           [ "$owner" = "root:easywall" ] || {
             echo "::error::the control socket is $owner, not root:easywall — easywall-web cannot connect"
             exit 1
           }
-          sudo -u easywall python3 - <<'PY'
+          # --user drops to the easywall user for the connection itself, the
+          # same drop `sudo -u easywall` made when this ran directly on the
+          # runner — the design says that user, not root, is what may reach
+          # the socket, so that is who has to be the one asking.
+          docker exec -i --user easywall easywall-test python3 - <<'PY'
           import json, socket, sys
           s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
           s.settimeout(5)
@@ -284,7 +378,7 @@ jobs:
               sys.exit(1)
           print("the core answered the web user:", str(reply)[:80])
           PY
-          sudo test -s /var/lib/easywall/rules.json || {
+          docker exec easywall-test test -s /var/lib/easywall/rules.json || {
             echo "::error::the core never wrote its rule store — it cannot reach /var/lib/easywall"
             exit 1
           }
@@ -293,16 +387,16 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 20); do
-            curl -sk -o /dev/null https://127.0.0.1:12227/firstrun && break
+            docker exec easywall-test curl -sk -o /dev/null https://127.0.0.1:12227/firstrun && break
             sleep 0.5
           done
-          code=$(curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:12227/firstrun)
+          code=$(docker exec easywall-test curl -sk -o /dev/null -w '%{http_code}' https://127.0.0.1:12227/firstrun)
           echo "GET /firstrun -> $code"
           [ "$code" = "200" ] || { echo "::error::the web interface did not come up"; exit 1; }
-          # sudo again: ssl/ is 0750 easywall:easywall, so only the web user and
-          # root can see the certificate it generates — which is the point of it.
-          sudo test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
-          if sudo -u easywall sh -c 'echo x >> /etc/easywall/easywall.toml' 2>/dev/null; then
+          # ssl/ is 0750 easywall:easywall, so only the web user and root can
+          # see the certificate it generates — which is the point of it.
+          docker exec easywall-test test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
+          if docker exec --user easywall easywall-test sh -c 'echo x >> /etc/easywall/easywall.toml' 2>/dev/null; then
             echo "::error::the web user can write the core's configuration"
             exit 1
           fi
@@ -311,12 +405,15 @@ jobs:
       # The version reaches the binary. It is written in with -ldflags -X, which
       # does nothing at all when the target is a constant — as it was, so every
       # released binary reported the literal in the source instead of its tag.
+      # dpkg-parsechangelog reads debian/changelog from the checkout, so that
+      # half stays on the runner; only the installed binary is asked inside the
+      # container.
       - name: Check the version was compiled in
         run: |
           set -euo pipefail
           want=$(dpkg-parsechangelog --show-field Version)
           for bin in easywall-core easywall-web; do
-            got=$(/usr/sbin/$bin --version | awk '{print $2}')
+            got=$(docker exec easywall-test /usr/sbin/$bin --version | awk '{print $2}')
             echo "$bin --version -> $got (package $want)"
             [ "$got" = "$want" ] || {
               echo "::error::$bin reports $got but the package is $want — the -ldflags version injection is not landing"
@@ -324,9 +421,6 @@ jobs:
             }
           done
 
-      - name: Upload .deb artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: debian-package-${{ matrix.arch }}
-          path: dist/*.deb
-          retention-days: 7
+      - name: Stop the container
+        if: always()
+        run: docker rm -f easywall-test || true
