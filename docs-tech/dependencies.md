@@ -37,7 +37,7 @@ below, in one pull request.
 
 ```
 go 1.25.0          ← the oldest Go this code compiles with. Renovate does not touch it
-toolchain go1.26.5 ← what we build with. Renovate keeps this current
+toolchain go1.X.Y  ← what we build with. Renovate keeps this current
 ```
 
 The two are allowed to differ and move for different reasons. The `go` directive
@@ -56,10 +56,10 @@ that explicitly with `enabled: false` on the `golang` depType, so nobody adds
 | patch / pin / digest | auto-merged once CI is green |
 | minor and major | wait for a person. This is a firewall; the blast radius of a bad dependency is the host's packet filter |
 | `groupName: "Go toolchain"` | every place the toolchain is written moves in **one** pull request, and never auto-merges whatever the update type says |
-| three `customManagers` | `debian/control`, the prose pins with a trailing `+`, and the three pins without one |
+| three `customManagers` | `debian/control`, the prose pins with a trailing `+`, and the four pins without one. All three use `versioning: docker`, for the reason below |
 | `prBodyNotes` on htmx and mermaid | both need a manual step after merging, and CI fails without it |
 
-The prose manager is anchored on the trailing `+` (`Go 1.26+`) precisely so it
+The prose manager is anchored on the trailing `+` (`Go 1.X+`) precisely so it
 cannot touch the five sentences about `net/http.CrossOriginProtection`. Those say
 which release the API *arrived* in, and that stays 1.25 for ever.
 `TestTheCSRFClaimNamesTheReleaseItArrivedIn` states which sentences are off limits.
@@ -80,6 +80,43 @@ visible to `renovate-config-validator`:
 regexes to every tracked file, and requires each captured value to be the current
 toolchain. Anything else is either a pin left behind or a sentence Renovate would
 edit into a lie.
+
+### A detected dependency is not an updated dependency
+
+The arrangement above went in with 1.26.6 already in every file, so nothing
+exercised it. The first real bump — 1.26.6 → 1.27.0 — moved `go.mod` and the
+`Dockerfile` and left **every one of the seven derived pins behind**, and the pull
+request looked healthy: the dependency dashboard listed six regex dependencies,
+none of them carried a `skipReason`, and no warning appeared anywhere. Two
+separate faults, neither visible without reading a Renovate debug log:
+
+**`versioning: npm` on a two-component pin.** The managers captured `1.26` and
+`extractVersion` reduced the datasource's `1.27.0` to `1.27`. Neither is a valid
+semver version, so npm versioning treated the current value as a range with no
+satisfying release and returned `"updates": []` — a found dependency with an
+empty candidate set, which reads exactly like an up-to-date one. `docker`
+versioning treats a truncated version as a version, and is what these use now.
+A local `renovate --platform=local --dry-run=lookup` is the way to see this: it
+prints each dependency's `updates` array, and the fix took the run from four
+flattened updates to ten.
+
+**A file pattern aimed at a page that had moved.** The Jekyll restructure put the
+manual-installation page under `docs/_docs/`, and left a four-line `redirect_to`
+stub at the old path. `renovate.json` still named the old path, so Renovate read
+the stub, found no version in it, and reported nothing — `No dependencies found
+in file for custom regex manager`, at debug level, in a log nobody reads.
+
+The second fault is the one worth generalising: **a manager that reaches nothing
+is indistinguishable from a manager that works.** `TestRenovateEditsOnlyTheGoPinsItShould`
+could not catch it, because it validates the values a pattern captures
+and a dead pattern captures none. `TestEveryRenovateFilePatternReachesAPin` states
+the other half — every `managerFilePatterns` entry has to match a tracked file,
+and those files have to contain at least one of that manager's `matchStrings`.
+
+While fixing it, an eighth pin turned up on the documentation landing page —
+"Go 1.26, no runtime dependencies beyond the kernel" in the *from source* card,
+one card below the `<strong>` badge that *was* managed. No manager and no test
+knew about it. It has both now.
 
 ## Manual steps some updates need
 

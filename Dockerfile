@@ -2,7 +2,7 @@
 # Pinned to the patch, and to the same one as go.mod's toolchain line — a test
 # compares the two. `golang:1.26-alpine` floated to whatever the newest 1.26 was,
 # which is how this image came to be built by a Go version no workflow tested with.
-FROM golang:1.26.6-alpine AS builder
+FROM golang:1.27.0-alpine AS builder
 
 WORKDIR /src
 
