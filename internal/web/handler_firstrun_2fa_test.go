@@ -198,6 +198,93 @@ func TestFirstRun2FA_ConfirmStillStagesTheOtherAnswers(t *testing.T) {
 	}
 }
 
+// A failed write during confirm must not cost the operator their pairing: the
+// pending entry survives, the setup step is re-rendered with the same secret,
+// and the message names the disk rather than the core — SaveFirstRun writes
+// web.toml and never touches the core socket. Reverting the fix that made
+// completeFirstRun report a write failure back to handleFirstRunConfirm turns
+// this red: the handler falls through to the redirect-to-/firstrun response
+// that used to run unconditionally, the pending entry is left stranded behind
+// a step 1 GET that cannot reach it, and the retry below mints a fresh secret
+// instead of reusing the one already scanned.
+func TestFirstRun2FA_ConfirmSurvivesAFailedWrite(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+
+	_, cookies := beginFirstRunWith2FA(t, s)
+	raw, err := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Make the write fail without touching the pending entry itself.
+	s.cfg.configPath = "/nonexistent/directory/web.toml"
+
+	rec := doFormRequest(s, "POST", "/firstrun/confirm",
+		"code="+totpAt(raw, stepAt(time.Now())), cookies...)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm answered %d, want 200 with the setup step re-rendered", rec.Code)
+	}
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("the account was created despite the write failing")
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "data:image/png;base64,") {
+		t.Error("the setup step was not re-rendered after the failed write; the operator " +
+			"was sent back to step 1 instead and the pairing is now unreachable")
+	}
+	lower := strings.ToLower(body)
+	if !strings.Contains(lower, "disk") {
+		t.Error("the message does not name the disk — SaveFirstRun never reaches the core")
+	}
+	if strings.Contains(lower, "core connection") {
+		t.Error("the message still blames the core connection (save_error), not the disk")
+	}
+
+	// The pairing survives: the pending entry is still there under the same id,
+	// still holding the very secret already scanned into the phone.
+	stillThere, ok := firstRunPendingLookupForTest(t, s, cookies)
+	if !ok {
+		t.Fatal("the pending entry was lost after the failed write")
+	}
+	if decodeAgain, derr := decodeTOTPSecret(stillThere.Secret); derr != nil || string(decodeAgain) != string(raw) {
+		t.Error("the surviving entry's secret no longer matches the one already scanned")
+	}
+
+	// Fix the disk and retry with a fresh code from the very same secret: the
+	// operator must not have to re-pair.
+	s.cfg.configPath = t.TempDir() + "/web.toml"
+
+	rec2 := doFormRequest(s, "POST", "/firstrun/confirm",
+		"code="+totpAt(raw, stepAt(time.Now())), cookies...)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("the retry after the disk recovered answered %d", rec2.Code)
+	}
+	if s.cfg.IsFirstRun() {
+		t.Error("the retry did not create the account even though the disk recovered")
+	}
+	if !s.cfg.TOTPEnabled() {
+		t.Error("the retry lost the second factor paired before the first failure")
+	}
+}
+
+// firstRunPendingLookupForTest is a thin wrapper so the survival check above
+// reads the same session/cookie plumbing firstRunPendingSecret already uses.
+func firstRunPendingLookupForTest(t *testing.T, s *Server, cookies []*http.Cookie) (pendingFirstRun, bool) {
+	t.Helper()
+	req := httptest.NewRequest("GET", "/firstrun", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	sess, err := s.store.Get(req, SessionName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := sess.Values[firstRunPendingKey].(string)
+	return firstRunPendingLookup(id)
+}
+
 // A code that is right against a clock that is not.
 func TestFirstRun2FA_AFarOutCodeDiagnosesTheClockAndStoresNothing(t *testing.T) {
 	fc := newFakeCore(t)
@@ -240,6 +327,89 @@ func TestFirstRun2FA_AWrongCodeStoresNothing(t *testing.T) {
 
 	if !s.cfg.IsFirstRun() {
 		t.Error("a wrong code created the account")
+	}
+}
+
+// lastCookiePerName mimics an actual browser's cookie jar rather than
+// httptest's raw Set-Cookie list: a handler that calls Save on the same
+// session twice in one response (firstRunError does, once to stash the
+// answers and again inside setFlash) emits two Set-Cookie headers for the
+// same name, and a browser's jar keeps only the later one. Re-sending every
+// header verbatim, as the other redirect-then-GET tests in this package do,
+// happens to work for them only because they never check anything that was
+// added by the *later* of the two writes — this test does.
+func lastCookiePerName(cookies []*http.Cookie) []*http.Cookie {
+	byName := make(map[string]*http.Cookie, len(cookies))
+	var order []string
+	for _, c := range cookies {
+		if _, ok := byName[c.Name]; !ok {
+			order = append(order, c.Name)
+		}
+		byName[c.Name] = c
+	}
+	out := make([]*http.Cookie, 0, len(order))
+	for _, name := range order {
+		out = append(out, byName[name])
+	}
+	return out
+}
+
+// The escape hatch exists precisely for an operator who cannot make a code
+// verify. It must not itself go silent: an entry aged past
+// firstRunPendingLifetime has to say so, in both routes that can meet it, and
+// the username has to survive the trip back to step 1 — a blank wizard after
+// ten minutes of setup work is its own kind of dead end.
+func TestFirstRun2FA_ExpiredEntryIsNamedAndKeepsTheAnswers(t *testing.T) {
+	for _, path := range []string{"/firstrun/confirm", "/firstrun/skip"} {
+		t.Run(path, func(t *testing.T) {
+			fc := newFakeCore(t)
+			s := newFirstRunTestServer(t, fc)
+
+			_, cookies := beginFirstRunWith2FA(t, s)
+
+			req := httptest.NewRequest("GET", "/firstrun", nil)
+			for _, c := range cookies {
+				req.AddCookie(c)
+			}
+			sess, err := s.store.Get(req, SessionName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, _ := sess.Values[firstRunPendingKey].(string)
+			p, ok := firstRunPendingLookup(id)
+			if !ok {
+				t.Fatal("no pending entry to age")
+			}
+			// Backdate the same entry rather than fabricate a new one, so the
+			// answers it carries are exactly what step 1 collected.
+			firstRunPendingStore(id, pendingFirstRun{
+				Answers:      p.Answers,
+				PasswordHash: p.PasswordHash,
+				Secret:       p.Secret,
+				Issued:       time.Now().Add(-firstRunPendingLifetime - time.Second),
+			})
+
+			form := ""
+			if path == "/firstrun/confirm" {
+				form = "code=000000"
+			}
+			rec := doFormRequest(s, "POST", path, form, cookies...)
+			assertRedirect(t, rec, "/firstrun")
+
+			if !s.cfg.IsFirstRun() {
+				t.Fatal("an expired entry created the account")
+			}
+
+			back := doRequest(s, "GET", "/firstrun", nil, lastCookiePerName(rec.Result().Cookies())...)
+			body := back.Body.String()
+			if !strings.Contains(strings.ToLower(body), "timed out") {
+				t.Error("the expired entry produced no flash at all; want totp_setup_expired")
+			}
+			if !strings.Contains(body, `value="admin"`) {
+				t.Error("the username was not kept across the expired escape hatch — the " +
+					"operator would have to retype everything as well as start the pairing over")
+			}
+		})
 	}
 }
 
