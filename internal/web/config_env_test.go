@@ -3,8 +3,11 @@ package web
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 func writeWebConfig(t *testing.T, body string) string {
@@ -92,5 +95,81 @@ func TestEnvOverlayNeverReachesTheConfigFile(t *testing.T) {
 	// The write that was actually asked for still has to have happened.
 	if !strings.Contains(string(written), "telemetry") {
 		t.Errorf("telemetry was not persisted:\n%s", written)
+	}
+}
+
+// TestEncode_CopiesEveryManagedKey guards encode()'s hand-maintained copy
+// block — the fifth transcription of managedKeys, after managedValues,
+// keyLineRe and sameManagedValues — against falling behind the list it copies
+// from. For every name in managedKeys it finds the shared.WebConfig field
+// carrying that toml tag, sets only that one field on an otherwise-zero
+// struct to a value the zero value could never produce, and insists encode()
+// — run with fileConfig left zero, so nothing but the copy block could put
+// that value in the output — renders it.
+//
+// Add a key to managedKeys without adding it to the copy block, and the
+// corresponding subtest goes red: the sentinel value never reaches the
+// output, because fileConfig (zero) has nothing for it and the live struct's
+// value was never copied over. That is exactly the failure mode this test
+// exists to catch — a managed value silently dropped from a save that falls
+// back to encode(), with the caller none the wiser.
+func TestEncode_CopiesEveryManagedKey(t *testing.T) {
+	typ := reflect.TypeOf(shared.WebConfig{})
+
+	for _, key := range managedKeys {
+		t.Run(key, func(t *testing.T) {
+			field, ok := tomlField(typ, key)
+			if !ok {
+				t.Fatalf("no shared.WebConfig field tagged toml:%q", key)
+			}
+
+			var live shared.WebConfig
+			sentinel, contains := sentinelFor(t, field.Type, key)
+			reflect.ValueOf(&live).Elem().FieldByIndex(field.Index).Set(sentinel)
+
+			cfg := &Config{WebConfig: live} // fileConfig left zero, deliberately
+			data, err := cfg.encode()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !contains(string(data)) {
+				t.Errorf("%s: encode() did not carry the live value through the copy block:\n%s", key, data)
+			}
+		})
+	}
+}
+
+// tomlField finds the field of struct type t tagged with the given top-level
+// toml name.
+func tomlField(t reflect.Type, name string) (reflect.StructField, bool) {
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := strings.SplitN(f.Tag.Get("toml"), ",", 2)[0]
+		if tag == name {
+			return f, true
+		}
+	}
+	return reflect.StructField{}, false
+}
+
+// sentinelFor produces a value of typ that the zero value could not, plus a
+// matcher for that value's rendering in encoded TOML. managedKeys today are
+// string, *bool and []string; a type outside that set fails loudly rather
+// than silently skipping the key it cannot cover.
+func sentinelFor(t *testing.T, typ reflect.Type, key string) (reflect.Value, func(string) bool) {
+	t.Helper()
+	switch typ {
+	case reflect.TypeOf(""):
+		v := "sentinel-" + key
+		return reflect.ValueOf(v), func(s string) bool { return strings.Contains(s, v) }
+	case reflect.TypeOf((*bool)(nil)):
+		v := true
+		return reflect.ValueOf(&v), func(s string) bool { return strings.Contains(s, key+" = true") }
+	case reflect.TypeOf([]string(nil)):
+		v := []string{"sentinel-" + key}
+		return reflect.ValueOf(v), func(s string) bool { return strings.Contains(s, "sentinel-"+key) }
+	default:
+		t.Fatalf("no sentinel strategy for managed field type %s (key %s)", typ, key)
+		return reflect.Value{}, nil
 	}
 }
