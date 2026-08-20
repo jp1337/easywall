@@ -122,6 +122,8 @@ nav:
         path: /docs/features/recovery/
       - title: System & Network Settings
         path: /docs/features/system-settings/
+      - title: Second Factor
+        path: /docs/features/two-factor/
       - title: Roadmap
         path: /docs/roadmap/
       - title: Contributing

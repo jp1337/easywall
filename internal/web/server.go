@@ -245,12 +245,21 @@ func (s *Server) Stop() {
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
 	}
-	if s.eventsStop != nil {
-		s.eventsOnce.Do(func() { close(s.eventsStop) })
-	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = s.httpSrv.Shutdown(ctx)
+
+	// Closed only after Shutdown returns, not before. auditEvents.run exits the
+	// instant eventsStop closes, and Record only warns when its buffer is full —
+	// so closing this first meant every login and logout in flight during the
+	// shutdown's up-to-ten-second grace period queued into a channel nobody was
+	// draining anymore, and the loss was silent on both ends. Handlers still
+	// running have finished writing to the channel by the time Shutdown
+	// returns, so nothing more is enqueued after this point.
+	if s.eventsStop != nil {
+		s.eventsOnce.Do(func() { close(s.eventsStop) })
+	}
 }
 
 func (s *Server) buildRouter(cfg *Config) chi.Router {
@@ -909,7 +918,7 @@ var clientStringKeys = []string{
 	"ports_port_hint", "ports_desc_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
-	"totp_copy", "totp_copied",
+	"totp_copy", "totp_copied", "totp_copy_failed",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -952,8 +961,12 @@ func templateFuncs() template.FuncMap {
 		// failed. Amber, not red: signing in did work.
 		"recovery_not_consumed": true,
 		// The code is right; the fault is the server's clock, not an attack —
-		// and the setup timing out is a wait, not a wrong answer.
-		"totp_clock_behind": true, "totp_clock_ahead": true, "totp_setup_expired": true,
+		// and the setup timing out is a wait, not a wrong answer. Two ids per
+		// direction: clockSkewKey picks _one or _many so "1 minute" is never
+		// "1 minutes".
+		"totp_clock_behind_one": true, "totp_clock_behind_many": true,
+		"totp_clock_ahead_one": true, "totp_clock_ahead_many": true,
+		"totp_setup_expired": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

@@ -180,6 +180,80 @@ func TestSaveCredentials(t *testing.T) {
 	}
 }
 
+// A failed write must not leave any of the four savers' in-memory state ahead
+// of disk. Each is seeded with a known-good value, pointed at a config path
+// whose directory does not exist (saveLocked's os.CreateTemp fails on that
+// deterministically, the same technique TestSave_CreateTempError uses), and
+// asked to save something different. The save must fail and the seeded value
+// must still be exactly what it was — not what the failed call tried to make
+// it — the same rollback SaveTOTP already had.
+func TestConfigSavers_RollBackOnAFailedWrite(t *testing.T) {
+	newCfg := func() *Config {
+		return &Config{
+			WebConfig: shared.WebConfig{
+				BindAddr:      "0.0.0.0:12227",
+				SocketPath:    "/run/x",
+				SSLDir:        "/tmp",
+				SessionKey:    "key",
+				Username:      "admin",
+				Password:      "$argon2id$original",
+				TOTPSecret:    "ORIGINALSECRET",
+				RecoveryCodes: []string{"$argon2id$orig1", "$argon2id$orig2"},
+			},
+			configPath: "/nonexistent/directory/web.toml",
+		}
+	}
+
+	t.Run("SaveTelemetry", func(t *testing.T) {
+		cfg := newCfg()
+		on := true
+		cfg.Telemetry = &on
+		off := false
+		if err := cfg.SaveTelemetry(off); err == nil {
+			t.Fatal("expected an error from a directory that does not exist")
+		}
+		if cfg.Telemetry == nil || *cfg.Telemetry != on {
+			t.Error("Telemetry changed in memory despite the failed write")
+		}
+	})
+
+	t.Run("SaveCredentials", func(t *testing.T) {
+		cfg := newCfg()
+		if err := cfg.SaveCredentials("attacker", "$argon2id$new"); err == nil {
+			t.Fatal("expected an error from a directory that does not exist")
+		}
+		if cfg.Username != "admin" || cfg.Password != "$argon2id$original" {
+			t.Errorf("credentials changed in memory despite the failed write: %q / %q",
+				cfg.Username, cfg.Password)
+		}
+	})
+
+	t.Run("SaveRecoveryCodes", func(t *testing.T) {
+		cfg := newCfg()
+		if err := cfg.SaveRecoveryCodes([]string{"$argon2id$new1"}); err == nil {
+			t.Fatal("expected an error from a directory that does not exist")
+		}
+		want := []string{"$argon2id$orig1", "$argon2id$orig2"}
+		got := cfg.WebConfig.RecoveryCodes
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Errorf("recovery codes changed in memory despite the failed write: %v", got)
+		}
+	})
+
+	t.Run("SaveFirstRun", func(t *testing.T) {
+		cfg := newCfg()
+		cfg.Password = "" // SaveFirstRun requires this to still look like first-run
+		telemetry := true
+		if err := cfg.SaveFirstRun("newadmin", "$argon2id$new", telemetry); err == nil {
+			t.Fatal("expected an error from a directory that does not exist")
+		}
+		if cfg.Password != "" || cfg.Username != "admin" || cfg.Telemetry != nil {
+			t.Errorf("first-run fields changed in memory despite the failed write: user=%q pass=%q telemetry=%v",
+				cfg.Username, cfg.Password, cfg.Telemetry)
+		}
+	})
+}
+
 func TestGenerateSecret_Length(t *testing.T) {
 	s, err := generateSecret(32)
 	if err != nil {
