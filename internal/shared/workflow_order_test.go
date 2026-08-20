@@ -186,9 +186,32 @@ func TestEveryImageArchitectureAlsoGetsAPackage(t *testing.T) {
 }
 
 // The package job has to install what it builds, on the architecture it built
-// it for. A cross-built package that nothing installs is how this repository
-// shipped a .deb with no binaries in it for its whole existence.
-func TestBothPackageArchitecturesAreInstalledNatively(t *testing.T) {
+// it for, and it has to do that installation inside a container rather than
+// on the runner itself.
+//
+// The first half is old: a cross-built package that nothing installs is how
+// this repository shipped a .deb with no binaries in it for its whole
+// existence.
+//
+// The second half is the more expensive lesson. build-deb was green through
+// 2026-08-17 and red on every branch from 2026-08-18: the 2.7 boot-restore
+// change made easywall-core program nftables into the kernel the moment it
+// starts, and debian/postinst starts that service unconditionally. Installing
+// the .deb straight onto the runner — which is what this job did until then,
+// via a plain `apt-get install -y ./dist/*.deb` — handed the runner its own
+// `input policy drop`. The runner does not crash; it loses its own route back
+// to the Actions service, so the job hangs at whatever step happened to be
+// running when the rule landed, until the platform times it out around the
+// 47-minute mark. release.yml builds the identical package and was never
+// touched by any of this, for one reason: it only ever builds. It never
+// installs what it builds, so postinst never runs anywhere near the machine
+// executing that job.
+//
+// So this test checks two things that both have to hold, and neither implies
+// the other: the job installs the package it built (not just compiles it),
+// and it does that installation somewhere other than the runner's own network
+// namespace.
+func TestPackageInstallsNativelyInsideAContainer(t *testing.T) {
 	block := jobBlock(t, repoFile(t, ".github", "workflows", "build.yml"), "build-deb")
 
 	for _, want := range []string{"ubuntu-24.04\n", "ubuntu-24.04-arm"} {
@@ -197,7 +220,25 @@ func TestBothPackageArchitecturesAreInstalledNatively(t *testing.T) {
 				"cross-built or not built at all", strings.TrimSpace(want))
 		}
 	}
-	if !strings.Contains(block, "apt-get install -y ./dist/*.deb") {
-		t.Error("the package job no longer installs the package it builds")
+
+	// The exact path (`./dist/*.deb`) is not the point — a bind mount, a `docker
+	// cp`, or a renamed directory can all change it without changing the thing
+	// under test. What has to hold is that some line actually runs `apt-get
+	// install` against a .deb, wherever it lives.
+	installLine := regexp.MustCompile(`(?m)^.*apt-get install[^\n]*\.deb.*$`).FindString(block)
+	if installLine == "" {
+		t.Fatal("the package job no longer installs the package it builds")
+	}
+
+	// The incident above, made permanent: that install line must run inside a
+	// container, never directly against the runner.
+	if !strings.Contains(installLine, "docker exec") {
+		t.Errorf("the package is installed by a command that does not run through "+
+			"`docker exec`:\n  %s\n"+
+			"installing this package puts a firewall with input policy drop on "+
+			"whatever machine runs that command — on the runner itself, that is the "+
+			"runner executing the job. It loses its own route back to the Actions "+
+			"service and the job hangs until the platform gives up on it.",
+			strings.TrimSpace(installLine))
 	}
 }
