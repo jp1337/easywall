@@ -15,11 +15,11 @@ touches its config file.
 
 ## `easywall-core`
 
-| Variable | `easywall.toml` key | Purpose |
-|---|---|---|
-| `EASYWALL_CORE_SOCKET_PATH` | `socket_path` | Unix socket path — must be accessible to the `easywall` group |
-| `EASYWALL_CORE_DATA_DIR` | `data_dir` | Directory for `rules.json` and the version cache |
-| `EASYWALL_CORE_LOG_DIR` | `log_dir` | Directory for the audit log and rule snapshots |
+| Variable | `easywall.toml` key | Type | Purpose |
+|---|---|---|---|
+| `EASYWALL_CORE_SOCKET_PATH` | `socket_path` | string | Unix socket path — must be accessible to the `easywall` group |
+| `EASYWALL_CORE_DATA_DIR` | `data_dir` | string | Directory for `rules.json`, the last-apply state and the panic marker |
+| `EASYWALL_CORE_LOG_DIR` | `log_dir` | string | Directory for the audit log and rule snapshots |
 
 ## `easywall-web`
 
@@ -63,9 +63,11 @@ interface configures what the firewall does.
 ## Behaviour
 
 An empty variable counts as unset — `-e EASYWALL_WEB_LANGUAGE=` leaves the
-file's value alone rather than blanking it. A boolean variable that is not
-`true` or `false` (anything `strconv.ParseBool` rejects) stops the process at
-startup, with the variable named in the error.
+file's value alone rather than blanking it. A boolean variable is read with
+`strconv.ParseBool`, so `1`, `t`, `T`, `true`, `TRUE` and `True` all mean true
+and `0`, `f`, `F`, `false`, `FALSE` and `False` all mean false; anything else
+stops the process at startup, with the variable named in the error. Prefer
+`true` and `false` — the rest are accepted, not recommended.
 
 ## Compose example
 
