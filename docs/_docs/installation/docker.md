@@ -14,7 +14,10 @@ docker compose up -d
 
 Open `https://localhost:12227` and complete the setup wizard.
 
-Then complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}).
+Then complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}). Before
+you do, see [Environment Variables]({{ '/docs/environment/' | relative_url }}) for what
+`docker-compose.yml` can set without editing `./config` at all — and what it deliberately
+cannot.
 
 > **`./config` changes owner on first start, and needs to.** The mount replaces the
 > ownership the image sets, so the files arrive belonging to whoever cloned the

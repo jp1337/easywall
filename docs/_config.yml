@@ -96,6 +96,8 @@ nav:
         path: /docs/architecture/
       - title: Configuration
         path: /docs/configuration/
+      - title: Environment Variables
+        path: /docs/environment/
       - title: Security
         path: /docs/security/
       - title: Dashboard
