@@ -255,6 +255,18 @@ func TestConfigSavers_RollBackOnAFailedWrite(t *testing.T) {
 			t.Errorf("first-run fields changed in memory despite the failed write: user=%q pass=%q telemetry=%v",
 				cfg.Username, cfg.Password, cfg.Telemetry)
 		}
+		// SaveFirstRun rolls back TOTPSecret/RecoveryCodes too — the wizard's
+		// confirm path writes both alongside the account in the same call, and a
+		// failed write must not leave the config believing a factor that was
+		// never actually persisted is enrolled.
+		if cfg.WebConfig.TOTPSecret != "ORIGINALSECRET" {
+			t.Errorf("TOTPSecret changed in memory despite the failed write: %q", cfg.WebConfig.TOTPSecret)
+		}
+		wantCodes := []string{"$argon2id$orig1", "$argon2id$orig2"}
+		gotCodes := cfg.WebConfig.RecoveryCodes
+		if len(gotCodes) != len(wantCodes) || gotCodes[0] != wantCodes[0] || gotCodes[1] != wantCodes[1] {
+			t.Errorf("recovery codes changed in memory despite the failed write: %v", gotCodes)
+		}
 	})
 }
 

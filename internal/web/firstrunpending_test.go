@@ -56,6 +56,50 @@ func TestFirstRunPending_ExpiresAndClears(t *testing.T) {
 	}
 }
 
+// Ten minutes has to measure inactivity on the setup step, not total time
+// since the QR code first appeared — an operator who is still working through
+// "install an authenticator app, scan, mistype twice, read the server time"
+// must not have the clock run out from under them while every render of the
+// step is itself an activity signal.
+func TestFirstRunPending_RefreshExtendsAnActiveEntry(t *testing.T) {
+	id := newFirstRunPendingID()
+	firstRunPendingStore(id, pendingFirstRun{
+		PasswordHash: "$argon2id$hash",
+		Issued:       time.Now().Add(-firstRunPendingLifetime + time.Minute),
+	})
+	t.Cleanup(func() { firstRunPendingClear(id) })
+
+	firstRunPendingRefresh(id)
+
+	p, ok := firstRunPendingLookup(id)
+	if !ok {
+		t.Fatal("the refreshed entry no longer reads back")
+	}
+	if time.Since(p.Issued) > time.Second {
+		t.Errorf("Issued was not reset to now: %s ago", time.Since(p.Issued))
+	}
+}
+
+// The refresh must not revive an entry that had already timed out before the
+// request offering to refresh it arrived — otherwise a request that only
+// exists because the entry was found expired (see firstRunExpired) could
+// itself hand that same entry a fresh ten minutes.
+func TestFirstRunPending_RefreshCannotReviveAnAlreadyExpiredEntry(t *testing.T) {
+	id := newFirstRunPendingID()
+	staleIssued := time.Now().Add(-firstRunPendingLifetime - time.Minute)
+	firstRunPendingStore(id, pendingFirstRun{
+		PasswordHash: "$argon2id$hash",
+		Issued:       staleIssued,
+	})
+	t.Cleanup(func() { firstRunPendingClear(id) })
+
+	firstRunPendingRefresh(id)
+
+	if _, ok := firstRunPendingLookup(id); ok {
+		t.Error("an entry already expired before the refresh call was revived by it")
+	}
+}
+
 func TestFirstRunPending_AnEmptyIDNeverMatches(t *testing.T) {
 	firstRunPendingStore("", pendingFirstRun{PasswordHash: "x", Issued: time.Now()})
 	if _, ok := firstRunPendingLookup(""); ok {

@@ -155,12 +155,19 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	written, staged := s.completeFirstRun(w, r, FirstRunAccount{
+	written, staged, saveErr := s.completeFirstRun(w, r, FirstRunAccount{
 		Username:     answers.Username,
 		PasswordHash: hash,
 		Telemetry:    answers.Telemetry,
 	}, answers)
 	if !written {
+		// saveErr is nil when completeFirstRun already answered the request
+		// itself — the ErrAlreadySetUp race, identical for every caller. This
+		// path has no pairing to protect, so a real write failure keeps its
+		// original response: re-render step 1 with the answers kept.
+		if saveErr != nil {
+			s.firstRunError(w, r, "save_error", answers)
+		}
 		return
 	}
 	if !staged {
@@ -174,8 +181,7 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 }
 
 // completeFirstRun performs the one write and, best-effort, the staging that
-// follows it. The two are reported separately rather than collapsed into one
-// bool: written is whether the account now exists; staged is whether
+// follows it. written is whether the account now exists; staged is whether
 // applyFirstRunChoices also succeeded. A caller with nothing further of its
 // own to show (the plain wizard, the skip path) only needs written. The
 // confirm path needs both, because it has eight recovery codes that must
@@ -191,23 +197,32 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 // wizard closes the moment a password exists: an operator with an account can
 // still get in and set the rest by hand, whereas an operator without one
 // cannot get in at all.
-func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) (written, staged bool) {
+//
+// The write failure returned as saveErr is deliberately *not* answered from
+// here, unlike the ErrAlreadySetUp race just above it. That race ends the
+// same way for every caller — the account now belongs to whoever won it, so
+// /login is right regardless of which route arrived second. A genuine write
+// failure does not: the plain and skip paths have no pairing to protect and
+// keep re-rendering step 1, but the confirm path has a secret already shown to
+// the operator, and sending it back to step 1 mints a fresh one and orphans
+// that pairing. Each caller decides for itself; see handleFirstRunConfirm for
+// the one that differs.
+func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) (written, staged bool, saveErr error) {
 	if err := s.cfg.SaveFirstRun(a); err != nil {
 		if errors.Is(err, ErrAlreadySetUp) {
 			slog.Warn("first run: a second setup arrived after the account existed")
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return false, false
+			return false, false, nil
 		}
 		slog.Error("save credentials error", "error", err)
-		s.firstRunError(w, r, "save_error", answers)
-		return false, false
+		return false, false, err
 	}
 
 	if err := s.applyFirstRunChoices(answers); err != nil {
 		slog.Warn("first run: could not stage the initial choices", "error", err)
-		return true, false
+		return true, false, nil
 	}
-	return true, true
+	return true, true, nil
 }
 
 // applyFirstRunChoices stages the ports and saves the IPv6 mode.
@@ -308,12 +323,18 @@ func (s *Server) beginFirstRunTOTP(w http.ResponseWriter, r *http.Request, answe
 		return
 	}
 
-	s.renderFirstRunSetup(w, r, answers, secret)
+	s.renderFirstRunSetup(w, r, id, answers, secret)
 }
 
 // renderFirstRunSetup draws the setup step, with the same secret, so a wrong
 // code or a failed write does not cost the operator their pairing.
-func (s *Server) renderFirstRunSetup(w http.ResponseWriter, r *http.Request, answers *firstRunData, secret string) {
+//
+// Every render refreshes the pending entry's Issued stamp, so the ten minutes
+// it is held for measures inactivity on this step rather than total elapsed
+// time since the QR code first appeared — see firstRunPendingRefresh for the
+// guard against reviving one that had already timed out.
+func (s *Server) renderFirstRunSetup(w http.ResponseWriter, r *http.Request, id string, answers *firstRunData, secret string) {
+	firstRunPendingRefresh(id)
 	qrURI, err := qrPNGDataURI(otpauthURI(answers.Username, secret))
 	if err != nil {
 		slog.Error("could not render the QR code", "error", err)
@@ -346,11 +367,32 @@ func (s *Server) pendingFirstRunFor(r *http.Request) (string, pendingFirstRun, b
 	return id, p, ok
 }
 
+// firstRunExpired answers a request whose pending entry did not check out —
+// gone entirely, or aged past firstRunPendingLifetime. Ten minutes is not
+// generous for "install an authenticator app, scan, mistype twice, read the
+// server time", and the escape hatch exists precisely so a clock cannot cost
+// an account; it must not itself dead-end into a blank wizard with no
+// explanation.
+//
+// The same totp_setup_expired handle2FAConfirm already uses for the
+// equivalent case on the password page. The answers are restored when there
+// are any to restore: firstRunPendingLookup returns a populated-but-expired
+// entry when one exists, and the zero value when there was never anything to
+// find, and stashing that zero value would blank the form's defaults rather
+// than leave them alone.
+func (s *Server) firstRunExpired(w http.ResponseWriter, r *http.Request, p pendingFirstRun) {
+	var stash *firstRunData
+	if !p.Issued.IsZero() {
+		stash = &p.Answers
+	}
+	s.firstRunError(w, r, "totp_setup_expired", stash)
+}
+
 // handleFirstRunConfirm checks the code and, only then, writes.
 func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 	id, p, ok := s.pendingFirstRunFor(r)
 	if !ok {
-		http.Redirect(w, r, "/firstrun", http.StatusSeeOther)
+		s.firstRunExpired(w, r, p)
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -370,12 +412,16 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 	_, offset, hit := matchTOTP(raw, time.Now(), strings.TrimSpace(r.FormValue("code")), totpWindowEnrol)
 	switch {
 	case !hit:
-		s.setFlash(w, r, "totp_code_wrong")
-		s.renderFirstRunSetup(w, r, &p.Answers, p.Secret)
+		// firstrun_totp_code_wrong, not the shared totp_code_wrong: this is the
+		// only page where a code that will never verify — a board with no RTC,
+		// still at the epoch — must not be a dead end. /password's identical
+		// wrong-code case has an account already and stays on the plain message.
+		s.setFlash(w, r, "firstrun_totp_code_wrong")
+		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
 	case offset < -totpWindowLogin || offset > totpWindowLogin:
 		s.setFlashN(w, r, clockSkewKey(offset), skewMinutes(offset))
-		s.renderFirstRunSetup(w, r, &p.Answers, p.Secret)
+		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
 	}
 
@@ -386,7 +432,7 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	written, staged := s.completeFirstRun(w, r, FirstRunAccount{
+	written, staged, saveErr := s.completeFirstRun(w, r, FirstRunAccount{
 		Username:       p.Answers.Username,
 		PasswordHash:   p.PasswordHash,
 		Telemetry:      p.Answers.Telemetry,
@@ -396,6 +442,19 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 	if !written {
 		// The entry deliberately survives a failed write: otherwise the operator
 		// retypes a password and re-pairs a phone because a disk was briefly full.
+		//
+		// saveErr is nil on the ErrAlreadySetUp race, which completeFirstRun has
+		// already answered with a redirect to /login — nothing more to do here.
+		// A real write failure gets a response of its own: the same secret shown
+		// again, with the message that names what actually failed. Answering with
+		// save_error's redirect to /firstrun instead — the shape this used to
+		// take — would strand the pending entry: step 1 has no way back to step 2,
+		// and the retyped submission that follows mints a fresh secret, orphaning
+		// the pairing the operator just made.
+		if saveErr != nil {
+			s.setFlash(w, r, "totp_not_saved")
+			s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
+		}
 		return
 	}
 	firstRunPendingClear(id)
@@ -423,15 +482,21 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleFirstRunSkip(w http.ResponseWriter, r *http.Request) {
 	id, p, ok := s.pendingFirstRunFor(r)
 	if !ok {
-		http.Redirect(w, r, "/firstrun", http.StatusSeeOther)
+		s.firstRunExpired(w, r, p)
 		return
 	}
-	written, staged := s.completeFirstRun(w, r, FirstRunAccount{
+	written, staged, saveErr := s.completeFirstRun(w, r, FirstRunAccount{
 		Username:     p.Answers.Username,
 		PasswordHash: p.PasswordHash,
 		Telemetry:    p.Answers.Telemetry,
 	}, &p.Answers)
 	if !written {
+		// No pairing at stake on this path — see completeFirstRun — so a real
+		// write failure keeps its original response: back to step 1 with the
+		// answers kept, same as the plain wizard's.
+		if saveErr != nil {
+			s.firstRunError(w, r, "save_error", &p.Answers)
+		}
 		return
 	}
 	firstRunPendingClear(id)

@@ -78,6 +78,13 @@ func firstRunPendingStore(id string, p pendingFirstRun) {
 	firstRunPending.at[id] = p
 }
 
+// firstRunPendingLookup returns the entry for id. The bool is false both when
+// there is nothing to find (bad or empty id, already cleared) and when the
+// entry aged past firstRunPendingLifetime — but in the second case the entry
+// itself is still returned, non-zero, rather than a zero value. That is what
+// lets a caller distinguish "nothing to restore" from "there is an expired
+// setup whose answers are worth showing again" without a second lookup — see
+// firstRunExpired in handler_firstrun.go.
 func firstRunPendingLookup(id string) (pendingFirstRun, bool) {
 	if id == "" {
 		return pendingFirstRun{}, false
@@ -86,14 +93,40 @@ func firstRunPendingLookup(id string) (pendingFirstRun, bool) {
 	defer firstRunPending.mu.Unlock()
 
 	p, ok := firstRunPending.at[id]
-	if !ok || time.Since(p.Issued) > firstRunPendingLifetime {
+	if !ok {
 		return pendingFirstRun{}, false
 	}
-	return p, true
+	return p, time.Since(p.Issued) <= firstRunPendingLifetime
 }
 
 func firstRunPendingClear(id string) {
 	firstRunPending.mu.Lock()
 	defer firstRunPending.mu.Unlock()
 	delete(firstRunPending.at, id)
+}
+
+// firstRunPendingRefresh resets Issued to now, so the ten minutes an entry is
+// held for measures inactivity on the setup step rather than total elapsed
+// time since the secret was first generated. Called every time step 2 is
+// rendered — see renderFirstRunSetup.
+//
+// Guarded independently against reviving an entry that was already expired
+// when the request arrived: the lookup that led here and this refresh are two
+// separate operations under two separate lock acquisitions, so the check is
+// repeated rather than trusted from a distance. An entry already past its
+// lifetime is left alone — and therefore still absent on the next lookup —
+// rather than handed a fresh ten minutes it did not earn.
+func firstRunPendingRefresh(id string) {
+	if id == "" {
+		return
+	}
+	firstRunPending.mu.Lock()
+	defer firstRunPending.mu.Unlock()
+
+	p, ok := firstRunPending.at[id]
+	if !ok || time.Since(p.Issued) > firstRunPendingLifetime {
+		return
+	}
+	p.Issued = time.Now()
+	firstRunPending.at[id] = p
 }

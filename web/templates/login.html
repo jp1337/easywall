@@ -33,7 +33,7 @@
       {{if .Flash}}
       <div role="alert" class="alert {{flashClass .Flash}} mb-4" data-auto-dismiss>
         {{flashIcon .Flash}}
-        <span>{{T .Flash}}</span>
+        <span>{{T .Flash (dict "N" .FlashN)}}</span>
       </div>
       {{end}}
 

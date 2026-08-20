@@ -63,6 +63,7 @@
   {"id": "firstrun_totp_help",        "translation": "Du brauchst dafür eine Authenticator-App auf deinem Handy. Das lässt sich auch später unter Passwort nachholen."},
   {"id": "firstrun_totp_skip",        "translation": "Ohne zweiten Faktor fortfahren"},
   {"id": "firstrun_totp_skip_help",   "translation": "Legt das Konto allein mit Passwort an. Passt der Code nicht, prüfe zuerst die Serverzeit oben — ein zweiter Faktor lässt sich später unter Passwort nachrüsten."},
+  {"id": "firstrun_totp_code_wrong",  "translation": "Dieser Code hat nicht funktioniert. Versuch es erneut, oder fahre ohne einen zweiten Faktor fort und richte später unter „Passwort“ einen ein."},
   {"id": "firstrun_totp_done",        "translation": "Weiter zur Anmeldung"},
   {"id": "firstrun_done",           "translation": "Konto angelegt und deine Auswahl vorgemerkt. Melde dich an, prüfe sie und wende sie an."},
   {"id": "firstrun_choices_failed", "translation": "Konto angelegt, aber die Auswahl konnte nicht vorgemerkt werden — der Core hat nicht geantwortet. Melde dich an und setze sie selbst."},
