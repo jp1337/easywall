@@ -138,7 +138,11 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.cfg.SaveFirstRun(answers.Username, hash, answers.Telemetry); err != nil {
+	if err := s.cfg.SaveFirstRun(FirstRunAccount{
+		Username:     answers.Username,
+		PasswordHash: hash,
+		Telemetry:    answers.Telemetry,
+	}); err != nil {
 		if errors.Is(err, ErrAlreadySetUp) {
 			// Someone else finished the wizard between the check above and this
 			// write. There is an account now; it is simply not this one.

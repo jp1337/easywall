@@ -244,7 +244,11 @@ func TestConfigSavers_RollBackOnAFailedWrite(t *testing.T) {
 		cfg := newCfg()
 		cfg.Password = "" // SaveFirstRun requires this to still look like first-run
 		telemetry := true
-		if err := cfg.SaveFirstRun("newadmin", "$argon2id$new", telemetry); err == nil {
+		if err := cfg.SaveFirstRun(FirstRunAccount{
+			Username:     "newadmin",
+			PasswordHash: "$argon2id$new",
+			Telemetry:    telemetry,
+		}); err == nil {
 			t.Fatal("expected an error from a directory that does not exist")
 		}
 		if cfg.Password != "" || cfg.Username != "admin" || cfg.Telemetry != nil {

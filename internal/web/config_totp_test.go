@@ -188,3 +188,79 @@ func TestCredentialFingerprint_CoversTheTOTPState(t *testing.T) {
 		t.Error("the fingerprint carries its input")
 	}
 }
+
+// The wizard's one write carries the factor too, when there is one. Two values
+// that must land together or not at all: a config holding a secret for an
+// account that was never created is unreachable, and an account whose factor
+// half-landed cannot be signed into.
+func TestSaveFirstRun_WritesTheAccountAndTheFactorTogether(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/web.toml"
+	if err := os.WriteFile(path, []byte(`
+# A comment that has to survive the first run.
+session_key = "test-session-key-32bytes-padding!"
+username    = ""
+password    = ""
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SaveFirstRun(FirstRunAccount{
+		Username:       "admin",
+		PasswordHash:   "$argon2id$hash",
+		Telemetry:      true,
+		TOTPSecret:     "JBSWY3DPEHPK3PXP",
+		RecoveryHashes: []string{"$argon2id$r1", "$argon2id$r2"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("the file this program just wrote does not load: %v", err)
+	}
+	if reloaded.Username != "admin" || reloaded.Password != "$argon2id$hash" {
+		t.Errorf("account came back as %q / %q", reloaded.Username, reloaded.Password)
+	}
+	if reloaded.TOTPSecret() != "JBSWY3DPEHPK3PXP" {
+		t.Errorf("secret came back as %q", reloaded.TOTPSecret())
+	}
+	if n := len(reloaded.RecoveryCodes()); n != 2 {
+		t.Errorf("%d recovery hashes came back, want 2", n)
+	}
+
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "A comment that has to survive") {
+		t.Errorf("the first run took the file's comments with it:\n%s", raw)
+	}
+}
+
+// Without a factor the write is exactly what it was before this change.
+func TestSaveFirstRun_WithoutAFactorLeavesBothKeysEmpty(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/web.toml"
+	_ = os.WriteFile(path, []byte(`
+session_key = "test-session-key-32bytes-padding!"
+username    = ""
+password    = ""
+`), 0600)
+
+	cfg, _ := LoadConfig(path)
+	if err := cfg.SaveFirstRun(FirstRunAccount{
+		Username: "admin", PasswordHash: "$argon2id$hash", Telemetry: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, _ := LoadConfig(path)
+	if reloaded.TOTPEnabled() {
+		t.Error("a first run with no factor left one enabled")
+	}
+	if n := len(reloaded.RecoveryCodes()); n != 0 {
+		t.Errorf("%d recovery hashes stored for an account with no factor", n)
+	}
+}

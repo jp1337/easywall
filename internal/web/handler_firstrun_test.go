@@ -381,7 +381,11 @@ func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
 			if err != nil {
 				return
 			}
-			_ = s.cfg.SaveFirstRun(fmt.Sprintf("operator%d", i), hash, false)
+			_ = s.cfg.SaveFirstRun(FirstRunAccount{
+				Username:     fmt.Sprintf("operator%d", i),
+				PasswordHash: hash,
+				Telemetry:    false,
+			})
 		}(i)
 	}
 	wg.Wait()
@@ -396,7 +400,11 @@ func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.cfg.SaveFirstRun("intruder", hash, true); !errors.Is(err, ErrAlreadySetUp) {
+	if err := s.cfg.SaveFirstRun(FirstRunAccount{
+		Username:     "intruder",
+		PasswordHash: hash,
+		Telemetry:    true,
+	}); !errors.Is(err, ErrAlreadySetUp) {
 		t.Fatalf("a later setup was accepted: %v", err)
 	}
 	if after, _ := s.cfg.Credentials(); after != user {
