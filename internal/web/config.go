@@ -34,6 +34,13 @@ type Config struct {
 	// mu guards WebConfig. Use the accessors rather than the embedded fields.
 	mu         sync.RWMutex
 	configPath string
+
+	// fileConfig is the parsed file as it stood before the environment overlay.
+	// encode() renders this rather than the live struct, so a variable set for
+	// the process cannot become content of the operator's file. Only the six
+	// managedKeys are taken from the live struct — those are the keys the
+	// interface deliberately maintains.
+	fileConfig shared.WebConfig
 }
 
 // Credentials returns the username and password hash in force right now.
@@ -86,6 +93,7 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	cfg.configPath = path
+	cfg.fileConfig = cfg.WebConfig // before the overlay, deliberately
 	if err := shared.ApplyWebEnv(&cfg.WebConfig); err != nil {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
@@ -504,8 +512,18 @@ var managedKeys = []string{"session_key", "username", "password", "telemetry", "
 // the only place it is kept. The file is 0600 and owned by the web user. There is
 // nothing to redact from a value whose destination is the file it came from.
 func (c *Config) encode() ([]byte, error) {
+	out := c.fileConfig
+	// The six keys the interface owns come from the live struct; everything else
+	// is what the file said. See the note on fileConfig.
+	out.SessionKey = c.WebConfig.SessionKey
+	out.Username = c.WebConfig.Username
+	out.Password = c.WebConfig.Password
+	out.Telemetry = c.WebConfig.Telemetry
+	out.TOTPSecret = c.WebConfig.TOTPSecret
+	out.RecoveryCodes = c.WebConfig.RecoveryCodes
+
 	buf := bytes.NewBufferString(configHeader)
-	if err := toml.NewEncoder(buf).Encode(c.WebConfig); err != nil {
+	if err := toml.NewEncoder(buf).Encode(out); err != nil {
 		return nil, fmt.Errorf("encode config: %w", err)
 	}
 	return buf.Bytes(), nil

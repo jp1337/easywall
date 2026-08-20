@@ -58,3 +58,39 @@ func TestLoadConfig_UnparseableBoolFailsTheLoad(t *testing.T) {
 		t.Fatal("LoadConfig accepted EASYWALL_WEB_DEMO_MODE=sure")
 	}
 }
+
+// The encode() fallback marshals the whole struct. With the overlay applied in
+// place, that path would bake an environment value into the operator's file —
+// permanently, and with nothing recording where it came from.
+func TestEnvOverlayNeverReachesTheConfigFile(t *testing.T) {
+	// An empty file is one of the two inputs mergeConfig declines, which is what
+	// sends render down the encode() path.
+	path := writeWebConfig(t, "")
+	t.Setenv("EASYWALL_WEB_BIND_ADDR", "0.0.0.0:31337")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.BindAddr != "0.0.0.0:31337" {
+		t.Fatalf("BindAddr = %q; the overlay did not apply, so this test proves nothing",
+			cfg.BindAddr)
+	}
+
+	// Any Save* takes the same render path. Telemetry is the cheapest.
+	if err := cfg.SaveTelemetry(true); err != nil {
+		t.Fatalf("SaveTelemetry: %v", err)
+	}
+
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(written), "0.0.0.0:31337") {
+		t.Errorf("the environment value was written to disk:\n%s", written)
+	}
+	// The write that was actually asked for still has to have happened.
+	if !strings.Contains(string(written), "telemetry") {
+		t.Errorf("telemetry was not persisted:\n%s", written)
+	}
+}
