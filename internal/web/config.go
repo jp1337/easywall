@@ -357,9 +357,29 @@ func (c *Config) SaveRecoveryCodes(hashes []string) error {
 // an installation that already has one.
 var ErrAlreadySetUp = errors.New("the account has already been created")
 
+// FirstRunAccount is everything the wizard decides about the account, in one
+// value, so the write that persists it cannot be called with the username and
+// the hash swapped — they are adjacent strings, and two of the five fields are
+// optional.
+//
+// It lives here beside Config rather than in shared: it is not protocol, and the
+// core never sees any of it.
+type FirstRunAccount struct {
+	Username     string
+	PasswordHash string
+	Telemetry    bool
+
+	// Empty and nil when no second factor was set up. They are written together
+	// with the account or not at all — there is no path that stores one without
+	// the other, which is what keeps a secret from existing for an account that
+	// does not.
+	TOTPSecret     string
+	RecoveryHashes []string
+}
+
 // SaveFirstRun persists everything the setup wizard decides, in one write.
 //
-// One write rather than three, because a failure halfway through the first run
+// One write rather than several, because a failure halfway through the first run
 // is the worst moment to leave a half-configured file behind: the wizard closes
 // as soon as a password exists, and whatever did not land cannot be asked again.
 //
@@ -369,24 +389,31 @@ var ErrAlreadySetUp = errors.New("the account has already been created")
 // decided who owns the firewall. The window is small and it sits on a machine
 // that is, by definition, freshly exposed and not yet protected.
 //
-// Rolled back on a failed write, the same shape as SaveTOTP: setting c.Password
-// first and saving second would mean a transient write failure leaves the
-// in-memory password set while the disk stays empty. The operator's retry then
-// hits the ErrAlreadySetUp branch above and is redirected to /login for an
-// account that was never actually created — the wizard is dead-ended on a
-// machine that is, by definition, freshly exposed and not yet protected.
-func (c *Config) SaveFirstRun(username, passwordHash string, telemetry bool) error {
+// The in-memory fields are restored when the write fails, for the reason the
+// sibling savers record: a transient failure that left c.Password set would send
+// the operator's retry into the ErrAlreadySetUp branch above, dead-ending the
+// wizard with nothing on disk.
+func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.Password != "" {
 		return ErrAlreadySetUp
 	}
-	prevUsername, prevPassword, prevTelemetry := c.Username, c.Password, c.Telemetry
-	c.Username = username
-	c.Password = passwordHash
-	c.Telemetry = &telemetry
+
+	prevUser, prevPass := c.Username, c.Password
+	prevTelemetry := c.Telemetry
+	prevSecret, prevCodes := c.WebConfig.TOTPSecret, c.WebConfig.RecoveryCodes
+
+	c.Username = a.Username
+	c.Password = a.PasswordHash
+	c.Telemetry = &a.Telemetry
+	c.WebConfig.TOTPSecret = a.TOTPSecret
+	c.WebConfig.RecoveryCodes = append([]string(nil), a.RecoveryHashes...)
+
 	if err := c.saveLocked(); err != nil {
-		c.Username, c.Password, c.Telemetry = prevUsername, prevPassword, prevTelemetry
+		c.Username, c.Password = prevUser, prevPass
+		c.Telemetry = prevTelemetry
+		c.WebConfig.TOTPSecret, c.WebConfig.RecoveryCodes = prevSecret, prevCodes
 		return err
 	}
 	return nil
