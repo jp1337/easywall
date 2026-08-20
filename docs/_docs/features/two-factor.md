@@ -30,6 +30,8 @@ On the **Password** page, under **Second factor**:
 | 2 | Scan the QR code with an authenticator app, or type the key in by hand. |
 | 3 | Enter the six-digit code the app shows. Only now is the secret written, together with eight recovery codes. |
 
+It can also be switched on during the first run, before this page exists to switch it on from — see [First Run]({{ '/docs/installation/first-run/' | relative_url }}).
+
 ## The eight codes
 
 <figure class="docs-shot">
