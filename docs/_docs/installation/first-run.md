@@ -32,6 +32,12 @@ and nothing else. It asks for two things.
 | On that step, confirmed | the six-digit code is checked; only then is the secret written, together with eight recovery codes shown once |
 | On that step, skipped | the account is still created, with a password alone — skipping is a first-class answer here, not a failure |
 
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/firstrun-2fa" ext="png"
+     alt="The first-run wizard's setup step: a QR code on a white plate, the typed key and the server's own clock on the left, a field for the six-digit confirmation code and a Confirm button on the right, and below them a Continue without a second factor button." %}
+  <figcaption>Nothing is saved until the code is confirmed — and the escape hatch beneath it is never smaller than the button that saves something.</figcaption>
+</figure>
+
 You need an authenticator app already installed and in hand to confirm it on
 this page — the first run is the moment an operator is least likely to have
 one, mid-installation, on a machine that may not even have a browser tab to
@@ -76,6 +82,12 @@ skipped. The choices are staged the same way either time, but the two endings
 differ: **confirming** lands you on the recovery codes, shown once and never
 again — sign-in is a deliberate click from there, not a redirect. **Skipping**
 goes straight to the sign-in page, the same as leaving the box unticked.
+
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/firstrun-codes" ext="png"
+     alt="Eight one-time recovery codes shown once, right after the first-run wizard confirms a second factor, with a Copy codes button and a Continue to sign in button." %}
+  <figcaption>The only time these eight codes are ever shown — the same screen as [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}), reached a step earlier here.</figcaption>
+</figure>
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/login" ext="png"
