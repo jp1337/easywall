@@ -13,7 +13,7 @@ const (
 	// submission between the POST and the re-render — so this needs no cookie
 	// of its own, and adding one would mean one more MaxAge to get right. That
 	// has cost this project a release before; see newSessionStore.
-	firstRunPendingKey = "firstrun_pending" //nolint:unused // used by Task 3
+	firstRunPendingKey = "firstrun_pending"
 
 	// firstRunPendingLifetime is how long a half-finished setup is held. Long
 	// enough to unlock a phone, open an app, scan and type. The same value as
