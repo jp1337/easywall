@@ -1152,6 +1152,22 @@ body {
   }
   .recovery-code { font-family: var(--font-data); user-select: all; }
 
+  /* The escape hatch below this card — "Continue without a second factor" —
+     exists for the operator whose clock cannot verify anything yet, and it has
+     to be reachable before the first wrong code, not after a scroll. The QR
+     only has to be scannable, not large, so at phone width it gives up the
+     pixels the fixed 256px image doesn't need: decoding a screenshot rendered
+     at this size (ZXing, the engine most camera scanners are built on) still
+     reads the otpauth:// URI cleanly. Sizing the <img> rather than .qr-plate
+     keeps the white plate's own padding, which is what keeps a scanner's quiet
+     zone intact. */
+  @media (max-width: 480px) {
+    .qr-plate img {
+      width: 176px;
+      height: 176px;
+    }
+  }
+
   /* ── Link ──────────────────────────────────────────────────────────────────
      accent-on-wash, not accent: in light mode the pale ice blue would not
      carry enough contrast inside running text. */
