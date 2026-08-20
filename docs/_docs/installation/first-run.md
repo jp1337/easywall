@@ -72,8 +72,10 @@ correct it.
 
 **With it ticked**, Finish does not write the account yet — it shows the setup
 step instead, and the account is written only once that step is confirmed or
-skipped. Either way the choices are staged the same way, and you land on the
-sign-in page the same way; only the account gains a factor or not.
+skipped. The choices are staged the same way either time, but the two endings
+differ: **confirming** lands you on the recovery codes, shown once and never
+again — sign-in is a deliberate click from there, not a redirect. **Skipping**
+goes straight to the sign-in page, the same as leaving the box unticked.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/login" ext="png"

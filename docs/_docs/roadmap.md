@@ -47,6 +47,11 @@ earlier as an end in itself and never twice.
 > to be able to express "present, but not checked by a human" anyway, or a
 > contributed language cannot be either.
 
+> **Amended in 2.8.** Passkeys were a clause inside 3.0's row; they are now
+> 3.1, their own entry, sitting after 3.0 rather than beside it — WebAuthn
+> requires a registrable domain as its Relying Party ID, which most easywall
+> installations do not have.
+
 | Version | What | Why it comes when it does |
 |---|---|---|
 | **2.7** | **The firewall survives a reboot** — after a restart the rules that were last confirmed are in force again, with no acceptance window | Before this, a reboot emptied nftables and was the accidental way back into a machine your own rules had shut you out of. `easywall-core panic` replaces that on purpose, from the console — see [Recovery & Panic Mode]({{ '/docs/features/recovery/' | relative_url }}) |
