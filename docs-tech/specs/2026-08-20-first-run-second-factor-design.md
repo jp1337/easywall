@@ -54,16 +54,29 @@ shell access learns that the clock, not the code, is wrong.
 internal/web/firstrunpending.go   the table, the handle cookie, the sweep
 ```
 
-A table on the pattern of `pendingSecrets` (`handler_2fa.go`), with one
-difference: enrolment keys by session id, and here there is no session. The key
-is a random handle carried in `easywall_setup` — own name, `Path=/firstrun`,
-`HttpOnly`, `Secure`, built with `store.MaxAge`, never `Options.MaxAge`.
+A table on the pattern of `pendingSecrets` (`handler_2fa.go`), keyed by a random
+id.
+
+**Corrected after reading the code.** This design first said "there is no session
+yet, so the id needs its own cookie". That was wrong: the wizard already uses
+`s.store.Get(r, SessionName)` for flashes and for `firstRunKey`, which stashes a
+rejected submission between the POST and the re-render. There is a session
+cookie during the wizard — it simply carries no user. So the id goes in that
+session under its own key, reusing machinery that already exists and has already
+been reviewed, rather than adding a second cookie whose `MaxAge` is one more
+thing to get wrong.
+
+Only the id travels in the cookie. The password hash and the secret stay in the
+table: `gorilla/sessions` signs without encrypting, and an argon2 digest in a
+readable cookie is an offline cracking target handed out for free.
 
 ```go
 type pendingFirstRun struct {
-    Username     string
+    // Everything the wizard collected, so the one write at the end carries the
+    // ports and the IPv6 mode too — applyFirstRunChoices runs after the account
+    // is written and needs all of it.
+    Answers      firstRunData
     PasswordHash string   // argon2id, computed in step 1
-    Telemetry    bool
     Secret       string   // base32, unconfirmed
     Issued       time.Time
 }
@@ -110,7 +123,7 @@ same lock as the write — is unchanged, and so is the reason for it.
 | File | Change |
 |---|---|
 | `internal/web/config.go` | `SaveFirstRun` takes a `FirstRunAccount` struct; still one write, still under the same lock, still refusing when a password already exists |
-| `internal/web/handler_firstrun.go` | The checkbox branch; two new handlers |
+| `internal/web/handler_firstrun.go` | The checkbox branch; two new handlers. **`applyFirstRunChoices` moves behind the confirmation with everything else** — it stages the SSH port, the web port, 80/443 and the IPv6 mode, and it runs after the account is written on purpose (an operator with an account can still fix the rest by hand; one without cannot get in at all). That ordering is preserved; only its trigger moves |
 | `internal/web/server.go` | `POST /firstrun/confirm`, `POST /firstrun/skip` — **inside the same `if cfg.IsFirstRun()` block** as the existing pair |
 | `web/templates/firstrun.html` | Two further states, rendered as the POST's own response |
 | `locales/{en,de}.json` | Both, in the same change |
