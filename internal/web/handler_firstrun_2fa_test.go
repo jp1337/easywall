@@ -105,6 +105,53 @@ func TestFirstRun2FA_ConfirmCreatesTheAccountWithTheFactor(t *testing.T) {
 	}
 }
 
+// The invariant this fix round exists for: if the account was written, the
+// codes reach the operator — whatever happened to the staging. This is the
+// feature's own target environment: a board whose core socket is not up yet
+// on first boot. The operator ticks the box, confirms a valid code, and must
+// not be left believing only that some ports need setting by hand while
+// holding a second factor whose recovery codes were never shown.
+func TestFirstRun2FA_ConfirmShowsCodesEvenWhenStagingFails(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdSaveRules, errorRespFor("the core is not up yet"))
+
+	_, cookies := beginFirstRunWith2FA(t, s)
+	raw, err := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doFormRequest(s, "POST", "/firstrun/confirm",
+		"code="+totpAt(raw, stepAt(time.Now())), cookies...)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm answered %d, want 200 with the codes shown despite the staging failure", rec.Code)
+	}
+
+	if s.cfg.IsFirstRun() {
+		t.Fatal("a confirmed code did not create the account even though only the staging failed")
+	}
+	if !s.cfg.TOTPEnabled() {
+		t.Error("the account was created without the factor that was just confirmed")
+	}
+
+	shown := 0
+	for _, tok := range strings.Fields(rec.Body.String()) {
+		if isRecoveryShape(strings.Trim(tok, "<>\"")) {
+			shown++
+		}
+	}
+	if shown < recoveryCodeCount {
+		t.Errorf("%d recovery codes on the page, want %d — a staging failure must not "+
+			"cost the operator their only look at a second factor's recovery codes", shown, recoveryCodeCount)
+	}
+
+	if !strings.Contains(rec.Body.String(), "recovery codes are below") {
+		t.Error("the page does not say the initial choices could not be staged — the " +
+			"operator is left thinking everything worked")
+	}
+}
+
 // THE test of this change. A board with a dead RTC must still end up with an
 // account. If this fails, an optional feature has become a way of bricking the
 // wizard.

@@ -155,11 +155,17 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.completeFirstRun(w, r, FirstRunAccount{
+	written, staged := s.completeFirstRun(w, r, FirstRunAccount{
 		Username:     answers.Username,
 		PasswordHash: hash,
 		Telemetry:    answers.Telemetry,
-	}, answers) {
+	}, answers)
+	if !written {
+		return
+	}
+	if !staged {
+		s.setFlash(w, r, "firstrun_choices_failed")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
@@ -167,32 +173,41 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-// completeFirstRun performs the one write and everything that follows it.
+// completeFirstRun performs the one write and, best-effort, the staging that
+// follows it. The two are reported separately rather than collapsed into one
+// bool: written is whether the account now exists; staged is whether
+// applyFirstRunChoices also succeeded. A caller with nothing further of its
+// own to show (the plain wizard, the skip path) only needs written. The
+// confirm path needs both, because it has eight recovery codes that must
+// reach the operator regardless of what happened to the ports and the IPv6
+// mode — collapsing the two once meant a staging failure silently discarded
+// codes that had already been generated and hashed to disk.
 //
-// Both the plain wizard and the confirmed-second-factor path end here, so there
-// is one place that gets the order right. The account is written first and the
-// choices staged afterwards, because the wizard closes the moment a password
-// exists: an operator with an account can still get in and set the rest by hand,
-// whereas an operator without one cannot get in at all.
-func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) bool {
+// A staging failure does not redirect from here for exactly that reason: only
+// the caller knows whether it still has something to show before the
+// operator is sent to /login.
+//
+// The account is written first and the choices staged afterwards, because the
+// wizard closes the moment a password exists: an operator with an account can
+// still get in and set the rest by hand, whereas an operator without one
+// cannot get in at all.
+func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) (written, staged bool) {
 	if err := s.cfg.SaveFirstRun(a); err != nil {
 		if errors.Is(err, ErrAlreadySetUp) {
 			slog.Warn("first run: a second setup arrived after the account existed")
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
-			return false
+			return false, false
 		}
 		slog.Error("save credentials error", "error", err)
 		s.firstRunError(w, r, "save_error", answers)
-		return false
+		return false, false
 	}
 
 	if err := s.applyFirstRunChoices(answers); err != nil {
 		slog.Warn("first run: could not stage the initial choices", "error", err)
-		s.setFlash(w, r, "firstrun_choices_failed")
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return false
+		return true, false
 	}
-	return true
+	return true, true
 }
 
 // applyFirstRunChoices stages the ports and saves the IPv6 mode.
@@ -371,20 +386,30 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.completeFirstRun(w, r, FirstRunAccount{
+	written, staged := s.completeFirstRun(w, r, FirstRunAccount{
 		Username:       p.Answers.Username,
 		PasswordHash:   p.PasswordHash,
 		Telemetry:      p.Answers.Telemetry,
 		TOTPSecret:     p.Secret,
 		RecoveryHashes: hashes,
-	}, &p.Answers) {
+	}, &p.Answers)
+	if !written {
 		// The entry deliberately survives a failed write: otherwise the operator
 		// retypes a password and re-pairs a phone because a disk was briefly full.
 		return
 	}
 	firstRunPendingClear(id)
 
-	s.setFlash(w, r, "firstrun_done")
+	// The codes reach the operator whatever happened to staged: they were
+	// generated and hashed into the account the moment it was written, and
+	// there is no second chance to see them. A ports/IPv6 failure here must
+	// not cost the operator their only look at a second factor's recovery
+	// codes — see completeFirstRun.
+	if staged {
+		s.setFlash(w, r, "firstrun_done")
+	} else {
+		s.setFlash(w, r, "firstrun_done_choices_failed")
+	}
 	s.render(w, r, "firstrun.html", "firstrun", &firstRunPage{Form: &p.Answers, Codes: plain})
 }
 
@@ -401,14 +426,21 @@ func (s *Server) handleFirstRunSkip(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/firstrun", http.StatusSeeOther)
 		return
 	}
-	if !s.completeFirstRun(w, r, FirstRunAccount{
+	written, staged := s.completeFirstRun(w, r, FirstRunAccount{
 		Username:     p.Answers.Username,
 		PasswordHash: p.PasswordHash,
 		Telemetry:    p.Answers.Telemetry,
-	}, &p.Answers) {
+	}, &p.Answers)
+	if !written {
 		return
 	}
 	firstRunPendingClear(id)
+
+	if !staged {
+		s.setFlash(w, r, "firstrun_choices_failed")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
 
 	s.setFlash(w, r, "firstrun_done")
 	http.Redirect(w, r, "/login", http.StatusSeeOther)

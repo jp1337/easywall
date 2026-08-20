@@ -964,6 +964,11 @@ func templateFuncs() template.FuncMap {
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
+		// The important half worked: the account and the second factor exist,
+		// and the codes below are shown. Only the ports/IPv6 staging failed —
+		// amber, not the red firstrun_choices_failed would otherwise imply
+		// about a page that is about to show working recovery codes.
+		"firstrun_done_choices_failed": true,
 		// The code was accepted and let the operator in; the disk is what
 		// failed. Amber, not red: signing in did work.
 		"recovery_not_consumed": true,
