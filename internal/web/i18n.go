@@ -25,7 +25,7 @@ func NewBundle(localesDir string) *i18n.Bundle {
 	}
 
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || e.Name() == statusFile {
 			continue
 		}
 		path := localesDir + "/" + e.Name()
