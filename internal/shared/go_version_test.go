@@ -193,6 +193,7 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 	var cfg struct {
 		CustomManagers []struct {
 			Description         string   `json:"description"`
+			DepNameTemplate     string   `json:"depNameTemplate"`
 			ManagerFilePatterns []string `json:"managerFilePatterns"`
 			MatchStrings        []string `json:"matchStrings"`
 		} `json:"customManagers"`
@@ -206,7 +207,18 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 	}
 
 	root := repoRootDir(t)
+	goManagers := 0
 	for _, cm := range cfg.CustomManagers {
+		// The Go managers only. Not every regex manager tracks the toolchain —
+		// `pagefind` pins the version the documentation search index is built
+		// with — and comparing one of those against go.mod would fail on a
+		// perfectly correct pin. TestEveryRenovateFilePatternReachesAPin covers
+		// all of them; this one is about the value, so it has to know which
+		// dependency the value belongs to.
+		if cm.DepNameTemplate != "go" {
+			continue
+		}
+		goManagers++
 		for _, raw := range cm.ManagerFilePatterns {
 			// Renovate writes a regex between slashes; a bare string is a glob.
 			pathRe := regexp.MustCompile(strings.Trim(raw, "/"))
@@ -238,6 +250,13 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	// And the filter above must not be what makes this test pass.
+	if goManagers == 0 {
+		t.Error("no customManager in renovate.json names `go` as its dependency, so " +
+			"nothing here was actually checked — the Dockerfile tag, debian/control " +
+			"and the prose pins are updated by nobody")
 	}
 }
 
