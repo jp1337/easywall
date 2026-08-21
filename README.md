@@ -101,7 +101,7 @@ Then open `https://localhost:12227`. The first visit
 | **Export / import** | The whole rule set as JSON |
 | **Audit log** | What changed and when, one JSON object per line |
 | **Docker coexistence** | Owns `table inet easywall`, touches nothing else |
-| **English & German** | Switchable in the interface, including before sign-in |
+| **English, Deutsch, Français** | Switchable in the interface, including before sign-in. A language may be partial: what it is missing renders English, and the gap is reported rather than hidden |
 | **Light & dark** | Follows the OS, with a manual toggle; both contrast-checked |
 
 ## Built with
