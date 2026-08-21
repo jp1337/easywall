@@ -45,10 +45,10 @@ runs:
         set -euo pipefail
         test -d _site/pagefind || { echo "::error::no search index was built"; exit 1; }
 
-        langs=$(ls _site/pagefind/*.pf_meta | wc -l)
+        langs=$(find _site/pagefind -maxdepth 1 -name '*.pf_meta' | wc -l)
         [ "$langs" -eq 1 ] || {
           echo "::error::$langs language indexes were built, want 1 — a page disagrees about <html lang>, and a search in one index cannot see the other"
-          ls _site/pagefind/*.pf_meta
+          find _site/pagefind -maxdepth 1 -name '*.pf_meta'
           exit 1
         }
 
