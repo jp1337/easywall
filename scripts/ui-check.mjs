@@ -407,6 +407,29 @@ async function checkSignOutEndsTheSession(page) {
  * stylesheet diff can see whether the button actually disappears once script
  * has run, or actually works once it hasn't; only a browser can.
  */
+/**
+ * Picks a language from the select and waits for the POST it is supposed to
+ * trigger. Returns whether that POST actually happened.
+ *
+ * The wait is armed *before* the option is picked, and it waits for the request
+ * rather than for a load state. `selectOption` then `waitForLoadState` looks
+ * equivalent and is not: the page is already loaded when the second call runs,
+ * so if the change handler has not yet started its navigation, the wait
+ * resolves against the load that already happened and the cookie is read
+ * before the POST has been made. That passes on a fast machine and fails on a
+ * CI runner, which is exactly what it did — a green check locally and one red
+ * job with "cookie is unset".
+ */
+async function switchTo(page, code) {
+  const posted = page
+    .waitForRequest(r => r.url().endsWith('/language') && r.method() === 'POST', { timeout: 5000 })
+    .then(() => true, () => false);
+  await page.locator('#lang-select').selectOption({ value: code });
+  const ok = await posted;
+  if (ok) await page.waitForLoadState('load');
+  return ok;
+}
+
 async function checkLanguageSwitch(ctx) {
   const page = await ctx.newPage();
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
@@ -425,18 +448,19 @@ async function checkLanguageSwitch(ctx) {
     fail('language switch', '.lang-submit is visible with JavaScript running; data-js should have hidden it');
   }
 
-  await select.selectOption({ value: 'de' });
-  await page.waitForLoadState('networkidle');
-  let cookies = await ctx.cookies();
-  let lang = cookies.find(c => c.name === 'easywall_lang');
-  if (!lang || lang.value !== 'de') {
-    fail('language switch', `selecting "de" did not submit the form (cookie is ${lang?.value ?? 'unset'})`);
+  if (await switchTo(page, 'de')) {
+    const lang = (await ctx.cookies()).find(c => c.name === 'easywall_lang');
+    if (lang?.value !== 'de') {
+      fail('language switch', `the POST went through but the cookie is ${lang?.value ?? 'unset'}`);
+    } else {
+      console.log('  ok   the select submits itself on change with JavaScript running');
+    }
   } else {
-    console.log('  ok   the select submits itself on change with JavaScript running');
+    fail('language switch', 'selecting "de" never posted /language — the change handler ' +
+      'did not fire, or the value was already "de" so there was no change to react to');
   }
   // Leave English behind for whatever runs after this.
-  await page.locator('#lang-select').selectOption({ value: 'en' });
-  await page.waitForLoadState('networkidle');
+  await switchTo(page, 'en');
   const session = await ctx.storageState();
   await page.close();
 
@@ -455,11 +479,12 @@ async function checkLanguageSwitch(ctx) {
       'an operator who cannot read the interface would have no way to change it');
   } else {
     await noJsPage.locator('#lang-select').selectOption({ value: 'de' });
+    // click() auto-waits for the navigation a submit button starts, so this one
+    // was never racy the way the change handler above was.
     await noJsSubmit.click();
-    await noJsPage.waitForLoadState('networkidle');
-    cookies = await noJsCtx.cookies();
-    lang = cookies.find(c => c.name === 'easywall_lang');
-    if (!lang || lang.value !== 'de') {
+    await noJsPage.waitForLoadState('load');
+    const lang = (await noJsCtx.cookies()).find(c => c.name === 'easywall_lang');
+    if (lang?.value !== 'de') {
       fail('language switch (no JS)', 'the submit button did not change the language cookie');
     } else {
       console.log('  ok   the submit button works with JavaScript disabled');
