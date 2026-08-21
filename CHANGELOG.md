@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A search field at the top of the documentation sidebar.** Pagefind indexes
+  the HTML `jekyll build` already writes, so every table cell is searchable
+  without one anchor being added by hand — a config key, an environment
+  variable or an audit action is found in the row that defines it. The engine
+  and its interface are ~176 KB together and a reference page is read far more
+  often than it is searched, so the sidebar ships an ordinary input and the
+  real thing arrives on first focus; the keystrokes typed while the payload is
+  still in flight survive the swap, and a result link marks the term on the page
+  it lands on. Without JavaScript the field is hidden rather than shown and
+  dead — the sidebar navigation stays the complete scriptless path to every
+  page. The index is built in CI by a composite action both `docs.yml` jobs
+  call, and it is scoped by three flags that each prevent something that was
+  observed: `--glob` keeps the marketing landing page and the 23 redirect stubs
+  out (it had ranked for `argon2id` and `port forwarding`), `--root-selector`
+  keeps the topbar from being indexed on all 26 pages at once, and
+  `--force-language en` states the language once — it had been inferred as two,
+  and a search in one index could not see the other. One limitation is by
+  design: Pagefind ANDs every query term, so `open a port` finds the ports page
+  while `how do I open a port` finds nothing — no weighting was added and no
+  page was reworded to work around it
+
 ### Changed
 
 - **French is no longer marked unreviewed.** It shipped in 2.9.0 with
@@ -16,6 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   applies to any language sent in from outside: `reviewed` means a human who
   speaks it has read the catalogue, which is what makes offering a draft
   possible without claiming more for it than is true.
+
+### Fixed
+
+- **On a phone, nothing inside the open documentation drawer could be tapped.**
+  `.sidebar-backdrop` and `.sidebar` are `position: fixed` siblings, so their
+  `z-index` alone decides which one receives a touch — and since 2026-05-03 the
+  backdrop (150) had painted above the opened drawer (100). Every tap on a
+  navigation link landed on the backdrop and only closed the drawer, on every
+  documentation page, for three months. The open drawer is now 160: above the
+  backdrop, still below the topbar's 200 so its own toggle stays reachable. It
+  was found by clicking the new search field at 390px and being told the
+  backdrop was the element receiving the pointer event; a guard now reads the
+  two numbers out of the built stylesheet, because hit-testing on a phone is
+  invisible to every build in this repository
 
 ## [2.9.0] — 2026-08-21
 
