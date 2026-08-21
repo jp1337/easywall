@@ -49,6 +49,9 @@ func TestDocsStylesheetKeepsLoadBearingRules(t *testing.T) {
 			"Tailwind's preflight wins and every bullet list loses its markers"},
 		{`\.content-body ol\{list-style-type:decimal\}`,
 			"numbered lists lose the numbers, including the priority order in configuration.md"},
+		{`\.content-full\{padding-right:var\(--content-pad\)\}`,
+			"a page with no on-page contents keeps the column reserved for one: the " +
+				"landing page stopped at 1572px in a 1920px window with 348px empty beside it"},
 		// The gutter has to be reserved separately from the column's width.
 		// --toc-w was doing both jobs, so the article's right edge landed exactly
 		// on the contents' border-left: a hairline against the text, and a figure
@@ -274,6 +277,30 @@ func TestTheSearchOverridesAreOutsideTheCascadeLayer(t *testing.T) {
 			t.Errorf("%q sits inside @layer components in the built docs stylesheet — "+
 				"Pagefind's own unlayered rule wins over it, so the declaration ships and "+
 				"does nothing", sel)
+		}
+	}
+}
+
+// A page with no on-page contents has to get the reserved column back, and two
+// separate paths lead there — both silent when broken. The front matter drops
+// the markup before it is rendered; the script removes it at runtime when a page
+// turns out to have fewer than three headings. The landing page took the second
+// path and kept a 340px gutter reserved for a contents list that had already
+// removed itself: 1250px of content in a 1920px window, and nothing failed.
+func TestAPageWithoutContentsReleasesTheReservedColumn(t *testing.T) {
+	layout := docsLayout(t)
+
+	for _, want := range []struct{ needle, why string }{
+		{"page.toc == false",
+			"nothing reads the flag, so a page cannot opt out of the contents column at all"},
+		{"content-full",
+			"the class that releases the reserved column is never put on <main>"},
+		{"classList.add('content-full')",
+			"the script removes the contents list without releasing the space reserved " +
+				"for it, so a short page keeps an empty gutter as wide as the column"},
+	} {
+		if !strings.Contains(layout, want.needle) {
+			t.Errorf("docs/_layouts/default.html has no %q — %s", want.needle, want.why)
 		}
 	}
 }
