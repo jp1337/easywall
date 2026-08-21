@@ -1,0 +1,13 @@
+{% comment %}
+  The container PagefindUI mounts into. It stays empty in the HTML: the engine
+  and the UI are ~176 KB together, and a reference page is read far more often
+  than it is searched, so nothing is fetched until somebody touches the field.
+
+  The placeholder input below is what they touch. It is replaced by PagefindUI's
+  own input on first focus or keystroke — see the loader in default.html.
+{% endcomment %}
+<div class="docs-search" id="docs-search">
+  <label class="sr-only" for="docs-search-input">Search the documentation</label>
+  <input type="search" id="docs-search-input" class="docs-search-input"
+         placeholder="Search" autocomplete="off" spellcheck="false">
+</div>
