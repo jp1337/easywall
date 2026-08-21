@@ -43,6 +43,34 @@ runs:
           --glob "docs/**/*.html" \
           --root-selector "main.content" \
           --force-language en
+    # docs.css overrides these by name, because Pagefind's custom properties
+    # cannot reach height, scroll or the typography of an excerpt. That is the
+    # same trade the reference integration of this engine makes, and it is only
+    # safe while the names exist: a rename would leave the overlay rendering in
+    # Pagefind's own defaults — a yellow <mark> and a white input on a dark
+    # panel — with every Go guard still green, because those assert our
+    # stylesheet, not theirs. This is what turns a rename into a red pull request.
+    - name: The class names the stylesheet overrides still exist
+      working-directory: docs
+      shell: bash
+      run: |
+        set -euo pipefail
+        css=_site/pagefind/pagefind-ui.css
+        test -f "$css" || { echo "::error::$css was not written, so the search UI shipped unstyled"; exit 1; }
+        test -f _site/pagefind/pagefind-highlight.js || {
+          echo "::error::pagefind-highlight.js is missing; a visitor arriving from a result lands with the term unmarked"
+          exit 1
+        }
+        missing=0
+        for name in pagefind-ui__form pagefind-ui__search-input pagefind-ui__search-clear \
+                    pagefind-ui__drawer pagefind-ui__message pagefind-ui__results \
+                    pagefind-ui__result pagefind-ui__result-inner pagefind-ui__result-title \
+                    pagefind-ui__result-link pagefind-ui__result-nested pagefind-ui__result-excerpt; do
+          grep -q -- "$name" "$css" || { echo "::error::$css no longer contains .$name, which web/src/docs.css styles by name"; missing=1; }
+        done
+        [ "$missing" -eq 0 ] || exit 1
+        echo "all 12 overridden class names are present"
+
 
     # A glob matching nothing already fails the step above (Pagefind exits 1
     # on 1.5.2 — measured, not assumed). What still exits 0 is a glob that

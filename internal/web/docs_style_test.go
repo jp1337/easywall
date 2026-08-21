@@ -49,14 +49,12 @@ func TestDocsStylesheetKeepsLoadBearingRules(t *testing.T) {
 			"Tailwind's preflight wins and every bullet list loses its markers"},
 		{`\.content-body ol\{list-style-type:decimal\}`,
 			"numbered lists lose the numbers, including the priority order in configuration.md"},
-		// Not written in web/src/docs.css at all: it exists only because
-		// docs/_includes/search.html uses the class and Tailwind's @source scan
-		// reaches that file. Narrow the scan, move the include, or rename the
-		// class, and the rule leaves the stylesheet with nothing failing — while
-		// "Search the documentation" becomes visible text above the search field
-		// on all 26 documentation pages.
-		{`\.sr-only\{[^}]*position:absolute`,
-			"the search field's label is no longer hidden and renders as a line of body text above it"},
+		// `.sr-only` used to be asserted here. It only ever existed because the
+		// search field carried a visually hidden <label> and Tailwind's @source
+		// scan reached the include. The trigger that replaced that field has
+		// visible text and an aria-label, so nothing under docs/ uses the class
+		// any more and the utility is correctly absent from the built file.
+		// Asserting it now would demand a rule for markup that no longer exists.
 	}
 
 	for _, r := range required {
@@ -206,5 +204,68 @@ func TestMobileSidebarOutranksItsBackdrop(t *testing.T) {
 			"  an open drawer would sit behind its own backdrop, and nothing inside it — "+
 			"no nav link, no search field — could receive a tap on a phone",
 			openZ, backdropZ)
+	}
+}
+
+// The search panel's rules override Pagefind's own class names, and they only
+// work from outside a cascade layer. Pagefind's stylesheet is fetched at runtime
+// and is unlayered; an unlayered declaration beats every declaration in a named
+// layer no matter how specific it is. Written first inside @layer components,
+// every one of these rules lost to Pagefind's own — the overlay rendered a
+// yellow <mark> and a white input on a dark panel, and nothing failed: the build
+// was green, the rules were present in the built file, and the grep for them
+// passed. Only the browser said otherwise.
+//
+// So this asserts placement, not presence: the rules exist AND they are not
+// inside the layer.
+func TestTheSearchOverridesAreOutsideTheCascadeLayer(t *testing.T) {
+	css := docsStylesheet(t)
+
+	const layerOpen = "@layer components{"
+	start := strings.Index(css, layerOpen)
+	if start < 0 {
+		t.Fatalf("the built docs stylesheet has no %q, so this test cannot tell "+
+			"layered rules from unlayered ones any more", layerOpen)
+	}
+
+	depth, end := 0, -1
+	for i := start + len(layerOpen) - 1; i < len(css); i++ {
+		switch css[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				end = i
+			}
+		}
+		if end >= 0 {
+			break
+		}
+	}
+	if end < 0 {
+		t.Fatal("the @layer components block in the built docs stylesheet never closes")
+	}
+	layer := css[start:end]
+
+	// One per override that stops working when it is layered. The <mark> pair is
+	// the loudest of them: without it the browser default applies, and #ffff00
+	// is what --state-warn means in this interface.
+	for _, sel := range []string{
+		"#docs-search-panel .pagefind-ui__search-input",
+		"#docs-search-panel .pagefind-ui__drawer",
+		"#docs-search-panel .pagefind-ui__result-excerpt",
+		"#docs-search-panel mark",
+		"article.content-body mark.pagefind-highlight",
+	} {
+		if !strings.Contains(css, sel) {
+			t.Errorf("the built docs stylesheet has no rule for %q at all", sel)
+			continue
+		}
+		if strings.Contains(layer, sel) {
+			t.Errorf("%q sits inside @layer components in the built docs stylesheet — "+
+				"Pagefind's own unlayered rule wins over it, so the declaration ships and "+
+				"does nothing", sel)
+		}
 	}
 }
