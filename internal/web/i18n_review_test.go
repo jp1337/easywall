@@ -12,7 +12,15 @@ import (
 // e.g. "| `blacklist_subtitle` | Sources that are... |". Anchored to the start
 // of the line so a backtick elsewhere in the row — the English text column
 // quotes `password`, `totp_secret` and the like — is never mistaken for an id.
-var reviewListIDRe = regexp.MustCompile("(?m)^\\|\\s*`([a-z][a-z0-9_]*)`\\s*\\|")
+//
+// The capture is deliberately shaped like "whatever sits between the first
+// row's backticks", not like a valid id (lowercase, digits, underscore). A
+// stricter pattern would let a mistyped or nonexistent id — an uppercase
+// letter, a hyphen, anything outside the usual shape — pass by not being
+// seen at all, rather than being looked up and rejected. Letting anything
+// through this regex and leaving the rejection to the en.json lookup below
+// is what makes a typo fail loudly instead of quietly not being checked.
+var reviewListIDRe = regexp.MustCompile("(?m)^\\|\\s*`([^`]+)`\\s*\\|")
 
 // reviewListIDs parses docs-tech/i18n-review.md and returns every id it names,
 // in the order they appear. The list is derived from the document rather than
