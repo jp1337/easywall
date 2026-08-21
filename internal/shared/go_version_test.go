@@ -2,6 +2,7 @@ package shared
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -89,13 +90,16 @@ func TestGoToolchainIsTheSameEverywhere(t *testing.T) {
 	// in the first place, and they are easy to reintroduce: `go-version: "1.26"`
 	// is what every example on the internet shows.
 	//
-	// The composite actions are scanned by a glob rather than by name, because
-	// this list being hand-written is what let a step escape it once already: the
-	// search index moved out of docs.yml into
+	// The composite actions are scanned by walking the directory rather than by
+	// name, because this list being hand-written is what let a step escape it
+	// once already: the search index moved out of docs.yml into
 	// .github/actions/build-search-index/action.yml, taking a setup-node step
 	// with it, and a `go-version:` added beside it would have been invisible to
 	// the guard whose entire purpose is that nothing pins a toolchain of its own.
-	// A glob covers the next action nobody remembered to add here.
+	// The walk covers the next action nobody remembered to add here, wherever it
+	// is nested and whichever of `action.yml` / `action.yaml` it uses — both are
+	// valid for a composite action, and a single-level `*` glob would have missed
+	// a nested one just as easily as the hand-written list it replaced.
 	t.Run("nothing in .github pins a version of its own", func(t *testing.T) {
 		files := [][]string{}
 		for _, wf := range []string{"build.yml", "test.yml", "security.yml", "release.yml",
@@ -103,12 +107,26 @@ func TestGoToolchainIsTheSameEverywhere(t *testing.T) {
 			files = append(files, []string{".github", "workflows", wf})
 		}
 		root := repoRootDir(t)
-		actions, err := filepath.Glob(filepath.Join(root, ".github", "actions", "*", "action.yml"))
-		if err != nil {
-			t.Fatalf("glob the composite actions: %v", err)
-		}
-		for _, abs := range actions {
-			files = append(files, []string{".github", "actions", filepath.Base(filepath.Dir(abs)), "action.yml"})
+		actionsDir := filepath.Join(root, ".github", "actions")
+		walkErr := filepath.WalkDir(actionsDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if d.Name() != "action.yml" && d.Name() != "action.yaml" {
+				return nil
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, strings.Split(rel, string(filepath.Separator)))
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatalf("walk the composite actions: %v", walkErr)
 		}
 
 		for _, f := range files {
@@ -209,12 +227,31 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 	root := repoRootDir(t)
 	goManagers := 0
 	for _, cm := range cfg.CustomManagers {
-		// The Go managers only. Not every regex manager tracks the toolchain —
-		// `pagefind` pins the version the documentation search index is built
-		// with — and comparing one of those against go.mod would fail on a
-		// perfectly correct pin. TestEveryRenovateFilePatternReachesAPin covers
-		// all of them; this one is about the value, so it has to know which
-		// dependency the value belongs to.
+		// Every manager's regex has to compile and capture `currentValue`,
+		// whatever dependency it names — Renovate cannot act on a pattern that
+		// does neither, and a manager with no capture group would sail through
+		// unguarded if this ran only for the Go ones below.
+		compiled := make(map[string]*regexp.Regexp, len(cm.MatchStrings))
+		for _, ms := range cm.MatchStrings {
+			re, err := regexp.Compile(ms)
+			if err != nil {
+				t.Errorf("matchStrings %q does not compile in Go's regexp: %v", ms, err)
+				continue
+			}
+			if idx := re.SubexpIndex("currentValue"); idx < 0 {
+				t.Errorf("matchStrings %q has no currentValue group, so Renovate "+
+					"cannot know what to replace", ms)
+				continue
+			}
+			compiled[ms] = re
+		}
+
+		// The value comparison, Go managers only, from here on. Not every regex
+		// manager tracks the toolchain — `pagefind` pins the version the
+		// documentation search index is built with — and comparing one of those
+		// against go.mod would fail on a perfectly correct pin.
+		// TestEveryRenovateFilePatternReachesAPin covers all of them; this one is
+		// about the value, so it has to know which dependency the value belongs to.
 		if cm.DepNameTemplate != "go" {
 			continue
 		}
@@ -228,17 +265,11 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 				}
 				body := readRepoPath(t, root, rel)
 				for _, ms := range cm.MatchStrings {
-					re, err := regexp.Compile(ms)
-					if err != nil {
-						t.Errorf("matchStrings %q does not compile in Go's regexp: %v", ms, err)
-						continue
+					re, ok := compiled[ms]
+					if !ok {
+						continue // already reported above
 					}
 					idx := re.SubexpIndex("currentValue")
-					if idx < 0 {
-						t.Errorf("matchStrings %q has no currentValue group, so Renovate "+
-							"cannot know what to replace", ms)
-						continue
-					}
 					for _, m := range re.FindAllStringSubmatch(body, -1) {
 						if m[idx] != short {
 							t.Errorf("%s: renovate.json manages a Go pin reading %q, the toolchain is %q\n"+
@@ -252,11 +283,16 @@ func TestRenovateEditsOnlyTheGoPinsItShould(t *testing.T) {
 		}
 	}
 
-	// And the filter above must not be what makes this test pass.
-	if goManagers == 0 {
-		t.Error("no customManager in renovate.json names `go` as its dependency, so " +
-			"nothing here was actually checked — the Dockerfile tag, debian/control " +
-			"and the prose pins are updated by nobody")
+	// And the filter above must not be what makes this test pass. The count is
+	// exact, not just non-zero: docs-tech/dependencies.md says "three Go
+	// customManagers" (debian/control, the trailing-`+` prose, and the four
+	// pins without one), and a fourth appearing — or one of the three losing its
+	// `depNameTemplate` — is a change of scope this test should not shrug at.
+	const wantGoManagers = 3
+	if goManagers != wantGoManagers {
+		t.Errorf("renovate.json has %d customManager(s) naming `go` as depNameTemplate, want %d\n"+
+			"  see the count in docs-tech/dependencies.md's \"renovate.json, rule by rule\" table — "+
+			"if it changed on purpose, update that table too", goManagers, wantGoManagers)
 	}
 }
 
