@@ -1,3 +1,18 @@
+{{/* Shared by every page's <head>, not just this one's: base.html, login.html,
+     login_verify.html and firstrun.html each render their own <head>, and this
+     script used to be a fourth hand-copied instance in each of the three auth
+     pages. Only this file's copy ever gained the data-js line, so on every page
+     but this one the language switch's no-JS submit button never hid itself —
+     the exact "looks general, checks one instance" shape this file's own guard
+     tests exist to catch elsewhere. Setting data-theme here, before first
+     paint, is what avoids a flash of the wrong theme; data-js right after is
+     read by app.css to hide .lang-submit, and deliberately not set from app.js,
+     which loads at the end of <body> and would let the button render, be seen,
+     and then vanish. */}}
+{{define "themeScript"}}<script nonce="{{.Nonce}}">
+    (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-js','on');})();
+  </script>{{end}}
+
 {{define "head"}}
 <!DOCTYPE html>
 <html lang="{{.Lang}}">
@@ -14,9 +29,7 @@
   <meta property="og:description" content="{{T "og_description"}}">
   <meta property="og:image" content="/static/og-image.png">
   <meta property="og:type" content="website">
-  <script nonce="{{.Nonce}}">
-    (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-js','on');})();
-  </script>
+  {{template "themeScript" .}}
   {{/* app.js builds some text itself — toast bodies, the polled apply state, the
        fields on a row added in the browser — so those translations have to reach
        it. html/template escapes the map into a JS value; the nonce is what makes
@@ -46,9 +59,10 @@
      cannot do anything. It is a POST because it writes a cookie, and the submit
      button below is real markup, not one a script adds, because an operator who
      cannot read the interface should not also need JavaScript to fix that. The
-     head script hides the button once it has set data-js — see there for why
-     that flag is not set from app.js instead — and app.js submits the form on
-     change so a working script never shows the button at all. */}}
+     shared themeScript block above sets data-js, which app.css uses to hide the
+     button — see themeScript's own comment for why that flag is not set from
+     app.js instead — and app.js submits the form on change so a working script
+     never shows the button at all. */}}
 {{define "langswitch"}}
 {{if .Langs}}
 <form method="POST" action="/language" class="lang-switch">
