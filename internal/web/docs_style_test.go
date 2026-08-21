@@ -49,6 +49,14 @@ func TestDocsStylesheetKeepsLoadBearingRules(t *testing.T) {
 			"Tailwind's preflight wins and every bullet list loses its markers"},
 		{`\.content-body ol\{list-style-type:decimal\}`,
 			"numbered lists lose the numbers, including the priority order in configuration.md"},
+		// The gutter has to be reserved separately from the column's width.
+		// --toc-w was doing both jobs, so the article's right edge landed exactly
+		// on the contents' border-left: a hairline against the text, and a figure
+		// running flush into it. Nothing failed — the contents column was the
+		// right width, and the reserved space was the right width, and they were
+		// the same number.
+		{`padding-right:calc\(var\(--content-pad\) \+ var\(--toc-w\) \+ var\(--toc-gap\)\)`,
+			"the prose runs straight into the on-page contents with no gutter between them"},
 		// `.sr-only` used to be asserted here. It only ever existed because the
 		// search field carried a visually hidden <label> and Tailwind's @source
 		// scan reached the include. The trigger that replaced that field has
