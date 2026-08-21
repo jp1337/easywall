@@ -18,8 +18,10 @@ runs:
     #                   marketing landing page competes with the docs and
     #                   ranked for "argon2id" and "port forwarding", and the
     #                   23 old-path redirect stubs get indexed too.
-    #   --root-selector the content column only, so the sidebar's own link
-    #                   text is not searchable on all 26 pages at once.
+    #   --root-selector the content column only. Pagefind already excludes <nav>
+    #                   and <footer> by default, which covers the sidebar; this
+    #                   is what keeps the topbar, which is a <header>, from
+    #                   being searchable on all 26 pages at once.
     #   --force-language states the site's language once instead of letting it
     #                   be inferred per file. It was inferred as two.
     - name: Build the search index
