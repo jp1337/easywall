@@ -53,6 +53,12 @@
   --measure-max:  1400px;
   --content-pad:  clamp(1.25rem, 5vw, 4rem);
   --toc-w:        0px;
+  /* The gutter between the prose and the on-page contents. It has to be its own
+     value: --toc-w was doing double duty as the column's width and as the space
+     reserved for it, so the article's right edge landed exactly on the contents'
+     border-left — a hairline touching the text, and a figure running flush into
+     it. Fluid, so the reading measure gives up least where there is least room. */
+  --toc-gap:      0px;
 
   --bg:           #0a0b0f;
   --surface:      #111318;
@@ -273,7 +279,11 @@ html, body {
      that opens a dialog it cannot fill is a control that lies about what it can
      do; the sidebar navigation is the complete path without JavaScript. */
   #docs-search { display: none; }
-  [data-js] #docs-search { display: block; padding: 0 14px 12px; }
+  /* 12px above, and none below: .sidebar-nav's own 0.75rem does that side, so
+     the field sits evenly between the header's rule and the first page. It used
+     to have 0 above and 24 below — hard against the hairline, which reads as the
+     control being stuck to the brand row rather than being its own zone. */
+  [data-js] #docs-search { display: block; padding: 0.75rem 14px 0; }
 
   /* Reads as a field, behaves as a button — the established pattern for docs
      search, and the only way the shortcut can be shown on the control itself. */
@@ -477,7 +487,7 @@ html, body {
     min-height: 100vh;
     padding: 1.75rem var(--content-pad) 3rem;
     /* Reserved for the on-page contents. Zero until the viewport earns it. */
-    padding-right: calc(var(--content-pad) + var(--toc-w));
+    padding-right: calc(var(--content-pad) + var(--toc-w) + var(--toc-gap));
     animation: fade-in 0.25s ease;
   }
 
@@ -1679,7 +1689,7 @@ article.content-body mark.pagefind-highlight {
    Switched on only when there is room for a third column without taking any
    from the reading measure: 260 sidebar + 880 measure + 232 contents + gaps. */
 @media (min-width: 1440px) {
-  :root { --toc-w: 232px; }
+  :root { --toc-w: 232px; --toc-gap: clamp(1.5rem, 2.5vw, 3rem); }
 
   .docs-toc {
     position: fixed;
