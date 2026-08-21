@@ -42,6 +42,14 @@
     },
     {
       "customType": "regex",
+      "description": "The exact Pagefind version the documentation search index is built with, in .github/actions/build-search-index/action.yml. It was `pagefind@1`, and no manager watched a floating range: the index published to easywall-project.org was built by whatever 1.x npm resolved that morning, with no pull request to review and no version recorded anywhere to bisect. The index format is not the risk — the loader in docs/_layouts/default.html reads the bundle's JS API, and that is what a minor release can reshape: the window.PagefindUI global, five option names, and pagefind-highlight.js being an ES module, which already broke highlighting silently on this branch. The action's own assertion counts index fragments against the page count and would still pass, so a bundle whose UI no longer mounts ships with CI green. Versioning is the npm default here, unlike the Go pins above: this pin carries all three components, so it is a valid semver version and needs no `docker` workaround.",
+      "managerFilePatterns": ["/^\\.github/actions/build-search-index/action\\.yml$/"],
+      "matchStrings": ["npx --yes pagefind@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "pagefind"
+    },
+    {
+      "customType": "regex",
       "description": "The three pins that carry no '+': the stack table in README, the badge on the docs landing page, and the install-choice diagram source. The diagram needs re-rendering after a bump — see the note on the Go toolchain rule. Versioning is `docker`, not `npm`: these pins carry two components, and `1.26` is not a valid semver version — under npm versioning Renovate found the dependency, listed it on the dashboard and returned an empty candidate set, so the first real toolchain bump moved go.mod and the Dockerfile and silently left every pin below behind. Docker versioning treats a truncated version as a version.",
       "managerFilePatterns": [
         "/^README\\.md$/",
@@ -119,6 +127,17 @@
       "matchPackageNames": ["htmx.org"],
       "prBodyNotes": [
         "Run after merging: `cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js`"
+      ]
+    },
+    {
+      "description": "pagefind builds the documentation search index, and the pin exists because a bump can change the bundle's JS API without changing the index format — the loader in docs/_layouts/default.html would stop mounting while the action's count assertion still passes. Patch releases are auto-merged everywhere else in this file; that would put an unread bundle on easywall-project.org, so this one waits for a person.",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["pagefind"],
+      "automerge": false,
+      "semanticCommitScope": "docs",
+      "labels": ["renovate", "dependencies", "needs-review"],
+      "prBodyNotes": [
+        "Check after merging that the search still mounts and still highlights: the index format is not what this risks, the `window.PagefindUI` global, its five option names and the ES-module form of `pagefind-highlight.js` are."
       ]
     },
     {

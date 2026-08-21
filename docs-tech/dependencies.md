@@ -56,7 +56,8 @@ that explicitly with `enabled: false` on the `golang` depType, so nobody adds
 | patch / pin / digest | auto-merged once CI is green |
 | minor and major | wait for a person. This is a firewall; the blast radius of a bad dependency is the host's packet filter |
 | `groupName: "Go toolchain"` | every place the toolchain is written moves in **one** pull request, and never auto-merges whatever the update type says |
-| three `customManagers` | `debian/control`, the prose pins with a trailing `+`, and the four pins without one. All three use `versioning: docker`, for the reason below |
+| three Go `customManagers` | `debian/control`, the prose pins with a trailing `+`, and the four pins without one. All three use `versioning: docker`, for the reason below |
+| a fourth for `pagefind` | the exact version the documentation search index is built with, in `.github/actions/build-search-index/action.yml`. It was `pagefind@1`; the published index was then built by whatever 1.x resolved that morning, with no pull request and nothing to bisect. The loader also reads the bundle's JS API — the `window.PagefindUI` global, five option names, the ES-module form of the highlight file — and the action's count assertion counts index fragments, so a reshaped UI ships green. Default `npm` versioning, because a three-component pin *is* a valid semver version. Not auto-merged even on a patch, for the same reason |
 | `prBodyNotes` on htmx and mermaid | both need a manual step after merging, and CI fails without it |
 
 The prose manager is anchored on the trailing `+` (`Go 1.X+`) precisely so it
@@ -79,7 +80,10 @@ visible to `renovate-config-validator`:
 `TestRenovateEditsOnlyTheGoPinsItShould` parses `renovate.json`, applies its own
 regexes to every tracked file, and requires each captured value to be the current
 toolchain. Anything else is either a pin left behind or a sentence Renovate would
-edit into a lie.
+edit into a lie. It reads the managers whose `depNameTemplate` is `go` — the
+`pagefind` pin is a version of something else, and would fail this comparison while
+being perfectly correct — and it fails if that filter leaves it with nothing to
+check. `TestEveryRenovateFilePatternReachesAPin` reads all of them.
 
 ### A detected dependency is not an updated dependency
 
@@ -125,6 +129,7 @@ knew about it. It has both now.
 | `htmx.org` | `cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js` — the served copy is committed and the `assets` job diffs it |
 | `mermaid` | `npm run build:diagrams` — the version is folded into each diagram's digest, so an upgrade makes every SVG stale by design |
 | the Go toolchain | `npm run build:diagrams`, because `docs/_diagrams/install-choice.mmd` names the Go version |
+| `pagefind` | look at the search on the deployed site: that it mounts, and that a result link still marks the term. CI proves the index covers all 26 pages and nothing more |
 
 ## Writing a version down anywhere new
 

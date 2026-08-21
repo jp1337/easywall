@@ -6,16 +6,24 @@ name: Docs
 # and discovered afterwards, as a red deploy on main with the site already stale.
 # The build now also runs on a pull request that touches docs/, without the
 # permissions or the environment that deploying needs.
+#
+# .github/actions/** is in both lists because the search index moved into a
+# composite action. For one commit it was not: the action held the only copy of
+# the indexing command and of the assertion that the index covers every page,
+# and a pull request editing it ran no job at all — while a push editing it did
+# not redeploy, so the change reached main without ever reaching the site.
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
+      - ".github/actions/**"
   pull_request:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
+      - ".github/actions/**"
 
 # Read-only by default. Publishing rights are granted to the deploy job alone, so
 # a pull-request run cannot reach GitHub Pages even in principle.
@@ -61,6 +69,14 @@ jobs:
             echo "::error::only $pages pages built; the site has more than that, so something was dropped"
             exit 1
           }
+
+      # After the count above, not before it. Pagefind reports an empty site as
+      # "Found 0 files matching docs/**/*.html" and exits 1, which is a true
+      # statement about the index and tells nobody what went wrong; the check
+      # above says `no landing page was built`. Still before the upload, which
+      # is the part that matters — see
+      # TestTheSearchIndexIsBuiltBeforeThePagesUpload.
+      - uses: ./.github/actions/build-search-index
 
   deploy:
     name: Deploy to Pages
@@ -110,6 +126,14 @@ jobs:
             echo "::error::only $pages pages built; the site has more than that, so something was dropped"
             exit 1
           }
+
+      # After the count above, not before it. Pagefind reports an empty site as
+      # "Found 0 files matching docs/**/*.html" and exits 1, which is a true
+      # statement about the index and tells nobody what went wrong; the check
+      # above says `no landing page was built`. Still before the upload, which
+      # is the part that matters — see
+      # TestTheSearchIndexIsBuiltBeforeThePagesUpload.
+      - uses: ./.github/actions/build-search-index
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
