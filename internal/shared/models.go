@@ -382,6 +382,24 @@ type NetworkSettings struct {
 	Routing RoutingConfig `json:"routing"`
 }
 
+// AppliedConfig is the configuration that went into the kernel with the rules
+// that are in it. The core stores it whenever nft.Apply succeeds; the web
+// process compares it against what is configured now to answer the half of
+// "what changes" that the rule diff cannot see.
+type AppliedConfig struct {
+	Firewall FirewallOptions `json:"firewall"`
+	Network  NetworkSettings `json:"network"`
+}
+
+// AppliedConfigResult is the reply to GET_APPLIED_CONFIG. Recorded is false on
+// an installation that has not applied or restarted since 2.10, and that state
+// means *unknown*, not *identical*: nothing is reported as pending on the
+// strength of a file that is not there.
+type AppliedConfigResult struct {
+	Recorded bool          `json:"recorded"`
+	Config   AppliedConfig `json:"config"`
+}
+
 // SystemSettings groups the acceptance window configuration for IPC transport.
 type SystemSettings struct {
 	Acceptance AcceptanceConfig `json:"acceptance"`
