@@ -268,51 +268,107 @@ html, body {
     background: var(--accent-dim);
   }
 
-  /* Hidden by default and revealed by the flag the head script sets. A search
-     field with no engine behind it is a control that lies about what it can do;
-     the sidebar navigation is the complete path without JavaScript.
+  /* ── The documentation search ──────────────────────────────────────────────
+     Hidden by default and revealed by the flag the head script sets. A trigger
+     that opens a dialog it cannot fill is a control that lies about what it can
+     do; the sidebar navigation is the complete path without JavaScript. */
+  #docs-search { display: none; }
+  [data-js] #docs-search { display: block; padding: 0 14px 12px; }
 
-     The custom properties are Pagefind's own theming hooks, pointed at the docs
-     tokens so the search follows the theme toggle with no rules of our own. One
-     rule rather than two: this selector was written twice, five lines apart, and
-     both copies survived into the built file. */
-  #docs-search {
-    display: none;
-    --pagefind-ui-scale: 0.8;
-    --pagefind-ui-primary: var(--accent);
-    --pagefind-ui-text: var(--text);
-    --pagefind-ui-background: var(--surface);
-    --pagefind-ui-border: var(--border);
-    --pagefind-ui-tag: var(--surface-2);
-    --pagefind-ui-border-width: 1px;
-    --pagefind-ui-border-radius: 8px;
-    --pagefind-ui-font: var(--font-sans);
-    /* overflow-wrap is inherited, so setting it once here reaches every
-       excerpt Pagefind renders inside #docs-search without naming one of its
-       class names. Without it, a long unbroken token — an environment
-       variable, a config key — is clipped at the fixed 260px sidebar edge
-       instead of breaking, and the matched term itself can end up cut mid-word. */
-    overflow-wrap: anywhere;
-  }
-  [data-js] #docs-search { display: block; padding: 0 14px 10px; }
-
-  .docs-search-input {
+  /* Reads as a field, behaves as a button — the established pattern for docs
+     search, and the only way the shortcut can be shown on the control itself. */
+  .docs-search-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
-    padding: 7px 10px;
+    padding: 7px 8px 7px 10px;
     font: inherit;
     font-size: 13px;
-    color: var(--text);
+    color: var(--text-subtle);
     background: var(--surface-2);
     border: 1px solid var(--control-edge);
-    border-radius: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 120ms cubic-bezier(0.2, 0, 0.2, 1),
+                background-color 120ms cubic-bezier(0.2, 0, 0.2, 1),
+                border-color 120ms cubic-bezier(0.2, 0, 0.2, 1);
   }
 
-  .docs-search-input::placeholder { color: var(--text-subtle); }
+  .docs-search-trigger:hover {
+    color: var(--text);
+    background: var(--surface-3);
+    border-color: var(--accent);
+  }
 
-  .docs-search-input:focus-visible {
+  .docs-search-trigger:focus-visible {
     outline: 2px solid var(--accent-dim);
     outline-offset: 1px;
     border-color: var(--accent);
+  }
+
+  .docs-search-trigger svg { flex: none; }
+  .docs-search-trigger-label { flex: 1; text-align: left; }
+
+  .docs-search-key {
+    flex: none;
+    padding: 3px 5px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1;
+    color: var(--text-subtle);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  /* The overlay. `display: none` on the element itself rather than relying on
+     the dialog's default, so [open] is the single switch that also turns on the
+     flex column the scrolling results depend on. */
+  .docs-search-dialog {
+    display: none;
+    flex-direction: column;
+    width: min(680px, calc(100vw - 2rem));
+    max-height: min(70vh, 640px);
+    padding: 0;
+    margin: auto;
+    overflow: hidden;
+    color: var(--text);
+    /* One surface step above the page, not level with it. At --surface over a
+       page dimmed by the backdrop the panel had almost no edge — it read as
+       translucent, which is the one thing a modal must not look like. A red
+       test fill proved the paint was solid and the contrast was the problem. */
+    background: var(--surface-2);
+    border: 1px solid var(--surface-3);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  }
+
+  .docs-search-dialog[open] { display: flex; }
+  .docs-search-dialog::backdrop { background: rgba(10, 11, 15, 0.62); }
+
+  [data-theme="easywall-light"] .docs-search-dialog {
+    box-shadow: 0 8px 24px -8px rgba(15, 17, 22, 0.14);
+  }
+
+  /* Lighter than the dark theme's veil on purpose. At 0.38 a white page read as
+     a dark one, which looks like the theme broke rather than like a dialog
+     opened; the panel's own border and overlay shadow carry the separation. */
+  [data-theme="easywall-light"] .docs-search-dialog::backdrop {
+    background: rgba(15, 17, 22, 0.28);
+  }
+
+  /* The page behind an open dialog is inert but still scrollable, which reads
+     as the overlay drifting when a trackpad is touched. */
+  html:has(.docs-search-dialog[open]) { overflow: hidden; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .docs-search-dialog[open] {
+      animation: docs-search-in 200ms cubic-bezier(0.2, 0, 0.2, 1);
+    }
+    @keyframes docs-search-in {
+      from { opacity: 0; transform: translateY(-6px); }
+    }
   }
 
   .sidebar-nav {
@@ -1128,6 +1184,225 @@ html, body {
   }
 
 }
+
+/* ── Pagefind's own markup, unlayered on purpose ────────────────────────────
+   These rules sit outside @layer components, and moving them back in silently
+   undoes all of them. Pagefind's stylesheet is fetched at runtime and is
+   unlayered, and an unlayered declaration beats every declaration in a named
+   cascade layer no matter how specific it is — an #id rule inside
+   @layer components lost to Pagefind's own class selectors, which is why the
+   first attempt rendered a yellow <mark> and a white input on a dark panel.
+   The custom-property block above keeps working from inside the layer because
+   an inherited value is not a competing declaration. */
+/* ── Pagefind's own markup ─────────────────────────────────────────────────
+   Overridden by class name, deliberately. The custom properties below cannot
+   reach height, scroll or the typography of an excerpt, and the reference
+   integration of this same engine — Astro Starlight — overrides the same
+   names for the same reason. What makes it safe here rather than merely
+   convenient: the composite action fails the build if any of these names
+   stops existing in the shipped stylesheet, so a rename surfaces as a red
+   pull request instead of an unstyled search nobody notices. */
+#docs-search-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  --pagefind-ui-scale: 1;
+  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-text: var(--text);
+  --pagefind-ui-background: var(--surface);
+  --pagefind-ui-border: var(--border);
+  --pagefind-ui-tag: var(--surface-2);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 6px;
+  --pagefind-ui-font: var(--font-sans);
+  /* Inherited, so one declaration reaches every excerpt: without it a long
+     unbroken token — an environment variable, a config key — is clipped
+     rather than broken, and the matched term itself can end up cut mid-word. */
+  overflow-wrap: anywhere;
+}
+
+#docs-search-panel .pagefind-ui,
+#docs-search-panel .pagefind-ui__form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#docs-search-panel .pagefind-ui__form { position: relative; }
+
+/* padding-right is deliberately absent: PagefindUI writes it as an inline style,
+   measured from its own clear button, and an inline style outranks any rule we
+   could write. Setting it here produced a 49px gap against a 47px button that
+   the query then ran underneath. The left inset clears the magnifier that
+   .pagefind-ui__form:before paints at 20px — the icon is theirs and already
+   takes --pagefind-ui-text, so there is no reason to ship a second one. */
+#docs-search-panel .pagefind-ui__search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-top: 15px;
+  padding-bottom: 15px;
+  padding-left: 48px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+
+#docs-search-panel .pagefind-ui__search-input::placeholder { color: var(--text-subtle); }
+#docs-search-panel .pagefind-ui__search-input:focus { outline: 0; }
+
+/* Reserved space above, so the query never runs underneath this button. It
+   used to sit on the last 44px of a 223px field: what you had typed was
+   unreadable, and the field scrolled to hide the rest. */
+/* Only the look, and the height. Its width and its right offset stay Pagefind's,
+   because the inline padding-right above is measured from them: a narrower
+   button here means the query runs under it there. At its own 58px it read as a
+   panel stuck to the field rather than a control inside it. */
+#docs-search-panel .pagefind-ui__search-clear {
+  top: 15px;
+  height: 34px;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  color: var(--text-subtle);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#docs-search-panel .pagefind-ui__search-clear:hover {
+  color: var(--text);
+  background: var(--surface-3);
+}
+
+#docs-search-panel .pagefind-ui__drawer {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#docs-search-panel .pagefind-ui__message {
+  margin: 0;
+  padding: 11px 18px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  border-bottom: 1px solid var(--border-muted);
+}
+
+#docs-search-panel .pagefind-ui__results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#docs-search-panel .pagefind-ui__result {
+  padding: 14px 18px;
+  border-top: 1px solid var(--border-muted);
+}
+
+#docs-search-panel .pagefind-ui__result:first-child { border-top: 0; }
+
+/* The page is the label, the section inside it is the row — the same shape as
+   the reference tables these hits come from. */
+#docs-search-panel .pagefind-ui__result-inner > .pagefind-ui__result-title {
+  margin: 0;
+}
+
+#docs-search-panel .pagefind-ui__result-inner > .pagefind-ui__result-title .pagefind-ui__result-link {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  text-decoration: none;
+}
+
+#docs-search-panel .pagefind-ui__result-nested {
+  margin-top: 9px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+#docs-search-panel .pagefind-ui__result-nested + .pagefind-ui__result-nested { margin-top: 12px; }
+
+#docs-search-panel .pagefind-ui__result-nested .pagefind-ui__result-title {
+  margin: 0;
+}
+
+/* Pagefind marks a sub-result with a "\2937 " pseudo-element positioned outside
+   the text. With the hairline rule doing that job it was one device too many,
+   and it landed on the wrong side of the border. */
+#docs-search-panel .pagefind-ui__result-nested .pagefind-ui__result-link:before {
+  content: none;
+}
+
+#docs-search-panel .pagefind-ui__result-nested .pagefind-ui__result-link {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+}
+
+#docs-search-panel .pagefind-ui__result-nested .pagefind-ui__result-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+#docs-search-panel .pagefind-ui__result-excerpt {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+#docs-search-panel a:focus-visible {
+  outline: 2px solid var(--accent-dim);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* A match is not a warning. Pagefind ships no rule for <mark>, so the browser
+   default applied: #ffff00 on black, the loudest thing on the page, and in a
+   firewall's interface yellow is what --state-warn means. The site already
+   answers "this text is picked out" with ::selection, and a match is the same
+   gesture, so it takes the same pair. */
+#docs-search-panel mark {
+  padding: 0 2px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--accent-hover);
+  border-radius: 4px;
+}
+
+/* The term marked on arrival, when a reader followed a result. Same pair as the
+   marks inside the search panel, because it is the same gesture — and the
+   highlight script's own stylesheet is switched off in the layout precisely so
+   this can use the theme's tokens instead of its one yellow rule. */
+article.content-body mark.pagefind-highlight {
+  padding: 0 2px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--accent-hover);
+  border-radius: 4px;
+}
+
+/* The one state Pagefind cannot render itself: its own script failed to load. */
+.docs-search-failed {
+  padding: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 
 /* ── Prose / Markdown rendering (outside @layer for higher specificity) ── */
 

@@ -1,21 +1,36 @@
 {% comment %}
-  The container PagefindUI mounts into. What it holds until then is a plain
-  input and its label, and nothing else: the engine and the UI are ~176 KB
-  together, and a reference page is read far more often than it is searched, so
-  nothing is fetched until somebody touches the field.
+  Two halves: a trigger in the sidebar that looks like a field, and the dialog
+  the results live in. Both stay inert until somebody asks for the search — the
+  engine and its UI are ~176 KB together, and a reference page is read far more
+  often than it is searched.
 
-  That input is what they touch. PagefindUI renders its own, so this one is
-  replaced the first time the field takes focus — see the loader in
-  default.html. Focus, and only focus: there is no keystroke listener, because
-  reaching the field is already the intent, and a keystroke cannot arrive
-  without it.
+  The results are in a <dialog> and not in the sidebar because they do not fit a
+  260px gutter. There, a 639px-tall results block pushed the navigation to
+  y=833 in a 697px viewport — you searched and lost the page list — and every
+  excerpt arrived as a fragment. showModal() also brings the focus trap, the Esc
+  key, the inert background and focus restoration from the platform, which was
+  the entire cost the design spec had priced for building them by hand.
 
-  role="search" because the field sits inside <nav aria-label="Documentation
-  navigation">. Without it a screen-reader user has no search landmark on the
-  page at all and has to walk into the navigation to find the field.
+  The trigger carries the shortcut rather than hiding it: a key nobody is told
+  about is a key nobody presses. It says Ctrl until the loader learns otherwise,
+  because that is the answer for most readers of a Linux firewall's docs.
+
+  role="search" because this sits inside <nav aria-label="Documentation
+  navigation">; without it there is no search landmark on the page at all.
 {% endcomment %}
 <div class="docs-search" id="docs-search" role="search">
-  <label class="sr-only" for="docs-search-input">Search the documentation</label>
-  <input type="search" id="docs-search-input" class="docs-search-input"
-         placeholder="Search" autocomplete="off" spellcheck="false">
+  <button type="button" class="docs-search-trigger" id="docs-search-open"
+          aria-label="Search the documentation">
+    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor"
+         stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+      <circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.4 10.4 14 14"/>
+    </svg>
+    <span class="docs-search-trigger-label">Search</span>
+    <kbd class="docs-search-key" id="docs-search-key" aria-hidden="true">Ctrl K</kbd>
+  </button>
 </div>
+
+<dialog class="docs-search-dialog" id="docs-search-dialog"
+        aria-label="Search the documentation">
+  <div class="docs-search-panel" id="docs-search-panel"></div>
+</dialog>

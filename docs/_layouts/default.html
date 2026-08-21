@@ -275,21 +275,26 @@
 
   <script>
     // The engine and its UI are ~176 KB together, and a reference page is read
-    // far more often than it is searched. So the sidebar ships an ordinary input
-    // and this swaps it for the real thing the first time somebody means to use
-    // it — on focus, which also covers the click and the Tab.
+    // far more often than it is searched. So the sidebar ships a button and this
+    // fetches the real thing the first time somebody opens the overlay.
     //
-    // PagefindUI renders its own input, so the placeholder is removed once it
-    // has mounted; the value the visitor already typed is read at that same
-    // moment — not snapshotted back when the field was first focused — because
-    // the visitor keeps typing into the placeholder while the ~176 KB payload
-    // is still in flight, and every one of those keystrokes has to survive the
-    // swap. PagefindUI has no autofocus option; the explicit real.focus() below
-    // is what puts the caret back once its own input exists.
+    // The overlay is a native <dialog>. showModal() is what makes it cheap: the
+    // focus trap, the Esc key, the inert background and returning focus to the
+    // trigger on close all come from the platform, and those four were the
+    // entire reason the design spec first chose a field in the sidebar instead.
+    // What that cost was a 639px results block in a 260px column, pushing the
+    // navigation off the screen while you searched.
     (function () {
-      var host = document.getElementById('docs-search');
-      var seed = document.getElementById('docs-search-input');
-      if (!host || !seed) return;
+      var trigger = document.getElementById('docs-search-open');
+      var dialog  = document.getElementById('docs-search-dialog');
+      var panel   = document.getElementById('docs-search-panel');
+      var hint    = document.getElementById('docs-search-key');
+      if (!trigger || !dialog || !panel || !dialog.showModal) return;
+
+      // The markup says Ctrl because that is right for most readers of a Linux
+      // firewall's documentation; this corrects it for the rest. navigator.platform
+      // is deprecated and still the only thing every shipping browser answers.
+      if (/Mac|iPhone|iPad|iPod/.test(navigator.platform || '')) hint.textContent = '⌘ K';
 
       var loading = false;
       function load() {
@@ -304,13 +309,8 @@
         var js = document.createElement('script');
         js.src = '{{ "/pagefind/pagefind-ui.js" | relative_url }}';
         js.onload = function () {
-          // The placeholder goes after the constructor returns, not before it.
-          // Removing it first meant a PagefindUI that threw for any reason left
-          // the visitor with an empty padded div and no field at all — the one
-          // outcome worse than a field that has not loaded yet.
-          var pending = seed.value;
-          var ui = new window.PagefindUI({
-            element: '#docs-search',
+          new window.PagefindUI({
+            element: '#docs-search-panel',
             bundlePath: '{{ "/pagefind/" | relative_url }}',
             // The page-level excerpt does not reliably contain the match — for
             // "acceptance.duration" it returned prose about a daemon that
@@ -319,26 +319,66 @@
             // whole point of searching a reference.
             showSubResults: true,
             showImages: false,
-            excerptLength: 20,
+            // Words, not characters. It was 20 while the results lived in a
+            // 260px sidebar, where every excerpt still arrived as a fragment;
+            // the overlay is 680px wide, so they can be sentences.
+            excerptLength: 30,
             pageSize: 5,
             // Result links carry ?highlight=<term>, which the block below acts
             // on. Landing on the right section with the term marked is the
             // difference between an answer and a page to read again.
             highlightParam: 'highlight'
           });
-          seed.remove();
-          if (pending) ui.triggerSearch(pending);
-          var real = host.querySelector('input');
-          if (real) real.focus();
+          focusField();
         };
         js.onerror = function () {
-          seed.disabled = true;
-          seed.placeholder = 'Search unavailable';
+          panel.textContent = 'Search is unavailable — the index did not load.';
+          panel.className += ' docs-search-failed';
         };
         document.body.appendChild(js);
       }
 
-      seed.addEventListener('focus', load, { once: true });
+      // PagefindUI renders its own input, so there is nothing to focus until it
+      // has mounted; open() calls this too, for every open after the first.
+      function focusField() {
+        var field = panel.querySelector('input');
+        if (field) field.focus();
+      }
+
+      function open() {
+        if (!dialog.open) dialog.showModal();
+        load();
+        focusField();
+      }
+
+      trigger.addEventListener('click', open);
+
+      document.addEventListener('keydown', function (e) {
+        if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+          e.preventDefault();
+          open();
+        }
+      });
+
+      // A click on the backdrop reports the dialog itself as the target; a click
+      // on anything inside reports that child.
+      dialog.addEventListener('click', function (e) {
+        if (e.target === dialog) dialog.close();
+      });
+
+      // Nothing here returns focus on close, deliberately: a <dialog> restores it
+      // to whatever had it when showModal() ran, which is the right answer in the
+      // case that matters. A reader who tabbed to a link deep in the page and
+      // then pressed the shortcut lands back on that link; forcing focus to the
+      // trigger instead would move them to the top of the sidebar and lose the
+      // place they were keeping. Measured either way — the platform's answer is
+      // better than the one this file had for a few minutes.
+
+      // Following a result has to close the overlay, or the reader arrives at
+      // the section they asked for with the search still covering it.
+      panel.addEventListener('click', function (e) {
+        if (e.target.closest('a')) dialog.close();
+      });
     })();
 
     // The other half of highlightParam, and the only reason a docs page loads
@@ -359,7 +399,21 @@
       hl.type = 'module';
       hl.src = '{{ "/pagefind/pagefind-highlight.js" | relative_url }}';
       hl.onload = function () {
-        new window.PagefindHighlight({ highlightParam: 'highlight' });
+        new window.PagefindHighlight({
+          highlightParam: 'highlight',
+          // What the index actually covers, which is not the same string as
+          // --root-selector: Pagefind excludes <nav> and <footer> by default, so
+          // indexing main.content indexes this article. mark.js has no such
+          // default, so naming main.content here marked the on-page contents
+          // list as well — and left at its own default it marked the whole
+          // document: every "a" in the sidebar's page list, and the logo read
+          // "e a syw a ll".
+          markContext: 'article.content-body',
+          // Its own stylesheet is one rule — a yellow background. Ours is in
+          // docs.css, where it can use the theme's tokens and match the marks
+          // in the search panel.
+          addStyles: false
+        });
       };
       document.body.appendChild(hl);
     })();

@@ -118,6 +118,14 @@ It is **not** a committed build output, unlike `web/static/style.css`,
 not in the repository, so there is nothing to diff a commit against; the assertion
 below is its only protection.
 
+A fourth step checks that the twelve Pagefind class names `web/src/docs.css`
+overrides still exist in the shipped `pagefind-ui.css`. The overlay's height,
+scroll and excerpt typography cannot be reached through Pagefind's custom
+properties, so they are styled by class name — the same trade Astro Starlight
+makes with the same engine. A rename would ship the search in Pagefind's own
+defaults with every Go guard still green, because those read our stylesheet and
+not theirs.
+
 Three flags, each preventing something that was actually observed:
 
 | Flag | Without it |

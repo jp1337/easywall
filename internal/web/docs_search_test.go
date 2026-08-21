@@ -39,8 +39,16 @@ func TestTheDocsSidebarRendersTheSearchContainer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the search include: %v", err)
 	}
-	if !strings.Contains(string(raw), `id="docs-search"`) {
-		t.Error(`docs/_includes/search.html has no id="docs-search" — PagefindUI mounts by that id`)
+	for _, want := range []struct{ needle, why string }{
+		{`id="docs-search"`, "the wrapper the stylesheet hides without JavaScript is gone"},
+		{`id="docs-search-open"`, "there is no trigger, so nothing can open the overlay"},
+		{`<dialog`, "the results have nowhere to go but the 260px sidebar, which is where " +
+			"they pushed the navigation off the screen"},
+		{`id="docs-search-panel"`, "PagefindUI mounts by that id"},
+	} {
+		if !strings.Contains(string(raw), want.needle) {
+			t.Errorf("docs/_includes/search.html has no %q — %s", want.needle, want.why)
+		}
 	}
 }
 
@@ -113,8 +121,19 @@ func TestTheDocsLayoutMountsPagefind(t *testing.T) {
 			"nothing fetches the search bundle, so the placeholder input never becomes a search field"},
 		{"new window.PagefindUI(",
 			"the bundle is fetched and never mounted"},
-		{"element: '#docs-search'",
-			"PagefindUI is not pointed at the container the sidebar renders, so it mounts nowhere"},
+		{"element: '#docs-search-panel'",
+			"PagefindUI is not pointed at the panel inside the dialog, so it mounts nowhere"},
+		{".showModal()",
+			"the overlay is opened with show() or by hand, which gives up the focus trap, " +
+				"the Esc key and the inert background — the four things that made a dialog " +
+				"cheaper than a results list in the sidebar"},
+		{"markContext: 'article.content-body'",
+			"the highlight script is left to mark the whole document: it marked every `a` in " +
+				"the sidebar's page list, and the logo read \"e a syw a ll\""},
+		{"addStyles: false",
+			"the highlight script injects its own stylesheet, whose one rule is a yellow " +
+				"background — the site's own marks are the accent tint, and yellow is what " +
+				"--state-warn means here"},
 	} {
 		if !strings.Contains(code, want.needle) {
 			t.Errorf("docs/_layouts/default.html has no %q — %s", want.needle, want.why)
