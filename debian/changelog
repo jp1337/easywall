@@ -1,3 +1,34 @@
+easywall (2.9.0) unstable; urgency=medium
+
+  * Feat: the interface speaks French. locales/fr.json ships the whole
+    interface — 463 strings — marked as unreviewed, because nobody who speaks
+    French has read it yet; the language switcher says so beside the endonym,
+    and so does the coverage report. That state had to exist before a
+    contributed translation could
+  * Feat: parity is now a rule for en and de alone. Every other language may
+    have gaps: a missing key renders the English string, which go-i18n already
+    did per message ID, and the gap is counted rather than hidden. Coverage
+    never rounds up to 100, and declines to count an empty string or a value
+    byte-identical to the English one, so the number cannot be raised by
+    pasting
+  * Feat: EASYWALL_CORE_* and EASYWALL_WEB_* — twelve variables, and the first
+    environment either binary has ever read. The overlay runs inside
+    LoadConfig, ahead of the Validate() call main already makes, so a malformed
+    value from the environment is rejected exactly as one from the file is. The
+    list stops at deployment: the environment configures where easywall runs,
+    the interface configures what the firewall does
+  * Change: the language switcher is a select with a submit button, not two
+    chips. It still works with JavaScript switched off — an operator who cannot
+    read the interface should not also need JavaScript to fix that
+  * Fix: a malformed locales/status.json refused to start easywall-web. A
+    syntax error in metadata about the documentation is now logged and read as
+    "nothing is reviewed"
+  * Fix: a wrapped tile label on the dashboard pushed its own number 20px below
+    its neighbours. The tiles now take their four rows from the grid above
+    them, at no cost to any language whose labels fit one line
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Fri, 21 Aug 2026 00:00:00 +0000
+
 easywall (2.8.0) unstable; urgency=medium
 
   * Feat: a stolen password alone no longer opens the firewall. RFC 6238 TOTP
