@@ -399,6 +399,100 @@ async function checkSignOutEndsTheSession(page) {
   }
 }
 
+/**
+ * The switcher has to work two ways at once: a real <select> that a running
+ * script submits on change, and a submit button that stays in the markup and
+ * visible for an operator with no JavaScript — the one screen where this
+ * control matters most is the one nothing has run on yet. Neither Go nor a
+ * stylesheet diff can see whether the button actually disappears once script
+ * has run, or actually works once it hasn't; only a browser can.
+ */
+/**
+ * Picks a language from the select and waits for the POST it is supposed to
+ * trigger. Returns whether that POST actually happened.
+ *
+ * The wait is armed *before* the option is picked, and it waits for the request
+ * rather than for a load state. `selectOption` then `waitForLoadState` looks
+ * equivalent and is not: the page is already loaded when the second call runs,
+ * so if the change handler has not yet started its navigation, the wait
+ * resolves against the load that already happened and the cookie is read
+ * before the POST has been made. That passes on a fast machine and fails on a
+ * CI runner, which is exactly what it did — a green check locally and one red
+ * job with "cookie is unset".
+ */
+async function switchTo(page, code) {
+  const posted = page
+    .waitForRequest(r => r.url().endsWith('/language') && r.method() === 'POST', { timeout: 5000 })
+    .then(() => true, () => false);
+  await page.locator('#lang-select').selectOption({ value: code });
+  const ok = await posted;
+  if (ok) await page.waitForLoadState('load');
+  return ok;
+}
+
+async function checkLanguageSwitch(ctx) {
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
+
+  const select = page.locator('#lang-select');
+  if (await select.count() === 0) {
+    fail('language switch', 'no #lang-select in the sidebar — the chip buttons were not replaced');
+  }
+  if (await page.locator('.lang-option').count() > 0) {
+    fail('language switch', '.lang-option chip markup is still rendered alongside the select');
+  }
+  const submit = page.locator('.lang-submit');
+  if (await submit.count() === 0) {
+    fail('language switch', 'no .lang-submit in the markup — required for the no-JS path');
+  } else if (await submit.isVisible()) {
+    fail('language switch', '.lang-submit is visible with JavaScript running; data-js should have hidden it');
+  }
+
+  if (await switchTo(page, 'de')) {
+    const lang = (await ctx.cookies()).find(c => c.name === 'easywall_lang');
+    if (lang?.value !== 'de') {
+      fail('language switch', `the POST went through but the cookie is ${lang?.value ?? 'unset'}`);
+    } else {
+      console.log('  ok   the select submits itself on change with JavaScript running');
+    }
+  } else {
+    fail('language switch', 'selecting "de" never posted /language — the change handler ' +
+      'did not fire, or the value was already "de" so there was no change to react to');
+  }
+  // Leave English behind for whatever runs after this.
+  await switchTo(page, 'en');
+  const session = await ctx.storageState();
+  await page.close();
+
+  // Without JavaScript the select cannot submit itself, so the button in the
+  // markup is the only way to change the language — and it must be visible.
+  const noJsCtx = await ctx.browser().newContext({
+    ignoreHTTPSErrors: true,
+    javaScriptEnabled: false,
+    storageState: session,
+  });
+  const noJsPage = await noJsCtx.newPage();
+  await noJsPage.goto(`${BASE}/dashboard`);
+  const noJsSubmit = noJsPage.locator('.lang-submit');
+  if (await noJsSubmit.count() === 0 || !(await noJsSubmit.isVisible())) {
+    fail('language switch (no JS)', '.lang-submit is not visible without JavaScript — ' +
+      'an operator who cannot read the interface would have no way to change it');
+  } else {
+    await noJsPage.locator('#lang-select').selectOption({ value: 'de' });
+    // click() auto-waits for the navigation a submit button starts, so this one
+    // was never racy the way the change handler above was.
+    await noJsSubmit.click();
+    await noJsPage.waitForLoadState('load');
+    const lang = (await noJsCtx.cookies()).find(c => c.name === 'easywall_lang');
+    if (lang?.value !== 'de') {
+      fail('language switch (no JS)', 'the submit button did not change the language cookie');
+    } else {
+      console.log('  ok   the submit button works with JavaScript disabled');
+    }
+  }
+  await noJsCtx.close();
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
@@ -445,6 +539,10 @@ try {
   // cost. Every context below starts already authenticated.
   const session = await setup.storageState();
   await setup.close();
+
+  const langCtx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  await checkLanguageSwitch(langCtx);
+  await langCtx.close();
 
   for (const theme of ['dark', 'light']) {
     for (const width of WIDTHS) {

@@ -1,3 +1,18 @@
+{{/* Shared by every page's <head>, not just this one's: base.html, login.html,
+     login_verify.html and firstrun.html each render their own <head>, and this
+     script used to be a fourth hand-copied instance in each of the three auth
+     pages. Only this file's copy ever gained the data-js line, so on every page
+     but this one the language switch's no-JS submit button never hid itself —
+     the exact "looks general, checks one instance" shape this file's own guard
+     tests exist to catch elsewhere. Setting data-theme here, before first
+     paint, is what avoids a flash of the wrong theme; data-js right after is
+     read by app.css to hide .lang-submit, and deliberately not set from app.js,
+     which loads at the end of <body> and would let the button render, be seen,
+     and then vanish. */}}
+{{define "themeScript"}}<script nonce="{{.Nonce}}">
+    (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);document.documentElement.setAttribute('data-js','on');})();
+  </script>{{end}}
+
 {{define "head"}}
 <!DOCTYPE html>
 <html lang="{{.Lang}}">
@@ -14,9 +29,7 @@
   <meta property="og:description" content="{{T "og_description"}}">
   <meta property="og:image" content="/static/og-image.png">
   <meta property="og:type" content="website">
-  <script nonce="{{.Nonce}}">
-    (function(){var t=localStorage.getItem('theme');if(t==='dark'||t==='light')t='easywall-'+t;if(!t)t=window.matchMedia('(prefers-color-scheme: dark)').matches?'easywall-dark':'easywall-light';document.documentElement.setAttribute('data-theme',t);})();
-  </script>
+  {{template "themeScript" .}}
   {{/* app.js builds some text itself — toast bodies, the polled apply state, the
        fields on a row added in the browser — so those translations have to reach
        it. html/template escapes the map into a JS value; the nonce is what makes
@@ -39,23 +52,29 @@
 <div class="layout">
 {{end}}
 
-{{/* The language switch. One submit button per installed locale, drawn only when
-     there is more than one — a lone "English" button would be a control that
-     cannot do anything. It is a POST because it writes a cookie, and a plain form
-     because an operator who cannot read the interface should not also need
-     JavaScript to fix that. */}}
+{{/* The language switch. A select, not one button per locale: two chips fit the
+     240px sidebar, but the endonyms of the languages on the roadmap run to
+     roughly 720px, which wraps into a four- or five-row block. Drawn only when
+     there is more than one locale — a lone option would be a control that
+     cannot do anything. It is a POST because it writes a cookie, and the submit
+     button below is real markup, not one a script adds, because an operator who
+     cannot read the interface should not also need JavaScript to fix that. The
+     shared themeScript block above sets data-js, which app.css uses to hide the
+     button — see themeScript's own comment for why that flag is not set from
+     app.js instead — and app.js submits the form on change so a working script
+     never shows the button at all. */}}
 {{define "langswitch"}}
 {{if .Langs}}
 <form method="POST" action="/language" class="lang-switch">
   <input type="hidden" name="return" value="{{.Path}}">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3M3.6 9h16.8M3.6 15h16.8"/></svg>
-  <span class="lang-options" role="group" aria-label="{{T "nav_language"}}">
+  <label class="sr-only" for="lang-select">{{T "nav_language"}}</label>
+  <select id="lang-select" name="lang" class="lang-select">
     {{range .Langs}}
-    <button type="submit" name="lang" value="{{.Code}}"
-            class="lang-option{{if .Current}} is-current{{end}}"
-            {{if .Current}}aria-current="true"{{end}}>{{.Label}}</button>
+    <option value="{{.Code}}"{{if .Current}} selected{{end}}>{{.Label}}{{if not .Reviewed}} — {{T "lang_unreviewed"}}{{end}}</option>
     {{end}}
-  </span>
+  </select>
+  <button type="submit" class="lang-submit">{{T "lang_apply"}}</button>
 </form>
 {{end}}
 {{end}}

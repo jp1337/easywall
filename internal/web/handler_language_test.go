@@ -159,6 +159,54 @@ func TestLanguageOptions_FallsBackToTheCode(t *testing.T) {
 	}
 }
 
+// A draft is offered, and says it is a draft. Asserted on the Reviewed field
+// rather than on rendered text: the marker's wording is itself a translation
+// and will change, but what it reports must not.
+func TestLanguageOptions_MarkAnUnreviewedLanguage(t *testing.T) {
+	s, dir := bundleWith(t, map[string]string{
+		"en.json":     `[{"id":"language_name","translation":"English"}]`,
+		"fr.json":     `[{"id":"language_name","translation":"Français"}]`,
+		"status.json": `{"en":{"reviewed":true},"fr":{"reviewed":false}}`,
+	})
+	status, err := LoadLocaleStatus(dir)
+	if err != nil {
+		t.Fatalf("LoadLocaleStatus: %v", err)
+	}
+	s.localeStatus = status
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	got := map[string]bool{}
+	for _, o := range s.languageOptions(req, "en") {
+		got[o.Code] = o.Reviewed
+	}
+	if !got["en"] {
+		t.Error("en came back unreviewed")
+	}
+	if got["fr"] {
+		t.Error("fr came back reviewed; status.json says it is not")
+	}
+}
+
+// An absent status file must not turn every language into a draft-free claim.
+// bundleWith writes no status.json, which is exactly the case every other test
+// in this file hits.
+func TestLanguageOptions_NoStatusFileMeansUnreviewed(t *testing.T) {
+	s, dir := bundleWith(t, map[string]string{
+		"en.json": `[{"id":"language_name","translation":"English"}]`,
+	})
+	status, err := LoadLocaleStatus(dir)
+	if err != nil {
+		t.Fatalf("a missing status.json must not be an error: %v", err)
+	}
+	s.localeStatus = status
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	for _, o := range s.languageOptions(req, "en") {
+		if o.Reviewed {
+			t.Errorf("%s reported reviewed with no status file", o.Code)
+		}
+	}
+}
+
 // The cookie describes the person; Accept-Language describes the machine.
 func TestResolveLang_CookieBeatsHeader(t *testing.T) {
 	s, _ := bundleWith(t, map[string]string{

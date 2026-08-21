@@ -489,6 +489,8 @@
 
   {"id": "nav_language", "translation": "Language"},
   {"id": "language_name", "translation": "English"},
+  {"id": "lang_apply", "translation": "Apply"},
+  {"id": "lang_unreviewed", "translation": "unreviewed"},
 
   {"id": "validate_line", "translation": "Line {{.Line}}"},
   {"id": "validate_invalid_entries", "translation": "Invalid entries:"},

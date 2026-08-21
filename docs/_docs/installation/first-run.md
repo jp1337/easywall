@@ -91,7 +91,7 @@ goes straight to the sign-in page, the same as leaving the box unticked.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/login" ext="png"
-     alt="The easywall sign-in page: a card with username and password fields, a Sign in button, and a language switch between German and English in the footer." %}
+     alt="The easywall sign-in page: a card with username and password fields, a Sign in button, and a language menu in the footer." %}
   <figcaption>The language switch sits on the sign-in page too — an operator who cannot read the interface can still get in.</figcaption>
 </figure>
 

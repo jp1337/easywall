@@ -83,7 +83,7 @@ No cloud, no account, no telemetry you did not agree to.
 * Port forwarding — NAT redirects with protocol selection
 * Custom rules — raw nftables, syntax-checked before it is ever applied
 * Docker coexistence — owns `table inet easywall`, touches nothing else
-* English & German, light & dark
+* English, Deutsch and Français, light & dark
 
 [What it can do →]({{ '/docs/' | relative_url }})
 
