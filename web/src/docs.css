@@ -274,6 +274,26 @@ html, body {
   #docs-search { display: none; }
   [data-js] #docs-search { display: block; padding: 0 14px 10px; }
 
+  /* Pagefind's own theming hooks, pointed at the docs tokens so the search
+     follows the theme toggle with no rules of our own. */
+  #docs-search {
+    --pagefind-ui-scale: 0.8;
+    --pagefind-ui-primary: var(--accent);
+    --pagefind-ui-text: var(--text);
+    --pagefind-ui-background: var(--surface);
+    --pagefind-ui-border: var(--border);
+    --pagefind-ui-tag: var(--surface-2);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-border-radius: 8px;
+    --pagefind-ui-font: var(--font-sans);
+    /* overflow-wrap is inherited, so setting it once here reaches every
+       excerpt Pagefind renders inside #docs-search without naming one of its
+       class names. Without it, a long unbroken token — an environment
+       variable, a config key — is clipped at the fixed 260px sidebar edge
+       instead of breaking, and the matched term itself can end up cut mid-word. */
+    overflow-wrap: anywhere;
+  }
+
   .docs-search-input {
     width: 100%;
     padding: 7px 10px;
