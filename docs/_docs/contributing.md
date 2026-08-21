@@ -48,7 +48,7 @@ are expected and explained inside the file.
 | **Sentence case, Inter** | The tracked uppercase mono `label` role survives only in the sidebar dividers |
 | **Tables reflow** | Below 720px rows become cards, which works only if every `<td>` has a `data-label` |
 | **One heading per thing** | A page title plus a card titled the same is the duplicate-heading bug |
-| **Every string translated** | {% raw %}`{{T "key"}}`{% endraw %} into *both* `locales/en.json` and `locales/de.json`, attributes included |
+| **Every string translated** | {% raw %}`{{T "key"}}`{% endraw %} into *both* `locales/en.json` and `locales/de.json`, attributes included. Those two only — a further language may follow later and renders English until it does |
 | **Screenshots follow the interface** | A page you changed gets its `docs/assets/img/screens/*` retaken, both themes, in the same pull request |
 
 **Render what you changed.** Every defect worth catching in this interface was
@@ -59,10 +59,24 @@ class that no longer existed, a whole page on a white background.
 
 1. Copy `locales/en.json` to `locales/<lang>.json`
 2. Translate the values; leave every `id` alone
-3. Translate `language_name` into that language's **own** name — `Deutsch`, not `German`
-4. PR titled `feat(i18n): add <language> translation`
+3. Translate `language_name` into that language's **own** name — `Deutsch`, not `German`;
+   `Français`, not `French`
+4. Add `"<lang>": { "reviewed": false }` to `locales/status.json`
+5. PR titled `feat(i18n): add <language> translation`
 
-Nothing else is needed — the switch is built from whatever `locales/*.json` contains.
+Nothing else is needed to make it appear — the switch is built from whatever
+`locales/*.json` contains.
+
+**A partial translation is welcome.** Only `en` and `de` are held at exact parity.
+Anything you leave out of another language renders the English string, and the gap is
+reported rather than hidden — `go test ./internal/web/ -run TestLocaleCoverage` prints
+the percentage. A value byte-identical to the English one does not count as translated,
+so the number cannot be raised by pasting.
+
+`reviewed: false` says nobody who speaks the language has read it yet, and the switch
+says so too. `Français` shipped that way. Flipping the flag once you have read it end to
+end is its own pull request, and worth as much as the translation.
+
 Three inline forms have to survive into your language:
 
 | In the message | Renders as |

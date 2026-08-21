@@ -1079,7 +1079,7 @@ first place rather than accepted as a cost:
 
 Each locale supplies its own name through a `language_name` key, so an `<option>` always
 reads as its language's endonym whatever the interface is currently set to — `Deutsch`, not
-`German` — and there is still no "Language:" label to precede it: the field would only be
+`German`; `Français`, not `French` — and there is still no "Language:" label to precede it: the field would only be
 useful to someone who can already read the interface.
 
 Drawn only when more than one locale is installed. A single option that cannot change
