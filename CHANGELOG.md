@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.9.0] — 2026-08-21
 
 ### Added
 
@@ -108,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   label is. Reserving a second label line would have been the other fix and
   charges every language 18px of empty tile whether anything wraps or not;
   this charges none, because a row is as tall as its tallest label
+
+[2.9.0]: https://github.com/jp1337/easywall/compare/v2.8.0...v2.9.0
 
 ## [2.8.0] — 2026-08-20
 
