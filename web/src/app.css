@@ -1562,9 +1562,19 @@ body {
   }
 
   /* ── Stat tiles ────────────────────────────────────────────────────────── */
+  /* The four rows come from the parent grid, so label, value, note and CTA line
+     up across every tile in a row instead of each tile stacking independently.
+     Without it a label that wraps pushes only its own number down: French says
+     "Règles personnalisées" where English says "Custom rules", and two numbers
+     of six sat 20px below the other four. Reserving a second label line would
+     have cost every language 18px of empty tile; this costs none — the row is
+     as tall as its tallest label, which in English and German is one line.
+     grid-row: span 4 is the row count, so a tile that gains or loses a child
+     needs it changed to match. */
   .stat-tile {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-row: span 4;
+    grid-template-rows: subgrid;
     gap: 3px;
     padding: 13px 15px;
     background: var(--color-surface);

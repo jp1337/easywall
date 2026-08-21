@@ -54,6 +54,7 @@ The background is in [dependencies](dependencies.md).
 | `TestClientStringsCoverWhatAppJSAsksFor` | text `app.js` builds has its key in `clientStringKeys` |
 | `TestClientStringsCarryNoMarkupAppJSCannotRender` | a string inlined for `app.js` has no `` ` `` or `*` — it escapes them, so the markers would be shown literally |
 | `TestTemplateClassesExistInStylesheet` | a template does not name a class Tailwind no longer generates |
+| `TestStatTileRowsComeFromTheGrid`, `TestStatTileSpanMatchesItsChildren` | the dashboard tiles take their four rows from the grid above them, and the row count in the stylesheet equals the children in the markup. French was what exposed the need: "Règles personnalisées" wraps where "Custom rules" does not, and two numbers of six sat 20px below the other four. The fix costs English and German nothing, which is why its absence is invisible to everyone who would notice |
 | `TestDocsStylesheetKeepsLoadBearingRules`, `…CodeBlockHasASingleFrame`, `…InlineCodeIsNotThemeScoped` | the documentation site's stylesheet after a Tailwind rebuild |
 | `TestVersionedStaticAssetsCarryTheReleaseInTheirURL`, `TestStaticFilesSayHowLongTheyMayBeKept` | an upgrade actually changes the stylesheet URL |
 
