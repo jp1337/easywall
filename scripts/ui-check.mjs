@@ -362,6 +362,35 @@ async function checkForwardingPortIsNotReparsed(page) {
 }
 
 /**
+ * All four cells of a forwarding row share one top edge.
+ *
+ * `display: flex` on a <td> stops the element being a table cell: the browser
+ * wraps it in an anonymous cell, its box leaves the row's height, and the row
+ * separator under that column sits ~10px below the others. Nothing in the Go
+ * suite or a stylesheet diff can see it — only a laid-out page can — and it is
+ * invisible below the 720px reflow breakpoint, where every td is a block.
+ */
+async function checkForwardingRowEdgesLineUp(page) {
+  await page.goto(`${BASE}/forwarding`, { waitUntil: 'networkidle' });
+  const tops = await page.evaluate(() => {
+    const row = document.querySelector('#fwd-tbody tr');
+    if (!row) return null;
+    return [...row.querySelectorAll('td')].map(td => td.getBoundingClientRect().top);
+  });
+  if (!tops) {
+    fail('forwarding row', 'no rows in #fwd-tbody — the demo seed changed');
+    return;
+  }
+  const spread = Math.max(...tops) - Math.min(...tops);
+  if (spread > 1) {
+    fail('forwarding row', `the four cells start ${spread.toFixed(1)}px apart; ` +
+      'a display:flex <td> is not a table cell and leaves the row height');
+  } else {
+    console.log('  ok   forwarding row cells share one top edge');
+  }
+}
+
+/**
  * Signing out has to end the session by pressing the control the operator sees.
  *
  * The Go suite proves the *route* is right: GET /logout answers 405, a
@@ -565,6 +594,7 @@ try {
     storageState: session,
   });
   const p = await ctx.newPage();
+  await checkForwardingRowEdgesLineUp(p);
   await checkForwardingPortIsNotReparsed(p);
   await checkEnrolmentFlow(p);
   await checkVerifyPage(browser);

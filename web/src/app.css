@@ -1409,10 +1409,17 @@ body {
 
   /* Forwarding is a relationship, not three independent numbers. The arrow
      makes "8080 → 80" readable as one fact instead of two columns the operator
-     has to mentally join. */
-  /* The cell has to be a flex row: .input-cell is width:100%, so an inline
-     arrow beside it wrapped onto its own line above the number. */
-  .cell-flow {
+     has to mentally join.
+
+     The flex row is a <div> inside the cell and never the cell itself.
+     `display: flex` on a <td> stops the element being a table cell — the browser
+     wraps it in an anonymous cell — so its box no longer shares the row's height
+     or its border, and at 1600px in both themes the row separator under this
+     column sat ~10px below the one under the others. Below the 720px reflow
+     breakpoint every td is display:block anyway, which is why it survived a
+     release. The constraint the rule exists for is unchanged: .input-cell is
+     width:100%, so an inline arrow wraps onto its own line above the number. */
+  .flow {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2635,6 +2642,11 @@ body {
     min-width: 0;
     width: auto;
   }
+
+  /* The flex row moved one element down, so the rule that gives the value the
+     remaining width has to follow it. */
+  .table-reflow td > .flow { flex: 1; min-width: 0; }
+  .table-reflow .flow > .input-cell { flex: 1; min-width: 0; width: auto; }
 
   /* The delete control is permanently visible here: there is no hover on a
      touch screen to reveal it. */
