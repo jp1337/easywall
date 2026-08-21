@@ -82,13 +82,19 @@ type Server struct {
 	pending sessions.Store
 	// replay remembers the last accepted TOTP step, so a code cannot be used
 	// twice inside its own thirty-second validity window.
-	replay  *totpReplay
-	bundle  *i18n.Bundle
-	tmpl    *template.Template
-	router  chi.Router
-	httpSrv *http.Server
-	version *shared.Checker
-	certs   *certManager
+	replay *totpReplay
+	bundle *i18n.Bundle
+	// localeStatus is loaded once here, beside the bundle, rather than per
+	// request: whether a language has been reviewed cannot change without a
+	// restart, so reading status.json on every render would be waste. A code
+	// absent from it — including every code when the file itself is absent —
+	// counts as not reviewed.
+	localeStatus map[string]LocaleStatus
+	tmpl         *template.Template
+	router       chi.Router
+	httpSrv      *http.Server
+	version      *shared.Checker
+	certs        *certManager
 
 	// telemetry is nil in demo mode. The public demo is reset every few hours,
 	// which would give it a fresh identifier each time and manufacture several
@@ -130,15 +136,33 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	bundle := NewBundle(cfg.LocalesDir())
 
+	// A missing status.json yields an empty map rather than an error, and an
+	// absent entry reads as not reviewed — see LoadLocaleStatus. A malformed
+	// one is handled the same way NewBundle treats a broken locale file: it
+	// names nothing load-bearing — no translated text, no routing, nothing
+	// that touches nftables or authentication, only whether a human ticked a
+	// review box — so it is logged and survived rather than refused. This is
+	// the interface an operator reaches for when locked out of everything
+	// else; a typo in review metadata must not add one more way to be locked
+	// out. Every language then reports unreviewed, which is the same
+	// understating direction the design already takes for an absent entry.
+	localeStatus, err := LoadLocaleStatus(cfg.LocalesDir())
+	if err != nil {
+		slog.Warn("locale status not loaded; every language will show as unreviewed",
+			"dir", cfg.LocalesDir(), "error", err)
+		localeStatus = map[string]LocaleStatus{}
+	}
+
 	s := &Server{
-		cfg:     cfg,
-		client:  client,
-		store:   store,
-		pending: pending,
-		replay:  newTOTPReplay(cfg.TOTPReplayPath()),
-		bundle:  bundle,
-		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:   certs,
+		cfg:          cfg,
+		client:       client,
+		store:        store,
+		pending:      pending,
+		replay:       newTOTPReplay(cfg.TOTPReplayPath()),
+		bundle:       bundle,
+		localeStatus: localeStatus,
+		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:        certs,
 	}
 
 	if !cfg.DemoMode {

@@ -425,18 +425,22 @@ components:
     rounded: "{rounded.md}"
     height: 32px
     padding: 0 10px
-  lang-option:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-muted}"
+  lang-select:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.meta}"
     rounded: "{rounded.sm}"
-    padding: 3px 8px
-  lang-option-current:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.accent-on-wash}"
+    height: "{control-height-sm}"
+    padding: 0 6px
+  lang-submit:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.control-edge}"
     typography: "{typography.meta}"
     rounded: "{rounded.sm}"
-    padding: 3px 8px
+    height: "{control-height-sm}"
+    padding: 0 8px
   toggle:
     backgroundColor: "{colors.control-edge}"
     textColor: "{colors.ink}"
@@ -1051,22 +1055,34 @@ navigation. The language switch also appears on the login and first-run cards: a
 who cannot read the interface cannot sign in to change it, and the setting is useless
 behind the door it locks.
 
-The language switch is one small button per installed locale, not a `select`. Three reasons,
-in order of weight:
+The language switch used to be one small button per installed locale rather than a
+`select`, on the reasoning that a `select` submitting on change needs a script, and the one
+screen where this control matters most is the one you have not signed in to yet. That held
+for two locales. It stopped holding once a third and fourth were roadmapped: the endonyms of
+the languages that follow French run to roughly 720px, which wraps the button row into a
+four- or five-row block at the foot of a 240px sidebar — in order to let somebody who cannot
+read the interface change its language.
 
-1. It works without JavaScript. A `select` that submits on change needs a script, and the
-   one screen where this control matters most is the one you have not signed in to yet.
-2. The current language is visible without opening anything, which is what makes it
-   recognisable when you cannot read the label next to it.
-3. There is nothing to label. `Deutsch` and `English` name themselves; a "Language:" prefix
-   would be a word the person looking for the switch cannot read.
+It is now a `select` (`select`, above), built so the JavaScript reason never applied in the
+first place rather than accepted as a cost:
 
-Each locale supplies its own name through a `language_name` key, so a language always
-appears under its endonym whatever the interface is currently set to. The active one takes
-`accent-wash` with `accent-on-wash` text — it is *what is active*, one of the accent's three
-jobs — and offers no hover, because it is state rather than an action.
+1. **The submit button is real markup**, drawn beside the select and hidden only once
+   JavaScript has announced itself. It is set via `data-js` in the nonced head script — the
+   same one that sets `data-theme`, and for the same reason: `app.js` loads at the end of
+   `<body>`, so a flag set there would let the button render, be seen, and then vanish. With
+   a script running, the select posts itself on `change` and the button is never seen; without
+   one, the button is the only way to submit and it was never absent.
+2. **The current language is still visible without opening anything** — the select shows the
+   chosen `<option>` closed, exactly as the chip showed the active button.
+3. **A `select` also gives 390px viewports the native OS picker**, which is the best mobile
+   behaviour available and costs nothing extra.
 
-Drawn only when more than one locale is installed. A single button that cannot change
+Each locale supplies its own name through a `language_name` key, so an `<option>` always
+reads as its language's endonym whatever the interface is currently set to — `Deutsch`, not
+`German`; `Français`, not `French` — and there is still no "Language:" label to precede it: the field would only be
+useful to someone who can already read the interface.
+
+Drawn only when more than one locale is installed. A single option that cannot change
 anything is a control that lies about having a choice.
 
 ### Links and badges

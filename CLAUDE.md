@@ -18,7 +18,7 @@ Every apply reverts itself after 120 seconds unless it is confirmed.
 | `internal/web/` | HTTP handlers, sessions, i18n, the demo mock |
 | `internal/shared/` | the socket protocol, config structs, validation — and most of the repository's guard tests |
 | `web/templates/`, `web/src/`, `web/static/` | Go templates, the Tailwind source, the **committed** build output |
-| `locales/*.json` | every visible string, English and German at parity |
+| `locales/*.json` | every visible string. `en` and `de` stay at exact parity; any other language may have gaps — a missing key renders `en` and is counted by the coverage report, never hidden |
 | `docs/` | the published site — easywall-project.org. **Only this directory is published** |
 | `docs-tech/` | this documentation. For whoever maintains the repository; never published |
 | `debian/`, `systemd/`, `docker/` | packaging |

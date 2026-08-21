@@ -81,13 +81,36 @@ Breaking changes: add `BREAKING CHANGE:` in the footer.
 1. Copy `locales/en.json` to `locales/<lang>.json`
 2. Translate all values (keep the `id` fields unchanged)
 3. Translate `language_name` into that language's **own** name — `Deutsch`, not
-   `German`. It is what the switch in the sidebar shows, whatever language the
-   interface is currently in.
-4. Open a PR with the subject: `feat(i18n): add <language> translation`
+   `German`; `Français`, not `French`. It is what the switch in the sidebar
+   shows, whatever language the interface is currently in.
+4. Add an entry to `locales/status.json`: `"<lang>": { "reviewed": false }`
+5. Open a PR with the subject: `feat(i18n): add <language> translation`
 
-Nothing else is needed: the switch is built from whatever `locales/*.json`
-contains. `TestLocaleFilesAreAtParity` and `TestTemplatesOnlyUseTranslatedKeys`
-will tell you about anything you missed.
+Nothing else is needed to make it appear: the switch is built from whatever
+`locales/*.json` contains.
+
+**A partial translation is welcome.** Only `en` and `de` are held at exact
+parity — `StrictLangs` in `internal/web/locales.go`. Every other language may
+have gaps: a key you leave out renders the English string, and the gap is
+*reported* rather than hidden, because a gap nobody can see is
+indistinguishable from no gap. `go test ./internal/web/ -run TestLocaleCoverage`
+prints the percentage per language. Two things it deliberately does not count:
+an empty string, and a value byte-identical to the English one — otherwise the
+number could be raised by pasting.
+
+**`reviewed: false` is not an insult.** It is the difference between "somebody
+wrote this" and "somebody who speaks it has read it", and the switch and the
+coverage report both say which. `fr.json` shipped this way. Send a second PR
+flipping the flag once you have read it end to end — that is a review, and it is
+worth as much as the translation.
+
+**Read [`docs-tech/i18n-review.md`](docs-tech/i18n-review.md) first.** It
+collects the thirty-odd sentences where a wrong word changes what the firewall
+promises — which list is consulted first, what the acceptance window undertakes,
+what panic mode does not end. The rule for those: you may rephrase freely, but
+you may not change what the sentence *claims*. A window that "keeps" a change in
+one language and "undoes" it in another describes a different product depending
+on which language you read.
 
 Three forms appear inside translations, and all three must survive into your
 language:
@@ -127,7 +150,7 @@ names `bg-surface`, never a colour.
 | **Sentence case, in Inter** | The tracked uppercase mono `label` role survives only in the sidebar's two nav dividers |
 | **Every table reflows** | Below 720px rows become labelled cards, which works only if every `<td>` carries a `data-label`. Rows built in `app.js` read the label out of the `<thead>` so it stays translated |
 | **One heading per thing** | A page title followed by a card titled the same is the duplicate-heading bug |
-| **Every visible string goes through `T`** | Into *both* `locales/en.json` and `locales/de.json`, `placeholder`, `aria-label` and `title` included. A sentence with a link or a `code` span stays *one* message and uses `richText`. Text `app.js` builds needs its key in `clientStringKeys` |
+| **Every visible string goes through `T`** | Into *both* `locales/en.json` and `locales/de.json`, `placeholder`, `aria-label` and `title` included — those two only, since they are the pair held at parity; a further language renders English until somebody translates the key. A sentence with a link or a `code` span stays *one* message and uses `richText`. Text `app.js` builds needs its key in `clientStringKeys` |
 | **New component? `DESIGN.md` first** | Then implement it from those tokens |
 
 **Verify by rendering, not by reading the CSS.** Every significant defect in this

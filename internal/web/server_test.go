@@ -108,6 +108,58 @@ func TestNewServer_AlwaysBuildsTheAuditEventDispatcher(t *testing.T) {
 	}
 }
 
+// A malformed status.json is review metadata, not something load-bearing: it
+// names nothing but whether a human ticked a box next to a language. NewBundle
+// never refuses to start over a broken locale file — a bad de.json logs a
+// warning per file and moves on — and status.json carries strictly less than
+// that. This web interface is what an operator reaches for when locked out of
+// everything else, so a cosmetic label bug must not manufacture one more way
+// to be locked out.
+func TestNewServer_MalformedLocaleStatusDoesNotPreventStartup(t *testing.T) {
+	fc := newFakeCore(t)
+	cfg := testConfigForNewServer(t, fc, false)
+
+	// LocalesDir() is a fixed "locales" relative to the working directory, so
+	// this puts a broken status.json exactly where NewServer looks for it.
+	// Two locale files, not one: languageOptions only reports anything with
+	// more than one language installed.
+	wd := t.TempDir()
+	localesDir := filepath.Join(wd, "locales")
+	if err := os.MkdirAll(localesDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localesDir, "en.json"),
+		[]byte(`[{"id":"language_name","translation":"English"}]`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localesDir, "fr.json"),
+		[]byte(`[{"id":"language_name","translation":"Français"}]`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localesDir, "status.json"),
+		[]byte(`{not valid json`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(wd)
+
+	s, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer refused to start over a malformed status.json: %v", err)
+	}
+	defer s.Stop()
+
+	req := httptest.NewRequest("GET", "/dashboard", nil)
+	opts := s.languageOptions(req, "en")
+	if len(opts) != 2 {
+		t.Fatalf("got %d language options, want 2: %+v", len(opts), opts)
+	}
+	for _, o := range opts {
+		if o.Reviewed {
+			t.Errorf("%s reported reviewed after status.json failed to parse", o.Code)
+		}
+	}
+}
+
 func TestNewServer_SSLDirIsFile(t *testing.T) {
 	dir := t.TempDir()
 	// Create a file at the SSL dir path — os.MkdirAll will fail with ENOTDIR

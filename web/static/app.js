@@ -43,6 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
   syncThemeSwitch(getTheme());
 
+  // The submit button stays in the markup for a script-free operator; once
+  // this runs, data-js (set in the head, before first paint) hides it and the
+  // select submits itself on change instead.
+  const langSelect = document.getElementById('lang-select');
+  if (langSelect) langSelect.addEventListener('change', () => langSelect.form.submit());
+
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
   const menuBtn = document.getElementById('menu-btn');

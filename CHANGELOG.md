@@ -43,6 +43,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the two sides cannot quietly drift apart. Documented in full, exclusions
   and all, on `docs/_docs/environment.md`
 
+- **The interface speaks French, and the next language need not come from us.**
+  `locales/fr.json` — 463 strings, the whole interface — ships marked as
+  **unreviewed**, because nobody who speaks French has read it yet: the
+  language switcher says so beside the endonym, and so does the coverage
+  report. That state had to exist before a contributed translation could,
+  since "present, but not checked by a human" is the normal condition of a
+  translation somebody sends in. Parity is now a rule for `en` and `de` alone
+  (`StrictLangs`); every other language may have gaps, and a missing key
+  renders the English string, which go-i18n already did per message ID —
+  `langCandidates` has always ended with the configured default and then `en`.
+  What is new is the accounting, because that fallback is precisely what makes
+  a gap invisible: the page looks finished, which is right for the operator in
+  front of it and wrong for everybody else. `LocaleCoverage` measures every
+  catalogue against English and refuses to round up — 99% while anything is
+  missing, never 100 — and it declines to count two things that would let the
+  number be raised without translating anything: an empty string, and a value
+  byte-identical to the English one. French reports 97%: the thirteen keys
+  counted missing are the ones French spells exactly as English does, which is
+  the direction worth being wrong in. `docs-tech/i18n-review.md` collects the
+  thirty-odd sentences where a wrong word changes what the firewall promises —
+  which list is consulted first, what the acceptance window undertakes, what
+  panic mode does and does not end — under one rule: a translator may rephrase
+  freely, but may not change what the sentence *claims*. An acceptance window
+  that "keeps" a change in one language and "undoes" it in another describes a
+  different product depending on which language you read, and a guard test
+  fails if the page names an id `en.json` no longer has
+
+### Changed
+
+- **The language switcher is a `<select>` with a submit button, not two
+  chips.** Two chip buttons fit two languages in a 240px sidebar and do not
+  fit eleven. It still works with JavaScript switched off, which is not
+  negotiable for this control in particular: an operator who cannot read the
+  interface should not also need JavaScript to fix that. The button is hidden
+  by a `data-js` attribute set in the nonced head script rather than from
+  `app.js`, which loads at the end of `<body>` and would let the button
+  render, be seen, and then vanish
+
+- **`CONTRIBUTING.md`'s "Adding a Language" said what was never true.** It
+  promised that `TestLocaleFilesAreAtParity` and
+  `TestTemplatesOnlyUseTranslatedKeys` "will tell you about anything you
+  missed" — both are scoped to `StrictLangs`, so a contributor working on any
+  language but German would have been told nothing at all. It now describes
+  what is actually enforced, that a partial translation is welcome, and how
+  `status.json` records whether a human has read it. Six documents claimed the
+  interface speaks English and German, the landing page among them; two guards
+  now keep the list in step with `locales/`
+
+### Fixed
+
+- **A malformed `locales/status.json` refused to start `easywall-web`.** A
+  file describing which translations have been reviewed is metadata about the
+  documentation; a syntax error in it stopping the firewall's interface from
+  booting is the wrong failure by a wide margin. It is now logged and treated
+  as "nothing is reviewed", which is the understating direction
+
+- **A wrapped tile label on the dashboard pushed its own number 20px below its
+  neighbours.** Each of the six tiles stacked its own contents, so the row
+  went ragged as soon as one label needed two lines — which no language had
+  needed until "Règles personnalisées" appeared where English says "Custom
+  rules". The tiles now take their four rows from the grid above them, so
+  label, value, note and link line up across the row however long any one
+  label is. Reserving a second label line would have been the other fix and
+  charges every language 18px of empty tile whether anything wraps or not;
+  this charges none, because a row is as tall as its tallest label
+
 ## [2.8.0] — 2026-08-20
 
 ### Added

@@ -23,7 +23,7 @@ Editing changes nothing. Applying changes everything — for 120 seconds. If the
 | **Three rule sets** | Staged, Current, Backup — editing and enforcing are separate |
 | **Audit log** | every change records what moved and when, in one JSON object per line |
 | **Coexists with Docker** | easywall owns `table inet easywall` and touches nothing else |
-| **English and German** | switchable in the interface, including before you sign in |
+| **English, Deutsch, Français** | switchable in the interface, including before you sign in — and a partial translation renders English for what it is missing |
 
 [How it works →]({% link _docs/architecture.md %})
 

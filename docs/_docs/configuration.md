@@ -227,7 +227,7 @@ Two logging switches belong to no module and are set here as well:
 | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
 | `data_dir` | string | Directory for the version cache and the installation identifier — defaults to `/var/lib/easywall` |
-| `language` | string | Fallback UI locale — `"en"` (English) or `"de"` (German). Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
+| `language` | string | Fallback UI locale — any code `locales/` holds a catalogue for; `en`, `de` and `fr` ship. Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
 | `session_key` | string | Hex secret that signs the session cookie — `openssl rand -hex 32`, which is 64 characters. Optional: one is generated on first start and written back here if the key is missing, shorter than 32 characters, or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
@@ -250,9 +250,11 @@ Highest priority first:
 4. **English.**
 
 The languages on offer are whatever `locales/*.json` contains, and each file names
-itself through its own `language_name` key — so `Deutsch` reads as `Deutsch`
-whatever language the interface is currently in. Adding a locale file is all it
-takes for it to appear in the switch; see
+itself through its own `language_name` key — so `Deutsch` reads as `Deutsch` and
+`Français` as `Français`, whatever language the interface is currently in. A
+language nobody has reviewed yet says so in the switch, and a coverage report
+says how much of it is there. Adding a locale file is all it takes for it to
+appear; see
 [Adding a language]({{ '/docs/contributing/' | relative_url }}#adding-a-language).
 
 ```bash
