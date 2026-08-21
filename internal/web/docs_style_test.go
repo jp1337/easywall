@@ -49,6 +49,14 @@ func TestDocsStylesheetKeepsLoadBearingRules(t *testing.T) {
 			"Tailwind's preflight wins and every bullet list loses its markers"},
 		{`\.content-body ol\{list-style-type:decimal\}`,
 			"numbered lists lose the numbers, including the priority order in configuration.md"},
+		// Not written in web/src/docs.css at all: it exists only because
+		// docs/_includes/search.html uses the class and Tailwind's @source scan
+		// reaches that file. Narrow the scan, move the include, or rename the
+		// class, and the rule leaves the stylesheet with nothing failing — while
+		// "Search the documentation" becomes visible text above the search field
+		// on all 26 documentation pages.
+		{`\.sr-only\{[^}]*position:absolute`,
+			"the search field's label is no longer hidden and renders as a line of body text above it"},
 	}
 
 	for _, r := range required {

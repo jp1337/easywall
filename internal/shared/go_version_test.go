@@ -88,10 +88,32 @@ func TestGoToolchainIsTheSameEverywhere(t *testing.T) {
 	// The one that keeps the source single. Ten literal pins are how this drifted
 	// in the first place, and they are easy to reintroduce: `go-version: "1.26"`
 	// is what every example on the internet shows.
-	t.Run("no workflow pins a version of its own", func(t *testing.T) {
+	//
+	// The composite actions are scanned by a glob rather than by name, because
+	// this list being hand-written is what let a step escape it once already: the
+	// search index moved out of docs.yml into
+	// .github/actions/build-search-index/action.yml, taking a setup-node step
+	// with it, and a `go-version:` added beside it would have been invisible to
+	// the guard whose entire purpose is that nothing pins a toolchain of its own.
+	// A glob covers the next action nobody remembered to add here.
+	t.Run("nothing in .github pins a version of its own", func(t *testing.T) {
+		files := [][]string{}
 		for _, wf := range []string{"build.yml", "test.yml", "security.yml", "release.yml",
 			"publish-edge.yml", "docs.yml"} {
-			body := repoFile(t, ".github", "workflows", wf)
+			files = append(files, []string{".github", "workflows", wf})
+		}
+		root := repoRootDir(t)
+		actions, err := filepath.Glob(filepath.Join(root, ".github", "actions", "*", "action.yml"))
+		if err != nil {
+			t.Fatalf("glob the composite actions: %v", err)
+		}
+		for _, abs := range actions {
+			files = append(files, []string{".github", "actions", filepath.Base(filepath.Dir(abs)), "action.yml"})
+		}
+
+		for _, f := range files {
+			name := strings.Join(f, "/")
+			body := repoFile(t, f...)
 			for i, line := range strings.Split(body, "\n") {
 				trimmed := strings.TrimSpace(line)
 				if strings.HasPrefix(trimmed, "#") {
@@ -100,7 +122,7 @@ func TestGoToolchainIsTheSameEverywhere(t *testing.T) {
 				if strings.HasPrefix(trimmed, "go-version:") {
 					t.Errorf("%s:%d pins the toolchain itself:\n  %s\n"+
 						"  use `go-version-file: go.mod` — one source, which is the point",
-						wf, i+1, trimmed)
+						name, i+1, trimmed)
 				}
 			}
 		}

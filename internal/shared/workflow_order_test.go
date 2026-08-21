@@ -69,6 +69,48 @@ func TestCodeQLSeesTheGoToolchainItTraces(t *testing.T) {
 	}
 }
 
+// The search index has to be built in both jobs, and before the upload.
+//
+// It is the one part of the documentation site that is not a committed artefact
+// and not produced by Jekyll: it is derived from _site by a composite action, and
+// nothing downstream notices its absence. Delete the `uses:` line from the deploy
+// job, or move it below `Upload Pages artifact`, and every check in this
+// repository still passes — while every visitor to easywall-project.org gets a
+// search field whose engine answers 404, because the artefact that was uploaded
+// was built before the index existed. Dropping it from the pull-request job is
+// quieter still: the assertion that the index covers all 26 pages lives inside
+// the action, so removing the call removes the only thing that would ever report
+// a glob that stopped matching.
+//
+// Text and step order rather than YAML, for the reason jobBlock gives.
+func TestTheSearchIndexIsBuiltBeforeThePagesUpload(t *testing.T) {
+	const action = "uses: ./.github/actions/build-search-index"
+	workflow := repoFile(t, ".github", "workflows", "docs.yml")
+
+	for _, job := range []string{"build", "deploy"} {
+		if !strings.Contains(jobBlock(t, workflow, job), action) {
+			t.Errorf("the %s job in docs.yml does not run %s\n"+
+				"  in `deploy` that publishes a site whose search engine is not there; "+
+				"in `build` it removes the only check that the index covers every page",
+				job, action)
+		}
+	}
+
+	deploy := jobBlock(t, workflow, "deploy")
+	index := strings.Index(deploy, action)
+	upload := strings.Index(deploy, "uses: actions/upload-pages-artifact")
+	switch {
+	case upload < 0:
+		t.Fatal("the deploy job no longer uploads a Pages artifact")
+	case index < 0:
+		// Already reported above; nothing to order.
+	case index > upload:
+		t.Error("the search index is built after `Upload Pages artifact`, so the " +
+			"artefact that gets published is the one from before the index existed — " +
+			"the site deploys green with no /pagefind/ directory on it")
+	}
+}
+
 // A release candidate must not move `latest`.
 //
 // release.yml triggers on `v*.*.*`, and that glob matches `v2.6.0-rc1` as
