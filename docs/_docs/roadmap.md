@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Fifteen releases, ordered by exposure — the holes first, then comprehension, then reach.
+description: Twelve releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
 ---
 
 # Roadmap
@@ -12,16 +12,12 @@ promised in it — it gets corrected when something changes rather than quietly
 ageing, which is exactly the failure the version before this one demonstrated.
 
 **Ordering principle: by exposure.** The two holes an attacker could actually
-walk through come first, then the releases that help you understand what you
-are doing, then the ones that let you maintain it, then reach:
+walk through came first and are done — see *Done in 2.7* and *Done in 2.8*
+below. What is left helps you understand what you are doing, then lets you
+maintain it, then reaches further:
 
 ```
-Close the exposure       2.7   The firewall survives a reboot
-                          2.8   A second factor
-
-Understand what you do   2.9   The interface speaks French — and the next
-                                language need not come from us
-                          2.10  What changes is on the screen
+Understand what you do   2.10  What changes is on the screen
                           2.11  A rule names a service and who may reach it
                           2.12  You can see it working
                           2.13  When something happens, you hear about it
@@ -32,7 +28,7 @@ Be able to maintain it   2.14  Every entry has a why and an until
 
 Reach further            2.17  Outbound traffic
                           2.18  More than one account
-                          2.19  Nine languages
+                          2.19  Eight languages
                           3.0   Reachable from outside
                           3.1   Passkeys, as a second factor
 ```
@@ -41,12 +37,6 @@ One theme per release, sayable in one sentence — the changelog heading then
 writes itself. A model change travels with the feature that justifies it, never
 earlier as an end in itself and never twice.
 
-> **Amended in 2.8.** The i18n item was one entry late on this list; it is now
-> two, and the first of them is early. French ships in-house and **visibly marked
-> as unreviewed**, in the switcher and in the coverage report — the mechanism has
-> to be able to express "present, but not checked by a human" anyway, or a
-> contributed language cannot be either.
-
 > **Amended in 2.8.** Passkeys were a clause inside 3.0's row; they are now
 > 3.1, their own entry, sitting after 3.0 rather than beside it — WebAuthn
 > requires a registrable domain as its Relying Party ID, which most easywall
@@ -54,9 +44,6 @@ earlier as an end in itself and never twice.
 
 | Version | What | Why it comes when it does |
 |---|---|---|
-| **2.7** | **The firewall survives a reboot** — after a restart the rules that were last confirmed are in force again, with no acceptance window | Before this, a reboot emptied nftables and was the accidental way back into a machine your own rules had shut you out of. `easywall-core panic` replaces that on purpose, from the console — see [Recovery & Panic Mode]({{ '/docs/features/recovery/' | relative_url }}) |
-| **2.8** | **A second factor** — TOTP plus one-time recovery codes, and login events finally in the audit log | A stolen password alone opens everything today. The way back stays a line in `web.toml` — a second factor that needs a second emergency exit is not one |
-| **2.9** | **The interface speaks French — and the next language need not come from us** — parity becomes fallback for everything except `en`/`de`, which stay hard; a coverage report per language, shown rather than hidden; a guide in `CONTRIBUTING.md`; the language switcher rebuilt as a `<select>` plus a submit button, progressively enhanced; and `fr.json` as the proof the mechanism carries, shipped marked as unreviewed | A fallback mechanism with no third language is stock — it changes nothing while only `en` and `de` exist, and a guard relaxed before anyone needs the relaxation is a guard nobody will notice later. So French travels with it, which gives it its justification and brings the language that was asked for forward by about a year. The switcher goes with them: two chip buttons in a 240 px sidebar do not hold eleven endonyms |
 | **2.10** | **What changes is on the screen** — the difference between staged and current, before you press Apply, with a warning if it cuts the connection you are using | No protocol work needed; the data is already there. The warning is the real gain — knowing before the 120 seconds, not during them |
 | **2.11** | **A rule names a service and who may reach it** — a curated catalogue ("Pi-hole", "Home Assistant") with a suggested source, and a free-text option that stays | A catalogue entry without a source restriction is wrong for the interesting cases; shipping them apart would mean rewriting every entry a release later |
 | **2.12** | **You can see it working** — a counter on every rule, reset on each apply | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
@@ -66,7 +53,7 @@ earlier as an end in itself and never twice.
 | **2.16** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
 | **2.17** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
 | **2.18** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
-| **2.19** | **Nine languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
+| **2.19** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
 | **3.0** | **Reachable from outside** — a REST API with token auth, ACME as an alternative to a reverse proxy, and a trusted-proxy *list* rather than a boolean | A major version because an API is a second public interface and a compatibility promise easywall has not made before |
 | **3.1** | **Passkeys, as a second factor** — WebAuthn alongside TOTP, never in place of the password | Wait for 3.0 on purpose: WebAuthn requires a registrable domain as its Relying Party ID and **rejects a bare IP address**, which is how most easywall installations are reached (`https://192.168.1.10:12227`) — passkeys cannot come before a real hostname and certificate exist |
 
@@ -80,6 +67,38 @@ earlier as an end in itself and never twice.
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
 | Managing several hosts from one interface | The API in 3.0 makes Ansible possible. A fleet interface is a second product |
+
+## Done in 2.9
+
+| | |
+|---|---|
+| The interface speaks French | `locales/fr.json` carries the whole interface — 463 strings — and ships marked **unreviewed**, because nobody who speaks French has read it yet. The switcher says so beside the endonym, and so does the coverage report. That state had to exist before a contributed translation could: "present, but not checked by a human" is the normal condition of one |
+| Parity became a rule for `en` and `de` alone | Every other language may have gaps. A missing key renders the English string — go-i18n already did that per message ID — and the gap is now *counted* rather than hidden, because the fallback is precisely what makes a gap invisible: the page looks finished, which is right for the operator in front of it and wrong for everybody else. Coverage never rounds up to 100 while anything is missing, and declines to count an empty string or a value byte-identical to the English one, so the number cannot be raised by pasting |
+| Why French travelled with the mechanism | Amended in 2.8, delivered here. A fallback rule with no third language changes nothing while only `en` and `de` exist, and a guard relaxed before anybody needs the relaxation is one nobody notices later. French came forward about a year to give it its justification, and 2.19 lost it from that row's count |
+| The language switcher | a `<select>` with a submit button instead of two chips: two do not hold eleven endonyms in a 240 px sidebar. It still works with JavaScript switched off — an operator who cannot read the interface should not also need JavaScript to fix that |
+| The sentences a translator must not get backwards | `docs-tech/i18n-review.md` collects the thirty-odd where a wrong word changes what the firewall promises — which list is consulted first, what the acceptance window undertakes, what panic mode does not end. One rule: rephrase freely, but do not change what the sentence *claims*. A window that "keeps" a change in one language and "undoes" it in another describes a different product depending on which language you read |
+| Twelve environment variables | `EASYWALL_CORE_*` and `EASYWALL_WEB_*`, and the first environment either binary has ever read — before this both processes took only `-config`, so a container had no way to set a socket path or an address to bind without writing a config onto a volume ahead of the first boot. The list stops at deployment: the environment says *where* easywall runs, the interface says *what the firewall does* |
+| The release announces itself | one Discord embed from `release.yml` once the assets are up, best-effort. 2.8.0 was announced by hand, hours later. The Ko-fi post is **not** automated and cannot be — Ko-fi has no writing API — and is documented as a person's step rather than left looking like a job that exists |
+
+## Done in 2.8
+
+| | |
+|---|---|
+| A second factor | RFC 6238 TOTP for the single account, verified against the RFC's own published test vectors, plus eight one-time recovery codes stored argon2-hashed rather than in the clear. Nothing is written until a code confirms the pairing, and `/login/verify` issues no session until the code is right too |
+| The way back | stays a line in `web.toml`: clear `totp_secret` and `recovery_codes` on the host, the same file the password already lives in. A second factor that needs a second emergency exit is not one — and it was documented before the release shipped, not after |
+| The wizard offers it too | unticked, and skipping is a first-class answer rather than a validation failure: easywall runs on boards with no RTC that come up at the epoch until NTP lands, and TOTP cannot verify against a clock like that |
+| Login events | reach the audit log at last — nine of them, from a fixed enum rather than free text, and the three a stranger can trigger without any credential are debounced in the core. `LOG_EVENT` is the eighteenth command the protocol declares and the first the web process sends rather than receives |
+| An unauthenticated `POST /logout` | could erase the visible audit log |
+
+## Done in 2.7
+
+| | |
+|---|---|
+| The firewall survives a reboot | nftables forgets everything on restart, and `nft.Apply` was reachable from exactly two places in the codebase — an apply and its rollback. Not from startup. So every reboot left the machine unfiltered until somebody opened the interface and pressed Apply, on a product whose first sentence is a safety promise; the original Python easywall had the identical gap. The core now puts `Current` into the kernel before its socket accepts a single connection, with **no acceptance window**: `Current` is by definition a set that has already survived one |
+| `easywall-core panic` / `resume` / `status` | a console-only way back into a machine your own rules have shut you out of, now that a reboot no longer provides one by accident. The marker deliberately survives a restart, or the next reboot would put back the rules panic mode exists to remove. The banner has **no button**: a control reachable from the network would let a stolen session re-arm a firewall a human disarmed at the machine on purpose |
+| Every timestamp was in the wrong zone | the conversion built its comparison in the *stored* zone rather than the viewer's, so "how long ago" and the date-format boundary were both computed against the wrong clock — a change at 23:30 UTC could be attributed to the wrong calendar day. The documented fix, `timedatectl` and a restart, could not have worked. Nothing stored on disk changed: the audit log is still RFC 3339 UTC, byte for byte |
+| One mutex | guards every method on `NftablesManager`. `Flush` ships every caller's buffered netlink messages at once and empties the queue regardless of who filled it, so an apply and a panic in flight together could see one call's messages folded into the other's — a rollback reporting success having programmed nothing, or the reverse |
+| The panic marker | is re-read *after* every write to the table, not only before one. Checking first is necessary and not sufficient, and cross-process no mutex helps. The loser of that race was a machine filtering while both the banner and `easywall-core status` called it deliberately unfiltered |
 
 ## Done in 2.6
 
