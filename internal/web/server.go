@@ -137,10 +137,20 @@ func NewServer(cfg *Config) (*Server, error) {
 	bundle := NewBundle(cfg.LocalesDir())
 
 	// A missing status.json yields an empty map rather than an error, and an
-	// absent entry reads as not reviewed — see LoadLocaleStatus.
+	// absent entry reads as not reviewed — see LoadLocaleStatus. A malformed
+	// one is handled the same way NewBundle treats a broken locale file: it
+	// names nothing load-bearing — no translated text, no routing, nothing
+	// that touches nftables or authentication, only whether a human ticked a
+	// review box — so it is logged and survived rather than refused. This is
+	// the interface an operator reaches for when locked out of everything
+	// else; a typo in review metadata must not add one more way to be locked
+	// out. Every language then reports unreviewed, which is the same
+	// understating direction the design already takes for an absent entry.
 	localeStatus, err := LoadLocaleStatus(cfg.LocalesDir())
 	if err != nil {
-		return nil, fmt.Errorf("load locale status: %w", err)
+		slog.Warn("locale status not loaded; every language will show as unreviewed",
+			"dir", cfg.LocalesDir(), "error", err)
+		localeStatus = map[string]LocaleStatus{}
 	}
 
 	s := &Server{
