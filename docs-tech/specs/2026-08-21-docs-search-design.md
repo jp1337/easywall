@@ -223,9 +223,8 @@ to be confirmed against the real markup.
   translated, the docs are not.
 - **Searching `docs-tech/`.** It is not published and must not become
   searchable.
-- **A Cmd+K overlay.** Considered and declined in favour of the sidebar field,
-  which is close to what Pagefind ships and needs no focus trap, no scroll lock
-  and no second accessibility story.
+- **A Cmd+K overlay.** Declined here, and **reversed after the sidebar field
+  shipped** — see the amendment below.
 
 ## Success criteria
 
@@ -241,3 +240,26 @@ to be confirmed against the real markup.
 6. With JavaScript off, no search field is visible and every page is still
    reachable through the sidebar.
 7. Rendered and checked at 1600 / 900 / 390 px in both themes, per `CLAUDE.md`.
+
+## Amended after shipping — 2026-08-21
+
+Two decisions above were wrong, and the site showed it. Recorded here rather than
+quietly deviated from, because a spec that disagrees with the tree is worse than
+a spec that admits it changed its mind.
+
+| Decided | What happened | Now |
+|---|---|---|
+| The sidebar field, not a Cmd+K overlay — "needs no focus trap, no scroll lock and no second accessibility story" | Those four things are what `<dialog>.showModal()` gives away for free, so the stated cost was already paid by the platform. What the sidebar cost instead: a 639px results block in a 260px column pushed the navigation to y=833 in a 697px viewport, so searching hid the page list, and every excerpt arrived as a fragment | A native `<dialog>`, 680px, opened by a trigger that shows its own shortcut. The reference integration of this engine — Astro Starlight — does the same |
+| Style only through Pagefind's custom properties, never its class names | Those properties cannot reach height, scroll, or the typography of an excerpt, so the defects above were unfixable through them. The clipped query, the yellow `<mark>` and the unbounded results list all needed a selector | Twelve class names are overridden, and CI fails if any of them stops existing in the shipped stylesheet. Starlight overrides the same set |
+
+The rule the second row replaces is not gone: **geometry Pagefind measures stays
+Pagefind's.** It writes the input's `padding-right` as an inline style, computed
+from its own clear button; setting it from the stylesheet produced a 49px gap
+against a 47px button and the query ran underneath it. Appearance is ours, layout
+it measures is not.
+
+A third thing the spec did not anticipate, found by clicking a result: the
+highlight script marks the whole document by default. It marked every `a` in the
+sidebar's page list and the logo read "e a syw a ll". It is now scoped to
+`article.content-body`, and its own yellow stylesheet is switched off so the mark
+can use the theme's tokens.

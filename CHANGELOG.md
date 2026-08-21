@@ -9,26 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **A search field at the top of the documentation sidebar.** Pagefind indexes
-  the HTML `jekyll build` already writes, so every table cell is searchable
-  without one anchor being added by hand — a config key, an environment
-  variable or an audit action is found in the row that defines it. The engine
-  and its interface are ~176 KB together and a reference page is read far more
-  often than it is searched, so the sidebar ships an ordinary input and the
-  real thing arrives on first focus; the keystrokes typed while the payload is
-  still in flight survive the swap, and a result link marks the term on the page
-  it lands on. Without JavaScript the field is hidden rather than shown and
-  dead — the sidebar navigation stays the complete scriptless path to every
-  page. The index is built in CI by a composite action both `docs.yml` jobs
-  call, and it is scoped by three flags that each prevent something that was
-  observed: `--glob` keeps the marketing landing page and the 23 redirect stubs
-  out (it had ranked for `argon2id` and `port forwarding`), `--root-selector`
-  keeps the topbar from being indexed on all 26 pages at once, and
-  `--force-language en` states the language once — it had been inferred as two,
-  and a search in one index could not see the other. One limitation is by
-  design: Pagefind ANDs every query term, so `open a port` finds the ports page
-  while `how do I open a port` finds nothing — no weighting was added and no
-  page was reworded to work around it
+- **A search on the documentation site.** The sidebar carries a trigger that
+  shows its own shortcut — `Ctrl K`, or `⌘ K` on Apple — and results open in an
+  overlay, so the page list stays where it was. Pagefind indexes the HTML
+  `jekyll build` already writes, so every table cell is searchable without one
+  anchor being added by hand: a config key, an environment variable or an audit
+  action is found in the row that defines it, and following a result marks the
+  term on the page it lands on. The engine and its interface are ~176 KB
+  together and a reference page is read far more often than it is searched, so
+  nothing is fetched until the overlay is opened. Without JavaScript no trigger
+  is shown rather than one that cannot work — the sidebar navigation stays the
+  complete scriptless path to every page. The index is built in CI by a
+  composite action both `docs.yml` jobs call, scoped by three flags that each
+  prevent something that was observed: `--glob` keeps the marketing landing page
+  and the 23 redirect stubs out (it had ranked for `argon2id` and `port
+  forwarding`), `--root-selector` keeps the topbar from being indexed on all 26
+  pages at once, and `--force-language en` states the language once — it had been
+  inferred as two, and a search in one index could not see the other. One
+  limitation is by design: Pagefind ANDs every query term, so `open a port` finds
+  the ports page while `how do I open a port` finds nothing — no weighting was
+  added and no page was reworded to work around it
 
 ### Changed
 
