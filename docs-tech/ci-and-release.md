@@ -87,6 +87,66 @@ skips test files unless asked. Measured: 41 files either way without it, 148 wit
 Test-file findings are then filtered out of the SARIF with `jq` — they are printed
 in the log first, so the number is visible if anyone ever wants to act on them.
 
+### `docs.yml`
+
+| Job | Note |
+|---|---|
+| `build` | pull requests only; permissions are read-only, so it cannot reach Pages even by mistake |
+| `deploy` | push to `main` only; the same build, then `actions/deploy-pages` |
+
+Both run the identical `bundle exec jekyll build` with `JEKYLL_ENV=production` — the
+same command and environment as what ships, or the pull-request job would prove
+something about a build nobody ships.
+
+#### The search index
+
+Pagefind runs in both jobs — in `deploy` because that is what ships, in `build`
+because a pull request that breaks indexing has to fail on the pull request. Both
+call the same composite action, `.github/actions/build-search-index/action.yml` —
+the repository's first, chosen over two fifteen-line copies of the same steps that
+could drift apart, and named in both of `docs.yml`'s `paths:` filters, or a pull
+request that edits it runs nothing.
+
+It sits **after** the "site is not empty" check and **before** the Pages upload.
+After, because Pagefind reports an empty site as `Found 0 files matching` and
+loses the crafted `no landing page was built` diagnostic; before, because the
+upload is what publishes, and an index built afterwards is not in it.
+`TestTheSearchIndexIsBuiltBeforeThePagesUpload` holds both jobs to that.
+
+It is **not** a committed build output, unlike `web/static/style.css`,
+`docs/assets/css/style.css` and the diagrams. It is derived from `_site`, which is
+not in the repository, so there is nothing to diff a commit against; the assertion
+below is its only protection.
+
+Three flags, each preventing something that was actually observed:
+
+| Flag | Without it |
+|---|---|
+| `--glob "docs/**/*.html"` | the marketing landing page competes with the documentation — it ranked for `argon2id` and for `port forwarding` — and the 23 old-path redirect stubs get indexed as pages |
+| `--root-selector "main.content"` | the topbar's text is indexed on all 26 pages at once. `<nav>` and `<footer>` are already excluded by default, so this is about everything else outside the content column |
+| `--force-language en` | the language is inferred per file. It was inferred as two, and a search in one index could not see the other half of the site |
+
+**The version is pinned exactly**, not `pagefind@1`. The pin itself lives in
+`.github/actions/build-search-index/action.yml`; Renovate's `pagefind`
+customManager in `renovate.json` is what keeps that line current — see
+[dependencies](dependencies.md). A floating range built the published index from
+whatever 1.x npm resolved that morning, and the loader depends on the bundle's *JS
+API* as well as on the index format: the `window.PagefindUI` global, five option
+names, and `pagefind-highlight.js` being an ES module. The count assertion below
+counts fragments and can see none of that.
+
+A glob matching nothing fails the step outright: Pagefind 1.5.2 exits 1, measured
+rather than assumed. What the count check afterwards catches instead is a glob
+that matches *some* pages but not all — a narrowed `--glob "docs/features/**/*.html"`
+indexed 13 of 26 without the build failing.
+
+**A limitation, not a defect.** `open a port` finds the ports page (rank 3, with a
+sub-result excerpted from "When it does not work"). `how do I open a port` finds
+nothing there: Pagefind ANDs every query term, and `how` and `I` occur nowhere on
+`docs/_docs/features/ports.md`. No weighting was added — the spec rules it out —
+and no page's wording was changed to work around it. A question-shaped query
+finding nothing is the engine behaving as built, not a bug to fix.
+
 ### `release.yml`
 
 ```

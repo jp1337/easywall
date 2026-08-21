@@ -7,6 +7,12 @@
     // visitor's preference carries between docs.jp1337.io and the running
     // app (when both are on the same origin).
     (function () {
+      // First, and before anything that can throw. localStorage.getItem below
+      // throws in a browser with site data blocked, which aborted this whole
+      // function — so the flag was never set and the search field, whose only
+      // condition is that a script is running, stayed hidden from a visitor who
+      // had one. The flag depends on nothing.
+      document.documentElement.setAttribute('data-js', 'on');
       var t = localStorage.getItem('theme');
       if (t === 'dark' || t === 'light') t = 'easywall-' + t;
       if (!t) {
@@ -105,6 +111,8 @@
           </svg>
         </a>
       </div>
+
+      {% include search.html %}
 
       <div class="sidebar-nav">
         {% for item in site.nav %}
@@ -263,6 +271,98 @@
     // dark OS who chose the light docs saw dark diagrams on a white page. Both
     // variants are now in the markup and CSS picks one from [data-theme]; see
     // _includes/themed-figure.html. Nothing to do at runtime.
+  </script>
+
+  <script>
+    // The engine and its UI are ~176 KB together, and a reference page is read
+    // far more often than it is searched. So the sidebar ships an ordinary input
+    // and this swaps it for the real thing the first time somebody means to use
+    // it — on focus, which also covers the click and the Tab.
+    //
+    // PagefindUI renders its own input, so the placeholder is removed once it
+    // has mounted; the value the visitor already typed is read at that same
+    // moment — not snapshotted back when the field was first focused — because
+    // the visitor keeps typing into the placeholder while the ~176 KB payload
+    // is still in flight, and every one of those keystrokes has to survive the
+    // swap. PagefindUI has no autofocus option; the explicit real.focus() below
+    // is what puts the caret back once its own input exists.
+    (function () {
+      var host = document.getElementById('docs-search');
+      var seed = document.getElementById('docs-search-input');
+      if (!host || !seed) return;
+
+      var loading = false;
+      function load() {
+        if (loading) return;
+        loading = true;
+
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = '{{ "/pagefind/pagefind-ui.css" | relative_url }}';
+        document.head.appendChild(css);
+
+        var js = document.createElement('script');
+        js.src = '{{ "/pagefind/pagefind-ui.js" | relative_url }}';
+        js.onload = function () {
+          // The placeholder goes after the constructor returns, not before it.
+          // Removing it first meant a PagefindUI that threw for any reason left
+          // the visitor with an empty padded div and no field at all — the one
+          // outcome worse than a field that has not loaded yet.
+          var pending = seed.value;
+          var ui = new window.PagefindUI({
+            element: '#docs-search',
+            bundlePath: '{{ "/pagefind/" | relative_url }}',
+            // The page-level excerpt does not reliably contain the match — for
+            // "acceptance.duration" it returned prose about a daemon that
+            // refuses to start. The sub-result carries the heading it sits
+            // under and an excerpt that does contain the term, which is the
+            // whole point of searching a reference.
+            showSubResults: true,
+            showImages: false,
+            excerptLength: 20,
+            pageSize: 5,
+            // Result links carry ?highlight=<term>, which the block below acts
+            // on. Landing on the right section with the term marked is the
+            // difference between an answer and a page to read again.
+            highlightParam: 'highlight'
+          });
+          seed.remove();
+          if (pending) ui.triggerSearch(pending);
+          var real = host.querySelector('input');
+          if (real) real.focus();
+        };
+        js.onerror = function () {
+          seed.disabled = true;
+          seed.placeholder = 'Search unavailable';
+        };
+        document.body.appendChild(js);
+      }
+
+      seed.addEventListener('focus', load, { once: true });
+    })();
+
+    // The other half of highlightParam, and the only reason a docs page loads
+    // any search code without being asked: it runs when the visitor arrived
+    // from a result, which is exactly when the term is worth marking. Gated on
+    // the parameter, so an ordinary page load still fetches nothing.
+    //
+    // Wrapped like every other block in this file. Bare, its `var hl` was a
+    // property of window on 26 pages.
+    (function () {
+      if (!new URLSearchParams(location.search).has('highlight')) return;
+      var hl = document.createElement('script');
+      // pagefind-highlight.js ends in `export { PagefindHighlight as default }`
+      // — an ES module. Attached as a classic script it fails to parse at all
+      // ("Unexpected token 'export'"), so window.PagefindHighlight is never
+      // set and the line below throws "is not a constructor" — found by
+      // actually loading the built file, not by reading the option list.
+      hl.type = 'module';
+      hl.src = '{{ "/pagefind/pagefind-highlight.js" | relative_url }}';
+      hl.onload = function () {
+        new window.PagefindHighlight({ highlightParam: 'highlight' });
+      };
+      document.body.appendChild(hl);
+    })();
   </script>
 
 </body>

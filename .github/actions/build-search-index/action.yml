@@ -1,0 +1,73 @@
+name: Build and verify the search index
+description: >
+  Runs Pagefind over the Jekyll output already sitting in docs/_site and
+  asserts it covers every documentation page. Used by both the build and the
+  deploy job in docs.yml, so the two are guaranteed to run the exact same
+  command with the exact same flags rather than two copies that can drift.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+
+    # Pagefind indexes the HTML Jekyll just wrote, so every table cell is
+    # searchable without an anchor being added by hand. Scoped on purpose:
+    #   --glob          the 26 documentation pages only. Without it the
+    #                   marketing landing page competes with the docs and
+    #                   ranked for "argon2id" and "port forwarding", and the
+    #                   23 old-path redirect stubs get indexed too.
+    #   --root-selector the content column only. Pagefind already excludes <nav>
+    #                   and <footer> by default, which covers the sidebar; this
+    #                   is what keeps the topbar, which is a <header>, from
+    #                   being searchable on all 26 pages at once.
+    #   --force-language states the site's language once instead of letting it
+    #                   be inferred per file. It was inferred as two.
+    #
+    # The version is exact, not `pagefind@1`. A floating range meant the
+    # published index was built by whatever 1.x npm resolved that morning, with
+    # no pull request, no CI run and nothing to bisect — and the loader in
+    # default.html depends on more than the index format: on the
+    # window.PagefindUI global, on five option names, and on the highlight file
+    # being an ES module. That last one already bit this feature once. The count
+    # assertion below counts fragments and knows nothing about any of it, so a
+    # 1.x release that reshaped the bundle's JS API would break the search on
+    # easywall-project.org with every check green. Renovate watches this exact
+    # line — see the pagefind customManager in renovate.json.
+    - name: Build the search index
+      working-directory: docs
+      shell: bash
+      run: |
+        npx --yes pagefind@1.5.2 --site _site \
+          --glob "docs/**/*.html" \
+          --root-selector "main.content" \
+          --force-language en
+
+    # A glob matching nothing already fails the step above (Pagefind exits 1
+    # on 1.5.2 — measured, not assumed). What still exits 0 is a glob that
+    # matches some pages but not all: --glob "docs/features/**/*.html" indexed
+    # 13 of 26 without complaint. The count is the check for that case.
+    # Derived from the page count rather than a literal, or adding a
+    # documentation page breaks the build.
+    - name: The search index covers every documentation page
+      working-directory: docs
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -d _site/pagefind || { echo "::error::no search index was built"; exit 1; }
+
+        langs=$(find _site/pagefind -maxdepth 1 -name '*.pf_meta' | wc -l)
+        [ "$langs" -eq 1 ] || {
+          echo "::error::$langs language indexes were built, want 1 — a page disagrees about <html lang>, and a search in one index cannot see the other"
+          find _site/pagefind -maxdepth 1 -name '*.pf_meta'
+          exit 1
+        }
+
+        pages=$(find _docs -name '*.md' | wc -l)
+        indexed=$(find _site/pagefind/fragment -type f | wc -l)
+        echo "$indexed pages indexed, $pages documentation pages exist"
+        [ "$indexed" -eq "$pages" ] || {
+          echo "::error::indexed $indexed pages but docs/_docs holds $pages; the glob has stopped matching what it should"
+          exit 1
+        }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -48,6 +49,14 @@ func TestDocsStylesheetKeepsLoadBearingRules(t *testing.T) {
 			"Tailwind's preflight wins and every bullet list loses its markers"},
 		{`\.content-body ol\{list-style-type:decimal\}`,
 			"numbered lists lose the numbers, including the priority order in configuration.md"},
+		// Not written in web/src/docs.css at all: it exists only because
+		// docs/_includes/search.html uses the class and Tailwind's @source scan
+		// reaches that file. Narrow the scan, move the include, or rename the
+		// class, and the rule leaves the stylesheet with nothing failing — while
+		// "Search the documentation" becomes visible text above the search field
+		// on all 26 documentation pages.
+		{`\.sr-only\{[^}]*position:absolute`,
+			"the search field's label is no longer hidden and renders as a line of body text above it"},
 	}
 
 	for _, r := range required {
@@ -162,4 +171,40 @@ func numberWord(n int) string {
 		return words[n]
 	}
 	return fmt.Sprint(n)
+}
+
+// The mobile drawer's backdrop (.sidebar-backdrop) and the drawer itself
+// (.sidebar) are position:fixed siblings, so their z-index alone decides which
+// one receives a tap. Since cd89c02d (2026-05-03) the backdrop outranked the
+// sidebar even while it carried .open — every tap inside an opened drawer,
+// on any nav link or the search field, landed on the backdrop instead and
+// only ever closed it. A phone's hit-testing is invisible to `go build` and
+// to `npm run build:docs-css`; this at least keeps the ordering itself honest.
+func TestMobileSidebarOutranksItsBackdrop(t *testing.T) {
+	css := docsStylesheet(t)
+
+	backdrop := regexp.MustCompile(`\.sidebar-backdrop\{[^}]*z-index:(\d+)`).FindStringSubmatch(css)
+	if backdrop == nil {
+		t.Fatal("no z-index found on .sidebar-backdrop in docs/assets/css/style.css")
+	}
+	open := regexp.MustCompile(`\.sidebar\.open\{[^}]*z-index:(\d+)`).FindStringSubmatch(css)
+	if open == nil {
+		t.Fatal("no z-index found on .sidebar.open in docs/assets/css/style.css")
+	}
+
+	backdropZ, err := strconv.Atoi(backdrop[1])
+	if err != nil {
+		t.Fatalf("parse .sidebar-backdrop z-index %q: %v", backdrop[1], err)
+	}
+	openZ, err := strconv.Atoi(open[1])
+	if err != nil {
+		t.Fatalf("parse .sidebar.open z-index %q: %v", open[1], err)
+	}
+
+	if openZ <= backdropZ {
+		t.Errorf(".sidebar.open z-index (%d) does not outrank .sidebar-backdrop (%d)\n"+
+			"  an open drawer would sit behind its own backdrop, and nothing inside it — "+
+			"no nav link, no search field — could receive a tap on a phone",
+			openZ, backdropZ)
+	}
 }
