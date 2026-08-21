@@ -45,6 +45,8 @@ jobs:
         env:
           JEKYLL_ENV: production
 
+      - uses: ./.github/actions/build-search-index
+
       # Jekyll exits 0 having written an empty site if every page were skipped,
       # so count what came out. Nine feature pages, the installation pages and the
       # landing page are the floor; a build that produces fewer has dropped
@@ -92,6 +94,8 @@ jobs:
         run: bundle exec jekyll build
         env:
           JEKYLL_ENV: production
+
+      - uses: ./.github/actions/build-search-index
 
       # The same floor the pull-request build asserts. It was on that job alone,
       # which is the one path where nothing is published — so the check existed
