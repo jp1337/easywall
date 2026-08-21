@@ -24,11 +24,22 @@ runs:
     #                   being searchable on all 26 pages at once.
     #   --force-language states the site's language once instead of letting it
     #                   be inferred per file. It was inferred as two.
+    #
+    # The version is exact, not `pagefind@1`. A floating range meant the
+    # published index was built by whatever 1.x npm resolved that morning, with
+    # no pull request, no CI run and nothing to bisect — and the loader in
+    # default.html depends on more than the index format: on the
+    # window.PagefindUI global, on five option names, and on the highlight file
+    # being an ES module. That last one already bit this feature once. The count
+    # assertion below counts fragments and knows nothing about any of it, so a
+    # 1.x release that reshaped the bundle's JS API would break the search on
+    # easywall-project.org with every check green. Renovate watches this exact
+    # line — see the pagefind customManager in renovate.json.
     - name: Build the search index
       working-directory: docs
       shell: bash
       run: |
-        npx --yes pagefind@1 --site _site \
+        npx --yes pagefind@1.5.2 --site _site \
           --glob "docs/**/*.html" \
           --root-selector "main.content" \
           --force-language en
@@ -38,8 +49,7 @@ runs:
     # matches some pages but not all: --glob "docs/features/**/*.html" indexed
     # 13 of 26 without complaint. The count is the check for that case.
     # Derived from the page count rather than a literal, or adding a
-    # documentation page breaks the build. `pagefind@1` floats across 1.x, one
-    # more reason not to trust its exit code alone.
+    # documentation page breaks the build.
     - name: The search index covers every documentation page
       working-directory: docs
       shell: bash
