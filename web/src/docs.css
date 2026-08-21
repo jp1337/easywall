@@ -1377,7 +1377,12 @@ html, body {
     transition: transform 0.25s ease;
   }
 
-  .sidebar.open { transform: translateX(0); }
+  /* Pre-existing: the backdrop's z-index (150, above) outranked the sidebar's
+     own (100), so an open drawer could only be closed, never touched — no nav
+     link, no search field, nothing in it received a tap. Found while
+     verifying search on a phone; raising the open sidebar above the backdrop
+     it is supposed to sit in front of is the fix, not anything about search. */
+  .sidebar.open { transform: translateX(0); z-index: 160; }
 
   .content {
     margin-left: 0;
