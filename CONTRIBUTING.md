@@ -100,9 +100,9 @@ number could be raised by pasting.
 
 **`reviewed: false` is not an insult.** It is the difference between "somebody
 wrote this" and "somebody who speaks it has read it", and the switch and the
-coverage report both say which. `fr.json` shipped this way. Send a second PR
-flipping the flag once you have read it end to end — that is a review, and it is
-worth as much as the translation.
+coverage report both say which. Send a second PR flipping the flag once you
+have read it end to end — that is a review, and it is worth as much as the
+translation.
 
 **Read [`docs-tech/i18n-review.md`](docs-tech/i18n-review.md) first.** It
 collects the thirty-odd sentences where a wrong word changes what the firewall
