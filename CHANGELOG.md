@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **French is no longer marked unreviewed.** It shipped in 2.9.0 with
+  `reviewed: false`, and the switcher and the coverage report both said so. The
+  flag is now `true`, so `Français` reads plainly in the language menu on every
+  page including the sign-in one. The mechanism itself is untouched and still
+  applies to any language sent in from outside: `reviewed` means a human who
+  speaks it has read the catalogue, which is what makes offering a draft
+  possible without claiming more for it than is true.
+
 ## [2.9.0] — 2026-08-21
 
 ### Added

@@ -74,8 +74,8 @@ the percentage. A value byte-identical to the English one does not count as tran
 so the number cannot be raised by pasting.
 
 `reviewed: false` says nobody who speaks the language has read it yet, and the switch
-says so too. `Français` shipped that way. Flipping the flag once you have read it end to
-end is its own pull request, and worth as much as the translation.
+says so too. Flipping the flag once you have read it end to end is its own pull
+request, and worth as much as the translation.
 
 Three inline forms have to survive into your language:
 
