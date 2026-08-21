@@ -52,12 +52,15 @@ func TestTheDocsSidebarRendersTheSearchContainer(t *testing.T) {
 // whether the rule survives, and it has dropped one before.
 func TestTheSearchFieldIsHiddenWithoutJavaScript(t *testing.T) {
 	css := docsStylesheet(t)
-	if !strings.Contains(css, "#docs-search{display:none}") &&
-		!strings.Contains(css, "#docs-search {display: none}") {
+	// The declaration, not the whole rule text. It was matched as the exact
+	// string "#docs-search{display:none}", which held only while that selector
+	// carried nothing else — merging Pagefind's theme variables into the same
+	// block broke the assertion without touching what it was asserting.
+	if !regexp.MustCompile(`#docs-search\{[^}]*display:none`).MatchString(css) {
 		t.Error("the built docs stylesheet does not hide #docs-search by default; " +
 			"without a script the page would show a search field that cannot search")
 	}
-	if !strings.Contains(css, `[data-js] #docs-search`) {
+	if !regexp.MustCompile(`\[data-js\] #docs-search\{[^}]*display:block`).MatchString(css) {
 		t.Error("nothing in the built docs stylesheet reveals #docs-search once data-js is set")
 	}
 }

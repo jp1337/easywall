@@ -100,11 +100,18 @@ something about a build nobody ships.
 
 #### The search index
 
-Pagefind runs between `jekyll build` and the Pages upload, in both jobs — in
-`deploy` because that is what ships, in `build` because a pull request that
-breaks indexing has to fail on the pull request. Both call the same composite
-action, `.github/actions/build-search-index/action.yml` — the repository's first,
-chosen over two fifteen-line copies of the same steps that could drift apart.
+Pagefind runs in both jobs — in `deploy` because that is what ships, in `build`
+because a pull request that breaks indexing has to fail on the pull request. Both
+call the same composite action, `.github/actions/build-search-index/action.yml` —
+the repository's first, chosen over two fifteen-line copies of the same steps that
+could drift apart, and named in both of `docs.yml`'s `paths:` filters, or a pull
+request that edits it runs nothing.
+
+It sits **after** the "site is not empty" check and **before** the Pages upload.
+After, because Pagefind reports an empty site as `Found 0 files matching` and
+loses the crafted `no landing page was built` diagnostic; before, because the
+upload is what publishes, and an index built afterwards is not in it.
+`TestTheSearchIndexIsBuiltBeforeThePagesUpload` holds both jobs to that.
 
 It is **not** a committed build output, unlike `web/static/style.css`,
 `docs/assets/css/style.css` and the diagrams. It is derived from `_site`, which is

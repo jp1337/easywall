@@ -25,6 +25,15 @@ Go for the static guards, Playwright for the rendered checks.
 - **The indexing command is exactly this**, verified to yield `Discovered 1
   language: en` and `Indexed 26 pages`:
   `npx pagefind@1 --site _site --glob "docs/**/*.html" --root-selector "main.content" --force-language en`
+  — **superseded during the final review.** `pagefind@1` is a floating range no
+  tool watched, and the loader depends on the bundle's JS API as well as on the
+  index format, so the version is pinned exactly and Renovate watches the line.
+  The flags are unchanged. See `docs-tech/dependencies.md`.
+- The indexer runs **after** the "site is not empty" check rather than before
+  it, also decided in that review: Pagefind reports an empty site as `Found 0
+  files matching` and exits 1, which loses the crafted `no landing page was
+  built` diagnostic. It still runs before the Pages upload, which is the part
+  that matters, and `TestTheSearchIndexIsBuiltBeforeThePagesUpload` holds that.
 - **A generated file is rebuilt and diffed, never assumed.** After touching
   `web/src/docs.css`, run `npm run build:docs-css` and **grep the built
   `docs/assets/css/style.css`** for the rule. Tailwind drops rules silently.

@@ -53,8 +53,6 @@ jobs:
         env:
           JEKYLL_ENV: production
 
-      - uses: ./.github/actions/build-search-index
-
       # Jekyll exits 0 having written an empty site if every page were skipped,
       # so count what came out. Nine feature pages, the installation pages and the
       # landing page are the floor; a build that produces fewer has dropped
@@ -71,6 +69,14 @@ jobs:
             echo "::error::only $pages pages built; the site has more than that, so something was dropped"
             exit 1
           }
+
+      # After the count above, not before it. Pagefind reports an empty site as
+      # "Found 0 files matching docs/**/*.html" and exits 1, which is a true
+      # statement about the index and tells nobody what went wrong; the check
+      # above says `no landing page was built`. Still before the upload, which
+      # is the part that matters — see
+      # TestTheSearchIndexIsBuiltBeforeThePagesUpload.
+      - uses: ./.github/actions/build-search-index
 
   deploy:
     name: Deploy to Pages
@@ -103,8 +109,6 @@ jobs:
         env:
           JEKYLL_ENV: production
 
-      - uses: ./.github/actions/build-search-index
-
       # The same floor the pull-request build asserts. It was on that job alone,
       # which is the one path where nothing is published — so the check existed
       # everywhere except where it would have mattered. Jekyll exits 0 having
@@ -122,6 +126,14 @@ jobs:
             echo "::error::only $pages pages built; the site has more than that, so something was dropped"
             exit 1
           }
+
+      # After the count above, not before it. Pagefind reports an empty site as
+      # "Found 0 files matching docs/**/*.html" and exits 1, which is a true
+      # statement about the index and tells nobody what went wrong; the check
+      # above says `no landing page was built`. Still before the upload, which
+      # is the part that matters — see
+      # TestTheSearchIndexIsBuiltBeforeThePagesUpload.
+      - uses: ./.github/actions/build-search-index
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

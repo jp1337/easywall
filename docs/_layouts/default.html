@@ -7,6 +7,12 @@
     // visitor's preference carries between docs.jp1337.io and the running
     // app (when both are on the same origin).
     (function () {
+      // First, and before anything that can throw. localStorage.getItem below
+      // throws in a browser with site data blocked, which aborted this whole
+      // function — so the flag was never set and the search field, whose only
+      // condition is that a script is running, stayed hidden from a visitor who
+      // had one. The flag depends on nothing.
+      document.documentElement.setAttribute('data-js', 'on');
       var t = localStorage.getItem('theme');
       if (t === 'dark' || t === 'light') t = 'easywall-' + t;
       if (!t) {
@@ -14,7 +20,6 @@
           ? 'easywall-dark' : 'easywall-light';
       }
       document.documentElement.setAttribute('data-theme', t);
-      document.documentElement.setAttribute('data-js', 'on');
     })();
   </script>
   <meta charset="UTF-8">
@@ -299,8 +304,11 @@
         var js = document.createElement('script');
         js.src = '{{ "/pagefind/pagefind-ui.js" | relative_url }}';
         js.onload = function () {
+          // The placeholder goes after the constructor returns, not before it.
+          // Removing it first meant a PagefindUI that threw for any reason left
+          // the visitor with an empty padded div and no field at all — the one
+          // outcome worse than a field that has not loaded yet.
           var pending = seed.value;
-          seed.remove();
           var ui = new window.PagefindUI({
             element: '#docs-search',
             bundlePath: '{{ "/pagefind/" | relative_url }}',
@@ -318,6 +326,7 @@
             // difference between an answer and a page to read again.
             highlightParam: 'highlight'
           });
+          seed.remove();
           if (pending) ui.triggerSearch(pending);
           var real = host.querySelector('input');
           if (real) real.focus();
@@ -336,7 +345,11 @@
     // any search code without being asked: it runs when the visitor arrived
     // from a result, which is exactly when the term is worth marking. Gated on
     // the parameter, so an ordinary page load still fetches nothing.
-    if (new URLSearchParams(location.search).has('highlight')) {
+    //
+    // Wrapped like every other block in this file. Bare, its `var hl` was a
+    // property of window on 26 pages.
+    (function () {
+      if (!new URLSearchParams(location.search).has('highlight')) return;
       var hl = document.createElement('script');
       // pagefind-highlight.js ends in `export { PagefindHighlight as default }`
       // — an ES module. Attached as a classic script it fails to parse at all
@@ -349,7 +362,7 @@
         new window.PagefindHighlight({ highlightParam: 'highlight' });
       };
       document.body.appendChild(hl);
-    }
+    })();
   </script>
 
 </body>
