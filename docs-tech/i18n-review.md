@@ -66,6 +66,8 @@ themselves out with no warning.
 | `apply_lead_rolled_back` | The window closed without a confirmation, so the previous rules were restored. Nothing you staged was lost — review it and apply again. |
 | `staged_note` | Changes are staged until you {}. |
 | `options_saved_note` | Options save immediately. Rule changes stay staged until you {}. |
+| `settings_saved_note` | Saved immediately. Rule changes stay staged until you {}. |
+| `accept_too_late` | Too late — the confirmation window had already closed, and the previous rules are back. Your edits are still staged; apply them again when you are ready. |
 
 ## Panic mode and recovery
 
@@ -82,6 +84,7 @@ equivalent button in the interface.
 | `audit_panic_resumed` | Panic mode ended |
 | `audit_apply_refused_panic` | Apply refused — panic mode is engaged |
 | `audit_rollback_skipped` | Rollback skipped — panic mode is engaged |
+| `audit_resume_restore_skipped` | Resume could not restore the rules |
 
 ## The second factor and recovery codes
 
