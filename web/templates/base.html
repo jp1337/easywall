@@ -71,7 +71,7 @@
   <label class="sr-only" for="lang-select">{{T "nav_language"}}</label>
   <select id="lang-select" name="lang" class="lang-select">
     {{range .Langs}}
-    <option value="{{.Code}}"{{if .Current}} selected{{end}}>{{.Label}}</option>
+    <option value="{{.Code}}"{{if .Current}} selected{{end}}>{{.Label}}{{if not .Reviewed}} — {{T "lang_unreviewed"}}{{end}}</option>
     {{end}}
   </select>
   <button type="submit" class="lang-submit">{{T "lang_apply"}}</button>

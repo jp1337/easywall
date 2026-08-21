@@ -116,11 +116,15 @@ func isLocalPath(s string) bool {
 
 // languageOption is one entry in the switcher. Label is the language's own name,
 // read from that language's own locale file, so German reads "Deutsch" rather
-// than "German" whatever the current interface language is.
+// than "German" whatever the current interface language is. Label stays the
+// endonym even when Reviewed is false: the marker that says "unreviewed" is
+// appended in the template, not baked in here, so the coverage report and the
+// switcher cannot disagree about what a language is called.
 type languageOption struct {
-	Code    string
-	Label   string
-	Current bool
+	Code     string
+	Label    string
+	Current  bool
+	Reviewed bool
 }
 
 func (s *Server) languageOptions(r *http.Request, current string) []languageOption {
@@ -135,7 +139,15 @@ func (s *Server) languageOptions(r *http.Request, current string) []languageOpti
 		if label == "language_name" {
 			label = strings.ToUpper(code) // locale file forgot to name itself
 		}
-		opts = append(opts, languageOption{Code: code, Label: label, Current: code == current})
+		// A code absent from status.json counts as not reviewed: the safe
+		// direction is to understate rather than to claim a language nobody
+		// has checked.
+		opts = append(opts, languageOption{
+			Code:     code,
+			Label:    label,
+			Current:  code == current,
+			Reviewed: s.localeStatus[code].Reviewed,
+		})
 	}
 	return opts
 }

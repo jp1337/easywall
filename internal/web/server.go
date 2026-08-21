@@ -82,13 +82,19 @@ type Server struct {
 	pending sessions.Store
 	// replay remembers the last accepted TOTP step, so a code cannot be used
 	// twice inside its own thirty-second validity window.
-	replay  *totpReplay
-	bundle  *i18n.Bundle
-	tmpl    *template.Template
-	router  chi.Router
-	httpSrv *http.Server
-	version *shared.Checker
-	certs   *certManager
+	replay *totpReplay
+	bundle *i18n.Bundle
+	// localeStatus is loaded once here, beside the bundle, rather than per
+	// request: whether a language has been reviewed cannot change without a
+	// restart, so reading status.json on every render would be waste. A code
+	// absent from it — including every code when the file itself is absent —
+	// counts as not reviewed.
+	localeStatus map[string]LocaleStatus
+	tmpl         *template.Template
+	router       chi.Router
+	httpSrv      *http.Server
+	version      *shared.Checker
+	certs        *certManager
 
 	// telemetry is nil in demo mode. The public demo is reset every few hours,
 	// which would give it a fresh identifier each time and manufacture several
@@ -130,15 +136,23 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	bundle := NewBundle(cfg.LocalesDir())
 
+	// A missing status.json yields an empty map rather than an error, and an
+	// absent entry reads as not reviewed — see LoadLocaleStatus.
+	localeStatus, err := LoadLocaleStatus(cfg.LocalesDir())
+	if err != nil {
+		return nil, fmt.Errorf("load locale status: %w", err)
+	}
+
 	s := &Server{
-		cfg:     cfg,
-		client:  client,
-		store:   store,
-		pending: pending,
-		replay:  newTOTPReplay(cfg.TOTPReplayPath()),
-		bundle:  bundle,
-		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:   certs,
+		cfg:          cfg,
+		client:       client,
+		store:        store,
+		pending:      pending,
+		replay:       newTOTPReplay(cfg.TOTPReplayPath()),
+		bundle:       bundle,
+		localeStatus: localeStatus,
+		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:        certs,
 	}
 
 	if !cfg.DemoMode {
