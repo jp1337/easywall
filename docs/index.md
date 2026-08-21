@@ -3,6 +3,9 @@ layout: default
 title: easywall — nftables firewall with a web interface
 description: Linux firewall management with a web interface. Go, nftables via netlink, two-process privilege isolation, and an apply that undoes itself if you get it wrong.
 seo: software
+# A landing page, not a reference page: no on-page contents, and the column that
+# would have been reserved for one goes back to the content.
+toc: false
 ---
 
 <div class="docs-hero">
