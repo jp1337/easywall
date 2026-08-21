@@ -270,13 +270,14 @@ html, body {
 
   /* Hidden by default and revealed by the flag the head script sets. A search
      field with no engine behind it is a control that lies about what it can do;
-     the sidebar navigation is the complete path without JavaScript. */
-  #docs-search { display: none; }
-  [data-js] #docs-search { display: block; padding: 0 14px 10px; }
+     the sidebar navigation is the complete path without JavaScript.
 
-  /* Pagefind's own theming hooks, pointed at the docs tokens so the search
-     follows the theme toggle with no rules of our own. */
+     The custom properties are Pagefind's own theming hooks, pointed at the docs
+     tokens so the search follows the theme toggle with no rules of our own. One
+     rule rather than two: this selector was written twice, five lines apart, and
+     both copies survived into the built file. */
   #docs-search {
+    display: none;
     --pagefind-ui-scale: 0.8;
     --pagefind-ui-primary: var(--accent);
     --pagefind-ui-text: var(--text);
@@ -293,6 +294,7 @@ html, body {
        instead of breaking, and the matched term itself can end up cut mid-word. */
     overflow-wrap: anywhere;
   }
+  [data-js] #docs-search { display: block; padding: 0 14px 10px; }
 
   .docs-search-input {
     width: 100%;
