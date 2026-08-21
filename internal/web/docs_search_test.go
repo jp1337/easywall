@@ -69,11 +69,12 @@ func TestTheSearchFieldIsHiddenWithoutJavaScript(t *testing.T) {
 // Liquid comment blocks and JavaScript line comments.
 //
 // Reading the file whole was not enough. The first version of the test below
-// searched for the bare string "data-js", which the comment above the theme
-// script also contains — so the assertion would have passed on a layout that
-// only *talked* about the flag. The same trap is in workflow_order_test.go twice,
-// where matching an action's name found the comment naming it instead of the
-// `uses:` line. Prose is not behaviour.
+// searched for the bare string "data-js", which a commented-out
+// setAttribute('data-js', 'on') would have satisfied just as well as a live
+// one — the assertion looked for the substring anywhere in the file, not
+// proof that the line still runs. The same trap is in workflow_order_test.go
+// twice, where matching an action's name found the comment naming it instead
+// of the `uses:` line. Prose is not behaviour.
 func docsLayoutCode(t *testing.T) string {
 	t.Helper()
 	code := regexp.MustCompile(`(?s)\{%-?\s*comment\s*-?%\}.*?\{%-?\s*endcomment\s*-?%\}`).

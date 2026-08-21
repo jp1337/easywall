@@ -126,13 +126,14 @@ Three flags, each preventing something that was actually observed:
 | `--root-selector "main.content"` | the topbar's text is indexed on all 26 pages at once. `<nav>` and `<footer>` are already excluded by default, so this is about everything else outside the content column |
 | `--force-language en` | the language is inferred per file. It was inferred as two, and a search in one index could not see the other half of the site |
 
-**The version is pinned exactly**, not `pagefind@1` — the action holds the number,
-so it is not repeated here. A floating range built the published index from
+**The version is pinned exactly**, not `pagefind@1`. The pin itself lives in
+`.github/actions/build-search-index/action.yml`; Renovate's `pagefind`
+customManager in `renovate.json` is what keeps that line current — see
+[dependencies](dependencies.md). A floating range built the published index from
 whatever 1.x npm resolved that morning, and the loader depends on the bundle's *JS
 API* as well as on the index format: the `window.PagefindUI` global, five option
 names, and `pagefind-highlight.js` being an ES module. The count assertion below
-counts fragments and can see none of that. Renovate watches the line — see
-[dependencies](dependencies.md).
+counts fragments and can see none of that.
 
 A glob matching nothing fails the step outright: Pagefind 1.5.2 exits 1, measured
 rather than assumed. What the count check afterwards catches instead is a glob
