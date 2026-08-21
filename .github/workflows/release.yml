@@ -189,3 +189,51 @@ jobs:
           cp ../easywall_*.deb "easywall_${{ matrix.arch }}.deb"
           gh release upload "$GITHUB_REF_NAME" "easywall_${{ matrix.arch }}.deb" --clobber
           echo "uploaded easywall_${{ matrix.arch }}.deb to $GITHUB_REF_NAME"
+
+  announce:
+    name: Announce on Discord
+    needs: [goreleaser, debian]
+    runs-on: ubuntu-24.04
+    # Best-effort on purpose: the release is published and its assets are
+    # uploaded by the time this runs. A Discord outage must not colour a good
+    # release red — it is reported as a warning and nothing else.
+    continue-on-error: true
+    # The secret is mapped to env at job level deliberately. The `secrets`
+    # context is NOT available in a step's `if:` — only `env` is — so
+    # `if: ${{ secrets.DISCORD_WEBHOOK != '' }}` would never be true and the job
+    # would silently never post, which is the failure mode this job exists to
+    # remove.
+    env:
+      WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Post the release
+        # No secret, no post — a fork, or a clone with no webhook configured,
+        # skips this rather than failing on an empty URL.
+        if: env.WEBHOOK != ''
+        run: |
+          set -euo pipefail
+          # jq builds the JSON so a quote or a backtick in any interpolated
+          # value cannot break out of the payload.
+          payload=$(jq -n \
+            --arg title "easywall ${TAG#v}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            '{
+               username: "easywall",
+               embeds: [{
+                 title: $title,
+                 url: $url,
+                 color: 3776250,
+                 description: "A new release is out. The full account is in the release notes; the `.deb` for amd64 and arm64 is on the release page, and the images are on GHCR, Docker Hub and Quay.",
+                 footer: { text: "Every apply reverts itself after 120 seconds unless you confirm it." }
+               }]
+             }')
+          code=$(curl -sS -o /tmp/discord.out -w '%{http_code}' \
+                 -H 'Content-Type: application/json' \
+                 -X POST -d "$payload" "$WEBHOOK")
+          echo "Discord responded $code"
+          if [ "$code" != "204" ] && [ "$code" != "200" ]; then
+            cat /tmp/discord.out
+            exit 1
+          fi

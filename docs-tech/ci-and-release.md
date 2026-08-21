@@ -12,7 +12,7 @@ wrote, all behind green ticks.
 | `security.yml` | push to `main`, every PR, Mondays 08:00 UTC | CodeQL, `govulncheck`, `gosec` |
 | `docs.yml` | changes under `docs/` | the site builds (PR) and deploys to Pages (main) |
 | `publish-edge.yml` | push to `main` | multi-arch image to three registries as `:edge` and `:sha-…` |
-| `release.yml` | a `v*.*.*` tag | GoReleaser, then one `.deb` per architecture uploaded as a release asset |
+| `release.yml` | a `v*.*.*` tag | GoReleaser, then one `.deb` per architecture uploaded as a release asset, then one Discord embed |
 
 Pull-request runs cancel their predecessors (`concurrency` with
 `cancel-in-progress` gated on `github.event_name == 'pull_request'`). Deliberately
@@ -92,8 +92,9 @@ in the log first, so the number is visible if anyone ever wants to act on them.
 ```
 tag v*.*.*
    ├── goreleaser ──► tarballs (amd64, arm64), checksums, images :latest/:vX.Y.Z
-   └── debian ──────► easywall_amd64.deb   (native amd64 runner)
-                      easywall_arm64.deb   (native arm64 runner)
+   ├── debian ──────► easywall_amd64.deb   (native amd64 runner)
+   │                  easywall_arm64.deb   (native arm64 runner)
+   └── announce ────► one embed in Discord   (needs both, best-effort)
 ```
 
 The `.deb` is built with `dpkg-buildpackage`, deliberately **not** GoReleaser's
@@ -112,6 +113,32 @@ those under `/releases/latest/download/`.
 That command had always been a 404: no release before 2.5.0 carried a `.deb` at
 all. It was built by CI and kept as a seven-day artefact that needed a GitHub
 login to fetch.
+
+#### The `announce` job
+
+2.8.0 shipped and was announced by hand, hours later. An announcement that
+depends on somebody remembering is one that is eventually forgotten, and a
+release nobody hears about is most of a release wasted.
+
+It posts one embed — the version, a link to the release notes, and the sentence
+about the acceptance window — to the webhook in the repository secret
+`DISCORD_WEBHOOK`. Three things about how it is written are deliberate:
+
+| | |
+|---|---|
+| `continue-on-error: true` | It runs *after* `goreleaser` and `debian`, so the release is complete and its assets are uploaded before this starts. A Discord outage is a workflow warning, not a red release |
+| The secret is mapped to job-level `env` | The `secrets` context is **not** available in a step's `if:`; only `env` is. `if: ${{ secrets.DISCORD_WEBHOOK != '' }}` is silently always false, so the job would never post — exactly the forgotten announcement it exists to prevent. The step tests `env.WEBHOOK` instead, which also means a fork with no webhook skips rather than fails |
+| `jq -n --arg` builds the payload | Nothing interpolated can break out of the JSON. Shell string concatenation here would make the tag name an injection point |
+
+The `jq` construction is the part that can actually be wrong, and it cannot be
+exercised without cutting a release, so check it by hand instead — see Step 3 of
+the 2.9 implementation plan, which runs the same `jq -n` with `TAG=v2.9.0` and
+asserts the title and URL.
+
+**The Ko-fi post is not here, and cannot be.** Ko-fi has no writing API: posts
+are made through the browser while signed in, so that step is a person's, not a
+workflow's. Documenting it here as automated would send whoever reads this next
+looking for a job that does not exist.
 
 ### `publish-edge.yml`
 
