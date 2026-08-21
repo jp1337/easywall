@@ -146,15 +146,17 @@
     </nav>
 
     <!-- ── Page content ──────────────────────────────────────────── -->
-    <main class="content" id="main-content">
+    <main class="content{% if page.toc == false %} content-full{% endif %}" id="main-content">
       <!-- Filled from the rendered headings by the script at the end of this
            file, and removed again if the page is too short to need it. Empty
            in the served HTML on purpose: kramdown owns the heading ids, and
            Liquid cannot read them back out of {{ content }}. -->
+      {%- unless page.toc == false %}
       <nav class="docs-toc" id="docs-toc" aria-labelledby="docs-toc-title" hidden>
         <p class="docs-toc-title" id="docs-toc-title">On this page</p>
         <ul class="docs-toc-list"></ul>
       </nav>
+      {%- endunless %}
 
       <article class="content-body">
         {{ content }}
@@ -227,8 +229,14 @@
 
       var heads = [].slice.call(body.querySelectorAll('h2[id], h3[id]'));
       // Two entries is a list, not an overview; it would cost more attention
-      // than it saves.
-      if (heads.length < 3) { nav.remove(); return; }
+      // than it saves. Removing the column also has to release the space
+      // reserved for it in CSS, or the page keeps a 340px empty gutter for a
+      // contents list that is not there — which is what the landing page had.
+      if (heads.length < 3) {
+        nav.remove();
+        document.getElementById('main-content').classList.add('content-full');
+        return;
+      }
 
       var list = nav.querySelector('.docs-toc-list');
       var links = heads.map(function (h) {

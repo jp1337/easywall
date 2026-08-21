@@ -491,6 +491,13 @@ html, body {
     animation: fade-in 0.25s ease;
   }
 
+  /* No on-page contents, so nothing to reserve: a page that declares
+     `toc: false`, or one the script found too short to need a contents list,
+     gets the gutter back. Without this the landing page stopped at 1572px in a
+     1920px window and kept 347px empty beside it. Declared after .content and
+     at the same specificity, so source order settles it. */
+  .content-full { padding-right: var(--content-pad); }
+
   /* Full width, left-aligned — one left edge for headings, prose, tables and
      figures alike. It used to be an 880px measure centred in the available
      area, while tables and diagrams stepped outside it and centred on the same
