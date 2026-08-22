@@ -673,7 +673,7 @@ func (d *demoState) handleLogEvent(payload []byte) shared.Response {
 		if p.Proxied {
 			// The same token the core writes. The public demo is behind nginx,
 			// which is where this was noticed, so the demo has to show it.
-			detail += " via-proxy"
+			detail += shared.ProxyToken
 		}
 	}
 	d.auditAs(string(p.Event), "", detail, "web")

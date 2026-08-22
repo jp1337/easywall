@@ -893,10 +893,16 @@ var auditDetailKeys = map[string]string{
 // not a recognised token is passed through rather than guessed at.
 //
 // One rule is not an exact-match lookup, and cannot be: a detail carrying an
-// address can never be a map key. A line ending in " via-proxy" has the token
-// stripped and renders as the address plus a neutral chip reading "via proxy" in
-// the operator's language — a chip because DESIGN.md assigns informational marks
-// to neutral chips, and because the Detail column is scanned, not read.
+// address can never be a map key. shared.ProxyToken can also sit *mid-string* —
+// the debounced summary reads "from 1.2.3.4 via-proxy, 2 more within 60s" and
+// login_recovery_used reads "from 1.2.3.4 via-proxy, 7 recovery codes left" —
+// so this looks for the token anywhere rather than only at the end, splices the
+// chip in at the position it found it, and keeps whatever came after. A
+// suffix-only check rendered the chip for logins and lockouts but left the raw
+// English token sitting untranslated in the other five event kinds.
+//
+// The chip is neutral — DESIGN.md assigns informational marks to neutral
+// chips, and the Detail column is scanned, not read.
 //
 // This returns template.HTML, so everything that is not markup this function
 // wrote is escaped here. TestDetailLabelEscapesWhatItPassesThrough guards it.
@@ -904,12 +910,22 @@ func detailLabel(tFunc func(string, ...interface{}) string, detail string) templ
 	if key, ok := auditDetailKeys[detail]; ok {
 		return template.HTML(template.HTMLEscapeString(tFunc(key))) //nolint:gosec // G203 — escaped on the line it is written
 	}
-	if addr, ok := strings.CutSuffix(detail, " via-proxy"); ok {
-		// #nosec G203 -- both halves are escaped here; the only markup is the span
-		// this line writes.
-		return template.HTML(template.HTMLEscapeString(addr) +
+	if i := strings.Index(detail, shared.ProxyToken); i >= 0 {
+		before, after := detail[:i], detail[i+len(shared.ProxyToken):]
+		// #nosec G203 -- before and after are both escaped here; the only markup is
+		// the two spans this line writes.
+		//
+		// Everything is wrapped in one outer <span> rather than left as sibling
+		// text/element nodes. log.html's mobile layout (.table-reflow at
+		// max-width:720px) turns every direct child of a cell into its own flex
+		// item — that is how a table row becomes a card — so an unwrapped chip
+		// was a second flex item, and .cell-wide's align-items:stretch drew it as
+		// a full-width bar under the address instead of sitting beside it.
+		// Rendered and confirmed at 390px before this wrapper was added, and
+		// again after.
+		return template.HTML(`<span>` + template.HTMLEscapeString(before) +
 			` <span class="chip">` + template.HTMLEscapeString(tFunc("audit_detail_via_proxy")) +
-			`</span>`) //nolint:gosec // G203 — see above
+			`</span>` + template.HTMLEscapeString(after) + `</span>`) //nolint:gosec // G203 — see above
 	}
 	return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — escaped on the line it is written
 }

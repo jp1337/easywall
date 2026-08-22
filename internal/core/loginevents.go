@@ -204,18 +204,12 @@ func (l *loginEvents) run(stop <-chan struct{}) {
 	}
 }
 
-// proxyToken is what an address recorded through a reverse proxy carries. One
-// fixed English word, after the address, in the log file where every other
-// detail already is — `grep 'via-proxy'` finds every proxied login. The
-// interface strips it and renders a chip in the operator's language.
-const proxyToken = " via-proxy"
-
 func addrDetail(addr string, proxied bool) string {
 	if addr == "" {
 		return ""
 	}
 	if proxied {
-		return "from " + addr + proxyToken
+		return "from " + addr + shared.ProxyToken
 	}
 	return "from " + addr
 }

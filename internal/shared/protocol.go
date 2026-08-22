@@ -166,6 +166,20 @@ type LogEventPayload struct {
 	Proxied bool       `json:"proxied"`
 }
 
+// ProxyToken is what an address recorded through a reverse proxy carries in the
+// detail string. One fixed English word, appended right after the address —
+// `grep 'via-proxy' audit.log` finds every proxied login regardless of what
+// follows it in the same detail (a debounce summary, a recovery-codes count).
+// The interface strips it, wherever it sits, and renders a chip in the
+// operator's language in its place.
+//
+// One constant, three packages: the core writes it (loginevents.go), the web
+// process strips it in two places (server.go's detailLabel, democlient.go's
+// demo echo of the same shape). A second literal drifting out of step with
+// this one would silently stop the chip from rendering for whichever caller
+// still had the old spelling.
+const ProxyToken = " via-proxy"
+
 // Command is sent from easywall-web to easywall-core over the Unix socket.
 type Command struct {
 	Type    CommandType     `json:"type"`
