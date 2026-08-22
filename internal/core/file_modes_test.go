@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // The two files the core writes are readable by root and nobody else.
@@ -33,6 +35,14 @@ func TestCoreWritesItsFilesForRootOnly(t *testing.T) {
 		f := &Firewall{cfg: &Config{}}
 		f.cfg.DataDir = dir
 		f.setLastApply(time.Now())
+		assertMode(t, path, 0600)
+	})
+
+	t.Run("applied-config snapshot", func(t *testing.T) {
+		path := filepath.Join(dir, "applied-config.json")
+		if err := writeAppliedConfig(path, shared.AppliedConfig{}); err != nil {
+			t.Fatalf("writeAppliedConfig: %v", err)
+		}
 		assertMode(t, path, 0600)
 	})
 }

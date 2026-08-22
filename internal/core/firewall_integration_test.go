@@ -601,3 +601,52 @@ func TestIntegration_RollbackKeepsTheStagedEdits(t *testing.T) {
 	mustContain(t, rs, "tcp dport 22 accept", "the previous rule is enforced again")
 	mustNotContain(t, rs, "tcp dport 8443", "the rolled-back rule must be gone from the kernel")
 }
+
+// The snapshot follows the kernel. Every place nft.Apply succeeds records the
+// configuration that went in with the rules, because "what is live" is otherwise
+// unknowable — the options and the network settings are in this daemon's config
+// file, which changes without the kernel changing.
+func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	// Apply blocks for the whole acceptance window unless it is switched off;
+	// this test cares about what got recorded, not about the confirmation flow.
+	cfg.Acceptance.Enabled = false
+
+	if _, err := os.Stat(cfg.AppliedConfigPath()); !os.IsNotExist(err) {
+		t.Fatalf("a fresh data directory already has a snapshot: %v", err)
+	}
+
+	// The restore path, which is what an upgrade to 2.10 runs at the first
+	// service start.
+	if err := fw.RestoreCurrent(RestoreReasonBoot); err != nil {
+		t.Fatalf("RestoreCurrent: %v", err)
+	}
+	res, err := readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil || !res.Recorded {
+		t.Fatalf("a restore did not record the configuration: recorded=%v err=%v", res.Recorded, err)
+	}
+
+	// The apply path, with the configuration changed underneath it: the snapshot
+	// must hold the new value, not the one the restore wrote.
+	opts := cfg.FirewallOptions()
+	opts.Fragments = !opts.Fragments
+	if err := cfg.SaveFirewallOptions(opts); err != nil {
+		t.Fatal(err)
+	}
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	res, err = readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drift := shared.DiffConfig(res.Config, shared.AppliedConfig{
+		Firewall: cfg.FirewallOptions(), Network: cfg.NetworkSettings(),
+	}); len(drift) != 0 {
+		t.Errorf("after an apply the snapshot still disagrees with the live config: %v", drift)
+	}
+	if fw.Status().HasPending {
+		t.Error("an apply that just recorded its own configuration still reports a pending change")
+	}
+}

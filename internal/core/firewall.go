@@ -317,6 +317,10 @@ func (f *Firewall) apply(user string) error {
 		return ErrPanicEngaged
 	}
 
+	// The kernel has the rules; record the configuration that went in with them.
+	// After the panic check above, because a teardown means nothing went in.
+	f.recordAppliedConfig()
+
 	// 5. Acceptance window, unless it has been switched off.
 	//
 	// acceptance.enabled was never read until 2.5.0. The system settings page
@@ -456,6 +460,11 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
 			slog.Error("rollback nftables failed", "error", err)
 			failures = append(failures, "nftables: "+err.Error())
+		} else {
+			// The previous rules go back in with the configuration as it is *now*,
+			// not as it was when they were first applied, because that is what the
+			// kernel is holding.
+			f.recordAppliedConfig()
 		}
 		// The third writer of table inet easywall, and it races `panic` exactly
 		// like the other two. The marker was read a few statements ago; a console
@@ -524,6 +533,23 @@ func (f *Firewall) CancelAcceptance() {
 // Status returns the current firewall status for dashboard display.
 func (f *Firewall) Status() shared.FirewallStatus {
 	pending, _ := f.rules.HasPendingChanges()
+
+	// The second half of "is anything pending". Firewall options and network
+	// settings are written straight into this daemon's config and take effect
+	// only at the next apply, so a rule diff alone reported nothing while
+	// /options was telling the operator to apply. Two pages contradicted each
+	// other and the false one was the page with the button.
+	//
+	// Only once a snapshot exists. An installation that has not applied or
+	// restarted under 2.10 keeps 2.9's meaning exactly, so nobody is greeted with
+	// a pending change they did not make.
+	if snapshot := f.appliedConfig(); snapshot.Recorded {
+		live := shared.AppliedConfig{
+			Firewall: f.cfg.FirewallOptions(),
+			Network:  f.cfg.NetworkSettings(),
+		}
+		pending = pending || len(shared.DiffConfig(snapshot.Config, live)) > 0
+	}
 
 	f.lastApplyMu.Lock()
 	last := f.lastApply

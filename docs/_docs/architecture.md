@@ -62,7 +62,7 @@ Step by step: [Applying rules]({{ '/docs/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
-Eighteen message kinds, declared as Go structs on both sides. Adding an operation
+Nineteen message kinds, declared as Go structs on both sides. Adding an operation
 means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
@@ -81,6 +81,7 @@ whole protocol was.
 | `GET_STATUS` · `GET_LOG` | dashboard · last 200 audit entries |
 | `EXPORT_RULES` · `IMPORT_RULES` | backup and restore as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
+| `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
 | `PANIC` · `RESUME` | tear the table down and record it · end that and restore |
 | `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
 

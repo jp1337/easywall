@@ -117,6 +117,11 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		return nil
 	}
 
+	// Also what establishes the file on an installation upgrading to 2.10: the
+	// first daemon start restores, so the snapshot exists after the upgrade's
+	// service restart.
+	f.recordAppliedConfig()
+
 	WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforced", "all", reason, "core")
 	slog.Info("the stored rules are in force again", "reason", reason)
 	return nil

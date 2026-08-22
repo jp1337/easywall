@@ -79,6 +79,15 @@ const (
 	CmdPanic  CommandType = "PANIC"
 	CmdResume CommandType = "RESUME"
 
+	// CmdGetAppliedConfig returns the configuration that went into the kernel
+	// with the rules that are in it, and whether it was recorded at all.
+	//
+	// Read-only, one file, so it keeps the short deadline. It exists because
+	// RulesState answers only half of "what changes": the options and the network
+	// settings live in the core's config and take effect at the next apply, and
+	// nothing on either side could see the difference between the two.
+	CmdGetAppliedConfig CommandType = "GET_APPLIED_CONFIG"
+
 	// CmdLogEvent hands the core a login event to record.
 	//
 	// It exists because the audit log had no logins in it at all —
@@ -100,7 +109,7 @@ var AllCommandTypes = []CommandType{
 	CmdGetStatus, CmdGetOptions, CmdSaveOptions,
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
-	CmdImportRules, CmdValidateCustom,
+	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig,
 	CmdPanic, CmdResume, CmdLogEvent,
 }
 
