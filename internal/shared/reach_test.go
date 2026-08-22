@@ -67,8 +67,11 @@ func TestReachable(t *testing.T) {
 		{name: "an auto-detected bridge is unknowable from here",
 			net: NetworkSettings{Docker: DockerConfig{Enabled: true, AllowBridgeNetworks: true}},
 			src: netip.MustParseAddr("172.18.0.4"),
-			// The bogon filter is off here, so the docker step is what decides.
-			verdict: ReachUnknown, reason: ReasonDockerNetwork},
+			// The bogon filter is off here, so the docker step is what decides. A
+			// distinct reason from the configured-network case above: this one
+			// genuinely cannot be listed from here, and the sentence must not claim
+			// otherwise the way the shared reason used to.
+			verdict: ReachUnknown, reason: ReasonDockerBridge},
 		{name: "an ordinary LAN address outside docker's pool still gets a real answer",
 			// dockerPoolRanges bounds the unknowable case to 172.16.0.0/12; a
 			// fallback-pool bridge address (192.168.x) is the known miss, but an
@@ -155,7 +158,7 @@ func TestAllReachReasonsIsComplete(t *testing.T) {
 	}
 	for _, r := range []ReachReason{
 		ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
-		ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork,
+		ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
 		ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
 		ReasonNoRule,
 	} {

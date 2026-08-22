@@ -253,6 +253,13 @@ func TestHandleApplyGET_TheVerdictNamesTheOperatorsOwnAddress(t *testing.T) {
 
 // A window that is open is not a preview: the change is live already. The page
 // says how much of it is, and shows no diff.
+//
+// The original version of this test asserted the body did not contain
+// `class="diff"` — but the diff card renders `class="card diff mb-4"`, so that
+// exact substring never appears whatever happens; it passed before the feature
+// existed. diff-group-head is the marker that actually only renders inside a
+// preview, and the collapsed live-count sentence is the assertion that was
+// missing entirely: nothing proved LiveCount ever reached the page.
 func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
@@ -267,8 +274,42 @@ func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 
 	rec := doAuthRequest(t, s, "GET", "/apply", nil)
 	assertStatus(t, rec, http.StatusOK)
-	if strings.Contains(rec.Body.String(), `class="diff"`) {
+	body := rec.Body.String()
+	if strings.Contains(body, "diff-group-head") {
 		t.Error("a preview of a change that is already live is history, not a preview")
+	}
+	if !strings.Contains(body, "live and unconfirmed") {
+		t.Errorf("the collapsed line naming what is live never reached the page:\n%s", body)
+	}
+}
+
+// A verdict of "blocks new connections" has to withhold the primary button, not
+// just say something above it — a three-word coloured verdict outranks a note,
+// so the safety has to be the control itself: a differently-labelled button,
+// not the filled primary one. FirewallOptions{} leaves Bogons false, so staging
+// the httptest peer (192.0.2.1, see TheVerdictNamesTheOperatorsOwnAddress) on
+// the blacklist sends it straight to ReachBlocked/blacklisted.
+func TestHandleApplyGET_BlockedVerdictSwapsTheButton(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{Blacklist: []string{"192.0.2.1"}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+
+	if !strings.Contains(body, "Apply anyway") {
+		t.Errorf("a blocked verdict must relabel the start button to Apply anyway:\n%s", body)
+	}
+	if strings.Contains(body, "btn-primary") {
+		t.Error("a blocked verdict must not leave the primary button class on the start action")
 	}
 }
 

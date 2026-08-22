@@ -82,7 +82,7 @@
         <div>
           <div class="hero-fact-label">{{T "dashboard_pending"}}</div>
           <div class="hero-fact-value">
-            {{if .Status.HasPending}}<a class="chip chip-warn" href="/apply">{{T "state_unapplied"}} <span class="diff-count">{{$.Data.PendingCount}}</span></a>{{else}}{{T "state_none"}}{{end}}
+            {{if .Status.HasPending}}<a class="chip chip-warn" href="/apply">{{T "state_unapplied"}}{{if $.Data.PendingCount}} <span class="diff-count">{{$.Data.PendingCount}}</span>{{end}}</a>{{else}}{{T "state_none"}}{{end}}
           </div>
         </div>
         <div>

@@ -1115,6 +1115,25 @@ body {
     font-size: 11px;
     font-weight: 500;
     white-space: nowrap;
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease),
+                transform var(--motion-fast) var(--motion-ease);
+  }
+
+  /* The dashboard's pending chip is the only chip that is ever a link — give
+     it the same affordance a.stat-tile sets, so hovering or focusing it reads
+     as something you can act on rather than a static state marker. */
+  a.chip:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+
+  a.chip:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 2px;
+    border-color: var(--color-accent);
   }
 
   .chip-accent {
@@ -1229,10 +1248,19 @@ body {
     color: var(--color-ink-muted);
   }
 
-  /* A phone has no room for the before/after on the same line as the key. */
+  /* A phone has no room for the before/after on the same line as the key.
+     A changed custom rule carries the whole nft line in From/To, and
+     .diff-move's nowrap plus .card's overflow: hidden silently clipped it
+     instead of wrapping — nothing rendered that row until a custom-rule
+     edit was actually staged and looked at. */
   @media (max-width: 720px) {
     .diff-row { flex-wrap: wrap; }
-    .diff-move { margin-left: 0; flex-basis: 100%; }
+    .diff-move {
+      margin-left: 0;
+      flex-basis: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
   }
 
   /* ── Second-factor enrolment ─────────────────────────────────────────────

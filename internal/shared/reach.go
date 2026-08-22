@@ -45,6 +45,7 @@ const (
 	ReasonIPv6Blocked     ReachReason = "ipv6_blocked"
 	ReasonBogonFilter     ReachReason = "bogon_filter"
 	ReasonDockerNetwork   ReachReason = "docker_network"
+	ReasonDockerBridge    ReachReason = "docker_bridge"
 	ReasonBlacklisted     ReachReason = "blacklisted"
 	ReasonWhitelisted     ReachReason = "whitelisted"
 	ReasonPortOpen        ReachReason = "port_open"
@@ -56,8 +57,9 @@ const (
 // hangs off: both locale files must label every one of these.
 var AllReachReasons = []ReachReason{
 	ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
-	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonBlacklisted,
-	ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules, ReasonNoRule,
+	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
+	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
+	ReasonNoRule,
 }
 
 // BogonRanges are the source networks the bogon filter drops on any interface
@@ -168,7 +170,12 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		return ReachUnknown, ReasonBogonFilter
 	}
 
-	// 6. The Docker bridge accepts.
+	// 6. The Docker bridge accepts. Two different reasons for two different
+	// claims: ReasonDockerNetwork is a network the operator named in the
+	// settings, which this process can and does list; ReasonDockerBridge is the
+	// auto-detected pool it cannot enumerate. The same sentence for both used to
+	// contradict the green verdict beside it in the first case, where the
+	// network demonstrably *was* listed.
 	if n.Docker.Enabled {
 		if inAnyCIDR(src, dockerNets) {
 			return ReachOpen, ReasonDockerNetwork
@@ -177,7 +184,7 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		// them. Bounded to Docker's default address pool so an ordinary 192.168 or
 		// 10.x LAN address still gets a real answer instead of a shrug.
 		if n.Docker.AllowBridgeNetworks && inAnyCIDR(src, dockerPoolRanges) {
-			return ReachUnknown, ReasonDockerNetwork
+			return ReachUnknown, ReasonDockerBridge
 		}
 	}
 

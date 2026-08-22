@@ -56,6 +56,21 @@ func TestDiffRules_ForwardingIsKeyedByProtocolAndSourcePort(t *testing.T) {
 	assertDeltas(t, got, want)
 }
 
+// Two identical stored forwards produce two identical + rows unless diffForwarding
+// guards against its own duplicates the way diffPorts does — ValidateRules does
+// not reject a duplicate forward, so this is reachable from an ordinary staged
+// edit, and it was visible in the apply preview's first screenshot.
+func TestDiffRules_ADuplicateForwardIsNotReportedTwice(t *testing.T) {
+	fwd := ForwardingRule{Protocol: "tcp", SourcePort: 8080, DestPort: 80}
+	staged := Rules{Forwarding: []ForwardingRule{fwd, fwd}}
+
+	got := DiffRules(Rules{}, staged)
+	want := []RuleDelta{
+		{Set: "forwarding", Kind: DeltaAdded, Key: "8080->80/tcp"},
+	}
+	assertDeltas(t, got, want)
+}
+
 func TestDiffRules_AMovedCustomRuleIsAChange(t *testing.T) {
 	cur := Rules{Custom: []string{"# note", "tcp dport 9100 accept", "udp dport 53 accept"}}
 	staged := Rules{Custom: []string{"udp dport 53 accept", "tcp dport 9100 accept"}}

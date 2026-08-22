@@ -177,8 +177,13 @@ func diffForwarding(current, staged []ForwardingRule) []RuleDelta {
 	next := indexForwards(staged)
 
 	var out []RuleDelta
+	seen := map[string]bool{}
 	for _, r := range staged {
 		id := forwardID(r)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
 		before, existed := cur[id]
 		switch {
 		case !existed:
@@ -188,8 +193,14 @@ func diffForwarding(current, staged []ForwardingRule) []RuleDelta {
 				From: forwardText(before), To: forwardText(r)})
 		}
 	}
+	seen = map[string]bool{}
 	for _, r := range current {
-		if _, still := next[forwardID(r)]; !still {
+		id := forwardID(r)
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if _, still := next[id]; !still {
 			out = append(out, RuleDelta{Set: "forwarding", Kind: DeltaRemoved, Key: forwardText(r)})
 		}
 	}
