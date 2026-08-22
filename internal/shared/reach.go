@@ -18,10 +18,10 @@ import (
 // what it means.
 //
 // The chain order below is nft.Apply's, duplicated here by construction. The
-// coupling meant to keep the two honest is a veth test in internal/core, not
-// yet in this tree — the next task after this one: a rule inserted into Apply
-// without a branch here should show up as a disagreement with a real kernel
-// rather than as a wrong warning on a page.
+// coupling meant to keep the two honest is a veth test in internal/core —
+// internal/core/reach_integration_test.go: a rule inserted into Apply without
+// a branch here shows up as a disagreement with a real kernel rather than as a
+// wrong warning on a page.
 
 // ReachVerdict is the answer. Three values, because there are three honest ones.
 type ReachVerdict string

@@ -12,7 +12,7 @@ A firewall you edit over the network can lock you out of the machine you are edi
 {% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
    alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
-Editing changes nothing. Applying changes everything — for 120 seconds. If the new rules cut your connection you cannot click Confirm, and *not* confirming is what brings the old rules back.
+Editing changes nothing. Applying changes everything — for 120 seconds. *Not* confirming — whether by choice or because the new rules cut you off from confirming at all — is what brings the old rules back.
 
 ## What it is made of
 

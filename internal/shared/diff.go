@@ -281,6 +281,13 @@ func DiffConfig(applied, live AppliedConfig) []ConfigDelta {
 // skippedConfigKeys are leaves DiffConfig deliberately does not report, each for
 // a reason that is not "it was inconvenient". The reflection guard reads this
 // map, so a field cannot be dropped from the preview without a line here.
+//
+// Keys are root-relative ("ipv6.enabled"), not bare field names ("enabled"):
+// structDeltas is walked once per top-level struct, so a bare name would match
+// that leaf in FirewallOptions, NetworkSettings and SystemSettings all at
+// once. This map is also shared with the audit log — DescribeStructChange
+// walks the same structDeltas — so an entry added here silently drops that
+// field from an audit record too, not only from this preview.
 var skippedConfigKeys = map[string]string{
 	"ipv6.enabled": "the pre-2.5.0 spelling. Config.Normalise translates it into " +
 		"ipv6.mode and never writes it back, so a difference here describes the " +

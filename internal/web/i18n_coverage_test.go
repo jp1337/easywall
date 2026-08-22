@@ -269,6 +269,16 @@ func TestTemplateClassesExistInStylesheet(t *testing.T) {
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no templates found (err=%v)", err)
 	}
+	// app.js builds a forwarding row client-side that is meant to mirror
+	// forwarding.html exactly. A class renamed in the template and not in the
+	// script drifts silently: the row renders, just with the old layout — this
+	// happened once, with cell-flow surviving in app.js after the template
+	// moved to a <div class="flow"> wrapper.
+	appJS := filepath.Join(root, "web", "static", "app.js")
+	if _, err := os.Stat(appJS); err != nil {
+		t.Fatalf("app.js not found at %s: %v", appJS, err)
+	}
+	files = append(files, appJS)
 	defined := styleClasses(t)
 
 	// Utilities Tailwind only emits when it sees them, plus hooks that exist for

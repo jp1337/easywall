@@ -440,6 +440,7 @@
   {"id": "apply_window_body", "translation": "Wie lange es dauert, bis ein unbestätigtes Anwenden zurückgenommen wird, steht in den {}."},
   {"id": "apply_window_note", "translation": "Kurz genug, dass sich ein Aussperren schnell löst; lang genug, um wirklich zu prüfen. Der Standard ist 120 Sekunden."},
 
+  {"id": "apply_preview_incomplete", "translation": "Ein Teil dieser Vorschau konnte nicht vom Core gelesen werden. Was unten steht, kann unvollständig sein — vor einer Entscheidung neu laden."},
   {"id": "apply_preview_title", "translation": "Was sich ändert"},
   {"id": "apply_set_tcp", "translation": "TCP-Ports"},
   {"id": "apply_set_udp", "translation": "UDP-Ports"},

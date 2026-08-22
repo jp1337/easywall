@@ -37,9 +37,19 @@ type applyPreview struct {
 	Config []shared.ConfigDelta
 	Total  int
 
-	// Verdict is nil when the address or the listening port could not be read,
-	// which is the one case where saying nothing beats saying something.
+	// Verdict is nil only when Incomplete is also true — reachVerdict itself
+	// never returns nil; the worst it reports is ReachUnknown /
+	// ReasonNoAddress. A page that showed no verdict block used to mean
+	// "nothing to warn about" on the one screen whose argument is that silence
+	// is the defect, so a read failure has to say so rather than vanish.
 	Verdict *applyVerdict
+
+	// Incomplete is true when a read this preview depends on failed outright —
+	// GetRules, GetOptions, or GetSettings — so the rule diff, the
+	// configuration drift, or the verdict itself is simply missing rather than
+	// clean. The template renders an alert whenever this is true, so an absent
+	// section is never silent.
+	Incomplete bool
 
 	// Unrecorded is true on an installation that has not applied or restarted
 	// since 2.10. The page says so once: the configuration that went into the
@@ -81,6 +91,14 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 // Backup is the set that was in force before this apply and Current is the set it
 // promoted, so the difference between them is the change the open window is
 // holding.
+//
+// Rules only, deliberately: there is no "Backup" for the configuration half.
+// Firewall options and network settings live in one place, this daemon's
+// config, and the apply that opened this window already overwrote it with the
+// new values — the applied-config snapshot holds what just went in, not what
+// came before it. So an apply that changed options only, with no rule diff at
+// all, legitimately shows no live count here; it is not a bug in this
+// function, there being nothing else here to count it against.
 func (s *Server) liveChangeCount() int {
 	state, err := s.client.GetRules()
 	if err != nil {
@@ -95,12 +113,15 @@ func (s *Server) liveChangeCount() int {
 //
 // A read that fails costs its own section and not the page: a preview missing
 // the configuration drift is still worth more than an apply screen that will not
-// render, and the sections that did load are the ones that are shown.
+// render, and the sections that did load are the ones that are shown. But a
+// failed read is never simply omitted — Incomplete is set so the template says
+// so, because an apply screen that quietly drops the lockout verdict reads as
+// "nothing to warn about".
 func (s *Server) buildPreview(r *http.Request) *applyPreview {
 	state, err := s.client.GetRules()
 	if err != nil {
 		slog.Warn("could not read the rules for the apply preview", "error", err)
-		return nil
+		return &applyPreview{Incomplete: true}
 	}
 
 	p := &applyPreview{}
@@ -130,6 +151,7 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 		slog.Warn("the apply preview has no configuration half and no verdict",
 			"options", oErr, "settings", nErr)
 		p.Total = len(deltas)
+		p.Incomplete = true
 		return p
 	}
 
@@ -165,16 +187,22 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 	o shared.FirewallOptions, n shared.NetworkSettings) *applyVerdict {
 
-	addr, err := netip.ParseAddr(clientIP(r))
+	rawAddr := clientIP(r)
+	addr, err := netip.ParseAddr(rawAddr)
 	if err != nil {
-		slog.Warn("cannot read the peer address, so no lockout verdict is shown",
+		// Not nil: reach_no_address is exactly the sentence for this, and it is
+		// already labelled in both locales. A nil verdict here used to make the
+		// whole block vanish, which reads as "nothing to warn about" — the one
+		// claim this page must never make by omission.
+		slog.Warn("cannot read the peer address, so the verdict is reach_no_address",
 			"remote_addr", r.RemoteAddr, "error", err)
-		return nil
+		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: rawAddr}
 	}
-	port, err := strconv.ParseUint(s.webPort(), 10, 16)
+	rawPort := s.webPort()
+	port, err := strconv.ParseUint(rawPort, 10, 16)
 	if err != nil {
-		slog.Warn("cannot read the listening port, so no lockout verdict is shown", "error", err)
-		return nil
+		slog.Warn("cannot read the listening port, so the verdict is reach_no_address", "error", err)
+		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: addr.String()}
 	}
 
 	verdict, reason := shared.Reachable(staged, o, n, addr, uint16(port),

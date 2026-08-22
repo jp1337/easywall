@@ -1,6 +1,7 @@
 package web
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -50,9 +51,13 @@ func TestEveryPreviewSetHasALabel(t *testing.T) {
 			}
 		}
 	}
-	if len(previewSetOrder) != 6 {
-		t.Errorf("previewSetOrder holds %d sets; shared.Rules has six, and a set "+
+	// Derived from shared.Rules itself, not a hand-written 6: that literal stayed
+	// satisfied the moment a seventh field was added to the struct, while
+	// DiffRules — which reflects over the same struct — went on reporting
+	// deltas for it that the page never draws, silently, by exactly one field.
+	if want := reflect.TypeOf(shared.Rules{}).NumField(); len(previewSetOrder) != want {
+		t.Errorf("previewSetOrder holds %d sets; shared.Rules has %d fields, and a set "+
 			"missing from this list is a section the preview never draws",
-			len(previewSetOrder))
+			len(previewSetOrder), want)
 	}
 }

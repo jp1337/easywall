@@ -80,16 +80,25 @@ func writeAppliedConfig(path string, cfg shared.AppliedConfig) error {
 }
 
 // recordAppliedConfig snapshots the configuration that just went into the
-// kernel. Call it immediately after an nft.Apply that returned nil.
+// kernel. Call it immediately after an nft.Apply that returned nil, with the
+// exact opts and nets that were passed to that call.
+//
+// Deliberately not re-read from f.cfg: f.cfg.FirewallOptions() and
+// f.cfg.NetworkSettings() take the config RWMutex, and a SAVE_OPTIONS landing
+// in the gap between nft.Apply returning and a re-read here would record a
+// configuration the kernel does not hold — the exact drift this file exists to
+// make visible, reintroduced by the one function that writes the record.
+// Passing the same values nft.Apply used is also what makes "one snapshot for
+// the whole apply" true rather than aspirational.
 //
 // The error is logged and not returned, deliberately: the rules are live either
 // way, and failing an apply that worked because a bookkeeping file could not be
 // written would be the tail wagging the dog. What it costs is one apply's worth
 // of drift reporting, and the next successful apply corrects it.
-func (f *Firewall) recordAppliedConfig() {
+func (f *Firewall) recordAppliedConfig(opts shared.FirewallOptions, nets shared.NetworkSettings) {
 	cfg := shared.AppliedConfig{
-		Firewall: f.cfg.FirewallOptions(),
-		Network:  f.cfg.NetworkSettings(),
+		Firewall: opts,
+		Network:  nets,
 	}
 	if err := writeAppliedConfig(f.cfg.AppliedConfigPath(), cfg); err != nil {
 		slog.Warn("could not record the configuration that went into the kernel",
@@ -101,12 +110,37 @@ func (f *Firewall) recordAppliedConfig() {
 // reported as "not recorded" after a warning: an unreadable snapshot must not
 // invent a pending change, and it must not hide one either — it makes the answer
 // unknown, which is what "not recorded" means everywhere else in this file.
+//
+// This is called from Status, and /apply polls GET_STATUS every 2s, so a file
+// that exists and will not parse would otherwise produce a warning on every
+// single poll for as long as the page stays open — about thirty identical
+// journal lines a minute. Logged once per distinct error message instead; a
+// different error, or the file becoming readable and failing again later,
+// warns again.
 func (f *Firewall) appliedConfig() shared.AppliedConfigResult {
 	res, err := readAppliedConfig(f.cfg.AppliedConfigPath())
 	if err != nil {
-		slog.Warn("cannot read the recorded configuration; treating it as unrecorded",
-			"path", f.cfg.AppliedConfigPath(), "error", err)
+		f.warnAppliedConfigErrOnce(err)
 		return shared.AppliedConfigResult{}
 	}
+	f.appliedConfigErrMu.Lock()
+	f.appliedConfigLastErr = ""
+	f.appliedConfigErrMu.Unlock()
 	return res
+}
+
+// warnAppliedConfigErrOnce logs err unless the last call reported the exact
+// same message, so a snapshot that stays corrupt in the same way is one
+// journal line, not one per poll.
+func (f *Firewall) warnAppliedConfigErrOnce(err error) {
+	msg := err.Error()
+	f.appliedConfigErrMu.Lock()
+	repeat := f.appliedConfigLastErr == msg
+	f.appliedConfigLastErr = msg
+	f.appliedConfigErrMu.Unlock()
+	if repeat {
+		return
+	}
+	slog.Warn("cannot read the recorded configuration; treating it as unrecorded",
+		"path", f.cfg.AppliedConfigPath(), "error", err)
 }

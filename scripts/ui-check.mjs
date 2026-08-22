@@ -372,21 +372,40 @@ async function checkForwardingPortIsNotReparsed(page) {
  */
 async function checkForwardingRowEdgesLineUp(page) {
   await page.goto(`${BASE}/forwarding`, { waitUntil: 'networkidle' });
-  const tops = await page.evaluate(() => {
-    const row = document.querySelector('#fwd-tbody tr');
+  const measure = (sel) => page.evaluate((sel) => {
+    const row = document.querySelector(sel);
     if (!row) return null;
     return [...row.querySelectorAll('td')].map(td => td.getBoundingClientRect().top);
-  });
-  if (!tops) {
+  }, sel);
+
+  const seededTops = await measure('#fwd-tbody tr');
+  if (!seededTops) {
     fail('forwarding row', 'no rows in #fwd-tbody — the demo seed changed');
     return;
   }
-  const spread = Math.max(...tops) - Math.min(...tops);
-  if (spread > 1) {
-    fail('forwarding row', `the four cells start ${spread.toFixed(1)}px apart; ` +
+  const seededSpread = Math.max(...seededTops) - Math.min(...seededTops);
+  if (seededSpread > 1) {
+    fail('forwarding row', `the four cells start ${seededSpread.toFixed(1)}px apart; ` +
       'a display:flex <td> is not a table cell and leaves the row height');
   } else {
     console.log('  ok   forwarding row cells share one top edge');
+  }
+
+  // app.js builds the row a browser adds independently of forwarding.html —
+  // it drifted once (cell-flow survived a template rename to <div class="flow">)
+  // and nothing but a rendered, added row would have shown it.
+  await page.click('#add-fwd-btn');
+  const addedTops = await measure('#fwd-tbody tr:last-child');
+  if (!addedTops) {
+    fail('forwarding row', 'clicking #add-fwd-btn did not add a row to #fwd-tbody');
+    return;
+  }
+  const addedSpread = Math.max(...addedTops) - Math.min(...addedTops);
+  if (addedSpread > 1) {
+    fail('forwarding row', `the added row's cells start ${addedSpread.toFixed(1)}px apart; ` +
+      'app.js\'s fwdRowHTML has drifted from forwarding.html\'s markup');
+  } else {
+    console.log('  ok   added forwarding row cells share one top edge');
   }
 }
 

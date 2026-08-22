@@ -440,6 +440,7 @@
   {"id": "apply_window_body", "translation": "How long you get before an unconfirmed apply is rolled back is set under {}."},
   {"id": "apply_window_note", "translation": "Short enough that a lockout resolves itself quickly; long enough to actually test. The default is 120 seconds."},
 
+  {"id": "apply_preview_incomplete", "translation": "Part of this preview could not be read from the core. What is shown below may be incomplete — reload before deciding."},
   {"id": "apply_preview_title", "translation": "What changes"},
   {"id": "apply_set_tcp", "translation": "TCP ports"},
   {"id": "apply_set_udp", "translation": "UDP ports"},

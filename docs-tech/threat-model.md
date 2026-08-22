@@ -142,8 +142,9 @@ rule evaluation fixes that.
 
 A client that forges one of those headers can therefore reach exactly one outcome:
 its own verdict becomes *cannot tell* and its own login line says `via-proxy`. It
-cannot insert an address, cannot suppress a warning it would otherwise get, and
-cannot change what `clientIP` recorded. That asymmetry is the whole argument for
+cannot insert an address, cannot change what `clientIP` recorded, and can move
+*its own* verdict to *cannot tell* and achieve nothing else — not anyone else's
+verdict, not anyone else's login line. That asymmetry is the whole argument for
 reading an untrusted header here, and it is why nothing else in the process does.
 
 ## Rate limiting

@@ -174,7 +174,10 @@ func TestDashboard_TheChipCarriesTheCount(t *testing.T) {
 
 	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
 	assertStatus(t, rec, http.StatusOK)
-	if !strings.Contains(rec.Body.String(), ">2<") {
+	// ">2<" matches any "2" the dashboard happens to render anywhere on the
+	// page — a date, a port, an unrelated count. The chip's count is the
+	// specific markup dashboard.html emits for it.
+	if !strings.Contains(rec.Body.String(), `<span class="diff-count">2</span>`) {
 		t.Errorf("the chip does not carry the count of pending changes:\n%s", rec.Body.String())
 	}
 }

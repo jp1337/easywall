@@ -661,20 +661,27 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 	cfg.Acceptance.Enabled = true
 	cfg.Acceptance.Duration = shared.AcceptanceDurationMin // short; the test cancels rather than waits
 
+	// saveErrCh, not t.Errorf, from this goroutine: t.Errorf on a *testing.T
+	// whose test function has already returned panics, and Apply returning
+	// early — a Fatalf above it, a timeout — would race this goroutine against
+	// exactly that. Buffered so the goroutine never blocks on a channel nobody
+	// reads.
+	saveErrCh := make(chan error, 1)
 	rolledBack := cfg.FirewallOptions()
 	go func() {
 		for fw.acceptance.Status() != shared.AcceptancePending {
 			time.Sleep(5 * time.Millisecond)
 		}
 		rolledBack.Fragments = !rolledBack.Fragments
-		if saveErr := cfg.SaveFirewallOptions(rolledBack); saveErr != nil {
-			t.Errorf("SaveFirewallOptions during the open window: %v", saveErr)
-		}
+		saveErrCh <- cfg.SaveFirewallOptions(rolledBack)
 		fw.acceptance.Cancel() // stands in for "nobody confirmed"
 	}()
 
 	if err := fw.Apply("test"); err != nil {
 		t.Fatalf("Apply (to be rolled back): %v", err)
+	}
+	if saveErr := <-saveErrCh; saveErr != nil {
+		t.Errorf("SaveFirewallOptions during the open window: %v", saveErr)
 	}
 
 	res, err = readAppliedConfig(cfg.AppliedConfigPath())

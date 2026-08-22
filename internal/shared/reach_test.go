@@ -2,6 +2,7 @@ package shared
 
 import (
 	"net/netip"
+	"regexp"
 	"testing"
 )
 
@@ -147,8 +148,31 @@ func TestPortInRule(t *testing.T) {
 // Every reason a verdict can carry is declared in AllReachReasons: the web layer
 // derives its locale keys from that list, so one missing from it is a sentence
 // that renders as its own message id on the apply screen.
+//
+// The list this used to check against was a second hand-written copy of the
+// same names, in this file — so a ReasonFoo added to the const block in
+// reach.go and forgotten in AllReachReasons passed here, passed
+// TestEveryReachReasonHasALabel (which iterates AllReachReasons, not the
+// source), and rendered as the literal "reach_foo" on the page. This scans
+// reach.go's actual const declarations instead, the way
+// TestAllCommandTypesMatchesTheProtocolSource cross-checks protocol.go against
+// AllCommandTypes.
 func TestAllReachReasonsIsComplete(t *testing.T) {
 	t.Parallel()
+	reachSource := repoFile(t, "internal", "shared", "reach.go")
+
+	constPattern := regexp.MustCompile(`(Reason\w+)\s+ReachReason\s*=\s*"([^"]+)"`)
+	matches := constPattern.FindAllStringSubmatch(reachSource, -1)
+	if len(matches) == 0 {
+		t.Fatal("could not find any ReachReason constants in reach.go; " +
+			"the pattern no longer matches or the file is missing declarations")
+	}
+
+	declaredValues := make(map[string]string) // value -> name
+	for _, m := range matches {
+		declaredValues[m[2]] = m[1]
+	}
+
 	declared := map[ReachReason]bool{}
 	for _, r := range AllReachReasons {
 		if declared[r] {
@@ -156,14 +180,23 @@ func TestAllReachReasonsIsComplete(t *testing.T) {
 		}
 		declared[r] = true
 	}
-	for _, r := range []ReachReason{
-		ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
-		ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
-		ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
-		ReasonNoRule,
-	} {
-		if !declared[r] {
-			t.Errorf("%q is declared but missing from AllReachReasons", r)
+
+	// Every constant reach.go declares must be listed in AllReachReasons.
+	for value, name := range declaredValues {
+		if !declared[ReachReason(value)] {
+			t.Errorf("%s (value %q) is declared in reach.go but missing from AllReachReasons", name, value)
 		}
+	}
+
+	// Every entry in AllReachReasons must correspond to a declared constant.
+	for _, r := range AllReachReasons {
+		if _, ok := declaredValues[string(r)]; !ok {
+			t.Errorf("AllReachReasons lists %q but no constant with that value is declared in reach.go", string(r))
+		}
+	}
+
+	if len(AllReachReasons) != len(matches) {
+		t.Errorf("AllReachReasons has %d entries but reach.go declares %d ReachReason constants",
+			len(AllReachReasons), len(matches))
 	}
 }

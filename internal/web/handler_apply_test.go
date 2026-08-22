@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -326,8 +327,74 @@ func TestHandleApplyGET_AnUnrecordedSnapshotSaysSo(t *testing.T) {
 	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{Recorded: false}))
 
 	rec := doAuthRequest(t, s, "GET", "/apply", nil)
-	if !strings.Contains(rec.Body.String(), "apply_config_unrecorded") &&
-		!strings.Contains(rec.Body.String(), "not recorded") {
+	// Asserting on the raw message id as a fallback would pass on a missing
+	// translation — exactly the failure mode this test exists to catch. The
+	// label guards already require apply_config_unrecorded to exist in both
+	// locales, so the rendered English text is the only thing worth checking.
+	if !strings.Contains(rec.Body.String(), "not recorded") {
 		t.Error("nothing on the page says the configuration that went in was never recorded")
+	}
+}
+
+// A GetRules failure used to return a nil preview: no diff, no verdict, no
+// hint that anything was missing — the ordinary Apply-now page, silently
+// short a section that argues against pressing it. Now the preview always
+// renders, with an alert saying part of it could not be read.
+func TestHandleApplyGET_UnreadableRulesSaysSoRatherThanVanishing(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules unavailable"))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	if !strings.Contains(rec.Body.String(), "could not be read from the core") {
+		t.Errorf("an unreadable GetRules must render the incomplete-preview alert, not an empty preview:\n%s", rec.Body.String())
+	}
+}
+
+// GetOptions or GetSettings failing costs the verdict and the configuration
+// drift, and used to do so without saying anything — the same silent
+// omission as the GetRules case, one call later.
+func TestHandleApplyGET_UnreadableOptionsSaysSoRatherThanVanishing(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{TCP: []shared.PortRule{{Port: "22"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, errorRespFor("options unavailable"))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+	if !strings.Contains(body, "could not be read from the core") {
+		t.Errorf("an unreadable GetOptions must render the incomplete-preview alert:\n%s", body)
+	}
+	if strings.Contains(body, "verdict-addr") {
+		t.Error("no verdict can be computed without options, so none should render")
+	}
+}
+
+// reachVerdict used to return nil when the peer address or the listening
+// port would not parse, and a nil verdict makes the whole verdict block
+// vanish — on the one page whose argument is that silence is the defect.
+// reach_no_address is already labelled in both locales for exactly this.
+func TestReachVerdict_UnparseableAddressReturnsUnknownNotNil(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	req := httptest.NewRequest("GET", "/apply", nil)
+	req.RemoteAddr = "not-an-address"
+
+	v := s.reachVerdict(req, shared.Rules{}, shared.FirewallOptions{}, shared.NetworkSettings{})
+	if v == nil {
+		t.Fatal("reachVerdict must never return nil; reach_no_address exists for exactly this case")
+	}
+	if v.Verdict != shared.ReachUnknown || v.Reason != shared.ReasonNoAddress {
+		t.Errorf("expected ReachUnknown/ReasonNoAddress, got %s/%s", v.Verdict, v.Reason)
 	}
 }
