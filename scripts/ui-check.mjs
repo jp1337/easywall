@@ -391,6 +391,31 @@ async function checkForwardingRowEdgesLineUp(page) {
 }
 
 /**
+ * The apply screen actually draws the preview, and the verdict names an address.
+ *
+ * The demo seeds a configuration drift, so /apply always has something to show.
+ * A Go test can assert the handler built the data; only a browser can say the
+ * page rendered it, that the mono column lines up, and that nothing scrolls
+ * sideways at 390px with a long custom rule in the diff.
+ */
+async function checkApplyPreview(page) {
+  await page.goto(`${BASE}/apply`, { waitUntil: 'networkidle' });
+
+  if (await page.locator('.diff-row').count() === 0) {
+    fail('apply preview', 'no .diff-row on /apply — the demo seeds a drift, so the page should list it');
+    return;
+  }
+  const verdict = page.locator('.verdict-addr');
+  if (await verdict.count() === 0) {
+    fail('apply preview', 'no verdict line — the page does not say where the request came from');
+  } else if (!/->|→/.test(await verdict.first().innerText())) {
+    fail('apply preview', `the verdict line does not name an address and a port: ${await verdict.first().innerText()}`);
+  } else {
+    console.log('  ok   /apply shows the diff and names the connection it is about');
+  }
+}
+
+/**
  * Signing out has to end the session by pressing the control the operator sees.
  *
  * The Go suite proves the *route* is right: GET /logout answers 405, a
@@ -596,6 +621,7 @@ try {
   const p = await ctx.newPage();
   await checkForwardingRowEdgesLineUp(p);
   await checkForwardingPortIsNotReparsed(p);
+  await checkApplyPreview(p);
   await checkEnrolmentFlow(p);
   await checkVerifyPage(browser);
   // Last, and deliberately: signing out revokes the session id every context

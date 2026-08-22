@@ -1111,5 +1111,31 @@ func templateFuncs() template.FuncMap {
 			}
 			return errorSVG
 		},
+		// The mark in the diff's mono column. Structural, never chromatic:
+		// DESIGN.md reserves colour outside the blue family for firewall state,
+		// and a green/red diff would break it twice over — a new blacklist entry
+		// is not good news and a removed port is not a failure.
+		"deltaMark": func(kind shared.DeltaKind) string {
+			switch kind {
+			case shared.DeltaAdded:
+				return "+"
+			case shared.DeltaRemoved:
+				return "-"
+			default:
+				return "~"
+			}
+		},
+		// The verdict is a state, so it takes a state colour and the dot that goes
+		// with it — the word is always beside it, which is what Status requires.
+		"verdictDot": func(v shared.ReachVerdict) string {
+			switch v {
+			case shared.ReachOpen:
+				return "active"
+			case shared.ReachBlocked:
+				return "error"
+			default:
+				return "pending"
+			}
+		},
 	}
 }

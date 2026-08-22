@@ -158,3 +158,23 @@ func TestDashboardCountsIgnoreCommentsAndBlankLines(t *testing.T) {
 		}
 	}
 }
+
+func TestDashboard_TheChipCarriesTheCount(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Current: shared.Rules{},
+		Staged:  shared.Rules{TCP: []shared.PortRule{{Port: "8443"}, {Port: "9443"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+
+	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
+	assertStatus(t, rec, http.StatusOK)
+	if !strings.Contains(rec.Body.String(), ">2<") {
+		t.Errorf("the chip does not carry the count of pending changes:\n%s", rec.Body.String())
+	}
+}

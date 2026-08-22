@@ -192,3 +192,101 @@ func TestHandleApplyStart_PanicEngagedSaysSoInsteadOfGenericFailure(t *testing.T
 		t.Errorf("expected the page to name panic mode as the reason; body was:\n%s", body)
 	}
 }
+
+// The page names what changes, and it names it before the operator commits to
+// finding out during the 120 seconds.
+func TestHandleApplyGET_ListsWhatChanges(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
+		Active: true, Acceptance: shared.AcceptanceIdle, HasPending: true,
+	}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Current: shared.Rules{TCP: []shared.PortRule{{Port: "22", Description: "SSH"}}},
+		Staged: shared.Rules{TCP: []shared.PortRule{
+			{Port: "22", Description: "SSH"},
+			{Port: "8443", Description: "Nextcloud"},
+		}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{Fragments: true}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{
+		Recorded: true,
+		Config:   shared.AppliedConfig{Firewall: shared.FirewallOptions{Fragments: false}},
+	}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+
+	for _, want := range []string{"8443", "Nextcloud", "drop_fragments"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the preview does not mention %q", want)
+		}
+	}
+}
+
+// The one number the operator has to be able to trust: what the verdict is about
+// is the address the request actually came from, and the port this process
+// listens on.
+func TestHandleApplyGET_TheVerdictNamesTheOperatorsOwnAddress(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{TCP: []shared.PortRule{{Port: "19999"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	body := rec.Body.String()
+
+	// httptest.NewRequest's peer is 192.0.2.1, and newTestServer binds :19999.
+	if !strings.Contains(body, "192.0.2.1") || !strings.Contains(body, "19999") {
+		t.Errorf("the verdict line does not name the address and port it is about:\n%s", body)
+	}
+}
+
+// A window that is open is not a preview: the change is live already. The page
+// says how much of it is, and shows no diff.
+func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
+		Acceptance: shared.AcceptancePending, HasPending: false,
+	}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Backup:  shared.Rules{TCP: []shared.PortRule{{Port: "22"}}},
+		Current: shared.Rules{TCP: []shared.PortRule{{Port: "22"}, {Port: "8443"}}},
+	}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), `class="diff"`) {
+		t.Error("a preview of a change that is already live is history, not a preview")
+	}
+}
+
+// An installation that has not applied under 2.10 has no snapshot, and the page
+// says so once rather than inventing a drift or hiding one.
+func TestHandleApplyGET_AnUnrecordedSnapshotSaysSo(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{Recorded: false}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	if !strings.Contains(rec.Body.String(), "apply_config_unrecorded") &&
+		!strings.Contains(rec.Body.String(), "not recorded") {
+		t.Error("nothing on the page says the configuration that went in was never recorded")
+	}
+}

@@ -1141,6 +1141,100 @@ body {
     border-color: var(--color-state-crit);
   }
 
+  /* ── The apply preview ───────────────────────────────────────────────────
+     What changes, before the operator commits to finding out during the 120
+     seconds. Structural marks and no hue at all: DESIGN.md reserves colour
+     outside the blue family for firewall state, and a green/red diff would
+     break that twice over — a new blacklist entry is not good news and a
+     removed port is not a failure. The three state colours are on the verdict
+     below, which genuinely is a state. */
+  .diff { padding: 16px; }
+
+  .diff-group + .diff-group { margin-top: 18px; }
+
+  .diff-group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-rule);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  .diff-count {
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
+  }
+
+  .diff-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .diff-mark {
+    flex: 0 0 1ch;
+    font-family: var(--font-data);
+    font-weight: 550;
+    color: var(--color-ink-subtle);
+  }
+
+  .diff-key {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .diff-label { color: var(--color-ink-muted); }
+
+  .diff-move {
+    margin-left: auto;
+    font-family: var(--font-data);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+  }
+
+  /* The verdict sits above the evidence and the action, because it is what
+     changes the decision. */
+  .verdict {
+    padding: 14px 16px;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface-raised);
+  }
+
+  .verdict-line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .verdict-addr {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+  }
+
+  .verdict-note {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+  }
+
+  /* A phone has no room for the before/after on the same line as the key. */
+  @media (max-width: 720px) {
+    .diff-row { flex-wrap: wrap; }
+    .diff-move { margin-left: 0; flex-basis: 100%; }
+  }
+
   /* ── Second-factor enrolment ─────────────────────────────────────────────
      A white plate in both themes. An inverted QR code is rejected by a good
      share of scanners, which is a defect only a screenshot in the dark theme
