@@ -18,9 +18,10 @@ import (
 // what it means.
 //
 // The chain order below is nft.Apply's, duplicated here by construction. The
-// coupling that keeps the two honest is the veth test in internal/core: a rule
-// inserted into Apply without a branch here shows up as a disagreement with a
-// real kernel rather than as a wrong warning on a page.
+// coupling meant to keep the two honest is a veth test in internal/core, not
+// yet in this tree — the next task after this one: a rule inserted into Apply
+// without a branch here should show up as a disagreement with a real kernel
+// rather than as a wrong warning on a page.
 
 // ReachVerdict is the answer. Three values, because there are three honest ones.
 type ReachVerdict string
@@ -85,30 +86,50 @@ var BogonRanges = []string{
 	"240.0.0.0/4",     // reserved
 }
 
-// dockerPoolRanges is where Docker's default address pool allocates bridge
-// networks from. It bounds the one case the web process genuinely cannot decide
-// — see the docker step in Reachable.
+// dockerPoolRanges bounds the one case the web process genuinely cannot decide
+// — see the docker step in Reachable. It is deliberately narrower than Docker's
+// full predefined pool: libnetwork's local-scope pools are 172.17.0.0/16
+// through 172.31.0.0/16 and then /20 slices of 192.168.0.0/16 once the 172
+// space is exhausted, but including the 192.168 fallback here would make every
+// ordinary LAN address in that range unknown, which is the shrug the bogon-step
+// comment above already refuses. The trade-off is accepted knowingly: a
+// fallback-pool bridge address is the one auto-detected-Docker case this
+// function still gets wrong, and it is a false "blocked", never a false
+// "reachable".
 var dockerPoolRanges = []string{"172.16.0.0/12"}
 
 // Reachable reads the input chain in the order nft.Apply writes it and stops at
-// the first rule that decides. proxied comes from the *presence* of a forwarding
-// header on the request, never its value.
+// the first rule that decides. proxied comes from the *presence* of a
+// forwarding header on the request, never its value. local means "this address
+// is one the host itself holds" — computed by the caller from
+// net.InterfaceAddrs(), which stays out of this package deliberately: this
+// function reasons about rules, not about which interfaces exist on the machine
+// it happens to run on.
 func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
-	src netip.Addr, port uint16, proxied bool) (ReachVerdict, ReachReason) {
+	src netip.Addr, port uint16, proxied, local bool) (ReachVerdict, ReachReason) {
 
 	// Earlier than the chain, because no amount of rule evaluation fixes it: if
 	// the peer is a proxy then src is the proxy's address and not the operator's.
 	if proxied {
 		return ReachUnknown, ReasonProxied
 	}
-	src = src.Unmap()
+	// Unmap first, so an IPv4-mapped IPv6 address is treated as the IPv4 address
+	// it is; strip the zone next, because a zoned link-local address such as
+	// fe80::1%eth0 is otherwise equal to nothing in an operator's list — netip.Addr
+	// equality includes the zone, and Prefix.Contains refuses a zoned address
+	// outright.
+	src = src.Unmap().WithZone("")
 	if !src.IsValid() {
 		return ReachUnknown, ReasonNoAddress
 	}
 
-	// 1. loopback accept. First either way — dropping ::1 breaks local services,
-	// which is nobody's idea of "block IPv6".
-	if src.IsLoopback() {
+	// 1. loopback accept, and the kernel decides it on the arrival interface
+	// rather than on the address: a connection to *any* address this host holds
+	// is routed over lo and accepted before a rule is consulted. src.IsLoopback()
+	// catches only the 127.0.0.0/8 and ::1 spelling of that, so the caller —
+	// which can enumerate this host's interfaces and this package deliberately
+	// cannot — supplies the rest.
+	if local || src.IsLoopback() {
 		return ReachOpen, ReasonLoopback
 	}
 
