@@ -613,6 +613,13 @@ makes the interface lie about the firewall:
    single primary action on a page. A page with ice blue in five places has no accent
    at all.
 
+**A diff is structural, never chromatic.** The apply screen marks additions,
+removals and edits with `+`, `-` and `~` in the mono column and neutral chips, and
+uses no hue at all. Green and red are firewall state: a new blacklist entry is not
+good news and a removed port is not a failure. The three state colours appear on
+that screen exactly once, on the reachability verdict, which genuinely is a state —
+`state-ok`, `state-warn`, `state-crit`, each with the dot *and* the word.
+
 A consequence worth stating explicitly: **there is no informational colour.** Earlier
 iterations tinted "settings saved" and "rules imported" log entries sky blue and
 indigo. Those hues sit inside the accent's family, so a coloured log tag became
@@ -1196,16 +1203,10 @@ typeface changes.
   Until the core exposes a deadline and a rollback command, the apply screen states the
   escape route in words — doing nothing restores the previous rules — because that is what
   is actually true.
-- **The audit log records almost no detail.** Every entry carries its action, rule type,
-  user and timestamp, and the interface translates all of them. The `detail` column is a
-  different matter: `internal/core` writes it empty for every save, import and apply,
-  passing something only twice — the token `timeout` on a rollback, and the raw nftables
-  error on a failure. So the column an operator would look at to answer "what changed?"
-  is a dash almost every time. The demo used to paper over this with prose fixtures
-  ("added 8443 (staging)"), which both made the product look more informative than it is
-  and put English on screen that no locale could reach; its details now look like the
-  core's. Recording what changed is a core change, not a design one, but it is the single
-  most valuable thing the audit log is missing.
+- **The acceptance countdown is still specified and still not built.** Unchanged
+  from the entry above it: `shared.FirewallStatus` carries no deadline and there is
+  no rollback endpoint, so the apply screen states the escape route in words. 2.10
+  added what could be added without one — the diff and the reachability verdict.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

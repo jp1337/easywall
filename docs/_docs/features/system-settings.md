@@ -73,8 +73,11 @@ as nothing.
 
 ## Saving
 
-Changes persist the moment you toggle or type — a toast confirms it, and the value
-goes to the core and into `easywall.toml`. No restart. The Save button stays for
+An option is saved to the daemon's configuration immediately and reaches the
+kernel at the next [apply]({{ '/docs/features/apply/' | relative_url }}). Since
+2.10 that counts as a pending change: the dashboard's *Unapplied changes* chip
+includes it and the apply screen lists it by its key, `drop_fragments off → on`.
+A toast confirms the save itself. No restart, and the Save button stays for
 browsers with JavaScript disabled. Both pages behave the same way, as does
 [options]({{ '/docs/features/filters/' | relative_url }}).
 
