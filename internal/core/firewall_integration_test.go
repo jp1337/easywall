@@ -649,4 +649,44 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 	if fw.Status().HasPending {
 		t.Error("an apply that just recorded its own configuration still reports a pending change")
 	}
+
+	// The rollback path — the site with the panic subtlety, and therefore the
+	// one most worth a real kernel. An apply is started and its window is
+	// cancelled rather than confirmed, so rollback runs and puts the previous
+	// rules back. The configuration is changed again *while the window is
+	// open*, after the ordinary apply step above has already written and
+	// recorded its own value, so a snapshot matching the live configuration
+	// afterwards can only be rollback's own recordAppliedConfig call — not a
+	// leftover from the write this apply started with.
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = shared.AcceptanceDurationMin // short; the test cancels rather than waits
+
+	rolledBack := cfg.FirewallOptions()
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		rolledBack.Fragments = !rolledBack.Fragments
+		if saveErr := cfg.SaveFirewallOptions(rolledBack); saveErr != nil {
+			t.Errorf("SaveFirewallOptions during the open window: %v", saveErr)
+		}
+		fw.acceptance.Cancel() // stands in for "nobody confirmed"
+	}()
+
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("Apply (to be rolled back): %v", err)
+	}
+
+	res, err = readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drift := shared.DiffConfig(res.Config, shared.AppliedConfig{
+		Firewall: cfg.FirewallOptions(), Network: cfg.NetworkSettings(),
+	}); len(drift) != 0 {
+		t.Errorf("after a rollback the snapshot still disagrees with the live config: %v", drift)
+	}
+	if fw.Status().HasPending {
+		t.Error("a rollback that just recorded its own configuration still reports a pending change")
+	}
 }

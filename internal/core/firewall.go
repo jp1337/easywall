@@ -457,14 +457,10 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 				", and nothing was written to the kernel — the table is in whatever "+
 				"state panic mode left it", user)
 	} else {
-		if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
-			slog.Error("rollback nftables failed", "error", err)
-			failures = append(failures, "nftables: "+err.Error())
-		} else {
-			// The previous rules go back in with the configuration as it is *now*,
-			// not as it was when they were first applied, because that is what the
-			// kernel is holding.
-			f.recordAppliedConfig()
+		applyErr := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings())
+		if applyErr != nil {
+			slog.Error("rollback nftables failed", "error", applyErr)
+			failures = append(failures, "nftables: "+applyErr.Error())
 		}
 		// The third writer of table inet easywall, and it races `panic` exactly
 		// like the other two. The marker was read a few statements ago; a console
@@ -503,12 +499,25 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		// Reset() fails, which is the one outcome here that is genuinely worse
 		// than the branch above — a machine still filtering behind a marker
 		// that says it is not.
+		var tornDownAgain bool
 		if engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath()); engagedNow && knownNow {
-			f.panicLandedDuringWrite(
+			tornDownAgain = f.panicLandedDuringWrite(
 				"rollback_skipped",
 				"panic mode was engaged while the previous rules were being written back",
 				user,
 			)
+		}
+
+		// Only now, after the same final panic re-check apply and RestoreCurrent
+		// perform before their own recordAppliedConfig — this used to sit right
+		// after nft.Apply above, which could record a configuration for a kernel
+		// that panicLandedDuringWrite then tore back down a few lines later. The
+		// previous rules go back in with the configuration as it is *now*, not as
+		// it was when they were first applied, because that is what the kernel is
+		// holding — but only when the write actually succeeded and nothing undid
+		// it in the window right after.
+		if applyErr == nil && !tornDownAgain {
+			f.recordAppliedConfig()
 		}
 	}
 
