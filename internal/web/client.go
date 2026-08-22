@@ -322,8 +322,8 @@ func (c *CoreClient) ImportRules(data []byte) error {
 //
 // Fire-and-forget from the caller's point of view — auditevents.go is what calls
 // this, from its own goroutine, so a slow or absent core never delays a login.
-func (c *CoreClient) LogEvent(ev shared.LoginEvent, addr string, left int) error {
-	payload, err := json.Marshal(shared.LogEventPayload{Event: ev, Addr: addr, Left: left})
+func (c *CoreClient) LogEvent(ev shared.LoginEvent, addr string, left int, proxied bool) error {
+	payload, err := json.Marshal(shared.LogEventPayload{Event: ev, Addr: addr, Left: left, Proxied: proxied})
 	if err != nil {
 		return fmt.Errorf("encode login event: %w", err)
 	}

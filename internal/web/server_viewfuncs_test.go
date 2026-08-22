@@ -382,3 +382,23 @@ func TestRichText_RejectsMismatchedSlots(t *testing.T) {
 		t.Error("expected an error for an unpaired href")
 	}
 }
+
+// detailLabel writes markup, so what it passes through has to be escaped by it.
+// The detail column carries values the core composed from rules an operator
+// typed; an unescaped one is stored XSS in the audit log.
+func TestDetailLabelEscapesWhatItPassesThrough(t *testing.T) {
+	tFunc := func(id string, _ ...interface{}) string { return id }
+
+	got := string(detailLabel(tFunc, `<script>alert(1)</script>`))
+	if strings.Contains(got, "<script>") {
+		t.Errorf("detailLabel passed a tag through unescaped: %s", got)
+	}
+
+	got = string(detailLabel(tFunc, `<b>203.0.113.9</b> via-proxy`))
+	if strings.Contains(got, "<b>") {
+		t.Errorf("the proxied branch passed a tag through unescaped: %s", got)
+	}
+	if !strings.Contains(got, `<span class="chip">`) {
+		t.Errorf("the proxied branch did not render the chip: %s", got)
+	}
+}

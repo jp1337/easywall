@@ -150,16 +150,20 @@ func ValidLoginEvent(ev LoginEvent) bool {
 
 // LogEventPayload is the payload for CmdLogEvent.
 //
-// Three fields and not one of them is free text. Addr is run through
+// Four fields and not one of them is free text. Addr is run through
 // netip.ParseAddr in the core and normalised there; if that fails the entry is
 // written *without* an address rather than dropped, because the entry is the
 // record and the address is the annotation. Left is an integer and can smuggle
-// nothing. The submitted username is deliberately absent: it would be foreign
-// text in the record, and with exactly one account it says nothing.
+// nothing. Proxied is a boolean the web process derives from the *presence* of a
+// forwarding header, never its value — see docs-tech/threat-model.md for why
+// reading one is acceptable in that one direction. The submitted username is
+// deliberately absent: it would be foreign text in the record, and with exactly
+// one account it says nothing.
 type LogEventPayload struct {
-	Event LoginEvent `json:"event"`
-	Addr  string     `json:"addr"`
-	Left  int        `json:"left"` // login_recovery_used only
+	Event   LoginEvent `json:"event"`
+	Addr    string     `json:"addr"`
+	Left    int        `json:"left"` // login_recovery_used only
+	Proxied bool       `json:"proxied"`
 }
 
 // Command is sent from easywall-web to easywall-core over the Unix socket.

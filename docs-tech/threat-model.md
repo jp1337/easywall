@@ -132,6 +132,20 @@ Making that configurable is on the roadmap and must be opt-in and explicit — a
 list of trusted proxy addresses, not a boolean. A boolean that says "trust the
 header" is the vulnerability those three advisories describe.
 
+### Presence, not value
+
+2.10 reads whether `X-Forwarded-For`, `X-Real-IP`, `True-Client-IP` or `Forwarded`
+is **present**, and never what it says. That flag does two things: it marks a login
+in the audit log with `via-proxy`, and it moves the apply screen's lockout verdict
+to *cannot tell*, because the peer address is then the proxy's and no amount of
+rule evaluation fixes that.
+
+A client that forges one of those headers can therefore reach exactly one outcome:
+its own verdict becomes *cannot tell* and its own login line says `via-proxy`. It
+cannot insert an address, cannot suppress a warning it would otherwise get, and
+cannot change what `clientIP` recorded. That asymmetry is the whole argument for
+reading an untrusted header here, and it is why nothing else in the process does.
+
 ## Rate limiting
 
 `LoginRateLimit`: a token bucket per source address, 5 tokens refilling one every

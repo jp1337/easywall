@@ -447,17 +447,17 @@ func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left in
 	if s.events == nil {
 		return // a Server built by a test that does not care about events
 	}
-	s.events.Record(ev, clientIP(r), left)
+	s.events.Record(ev, clientIP(r), left, proxiedRequest(r))
 }
 
 // onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is
 // supplied by the server when it builds the router, so middleware.go stays free
 // of the client.
-func (s *Server) onLoginBlocked(ip string) {
+func (s *Server) onLoginBlocked(ip string, proxied bool) {
 	if s.events == nil {
 		return
 	}
-	s.events.Record(shared.EvRateLimited, ip, 0)
+	s.events.Record(shared.EvRateLimited, ip, 0, proxied)
 }
 
 // render executes a named template with common page data.
@@ -508,7 +508,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		"actionLabel": func(action string) string {
 			return actionLabel(tFunc, action)
 		},
-		"detailLabel": func(detail string) string {
+		"detailLabel": func(detail string) template.HTML {
 			return detailLabel(tFunc, detail)
 		},
 	})
@@ -572,7 +572,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		"actionLabel": func(action string) string {
 			return actionLabel(tFunc, action)
 		},
-		"detailLabel": func(detail string) string {
+		"detailLabel": func(detail string) template.HTML {
 			return detailLabel(tFunc, detail)
 		},
 	})
@@ -877,21 +877,41 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 }
 
 // auditDetailKeys maps the fixed detail strings the core writes to message ids.
-// Almost every entry the core records carries an empty detail; the exceptions are
-// this one token and, for a failed apply, the nftables error, which is diagnostic
-// output rather than a sentence and is shown verbatim.
+//
+// The comment here used to claim "almost every entry the core records carries an
+// empty detail". DescribeRuleChange has filled it since 2.5 — the demo's log
+// shows `6 ports removed (2 total)` and `+8443` — so what is true is narrower: a
+// detail is either a token from this table, a summary the core composed from the
+// rules themselves, or an nftables error, which is diagnostic output rather than
+// a sentence and is shown verbatim.
 var auditDetailKeys = map[string]string{
 	"timeout": "audit_detail_timeout",
 }
 
 // detailLabel translates a detail the core wrote from a known vocabulary, and
-// leaves anything else exactly as stored. An audit record is evidence: what is not
-// a recognised token is passed through rather than guessed at.
-func detailLabel(tFunc func(string, ...interface{}) string, detail string) string {
+// leaves anything else exactly as stored. An audit record is evidence: what is
+// not a recognised token is passed through rather than guessed at.
+//
+// One rule is not an exact-match lookup, and cannot be: a detail carrying an
+// address can never be a map key. A line ending in " via-proxy" has the token
+// stripped and renders as the address plus a neutral chip reading "via proxy" in
+// the operator's language — a chip because DESIGN.md assigns informational marks
+// to neutral chips, and because the Detail column is scanned, not read.
+//
+// This returns template.HTML, so everything that is not markup this function
+// wrote is escaped here. TestDetailLabelEscapesWhatItPassesThrough guards it.
+func detailLabel(tFunc func(string, ...interface{}) string, detail string) template.HTML {
 	if key, ok := auditDetailKeys[detail]; ok {
-		return tFunc(key)
+		return template.HTML(template.HTMLEscapeString(tFunc(key))) //nolint:gosec // G203 — escaped on the line it is written
 	}
-	return detail
+	if addr, ok := strings.CutSuffix(detail, " via-proxy"); ok {
+		// #nosec G203 -- both halves are escaped here; the only markup is the span
+		// this line writes.
+		return template.HTML(template.HTMLEscapeString(addr) +
+			` <span class="chip">` + template.HTMLEscapeString(tFunc("audit_detail_via_proxy")) +
+			`</span>`) //nolint:gosec // G203 — see above
+	}
+	return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — escaped on the line it is written
 }
 
 // actionTone returns "ok", "warn", "crit" or "" for a neutral action.
@@ -1034,7 +1054,7 @@ func templateFuncs() template.FuncMap {
 		// actionLabel is rebound per request in render()/renderPartial(), where the
 		// localizer exists. This entry only keeps ParseGlob happy at startup.
 		"actionLabel": func(action string) string { return action },
-		"detailLabel": func(detail string) string { return detail },
+		"detailLabel": func(detail string) template.HTML { return template.HTML(template.HTMLEscapeString(detail)) }, //nolint:gosec // G203 — escaped on the line it is written
 		"actionTone":  actionTone,
 		"richText":    richText,
 		"shortTime":   shortTime,

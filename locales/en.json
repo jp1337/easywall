@@ -501,6 +501,7 @@
   {"id": "validate_unavailable", "translation": "Live validation is not running — the core daemon is offline. Errors will surface on save."},
 
   {"id": "audit_detail_timeout", "translation": "Acceptance window expired"},
+  {"id": "audit_detail_via_proxy", "translation": "via proxy"},
 
   {"id": "og_description", "translation": "Linux firewall management with a web interface. Go, nftables, security-first."}
 ]
