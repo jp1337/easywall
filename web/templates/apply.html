@@ -144,7 +144,7 @@
                 {{if $.Data.Preview}}{{if $.Data.Preview.Verdict}}
                   {{$blocked = eq (printf "%s" $.Data.Preview.Verdict.Verdict) "blocked"}}
                 {{end}}{{end}}
-                {{/* A verdict of "cuts your connection" replaces the primary
+                {{/* A verdict of "blocks new connections" replaces the primary
                      action with a deliberate second one: a differently-labelled
                      button, not a filled red block — DESIGN.md, because a filled
                      red button invites the misclick it warns about — and not a

@@ -60,7 +60,7 @@ The background is in [dependencies](dependencies.md).
 |---|---|
 | `TestTemplatesOnlyUseTranslatedKeys` | no visible string bypasses `T` |
 | `TestLocaleFilesAreAtParity` | `en.json` and `de.json` hold the same keys |
-| `TestGermanTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
+| `TestTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
 | `TestMarkupStringsAreRenderedThroughRichText` | a message with a link or a `code` span stays one message |
 | `TestClientStringsCoverWhatAppJSAsksFor` | text `app.js` builds has its key in `clientStringKeys` |
 | `TestClientStringsCarryNoMarkupAppJSCannotRender` | a string inlined for `app.js` has no `` ` `` or `*` — it escapes them, so the markers would be shown literally |

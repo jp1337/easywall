@@ -615,10 +615,12 @@ makes the interface lie about the firewall:
 
 **A diff is structural, never chromatic.** The apply screen marks additions,
 removals and edits with `+`, `-` and `~` in the mono column and neutral chips, and
-uses no hue at all. Green and red are firewall state: a new blacklist entry is not
-good news and a removed port is not a failure. The three state colours appear on
-that screen exactly once, on the reachability verdict, which genuinely is a state —
-`state-ok`, `state-warn`, `state-crit`, each with the dot *and* the word.
+the diff itself uses no hue at all. Green and red are firewall state: a new
+blacklist entry is not good news and a removed port is not a failure. Of what
+this release added to that screen, only the reachability verdict carries a
+state colour — `state-ok`, `state-warn`, `state-crit`, each with the dot *and*
+the word — alongside the acceptance status card's own dot, which already used
+the same three roles before this release.
 
 A consequence worth stating explicitly: **there is no informational colour.** Earlier
 iterations tinted "settings saved" and "rules imported" log entries sky blue and
@@ -1202,11 +1204,9 @@ typeface changes.
   rollback endpoint: the routes are `apply/start`, `apply/confirm` and `apply/status`.
   Until the core exposes a deadline and a rollback command, the apply screen states the
   escape route in words — doing nothing restores the previous rules — because that is what
-  is actually true.
-- **The acceptance countdown is still specified and still not built.** Unchanged
-  from the entry above it: `shared.FirewallStatus` carries no deadline and there is
-  no rollback endpoint, so the apply screen states the escape route in words. 2.10
-  added what could be added without one — the diff and the reachability verdict.
+  is actually true. Still the case in 2.10: that release added what could be added
+  without either one — the diff and the reachability verdict — and left this gap
+  exactly as it was.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

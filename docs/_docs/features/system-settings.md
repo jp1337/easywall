@@ -73,10 +73,10 @@ as nothing.
 
 ## Saving
 
-An option is saved to the daemon's configuration immediately and reaches the
+A setting is saved to the daemon's configuration immediately and reaches the
 kernel at the next [apply]({{ '/docs/features/apply/' | relative_url }}). Since
 2.10 that counts as a pending change: the dashboard's *Unapplied changes* chip
-includes it and the apply screen lists it by its key, `drop_fragments off → on`.
+includes it and the apply screen lists it by its key, `ipv6.mode filter → block`.
 A toast confirms the save itself. No restart, and the Save button stays for
 browsers with JavaScript disabled. Both pages behave the same way, as does
 [options]({{ '/docs/features/filters/' | relative_url }}).
