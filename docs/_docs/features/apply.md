@@ -26,10 +26,9 @@ firewall, and it is the only page that changes what the kernel is doing.
 | 2 | **You check** | Open a *second* connection — keep the current one — and confirm SSH and your services still answer |
 | 3 | **Confirm, or do nothing** | Confirming keeps the new rules. Doing nothing restores the previous set when the window closes |
 
-**Doing nothing is the recovery.** Not confirming is exactly what brings the old
-rules back — whether that is a deliberate choice after checking a second
-connection, or because the new rules cut off every connection you could have
-confirmed from. The window is 120 seconds by default, [configurable]({{ '/docs/features/system-settings/' | relative_url }})
+**Doing nothing is the recovery.** Not confirming is what brings the old rules
+back — whether you decide against the change, or you can no longer reach this
+page at all. The window is 120 seconds by default, [configurable]({{ '/docs/features/system-settings/' | relative_url }})
 from 10 to 3600.
 
 ## What changes, before you press Apply

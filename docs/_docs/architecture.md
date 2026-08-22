@@ -48,9 +48,8 @@ it to **Current**, and **Backup** is what comes back if you do not confirm.
 {% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
    alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
-**Applying is reversible by doing nothing.** Not confirming — whether that is a
-deliberate choice or because the new rules cut you off from confirming at
-all — is exactly what restores the previous set.
+**Applying is reversible by doing nothing.** Not confirming — whether by choice
+or because you can no longer reach the page — restores the previous set.
 
 | | |
 |---|---|
