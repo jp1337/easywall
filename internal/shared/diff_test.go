@@ -70,6 +70,44 @@ func TestDiffRules_AMovedCustomRuleIsAChange(t *testing.T) {
 	assertDeltas(t, got, want)
 }
 
+// A duplicated custom rule is two rules to the kernel — applyCustomRules skips
+// comments and blanks, nothing else — so removing one of two identical lines
+// must be reported. Piping the sequence through listEntries (which dedups by
+// content) would make cur and staged compare equal and report no change at all,
+// which is the exact failure this preview exists to prevent.
+func TestDiffRules_ADuplicateCustomLineDeletionIsNotHidden(t *testing.T) {
+	dup := "tcp dport 9100 accept"
+	other := "udp dport 53 accept"
+	cur := Rules{Custom: []string{dup, dup, other}}
+	staged := Rules{Custom: []string{dup, other}}
+
+	got := DiffRules(cur, staged)
+	want := []RuleDelta{
+		{Set: "custom", Kind: DeltaChanged, Key: "#2", From: dup, To: other},
+		{Set: "custom", Kind: DeltaRemoved, Key: "#3", Label: other},
+	}
+	assertDeltas(t, got, want)
+}
+
+// The plan's table said Label was empty for custom added/removed deltas; the
+// maintainer ruled the code right and the table wrong, because without Label an
+// added custom rule would render as "+ #2" with no indication of what line
+// arrived. This locks that ruling in.
+func TestDiffRules_CustomAddedAndRemovedCarryTheRuleLine(t *testing.T) {
+	kept := "tcp dport 9100 accept"
+	arriving := "udp dport 53 accept"
+
+	added := DiffRules(Rules{Custom: []string{kept}}, Rules{Custom: []string{kept, arriving}})
+	assertDeltas(t, added, []RuleDelta{
+		{Set: "custom", Kind: DeltaAdded, Key: "#2", Label: arriving},
+	})
+
+	removed := DiffRules(Rules{Custom: []string{kept, arriving}}, Rules{Custom: []string{kept}})
+	assertDeltas(t, removed, []RuleDelta{
+		{Set: "custom", Kind: DeltaRemoved, Key: "#2", Label: arriving},
+	})
+}
+
 func TestDiffConfig_NamesTheTomlKeyAndBothValues(t *testing.T) {
 	applied := AppliedConfig{
 		Firewall: FirewallOptions{Fragments: false, ConnectionLimitMax: 100},
@@ -93,6 +131,34 @@ func TestDiffConfig_NamesTheTomlKeyAndBothValues(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("delta %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// A snapshot that has been through encoding/json turns a nil slice into one
+// that comes back nil, and an empty one into one that comes back non-nil — that
+// is what Task 5 hands DiffConfig. Two zero-length slices must read as no
+// drift, or every installation shipping the stock `custom_networks = []`
+// reports a phantom change forever.
+func TestDiffConfig_NilAndEmptySliceAreNotADrift(t *testing.T) {
+	applied := AppliedConfig{Network: NetworkSettings{Docker: DockerConfig{CustomNetworks: nil}}}
+	live := AppliedConfig{Network: NetworkSettings{Docker: DockerConfig{CustomNetworks: []string{}}}}
+	if got := DiffConfig(applied, live); len(got) != 0 {
+		t.Errorf("a nil slice and an empty one are not a drift, got %v", got)
+	}
+}
+
+// The exception above must not swallow a real difference.
+func TestDiffConfig_ADifferentSliceIsStillReported(t *testing.T) {
+	applied := AppliedConfig{Network: NetworkSettings{Docker: DockerConfig{CustomNetworks: nil}}}
+	live := AppliedConfig{Network: NetworkSettings{Docker: DockerConfig{CustomNetworks: []string{"10.0.0.0/8"}}}}
+
+	got := DiffConfig(applied, live)
+	want := []ConfigDelta{{Key: "docker.custom_networks", From: "none", To: "10.0.0.0/8"}}
+	if len(got) != len(want) {
+		t.Fatalf("got %d deltas, want %d: %v", len(got), len(want), got)
+	}
+	if got[0] != want[0] {
+		t.Errorf("delta = %+v, want %+v", got[0], want[0])
 	}
 }
 

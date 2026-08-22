@@ -221,7 +221,7 @@ func forwardText(r ForwardingRule) string {
 // skips comments and blanks before handing anything to nft, so "#3" here means
 // the third rule that will be evaluated, not the third row of the textarea.
 func diffCustom(current, staged []string) []RuleDelta {
-	cur, next := listEntries(customLines(current)), listEntries(customLines(staged))
+	cur, next := customLines(current), customLines(staged)
 
 	var out []RuleDelta
 	for i := 0; i < len(next); i++ {
@@ -241,9 +241,12 @@ func diffCustom(current, staged []string) []RuleDelta {
 	return out
 }
 
-// customLines exists so listEntries can be reused: a custom rule set may hold
-// the same line twice on purpose (two identical accepts are two rules), so the
-// de-duplication listEntries does for address lists must not apply here.
+// customLines trims and skips comments and blanks, exactly what
+// applyCustomRules does before handing anything to nft, but does not
+// deduplicate: a custom rule set may hold the same line twice on purpose (two
+// identical accepts are two rules), so the de-duplication listEntries does for
+// address lists must not apply here. diffCustom must not pipe this through
+// listEntries.
 func customLines(lines []string) []string {
 	var out []string
 	for _, l := range lines {
@@ -314,11 +317,26 @@ func structDeltas(before, after reflect.Value, prefix string) []ConfigDelta {
 		if _, skip := skippedConfigKeys[name]; skip {
 			continue
 		}
-		if !reflect.DeepEqual(b.Interface(), a.Interface()) {
+		if leafChanged(b, a) {
 			out = append(out, ConfigDelta{Key: name, From: formatValue(b), To: formatValue(a)})
 		}
 	}
 	return out
+}
+
+// leafChanged is reflect.DeepEqual with one exception: two zero-length slices
+// never differ, whether or not either is nil. DeepEqual does distinguish them,
+// and the config this compares travels through encoding/json before Task 5
+// hands it here — a nil slice marshals to `null` and comes back nil, an empty
+// one comes back `[]string{}` — so DockerConfig.CustomNetworks and
+// RoutingConfig.Networks, both `[]string` and both `[]` in the shipped
+// easywall.toml, would report a permanent phantom drift on every installation
+// and leave FirewallStatus.HasPending stuck true.
+func leafChanged(b, a reflect.Value) bool {
+	if b.Kind() == reflect.Slice && a.Kind() == reflect.Slice && b.Len() == 0 && a.Len() == 0 {
+		return false
+	}
+	return !reflect.DeepEqual(b.Interface(), a.Interface())
 }
 
 // formatValue renders one leaf for a human. "on"/"off" rather than
