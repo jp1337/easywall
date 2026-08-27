@@ -38,8 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   listed one, a bypass of the list whose whole job is to refuse them. The chain
   now `return`s: traffic under the rate limit falls back into the input chain
   and meets the blacklist, then the whitelist, then the port rule, exactly as
-  if the module were not there. Proven against a real kernel and a real TCP
-  connection over a veth pair, not by rule count
+  if the module were not there. Proven against a real kernel: the chain's
+  final verdict is now `return`, and the sshbrute jump is confirmed to
+  precede the blacklist drops in the input chain — both assertions fail
+  when the fix is reverted
 
 ### Changed
 
@@ -49,7 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accepted regardless of what the port rules said. Now that the chain returns
   instead of accepting, that host is filtered like any other — if you were
   relying on the module alone to keep SSH reachable, add an explicit rule for
-  it (and tick **SSH protection** on it) before you apply this release
+  it (and tick **SSH protection** on it) before you apply this release. An
+  under-rate SSH connection now also traverses the module rules that follow
+  the jump — connection limit, RST flood, broadcast/multicast/anycast drops —
+  which the old `accept` short-circuited; harmless at defaults, but a real
+  behaviour change
 
 ## [2.10.0] — 2026-08-27
 
