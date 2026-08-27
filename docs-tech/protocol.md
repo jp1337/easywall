@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Eighteen command types:
+Nineteen command types:
 
 | | |
 |---|---|
@@ -19,6 +19,7 @@ Eighteen command types:
 | `GET_LOG` | the last 200 audit entries |
 | `EXPORT_RULES` · `IMPORT_RULES` | the rule set as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
+| `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
 | `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
 | `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
 
@@ -32,6 +33,17 @@ validated before they are stored — but the field itself is untyped at the prot
 level, and `docs/architecture.md` used to claim the whole protocol was typed. It is
 the one place where "a JSON command the typed protocol accepts" means slightly less
 than it sounds.
+
+## The snapshot behind `GET_APPLIED_CONFIG`
+
+The core stores `applied-config.json` in its data directory, mode 0600, atomically,
+wherever `nft.Apply` succeeds — an ordinary apply, a rollback, and the boot or
+`resume` restore. Nowhere else: a refused or failed apply put nothing in the kernel.
+
+`recorded: false` means the file is not there, which is what an installation
+upgrading to 2.10 looks like. That state is *unknown*, not *identical*:
+`Status.HasPending` keeps its 2.9 meaning until a snapshot exists, so no
+installation is greeted with a pending change it did not make.
 
 ## What the protocol does not carry
 

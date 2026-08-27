@@ -58,8 +58,9 @@ var debouncedEvents = map[shared.LoginEvent]bool{
 }
 
 type loginEventKey struct {
-	event shared.LoginEvent
-	addr  string
+	event   shared.LoginEvent
+	addr    string
+	proxied bool
 }
 
 type loginEventBucket struct {
@@ -113,7 +114,7 @@ func (l *loginEvents) record(p shared.LogEventPayload, now time.Time) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	key := loginEventKey{event: p.Event, addr: addr}
+	key := loginEventKey{event: p.Event, addr: addr, proxied: p.Proxied}
 	if b, ok := l.buckets[key]; ok {
 		if now.Sub(b.opened) < loginEventWindow {
 			b.count++
@@ -137,7 +138,7 @@ func (l *loginEvents) record(p shared.LogEventPayload, now time.Time) error {
 
 	l.buckets[key] = &loginEventBucket{count: 1, opened: now}
 	// The first immediately, so an operator who is watching sees it.
-	l.write(string(p.Event), "", addrDetail(addr), "web")
+	l.write(string(p.Event), "", addrDetail(addr, p.Proxied), "web")
 	return nil
 }
 
@@ -173,8 +174,8 @@ func (l *loginEvents) flushLocked(key loginEventKey, b *loginEventBucket) {
 		return // the one line written when it opened is the whole story
 	}
 	detail := fmt.Sprintf("%d more within %ds", b.count-1, int(loginEventWindow/time.Second))
-	if key.addr != "" {
-		detail = "from " + key.addr + ", " + detail
+	if from := addrDetail(key.addr, key.proxied); from != "" {
+		detail = from + ", " + detail
 	}
 	l.write(string(key.event), "", detail, "web")
 }
@@ -203,16 +204,19 @@ func (l *loginEvents) run(stop <-chan struct{}) {
 	}
 }
 
-func addrDetail(addr string) string {
+func addrDetail(addr string, proxied bool) string {
 	if addr == "" {
 		return ""
+	}
+	if proxied {
+		return "from " + addr + shared.ProxyToken
 	}
 	return "from " + addr
 }
 
 // immediateDetail is the detail for an event that is not debounced.
 func immediateDetail(p shared.LogEventPayload, addr string) string {
-	d := addrDetail(addr)
+	d := addrDetail(addr, p.Proxied)
 	if p.Event != shared.EvRecoveryUsed {
 		return d
 	}

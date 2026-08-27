@@ -79,7 +79,8 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// launched — but it is no longer the only caller.
 	f.setBootBridges(detectDockerBridges())
 
-	if err := f.nft.Apply(state, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
+	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
+	if err := f.nft.Apply(state, opts, nets); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
 		// the machine came up unfiltered and nobody can say why.
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",
@@ -116,6 +117,12 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		// wrong advice for a deliberately unfiltered machine.
 		return nil
 	}
+
+	// Also what establishes the file on an installation upgrading to 2.10: the
+	// first daemon start restores, so the snapshot exists after the upgrade's
+	// service restart. opts and nets are what nft.Apply above was actually
+	// given, not a fresh read taken after it returned.
+	f.recordAppliedConfig(opts, nets)
 
 	WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforced", "all", reason, "core")
 	slog.Info("the stored rules are in force again", "reason", reason)

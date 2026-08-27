@@ -29,6 +29,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   limitation is by design: Pagefind ANDs every query term, so `open a port` finds
   the ports page while `how do I open a port` finds nothing — no weighting was
   added and no page was reworded to work around it
+- **What changes is on the screen, before the apply.** `/apply` lists every
+  difference between the staged rules and the running ones — ports, addresses,
+  forwards, custom rules, each set compared the way the kernel reads it, so a
+  reordered port list is not a change and a moved custom rule is — and beside it
+  the configuration drift, which nothing could see before: firewall options and
+  network settings are written straight into the daemon's config and take effect
+  at the next apply, so they were in no pending calculation at all. The page with
+  the button said "there is nothing to apply" while the options page said
+  "apply rules to activate changes", and the false one was the page with the
+  button. Above the list, one line names the address the request came from and the
+  port the interface answers on, and says whether a new connection from there is
+  still accepted once the staged set is live: **reachable**, **blocks new
+  connections** — which turns the primary button into *Apply anyway*, never a
+  disabled control — or **cannot tell**, which names its reason. Every uncertain
+  case is *cannot tell*: the bogon filter matches on the arrival interface, which
+  the web process cannot know; an auto-detected Docker bridge network is settled
+  in the core at apply time and is equally unknowable, while a network named in
+  the Docker settings is not and gets a plain **reachable**; custom rules are raw
+  nftables appended after everything else. A wrong "blocks new connections" would
+  cost the trust the true one needs. The verdict is deliberately about a **new**
+  connection, because flushing the table does not touch conntrack: the browser
+  connection you are reading it on stays established through an apply that admits
+  nobody, so confirming from it would confirm a lockout. The diff carries no
+  colour at all — `+`, `-` and `~` in the mono column — because green and red mean
+  firewall state, and a new blacklist entry is not good news. One new command,
+  `GET_APPLIED_CONFIG`, and one new file the core writes wherever `nft.Apply`
+  succeeds; an installation upgrading without one is told so in a sentence rather
+  than shown a drift nobody made
 
 ### Changed
 
@@ -53,6 +81,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backdrop was the element receiving the pointer event; a guard now reads the
   two numbers out of the built stylesheet, because hit-testing on a phone is
   invisible to every build in this repository
+- **The forwarding rows are back in line.** `display: flex` on a `<td>` stops the
+  element being a table cell: the browser wraps it in an anonymous cell and its
+  box leaves the row, so at 1600px in both themes the separator under the first
+  two columns sat ~10px below the one under the third. Below the 720px reflow
+  breakpoint every cell is a block anyway, which is why it survived a release.
+  The flex row is now a `<div>` inside the cell, and `ui-check.mjs` measures all
+  four cells against one top edge
+- **A login recorded through a proxy says that it was.** Behind a reverse proxy
+  every login in the audit log shows the same address — the proxy's — recorded
+  faithfully as the TCP peer, because easywall refuses `X-Forwarded-For` and will
+  go on refusing it. What was missing was the second half: nothing told the reader
+  that the number is not the client's. Entries now carry a `via-proxy` token in
+  the log file, so `grep via-proxy` finds every one, and a neutral **via proxy**
+  chip in the interface. The flag comes from the *presence* of a forwarding
+  header and never its value, so a client that forges one can move its own verdict
+  to "cannot tell" and achieve nothing else
 
 ## [2.9.0] — 2026-08-21
 

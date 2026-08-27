@@ -1115,6 +1115,25 @@ body {
     font-size: 11px;
     font-weight: 500;
     white-space: nowrap;
+    transition: border-color var(--motion-fast) var(--motion-ease),
+                box-shadow var(--motion-fast) var(--motion-ease),
+                transform var(--motion-fast) var(--motion-ease);
+  }
+
+  /* The dashboard's pending chip is the only chip that is ever a link — give
+     it the same affordance a.stat-tile sets, so hovering or focusing it reads
+     as something you can act on rather than a static state marker. */
+  a.chip:hover {
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
+    text-decoration: none;
+  }
+
+  a.chip:focus-visible {
+    outline: 2px solid var(--accent-wash);
+    outline-offset: 2px;
+    border-color: var(--color-accent);
   }
 
   .chip-accent {
@@ -1139,6 +1158,109 @@ body {
     background: var(--wash-crit);
     color: var(--color-state-crit-on-wash);
     border-color: var(--color-state-crit);
+  }
+
+  /* ── The apply preview ───────────────────────────────────────────────────
+     What changes, before the operator commits to finding out during the 120
+     seconds. Structural marks and no hue at all: DESIGN.md reserves colour
+     outside the blue family for firewall state, and a green/red diff would
+     break that twice over — a new blacklist entry is not good news and a
+     removed port is not a failure. The three state colours are on the verdict
+     below, which genuinely is a state. */
+  .diff { padding: 16px; }
+
+  .diff-group + .diff-group { margin-top: 18px; }
+
+  .diff-group-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-rule);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  .diff-count {
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-ink-subtle);
+  }
+
+  .diff-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 13px;
+  }
+
+  .diff-mark {
+    flex: 0 0 1ch;
+    font-family: var(--font-data);
+    font-weight: 550;
+    color: var(--color-ink-subtle);
+  }
+
+  .diff-key {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .diff-label { color: var(--color-ink-muted); }
+
+  .diff-move {
+    margin-left: auto;
+    font-family: var(--font-data);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    white-space: nowrap;
+  }
+
+  /* The verdict sits above the evidence and the action, because it is what
+     changes the decision. */
+  .verdict {
+    padding: 14px 16px;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface-raised);
+  }
+
+  .verdict-line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .verdict-addr {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+  }
+
+  .verdict-note {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+  }
+
+  /* A phone has no room for the before/after on the same line as the key.
+     A changed custom rule carries the whole nft line in From/To, and
+     .diff-move's nowrap plus .card's overflow: hidden silently clipped it
+     instead of wrapping — nothing rendered that row until a custom-rule
+     edit was actually staged and looked at. */
+  @media (max-width: 720px) {
+    .diff-row { flex-wrap: wrap; }
+    .diff-move {
+      margin-left: 0;
+      flex-basis: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
   }
 
   /* ── Second-factor enrolment ─────────────────────────────────────────────
@@ -1409,10 +1531,17 @@ body {
 
   /* Forwarding is a relationship, not three independent numbers. The arrow
      makes "8080 → 80" readable as one fact instead of two columns the operator
-     has to mentally join. */
-  /* The cell has to be a flex row: .input-cell is width:100%, so an inline
-     arrow beside it wrapped onto its own line above the number. */
-  .cell-flow {
+     has to mentally join.
+
+     The flex row is a <div> inside the cell and never the cell itself.
+     `display: flex` on a <td> stops the element being a table cell — the browser
+     wraps it in an anonymous cell — so its box no longer shares the row's height
+     or its border, and at 1600px in both themes the row separator under this
+     column sat ~10px below the one under the others. Below the 720px reflow
+     breakpoint every td is display:block anyway, which is why it survived a
+     release. The constraint the rule exists for is unchanged: .input-cell is
+     width:100%, so an inline arrow wraps onto its own line above the number. */
+  .flow {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2635,6 +2764,11 @@ body {
     min-width: 0;
     width: auto;
   }
+
+  /* The flex row moved one element down, so the rule that gives the value the
+     remaining width has to follow it. */
+  .table-reflow td > .flow { flex: 1; min-width: 0; }
+  .table-reflow .flow > .input-cell { flex: 1; min-width: 0; width: auto; }
 
   /* The delete control is permanently visible here: there is no hover on a
      touch screen to reveal it. */

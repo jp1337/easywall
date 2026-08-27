@@ -22,6 +22,10 @@ type dashboardData struct {
 	Counts  *ruleCounts
 	Recent  []shared.AuditLogEntry
 	CoreErr string
+
+	// PendingCount is how many changes the Unapplied changes chip is about. Zero
+	// when nothing is pending, and the chip is not shown then either.
+	PendingCount int
 }
 
 // recentActivityLimit is how many audit entries the dashboard shows. Enough to
@@ -68,6 +72,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Only when something is pending, so a quiet dashboard costs no extra reads:
+	// three more round trips over a local socket on the load where the number is
+	// worth having, and none on the load where it is zero.
+	if status != nil && status.HasPending {
+		data.PendingCount = s.pendingChangeCount()
+	}
+
 	// Recent activity. Best-effort: the dashboard is still useful without it,
 	// so a log read failure is logged and otherwise ignored rather than
 	// surfaced as a page-level error.
@@ -86,4 +97,25 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	data.Version = s.version.Info()
 
 	s.render(w, r, "dashboard.html", "dashboard", data)
+}
+
+// pendingChangeCount is the number the dashboard's chip carries: rule deltas
+// plus configuration drift, the same two halves /apply lists. It is a count of
+// changes and not of pages, so an option and a port are one each.
+func (s *Server) pendingChangeCount() int {
+	state, err := s.client.GetRules()
+	if err != nil {
+		return 0
+	}
+	n := len(shared.DiffRules(state.Current, state.Staged))
+
+	opts, oErr := s.client.GetOptions()
+	nets, nErr := s.client.GetSettings()
+	applied, aErr := s.client.GetAppliedConfig()
+	if oErr == nil && nErr == nil && aErr == nil && applied.Recorded {
+		n += len(shared.DiffConfig(applied.Config, shared.AppliedConfig{
+			Firewall: *opts, Network: *nets,
+		}))
+	}
+	return n
 }

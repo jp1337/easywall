@@ -21,6 +21,16 @@ a way no reviewer spotted by reading. When one fails, the useful question is not
 | `TestEveryEnvVarIsDocumented` | every `shared.CoreEnvVars`/`shared.WebEnvVars` name appears in `docs/_docs/environment.md`, and the page names nothing else | the operator complaint that started the environment-variable feature was "there is no list" — a page that drifts from the code recreates exactly that |
 | `TestTheEnvironmentPageIsInTheNav` | `docs/_config.yml`'s `nav:` links to `/docs/environment/` | a page reachable only by its URL is, for a page whose whole point is being findable, the same as not adding it |
 
+## The preview reports everything it can change
+
+| Test | Protects | What it would have shipped |
+|---|---|---|
+| `TestDiffRulesReachesEveryRuleSet` | every field of `shared.Rules` is reached by `DiffRules` | a seventh rule set the apply screen silently omits: the operator reads "what changes", sees six sections, and the seventh applies anyway |
+| `TestDiffConfigReachesEveryOption` | every leaf of `FirewallOptions` and `NetworkSettings` is reached by `DiffConfig`, or is named in `skippedConfigKeys` with a reason | the same defect one struct over, and the one that produced this release: option changes were in no pending calculation at all, so `/options` said "apply to activate" while `/apply` said there was nothing to apply |
+| `TestIntegration_ReachableAgreesWithTheKernel` | `shared.Reachable`'s verdict equals what a real packet from a real source address meets | the chain order is duplicated between `nft.Apply` and `Reachable` by construction. Without a real packet the lockout warning is an assertion about nftables written in Go, and the two have disagreed before — that is what `nftables_semantics_test.go` exists for |
+| `TestCoreWritesItsFilesForRootOnly` (extended) | `applied-config.json` is 0600, beside the audit log and the last-apply marker it now shares the assertion with | it holds the machine's whole firewall configuration and only the core reads it; the web process asks over the socket |
+| `TestLogEventPayloadCarriesNoFreeText` (extended) | `LogEventPayload.Proxied` stays a `bool` | the field derives from a header's presence, never its value; a string here would be a way for the web process to write arbitrary text into the core's own log through a field that looks like a flag |
+
 ## One source for a version
 
 | Test | Protects |
@@ -50,7 +60,7 @@ The background is in [dependencies](dependencies.md).
 |---|---|
 | `TestTemplatesOnlyUseTranslatedKeys` | no visible string bypasses `T` |
 | `TestLocaleFilesAreAtParity` | `en.json` and `de.json` hold the same keys |
-| `TestGermanTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
+| `TestTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
 | `TestMarkupStringsAreRenderedThroughRichText` | a message with a link or a `code` span stays one message |
 | `TestClientStringsCoverWhatAppJSAsksFor` | text `app.js` builds has its key in `clientStringKeys` |
 | `TestClientStringsCarryNoMarkupAppJSCannotRender` | a string inlined for `app.js` has no `` ` `` or `*` — it escapes them, so the markers would be shown literally |
@@ -64,6 +74,8 @@ The background is in [dependencies](dependencies.md).
 | `TestMobileSidebarOutranksItsBackdrop` | on a narrow viewport, the open `.sidebar` (z-index 160) sits above `.sidebar-backdrop` (150). Since commit `cd89c02d` (2026-05-03) it had not: the backdrop outranked the drawer it was meant to sit behind, so nothing inside an open drawer — no nav link, no search field — could receive a touch. A future edit to either number regresses it with no other signal |
 | `TestTheSearchOverridesAreOutsideTheCascadeLayer` | the search panel's overrides of Pagefind's class names sit outside `@layer components` in the built stylesheet | An unlayered declaration beats every declaration in a named cascade layer, whatever its specificity. Pagefind's stylesheet is fetched at runtime and is unlayered, so an `#id` rule written inside the layer lost to its plain class selectors: the overlay shipped a yellow `<mark>` and a white input on a dark panel while the build stayed green, the rules were present in the built file, and the grep for them passed |
 | `TestTheDocsLayoutMountsPagefind` (extended) | the overlay is opened with `showModal()`, and the highlight script is given `markContext` and `addStyles: false` | `show()` gives up the focus trap, the Esc key and the inert background — the four platform behaviours that made a dialog cheaper than a results list in the sidebar. Left at its default the highlight script marked the whole document: every `a` in the sidebar's page list, and the logo read "e a syw a ll" |
+| `TestEveryReachReasonHasALabel`, `TestEveryReachVerdictHasALabel`, `TestEveryPreviewSetHasALabel` | every verdict, reason and rule-set heading the apply screen can render has a key in `en` and `de` | a reason with no key renders as `reach_bogon_filter` on the one screen whose whole job is to be believed |
+| `TestDetailLabelEscapesWhatItPassesThrough` | `detailLabel` returns `template.HTML`, so what it passes through is escaped by it | the detail column carries values composed from rules an operator typed; the `via-proxy` chip is the first markup that function has ever written |
 
 Tailwind drops rules silently and the build stays green. A stylesheet test is a
 poor substitute for looking at the page — but it catches the class of failure

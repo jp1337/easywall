@@ -447,17 +447,17 @@ func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left in
 	if s.events == nil {
 		return // a Server built by a test that does not care about events
 	}
-	s.events.Record(ev, clientIP(r), left)
+	s.events.Record(ev, clientIP(r), left, proxiedRequest(r))
 }
 
 // onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is
 // supplied by the server when it builds the router, so middleware.go stays free
 // of the client.
-func (s *Server) onLoginBlocked(ip string) {
+func (s *Server) onLoginBlocked(ip string, proxied bool) {
 	if s.events == nil {
 		return
 	}
-	s.events.Record(shared.EvRateLimited, ip, 0)
+	s.events.Record(shared.EvRateLimited, ip, 0, proxied)
 }
 
 // render executes a named template with common page data.
@@ -508,7 +508,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		"actionLabel": func(action string) string {
 			return actionLabel(tFunc, action)
 		},
-		"detailLabel": func(detail string) string {
+		"detailLabel": func(detail string) template.HTML {
 			return detailLabel(tFunc, detail)
 		},
 	})
@@ -572,7 +572,7 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		"actionLabel": func(action string) string {
 			return actionLabel(tFunc, action)
 		},
-		"detailLabel": func(detail string) string {
+		"detailLabel": func(detail string) template.HTML {
 			return detailLabel(tFunc, detail)
 		},
 	})
@@ -877,21 +877,61 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 }
 
 // auditDetailKeys maps the fixed detail strings the core writes to message ids.
-// Almost every entry the core records carries an empty detail; the exceptions are
-// this one token and, for a failed apply, the nftables error, which is diagnostic
-// output rather than a sentence and is shown verbatim.
+//
+// The comment here used to claim "almost every entry the core records carries an
+// empty detail". DescribeRuleChange has filled it since 2.5 — the demo's log
+// shows `6 ports removed (2 total)` and `+8443` — so what is true is narrower: a
+// detail is either a token from this table, a summary the core composed from the
+// rules themselves, or an nftables error, which is diagnostic output rather than
+// a sentence and is shown verbatim.
 var auditDetailKeys = map[string]string{
 	"timeout": "audit_detail_timeout",
 }
 
 // detailLabel translates a detail the core wrote from a known vocabulary, and
-// leaves anything else exactly as stored. An audit record is evidence: what is not
-// a recognised token is passed through rather than guessed at.
-func detailLabel(tFunc func(string, ...interface{}) string, detail string) string {
+// leaves anything else exactly as stored. An audit record is evidence: what is
+// not a recognised token is passed through rather than guessed at.
+//
+// One rule is not an exact-match lookup, and cannot be: a detail carrying an
+// address can never be a map key. shared.ProxyToken can also sit *mid-string* —
+// the debounced summary reads "from 1.2.3.4 via-proxy, 2 more within 60s" and
+// login_recovery_used reads "from 1.2.3.4 via-proxy, 7 recovery codes left" —
+// so this looks for the token anywhere rather than only at the end, splices the
+// chip in at the position it found it, and keeps whatever came after. A
+// suffix-only check rendered the chip for logins and lockouts but left the raw
+// English token sitting untranslated in the other five event kinds.
+//
+// The chip is neutral — DESIGN.md assigns informational marks to neutral
+// chips, and the Detail column is scanned, not read.
+//
+// This returns template.HTML, so everything that is not markup this function
+// wrote is escaped here. TestDetailLabelEscapesWhatItPassesThrough guards it.
+func detailLabel(tFunc func(string, ...interface{}) string, detail string) template.HTML {
 	if key, ok := auditDetailKeys[detail]; ok {
-		return tFunc(key)
+		// #nosec G203 -- escaped on the line it is written
+		return template.HTML(template.HTMLEscapeString(tFunc(key))) //nolint:gosec // G203 — see above
 	}
-	return detail
+	if i := strings.Index(detail, shared.ProxyToken); i >= 0 {
+		before, after := detail[:i], detail[i+len(shared.ProxyToken):]
+		// Everything is wrapped in one outer <span> rather than left as sibling
+		// text/element nodes. log.html's mobile layout (.table-reflow at
+		// max-width:720px) turns every direct child of a cell into its own flex
+		// item — that is how a table row becomes a card — so an unwrapped chip
+		// was a second flex item, and .cell-wide's align-items:stretch drew it as
+		// a full-width bar under the address instead of sitting beside it.
+		// Rendered and confirmed at 390px before this wrapper was added, and
+		// again after.
+		//
+		// #nosec G203 -- before and after are both escaped here; the only markup
+		// is the two spans this statement writes. gosec attaches the directive to
+		// the statement the comment group sits immediately above, so nothing may
+		// come between them — see the note on richText.
+		return template.HTML(`<span>` + template.HTMLEscapeString(before) +
+			` <span class="chip">` + template.HTMLEscapeString(tFunc("audit_detail_via_proxy")) +
+			`</span>` + template.HTMLEscapeString(after) + `</span>`) //nolint:gosec // G203 — see above
+	}
+	// #nosec G203 -- escaped on the line it is written
+	return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — see above
 }
 
 // actionTone returns "ok", "warn", "crit" or "" for a neutral action.
@@ -1034,10 +1074,13 @@ func templateFuncs() template.FuncMap {
 		// actionLabel is rebound per request in render()/renderPartial(), where the
 		// localizer exists. This entry only keeps ParseGlob happy at startup.
 		"actionLabel": func(action string) string { return action },
-		"detailLabel": func(detail string) string { return detail },
-		"actionTone":  actionTone,
-		"richText":    richText,
-		"shortTime":   shortTime,
+		"detailLabel": func(detail string) template.HTML {
+			// #nosec G203 -- escaped on the line it is written
+			return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — see above
+		},
+		"actionTone": actionTone,
+		"richText":   richText,
+		"shortTime":  shortTime,
 		// dict lets a template pass named values into a translation that carries
 		// its own {{.Placeholder}} — the only way a sentence with an interpolated
 		// value stays one message for the translator.
@@ -1074,6 +1117,32 @@ func templateFuncs() template.FuncMap {
 				return warnSVG
 			}
 			return errorSVG
+		},
+		// The mark in the diff's mono column. Structural, never chromatic:
+		// DESIGN.md reserves colour outside the blue family for firewall state,
+		// and a green/red diff would break it twice over — a new blacklist entry
+		// is not good news and a removed port is not a failure.
+		"deltaMark": func(kind shared.DeltaKind) string {
+			switch kind {
+			case shared.DeltaAdded:
+				return "+"
+			case shared.DeltaRemoved:
+				return "-"
+			default:
+				return "~"
+			}
+		},
+		// The verdict is a state, so it takes a state colour and the dot that goes
+		// with it — the word is always beside it, which is what Status requires.
+		"verdictDot": func(v shared.ReachVerdict) string {
+			switch v {
+			case shared.ReachOpen:
+				return "active"
+			case shared.ReachBlocked:
+				return "error"
+			default:
+				return "pending"
+			}
 		},
 	}
 }

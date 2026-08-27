@@ -79,6 +79,15 @@ const (
 	CmdPanic  CommandType = "PANIC"
 	CmdResume CommandType = "RESUME"
 
+	// CmdGetAppliedConfig returns the configuration that went into the kernel
+	// with the rules that are in it, and whether it was recorded at all.
+	//
+	// Read-only, one file, so it keeps the short deadline. It exists because
+	// RulesState answers only half of "what changes": the options and the network
+	// settings live in the core's config and take effect at the next apply, and
+	// nothing on either side could see the difference between the two.
+	CmdGetAppliedConfig CommandType = "GET_APPLIED_CONFIG"
+
 	// CmdLogEvent hands the core a login event to record.
 	//
 	// It exists because the audit log had no logins in it at all —
@@ -100,7 +109,7 @@ var AllCommandTypes = []CommandType{
 	CmdGetStatus, CmdGetOptions, CmdSaveOptions,
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
-	CmdImportRules, CmdValidateCustom,
+	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig,
 	CmdPanic, CmdResume, CmdLogEvent,
 }
 
@@ -141,17 +150,35 @@ func ValidLoginEvent(ev LoginEvent) bool {
 
 // LogEventPayload is the payload for CmdLogEvent.
 //
-// Three fields and not one of them is free text. Addr is run through
+// Four fields and not one of them is free text. Addr is run through
 // netip.ParseAddr in the core and normalised there; if that fails the entry is
 // written *without* an address rather than dropped, because the entry is the
 // record and the address is the annotation. Left is an integer and can smuggle
-// nothing. The submitted username is deliberately absent: it would be foreign
-// text in the record, and with exactly one account it says nothing.
+// nothing. Proxied is a boolean the web process derives from the *presence* of a
+// forwarding header, never its value — see docs-tech/threat-model.md for why
+// reading one is acceptable in that one direction. The submitted username is
+// deliberately absent: it would be foreign text in the record, and with exactly
+// one account it says nothing.
 type LogEventPayload struct {
-	Event LoginEvent `json:"event"`
-	Addr  string     `json:"addr"`
-	Left  int        `json:"left"` // login_recovery_used only
+	Event   LoginEvent `json:"event"`
+	Addr    string     `json:"addr"`
+	Left    int        `json:"left"` // login_recovery_used only
+	Proxied bool       `json:"proxied"`
 }
+
+// ProxyToken is what an address recorded through a reverse proxy carries in the
+// detail string. One fixed English word, appended right after the address —
+// `grep 'via-proxy' audit.log` finds every proxied login regardless of what
+// follows it in the same detail (a debounce summary, a recovery-codes count).
+// The interface strips it, wherever it sits, and renders a chip in the
+// operator's language in its place.
+//
+// One constant, three packages: the core writes it (loginevents.go), the web
+// process strips it in two places (server.go's detailLabel, democlient.go's
+// demo echo of the same shape). A second literal drifting out of step with
+// this one would silently stop the chip from rendering for whichever caller
+// still had the old spelling.
+const ProxyToken = " via-proxy"
 
 // Command is sent from easywall-web to easywall-core over the Unix socket.
 type Command struct {

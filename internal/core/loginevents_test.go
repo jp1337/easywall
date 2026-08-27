@@ -196,6 +196,51 @@ func TestLoginEvents_TheTableStopsGrowingAtTheCeiling(t *testing.T) {
 	}
 }
 
+// A login recorded through a reverse proxy carries the token in the log file
+// itself — `grep 'via-proxy' audit.log` has to find it — not only in whatever
+// the interface renders from it.
+func TestLoginEvents_AProxiedLoginSaysSo(t *testing.T) {
+	var lines []string
+	l := newLoginEvents(func(action, ruleType, detail, user string) {
+		lines = append(lines, action+"|"+detail)
+	})
+
+	now := time.Now()
+	if err := l.record(shared.LogEventPayload{
+		Event: shared.EvLoginOK, Addr: "172.16.4.1", Proxied: true}, now); err != nil {
+		t.Fatal(err)
+	}
+	if want := "login_ok|from 172.16.4.1 via-proxy"; lines[0] != want {
+		t.Errorf("got %q, want %q", lines[0], want)
+	}
+}
+
+// The debounced summary is the second half of the story; a reader who only
+// ever sees the closing line for a burst still has to be told it came through
+// a proxy.
+func TestLoginEvents_TheSummaryCarriesTheTokenToo(t *testing.T) {
+	var lines []string
+	l := newLoginEvents(func(action, ruleType, detail, user string) {
+		lines = append(lines, detail)
+	})
+
+	now := time.Now()
+	for i := 0; i < 3; i++ {
+		if err := l.record(shared.LogEventPayload{
+			Event: shared.EvLoginFailed, Addr: "172.16.4.1", Proxied: true}, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l.sweep(now.Add(2 * loginEventWindow))
+
+	if len(lines) != 2 {
+		t.Fatalf("expected an opening line and one summary, got %v", lines)
+	}
+	if want := "from 172.16.4.1 via-proxy, 2 more within 60s"; lines[1] != want {
+		t.Errorf("summary is %q, want %q", lines[1], want)
+	}
+}
+
 // login_recovery_used carries how many are left, because that is the number the
 // operator has to act on.
 func TestLoginEvents_RecoveryUsedNamesWhatIsLeft(t *testing.T) {
