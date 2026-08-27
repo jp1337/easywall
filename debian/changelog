@@ -1,3 +1,35 @@
+easywall (2.10.0) unstable; urgency=medium
+
+  * Feat: what changes is on the screen. Before you press Apply, the interface
+    lists every difference between the staged rules and the running ones — six
+    rule sets, each compared the way the kernel reads it, so a reordered port
+    list is not a change and a moved custom rule is — and beside it the
+    configuration drift, which no page could see before: options and network
+    settings were in no pending calculation at all, so /options said "apply to
+    activate" while /apply said there was nothing to apply
+  * Feat: a lockout verdict above the diff, naming the address the request came
+    from and the port the interface answers on. Three answers — reachable,
+    blocks new connections, cannot tell — and every uncertain case says which
+    rule it could not decide. It is about a *new* connection: applying rules
+    does not touch conntrack, so the browser connection you are reading it on
+    survives an apply that admits nobody, which is why confirming from a page
+    that still answers can confirm a lockout
+  * Feat: GET_APPLIED_CONFIG, the 19th command, and an applied-config.json the
+    core writes wherever nft.Apply succeeds and nowhere else. A missing file
+    means unknown, never identical, so no existing installation is greeted with
+    a pending change it did not make
+  * Fix: the forwarding rows share one top edge again. display:flex on a <td>
+    stops the element being a table cell, so the separator under that column
+    sat about ten pixels below the others — invisible below the reflow
+    breakpoint, which is why it survived a release
+  * Fix: a login recorded through a reverse proxy says so. The address is still
+    the TCP peer and X-Forwarded-For is still refused; what was missing was
+    telling the reader that the number is not the client's. Entries carry a
+    via-proxy token in the log and a neutral chip in the interface, and the flag
+    comes from a header's presence, never its value
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Thu, 27 Aug 2026 00:00:00 +0000
+
 easywall (2.9.0) unstable; urgency=medium
 
   * Feat: the interface speaks French. locales/fr.json ships the whole
