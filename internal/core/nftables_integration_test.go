@@ -1025,8 +1025,13 @@ func TestIntegration_Apply_PortSources(t *testing.T) {
 		t.Errorf("no rule restricts 9090 to 10.1.2.3\ninput chain:\n  %s",
 			strings.Join(text, "\n  "))
 	}
-	if i := indexOfRule(text, "dport 9090"); i >= 0 && !strings.Contains(text[i], "saddr") {
-		t.Errorf("9090 has sources and must not carry an unrestricted rule, got %q", text[i])
+	// indexOfRule returns the FIRST match, which here is always the restricted
+	// rule above (it also contains "dport 9090"), so it could never see an
+	// unrestricted sibling rule. Search every match instead.
+	for _, line := range text {
+		if strings.Contains(line, "dport 9090") && !strings.Contains(line, "saddr") {
+			t.Errorf("9090 has sources and must not carry an unrestricted rule, got %q", line)
+		}
 	}
 }
 
