@@ -410,6 +410,95 @@ async function checkForwardingRowEdgesLineUp(page) {
 }
 
 /**
+ * The catalogue appends rows into fields that already work without it, and the
+ * sources field is one comma-separated input. Both were regressions waiting to
+ * happen in a different way: a picker that writes into a field the form does not
+ * read produces a page that looks right and saves nothing.
+ */
+async function checkPortsCatalogue(page) {
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+  await page.click('#catalogue-btn');
+  await page.click('.catalogue-item[data-service="pihole"]');
+
+  const rows = await page.$$eval('#rules-tbody tr[data-idx]', trs =>
+    trs.map(tr => ({
+      port: tr.querySelector('.f-port')?.value,
+      sources: tr.querySelector('.f-sources')?.value,
+      service: tr.dataset.service,
+    })));
+  const added = rows.filter(r => r.service === 'pihole');
+  if (added.length !== 2) {
+    fail('ports catalogue', `picking Pi-hole added ${added.length} TCP rows, expected 2 (80, 53)`);
+    return;
+  }
+  if (!added[0].sources.includes('fc00::/7')) {
+    fail('ports catalogue', `the private suggestion did not reach the field: "${added[0].sources}"`);
+  }
+
+  const payload = await page.$eval('#rules-json', el => el.value);
+  if (!payload.includes('"sources"') || !payload.includes('"service":"pihole"')) {
+    fail('ports catalogue', `the form payload dropped the new fields: ${payload.slice(0, 300)}`);
+  }
+}
+
+/**
+ * app.js's ruleRowHTML carries a comment requiring it to stay identical to the
+ * server-rendered row in ports.html — same column order, same classes, same
+ * data-label values, same chip. Nothing checked that beyond eyeballing it, so
+ * the two are free to drift the next time either one is touched alone.
+ *
+ * Pick a catalogue row (browser-built, via ruleRowHTML) and read its shape;
+ * save and reload (server-rendered, via ports.html) and read the same row's
+ * shape; they must be the same markup, not just the same values.
+ */
+async function checkPortsRowAgreesWithServer(page) {
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+  await page.click('#catalogue-btn');
+  await page.click('.catalogue-item[data-service="pihole"]');
+
+  const shape = () => page.$eval('#rules-tbody tr[data-service="pihole"]', tr => ({
+    trClasses: tr.className,
+    cells: [...tr.querySelectorAll('td')].map(td => ({
+      classes: td.className,
+      label: td.getAttribute('data-label'),
+      chip: td.querySelector('.chip')?.textContent.trim() ?? null,
+    })),
+  }));
+
+  let clientShape;
+  try {
+    clientShape = await shape();
+  } catch {
+    fail('ports row agreement', 'picking Pi-hole did not add a tr[data-service="pihole"] row to compare');
+    return;
+  }
+
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#ports-form button[type=submit]"),
+  ]);
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+
+  let serverShape;
+  try {
+    serverShape = await shape();
+  } catch {
+    fail('ports row agreement', 'the saved catalogue row was not there after reload — could not compare');
+    return;
+  }
+
+  const before = JSON.stringify(clientShape);
+  const after = JSON.stringify(serverShape);
+  if (before !== after) {
+    fail('ports row agreement',
+      `the browser-built row (ruleRowHTML) and the server-rendered row (ports.html) disagree.\n` +
+      `  client: ${before}\n  server: ${after}`);
+  } else {
+    console.log('  ok   the catalogue-built row matches the server-rendered row after save and reload');
+  }
+}
+
+/**
  * The apply screen actually draws the preview, and the verdict names an address.
  *
  * The demo seeds a configuration drift, so /apply always has something to show.
@@ -601,18 +690,8 @@ const launch = process.env.CHROME_PATH
 // sideways is invisible at 1600.
 const WIDTHS = [1600, 900, 390];
 
-const browser = await chromium.launch(launch);
-try {
-  console.log(`Driving ${BASE}`);
-  const setup = await browser.newContext({ ignoreHTTPSErrors: true });
-  const page = await setup.newPage();
-  await setUpAccount(page);
-  await signIn(page);
-  // One sign-in for the whole run — see signIn for what doing it per context
-  // cost. Every context below starts already authenticated.
-  const session = await setup.storageState();
-  await setup.close();
-
+/** The full health/regression suite — everything that isn't screenshotting. */
+async function runChecks(browser, session) {
   const langCtx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
   await checkLanguageSwitch(langCtx);
   await langCtx.close();
@@ -640,6 +719,8 @@ try {
   const p = await ctx.newPage();
   await checkForwardingRowEdgesLineUp(p);
   await checkForwardingPortIsNotReparsed(p);
+  await checkPortsCatalogue(p);
+  await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkEnrolmentFlow(p);
   await checkVerifyPage(browser);
@@ -647,12 +728,95 @@ try {
   // above is sharing, so anything after it would be driving a signed-out browser.
   await checkSignOutEndsTheSession(p);
   await ctx.close();
+}
+
+/**
+ * --screenshots [page ...]: capture docs/assets/img/screens/<page>-<theme>.png
+ * for each page, in both themes, instead of running the suite above. Pages are
+ * path segments ("ports", or "/ports") off a short default list when none are
+ * given. Reuses setUpAccount/signIn below — there is no second sign-in path
+ * to maintain.
+ */
+const screenshotFlagIdx = process.argv.indexOf('--screenshots');
+const screenshotMode = screenshotFlagIdx !== -1;
+const screenshotArgs = screenshotMode
+  ? process.argv.slice(screenshotFlagIdx + 1).map(a => a.startsWith('/') ? a : `/${a}`)
+  : [];
+// The pages already shot by hand each release; PAGES minus the query-string
+// variants, which would just overwrite the same file twice.
+const DEFAULT_SCREENSHOT_PAGES = PAGES.filter(p => !p.includes('?'));
+
+/**
+ * Fills in the one thing the seeded demo TCP tab does not otherwise show: a
+ * rule with sources filled in, and a catalogue-added rule with its service
+ * chip. Saved server-side, so it survives into every theme's own context.
+ */
+async function seedPortsScreenshot(page) {
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+  await page.locator('#rules-tbody tr[data-idx] .f-sources').first().fill('203.0.113.10, 203.0.113.11');
+  if (await page.locator('#rules-tbody tr[data-service="pihole"]').count() === 0) {
+    await page.click('#catalogue-btn');
+    await page.click('.catalogue-item[data-service="pihole"]');
+  }
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#ports-form button[type=submit]"),
+  ]);
+}
+
+async function takeScreenshots(browser, session, pages) {
+  console.log(`Screenshotting ${pages.join(', ')} in both themes`);
+  const prep = await browser.newContext({
+    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1.5, storageState: session,
+  });
+  if (pages.includes('/ports')) await seedPortsScreenshot(await prep.newPage());
+  await prep.close();
+
+  for (const theme of ['light', 'dark']) {
+    const ctx = await browser.newContext({
+      ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1.5, storageState: session,
+    });
+    await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
+    const page = await ctx.newPage();
+    for (const path of pages) {
+      await page.goto(BASE + path, { waitUntil: 'networkidle' });
+      const name = path.replace(/^\//, '').replace(/\?.*$/, '');
+      const out = `docs/assets/img/screens/${name}-${theme}.png`;
+      await page.screenshot({ path: out, fullPage: true });
+      console.log(`  wrote ${out}`);
+    }
+    await ctx.close();
+  }
+}
+
+const browser = await chromium.launch(launch);
+try {
+  console.log(`Driving ${BASE}`);
+  const setup = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await setup.newPage();
+  await setUpAccount(page);
+  await signIn(page);
+  // One sign-in for the whole run — see signIn for what doing it per context
+  // cost. Every context below starts already authenticated.
+  const session = await setup.storageState();
+  await setup.close();
+
+  if (screenshotMode) {
+    await takeScreenshots(browser, session, screenshotArgs.length ? screenshotArgs : DEFAULT_SCREENSHOT_PAGES);
+  } else {
+    await runChecks(browser, session);
+  }
 } finally {
   await browser.close();
 }
 
-if (failures.length) {
+if (screenshotMode) {
+  console.log('\nScreenshots written');
+} else if (failures.length) {
   console.error(`\n${failures.length} UI check(s) failed`);
   process.exit(1);
+} else {
+  console.log('\nUI checks passed');
 }
-console.log('\nUI checks passed');
