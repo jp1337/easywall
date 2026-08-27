@@ -139,15 +139,18 @@ is the path's designed behaviour rather than a bug the round-trip test missed.
 
 | Test | What it protects |
 |---|---|
-| `TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist` | the sshbrute chain returns instead of accepting, so it can no longer outrank the blacklist or open port 22 on its own |
+| `TestValidateRules_PortSources` | the trust boundary the web process crosses: a source that is not an address, a hostname, or an address wearing a port number is refused before it ever reaches the core |
+| `TestReachable_PortSources` | the base truth table for the field: empty is anywhere, an address or network inside or outside a restriction, a bare address, and a source list holding only a comment restricts to nobody |
+| `TestReachable_PortSources_AnUnrestrictedRuleWins` | a second, unrestricted rule for the same port opens it even when an earlier rule for it is restricted — the kernel's first-match order, not the more cautious of the two, which is exactly what a later edit would "fix" by mistake |
+| `TestReachable_PortSources_ACustomRuleOutranksTheRestriction` | a custom rule that accepts a source-restricted port reports unknown, not a false "blocked" |
+| `TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller` | a second restricted rule that covers the caller reports open, matching the kernel's rule-by-rule evaluation |
 | `TestIntegration_Apply_PortSources` | one nft rule per source; an unrestricted port carries no address match at all |
 | `TestIntegration_Apply_PortSources_AllCommentsOpensNothing` | a source list with nothing usable in it opens the port to nobody, not to everyone |
+| `TestIntegration_ReachableAgreesWithTheKernel` (extended) | the reason returned for a source-restricted port agrees with what a real packet over a veth actually meets |
+| `TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist` | the sshbrute chain returns instead of accepting, so it can no longer outrank the blacklist or open port 22 on its own |
 | `TestCatalogueIDsAreUniqueAndStable` | a stored `service` id points at exactly one catalogue entry, forever |
 | `TestEveryCataloguePortIsStorable`, `TestEverySuggestionIsKnownAndProducesSources` | every catalogue port and suggested source list passes the same validation the form does, and the suggestion's source slice cannot be mutated by a caller |
 | `TestDiffPorts_SourceChangeIsAChange` | restricting an already-open port is a reported change, not an empty preview |
-| `TestReachable_PortSources_ACustomRuleOutranksTheRestriction` | a custom rule that accepts a source-restricted port reports unknown, not a false "blocked" |
-| `TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller` | a second restricted rule that covers the caller reports open, matching the kernel's rule-by-rule evaluation |
-| `TestIntegration_ReachableAgreesWithTheKernel` (extended) | the reason returned for a source-restricted port agrees with what a real packet over a veth actually meets |
 | `TestHandlePortsGET_RendersTheCatalogueForTheTab`, `TestHandlePortsPOST_KeepsSources`, `TestHandlePortsPOST_RejectsAnInvalidSource` | the catalogue rendered server-side is filtered to the tab's protocol, sources round-trip to the core unchanged, and an invalid source is refused with the page re-rendered still holding it |
 
 ## The technical documentation stays unpublished

@@ -286,7 +286,7 @@
   {"id": "ports_sources_card_ipv6", "translation": "Der Vorschlag *Private Netze* aus dem Katalog trägt RFC 1918 und `fc00::/7` ein. Liegt dein LAN in globalem IPv6-Adressraum, ergänze diesen Bereich selbst — er lässt sich nicht raten, und eine Einschränkung ohne ihn sperrt dich über IPv6 aus."},
   {"id": "ports_catalogue_add", "translation": "Aus Katalog hinzufügen"},
   {"id": "ports_catalogue_title", "translation": "Dienst hinzufügen"},
-  {"id": "ports_catalogue_note", "translation": "Fügt die Zeilen hinzu, auf denen dieser Dienst lauscht, mit einer vorgeschlagenen Quelleinschränkung. Alles bleibt änderbar, und nichts ist aktiv, bevor Sie es anwenden."},
+  {"id": "ports_catalogue_note", "translation": "Fügt die Zeilen hinzu, auf denen dieser Dienst lauscht, mit einer vorgeschlagenen Quelleinschränkung. Alles bleibt änderbar, und nichts ist aktiv, bevor du es anwendest."},
   {"id": "ports_suggest_private", "translation": "Private Netze"},
   {"id": "ports_suggest_anywhere", "translation": "Überall"},
   {"id": "action_close", "translation": "Schließen"},
