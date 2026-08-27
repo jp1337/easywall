@@ -1555,7 +1555,13 @@ body {
   .col-port    { width: 120px; }
   .col-flex    { width: auto; }
   .col-toggle  { width: 150px; }
-  .col-sources { width: 16rem; }
+  /* 25rem/400px so the catalogue's own default — "10.0.0.0/8, 172.16.0.0/12,
+     192.168.0.0/16, fc00::/7", 307px of content — fits at 1600px without
+     clipping fc00::/7, the range that exists so IPv6 does not lock anyone out.
+     table-layout: auto redistributes this rather than honouring it literally,
+     so the number was reached by measuring the rendered input, not by adding
+     up padding on paper. */
+  .col-sources { width: 25rem; }
   .col-actions { width: 56px;  text-align: right; }
 
   /* The lead cell of a rule row: the identifier the operator scans for. */
@@ -1586,7 +1592,7 @@ body {
      `display: flex` on a <td> stops the element being a table cell — the browser
      wraps it in an anonymous cell — so its box no longer shares the row's height
      or its border, and at 1600px in both themes the row separator under this
-     column sat ~10px below the one under the others. Below the 720px reflow
+     column sat ~10px below the one under the others. Below the reflow
      breakpoint every td is display:block anyway, which is why it survived a
      release. The constraint the rule exists for is unchanged: .input-cell is
      width:100%, so an inline arrow wraps onto its own line above the number. */
@@ -2748,8 +2754,15 @@ body {
    it: the port column collapsed until `22` displayed as `2:` and every
    description truncated mid-word. A rule whose identifier is unreadable has no
    relationship left to preserve. Rows now reflow into cards, and the card
-   border keeps them legible as single units. */
-@media (max-width: 720px) {
+   border keeps them legible as single units.
+
+   900px, not 720px: the /ports table gained a Sources column (task 6) sized
+   for its own default value, and a five-column table has no room left for
+   Description once Sources is legible — 900px measured 67px for Description,
+   unreadable. The breakpoint is shared by forwarding.html and log.html too;
+   both were re-measured at 900px in the reflow layout when this moved and
+   render fine there — narrower windows already used it. */
+@media (max-width: 900px) {
   .table-reflow thead { display: none; }
 
   .table-reflow,

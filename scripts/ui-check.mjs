@@ -655,6 +655,49 @@ async function checkLanguageSwitch(ctx) {
   await noJsCtx.close();
 }
 
+/**
+ * Every input in a rules table (.table-reflow — ports, forwarding, log) must
+ * show its own value. The page-wide overflow check above cannot see this: a
+ * column that squeezes its input to below the value's content width doesn't
+ * make the *page* scroll, table-layout: auto just clips the field in place.
+ * That is exactly how task 6's Sources column shipped — 190px showing a
+ * 307px default, fc00::/7 entirely invisible, and the page overflow check
+ * green throughout because nothing scrolled.
+ */
+async function checkNoInputClipsItsOwnValue(page, where, path) {
+  // The demo's own seed carries no Sources value long enough to prove
+  // anything either way. The catalogue's Pi-hole entry does — same fc00::/7
+  // default the demo config's two saved rows carry — so add it here,
+  // unsaved, purely to put that value on the page for this one check. The
+  // next page.goto in the caller's loop discards it; nothing is written to
+  // the account's rules, so checkPortsCatalogue's row count downstream is
+  // unaffected.
+  if (path.startsWith('/ports')) {
+    const btn = page.locator('#catalogue-btn');
+    if (await btn.count() && await btn.isVisible()) {
+      await btn.click();
+      const item = page.locator('.catalogue-item[data-service="pihole"]');
+      if (await item.count()) await item.click();
+    }
+  }
+
+  const clipped = await page.evaluate(() => {
+    const inputs = document.querySelectorAll('.table-reflow input');
+    return [...inputs]
+      .filter(el => el.scrollWidth > el.clientWidth)
+      .map(el => ({
+        label: el.getAttribute('aria-label') || el.name || el.className,
+        value: el.value,
+        clientWidth: el.clientWidth,
+        scrollWidth: el.scrollWidth,
+      }));
+  });
+  for (const c of clipped) {
+    fail(`input overflow [${where}]`, `${path} — "${c.label}" value "${c.value}" needs ` +
+      `${c.scrollWidth}px, only ${c.clientWidth}px visible`);
+  }
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
@@ -672,6 +715,7 @@ async function checkPageHealth(ctx, theme, width) {
     if (overflow > 0) {
       fail(`horizontal overflow [${where}]`, `${path} scrolls ${overflow}px sideways`);
     }
+    await checkNoInputClipsItsOwnValue(page, where, path);
     for (const problem of seen) {
       fail(`page problem [${where}]`, `${path} — ${problem}`);
     }
