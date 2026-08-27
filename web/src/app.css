@@ -655,7 +655,18 @@ body {
     align-items: start;
   }
 
-  @media (max-width: 1180px) {
+  /* 1570, not the ~1500 a naive box-model estimate suggests: measured
+     against the running demo, the work column's own width crosses the
+     .table-wrap container query's 940px table/card threshold at 1563px
+     while still two-column (aside eating 320px + 16px gap + surrounding
+     padding leaves less than the arithmetic implies). Below that, the aside
+     has to move under the table for the table to have anywhere to be a
+     table — collapsing single-column here starts one continuous table band
+     at ~1227px (single-column .table-wrap crosses 940px there) with no card
+     gap where it meets the two-column band above. 1570 is an 8px margin
+     over the measured 1562/1563px handoff, the same shape of margin used
+     for .col-sources and the container query's own 940px. */
+  @media (max-width: 1570px) {
     .page-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
