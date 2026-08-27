@@ -1,3 +1,34 @@
+easywall (2.11.0) unstable; urgency=medium
+
+  * Feat: a port rule can name who may reach it. Sources is a comma-separated
+    list of addresses and networks on every TCP and UDP rule; empty still
+    means everyone. Each usable entry becomes its own nft rule matched before
+    the port is tested, and a source list holding nothing usable opens the
+    port to nobody rather than to the world. /apply gained a matching
+    reachability reason, port_source_mismatch
+  * Feat: a catalogue of 29 services fills in a rule in one click. "Add from
+    catalogue" on /ports appends the ports a service listens on with a
+    suggested source restriction already filled in, everything left editable
+    and nothing applied until you apply it. The service name rides along as a
+    label only
+  * Feat: a new aside on /ports explains what an empty Sources field means and
+    why the catalogue's private-networks suggestion may not be enough on its
+    own over IPv6
+  * Fix: the SSH brute-force chain no longer outranks the blacklist. It
+    jumped to sshbrute before the blacklist was consulted and ended in
+    accept, so a blacklisted address could still open an SSH connection under
+    the rate limit. The chain now returns, so traffic under the rate limit
+    falls back into the input chain and meets the blacklist, then the
+    whitelist, then the port rule, exactly as if the module were not there
+  * Change: a host with SSH brute-force protection on and no rule opening
+    port 22 no longer has port 22 open by itself; if you were relying on the
+    module alone to keep SSH reachable, add an explicit rule for it before
+    you apply this release. An under-rate SSH connection now also traverses
+    the module rules that follow the jump — connection limit, RST flood,
+    broadcast/multicast/anycast drops — which the old accept short-circuited
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Thu, 27 Aug 2026 00:00:00 +0000
+
 easywall (2.10.0) unstable; urgency=medium
 
   * Feat: what changes is on the screen. Before you press Apply, the interface
