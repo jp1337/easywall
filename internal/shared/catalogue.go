@@ -74,7 +74,8 @@ type Service struct {
 // Catalogue is every entry, ordered by name so the picker needs no sort.
 var Catalogue = []Service{
 	{ID: "adguardhome", Name: "AdGuard Home", Suggest: SuggestPrivate, Ports: []ServicePort{
-		{Proto: "tcp", Port: "3000", Description: "Web interface"},
+		{Proto: "tcp", Port: "80", Description: "Web interface"},
+		{Proto: "tcp", Port: "3000", Description: "Setup wizard"},
 		{Proto: "tcp", Port: "53", Description: "DNS"},
 		{Proto: "udp", Port: "53", Description: "DNS"},
 	}},
@@ -163,6 +164,7 @@ var Catalogue = []Service{
 	{ID: "unifi", Name: "UniFi Network", Suggest: SuggestPrivate, Ports: []ServicePort{
 		{Proto: "tcp", Port: "8443", Description: "Web interface"},
 		{Proto: "tcp", Port: "8080", Description: "Device communication"},
+		{Proto: "udp", Port: "3478", Description: "STUN"},
 	}},
 	{ID: "uptimekuma", Name: "Uptime Kuma", Suggest: SuggestPrivate, Ports: []ServicePort{
 		{Proto: "tcp", Port: "3001", Description: "Web interface"},
