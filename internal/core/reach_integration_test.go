@@ -63,6 +63,9 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 		rules shared.Rules
 		opts  shared.FirewallOptions
 		net   shared.NetworkSettings
+		// wantReason, when set, is checked against the reason Reachable returns.
+		// Zero value means "not checked" so the pre-existing cases are untouched.
+		wantReason shared.ReachReason
 	}{
 		{name: "the port is open", rules: shared.Rules{TCP: open}},
 		{name: "nothing is open", rules: shared.Rules{}},
@@ -82,15 +85,31 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 		{name: "the port is open only to a network this source is not in",
 			rules: shared.Rules{TCP: []shared.PortRule{
 				{Port: strconv.Itoa(port), Description: "easywall",
-					Sources: []string{"192.168.0.0/16"}}}}},
+					Sources: []string{"192.168.0.0/16"}}}},
+			wantReason: shared.ReasonPortSourceMismatch},
 		{name: "the port is open to the network this source is in",
 			rules: shared.Rules{TCP: []shared.PortRule{
 				{Port: strconv.Itoa(port), Description: "easywall",
-					Sources: []string{"10.77.1.0/24"}}}}},
+					Sources: []string{"10.77.1.0/24"}}}},
+			wantReason: shared.ReasonPortOpen},
 		{name: "the source list holds only a comment",
 			rules: shared.Rules{TCP: []shared.PortRule{
 				{Port: strconv.Itoa(port), Description: "easywall",
-					Sources: []string{"# not decided yet"}}}}},
+					Sources: []string{"# not decided yet"}}}},
+			wantReason: shared.ReasonPortSourceMismatch},
+		// The reviewer's proof case: a restriction that excludes this source, plus
+		// a custom rule that accepts the port anyway. Custom rules are appended
+		// after everything netlink wrote, so the kernel accepts — and a verdict
+		// that put the restriction check before step 10's custom-rules loop said
+		// blocked here, a false lockout warning on the one screen that has to be
+		// believed.
+		{name: "a custom rule opens a port a restriction turned away",
+			rules: shared.Rules{
+				TCP: []shared.PortRule{{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"192.168.0.0/16"}}},
+				Custom: []string{fmt.Sprintf("tcp dport %d accept", port)},
+			},
+			wantReason: shared.ReasonCustomRules},
 	}
 
 	for _, tc := range cases {
@@ -102,6 +121,10 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 
 			verdict, reason := shared.Reachable(tc.rules, tc.opts, tc.net, src, port, false, false)
 			accepted := tcpReaches(t, r.pidA, "10.77.1.1", port)
+
+			if tc.wantReason != "" && reason != tc.wantReason {
+				t.Errorf("Reachable reason = %s, want %s", reason, tc.wantReason)
+			}
 
 			switch verdict {
 			case shared.ReachOpen:

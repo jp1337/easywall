@@ -467,7 +467,7 @@
   {"id": "reach_blacklisted", "translation": "Deine Adresse steht auf der Blacklist, die vor der Whitelist ausgewertet wird — auf beiden zu stehen bleibt blockiert."},
   {"id": "reach_whitelisted", "translation": "Deine Adresse steht auf der Whitelist und wird unabhängig von den Portregeln akzeptiert."},
   {"id": "reach_port_open", "translation": "Port {{.Port}} ist im vorgemerkten Regelsatz offen."},
-  {"id": "reach_port_source_mismatch", "translation": "Der Port ist offen, aber nur für andere Quelladressen — nicht für Ihre."},
+  {"id": "reach_port_source_mismatch", "translation": "Port {{.Port}} ist nur für die Quelladressen offen, die seine Regel nennt — deine ist nicht darunter."},
   {"id": "reach_custom_rules", "translation": "Bis hierher hat nichts entschieden, und es gibt eigene Regeln. Die werden nach allem anderen angehängt und von hier aus nicht gelesen."},
   {"id": "reach_no_rule", "translation": "Port {{.Port}} ist im vorgemerkten Regelsatz nicht offen und deine Adresse steht nicht auf der Whitelist."},
   {"id": "apply_verdict_note", "translation": "Das gilt für eine *neue* Verbindung. Die, über die du das gerade liest, bleibt beim Anwenden bestehen und beweist daher nichts — öffne eine zweite und prüfe dort."},

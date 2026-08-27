@@ -59,8 +59,8 @@ const (
 var AllReachReasons = []ReachReason{
 	ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
 	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
-	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonPortSourceMismatch,
-	ReasonCustomRules, ReasonNoRule,
+	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
+	ReasonPortSourceMismatch, ReasonNoRule,
 }
 
 // BogonRanges are the source networks the bogon filter drops on any interface
@@ -208,8 +208,9 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 	// caller. The distinction is the whole point of the field, and it is also
 	// the lockout: restricting the web port to a network the operator is not on
 	// closes the page they are reading. Only when every rule for the port
-	// restricts it away is the verdict blocked — an unrestricted rule later in
-	// the list opens it, exactly as the kernel's first match would.
+	// restricts it away does the caller fail to get an open verdict here — an
+	// unrestricted rule later in the list opens it, exactly as the kernel's
+	// first match would.
 	restricted := false
 	for _, rule := range r.TCP {
 		if !portInRule(rule.Port, port) {
@@ -223,17 +224,24 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 			return ReachOpen, ReasonPortOpen
 		}
 	}
-	if restricted {
-		return ReachBlocked, ReasonPortSourceMismatch
-	}
 
 	// 10. The custom rules, which the nft CLI appends after everything netlink
 	// wrote. Parsing raw nftables expressions to find out what they do is not
-	// something to attempt on a page that has to be believed.
+	// something to attempt on a page that has to be believed. Checked before the
+	// port restriction below decides: a custom rule can accept exactly the
+	// traffic the port rule restricted away, and calling that blocked would be a
+	// false lockout warning on the one screen that has to be believed.
 	for _, line := range r.Custom {
 		if !IsListComment(line) {
 			return ReachUnknown, ReasonCustomRules
 		}
+	}
+
+	// 11. Every rule that covered the port restricted it to addresses that do
+	// not include this caller, and nothing after the port step (custom rules)
+	// opened it either.
+	if restricted {
+		return ReachBlocked, ReasonPortSourceMismatch
 	}
 
 	// The policy.
