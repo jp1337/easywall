@@ -986,7 +986,7 @@ var clientStringKeys = []string{
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast",
-	"ports_port_hint", "ports_desc_hint", "action_remove_rule", "port_range_hint",
+	"ports_port_hint", "ports_desc_hint", "ports_sources_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
 	"totp_copy", "totp_copied", "totp_copy_failed",
@@ -1144,5 +1144,10 @@ func templateFuncs() template.FuncMap {
 				return "pending"
 			}
 		},
+		// The source list is one comma-separated field: an operator types a
+		// list, and a repeated input per address would be a widget where a text
+		// box does. strings.Join, in the template, so the split half stays in
+		// one place — app.js — rather than being a second parser in Go.
+		"join": strings.Join,
 	}
 }

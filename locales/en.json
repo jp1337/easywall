@@ -92,6 +92,7 @@
   {"id": "ports_port",       "translation": "Port"},
   {"id": "ports_description","translation": "Description"},
   {"id": "ports_ssh",        "translation": "SSH protection"},
+  {"id": "ports_sources",    "translation": "Sources"},
   {"id": "ports_add",        "translation": "Add port"},
   {"id": "ports_save",       "translation": "Save changes"},
 
@@ -273,6 +274,7 @@
   {"id": "ports_filter_label", "translation": "Filter rules"},
   {"id": "ports_port_hint", "translation": "80 or 8000:9000"},
   {"id": "ports_desc_hint", "translation": "What is this port for?"},
+  {"id": "ports_sources_hint", "translation": "Anywhere — or 10.0.0.0/8, 192.168.1.5"},
   {"id": "ports_empty", "translation": "No {{.Type}} port is open. Add one to accept inbound connections."},
   {"id": "ports_syntax_title", "translation": "Port syntax"},
   {"id": "ports_syntax_body", "translation": "A single port is `443`. A contiguous range is `8000:9000`, written with a colon."},

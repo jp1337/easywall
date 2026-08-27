@@ -196,8 +196,17 @@ function initRuleEditor() {
       const port = tr.querySelector('.f-port')?.value.trim() ?? '';
       const desc = tr.querySelector('.f-desc')?.value.trim() ?? '';
       const ssh  = tr.querySelector('.f-ssh')?.checked ?? false;
-      return { port, description: desc, ssh };
-    }).filter(r => r.port !== '' || r.description !== '' || r.ssh);
+      // One comma-separated field, split here and nowhere else. Empty entries
+      // are dropped so "10.0.0.0/8, " is not a rule with a blank source, and an
+      // empty field stays an empty list — which is what "anywhere" is.
+      const sources = (tr.querySelector('.f-sources')?.value ?? '')
+        .split(',').map(s => s.trim()).filter(s => s !== '');
+      const service = tr.dataset.service ?? '';
+      const rule = { port, description: desc, ssh };
+      if (sources.length) rule.sources = sources;
+      if (service) rule.service = service;
+      return rule;
+    }).filter(r => r.port !== '' || r.description !== '' || r.ssh || r.sources || r.service);
     hidden.value = JSON.stringify(rules);
   };
 
@@ -218,7 +227,7 @@ function initRuleEditor() {
       const idx = tbody.querySelectorAll('tr').length;
       const tr = document.createElement('tr');
       tr.dataset.idx = idx;
-      tr.innerHTML = ruleRowHTML(idx, { port: '', description: '', ssh: false }, headLabels());
+      tr.innerHTML = ruleRowHTML(idx, { port: '', description: '', ssh: false, sources: [] }, headLabels());
       tbody.appendChild(tr);
       tr.querySelector('.f-port')?.focus();
       syncHidden();
@@ -264,7 +273,8 @@ function initRuleFilter() {
     tbody.querySelectorAll('tr[data-idx]').forEach(tr => {
       const port = tr.querySelector('.f-port')?.value.toLowerCase() ?? '';
       const desc = tr.querySelector('.f-desc')?.value.toLowerCase() ?? '';
-      const hit  = !q || port.includes(q) || desc.includes(q);
+      const srcs = tr.querySelector('.f-sources')?.value.toLowerCase() ?? '';
+      const hit  = !q || port.includes(q) || desc.includes(q) || srcs.includes(q);
       tr.toggleAttribute('hidden', !hit);
       if (hit) shown++;
     });
@@ -286,8 +296,10 @@ function ruleRowHTML(idx, r, labels) {
     <td data-label="${esc(L[1] ?? '')}">
       <input class="f-ssh checkbox" type="checkbox" ${r.ssh ? 'checked' : ''} aria-label="${esc(L[1] ?? '')}">
     </td>
-    <td class="cell-wide" data-label="${esc(L[2] ?? '')}"><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
-         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
+    <td class="cell-wide" data-label="${esc(L[2] ?? '')}"><input class="f-sources input-cell" type="text" value="${esc((r.sources || []).join(', '))}"
+         placeholder="${esc(str('ports_sources_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
+    <td class="cell-wide" data-label="${esc(L[3] ?? '')}"><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
+         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[3] ?? '')}"></td>
     <td>
       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"

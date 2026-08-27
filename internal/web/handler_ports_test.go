@@ -185,3 +185,60 @@ func TestHandlePortsPOST_CompleteRulesStillSave(t *testing.T) {
 		t.Errorf("expected the valid rule to reach the core, got %+v", saved)
 	}
 }
+
+// The sources round-trip: what the form posts is what the core is asked to save.
+func TestHandlePortsPOST_KeepsSources(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
+
+	var saved []shared.PortRule
+	fc.OnCommand(shared.CmdSaveRules, func(cmd shared.Command) {
+		var p shared.SaveRulesPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return
+		}
+		raw, _ := json.Marshal(p.Rules)
+		_ = json.Unmarshal(raw, &saved)
+	})
+
+	rules := []shared.PortRule{
+		{Port: "8123", Description: "Home Assistant", Sources: []string{"10.0.0.0/8", "192.168.0.0/16"}},
+		{Port: "443", Description: "HTTPS"},
+	}
+	rulesJSON, _ := json.Marshal(rules)
+
+	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules="+string(rulesJSON))
+	assertRedirect(t, rec, "/ports?type=tcp")
+
+	if len(saved) != 2 {
+		t.Fatalf("the core was asked to save %d rules, want 2: %+v", len(saved), saved)
+	}
+	if got := saved[0].Sources; len(got) != 2 || got[0] != "10.0.0.0/8" || got[1] != "192.168.0.0/16" {
+		t.Errorf("sources = %v, want [10.0.0.0/8 192.168.0.0/16]", got)
+	}
+	if got := saved[1].Sources; len(got) != 0 {
+		t.Errorf("an unrestricted rule arrived with sources %v", got)
+	}
+}
+
+// A source that is not an address is refused with the message that names it, on
+// the page still holding the operator's typing — the shape the port field has.
+func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	var reached bool
+	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
+
+	rulesJSON, _ := json.Marshal([]shared.PortRule{{Port: "443", Sources: []string{"nas.local"}}})
+	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules="+string(rulesJSON))
+
+	assertStatus(t, rec, http.StatusOK) // re-rendered, not redirected
+	if reached {
+		t.Error("an invalid source reached the core")
+	}
+	if !strings.Contains(rec.Body.String(), "nas.local") {
+		t.Error("the rejected source is not on the page that was re-rendered")
+	}
+}

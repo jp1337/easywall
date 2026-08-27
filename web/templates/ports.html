@@ -46,6 +46,7 @@
                   <tr>
                     <th class="col-port">{{T "ports_port"}}</th>
                     <th class="col-toggle">{{T "ports_ssh"}}</th>
+                    <th class="col-sources">{{T "ports_sources"}}</th>
                     <th class="col-flex">{{T "ports_description"}}</th>
                     <th class="col-actions"><span class="sr-only">{{T "table_actions"}}</span></th>
                   </tr>
@@ -55,6 +56,7 @@
                   <tr data-idx="{{$i}}">
                     <td data-label="{{T "ports_port"}}"><input class="f-port input-cell input-cell-data" type="text" value="{{$r.Port}}" placeholder="{{T "ports_port_hint"}}" aria-label="{{T "ports_port"}}"></td>
                     <td data-label="{{T "ports_ssh"}}"><input class="f-ssh checkbox" type="checkbox" {{if $r.SSH}}checked{{end}} aria-label="{{T "ports_ssh"}}"></td>
+                    <td class="cell-wide" data-label="{{T "ports_sources"}}"><input class="f-sources input-cell" type="text" value="{{join $r.Sources ", "}}" placeholder="{{T "ports_sources_hint"}}" aria-label="{{T "ports_sources"}}"></td>
                     <td class="cell-wide" data-label="{{T "ports_description"}}"><input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}"></td>
                     <td>
                       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="{{T "action_remove_rule"}}">

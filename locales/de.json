@@ -92,6 +92,7 @@
   {"id": "ports_port",       "translation": "Port"},
   {"id": "ports_description","translation": "Beschreibung"},
   {"id": "ports_ssh",        "translation": "SSH-Schutz"},
+  {"id": "ports_sources",    "translation": "Quellen"},
   {"id": "ports_add",        "translation": "Port hinzufügen"},
   {"id": "ports_save",       "translation": "Änderungen speichern"},
 
@@ -273,6 +274,7 @@
   {"id": "ports_filter_label", "translation": "Regeln filtern"},
   {"id": "ports_port_hint", "translation": "80 oder 8000:9000"},
   {"id": "ports_desc_hint", "translation": "Wofür ist dieser Port?"},
+  {"id": "ports_sources_hint", "translation": "Überall — oder 10.0.0.0/8, 192.168.1.5"},
   {"id": "ports_empty", "translation": "Es ist kein {{.Type}}-Port offen. Ein neuer Port nimmt eingehende Verbindungen an."},
   {"id": "ports_syntax_title", "translation": "Port-Syntax"},
   {"id": "ports_syntax_body", "translation": "Ein einzelner Port ist `443`. Ein zusammenhängender Bereich ist `8000:9000`, geschrieben mit Doppelpunkt."},

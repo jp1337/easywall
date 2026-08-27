@@ -1507,6 +1507,7 @@ body {
   .col-port    { width: 120px; }
   .col-flex    { width: auto; }
   .col-toggle  { width: 150px; }
+  .col-sources { width: 16rem; }
   .col-actions { width: 56px;  text-align: right; }
 
   /* The lead cell of a rule row: the identifier the operator scans for. */
