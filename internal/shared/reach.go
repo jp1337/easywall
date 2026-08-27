@@ -38,19 +38,20 @@ const (
 type ReachReason string
 
 const (
-	ReasonNoAddress       ReachReason = "no_address"
-	ReasonProxied         ReachReason = "proxied"
-	ReasonLoopback        ReachReason = "loopback"
-	ReasonIPv6Passthrough ReachReason = "ipv6_passthrough"
-	ReasonIPv6Blocked     ReachReason = "ipv6_blocked"
-	ReasonBogonFilter     ReachReason = "bogon_filter"
-	ReasonDockerNetwork   ReachReason = "docker_network"
-	ReasonDockerBridge    ReachReason = "docker_bridge"
-	ReasonBlacklisted     ReachReason = "blacklisted"
-	ReasonWhitelisted     ReachReason = "whitelisted"
-	ReasonPortOpen        ReachReason = "port_open"
-	ReasonCustomRules     ReachReason = "custom_rules"
-	ReasonNoRule          ReachReason = "no_rule"
+	ReasonNoAddress          ReachReason = "no_address"
+	ReasonProxied            ReachReason = "proxied"
+	ReasonLoopback           ReachReason = "loopback"
+	ReasonIPv6Passthrough    ReachReason = "ipv6_passthrough"
+	ReasonIPv6Blocked        ReachReason = "ipv6_blocked"
+	ReasonBogonFilter        ReachReason = "bogon_filter"
+	ReasonDockerNetwork      ReachReason = "docker_network"
+	ReasonDockerBridge       ReachReason = "docker_bridge"
+	ReasonBlacklisted        ReachReason = "blacklisted"
+	ReasonWhitelisted        ReachReason = "whitelisted"
+	ReasonPortOpen           ReachReason = "port_open"
+	ReasonPortSourceMismatch ReachReason = "port_source_mismatch"
+	ReasonCustomRules        ReachReason = "custom_rules"
+	ReasonNoRule             ReachReason = "no_rule"
 )
 
 // AllReachReasons is the complete list, and it is what the interface's guard
@@ -58,8 +59,8 @@ const (
 var AllReachReasons = []ReachReason{
 	ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
 	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
-	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
-	ReasonNoRule,
+	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonPortSourceMismatch,
+	ReasonCustomRules, ReasonNoRule,
 }
 
 // BogonRanges are the source networks the bogon filter drops on any interface
@@ -201,10 +202,29 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 
 	// 9. The port. TCP only: the interface is served over TCP, and a UDP rule for
 	// the same number opens nothing for it.
+	//
+	// A rule with sources accepts from those addresses and nowhere else, so a
+	// rule covering the port is not the same as the port being open to *this*
+	// caller. The distinction is the whole point of the field, and it is also
+	// the lockout: restricting the web port to a network the operator is not on
+	// closes the page they are reading. Only when every rule for the port
+	// restricts it away is the verdict blocked — an unrestricted rule later in
+	// the list opens it, exactly as the kernel's first match would.
+	restricted := false
 	for _, rule := range r.TCP {
-		if portInRule(rule.Port, port) {
+		if !portInRule(rule.Port, port) {
+			continue
+		}
+		if len(rule.Sources) == 0 {
 			return ReachOpen, ReasonPortOpen
 		}
+		restricted = true
+		if inAnyEntry(src, rule.Sources) {
+			return ReachOpen, ReasonPortOpen
+		}
+	}
+	if restricted {
+		return ReachBlocked, ReasonPortSourceMismatch
 	}
 
 	// 10. The custom rules, which the nft CLI appends after everything netlink

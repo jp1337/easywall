@@ -467,6 +467,7 @@
   {"id": "reach_blacklisted", "translation": "Your address is on the blacklist, which is consulted before the whitelist — being on both is still blocked."},
   {"id": "reach_whitelisted", "translation": "Your address is on the whitelist, which is accepted whatever the port rules say."},
   {"id": "reach_port_open", "translation": "Port {{.Port}} is open in the staged set."},
+  {"id": "reach_port_source_mismatch", "translation": "The port is open, but only to other source addresses — not to yours."},
   {"id": "reach_custom_rules", "translation": "Nothing above decided this, and there are custom rules. They are appended after everything else and are not read from here."},
   {"id": "reach_no_rule", "translation": "Port {{.Port}} is not open in the staged set and your address is not whitelisted."},
   {"id": "apply_verdict_note", "translation": "This is about a *new* connection. The one you are reading this on stays open through an apply, so it proves nothing — open a second one and check there."},

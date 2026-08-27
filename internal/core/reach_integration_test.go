@@ -79,6 +79,18 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 		{name: "only a custom rule opens the port",
 			rules: shared.Rules{Custom: []string{
 				fmt.Sprintf("tcp dport %d accept", port)}}},
+		{name: "the port is open only to a network this source is not in",
+			rules: shared.Rules{TCP: []shared.PortRule{
+				{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"192.168.0.0/16"}}}}},
+		{name: "the port is open to the network this source is in",
+			rules: shared.Rules{TCP: []shared.PortRule{
+				{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"10.77.1.0/24"}}}}},
+		{name: "the source list holds only a comment",
+			rules: shared.Rules{TCP: []shared.PortRule{
+				{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"# not decided yet"}}}}},
 	}
 
 	for _, tc := range cases {
