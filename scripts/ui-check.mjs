@@ -732,7 +732,14 @@ const launch = process.env.CHROME_PATH
 // 1600 was ever driven here, so "both themes, three widths" was a rule the
 // repository stated and checked a third of — and a mobile layout that scrolls
 // sideways is invisible at 1600.
-const WIDTHS = [1600, 900, 390];
+//
+// 1440 and 1200 added after the Sources column defect shipped invisible to
+// this suite: both sit in .page-grid's two-column band (aside present), where
+// a shared table can be squeezed well below what 1600 or 900 exercise. 1440
+// is an ordinary maximised laptop window and 1200 sat at the worst point of
+// the band that clipped — 10 of 30 fields — while every width already listed
+// here stayed clean throughout.
+const WIDTHS = [1600, 1440, 1200, 900, 390];
 
 /** The full health/regression suite — everything that isn't screenshotting. */
 async function runChecks(browser, session) {

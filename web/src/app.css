@@ -1510,8 +1510,19 @@ body {
 
   /* ── Tables ──────────────────────────────────────────────────────────────
      Every table lives in its own overflow-x container so the page body never
-     scrolls sideways. */
-  .table-wrap { overflow-x: auto; }
+     scrolls sideways. It is also the container query context for
+     .table-reflow below: a table's available width depends on which of the
+     three widths in .page-grid is active (single column, or column plus a
+     320px aside) and on the sidebar's own collapse — not on the viewport
+     directly. A viewport media query got this wrong twice: 1200px reads as
+     "wide" but sits in the two-column band, where the table has 622px less
+     room than the viewport suggests, and it clipped there while 900px and
+     below (already single-column) stayed clean. Measured against the demo's
+     own data (see the reflow rules below): the table needs 919px of its own
+     width; below that, no combination of column layout or padding
+     arithmetic fixes it, and the container query means it never has to be
+     re-derived when .page-grid's own breakpoint changes. */
+  .table-wrap { overflow-x: auto; container-type: inline-size; }
 
   .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
@@ -2747,7 +2758,7 @@ body {
   .icon-sm { width: 15px; height: 15px; }
 }
 
-/* ── Responsive ────────────────────────────────────────────────────────────
+/* ── Table reflow ─────────────────────────────────────────────────────────
    An earlier revision of DESIGN.md had tables keep their columns and scroll
    sideways on phones, arguing that a rule read as a list of labelled fields
    loses the row relationship that makes it a rule. Rendering at 390px settled
@@ -2756,13 +2767,25 @@ body {
    relationship left to preserve. Rows now reflow into cards, and the card
    border keeps them legible as single units.
 
-   900px, not 720px: the /ports table gained a Sources column (task 6) sized
-   for its own default value, and a five-column table has no room left for
-   Description once Sources is legible — 900px measured 67px for Description,
-   unreadable. The breakpoint is shared by forwarding.html and log.html too;
-   both were re-measured at 900px in the reflow layout when this moved and
-   render fine there — narrower windows already used it. */
-@media (max-width: 900px) {
+   A container query on .table-wrap, not a viewport media query: the table's
+   available width depends on which of .page-grid's two layouts is active
+   (single column, or a column plus a 320px aside) and on the sidebar's own
+   collapse — the viewport alone doesn't say which. 1200px reads as "wide" but
+   sits in the two-column band, where the table has 622px less room than the
+   viewport suggests, and clipped there while 900px and below (already
+   single-column) stayed clean — a viewport breakpoint would have to be
+   re-tuned every time .page-grid's own breakpoint moves. A container query
+   measures the space the table actually has, once, and needs no such
+   coordination — forwarding.html and log.html share this class without
+   sharing ports.html's Sources column, and each reflows against its own
+   width, not a number tuned for the widest table.
+
+   919px is the minimum .table-wrap width that shows every field on /ports
+   without clipping, measured against the demo's own data (48 fields across
+   its seeded rows plus the catalogue's Pi-hole row — the longest Sources and
+   Description values in the app): clean from 919px, one field clipped by 1px
+   at 918. 940px leaves that a 21px margin. */
+@container (max-width: 940px) {
   .table-reflow thead { display: none; }
 
   .table-reflow,
@@ -2833,9 +2856,12 @@ body {
   .table-reflow .flow > .input-cell { flex: 1; min-width: 0; width: auto; }
 
   /* The delete control is permanently visible here: there is no hover on a
-     touch screen to reveal it. */
+     touch screen to reveal it — and a container this narrow is a phone or a
+     squeezed card either way. */
   .table-reflow .row-action { opacity: 1; }
+}
 
+@media (max-width: 900px) {
   .module-params .input { width: 5rem; }
 
   .hero-facts { margin-left: 0; gap: 20px; }
