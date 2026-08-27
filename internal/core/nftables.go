@@ -1847,24 +1847,52 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 // The metering is not lost. addSSHBruteForce installs its own rule for every
 // SSH port, matching new connections only, and it runs earlier in the chain —
 // so a new connection is metered before it ever reaches this rule.
+//
+// A source restriction is one rule per source, matched on the address before the
+// port is tested. cidrMatch is the same builder the forward exceptions use: both
+// families, a bare address or a network, nil for a comment or a spacer — so an
+// operator's note inside the source list is skipped here exactly as it is
+// everywhere else. No sources means no address match and one rule, which is
+// byte-identical to what every rule written before 2.11 produced.
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {
 	protoNum := unix.IPPROTO_TCP
 	if proto == "udp" {
 		protoNum = unix.IPPROTO_UDP
 	}
 
-	exprs := []expr.Any{
-		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(protoNum)}},
+	portMatch := func(prefix []expr.Any) []expr.Any {
+		exprs := append([]expr.Any(nil), prefix...)
+		exprs = append(exprs,
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(protoNum)}},
+		)
+		exprs = append(exprs, buildPortExprs(rule.Port)...)
+		return append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
 	}
-	exprs = append(exprs, buildPortExprs(rule.Port)...)
-	exprs = append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
 
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: exprs,
-	})
+	var matches [][]expr.Any
+	for _, src := range rule.Sources {
+		if m := cidrMatch(src, posSrcAddr); m != nil {
+			matches = append(matches, m)
+		}
+	}
+
+	// A source list that holds nothing usable — all comments, or all unparseable
+	// — must not silently become "anywhere". Validation refuses the unparseable
+	// case before it reaches here, and a list of comments alone is an operator
+	// who has not finished typing; opening the port to the world would be the
+	// one wrong answer available.
+	if len(rule.Sources) > 0 && len(matches) == 0 {
+		return
+	}
+
+	if len(matches) == 0 {
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: portMatch(nil)})
+		return
+	}
+	for _, match := range matches {
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: portMatch(match)})
+	}
 }
 
 func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.ForwardingRule) {
