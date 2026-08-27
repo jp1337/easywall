@@ -282,6 +282,12 @@
   {"id": "ports_ssh_card_title", "translation": "SSH-Schutz"},
   {"id": "ports_ssh_card_body", "translation": "Eine markierte Regel unterliegt der SSH-Brute-Force-Begrenzung: wiederholte Verbindungsversuche von einer Adresse werden gebremst."},
   {"id": "ports_ssh_card_note", "translation": "Die Begrenzung selbst wird unter {} eingeschaltet. Ohne sie hat die Markierung keine Wirkung."},
+  {"id": "ports_catalogue_add", "translation": "Aus Katalog hinzufügen"},
+  {"id": "ports_catalogue_title", "translation": "Dienst hinzufügen"},
+  {"id": "ports_catalogue_note", "translation": "Fügt die Zeilen hinzu, auf denen dieser Dienst lauscht, mit einer vorgeschlagenen Quelleinschränkung. Alles bleibt änderbar, und nichts ist aktiv, bevor Sie es anwenden."},
+  {"id": "ports_suggest_private", "translation": "Private Netze"},
+  {"id": "ports_suggest_anywhere", "translation": "Überall"},
+  {"id": "action_close", "translation": "Schließen"},
 
   {"id": "blacklist_subtitle", "translation": "Quellen, die verworfen werden, bevor irgendeine andere Regel geprüft wird."},
   {"id": "blacklist_section", "translation": "Gesperrte Adressen"},

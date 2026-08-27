@@ -282,6 +282,12 @@
   {"id": "ports_ssh_card_title", "translation": "SSH protection"},
   {"id": "ports_ssh_card_body", "translation": "Marking a rule applies the SSH brute-force limiter to it, so repeated connection attempts from one address get rate-limited."},
   {"id": "ports_ssh_card_note", "translation": "The limiter itself is switched on under {}. Without it, the mark has no effect."},
+  {"id": "ports_catalogue_add", "translation": "Add from catalogue"},
+  {"id": "ports_catalogue_title", "translation": "Add a service"},
+  {"id": "ports_catalogue_note", "translation": "Adds the rows this service listens on, with a suggested source restriction filled in. Everything stays editable, and nothing is applied until you apply it."},
+  {"id": "ports_suggest_private", "translation": "Private networks"},
+  {"id": "ports_suggest_anywhere", "translation": "Anywhere"},
+  {"id": "action_close", "translation": "Close"},
 
   {"id": "blacklist_subtitle", "translation": "Sources that are dropped before any other rule is evaluated."},
   {"id": "blacklist_section", "translation": "Blocked addresses"},

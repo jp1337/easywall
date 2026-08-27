@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -1149,5 +1150,16 @@ func templateFuncs() template.FuncMap {
 		// box does. strings.Join, in the template, so the split half stays in
 		// one place — app.js — rather than being a second parser in Go.
 		"join": strings.Join,
+		// The rows a catalogue entry would add, as JSON in a data attribute.
+		// html/template escapes an attribute value, so this is a string the
+		// browser un-escapes and JSON.parse reads — not a script, and nothing
+		// the CSP has to allow.
+		"jsonAttr": func(v interface{}) (string, error) {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return string(b), nil
+		},
 	}
 }

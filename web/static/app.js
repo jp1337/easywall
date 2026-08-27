@@ -235,6 +235,43 @@ function initRuleEditor() {
     });
   }
 
+  // The catalogue is progressive enhancement: it appends rows the operator could
+  // have typed, into fields that already work without it. With JavaScript off the
+  // button is not shown at all — the same rule the language switcher set in 2.9 —
+  // rather than a control that does nothing.
+  const dialog = document.getElementById('catalogue-dialog');
+  const openBtn = document.getElementById('catalogue-btn');
+  if (dialog && openBtn && typeof dialog.showModal === 'function') {
+    openBtn.hidden = false;
+    openBtn.addEventListener('click', () => dialog.showModal());
+    document.getElementById('catalogue-close')
+      ?.addEventListener('click', () => dialog.close());
+
+    dialog.addEventListener('click', e => {
+      const item = e.target.closest('.catalogue-item');
+      if (!item) return;
+      let rows;
+      try { rows = JSON.parse(item.dataset.rows || '[]'); } catch { return; }
+      const sources = item.dataset.sources || '';
+      const labels = headLabels();
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.dataset.idx = tbody.querySelectorAll('tr').length;
+        tr.dataset.service = item.dataset.service || '';
+        tr.innerHTML = ruleRowHTML(tr.dataset.idx, {
+          port: row.Port,
+          description: row.Description,
+          ssh: false,
+          sources: sources ? sources.split(',').map(s => s.trim()) : [],
+        }, labels);
+        tbody.appendChild(tr);
+      });
+      dialog.close();
+      syncHidden();
+      updateRuleCount();
+    });
+  }
+
   // Initial sync
   syncHidden();
   initRuleFilter();

@@ -738,6 +738,54 @@ body {
     transform: translateY(-1px);
   }
 
+  /* ── Dialog ────────────────────────────────────────────────────────────── */
+  /* The brief's block set layout only, and left color, .dialog-title and
+     .dialog-note out. A bare <dialog> without them is the browser's own
+     white-canvas modal, which the guard test wouldn't catch (it exists only
+     to catch a MISSING class, not a colorless one) — caught by rendering it,
+     not by reading the CSS.
+     display is on the [open] variant, not on .dialog itself: the UA sheet's
+     `dialog:not([open]) { display: none }` loses to *any* author rule with a
+     display for .dialog, no matter its specificity — origin beats specificity
+     in the cascade. An unconditional `display: flex` here left the picker
+     rendered, non-modal, on every load of /ports, which is exactly what
+     rendering the page (not reading the CSS) caught. */
+  .dialog {
+    max-width: 34rem;
+    width: calc(100vw - 2rem);
+    padding: 20px;
+    /* The UA centers a modal dialog with `margin: auto` against its own
+       `inset-block: 0`; Preflight zeroes margin on every element (`*`), so
+       without this the dialog renders pinned to the top-left edge instead of
+       centered. Restated here because @layer components outranks @layer base
+       regardless of which rule is more specific. */
+    margin: auto;
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-overlay);
+  }
+  .dialog[open] { display: flex; flex-direction: column; gap: 12px; }
+  .dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+  .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .dialog-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .dialog-note { color: var(--color-ink-muted); font-size: 13px; }
+  .catalogue-list { display: flex; flex-direction: column; gap: 0.25rem; max-height: 60vh; overflow-y: auto; }
+  .catalogue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    text-align: start;
+    cursor: pointer;
+  }
+  .catalogue-item:hover { background: var(--color-surface); }
+  .catalogue-name { font-weight: 500; }
+  .catalogue-ports { margin-inline-start: auto; font-variant-numeric: tabular-nums; color: var(--color-ink-muted); font-size: 12px; }
+
   /* ── Buttons ───────────────────────────────────────────────────────────── */
   .btn {
     display: inline-flex;

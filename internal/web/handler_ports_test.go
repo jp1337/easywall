@@ -222,6 +222,35 @@ func TestHandlePortsPOST_KeepsSources(t *testing.T) {
 	}
 }
 
+// The picker is rendered by the server, so it needs no route and no fetch: the
+// entries are on the page, filtered to the tab's protocol.
+func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+
+	rec := doAuthRequest(t, s, "GET", "/ports?type=tcp", nil)
+	assertStatus(t, rec, http.StatusOK)
+	tcp := rec.Body.String()
+	if !strings.Contains(tcp, "Home Assistant") {
+		t.Error("the TCP tab does not offer Home Assistant, which listens on 8123/tcp")
+	}
+	if !strings.Contains(tcp, "10.0.0.0/8") {
+		t.Error("the private suggestion is not rendered into the picker")
+	}
+
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	rec = doAuthRequest(t, s, "GET", "/ports?type=udp", nil)
+	assertStatus(t, rec, http.StatusOK)
+	udp := rec.Body.String()
+	if !strings.Contains(udp, "WireGuard") {
+		t.Error("the UDP tab does not offer WireGuard, which listens on 51820/udp")
+	}
+	if strings.Contains(udp, "Home Assistant") {
+		t.Error("the UDP tab offers a service with no UDP port; picking it would add nothing")
+	}
+}
+
 // A source that is not an address is refused with the message that names it, on
 // the page still holding the operator's typing — the shape the port field has.
 func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
