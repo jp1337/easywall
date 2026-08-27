@@ -1872,16 +1872,22 @@ func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, pr
 
 	var matches [][]expr.Any
 	for _, src := range rule.Sources {
-		if m := cidrMatch(src, posSrcAddr); m != nil {
-			matches = append(matches, m)
+		if match := cidrMatch(src, posSrcAddr); match != nil {
+			matches = append(matches, match)
+		} else if !shared.IsListComment(src) {
+			// ValidateRules accepts a little more than cidrMatch can build into a
+			// rule (e.g. an IPv4-mapped IPv6 CIDR whose mask length cidrMatch's
+			// family check rejects). The gap fails closed — the source is
+			// dropped, never opened — but silently, so it is logged here.
+			slog.Warn("port rule source accepted by validation but not usable in a kernel rule",
+				"port", rule.Port, "source", src)
 		}
 	}
 
-	// A source list that holds nothing usable — all comments, or all unparseable
-	// — must not silently become "anywhere". Validation refuses the unparseable
-	// case before it reaches here, and a list of comments alone is an operator
-	// who has not finished typing; opening the port to the world would be the
-	// one wrong answer available.
+	// A source list that holds nothing usable — all comments, or all dropped by
+	// the gap logged above — must not silently become "anywhere". A list of
+	// comments alone is an operator who has not finished typing; opening the
+	// port to the world would be the one wrong answer available.
 	if len(rule.Sources) > 0 && len(matches) == 0 {
 		return
 	}

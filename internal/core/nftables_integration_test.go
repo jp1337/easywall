@@ -1008,11 +1008,25 @@ func TestIntegration_Apply_PortSources(t *testing.T) {
 		t.Errorf("no rule restricts 8123 to 10.0.0.0/8\ninput chain:\n  %s",
 			strings.Join(text, "\n  "))
 	}
+	if i := indexOfRule(text, "ip saddr 192.168.0.0/16", "dport 8123"); i < 0 {
+		t.Errorf("no rule restricts 8123 to 192.168.0.0/16\ninput chain:\n  %s",
+			strings.Join(text, "\n  "))
+	}
 	if i := indexOfRule(text, "dport 443"); i < 0 {
 		t.Errorf("443 is not open\ninput chain:\n  %s", strings.Join(text, "\n  "))
 	}
 	if i := indexOfRule(text, "saddr", "dport 443"); i >= 0 {
 		t.Errorf("443 has no sources and must carry no address match, got %q", text[i])
+	}
+	// The comment/blank entries in 9090's Sources must be skipped, not turned
+	// into "anywhere": there must be a rule binding it to 10.1.2.3, and no rule
+	// may open dport 9090 without a saddr match.
+	if i := indexOfRule(text, "ip saddr 10.1.2.3", "dport 9090"); i < 0 {
+		t.Errorf("no rule restricts 9090 to 10.1.2.3\ninput chain:\n  %s",
+			strings.Join(text, "\n  "))
+	}
+	if i := indexOfRule(text, "dport 9090"); i >= 0 && !strings.Contains(text[i], "saddr") {
+		t.Errorf("9090 has sources and must not carry an unrestricted rule, got %q", text[i])
 	}
 }
 
