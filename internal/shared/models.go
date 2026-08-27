@@ -5,6 +5,17 @@ type PortRule struct {
 	Port        string `json:"port"`        // single port "80" or range "8000:9000"
 	Description string `json:"description"` // human-readable label
 	SSH         bool   `json:"ssh"`         // route through SSH brute-force chain
+
+	// Sources restricts who may reach the port. Empty means anywhere, which is
+	// what every rule written before 2.11 means and what the field must go on
+	// meaning — omitempty keeps an untouched rules.json byte-identical.
+	Sources []string `json:"sources,omitempty"`
+
+	// Service is the catalogue id this rule was created from. It is a label and
+	// nothing else: no rule building, no validation and no verdict reads it, so
+	// an id the catalogue no longer knows renders as plain text and the firewall
+	// is unchanged. A catalogue edit can never alter a live rule.
+	Service string `json:"service,omitempty"`
 }
 
 // ForwardingRule represents a port forwarding (NAT PREROUTING) entry.

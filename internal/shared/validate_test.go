@@ -224,3 +224,34 @@ func TestValidateRules_NamesTheOffendingCustomRule(t *testing.T) {
 		t.Errorf("the error should name rule 3, got: %v", err)
 	}
 }
+
+func TestValidateRules_PortSources(t *testing.T) {
+	cases := []struct {
+		name    string
+		sources []string
+		wantErr bool
+	}{
+		{name: "no sources is anywhere", sources: nil},
+		{name: "empty list is anywhere", sources: []string{}},
+		{name: "a bare address", sources: []string{"192.168.1.10"}},
+		{name: "a network", sources: []string{"10.0.0.0/8"}},
+		{name: "an IPv6 network", sources: []string{"fc00::/7"}},
+		{name: "several", sources: []string{"10.0.0.0/8", "172.16.0.0/12"}},
+		{name: "a comment and a blank are kept, not rules",
+			sources: []string{"# the LAN", "", "192.168.0.0/16"}},
+		{name: "not an address", sources: []string{"the-lan"}, wantErr: true},
+		{name: "a hostname is not an address", sources: []string{"nas.local"}, wantErr: true},
+		{name: "a port is not an address", sources: []string{"192.168.1.10:443"}, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateRules(Rules{TCP: []PortRule{{Port: "443", Sources: tc.sources}}})
+			if tc.wantErr && err == nil {
+				t.Fatalf("ValidateRules accepted sources %v", tc.sources)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("ValidateRules rejected sources %v: %v", tc.sources, err)
+			}
+		})
+	}
+}
