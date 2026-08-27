@@ -1,6 +1,26 @@
 package shared
 
-import "testing"
+import (
+	"sort"
+	"strings"
+	"testing"
+)
+
+// The picker renders Catalogue in file order and relies on the doc comment's
+// claim that it needs no sort. Assert it, case-insensitively by Name, so a
+// misplaced entry (Redis once followed Remote Desktop) fails here instead of
+// only being noticeable in the rendered list.
+func TestCatalogueIsSortedByName(t *testing.T) {
+	names := make([]string, len(Catalogue))
+	for i, s := range Catalogue {
+		names[i] = s.Name
+	}
+	if !sort.SliceIsSorted(names, func(i, j int) bool {
+		return strings.ToLower(names[i]) < strings.ToLower(names[j])
+	}) {
+		t.Errorf("Catalogue is not ordered by name: %v", names)
+	}
+}
 
 // An id is what a stored rule points at. Two entries sharing one, or an id
 // changing, silently relabels somebody's rule.

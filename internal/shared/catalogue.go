@@ -24,8 +24,10 @@ const (
 	SuggestAnywhere Suggestion = "anywhere"
 )
 
-// AllSuggestions is the complete list, and it is what the locale guard hangs
-// off: both strict locales must carry a rationale for each.
+// AllSuggestions is the complete list, and it is what
+// web.TestEverySuggestionHasALabel hangs off: both strict locales must carry a
+// rationale for each. ports.html picks the label with a binary
+// `if eq … "private"`, so a third constant here needs that template fixed too.
 var AllSuggestions = []Suggestion{SuggestPrivate, SuggestAnywhere}
 
 // PrivateRanges is what "private" means when the picker fills the field.
@@ -143,11 +145,11 @@ var Catalogue = []Service{
 	{ID: "proxmox", Name: "Proxmox VE", Suggest: SuggestPrivate, Ports: []ServicePort{
 		{Proto: "tcp", Port: "8006", Description: "Web interface"},
 	}},
-	{ID: "rdp", Name: "Remote Desktop", Suggest: SuggestPrivate, Ports: []ServicePort{
-		{Proto: "tcp", Port: "3389", Description: "RDP"},
-	}},
 	{ID: "redis", Name: "Redis", Suggest: SuggestPrivate, Ports: []ServicePort{
 		{Proto: "tcp", Port: "6379", Description: "Database"},
+	}},
+	{ID: "rdp", Name: "Remote Desktop", Suggest: SuggestPrivate, Ports: []ServicePort{
+		{Proto: "tcp", Port: "3389", Description: "RDP"},
 	}},
 	{ID: "samba", Name: "Samba", Suggest: SuggestPrivate, Ports: []ServicePort{
 		{Proto: "tcp", Port: "445", Description: "SMB"},
