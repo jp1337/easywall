@@ -908,13 +908,11 @@ var auditDetailKeys = map[string]string{
 // wrote is escaped here. TestDetailLabelEscapesWhatItPassesThrough guards it.
 func detailLabel(tFunc func(string, ...interface{}) string, detail string) template.HTML {
 	if key, ok := auditDetailKeys[detail]; ok {
-		return template.HTML(template.HTMLEscapeString(tFunc(key))) //nolint:gosec // G203 — escaped on the line it is written
+		// #nosec G203 -- escaped on the line it is written
+		return template.HTML(template.HTMLEscapeString(tFunc(key))) //nolint:gosec // G203 — see above
 	}
 	if i := strings.Index(detail, shared.ProxyToken); i >= 0 {
 		before, after := detail[:i], detail[i+len(shared.ProxyToken):]
-		// #nosec G203 -- before and after are both escaped here; the only markup is
-		// the two spans this line writes.
-		//
 		// Everything is wrapped in one outer <span> rather than left as sibling
 		// text/element nodes. log.html's mobile layout (.table-reflow at
 		// max-width:720px) turns every direct child of a cell into its own flex
@@ -923,11 +921,17 @@ func detailLabel(tFunc func(string, ...interface{}) string, detail string) templ
 		// a full-width bar under the address instead of sitting beside it.
 		// Rendered and confirmed at 390px before this wrapper was added, and
 		// again after.
+		//
+		// #nosec G203 -- before and after are both escaped here; the only markup
+		// is the two spans this statement writes. gosec attaches the directive to
+		// the statement the comment group sits immediately above, so nothing may
+		// come between them — see the note on richText.
 		return template.HTML(`<span>` + template.HTMLEscapeString(before) +
 			` <span class="chip">` + template.HTMLEscapeString(tFunc("audit_detail_via_proxy")) +
 			`</span>` + template.HTMLEscapeString(after) + `</span>`) //nolint:gosec // G203 — see above
 	}
-	return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — escaped on the line it is written
+	// #nosec G203 -- escaped on the line it is written
+	return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — see above
 }
 
 // actionTone returns "ok", "warn", "crit" or "" for a neutral action.
@@ -1070,7 +1074,10 @@ func templateFuncs() template.FuncMap {
 		// actionLabel is rebound per request in render()/renderPartial(), where the
 		// localizer exists. This entry only keeps ParseGlob happy at startup.
 		"actionLabel": func(action string) string { return action },
-		"detailLabel": func(detail string) template.HTML { return template.HTML(template.HTMLEscapeString(detail)) }, //nolint:gosec // G203 — escaped on the line it is written
+		"detailLabel": func(detail string) template.HTML {
+			// #nosec G203 -- escaped on the line it is written
+			return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — see above
+		},
 		"actionTone":  actionTone,
 		"richText":    richText,
 		"shortTime":   shortTime,
