@@ -77,53 +77,22 @@ func describeCountChange(before, after int, unit string) string {
 // describeStructChange lists the fields whose values differ, by their toml name
 // where they have one. Used for the option and settings structs, where the
 // question is which switch someone moved.
+//
+// Built on structDeltas (diff.go), which is the same walk with the values kept.
+// One walker, so the audit line and the apply screen's preview cannot disagree
+// about what changed. maxDetailItems still bounds this line — it must not bound
+// the page, which is why joinCapped is applied here and not there.
 func DescribeStructChange(before, after interface{}) string {
-	changed := changedFields(reflect.ValueOf(before), reflect.ValueOf(after), "")
-	if len(changed) == 0 {
+	deltas := structDeltas(reflect.ValueOf(before), reflect.ValueOf(after), "")
+	if len(deltas) == 0 {
 		return "no change"
+	}
+	changed := make([]string, 0, len(deltas))
+	for _, d := range deltas {
+		changed = append(changed, d.Key)
 	}
 	sort.Strings(changed)
 	return "changed " + joinCapped(changed)
-}
-
-// changedFields walks two values of the same struct type in step and collects
-// the names of the leaves that differ. Nested structs are recursed into so that
-// NetworkSettings reports "docker.enabled" rather than "Docker".
-func changedFields(before, after reflect.Value, prefix string) []string {
-	if before.Kind() != reflect.Struct || after.Kind() != reflect.Struct {
-		return nil
-	}
-
-	var changed []string
-	t := before.Type()
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-
-		name := field.Tag.Get("toml")
-		if name == "" {
-			name = field.Tag.Get("json")
-		}
-		if name == "" {
-			name = strings.ToLower(field.Name)
-		}
-		name = strings.Split(name, ",")[0]
-		if prefix != "" {
-			name = prefix + "." + name
-		}
-
-		b, a := before.Field(i), after.Field(i)
-		if b.Kind() == reflect.Struct {
-			changed = append(changed, changedFields(b, a, name)...)
-			continue
-		}
-		if !reflect.DeepEqual(b.Interface(), a.Interface()) {
-			changed = append(changed, name)
-		}
-	}
-	return changed
 }
 
 // missingFrom returns the items of a that do not appear in b.

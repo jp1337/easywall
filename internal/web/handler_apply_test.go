@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -190,5 +191,210 @@ func TestHandleApplyStart_PanicEngagedSaysSoInsteadOfGenericFailure(t *testing.T
 	}
 	if !strings.Contains(body, "panic mode is engaged") {
 		t.Errorf("expected the page to name panic mode as the reason; body was:\n%s", body)
+	}
+}
+
+// The page names what changes, and it names it before the operator commits to
+// finding out during the 120 seconds.
+func TestHandleApplyGET_ListsWhatChanges(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
+		Active: true, Acceptance: shared.AcceptanceIdle, HasPending: true,
+	}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Current: shared.Rules{TCP: []shared.PortRule{{Port: "22", Description: "SSH"}}},
+		Staged: shared.Rules{TCP: []shared.PortRule{
+			{Port: "22", Description: "SSH"},
+			{Port: "8443", Description: "Nextcloud"},
+		}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{Fragments: true}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{
+		Recorded: true,
+		Config:   shared.AppliedConfig{Firewall: shared.FirewallOptions{Fragments: false}},
+	}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+
+	for _, want := range []string{"8443", "Nextcloud", "drop_fragments"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the preview does not mention %q", want)
+		}
+	}
+}
+
+// The one number the operator has to be able to trust: what the verdict is about
+// is the address the request actually came from, and the port this process
+// listens on.
+func TestHandleApplyGET_TheVerdictNamesTheOperatorsOwnAddress(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{TCP: []shared.PortRule{{Port: "19999"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	body := rec.Body.String()
+
+	// httptest.NewRequest's peer is 192.0.2.1, and newTestServer binds :19999.
+	if !strings.Contains(body, "192.0.2.1") || !strings.Contains(body, "19999") {
+		t.Errorf("the verdict line does not name the address and port it is about:\n%s", body)
+	}
+}
+
+// A window that is open is not a preview: the change is live already. The page
+// says how much of it is, and shows no diff.
+//
+// The original version of this test asserted the body did not contain
+// `class="diff"` — but the diff card renders `class="card diff mb-4"`, so that
+// exact substring never appears whatever happens; it passed before the feature
+// existed. diff-group-head is the marker that actually only renders inside a
+// preview, and the collapsed live-count sentence is the assertion that was
+// missing entirely: nothing proved LiveCount ever reached the page.
+func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
+		Acceptance: shared.AcceptancePending, HasPending: false,
+	}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Backup:  shared.Rules{TCP: []shared.PortRule{{Port: "22"}}},
+		Current: shared.Rules{TCP: []shared.PortRule{{Port: "22"}, {Port: "8443"}}},
+	}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+	if strings.Contains(body, "diff-group-head") {
+		t.Error("a preview of a change that is already live is history, not a preview")
+	}
+	if !strings.Contains(body, "live and unconfirmed") {
+		t.Errorf("the collapsed line naming what is live never reached the page:\n%s", body)
+	}
+}
+
+// A verdict of "blocks new connections" has to withhold the primary button, not
+// just say something above it — a three-word coloured verdict outranks a note,
+// so the safety has to be the control itself: a differently-labelled button,
+// not the filled primary one. FirewallOptions{} leaves Bogons false, so staging
+// the httptest peer (192.0.2.1, see TheVerdictNamesTheOperatorsOwnAddress) on
+// the blacklist sends it straight to ReachBlocked/blacklisted.
+func TestHandleApplyGET_BlockedVerdictSwapsTheButton(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{Blacklist: []string{"192.0.2.1"}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+
+	if !strings.Contains(body, "Apply anyway") {
+		t.Errorf("a blocked verdict must relabel the start button to Apply anyway:\n%s", body)
+	}
+	if strings.Contains(body, "btn-primary") {
+		t.Error("a blocked verdict must not leave the primary button class on the start action")
+	}
+}
+
+// An installation that has not applied under 2.10 has no snapshot, and the page
+// says so once rather than inventing a drift or hiding one.
+func TestHandleApplyGET_AnUnrecordedSnapshotSaysSo(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{Recorded: false}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	// Asserting on the raw message id as a fallback would pass on a missing
+	// translation — exactly the failure mode this test exists to catch. The
+	// label guards already require apply_config_unrecorded to exist in both
+	// locales, so the rendered English text is the only thing worth checking.
+	if !strings.Contains(rec.Body.String(), "not recorded") {
+		t.Error("nothing on the page says the configuration that went in was never recorded")
+	}
+}
+
+// A GetRules failure used to return a nil preview: no diff, no verdict, no
+// hint that anything was missing — the ordinary Apply-now page, silently
+// short a section that argues against pressing it. Now the preview always
+// renders, with an alert saying part of it could not be read.
+func TestHandleApplyGET_UnreadableRulesSaysSoRatherThanVanishing(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules unavailable"))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	if !strings.Contains(rec.Body.String(), "could not be read from the core") {
+		t.Errorf("an unreadable GetRules must render the incomplete-preview alert, not an empty preview:\n%s", rec.Body.String())
+	}
+}
+
+// GetOptions or GetSettings failing costs the verdict and the configuration
+// drift, and used to do so without saying anything — the same silent
+// omission as the GetRules case, one call later.
+func TestHandleApplyGET_UnreadableOptionsSaysSoRatherThanVanishing(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{TCP: []shared.PortRule{{Port: "22"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, errorRespFor("options unavailable"))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+	if !strings.Contains(body, "could not be read from the core") {
+		t.Errorf("an unreadable GetOptions must render the incomplete-preview alert:\n%s", body)
+	}
+	if strings.Contains(body, "verdict-addr") {
+		t.Error("no verdict can be computed without options, so none should render")
+	}
+}
+
+// reachVerdict used to return nil when the peer address or the listening
+// port would not parse, and a nil verdict makes the whole verdict block
+// vanish — on the one page whose argument is that silence is the defect.
+// reach_no_address is already labelled in both locales for exactly this.
+func TestReachVerdict_UnparseableAddressReturnsUnknownNotNil(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	req := httptest.NewRequest("GET", "/apply", nil)
+	req.RemoteAddr = "not-an-address"
+
+	v := s.reachVerdict(req, shared.Rules{}, shared.FirewallOptions{}, shared.NetworkSettings{})
+	if v == nil {
+		t.Fatal("reachVerdict must never return nil; reach_no_address exists for exactly this case")
+	}
+	if v.Verdict != shared.ReachUnknown || v.Reason != shared.ReasonNoAddress {
+		t.Errorf("expected ReachUnknown/ReasonNoAddress, got %s/%s", v.Verdict, v.Reason)
 	}
 }

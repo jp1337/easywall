@@ -56,6 +56,43 @@ func TestDemoSend_GetStatus(t *testing.T) {
 	}
 }
 
+// TestDemoSend_AnOptionDriftIsPending proves the seeded demo has a
+// configuration drift as well as its rule diff — see seed()'s deliberate
+// Fragments: true / applied.Fragments = false pair — and that saving the
+// applied configuration back removes it, the same as a real apply would.
+func TestDemoSend_AnOptionDriftIsPending(t *testing.T) {
+	c := NewDemoClient()
+
+	st, err := c.GetStatus()
+	if err != nil {
+		t.Fatalf("GetStatus: %v", err)
+	}
+	if !st.HasPending {
+		t.Error("the demo seeds one option drift, so the apply screen has something to show")
+	}
+
+	// Saving the options as they are now removes the drift, which is what an
+	// apply would otherwise do.
+	opts, err := c.GetOptions()
+	if err != nil {
+		t.Fatalf("GetOptions: %v", err)
+	}
+	applied, err := c.GetAppliedConfig()
+	if err != nil {
+		t.Fatalf("GetAppliedConfig: %v", err)
+	}
+	if !applied.Recorded {
+		t.Fatal("the demo has applied rules, so its snapshot is recorded")
+	}
+	if err := c.SaveOptions(applied.Config.Firewall); err != nil {
+		t.Fatalf("SaveOptions: %v", err)
+	}
+	st, _ = c.GetStatus()
+	if st.HasPending {
+		t.Errorf("with the drift removed nothing is pending; options were %+v", opts)
+	}
+}
+
 func TestDemoSend_GetRules(t *testing.T) {
 	c := NewDemoClient()
 	state, err := c.GetRules()
@@ -484,8 +521,8 @@ func TestDemo_ApplyWithoutAcceptanceWindowLogsBoth(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 18 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 18 "+
+	if len(shared.AllCommandTypes) != 19 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 19 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 

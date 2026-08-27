@@ -254,6 +254,25 @@ func (c *CoreClient) SaveSystem(s shared.SystemSettings) error {
 	return nil
 }
 
+// GetAppliedConfig returns the configuration that went into the kernel with the
+// rules that are in it. Recorded is false on an installation that has not
+// applied or restarted since 2.10; that is "unknown", and the apply screen says
+// so in one sentence rather than inventing a drift.
+func (c *CoreClient) GetAppliedConfig() (*shared.AppliedConfigResult, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetAppliedConfig})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var res shared.AppliedConfigResult
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		return nil, fmt.Errorf("parse applied config: %w", err)
+	}
+	return &res, nil
+}
+
 // GetLog returns the most recent audit log entries (newest first).
 func (c *CoreClient) GetLog() ([]shared.AuditLogEntry, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdGetLog})
@@ -303,8 +322,8 @@ func (c *CoreClient) ImportRules(data []byte) error {
 //
 // Fire-and-forget from the caller's point of view — auditevents.go is what calls
 // this, from its own goroutine, so a slow or absent core never delays a login.
-func (c *CoreClient) LogEvent(ev shared.LoginEvent, addr string, left int) error {
-	payload, err := json.Marshal(shared.LogEventPayload{Event: ev, Addr: addr, Left: left})
+func (c *CoreClient) LogEvent(ev shared.LoginEvent, addr string, left int, proxied bool) error {
+	payload, err := json.Marshal(shared.LogEventPayload{Event: ev, Addr: addr, Left: left, Proxied: proxied})
 	if err != nil {
 		return fmt.Errorf("encode login event: %w", err)
 	}

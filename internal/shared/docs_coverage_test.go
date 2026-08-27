@@ -359,6 +359,11 @@ func TestLogEventPayloadCarriesNoFreeText(t *testing.T) {
 		case "Addr", "Left":
 			// Addr goes through netip.ParseAddr in the core; Left is an integer
 			// and can smuggle nothing.
+		case "Proxied":
+			if f.Type.Kind() != reflect.Bool {
+				t.Errorf("Proxied is a %s; it must stay a bool derived from a header's presence, "+
+					"or the web process can smuggle text through it", f.Type)
+			}
 		default:
 			t.Errorf("LogEventPayload has gained a %s field (%s). If it carries text from the "+
 				"web process, it is a way to write arbitrary lines into the audit log",

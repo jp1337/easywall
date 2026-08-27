@@ -23,6 +23,12 @@ type demoState struct {
 	settings shared.NetworkSettings
 	system   shared.SystemSettings
 
+	// appliedConfig is what the demo's kernel would be holding: the options and
+	// settings as they were at the last apply. Seeded one switch away from
+	// d.options so the apply screen has a configuration drift to show — see
+	// seed().
+	appliedConfig shared.AppliedConfig
+
 	auditLog []shared.AuditLogEntry
 
 	acceptance shared.AcceptanceStatus
@@ -137,6 +143,7 @@ func (d *demoState) seed() {
 		PortScan:                     true,
 		PortScanLog:                  true,
 		InvalidPackets:               true,
+		Fragments:                    true,
 		Bogons:                       true,
 		ConnectionLimit:              true,
 		ConnectionLimitMax:           100,
@@ -162,6 +169,15 @@ func (d *demoState) seed() {
 			Networks: []string{},
 		},
 	}
+	// One switch away from what is configured now, so a visitor opening /apply
+	// finds a configuration drift as well as a rule diff — the half of "what
+	// changes" that nothing could see before 2.10. drop_fragments because it is a
+	// plain on/off with no numeric partner to explain, and off -> on because that
+	// is the direction an operator reads as "I turned something on and have not
+	// applied it yet".
+	applied := d.options
+	applied.Fragments = false
+	d.appliedConfig = shared.AppliedConfig{Firewall: applied, Network: d.settings}
 	d.system = shared.SystemSettings{
 		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
 	}
@@ -266,6 +282,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handleSaveSettings(cmd.Payload)
 	case shared.CmdGetSystem:
 		return demoOK(d.system)
+	case shared.CmdGetAppliedConfig:
+		return demoOK(shared.AppliedConfigResult{Recorded: true, Config: d.appliedConfig})
 	case shared.CmdSaveSystem:
 		return d.handleSaveSystem(cmd.Payload)
 	case shared.CmdGetLog:
@@ -312,11 +330,18 @@ func demoErr(err error) shared.Response {
 }
 
 // hasPendingLocked compares Current to Staged via JSON marshal — order-stable
-// across slices and works for arbitrary nested types in shared.Rules.
+// across slices and works for arbitrary nested types in shared.Rules — and then
+// the configuration against what the last apply put in the kernel, exactly as
+// core.Firewall.Status does. A demo whose pending state is computed differently
+// from the product's is a demo that teaches the wrong thing.
 func (d *demoState) hasPendingLocked() bool {
 	a, _ := json.Marshal(d.rules.Current)
 	b, _ := json.Marshal(d.rules.Staged)
-	return string(a) != string(b)
+	if string(a) != string(b) {
+		return true
+	}
+	live := shared.AppliedConfig{Firewall: d.options, Network: d.settings}
+	return len(shared.DiffConfig(d.appliedConfig, live)) > 0
 }
 
 func (d *demoState) statusLocked() shared.FirewallStatus {
@@ -455,6 +480,10 @@ func (d *demoState) handleApplyRules() shared.Response {
 	d.rules.Backup = d.rules.Current
 	d.rules.Current = d.rules.Staged
 
+	// The configuration goes into the kernel with the rules, so the demo records
+	// it here for the same reason Firewall.apply does.
+	d.appliedConfig = shared.AppliedConfig{Firewall: d.options, Network: d.settings}
+
 	// The order the core writes these in, because the audit log is the thing a
 	// visitor reads to understand what easywall records.
 	//
@@ -510,6 +539,9 @@ func (d *demoState) rollback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.rules.Current = d.rules.Backup
+	// The rules just reverted; record the configuration alongside them for the
+	// same reason Firewall.rollback does.
+	d.appliedConfig = shared.AppliedConfig{Firewall: d.options, Network: d.settings}
 	d.acceptance = shared.AcceptanceRolledBack
 	d.audit("apply_rolledback", "all", "timeout") // the token the real core writes
 	d.acceptanceTimer = nil
@@ -618,9 +650,9 @@ func (d *demoState) handleResume() shared.Response {
 // stranger-triggerable events into a debounced summary, and never repeats one
 // address twice running. This handler skips all of that and echoes p.Addr
 // verbatim. That is not a security problem — p.Addr is r.RemoteAddr, not
-// attacker-controlled input, and detailLabel returns a plain string into a
-// template that escapes it — but it is not what the core does, so the comment
-// must not claim it is.
+// attacker-controlled input, and detailLabel escapes everything it did not
+// write itself — but it is not what the core does, so the comment must not
+// claim it is.
 //
 // What it does share with the core is the log's cap: d.audit() below caps at
 // 200 entries, and a handler that appended straight to d.auditLog without that
@@ -638,6 +670,11 @@ func (d *demoState) handleLogEvent(payload []byte) shared.Response {
 	detail := ""
 	if p.Addr != "" {
 		detail = "from " + p.Addr
+		if p.Proxied {
+			// The same token the core writes. The public demo is behind nginx,
+			// which is where this was noticed, so the demo has to show it.
+			detail += shared.ProxyToken
+		}
 	}
 	d.auditAs(string(p.Event), "", detail, "web")
 	return shared.Response{Success: true}

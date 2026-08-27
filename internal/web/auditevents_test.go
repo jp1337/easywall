@@ -17,7 +17,7 @@ func TestAuditEvents_RecordDoesNotBlockWhenNobodyIsDraining(t *testing.T) {
 	go func() {
 		defer close(done)
 		for i := 0; i < auditEventBuffer*3; i++ {
-			a.Record(shared.EvLoginFailed, "203.0.113.7", 0)
+			a.Record(shared.EvLoginFailed, "203.0.113.7", 0, false)
 		}
 	}()
 
@@ -36,7 +36,7 @@ func TestAuditEvents_AFullBufferDropsAndCounts(t *testing.T) {
 	a := newAuditEvents(NewCoreClient(fc.socketPath))
 
 	for i := 0; i < auditEventBuffer*2; i++ {
-		a.Record(shared.EvLoginFailed, "203.0.113.7", 0)
+		a.Record(shared.EvLoginFailed, "203.0.113.7", 0, false)
 	}
 	if a.dropped() == 0 {
 		t.Error("the buffer overflowed and nothing was counted; the loss is invisible")
@@ -54,7 +54,7 @@ func TestAuditEvents_TheEventReachesTheCore(t *testing.T) {
 	go a.run(stop)
 	t.Cleanup(func() { close(stop) })
 
-	a.Record(shared.EvLoginOK, "203.0.113.7", 0)
+	a.Record(shared.EvLoginOK, "203.0.113.7", 0, false)
 
 	select {
 	case cmd := <-seen:
@@ -89,7 +89,7 @@ func TestAuditEvents_AFailingCoreDoesNotStopTheDrain(t *testing.T) {
 	t.Cleanup(func() { close(stop) })
 
 	for i := 0; i < n; i++ {
-		a.Record(shared.EvLoginFailed, "203.0.113.7", 0)
+		a.Record(shared.EvLoginFailed, "203.0.113.7", 0, false)
 	}
 	for i := 0; i < n; i++ {
 		select {
@@ -112,7 +112,7 @@ func TestAuditEvents_AnUnreachableCoreDoesNotStopAnything(t *testing.T) {
 	// More than the buffer holds, so a run() that had stopped draining would
 	// overflow and be visible in the counter.
 	for i := 0; i < auditEventBuffer*2; i++ {
-		a.Record(shared.EvLoginFailed, "203.0.113.7", 0)
+		a.Record(shared.EvLoginFailed, "203.0.113.7", 0, false)
 	}
 	time.Sleep(500 * time.Millisecond)
 	if a.dropped() > auditEventBuffer {
@@ -132,5 +132,22 @@ func TestClientIP_IgnoresForwardingHeaders(t *testing.T) {
 
 	if got := clientIP(req); got != "203.0.113.7" {
 		t.Errorf("clientIP = %q, want 203.0.113.7 — a header must never reach the audit log", got)
+	}
+}
+
+// A client can put any of these headers on a request; none of it may ever be
+// read except to notice that it is there. This proves the second half of the
+// design — a forged header only ever moves the flag to true, never carries a
+// value anywhere.
+func TestProxiedRequest_ReadsPresenceAndNeverValue(t *testing.T) {
+	for _, header := range []string{"X-Forwarded-For", "X-Real-IP", "True-Client-IP", "Forwarded"} {
+		r := httptest.NewRequest("GET", "/apply", nil)
+		r.Header.Set(header, "not-an-address-at-all")
+		if !proxiedRequest(r) {
+			t.Errorf("%s is present and the request is not reported as proxied", header)
+		}
+	}
+	if proxiedRequest(httptest.NewRequest("GET", "/apply", nil)) {
+		t.Error("a request with no forwarding header is not proxied")
 	}
 }

@@ -17,8 +17,7 @@ below. What is left helps you understand what you are doing, then lets you
 maintain it, then reaches further:
 
 ```
-Understand what you do   2.10  What changes is on the screen
-                          2.11  A rule names a service and who may reach it
+Understand what you do   2.11  A rule names a service and who may reach it
                           2.12  You can see it working
                           2.13  When something happens, you hear about it
 
@@ -44,7 +43,6 @@ earlier as an end in itself and never twice.
 
 | Version | What | Why it comes when it does |
 |---|---|---|
-| **2.10** | **What changes is on the screen** — the difference between staged and current, before you press Apply, with a warning if it cuts the connection you are using | No protocol work needed; the data is already there. The warning is the real gain — knowing before the 120 seconds, not during them |
 | **2.11** | **A rule names a service and who may reach it** — a curated catalogue ("Pi-hole", "Home Assistant") with a suggested source, and a free-text option that stays | A catalogue entry without a source restriction is wrong for the interesting cases; shipping them apart would mean rewriting every entry a release later |
 | **2.12** | **You can see it working** — a counter on every rule, reset on each apply | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
 | **2.13** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
@@ -67,6 +65,12 @@ earlier as an end in itself and never twice.
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
 | Managing several hosts from one interface | The API in 3.0 makes Ansible possible. A fleet interface is a second product |
+
+## Done in 2.10
+
+| | |
+|---|---|
+| What changes is on the screen | the staged/current diff, the configuration drift beside it, and a three-way reachability verdict for the connection you are reading it on. The half nobody had noticed was the configuration: options and network settings were in no pending calculation, so `/options` said "apply to activate" while `/apply` said there was nothing to apply, and the false one was on the page with the button |
 
 ## Done in 2.9
 

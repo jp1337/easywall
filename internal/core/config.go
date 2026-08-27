@@ -296,6 +296,13 @@ func (c *Config) LastApplyPath() string {
 	return c.DataDir + "/last_apply"
 }
 
+// AppliedConfigPath returns the path of the snapshot recording the configuration
+// that went into the kernel with the rules that are in it. See appliedconfig.go
+// for why it exists and why a missing file claims nothing.
+func (c *Config) AppliedConfigPath() string {
+	return c.DataDir + "/applied-config.json"
+}
+
 // PanicMarkerPath returns the path of the file that records panic mode.
 //
 // In the data directory rather than in this config file for two reasons, neither

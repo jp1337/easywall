@@ -601,3 +601,99 @@ func TestIntegration_RollbackKeepsTheStagedEdits(t *testing.T) {
 	mustContain(t, rs, "tcp dport 22 accept", "the previous rule is enforced again")
 	mustNotContain(t, rs, "tcp dport 8443", "the rolled-back rule must be gone from the kernel")
 }
+
+// The snapshot follows the kernel. Every place nft.Apply succeeds records the
+// configuration that went in with the rules, because "what is live" is otherwise
+// unknowable — the options and the network settings are in this daemon's config
+// file, which changes without the kernel changing.
+func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	// Apply blocks for the whole acceptance window unless it is switched off;
+	// this test cares about what got recorded, not about the confirmation flow.
+	cfg.Acceptance.Enabled = false
+
+	if _, err := os.Stat(cfg.AppliedConfigPath()); !os.IsNotExist(err) {
+		t.Fatalf("a fresh data directory already has a snapshot: %v", err)
+	}
+
+	// The restore path, which is what an upgrade to 2.10 runs at the first
+	// service start.
+	if err := fw.RestoreCurrent(RestoreReasonBoot); err != nil {
+		t.Fatalf("RestoreCurrent: %v", err)
+	}
+	res, err := readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil || !res.Recorded {
+		t.Fatalf("a restore did not record the configuration: recorded=%v err=%v", res.Recorded, err)
+	}
+
+	// The apply path, with the configuration changed underneath it: the snapshot
+	// must hold the new value, not the one the restore wrote.
+	opts := cfg.FirewallOptions()
+	opts.Fragments = !opts.Fragments
+	if err := cfg.SaveFirewallOptions(opts); err != nil {
+		t.Fatal(err)
+	}
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	res, err = readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drift := shared.DiffConfig(res.Config, shared.AppliedConfig{
+		Firewall: cfg.FirewallOptions(), Network: cfg.NetworkSettings(),
+	}); len(drift) != 0 {
+		t.Errorf("after an apply the snapshot still disagrees with the live config: %v", drift)
+	}
+	if fw.Status().HasPending {
+		t.Error("an apply that just recorded its own configuration still reports a pending change")
+	}
+
+	// The rollback path — the site with the panic subtlety, and therefore the
+	// one most worth a real kernel. An apply is started and its window is
+	// cancelled rather than confirmed, so rollback runs and puts the previous
+	// rules back. The configuration is changed again *while the window is
+	// open*, after the ordinary apply step above has already written and
+	// recorded its own value, so a snapshot matching the live configuration
+	// afterwards can only be rollback's own recordAppliedConfig call — not a
+	// leftover from the write this apply started with.
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = shared.AcceptanceDurationMin // short; the test cancels rather than waits
+
+	// saveErrCh, not t.Errorf, from this goroutine: t.Errorf on a *testing.T
+	// whose test function has already returned panics, and Apply returning
+	// early — a Fatalf above it, a timeout — would race this goroutine against
+	// exactly that. Buffered so the goroutine never blocks on a channel nobody
+	// reads.
+	saveErrCh := make(chan error, 1)
+	rolledBack := cfg.FirewallOptions()
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		rolledBack.Fragments = !rolledBack.Fragments
+		saveErrCh <- cfg.SaveFirewallOptions(rolledBack)
+		fw.acceptance.Cancel() // stands in for "nobody confirmed"
+	}()
+
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("Apply (to be rolled back): %v", err)
+	}
+	if saveErr := <-saveErrCh; saveErr != nil {
+		t.Errorf("SaveFirewallOptions during the open window: %v", saveErr)
+	}
+
+	res, err = readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if drift := shared.DiffConfig(res.Config, shared.AppliedConfig{
+		Firewall: cfg.FirewallOptions(), Network: cfg.NetworkSettings(),
+	}); len(drift) != 0 {
+		t.Errorf("after a rollback the snapshot still disagrees with the live config: %v", drift)
+	}
+	if fw.Status().HasPending {
+		t.Error("a rollback that just recorded its own configuration still reports a pending change")
+	}
+}

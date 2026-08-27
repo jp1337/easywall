@@ -87,6 +87,18 @@ nothing. The `user` column says `web` for all nine.
 | Detail | What changed — the addresses added and removed, or the settings that moved |
 | User | The **process** that wrote the entry, not the person — one of four values, listed below |
 
+## The address is the peer, and says when it is not
+
+easywall records the TCP peer: whoever actually opened the connection. It never
+reads `X-Forwarded-For`, because easywall-web terminates TLS itself and is not
+assumed to sit behind a trusted proxy — an address in the firewall's own audit log
+that a client chose would be worse than no address at all.
+
+Behind a reverse proxy the peer **is** the proxy, so every login shows the same
+address. When that happens the entry says so: the detail reads the address followed
+by a **via proxy** chip, and the line in `/var/log/easywall/audit.log` carries the
+token `via-proxy`, so `grep 'via-proxy' audit.log` finds every one of them.
+
 ## The user column
 
 It names the process, and since 2.7 there are four of them:

@@ -52,9 +52,11 @@
                       </select>
                     </td>
                     <td data-label="{{T "forwarding_source_port"}}"><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.SourcePort}}" aria-label="{{T "forwarding_source_port"}}"></td>
-                    <td class="cell-flow" data-label="{{T "forwarding_dest_port"}}">
-                      <span class="flow-arrow" aria-hidden="true">&rarr;</span>
-                      <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.DestPort}}" aria-label="{{T "forwarding_dest_port"}}">
+                    <td data-label="{{T "forwarding_dest_port"}}">
+                      <div class="flow">
+                        <span class="flow-arrow" aria-hidden="true">&rarr;</span>
+                        <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="{{$r.DestPort}}" aria-label="{{T "forwarding_dest_port"}}">
+                      </div>
                     </td>
                     <td>
                       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="{{T "action_remove_rule"}}">

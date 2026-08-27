@@ -69,6 +69,14 @@ type Firewall struct {
 	// constants so the tests do not take ninety seconds.
 	reconcilePoll time.Duration
 	reconcileWait time.Duration
+
+	// appliedConfigErrMu guards appliedConfigLastErr, which appliedConfig uses
+	// to log a corrupt snapshot once per distinct error rather than on every
+	// read. Status calls appliedConfig, and /apply polls Status every 2s, so an
+	// unparsing file that never changes would otherwise fill the journal with
+	// the same line for as long as the page stays open.
+	appliedConfigErrMu   sync.Mutex
+	appliedConfigLastErr string
 }
 
 // ErrApplyInProgress is returned when an apply is asked for while a cycle is
@@ -276,8 +284,10 @@ func (f *Firewall) apply(user string) error {
 	// 4. Apply new rules to kernel
 	// One snapshot for the whole apply, so the rules that reach the kernel
 	// describe a single configuration rather than whatever each field happened
-	// to hold as it was read.
-	if err := f.nft.Apply(updatedState, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
+	// to hold as it was read — and so recordAppliedConfig below records exactly
+	// what nft.Apply was given, not whatever f.cfg holds by the time it runs.
+	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
+	if err := f.nft.Apply(updatedState, opts, nets); err != nil {
 		// Rule application failed — roll back immediately without waiting
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all", err.Error(), user)
 		// The marker before the rollback, on the failure path too. nft.Apply can
@@ -316,6 +326,12 @@ func (f *Firewall) apply(user string) error {
 		f.rollback(state, user)
 		return ErrPanicEngaged
 	}
+
+	// The kernel has the rules; record the configuration that went in with them.
+	// After the panic check above, because a teardown means nothing went in.
+	// opts and nets are the values nft.Apply was actually given, not a fresh
+	// read of f.cfg — see recordAppliedConfig's own comment.
+	f.recordAppliedConfig(opts, nets)
 
 	// 5. Acceptance window, unless it has been switched off.
 	//
@@ -453,9 +469,11 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 				", and nothing was written to the kernel — the table is in whatever "+
 				"state panic mode left it", user)
 	} else {
-		if err := f.nft.Apply(previous, f.cfg.FirewallOptions(), f.cfg.NetworkSettings()); err != nil {
-			slog.Error("rollback nftables failed", "error", err)
-			failures = append(failures, "nftables: "+err.Error())
+		opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
+		applyErr := f.nft.Apply(previous, opts, nets)
+		if applyErr != nil {
+			slog.Error("rollback nftables failed", "error", applyErr)
+			failures = append(failures, "nftables: "+applyErr.Error())
 		}
 		// The third writer of table inet easywall, and it races `panic` exactly
 		// like the other two. The marker was read a few statements ago; a console
@@ -494,12 +512,27 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		// Reset() fails, which is the one outcome here that is genuinely worse
 		// than the branch above — a machine still filtering behind a marker
 		// that says it is not.
+		var tornDownAgain bool
 		if engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath()); engagedNow && knownNow {
-			f.panicLandedDuringWrite(
+			tornDownAgain = f.panicLandedDuringWrite(
 				"rollback_skipped",
 				"panic mode was engaged while the previous rules were being written back",
 				user,
 			)
+		}
+
+		// Only now, after the same final panic re-check apply and RestoreCurrent
+		// perform before their own recordAppliedConfig — this used to sit right
+		// after nft.Apply above, which could record a configuration for a kernel
+		// that panicLandedDuringWrite then tore back down a few lines later. The
+		// previous rules go back in with the configuration as it is *now*, not as
+		// it was when they were first applied, because that is what the kernel is
+		// holding — but only when the write actually succeeded and nothing undid
+		// it in the window right after. opts and nets are exactly what nft.Apply
+		// above was given, not a fresh read, so a SAVE_OPTIONS landing in this
+		// gap cannot record a configuration the kernel does not hold.
+		if applyErr == nil && !tornDownAgain {
+			f.recordAppliedConfig(opts, nets)
 		}
 	}
 
@@ -524,6 +557,23 @@ func (f *Firewall) CancelAcceptance() {
 // Status returns the current firewall status for dashboard display.
 func (f *Firewall) Status() shared.FirewallStatus {
 	pending, _ := f.rules.HasPendingChanges()
+
+	// The second half of "is anything pending". Firewall options and network
+	// settings are written straight into this daemon's config and take effect
+	// only at the next apply, so a rule diff alone reported nothing while
+	// /options was telling the operator to apply. Two pages contradicted each
+	// other and the false one was the page with the button.
+	//
+	// Only once a snapshot exists. An installation that has not applied or
+	// restarted under 2.10 keeps 2.9's meaning exactly, so nobody is greeted with
+	// a pending change they did not make.
+	if snapshot := f.appliedConfig(); snapshot.Recorded {
+		live := shared.AppliedConfig{
+			Firewall: f.cfg.FirewallOptions(),
+			Network:  f.cfg.NetworkSettings(),
+		}
+		pending = pending || len(shared.DiffConfig(snapshot.Config, live)) > 0
+	}
 
 	f.lastApplyMu.Lock()
 	last := f.lastApply

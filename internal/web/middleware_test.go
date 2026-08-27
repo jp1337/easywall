@@ -294,8 +294,11 @@ func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
 // event testable at the same time.
 func TestLoginRateLimit_TellsSomebodyWhenItBlocks(t *testing.T) {
 	var blocked []string
-	handler := LoginRateLimit(func(ip string) { blocked = append(blocked, ip) })(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+	var proxied []bool
+	handler := LoginRateLimit(func(ip string, p bool) {
+		blocked = append(blocked, ip)
+		proxied = append(proxied, p)
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
 
 	for i := 0; i < 7; i++ {
 		req := httptest.NewRequest("POST", "/login", nil)
@@ -307,6 +310,9 @@ func TestLoginRateLimit_TellsSomebodyWhenItBlocks(t *testing.T) {
 	}
 	if blocked[0] != "203.0.113.99" {
 		t.Errorf("onBlocked was given %q, want 203.0.113.99", blocked[0])
+	}
+	if proxied[0] {
+		t.Error("no forwarding header was set; onBlocked reported the request as proxied")
 	}
 }
 

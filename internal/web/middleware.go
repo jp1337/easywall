@@ -109,13 +109,16 @@ type rateBucket struct {
 }
 
 // LoginRateLimit limits login attempts to 5 requests per 10 minutes per source
-// IP, and calls onBlocked with the address each time it refuses one.
+// IP, and calls onBlocked with the address and whether the request arrived
+// through a proxy each time it refuses one.
 //
 // The callback exists because login_ratelimited originates here and this file
 // must not know about CoreClient: a middleware that reaches for the core is a
 // middleware that cannot be tested without one, and the separation is the same
-// one the whole two-process design rests on. onBlocked may be nil.
-func LoginRateLimit(onBlocked func(ip string)) func(http.Handler) http.Handler {
+// one the whole two-process design rests on. onBlocked may be nil. proxiedRequest
+// is a pure header check in this same package, so calling it here does not
+// break that separation.
+func LoginRateLimit(onBlocked func(ip string, proxied bool)) func(http.Handler) http.Handler {
 	// Start the cleanup goroutine exactly once for the process lifetime,
 	// regardless of how many times this middleware factory is called (e.g. in tests).
 	loginLimiter.once.Do(func() {
@@ -155,7 +158,7 @@ func LoginRateLimit(onBlocked func(ip string)) func(http.Handler) http.Handler {
 			if !allowed {
 				slog.Warn("login rate limit exceeded", "ip", ip)
 				if onBlocked != nil {
-					onBlocked(ip)
+					onBlocked(ip, proxiedRequest(r))
 				}
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return

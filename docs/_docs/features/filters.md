@@ -8,8 +8,12 @@ description: The protection modules — what each one drops, how to tune it, and
 
 Optional modules that harden the host beyond opening and closing ports. All of them
 are native nftables rules in `table inet easywall` — no subprocess, nothing to inject
-into. Toggling one is staged like any other change and takes effect on
-[Apply]({{ '/docs/features/apply/' | relative_url }}).
+into.
+
+An option is saved to the daemon's configuration immediately and reaches the
+kernel at the next [apply]({{ '/docs/features/apply/' | relative_url }}). Since
+2.10 that counts as a pending change: the dashboard's *Unapplied changes* chip
+includes it and the apply screen lists it by its key, `drop_fragments off → on`.
 
 ## Which to turn on
 

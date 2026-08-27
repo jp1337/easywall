@@ -48,8 +48,8 @@ it to **Current**, and **Backup** is what comes back if you do not confirm.
 {% include themed-figure.html base="/assets/diagrams/apply-flow" ext="svg"
    alt="State machine: editing leads to Staged, applying leads to Live, confirming within the window leads to Confirmed, and letting the window expire leads to Rolled back, from where the staged edits are still available." %}
 
-**Applying is reversible by doing nothing.** If the new rules cut your connection
-you cannot click Confirm — and that is exactly what restores the previous set.
+**Applying is reversible by doing nothing.** Not confirming — whether by choice
+or because you can no longer reach the page — restores the previous set.
 
 | | |
 |---|---|
@@ -62,7 +62,7 @@ Step by step: [Applying rules]({{ '/docs/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
-Eighteen message kinds, declared as Go structs on both sides. Adding an operation
+Nineteen message kinds, declared as Go structs on both sides. Adding an operation
 means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
@@ -81,6 +81,7 @@ whole protocol was.
 | `GET_STATUS` · `GET_LOG` | dashboard · last 200 audit entries |
 | `EXPORT_RULES` · `IMPORT_RULES` | backup and restore as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
+| `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
 | `PANIC` · `RESUME` | tear the table down and record it · end that and restore |
 | `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
 

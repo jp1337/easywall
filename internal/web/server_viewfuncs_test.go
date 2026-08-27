@@ -382,3 +382,67 @@ func TestRichText_RejectsMismatchedSlots(t *testing.T) {
 		t.Error("expected an error for an unpaired href")
 	}
 }
+
+// detailLabel writes markup, so what it passes through has to be escaped by it.
+// The detail column carries values the core composed from rules an operator
+// typed; an unescaped one is stored XSS in the audit log.
+func TestDetailLabelEscapesWhatItPassesThrough(t *testing.T) {
+	tFunc := func(id string, _ ...interface{}) string { return id }
+
+	got := string(detailLabel(tFunc, `<script>alert(1)</script>`))
+	if strings.Contains(got, "<script>") {
+		t.Errorf("detailLabel passed a tag through unescaped: %s", got)
+	}
+
+	got = string(detailLabel(tFunc, `<b>203.0.113.9</b> via-proxy`))
+	if strings.Contains(got, "<b>") {
+		t.Errorf("the proxied branch passed a tag through unescaped: %s", got)
+	}
+	if !strings.Contains(got, `<span class="chip">`) {
+		t.Errorf("the proxied branch did not render the chip: %s", got)
+	}
+	// The class the chip names has to actually exist in the built stylesheet —
+	// TestTemplateClassesExistInStylesheet globs web/templates/*.html and cannot
+	// see a class name that lives in this Go string literal instead.
+	if !styleClasses(t)["chip"] {
+		t.Error(`detailLabel renders class="chip", which is not defined in web/static/style.css`)
+	}
+	// Exactly one top-level element. log.html's mobile layout turns every direct
+	// child of the cell into its own flex row — two siblings (the address text
+	// and the chip) rendered the chip as a full-width bar under the address at
+	// 390px instead of sitting beside it. A single wrapper keeps the cell down
+	// to one flex item; anything inside flows normally.
+	if got := string(detailLabel(tFunc, `203.0.113.9 via-proxy`)); strings.Count(got, "<span") != 2 {
+		t.Errorf("expected exactly one outer <span> plus the chip's <span>, got: %s", got)
+	}
+
+	// The token also sits mid-string: the debounced summary and
+	// login_recovery_used both put more text after it. A suffix-only check
+	// rendered the chip for logins and lockouts and left the raw English token
+	// sitting untranslated in every other event kind — the chip must land in
+	// place, and both the text before and the text after it must be escaped.
+	got = string(detailLabel(tFunc, `from <b>203.0.113.9</b> via-proxy, 2 more within 60s`))
+	if strings.Contains(got, "<b>") {
+		t.Errorf("a mid-string token passed a tag through unescaped: %s", got)
+	}
+	if !strings.Contains(got, `<span class="chip">`) {
+		t.Errorf("a mid-string token did not render the chip: %s", got)
+	}
+	if !strings.HasSuffix(got, ", 2 more within 60s</span>") {
+		t.Errorf("the text after the token was lost or reordered: %s", got)
+	}
+
+	got = string(detailLabel(tFunc, `from 203.0.113.9 via-proxy, 7 recovery codes left`))
+	if !strings.Contains(got, `<span class="chip">`) || !strings.HasSuffix(got, ", 7 recovery codes left</span>") {
+		t.Errorf("login_recovery_used's shape lost the chip or the codes-left tail: %s", got)
+	}
+
+	// The translated branch (a known token from auditDetailKeys) has to be
+	// escaped too — tFunc here stands in for a locale file, and a locale file
+	// is translated by humans, not by this codebase.
+	htmlTFunc := func(string, ...interface{}) string { return `<b>x</b>` }
+	got = string(detailLabel(htmlTFunc, "timeout"))
+	if strings.Contains(got, "<b>") {
+		t.Errorf("a translated detail passed a tag through unescaped: %s", got)
+	}
+}

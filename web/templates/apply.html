@@ -24,6 +24,68 @@
 
     <div class="page-grid">
       <div>
+        {{if .Preview}}
+        {{if .Preview.Incomplete}}
+        <div role="alert" class="alert alert-warn mb-4">
+          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+          <span>{{T "apply_preview_incomplete"}}</span>
+        </div>
+        {{end}}
+        {{with .Preview.Verdict}}
+        <div class="verdict mb-4">
+          <div class="verdict-line">
+            <span class="status-dot {{verdictDot .Verdict}}">{{T (printf "apply_verdict_%s" .Verdict)}}</span>
+            <span class="verdict-addr">{{.Addr}} &rarr; :{{.Port}}</span>
+          </div>
+          <p class="verdict-note">{{T (printf "reach_%s" .Reason) (dict "Port" .Port)}}</p>
+          <p class="verdict-note">{{richText (T "apply_verdict_note")}}</p>
+        </div>
+        {{end}}
+
+        {{if or .Preview.Total .Preview.Unrecorded}}
+        <div class="card diff mb-4">
+          <h2 class="aside-title">{{T "apply_preview_title"}}</h2>
+
+          {{range .Preview.Sets}}
+          <div class="diff-group">
+            <div class="diff-group-head">
+              <span>{{T (printf "apply_set_%s" .Set)}}</span>
+              <span class="diff-count">{{len .Deltas}}</span>
+            </div>
+            {{range .Deltas}}
+            <div class="diff-row">
+              <span class="diff-mark">{{deltaMark .Kind}}</span>
+              <span class="diff-key">{{.Key}}</span>
+              <span class="diff-label">{{.Label}}</span>
+              {{if .From}}<span class="diff-move">{{.From}} &rarr; {{.To}}</span>{{end}}
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+
+          {{if .Preview.Config}}
+          <div class="diff-group">
+            <div class="diff-group-head">
+              <span>{{T "apply_set_options"}}</span>
+              <span class="diff-count">{{len .Preview.Config}}</span>
+            </div>
+            {{range .Preview.Config}}
+            <div class="diff-row">
+              <span class="diff-mark">~</span>
+              <span class="diff-key">{{.Key}}</span>
+              <span class="diff-move">{{.From}} &rarr; {{.To}}</span>
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+
+          {{if .Preview.Unrecorded}}
+          <p class="verdict-note">{{T "apply_config_unrecorded"}}</p>
+          {{end}}
+        </div>
+        {{end}}
+        {{end}}
+
         <div class="card">
           <div class="apply-panel">
             {{if .Status}}
@@ -62,6 +124,7 @@
             <p class="apply-lead">
               {{if eq $acc "pending"}}
               {{T "apply_lead_pending"}} {{T "apply_rollback"}}
+              {{if $.Data.LiveCount}}<br>{{T (plural $.Data.LiveCount "apply_live_unconfirmed_one" "apply_live_unconfirmed_many") (dict "N" $.Data.LiveCount)}}{{end}}
               {{else if eq $acc "accepted"}}
               {{T "apply_lead_accepted"}}
               {{else if eq $acc "rolled_back"}}
@@ -83,10 +146,21 @@
               </form>
               {{else}}
               <form method="POST" action="/apply/start">
-                <button type="submit" id="start-btn" class="btn btn-primary btn-lg"
+                {{$blocked := false}}
+                {{if $.Data.Preview}}{{if $.Data.Preview.Verdict}}
+                  {{$blocked = eq (printf "%s" $.Data.Preview.Verdict.Verdict) "blocked"}}
+                {{end}}{{end}}
+                {{/* A verdict of "blocks new connections" replaces the primary
+                     action with a deliberate second one: a differently-labelled
+                     button, not a filled red block — DESIGN.md, because a filled
+                     red button invites the misclick it warns about — and not a
+                     disabled control, because an operator who has decided is
+                     allowed to proceed. The acceptance window is what catches
+                     them. */}}
+                <button type="submit" id="start-btn" class="btn {{if not $blocked}}btn-primary{{end}} btn-lg"
                   {{if not .Status.HasPending}}title="{{T "apply_nothing_staged"}}"{{end}}>
                   <svg class="size-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm6.39-2.908a.75.75 0 01.766.027l3.5 2.25a.75.75 0 010 1.262l-3.5 2.25A.75.75 0 018 12.25v-4.5a.75.75 0 01.39-.658z" clip-rule="evenodd"/></svg>
-                  {{T "apply_start"}}
+                  {{if $blocked}}{{T "apply_anyway"}}{{else}}{{T "apply_start"}}{{end}}
                 </button>
               </form>
               {{end}}

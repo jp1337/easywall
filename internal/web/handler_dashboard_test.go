@@ -158,3 +158,26 @@ func TestDashboardCountsIgnoreCommentsAndBlankLines(t *testing.T) {
 		}
 	}
 }
+
+func TestDashboard_TheChipCarriesTheCount(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Current: shared.Rules{},
+		Staged:  shared.Rules{TCP: []shared.PortRule{{Port: "8443"}, {Port: "9443"}}},
+	}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+
+	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
+	assertStatus(t, rec, http.StatusOK)
+	// ">2<" matches any "2" the dashboard happens to render anywhere on the
+	// page — a date, a port, an unrelated count. The chip's count is the
+	// specific markup dashboard.html emits for it.
+	if !strings.Contains(rec.Body.String(), `<span class="diff-count">2</span>`) {
+		t.Errorf("the chip does not carry the count of pending changes:\n%s", rec.Body.String())
+	}
+}

@@ -35,9 +35,9 @@ func newAuditEvents(c *CoreClient) *auditEvents {
 }
 
 // Record queues one event. It never blocks.
-func (a *auditEvents) Record(ev shared.LoginEvent, addr string, left int) {
+func (a *auditEvents) Record(ev shared.LoginEvent, addr string, left int, proxied bool) {
 	select {
-	case a.ch <- shared.LogEventPayload{Event: ev, Addr: addr, Left: left}:
+	case a.ch <- shared.LogEventPayload{Event: ev, Addr: addr, Left: left, Proxied: proxied}:
 	default:
 		n := a.lost.Add(1)
 		slog.Warn("the audit event buffer is full and a login event was discarded; "+
@@ -56,7 +56,7 @@ func (a *auditEvents) run(stop <-chan struct{}) {
 		case <-stop:
 			return
 		case p := <-a.ch:
-			if err := a.client.LogEvent(p.Event, p.Addr, p.Left); err != nil {
+			if err := a.client.LogEvent(p.Event, p.Addr, p.Left, p.Proxied); err != nil {
 				// The journal is the fallback record, and it carries everything
 				// the audit entry would have: an operator diagnosing a login can
 				// still find it, and the login itself already succeeded.
@@ -81,4 +81,27 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return ip
+}
+
+// proxyHeaders are the headers whose *presence* means the peer is not the
+// client. Their values are never read.
+var proxyHeaders = []string{"X-Forwarded-For", "X-Real-IP", "True-Client-IP", "Forwarded"}
+
+// proxiedRequest reports whether this request arrived through something that
+// forwards, so the interface can say that the address it recorded is not the
+// caller's.
+//
+// Presence only. clientIP stays the TCP peer and nothing on this path ever
+// trusts a header's contents, which is what makes reading one acceptable here: a
+// client that forges a header can move a verdict to "cannot tell" and achieve
+// nothing else. It cannot insert an address, cannot suppress a warning, and
+// cannot reach the recorded peer address. docs-tech/threat-model.md says it in
+// those terms.
+func proxiedRequest(r *http.Request) bool {
+	for _, h := range proxyHeaders {
+		if _, ok := r.Header[http.CanonicalHeaderKey(h)]; ok {
+			return true
+		}
+	}
+	return false
 }

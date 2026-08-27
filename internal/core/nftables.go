@@ -846,31 +846,6 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 // carry on down the input chain; a `return` in a base chain would fall through
 // to the drop policy instead, which is the opposite of an exception.
 func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions, exempt []string) {
-	// Drop packets from RFC-1918 and special ranges arriving from non-loopback interfaces.
-	// These are "impossible" sources on the public internet.
-	// filters.md listed "this network" and loopback among the ranges this drops,
-	// and neither was here — while TEST-NET-3 and the reserved space were here
-	// and not in the table. The list and the documentation now name the same
-	// eleven ranges.
-	//
-	// IPv4 only, deliberately: fe80::/10 is link-local, and IPv6 needs neighbour
-	// discovery on it to work at all, so the IPv6 equivalents are not a
-	// symmetric translation. filters.md says so rather than implying coverage
-	// that is not here.
-	bogons := []string{
-		"0.0.0.0/8",       // "this network"
-		"10.0.0.0/8",      // private
-		"100.64.0.0/10",   // carrier-grade NAT
-		"127.0.0.0/8",     // loopback, which cannot arrive on a real interface
-		"169.254.0.0/16",  // link-local
-		"172.16.0.0/12",   // private
-		"192.0.2.0/24",    // TEST-NET-1
-		"192.168.0.0/16",  // private
-		"198.51.100.0/24", // TEST-NET-2
-		"203.0.113.0/24",  // TEST-NET-3
-		"240.0.0.0/4",     // reserved
-	}
-
 	bogonChain := m.conn.AddChain(&nftables.Chain{Name: "bogon", Table: t})
 
 	// The exceptions come first, so a source the operator has allowed leaves
@@ -887,7 +862,10 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 		})
 	}
 
-	for _, cidr := range bogons {
+	// The eleven ranges are shared.BogonRanges — one list, so the rules this
+	// builds and the verdict internal/shared reasons about cannot drift. See the
+	// comment on that variable.
+	for _, cidr := range shared.BogonRanges {
 		match := ipv4SourceMatch(cidr)
 		if match == nil {
 			continue

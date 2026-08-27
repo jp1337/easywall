@@ -383,10 +383,13 @@ function fwdRowHTML(idx, r, labels) {
     </td>
     <td data-label="${esc(L[1] ?? '')}"><input class="f-src input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.source_port))}"
          placeholder="${esc(str('port_range_hint'))}" aria-label="${esc(L[1] ?? '')}"></td>
-    <td class="cell-flow" data-label="${esc(L[2] ?? '')}">
-      <span class="flow-arrow" aria-hidden="true">&rarr;</span>
-      <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
-         placeholder="${esc(str('port_range_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
+    <td data-label="${esc(L[2] ?? '')}">
+      <div class="flow">
+        <span class="flow-arrow" aria-hidden="true">&rarr;</span>
+        <input class="f-dst input-cell input-cell-data" type="number" min="1" max="65535" value="${esc(String(r.dest_port))}"
+           placeholder="${esc(str('port_range_hint'))}" aria-label="${esc(L[2] ?? '')}">
+      </div>
+    </td>
     <td>
       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
