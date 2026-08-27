@@ -1161,5 +1161,17 @@ func templateFuncs() template.FuncMap {
 			}
 			return string(b), nil
 		},
+		// The catalogue name for a stored id, or nothing. A rule whose id the
+		// catalogue no longer knows shows no chip and is otherwise untouched —
+		// the label is a label.
+		"serviceName": func(id string) string {
+			if id == "" {
+				return ""
+			}
+			if s, ok := shared.ServiceByID(id); ok {
+				return s.Name
+			}
+			return ""
+		},
 	}
 }

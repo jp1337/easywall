@@ -57,11 +57,14 @@
                 </thead>
                 <tbody id="rules-tbody">
                   {{range $i, $r := .Rules}}
-                  <tr data-idx="{{$i}}">
+                  <tr data-idx="{{$i}}"{{with $r.Service}} data-service="{{.}}"{{end}}>
                     <td data-label="{{T "ports_port"}}"><input class="f-port input-cell input-cell-data" type="text" value="{{$r.Port}}" placeholder="{{T "ports_port_hint"}}" aria-label="{{T "ports_port"}}"></td>
                     <td data-label="{{T "ports_ssh"}}"><input class="f-ssh checkbox" type="checkbox" {{if $r.SSH}}checked{{end}} aria-label="{{T "ports_ssh"}}"></td>
                     <td class="cell-wide" data-label="{{T "ports_sources"}}"><input class="f-sources input-cell" type="text" value="{{join $r.Sources ", "}}" placeholder="{{T "ports_sources_hint"}}" aria-label="{{T "ports_sources"}}"></td>
-                    <td class="cell-wide" data-label="{{T "ports_description"}}"><input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}"></td>
+                    <td class="cell-wide" data-label="{{T "ports_description"}}">
+                      <input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}">
+                      {{with serviceName $r.Service}}<span class="chip">{{.}}</span>{{end}}
+                    </td>
                     <td>
                       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="{{T "action_remove_rule"}}">
                         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>

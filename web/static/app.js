@@ -254,6 +254,7 @@ function initRuleEditor() {
       try { rows = JSON.parse(item.dataset.rows || '[]'); } catch { return; }
       const sources = item.dataset.sources || '';
       const labels = headLabels();
+      const serviceName = item.querySelector('.catalogue-name')?.textContent.trim() || '';
       rows.forEach(row => {
         const tr = document.createElement('tr');
         tr.dataset.idx = tbody.querySelectorAll('tr').length;
@@ -263,6 +264,7 @@ function initRuleEditor() {
           description: row.Description,
           ssh: false,
           sources: sources ? sources.split(',').map(s => s.trim()) : [],
+          serviceName,
         }, labels);
         tbody.appendChild(tr);
       });
@@ -335,8 +337,11 @@ function ruleRowHTML(idx, r, labels) {
     </td>
     <td class="cell-wide" data-label="${esc(L[2] ?? '')}"><input class="f-sources input-cell" type="text" value="${esc((r.sources || []).join(', '))}"
          placeholder="${esc(str('ports_sources_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
-    <td class="cell-wide" data-label="${esc(L[3] ?? '')}"><input class="f-desc input-cell" type="text" value="${esc(r.description)}"
-         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[3] ?? '')}"></td>
+    <td class="cell-wide" data-label="${esc(L[3] ?? '')}">
+      <input class="f-desc input-cell" type="text" value="${esc(r.description)}"
+         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[3] ?? '')}">
+      ${r.serviceName ? `<span class="chip">${esc(r.serviceName)}</span>` : ''}
+    </td>
     <td>
       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
