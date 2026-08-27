@@ -1078,9 +1078,9 @@ func templateFuncs() template.FuncMap {
 			// #nosec G203 -- escaped on the line it is written
 			return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — see above
 		},
-		"actionTone":  actionTone,
-		"richText":    richText,
-		"shortTime":   shortTime,
+		"actionTone": actionTone,
+		"richText":   richText,
+		"shortTime":  shortTime,
 		// dict lets a template pass named values into a translation that carries
 		// its own {{.Placeholder}} — the only way a sentence with an interpolated
 		// value stays one message for the translator.
