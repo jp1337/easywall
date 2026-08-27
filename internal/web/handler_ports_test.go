@@ -235,8 +235,14 @@ func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
 	if !strings.Contains(tcp, "Home Assistant") {
 		t.Error("the TCP tab does not offer Home Assistant, which listens on 8123/tcp")
 	}
-	if !strings.Contains(tcp, "10.0.0.0/8") {
-		t.Error("the private suggestion is not rendered into the picker")
+	// "10.0.0.0/8" alone proves nothing: it is also in the ports_sources_hint
+	// locale string ("Anywhere — or 10.0.0.0/8, 192.168.1.5"), which base.html
+	// inlines into window.easywallStrings on every page. The full joined private
+	// range list, anchored to Home Assistant's own data-service attribute, is
+	// what only the picker can produce.
+	if !strings.Contains(tcp, `data-service="homeassistant"`+"\n                    "+
+		`data-sources="10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7"`) {
+		t.Error("the private suggestion is not rendered into Home Assistant's catalogue item")
 	}
 
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
