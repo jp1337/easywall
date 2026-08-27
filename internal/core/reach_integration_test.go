@@ -128,3 +128,65 @@ func tcpReaches(t *testing.T, pid, addr string, port int) bool {
 	t.Logf("connect to %s:%d from the namespace took %s: %v", addr, port, time.Since(start), err)
 	return err == nil
 }
+
+// The SSH brute-force chain used to end in accept, and Apply adds it to the
+// input chain before the blacklist. So a blacklisted address could open an SSH
+// connection as long as it stayed under the rate limit — the protection module
+// outranked the list whose whole job is to refuse an address.
+//
+// The chain now returns. Under-rate traffic falls back into the input chain and
+// meets the blacklist, then the whitelist, then the port rule. Over-rate still
+// drops in sshbrute-over.
+func TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist(t *testing.T) {
+	for _, bin := range []string{"bash", "timeout"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("skipping: %s is not installed, and this test opens a real TCP connection", bin)
+		}
+	}
+
+	m := newIntegrationManager(t)
+	r := newRouter(t)
+
+	const port = 12228
+	ln, err := net.Listen("tcp", "10.77.1.1:"+strconv.Itoa(port))
+	if err != nil {
+		t.Skipf("skipping: cannot listen on 10.77.1.1:%d: %v", port, err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	rules := shared.Rules{
+		TCP:       []shared.PortRule{{Port: strconv.Itoa(port), Description: "ssh", SSH: true}},
+		Blacklist: []string{"10.77.1.2"},
+	}
+	opts := shared.FirewallOptions{SSHBruteForce: true, SSHBruteForceConnectionLimit: 5}
+	state := shared.RulesState{Current: rules, Staged: rules, Backup: rules}
+	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	if tcpReaches(t, r.pidA, "10.77.1.1", port) {
+		t.Errorf("a blacklisted address reached an SSH-marked port under the rate limit\n"+
+			"sshbrute chain:\n  %s\ninput chain:\n  %s",
+			strings.Join(chainText(t, "sshbrute"), "\n  "),
+			strings.Join(chainText(t, "input"), "\n  "))
+	}
+
+	// And the shape, so the reason a future edit breaks this is readable rather
+	// than a dropped connection with no explanation.
+	last := chainText(t, "sshbrute")
+	if len(last) == 0 {
+		t.Fatal("sshbrute chain is empty")
+	}
+	if got := last[len(last)-1]; !strings.Contains(got, "return") {
+		t.Errorf("sshbrute ends in %q; it must return so the input chain goes on deciding", got)
+	}
+}

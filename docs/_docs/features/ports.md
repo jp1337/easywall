@@ -33,7 +33,11 @@ rate-limits new connections per source address.
 
 > **Mark it even on a non-standard port.** The chain is applied per port, so 2222 is
 > protected exactly like 22 — but only if you tick it. If you mark nothing, easywall
-> protects 22 by default, which is the wrong port on a hardened host.
+> meters 22 by default, which is the wrong port on a hardened host.
+>
+> Metering is not opening. Since 2.11 the chain hands the packet back to the rest
+> of the input chain instead of accepting it, so a port is open only if a rule
+> opens it. Before 2.11 a marked-nothing host had 22 accepted by the module alone.
 
 Each source address gets its own budget, so somebody else being rate-limited does not
 affect you. A [whitelist]({{ '/docs/features/blacklist/' | relative_url }}) entry does not

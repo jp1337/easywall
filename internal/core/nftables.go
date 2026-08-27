@@ -1128,11 +1128,23 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 		timeout: 10 * time.Minute,
 	}, over)
 
-	// Anything that did not exceed its own rate is ordinary traffic.
+	// Anything that did not exceed its own rate is ordinary traffic, and
+	// ordinary traffic is not this chain's decision to make.
+	//
+	// This used to accept, and Apply adds the jump to the input chain *before*
+	// the blacklist — so a blacklisted address could SSH in as long as it stayed
+	// under the limit, and port 22 was accepted outright whenever the module was
+	// on and no rule opened it (sshPorts falls back to {"22"} above). A
+	// protection module that opens a port and overrules the blacklist is doing
+	// the opposite of its name.
+	//
+	// Returning puts the packet back where it came from: blacklist, then
+	// whitelist, then the port rules. Over-rate still drops in sshbrute-over, so
+	// nothing about the metering changes.
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: sshChain,
-		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictAccept}},
+		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictReturn}},
 	})
 
 	// Meter new connections to each SSH port.
