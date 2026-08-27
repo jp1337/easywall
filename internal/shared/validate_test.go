@@ -228,24 +228,27 @@ func TestValidateRules_NamesTheOffendingCustomRule(t *testing.T) {
 func TestValidateRules_PortSources(t *testing.T) {
 	cases := []struct {
 		name    string
+		port    string
 		sources []string
 		wantErr bool
 	}{
-		{name: "no sources is anywhere", sources: nil},
-		{name: "empty list is anywhere", sources: []string{}},
-		{name: "a bare address", sources: []string{"192.168.1.10"}},
-		{name: "a network", sources: []string{"10.0.0.0/8"}},
-		{name: "an IPv6 network", sources: []string{"fc00::/7"}},
-		{name: "several", sources: []string{"10.0.0.0/8", "172.16.0.0/12"}},
+		{name: "no sources is anywhere", port: "443", sources: nil},
+		{name: "empty list is anywhere", port: "443", sources: []string{}},
+		{name: "a bare address", port: "443", sources: []string{"192.168.1.10"}},
+		{name: "a network", port: "443", sources: []string{"10.0.0.0/8"}},
+		{name: "an IPv6 network", port: "443", sources: []string{"fc00::/7"}},
+		{name: "several", port: "443", sources: []string{"10.0.0.0/8", "172.16.0.0/12"}},
 		{name: "a comment and a blank are kept, not rules",
-			sources: []string{"# the LAN", "", "192.168.0.0/16"}},
-		{name: "not an address", sources: []string{"the-lan"}, wantErr: true},
-		{name: "a hostname is not an address", sources: []string{"nas.local"}, wantErr: true},
-		{name: "a port is not an address", sources: []string{"192.168.1.10:443"}, wantErr: true},
+			port: "443", sources: []string{"# the LAN", "", "192.168.0.0/16"}},
+		{name: "not an address", port: "443", sources: []string{"the-lan"}, wantErr: true},
+		{name: "a hostname is not an address", port: "443", sources: []string{"nas.local"}, wantErr: true},
+		{name: "a port is not an address", port: "443", sources: []string{"192.168.1.10:443"}, wantErr: true},
+		{name: "a range port with a valid network source", port: "8000:9000", sources: []string{"10.0.0.0/8"}},
+		{name: "a range port with an invalid source is rejected", port: "8000:9000", sources: []string{"not-an-address"}, wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateRules(Rules{TCP: []PortRule{{Port: "443", Sources: tc.sources}}})
+			err := ValidateRules(Rules{TCP: []PortRule{{Port: tc.port, Sources: tc.sources}}})
 			if tc.wantErr && err == nil {
 				t.Fatalf("ValidateRules accepted sources %v", tc.sources)
 			}
