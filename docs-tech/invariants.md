@@ -135,6 +135,21 @@ matches one line, so a hand-written multi-line `recovery_codes` array makes the
 merge give up and re-encode. Comments are lost, nothing is corrupted, and that
 is the path's designed behaviour rather than a bug the round-trip test missed.
 
+## A port rule can now name who may reach it
+
+| Test | What it protects |
+|---|---|
+| `TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist` | the sshbrute chain returns instead of accepting, so it can no longer outrank the blacklist or open port 22 on its own |
+| `TestIntegration_Apply_PortSources` | one nft rule per source; an unrestricted port carries no address match at all |
+| `TestIntegration_Apply_PortSources_AllCommentsOpensNothing` | a source list with nothing usable in it opens the port to nobody, not to everyone |
+| `TestCatalogueIDsAreUniqueAndStable` | a stored `service` id points at exactly one catalogue entry, forever |
+| `TestEveryCataloguePortIsStorable`, `TestEverySuggestionIsKnownAndProducesSources` | every catalogue port and suggested source list passes the same validation the form does, and the suggestion's source slice cannot be mutated by a caller |
+| `TestDiffPorts_SourceChangeIsAChange` | restricting an already-open port is a reported change, not an empty preview |
+| `TestReachable_PortSources_ACustomRuleOutranksTheRestriction` | a custom rule that accepts a source-restricted port reports unknown, not a false "blocked" |
+| `TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller` | a second restricted rule that covers the caller reports open, matching the kernel's rule-by-rule evaluation |
+| `TestIntegration_ReachableAgreesWithTheKernel` (extended) | the reason returned for a source-restricted port agrees with what a real packet over a veth actually meets |
+| `TestHandlePortsGET_RendersTheCatalogueForTheTab`, `TestHandlePortsPOST_KeepsSources`, `TestHandlePortsPOST_RejectsAnInvalidSource` | the catalogue rendered server-side is filtered to the tab's protocol, sources round-trip to the core unchanged, and an invalid source is refused with the page re-rendered still holding it |
+
 ## The technical documentation stays unpublished
 
 `TestTheTechnicalDocsAreNotPublished` asserts that `docs-tech/` is outside `docs/`

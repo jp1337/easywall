@@ -22,9 +22,46 @@ tabs; a rule is a port, an optional SSH mark, and a description for your own ben
 | Single port | `443` | one port |
 | Range | `8000:9000` | 8000 to 9000, inclusive |
 
-1–65535, ranges ascending. Every rule applies to all interfaces — to restrict by
-source, use the [whitelist]({{ '/docs/features/blacklist/' | relative_url }}) or a
-[custom rule]({{ '/docs/features/custom-rules/' | relative_url }}).
+1–65535, ranges ascending.
+
+## Who may reach it
+
+**Sources** is a comma-separated list of addresses and networks. Empty means
+everyone — what every rule written before 2.11 means, and still the default.
+
+| Sources | Opens the port to |
+|---|---|
+| *(empty)* | everyone |
+| `192.168.1.5` | one address |
+| `10.0.0.0/8, 192.168.0.0/16` | two networks |
+| `# not decided yet` | nobody — a comment is not an address |
+
+Each usable entry becomes its own nft rule, matched on the source address before
+the port is tested. A [whitelist]({{ '/docs/features/blacklist/' | relative_url }})
+entry is still the way to allow an address on *every* port at once.
+
+> **A network is matched by its network address.** `10.9.9.9/24` is applied as
+> `10.9.9.0/24` — 255 addresses more than you typed, and this page does not echo
+> the normalised form back. Ordinary CIDR behaviour, but here it decides who can
+> reach the port.
+
+> **IPv6.** The catalogue's *private networks* suggestion fills in RFC 1918 and
+> `fc00::/7`. A LAN numbered out of global IPv6 space is not covered by any
+> constant — add that range yourself, or the restriction locks you out over IPv6
+> while looking correct over IPv4.
+
+## The catalogue
+
+**Add from catalogue** appends the rows a service listens on, with a suggested
+restriction filled in — everything editable, nothing applied until you apply it.
+The service name is kept on the rule as a label. It decides nothing: an entry
+that is later corrected or removed leaves your rule exactly as it was.
+
+> **This page needs JavaScript.** Not only the catalogue button — the whole port
+> editor. Rows are collected in the browser and submitted as one field, which is
+> how this table has always worked, and the same is true of port forwarding. The
+> blacklist, whitelist and custom-rule pages are plain textareas and do not need
+> it.
 
 ## Mark your SSH port
 

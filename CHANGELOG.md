@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.0] — 2026-08-27
+
+### Added
+
+- **A port rule can name who may reach it.** `Sources` is a comma-separated list
+  of addresses and networks on every TCP and UDP rule; empty still means
+  everyone, which is what every rule written before 2.11 means. Each usable
+  entry becomes its own nft rule, matched before the port is tested, and a
+  source list holding nothing usable — all comments, all blank — opens the port
+  to nobody rather than to the world. The reachability verdict on `/apply` gained
+  a matching reason, `port_source_mismatch`, so a restriction that would lock out
+  the connection you are reading the page on is called out by name instead of
+  folding into the generic "blocked"
+- **A catalogue of 29 services fills in a rule in one click.** `Add from
+  catalogue` on `/ports` appends the ports a service listens on — Pi-hole, Home
+  Assistant, WireGuard and 26 others — with a suggested source restriction
+  already filled in (private networks, or explicitly anywhere), everything left
+  editable and nothing applied until you apply it. The service name rides along
+  as a label only: a catalogue entry corrected or removed in a later release
+  leaves an already-saved rule exactly as it was
+- **A new aside on `/ports`** explains what an empty **Sources** field means and
+  why the catalogue's *private networks* suggestion may not be enough on its
+  own over IPv6
+
+### Fixed
+
+- **The SSH brute-force chain no longer outranks the blacklist.** It jumped to
+  `sshbrute` before the blacklist was consulted and ended in `accept`, so a
+  blacklisted address could still open an SSH connection as long as it stayed
+  under the rate limit — the module built to slow down an attacker was, for a
+  listed one, a bypass of the list whose whole job is to refuse them. The chain
+  now `return`s: traffic under the rate limit falls back into the input chain
+  and meets the blacklist, then the whitelist, then the port rule, exactly as
+  if the module were not there. Proven against a real kernel and a real TCP
+  connection over a veth pair, not by rule count
+
+### Changed
+
+- **A host with SSH brute-force protection on, and no rule opening port 22,
+  no longer has port 22 open.** The chain's `accept` was doing that by itself:
+  any installation with the module switched on and nothing marked SSH had 22
+  accepted regardless of what the port rules said. Now that the chain returns
+  instead of accepting, that host is filtered like any other — if you were
+  relying on the module alone to keep SSH reachable, add an explicit rule for
+  it (and tick **SSH protection** on it) before you apply this release
+
 ## [2.10.0] — 2026-08-27
 
 ### Added
