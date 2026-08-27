@@ -72,11 +72,16 @@ func (d *demoState) seed() {
 			{Port: "22", Description: "SSH (admin)", SSH: true},
 			{Port: "80", Description: "HTTP — redirect to HTTPS"},
 			{Port: "443", Description: "HTTPS — main web"},
-			{Port: "8443", Description: "HTTPS — staging / backend"},
+			// Source-restricted, no catalogue entry — the plain form of the field.
+			{Port: "8443", Description: "HTTPS — staging / backend", Sources: []string{"203.0.113.0/24"}},
 			{Port: "25", Description: "SMTP — incoming mail"},
 			{Port: "587", Description: "SMTP submission (STARTTLS)"},
 			{Port: "993", Description: "IMAPS"},
-			{Port: "5432", Description: "PostgreSQL — replication peer"},
+			// Catalogue-derived: what "Add from catalogue" writes for PostgreSQL,
+			// so the public demo shows this release's headline feature without a
+			// visitor having to open the picker.
+			{Port: "5432", Description: "PostgreSQL — replication peer",
+				Sources: shared.SuggestedSources(shared.SuggestPrivate), Service: "postgresql"},
 		},
 		UDP: []shared.PortRule{
 			{Port: "53", Description: "DNS — authoritative"},
