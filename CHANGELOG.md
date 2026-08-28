@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.0] — 2026-XX-XX
+
+### Added
+
+- **`EASYWALL_WEB_TELEMETRY`** switches the installation count on from the
+  environment. It exists because the public demo is configured entirely that way
+  and should be counted like anything else — which also means the number means
+  *installations including the demo*. Consent semantics are unchanged: unset
+  still means no, and an answer given in the interface beats the variable. The
+  path from the variable to the request was exercised end to end against the
+  live endpoint on 2026-08-28 and answered `204`
+- **Every setting whose key an environment variable names says so on the page.**
+  The control keeps working; beneath it the interface says either *set by the
+  environment* or *the environment says X — overridden here*, and in the second
+  case offers **Reset to the environment value**. Reset removes the stored line
+  rather than writing the default, because for a flag whose absence is a state
+  those are different files
+- **A precedence section and a diagram** on the [Environment
+  Variables](https://easywall-project.org/docs/environment/) page, and a
+  *Control* column saying which variables the interface also offers
+
+### Changed
+
+- **A stored value now beats the environment variable naming the same key.**
+  Until 2.12 the environment overlaid the parsed file, so a value set in the
+  interface — or written into `web.toml` by hand — came back changed after a
+  restart, with nothing anywhere saying why. The order is now stored value,
+  then environment variable, then built-in default, and it is the same order for
+  all thirteen variables. **This is a behaviour change for existing Docker
+  installations:** a variable that used to win now loses to a value stored in the
+  file, and the reset control on the page is the way back.
+
+  *Stored* means the file's value differs from the built-in default, never that
+  the key is present in the file. `-write-config` emits every default and that
+  file is what the container image ships; the other reading would have disabled
+  every variable in the product on exactly the installations that use them
+- **`config/web.toml` no longer pre-answers the counting question.** The
+  `telemetry = false` line is now a commented example. Absent means nobody has
+  answered, which is a different state from *no* — and under the new precedence a
+  pre-answered default would have let the environment overrule an operator who
+  genuinely declined
+- **The Options, Network and System pages save when you press Save.** They posted
+  over HTMX on every `change` *and* carried a Save button, so the button reported
+  a write that had already happened. The button stays; the automatic write goes
+
+### Fixed
+
+- **The counting toggle on the System page can be saved without JavaScript.** Its
+  form carried no submit button at all — `hx-trigger` was the only thing that
+  ever submitted it — so a script-free operator could move a consent switch and
+  never store the answer
+
 ## [2.11.0] — 2026-08-27
 
 ### Added

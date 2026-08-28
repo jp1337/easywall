@@ -6,35 +6,59 @@ description: Every environment variable easywall reads, and why the list stops w
 
 # Environment Variables
 
-The environment configures *where easywall runs* — sockets, directories, the
-address it binds. It does not configure what the firewall does; that lives in
-`easywall.toml` and `web.toml`, described in full on the
-[Configuration]({{ '/docs/configuration/' | relative_url }}) page. Each variable
-below overrides one TOML key, read once at startup, before either process
-touches its config file.
+Every variable easywall reads, the TOML key it names, and whether the interface
+has a control for the same value.
+
+## Which value wins
+
+{% include themed-figure.html base="/assets/diagrams/config-precedence" ext="svg"
+   alt="Stored value beats environment variable beats built-in default" %}
+
+| Environment | Stored | In effect |
+|---|---|---|
+| — | — | the built-in default |
+| set | — | the environment |
+| set | differs | the stored value |
+| set | identical | the stored value — which is the same thing |
+| removed | present | the stored value |
+
+**Stored** means the file's value differs from the built-in default — not that
+the key is present in the file. `easywall-core -write-config` and
+`easywall-web -write-config` emit every default, and that is exactly the file the
+container image ships; if presence counted, every variable in this page would be
+dead on every containerised installation.
+
+A control that names a key you have also set through the environment says so on
+the page, and offers **Reset to the environment value** when your stored value is
+the one in effect.
 
 ## `easywall-core`
 
-| Variable | `easywall.toml` key | Type | Purpose |
-|---|---|---|---|
-| `EASYWALL_CORE_SOCKET_PATH` | `socket_path` | string | Unix socket path — must be accessible to the `easywall` group |
-| `EASYWALL_CORE_DATA_DIR` | `data_dir` | string | Directory for `rules.json`, the last-apply state and the panic marker |
-| `EASYWALL_CORE_LOG_DIR` | `log_dir` | string | Directory for the audit log and rule snapshots |
+| Variable | `easywall.toml` key | Type | Control | Purpose |
+|---|---|---|---|---|
+| `EASYWALL_CORE_SOCKET_PATH` | `socket_path` | string | — | Unix socket path — must be accessible to the `easywall` group |
+| `EASYWALL_CORE_DATA_DIR` | `data_dir` | string | — | Directory for `rules.json`, the last-apply state and the panic marker |
+| `EASYWALL_CORE_LOG_DIR` | `log_dir` | string | — | Directory for the audit log and rule snapshots |
 
 ## `easywall-web`
 
-| Variable | `web.toml` key | Type | Purpose |
-|---|---|---|---|
-| `EASYWALL_WEB_BIND_ADDR` | `bind_addr` | string | Listen address and port — e.g. `0.0.0.0:12227` |
-| `EASYWALL_WEB_SOCKET_PATH` | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
-| `EASYWALL_WEB_SSL_DIR` | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
-| `EASYWALL_WEB_DATA_DIR` | `data_dir` | string | Directory for the version cache and the installation identifier |
-| `EASYWALL_WEB_TLS_CERT` | `tls.cert` | string | Path to a custom TLS certificate PEM file |
-| `EASYWALL_WEB_TLS_KEY` | `tls.key` | string | Path to the matching private key PEM file |
-| `EASYWALL_WEB_LANGUAGE` | `language` | string | Fallback UI locale — `en` or `de` |
-| `EASYWALL_WEB_UPDATE_CHECK` | `update_check` | bool | Ask github.com once a day whether a newer release exists |
-| `EASYWALL_WEB_DEMO_MODE` | `demo_mode` | bool | Run against an in-memory mock instead of the core — the public demo only |
-| `EASYWALL_WEB_TELEMETRY` | `telemetry` | bool | Report to the installation count — off unless answered |
+| Variable | `web.toml` key | Type | Control | Purpose |
+|---|---|---|---|---|
+| `EASYWALL_WEB_BIND_ADDR` | `bind_addr` | string | — | Listen address and port — e.g. `0.0.0.0:12227` |
+| `EASYWALL_WEB_SOCKET_PATH` | `socket_path` | string | — | Path to the core Unix socket — must match `easywall.toml` |
+| `EASYWALL_WEB_SSL_DIR` | `ssl_dir` | string | — | Directory where the auto-generated TLS cert/key are stored |
+| `EASYWALL_WEB_DATA_DIR` | `data_dir` | string | — | Directory for the version cache and the installation identifier |
+| `EASYWALL_WEB_TLS_CERT` | `tls.cert` | string | — | Path to a custom TLS certificate PEM file |
+| `EASYWALL_WEB_TLS_KEY` | `tls.key` | string | — | Path to the matching private key PEM file |
+| `EASYWALL_WEB_LANGUAGE` | `language` | string | sidebar switch, per browser | Fallback UI locale — `en` or `de` |
+| `EASYWALL_WEB_UPDATE_CHECK` | `update_check` | bool | — | Ask github.com once a day whether a newer release exists |
+| `EASYWALL_WEB_DEMO_MODE` | `demo_mode` | bool | — | Run against an in-memory mock instead of the core — the public demo only |
+| `EASYWALL_WEB_TELEMETRY` | `telemetry` | bool | **System** | Report this installation once a day — off unless set |
+
+The language switch in the sidebar sets a cookie for the browser you are reading
+in. It does not write `web.toml`, so it neither overrides `EASYWALL_WEB_LANGUAGE`
+nor is overridden by it: the variable decides the language a browser with no
+cookie sees.
 
 ## `TZ`
 
@@ -60,6 +84,11 @@ interface configures what the firewall does.
   `docker inspect`, to anything that reads `/proc/<pid>/environ`, and to
   whatever log somebody pastes into an issue. `web.toml` is `0600`; the
   environment of a running container is not.
+- **Being counted** — `telemetry` — *is* settable here, and it is the one key the
+  interface also writes. The public demo is configured entirely from its
+  environment and reports like any other installation. An answer given in the
+  interface is a stored value and beats the variable; **Reset to the environment
+  value** on the System page is the way back.
 
 ## Behaviour
 
