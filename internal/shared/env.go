@@ -9,17 +9,22 @@ import (
 	"github.com/jp1337/easywall/config"
 )
 
-// The environment layer configures *where easywall runs*. It deliberately
-// cannot reach what the firewall does: every rule field, and every setting the
-// interface writes back, is absent from the tables below. A variable that
-// overrode one of those would let an operator press Save, be told it was saved,
-// and find the old value back after the next restart —
-// TestNoEnvVarTargetsARuleField and TestNoEnvVarTargetsAManagedKey are what
-// keep that true as the config grows.
+// The environment layer configures *where easywall runs*, and one thing about
+// what it reports: whether this installation is counted. It deliberately cannot
+// reach what the firewall does — every rule field is absent from the tables
+// below, and TestNoEnvVarTargetsARuleField keeps it that way.
 //
-// Secrets are absent for a second reason: an environment variable is visible in
-// `docker inspect`, in /proc/<pid>/environ, and in any log somebody pastes into
-// an issue. web.toml is 0600.
+// telemetry is the one managed key a variable may name, because the public demo
+// is configured entirely from its environment and has to report like anything
+// else. It is safe to name only since 2.12 inverted the precedence: an operator
+// who answers in the interface has stored a value, and a stored value wins. The
+// reason the rule existed — press Save, be told it was saved, find the old value
+// back after a restart — is the thing that release removed.
+//
+// Secrets stay absent for a second reason, and that one has not changed: an
+// environment variable is visible in `docker inspect`, in /proc/<pid>/environ,
+// and in any log somebody pastes into an issue. web.toml is 0600.
+// TestNoEnvVarTargetsAManagedKey is what keeps the other five out.
 
 // EnvKind is the value shape a variable carries.
 type EnvKind int
@@ -145,6 +150,16 @@ var WebEnvVars = []EnvVar[WebConfig]{
 				return err
 			}
 			c.DemoMode = b
+			return nil
+		}},
+	{"EASYWALL_WEB_TELEMETRY", "telemetry", EnvBool,
+		func(c *WebConfig) string { return boolValue(c.Telemetry) },
+		func(c *WebConfig, v string) error {
+			b, err := parseBool(v)
+			if err != nil {
+				return err
+			}
+			c.Telemetry = &b
 			return nil
 		}},
 }

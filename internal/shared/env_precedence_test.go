@@ -179,12 +179,6 @@ func TestWebDefaultDoesNotAliasThePackageLevelDefault(t *testing.T) {
 	if a.UpdateCheck == b.UpdateCheck {
 		t.Error("WebDefault().UpdateCheck is the same pointer on every call")
 	}
-	if a.Telemetry == nil || b.Telemetry == nil {
-		t.Fatal("config/web.toml no longer sets telemetry; this test needs a non-nil pointer to prove anything")
-	}
-	if a.Telemetry == b.Telemetry {
-		t.Error("WebDefault().Telemetry is the same pointer on every call")
-	}
 
 	*a.UpdateCheck = !*a.UpdateCheck
 	if *a.UpdateCheck == *b.UpdateCheck {
@@ -202,6 +196,30 @@ func TestWebDefaultDoesNotAliasThePackageLevelDefault(t *testing.T) {
 	got.RecoveryCodes[0] = "mutated"
 	if webDefault.RecoveryCodes[0] != "original" {
 		t.Errorf("WebDefault().RecoveryCodes aliases the package-level default: got %q", webDefault.RecoveryCodes[0])
+	}
+
+	// Telemetry ships nil since 2.12 — config/web.toml no longer pre-answers
+	// consent, so the shipped default has nothing for WebDefault() to clone.
+	// Seeded directly into the package-level value, the same way RecoveryCodes
+	// is above, so the clone this function makes of a *bool is still exercised.
+	prevTelemetry := webDefault.Telemetry
+	seed := true
+	webDefault.Telemetry = &seed
+	t.Cleanup(func() { webDefault.Telemetry = prevTelemetry })
+
+	ta, tb := WebDefault(), WebDefault()
+	if ta.Telemetry == nil || tb.Telemetry == nil {
+		t.Fatal("seeded webDefault.Telemetry directly; WebDefault() should have cloned a non-nil pointer")
+	}
+	if ta.Telemetry == tb.Telemetry {
+		t.Error("WebDefault().Telemetry is the same pointer on every call")
+	}
+	*ta.Telemetry = !*ta.Telemetry
+	if *ta.Telemetry == *tb.Telemetry {
+		t.Error("mutating one WebDefault()'s Telemetry changed another's")
+	}
+	if webDefault.Telemetry != &seed || *webDefault.Telemetry != true {
+		t.Error("mutating a WebDefault()'s Telemetry changed the package-level default")
 	}
 }
 

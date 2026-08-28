@@ -31,7 +31,13 @@ update_check = true
 # whether a critical fix reached everyone, not enough to describe anyone. Your
 # address is not recorded at the other end. The identifier lives in
 # <data_dir>/telemetry.json and may be deleted. Also switchable under System.
-telemetry = false
+#
+# Left out of this file on purpose: absent means nobody has answered yet, which
+# is a different state from "no" and the one the first-run wizard asks about. An
+# answer written here — by the wizard, by the System page, or by hand — is a
+# stored value and beats EASYWALL_WEB_TELEMETRY.
+#
+# telemetry = false
 
 # ─── Secret ─────────────────────────────────────────────────────────────────
 # Signs the session cookie, so anyone who knows it can forge one. Left as the
