@@ -267,3 +267,28 @@
 </body>
 </html>
 {{end}}
+
+{{/* The marker beside a control whose key an environment variable names. Drawn
+     only when there is one — an installation configured the ordinary way sees
+     nothing here, which is why the caller wraps this in {{with}} rather than
+     letting the block decide. Three states, and the third is the only one that
+     needs a control: the environment is in force; the environment agrees with a
+     stored value, so there is nothing to resolve; or a stored value is beating
+     the environment, and the way back is a button.
+
+     T with dict rather than richText: .Variable and .Env are plain values, not
+     link targets, and richText's "{}" slots are strictly href/label pairs —
+     passing them there would either misfire on the argument count or render an
+     environment variable's name as a clickable href. */}}
+{{define "provenance"}}
+<p class="provenance">
+  {{if .Overridden}}
+  <span class="provenance-conflict">{{T "provenance_overridden" (dict "Variable" .Variable "Env" .Env)}}</span>
+  <button type="submit" name="reset" value="1" class="btn btn-sm provenance-reset">
+    {{T "provenance_reset"}}
+  </button>
+  {{else}}
+  <span>{{T "provenance_from_env" (dict "Variable" .Variable)}}</span>
+  {{end}}
+</p>
+{{end}}

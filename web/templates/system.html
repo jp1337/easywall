@@ -88,6 +88,12 @@
                      {{if .Telemetry}}checked{{end}}>
             </label>
 
+            {{with .TelemetryProv}}
+            <div class="switch-detail">
+              {{template "provenance" .}}
+            </div>
+            {{end}}
+
             <div class="switch-detail">
               <p class="field-help">{{T "system_telemetry_endpoint"}}</p>
               <p class="mt-1.5"><code>{{.TelemetryEndpoint}}</code></p>

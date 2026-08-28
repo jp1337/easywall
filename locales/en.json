@@ -427,6 +427,10 @@
   {"id": "system_telemetry_desc", "translation": "A critical fix matters differently at ten installations and at ten thousand. Counting is the only way to tell which this is — and whether a fix has reached most of them."},
   {"id": "system_telemetry_switch_desc", "translation": "Once a day, a random identifier generated on this machine and the version easywall is running. Not the hostname, not an address, not a rule, not a count of anything you have configured. Switch it off and the next day nothing is sent; the identifier lives in your data directory and can be deleted."},
   {"id": "system_telemetry_endpoint", "translation": "Sent to"},
+  {"id": "provenance_from_env", "translation": "Set by the environment — {{.Variable}}"},
+  {"id": "provenance_overridden", "translation": "The environment says {{.Variable}} = {{.Env}} — overridden here"},
+  {"id": "provenance_reset", "translation": "Reset to the environment value"},
+  {"id": "provenance_reset_done", "translation": "The stored value was removed. The environment's value is now in effect."},
 
   {"id": "apply_subtitle", "translation": "Push the staged rules to the kernel, then confirm they work before the window closes."},
   {"id": "apply_lead_pending", "translation": "The new rules are live but unconfirmed. Open a second connection and check that you can still reach this host — then confirm."},

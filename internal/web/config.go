@@ -327,6 +327,35 @@ func (c *Config) SaveTelemetry(enabled bool) error {
 	return nil
 }
 
+// ResetTelemetry removes the stored answer, handing the key back to
+// EASYWALL_WEB_TELEMETRY — or, with no variable set, to the built-in default,
+// which is that nobody has answered.
+//
+// Removing rather than writing the default: for a *bool whose absence is a
+// state, "write the default" and "clear the answer" are different files.
+//
+// Rolled back on a failed write like every Save* above.
+func (c *Config) ResetTelemetry() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	prev, prevFile := c.Telemetry, c.fileConfig.Telemetry
+	c.fileConfig.Telemetry = nil
+	// What is in force once the stored answer is gone: the variable, if there is
+	// one, and otherwise nothing.
+	c.Telemetry = nil
+	if p, ok := c.provenance["telemetry"]; ok {
+		if b, err := strconv.ParseBool(p.Env); err == nil {
+			c.Telemetry = &b
+		}
+	}
+	if err := c.saveLocked(); err != nil {
+		c.Telemetry, c.fileConfig.Telemetry = prev, prevFile
+		return err
+	}
+	return nil
+}
+
 // SaveCredentials persists updated username and password hash to the config file.
 //
 // Rolled back on a failed write, the same shape as SaveTOTP: setting the
@@ -615,6 +644,12 @@ func (c *Config) render(existing []byte) ([]byte, error) {
 	return c.encode()
 }
 
+// removeLine is what managedValues maps a key to when the file must stop stating
+// it. Distinct from "leave the line alone": a telemetry line reading false is
+// indistinguishable from an operator who answered no, and that difference is
+// exactly what the precedence rule turns on.
+const removeLine = "\x00remove"
+
 // tomlValue renders a Go value as the TOML scalar for one of the managed keys.
 func tomlValue(v interface{}) (string, bool) {
 	switch t := v.(type) {
@@ -622,7 +657,7 @@ func tomlValue(v interface{}) (string, bool) {
 		return strconv.Quote(t), true
 	case *bool:
 		if t == nil {
-			return "", false // unset: leave the file's line alone
+			return removeLine, true // unset: the file must stop stating this key
 		}
 		return strconv.FormatBool(*t), true
 	case []string:
@@ -718,6 +753,7 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 	want := managedValues(cfg)
 	lines := strings.Split(string(existing), "\n")
 	seen := make(map[string]bool, len(want))
+	drop := make(map[int]bool)
 	inTable := false
 	lastTopLevel := -1
 
@@ -744,6 +780,10 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 		seen[key] = true
 		lastTopLevel = i
 		if value, ok := want[key]; ok {
+			if value == removeLine {
+				drop[i] = true
+				continue
+			}
 			lines[i] = m[1] + key + m[3] + value + trailingComment(m[4])
 		}
 	}
@@ -752,8 +792,8 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 	// which keeps it out of whatever table follows.
 	var missing []string
 	for _, key := range managedKeys {
-		if _, ok := want[key]; ok && !seen[key] {
-			missing = append(missing, key+" = "+want[key])
+		if value, ok := want[key]; ok && !seen[key] && value != removeLine {
+			missing = append(missing, key+" = "+value)
 		}
 	}
 	if len(missing) > 0 {
@@ -764,6 +804,15 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 		lines = append(lines[:lastTopLevel+1], append(missing, rest...)...)
 	}
 
+	if len(drop) > 0 {
+		kept := make([]string, 0, len(lines))
+		for i, line := range lines {
+			if !drop[i] {
+				kept = append(kept, line)
+			}
+		}
+		lines = kept
+	}
 	merged := []byte(strings.Join(lines, "\n"))
 
 	// The guard. Decode what we are about to write and insist it says exactly
