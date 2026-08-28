@@ -128,6 +128,7 @@ function initHtmxToast() {
     system_invalid_duration:  { text: str('system_invalid_duration'), kind: 'warning' },
     settings_invalid_network: { text: str('settings_invalid_network'), kind: 'warning' },
     options_invalid_limit:    { text: str('options_invalid_limit'), kind: 'warning' },
+    provenance_reset_done:    { text: str('provenance_reset_done'), kind: 'success' },
   };
 
   const show = (key, kind) => {

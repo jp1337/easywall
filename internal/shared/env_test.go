@@ -16,7 +16,7 @@ func lookup(pairs map[string]string) func(string) (string, bool) {
 
 func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 	var cfg CoreConfig
-	err := applyEnv(&cfg, CoreEnvVars, lookup(map[string]string{
+	_, err := applyEnv(&cfg, CoreConfig{}, CoreEnvVars, lookup(map[string]string{
 		"EASYWALL_CORE_SOCKET_PATH": "/run/e.sock",
 		"EASYWALL_CORE_DATA_DIR":    "/data",
 		"EASYWALL_CORE_LOG_DIR":     "/logs",
@@ -37,7 +37,7 @@ func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 
 func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 	var cfg WebConfig
-	err := applyEnv(&cfg, WebEnvVars, lookup(map[string]string{
+	_, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
 		"EASYWALL_WEB_BIND_ADDR":    "0.0.0.0:9999",
 		"EASYWALL_WEB_SOCKET_PATH":  "/run/w.sock",
 		"EASYWALL_WEB_SSL_DIR":      "/ssl",
@@ -82,6 +82,13 @@ func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 
 // An unset variable leaves the file's value alone; an empty one is unset too,
 // so `-e EASYWALL_WEB_LANGUAGE=` cannot blank a language the file set.
+//
+// The default passed here matches the file's "de" on purpose. With a default
+// that differed, "de" would already count as stored under the 2.12 precedence
+// rule, and applyEnv would never reach present() at all — this test would
+// keep passing even if present() stopped filtering an empty variable, because
+// nothing here would call Set either way. Matching the default isolates the
+// one thing this test means to guard.
 func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 	for name, env := range map[string]map[string]string{
 		"unset": {},
@@ -89,7 +96,7 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := WebConfig{Language: "de"}
-			if err := applyEnv(&cfg, WebEnvVars, lookup(env)); err != nil {
+			if _, err := applyEnv(&cfg, WebConfig{Language: "de"}, WebEnvVars, lookup(env)); err != nil {
 				t.Fatalf("applyEnv: %v", err)
 			}
 			if cfg.Language != "de" {
@@ -104,7 +111,7 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 // believes they switched it off.
 func TestApplyWebEnv_UnparseableBoolNamesTheVariableAndTheValue(t *testing.T) {
 	var cfg WebConfig
-	err := applyEnv(&cfg, WebEnvVars, lookup(map[string]string{
+	_, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
 		"EASYWALL_WEB_UPDATE_CHECK": "yes",
 	}))
 	if err == nil {
@@ -114,5 +121,38 @@ func TestApplyWebEnv_UnparseableBoolNamesTheVariableAndTheValue(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %q", err, want)
 		}
+	}
+}
+
+// `1`, `TRUE` and `t` are the same boolean as a stored `true` — strconv.
+// ParseBool accepts all four. Provenance.Env must carry the canonical
+// spelling, or the acceptance table's row 4 ("environment set, stored value
+// identical: show 'set by the environment', no conflict to display") breaks
+// for every spelling but the one that happens to match the file byte for
+// byte: EASYWALL_WEB_TELEMETRY=1 against a stored `telemetry = true` would
+// read as Env="1" != Stored="true", and the marker would draw a conflict (and
+// a reset button that changes nothing) where the two values agree.
+func TestApplyWebEnv_CanonicalisesABooleanEnvValueAgainstAMatchingStoredValue(t *testing.T) {
+	for _, spelling := range []string{"1", "TRUE", "t", "true"} {
+		t.Run(spelling, func(t *testing.T) {
+			stored := true
+			cfg := WebConfig{Telemetry: &stored}
+			prov, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
+				"EASYWALL_WEB_TELEMETRY": spelling,
+			}))
+			if err != nil {
+				t.Fatalf("applyEnv: %v", err)
+			}
+			p, ok := prov["telemetry"]
+			if !ok {
+				t.Fatal("no provenance recorded for telemetry")
+			}
+			if p.Env != "true" {
+				t.Errorf("Env = %q, want the canonical %q", p.Env, "true")
+			}
+			if p.Overridden() {
+				t.Errorf("Overridden() = true for EASYWALL_WEB_TELEMETRY=%s against a stored `true`; want no conflict", spelling)
+			}
+		})
 	}
 }

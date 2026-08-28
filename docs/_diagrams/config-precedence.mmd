@@ -1,0 +1,4 @@
+flowchart TD
+    A["Stored value<br/>web.toml / easywall.toml<br/>— differs from the default"] -->|beats| B
+    B["Environment variable<br/>EASYWALL_*"] -->|beats| C
+    C["Built-in default<br/>the shipped .toml"]

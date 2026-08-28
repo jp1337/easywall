@@ -267,3 +267,40 @@
 </body>
 </html>
 {{end}}
+
+{{/* The marker beside a control whose key an environment variable names. Drawn
+     only when there is one — an installation configured the ordinary way sees
+     nothing here, which is why the caller wraps this in {{with}} rather than
+     letting the block decide. Three states, and the third is the only one that
+     needs a control: the environment is in force; the environment agrees with a
+     stored value, so there is nothing to resolve; or a stored value is beating
+     the environment, and the way back is a button.
+
+     T with dict rather than richText: .Variable and .Env are plain values, not
+     link targets, and richText's "{}" slots are strictly href/label pairs —
+     passing them there would either misfire on the argument count or render an
+     environment variable's name as a clickable href. */}}
+{{define "provenance"}}
+<p class="provenance">
+  {{if .Overridden}}
+  <span class="provenance-conflict">{{T "provenance_overridden" (dict "Variable" .Variable "Env" .Env)}}</span>
+  {{/* An unnamed, hidden submit button, always emitted one step ahead of the
+       visible one below. The HTML spec's "default button" — the one an Enter
+       key press activates — is simply the first submit button in the form in
+       tree order; nothing exempts one the browser does not render. Without
+       this, this reset button (the only other submit control this generic
+       block ever introduces) would sit ahead of whatever save button the
+       caller's form has further down, and pressing Enter with the toggle
+       focused would reset instead of save — handing a withdrawn consent
+       answer straight back to the environment. This button carries no name,
+       so the only thing activating it can do is submit the form exactly as
+       an ordinary click on the real Save button would. */}}
+  <button type="submit" hidden></button>
+  <button type="submit" name="reset" value="1" class="btn btn-sm provenance-reset">
+    {{T "provenance_reset"}}
+  </button>
+  {{else}}
+  <span>{{T "provenance_from_env" (dict "Variable" .Variable)}}</span>
+  {{end}}
+</p>
+{{end}}

@@ -983,7 +983,7 @@ func shortTime(v string) string {
 var clientStringKeys = []string{
 	"saved", "options_saved", "settings_saved", "system_saved",
 	"save_error", "system_invalid_duration", "settings_invalid_network",
-	"options_invalid_limit",
+	"options_invalid_limit", "provenance_reset_done",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast",
@@ -1016,6 +1016,9 @@ func templateFuncs() template.FuncMap {
 		// the one flash every install sees renders alert-crit, in red, for a
 		// message that says everything worked.
 		"firstrun_done": true,
+		// A removal that worked, not a warning: the stored answer is gone and
+		// the environment is back in force, exactly as asked.
+		"provenance_reset_done": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
