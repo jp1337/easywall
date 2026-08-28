@@ -200,3 +200,85 @@ func TestAllReachReasonsIsComplete(t *testing.T) {
 			len(AllReachReasons), len(matches))
 	}
 }
+
+func TestReachable_PortSources(t *testing.T) {
+	const port = 12227
+	lan := netip.MustParseAddr("192.168.1.50")
+	outside := netip.MustParseAddr("203.0.113.9")
+
+	cases := []struct {
+		name        string
+		src         netip.Addr
+		sources     []string
+		wantVerdict ReachVerdict
+		wantReason  ReachReason
+	}{
+		{name: "no sources is anywhere", src: outside, sources: nil,
+			wantVerdict: ReachOpen, wantReason: ReasonPortOpen},
+		{name: "inside the restriction", src: lan, sources: []string{"192.168.0.0/16"},
+			wantVerdict: ReachOpen, wantReason: ReasonPortOpen},
+		{name: "outside the restriction", src: outside, sources: []string{"192.168.0.0/16"},
+			wantVerdict: ReachBlocked, wantReason: ReasonPortSourceMismatch},
+		{name: "a bare address in the restriction", src: lan, sources: []string{"192.168.1.50"},
+			wantVerdict: ReachOpen, wantReason: ReasonPortOpen},
+		{name: "comments alone restrict to nobody", src: lan, sources: []string{"# todo"},
+			wantVerdict: ReachBlocked, wantReason: ReasonPortSourceMismatch},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Rules{TCP: []PortRule{{Port: "12227", Sources: tc.sources}}}
+			v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, tc.src, port, false, false)
+			if v != tc.wantVerdict || reason != tc.wantReason {
+				t.Errorf("Reachable = (%s, %s), want (%s, %s)", v, reason, tc.wantVerdict, tc.wantReason)
+			}
+		})
+	}
+}
+
+// A second rule for the same port, unrestricted, opens it: the chain accepts on
+// the first rule that matches, and a blocked verdict from an earlier restricted
+// rule would be a warning nobody could act on.
+func TestReachable_PortSources_AnUnrestrictedRuleWins(t *testing.T) {
+	src := netip.MustParseAddr("203.0.113.9")
+	r := Rules{TCP: []PortRule{
+		{Port: "443", Sources: []string{"192.168.0.0/16"}},
+		{Port: "443"},
+	}}
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false)
+	if v != ReachOpen || reason != ReasonPortOpen {
+		t.Errorf("Reachable = (%s, %s), want (open, port_open)", v, reason)
+	}
+}
+
+// A custom rule can accept exactly the traffic a port-source restriction turned
+// away, and the nft CLI appends custom rules after everything netlink wrote —
+// so a custom rule outranks the restriction. Calling that combination blocked
+// would be a false lockout warning on the one screen that has to be believed.
+func TestReachable_PortSources_ACustomRuleOutranksTheRestriction(t *testing.T) {
+	src := netip.MustParseAddr("203.0.113.9")
+	r := Rules{
+		TCP:    []PortRule{{Port: "443", Sources: []string{"192.168.0.0/16"}}},
+		Custom: []string{"tcp dport 443 accept"},
+	}
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false)
+	if v != ReachUnknown || reason != ReasonCustomRules {
+		t.Errorf("Reachable = (%s, %s), want (unknown, custom_rules)", v, reason)
+	}
+}
+
+// Two restricted rules for the same port: the first excludes the caller, the
+// second covers it. A verdict that only ever looks at the first restricted
+// rule would call this blocked, but the kernel evaluates every rule for the
+// port in order and accepts on the second one's match.
+func TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller(t *testing.T) {
+	src := netip.MustParseAddr("203.0.113.9")
+	r := Rules{TCP: []PortRule{
+		{Port: "443", Sources: []string{"192.168.0.0/16"}},
+		{Port: "443", Sources: []string{"203.0.113.0/24"}},
+	}}
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false)
+	if v != ReachOpen || reason != ReasonPortOpen {
+		t.Errorf("Reachable = (%s, %s), want (open, port_open)", v, reason)
+	}
+}

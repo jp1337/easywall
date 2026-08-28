@@ -655,7 +655,18 @@ body {
     align-items: start;
   }
 
-  @media (max-width: 1180px) {
+  /* 1570, not the ~1500 a naive box-model estimate suggests: measured
+     against the running demo, the work column's own width crosses the
+     .table-wrap container query's 940px table/card threshold at 1563px
+     while still two-column (aside eating 320px + 16px gap + surrounding
+     padding leaves less than the arithmetic implies). Below that, the aside
+     has to move under the table for the table to have anywhere to be a
+     table — collapsing single-column here starts one continuous table band
+     at ~1227px (single-column .table-wrap crosses 940px there) with no card
+     gap where it meets the two-column band above. 1570 is an 8px margin
+     over the measured 1562/1563px handoff, the same shape of margin used
+     for .col-sources and the container query's own 940px. */
+  @media (max-width: 1570px) {
     .page-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
@@ -737,6 +748,54 @@ body {
     box-shadow: var(--shadow-lift);
     transform: translateY(-1px);
   }
+
+  /* ── Dialog ────────────────────────────────────────────────────────────── */
+  /* The brief's block set layout only, and left color, .dialog-title and
+     .dialog-note out. A bare <dialog> without them is the browser's own
+     white-canvas modal, which the guard test wouldn't catch (it exists only
+     to catch a MISSING class, not a colorless one) — caught by rendering it,
+     not by reading the CSS.
+     display is on the [open] variant, not on .dialog itself: the UA sheet's
+     `dialog:not([open]) { display: none }` loses to *any* author rule with a
+     display for .dialog, no matter its specificity — origin beats specificity
+     in the cascade. An unconditional `display: flex` here left the picker
+     rendered, non-modal, on every load of /ports, which is exactly what
+     rendering the page (not reading the CSS) caught. */
+  .dialog {
+    max-width: 34rem;
+    width: calc(100vw - 2rem);
+    padding: 20px;
+    /* The UA centers a modal dialog with `margin: auto` against its own
+       `inset-block: 0`; Preflight zeroes margin on every element (`*`), so
+       without this the dialog renders pinned to the top-left edge instead of
+       centered. Restated here because @layer components outranks @layer base
+       regardless of which rule is more specific. */
+    margin: auto;
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-overlay);
+  }
+  .dialog[open] { display: flex; flex-direction: column; gap: 12px; }
+  .dialog::backdrop { background: rgb(0 0 0 / 0.5); }
+  .dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .dialog-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .dialog-note { color: var(--color-ink-muted); font-size: 13px; }
+  .catalogue-list { display: flex; flex-direction: column; gap: 0.25rem; max-height: 60vh; overflow-y: auto; }
+  .catalogue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    text-align: start;
+    cursor: pointer;
+  }
+  .catalogue-item:hover { background: var(--color-surface); }
+  .catalogue-name { font-weight: 500; }
+  .catalogue-ports { margin-inline-start: auto; font-variant-numeric: tabular-nums; color: var(--color-ink-muted); font-size: 12px; }
 
   /* ── Buttons ───────────────────────────────────────────────────────────── */
   .btn {
@@ -1462,8 +1521,19 @@ body {
 
   /* ── Tables ──────────────────────────────────────────────────────────────
      Every table lives in its own overflow-x container so the page body never
-     scrolls sideways. */
-  .table-wrap { overflow-x: auto; }
+     scrolls sideways. It is also the container query context for
+     .table-reflow below: a table's available width depends on which of the
+     three widths in .page-grid is active (single column, or column plus a
+     320px aside) and on the sidebar's own collapse — not on the viewport
+     directly. A viewport media query got this wrong twice: 1200px reads as
+     "wide" but sits in the two-column band, where the table has 622px less
+     room than the viewport suggests, and it clipped there while 900px and
+     below (already single-column) stayed clean. Measured against the demo's
+     own data (see the reflow rules below): the table needs 919px of its own
+     width; below that, no combination of column layout or padding
+     arithmetic fixes it, and the container query means it never has to be
+     re-derived when .page-grid's own breakpoint changes. */
+  .table-wrap { overflow-x: auto; container-type: inline-size; }
 
   .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
@@ -1507,6 +1577,13 @@ body {
   .col-port    { width: 120px; }
   .col-flex    { width: auto; }
   .col-toggle  { width: 150px; }
+  /* 25rem/400px so the catalogue's own default — "10.0.0.0/8, 172.16.0.0/12,
+     192.168.0.0/16, fc00::/7", 307px of content — fits at 1600px without
+     clipping fc00::/7, the range that exists so IPv6 does not lock anyone out.
+     table-layout: auto redistributes this rather than honouring it literally,
+     so the number was reached by measuring the rendered input, not by adding
+     up padding on paper. */
+  .col-sources { width: 25rem; }
   .col-actions { width: 56px;  text-align: right; }
 
   /* The lead cell of a rule row: the identifier the operator scans for. */
@@ -1537,7 +1614,7 @@ body {
      `display: flex` on a <td> stops the element being a table cell — the browser
      wraps it in an anonymous cell — so its box no longer shares the row's height
      or its border, and at 1600px in both themes the row separator under this
-     column sat ~10px below the one under the others. Below the 720px reflow
+     column sat ~10px below the one under the others. Below the reflow
      breakpoint every td is display:block anyway, which is why it survived a
      release. The constraint the rule exists for is unchanged: .input-cell is
      width:100%, so an inline arrow wraps onto its own line above the number. */
@@ -2692,15 +2769,34 @@ body {
   .icon-sm { width: 15px; height: 15px; }
 }
 
-/* ── Responsive ────────────────────────────────────────────────────────────
+/* ── Table reflow ─────────────────────────────────────────────────────────
    An earlier revision of DESIGN.md had tables keep their columns and scroll
    sideways on phones, arguing that a rule read as a list of labelled fields
    loses the row relationship that makes it a rule. Rendering at 390px settled
    it: the port column collapsed until `22` displayed as `2:` and every
    description truncated mid-word. A rule whose identifier is unreadable has no
    relationship left to preserve. Rows now reflow into cards, and the card
-   border keeps them legible as single units. */
-@media (max-width: 720px) {
+   border keeps them legible as single units.
+
+   A container query on .table-wrap, not a viewport media query: the table's
+   available width depends on which of .page-grid's two layouts is active
+   (single column, or a column plus a 320px aside) and on the sidebar's own
+   collapse — the viewport alone doesn't say which. 1200px reads as "wide" but
+   sits in the two-column band, where the table has 622px less room than the
+   viewport suggests, and clipped there while 900px and below (already
+   single-column) stayed clean — a viewport breakpoint would have to be
+   re-tuned every time .page-grid's own breakpoint moves. A container query
+   measures the space the table actually has, once, and needs no such
+   coordination — forwarding.html and log.html share this class without
+   sharing ports.html's Sources column, and each reflows against its own
+   width, not a number tuned for the widest table.
+
+   919px is the minimum .table-wrap width that shows every field on /ports
+   without clipping, measured against the demo's own data (48 fields across
+   its seeded rows plus the catalogue's Pi-hole row — the longest Sources and
+   Description values in the app): clean from 919px, one field clipped by 1px
+   at 918. 940px leaves that a 21px margin. */
+@container (max-width: 940px) {
   .table-reflow thead { display: none; }
 
   .table-reflow,
@@ -2771,9 +2867,12 @@ body {
   .table-reflow .flow > .input-cell { flex: 1; min-width: 0; width: auto; }
 
   /* The delete control is permanently visible here: there is no hover on a
-     touch screen to reveal it. */
+     touch screen to reveal it — and a container this narrow is a phone or a
+     squeezed card either way. */
   .table-reflow .row-action { opacity: 1; }
+}
 
+@media (max-width: 900px) {
   .module-params .input { width: 5rem; }
 
   .hero-facts { margin-left: 0; gap: 20px; }

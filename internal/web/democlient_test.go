@@ -40,6 +40,34 @@ func TestDemoState_SeedsRules(t *testing.T) {
 	}
 }
 
+// The public demo is where a visitor who has never opened the catalogue
+// picker first sees this release's headline feature. Assert the seed carries
+// both shapes the picker can produce — a catalogue-derived rule with a
+// Service id, and a plain Sources restriction with none — and that both still
+// pass the same validation a real save would run through.
+func TestDemoState_SeedShowsSourcesAndService(t *testing.T) {
+	d := newDemoState()
+	if err := shared.ValidateRules(d.rules.Current); err != nil {
+		t.Fatalf("seeded rules do not validate: %v", err)
+	}
+
+	var haveService, havePlainSources bool
+	for _, r := range d.rules.Current.TCP {
+		if r.Service != "" && len(r.Sources) > 0 {
+			haveService = true
+		}
+		if r.Service == "" && len(r.Sources) > 0 {
+			havePlainSources = true
+		}
+	}
+	if !haveService {
+		t.Error("seed should include a catalogue-derived rule (Service set, Sources filled in)")
+	}
+	if !havePlainSources {
+		t.Error("seed should include a plain source-restricted rule (Sources set, no Service)")
+	}
+}
+
 // ── CmdGetStatus / CmdGetRules ───────────────────────────────────────────
 
 func TestDemoSend_GetStatus(t *testing.T) {

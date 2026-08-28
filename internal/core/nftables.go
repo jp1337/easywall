@@ -1128,11 +1128,23 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 		timeout: 10 * time.Minute,
 	}, over)
 
-	// Anything that did not exceed its own rate is ordinary traffic.
+	// Anything that did not exceed its own rate is ordinary traffic, and
+	// ordinary traffic is not this chain's decision to make.
+	//
+	// This used to accept, and Apply adds the jump to the input chain *before*
+	// the blacklist — so a blacklisted address could SSH in as long as it stayed
+	// under the limit, and port 22 was accepted outright whenever the module was
+	// on and no rule opened it (sshPorts falls back to {"22"} above). A
+	// protection module that opens a port and overrules the blacklist is doing
+	// the opposite of its name.
+	//
+	// Returning puts the packet back where it came from: blacklist, then
+	// whitelist, then the port rules. Over-rate still drops in sshbrute-over, so
+	// nothing about the metering changes.
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: sshChain,
-		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictAccept}},
+		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictReturn}},
 	})
 
 	// Meter new connections to each SSH port.
@@ -1835,24 +1847,61 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 // The metering is not lost. addSSHBruteForce installs its own rule for every
 // SSH port, matching new connections only, and it runs earlier in the chain —
 // so a new connection is metered before it ever reaches this rule.
+//
+// A source restriction is one rule per source, matched on the address before the
+// port is tested. cidrMatch is the same builder the forward exceptions use: both
+// families, a bare address or a network, nil for a comment or a spacer — so an
+// operator's note inside the source list is skipped here exactly as it is
+// everywhere else. No sources means no address match and one rule, which is
+// byte-identical to what every rule written before 2.11 produced.
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {
-	protoNum := unix.IPPROTO_TCP
+	// A byte from the start rather than an int converted at use: both values are
+	// untyped constants that fit, so this is a compile-time conversion and gosec
+	// has no runtime narrowing to warn about (G115).
+	var protoNum byte = unix.IPPROTO_TCP
 	if proto == "udp" {
 		protoNum = unix.IPPROTO_UDP
 	}
 
-	exprs := []expr.Any{
-		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(protoNum)}},
+	portMatch := func(prefix []expr.Any) []expr.Any {
+		exprs := append([]expr.Any(nil), prefix...)
+		exprs = append(exprs,
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{protoNum}},
+		)
+		exprs = append(exprs, buildPortExprs(rule.Port)...)
+		return append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
 	}
-	exprs = append(exprs, buildPortExprs(rule.Port)...)
-	exprs = append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
 
-	m.conn.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: exprs,
-	})
+	var matches [][]expr.Any
+	for _, src := range rule.Sources {
+		if match := cidrMatch(src, posSrcAddr); match != nil {
+			matches = append(matches, match)
+		} else if !shared.IsListComment(src) {
+			// ValidateRules accepts a little more than cidrMatch can build into a
+			// rule (e.g. an IPv4-mapped IPv6 CIDR whose mask length cidrMatch's
+			// family check rejects). The gap fails closed — the source is
+			// dropped, never opened — but silently, so it is logged here.
+			slog.Warn("port rule source accepted by validation but not usable in a kernel rule",
+				"port", rule.Port, "source", src)
+		}
+	}
+
+	// A source list that holds nothing usable — all comments, or all dropped by
+	// the gap logged above — must not silently become "anywhere". A list of
+	// comments alone is an operator who has not finished typing; opening the
+	// port to the world would be the one wrong answer available.
+	if len(rule.Sources) > 0 && len(matches) == 0 {
+		return
+	}
+
+	if len(matches) == 0 {
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: portMatch(nil)})
+		return
+	}
+	for _, match := range matches {
+		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: portMatch(match)})
+	}
 }
 
 func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.ForwardingRule) {

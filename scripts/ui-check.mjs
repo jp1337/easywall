@@ -29,6 +29,11 @@
  * demo, where no secret is ever stored. It reads the password hash the wizard
  * above just wrote out of EASYWALL_CONFIG (default /etc/easywall/web.toml); point
  * that at wherever the demo's web.toml lives if it is not there.
+ *
+ * `--screenshots` with no page names shoots the whole documented set,
+ * including the pages above cannot reach with a single signed-in session —
+ * see takeFullScreenshotSet, takeWizardScreenshots and takeVerifyScreenshot,
+ * which each spin up their own throwaway easywall-web the same way.
  */
 import { chromium } from 'playwright-core';
 import { createHmac } from 'node:crypto';
@@ -40,7 +45,12 @@ import https from 'node:https';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const BASE = process.env.EASYWALL_URL || 'https://127.0.0.1:12227';
-const USER = 'ui-check';
+// "admin" matches every release screenshot before this script existed —
+// screenshot mode reuses the same account the health/regression checks sign
+// in with, so the shots this produces read as the same operator throughout
+// docs/assets/img/screens/ rather than a visibly different one on the pages
+// this script happened to touch first.
+const USER = 'admin';
 const PASS = 'ui-check-password-2026';
 
 const PAGES = [
@@ -410,6 +420,95 @@ async function checkForwardingRowEdgesLineUp(page) {
 }
 
 /**
+ * The catalogue appends rows into fields that already work without it, and the
+ * sources field is one comma-separated input. Both were regressions waiting to
+ * happen in a different way: a picker that writes into a field the form does not
+ * read produces a page that looks right and saves nothing.
+ */
+async function checkPortsCatalogue(page) {
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+  await page.click('#catalogue-btn');
+  await page.click('.catalogue-item[data-service="pihole"]');
+
+  const rows = await page.$$eval('#rules-tbody tr[data-idx]', trs =>
+    trs.map(tr => ({
+      port: tr.querySelector('.f-port')?.value,
+      sources: tr.querySelector('.f-sources')?.value,
+      service: tr.dataset.service,
+    })));
+  const added = rows.filter(r => r.service === 'pihole');
+  if (added.length !== 2) {
+    fail('ports catalogue', `picking Pi-hole added ${added.length} TCP rows, expected 2 (80, 53)`);
+    return;
+  }
+  if (!added[0].sources.includes('fc00::/7')) {
+    fail('ports catalogue', `the private suggestion did not reach the field: "${added[0].sources}"`);
+  }
+
+  const payload = await page.$eval('#rules-json', el => el.value);
+  if (!payload.includes('"sources"') || !payload.includes('"service":"pihole"')) {
+    fail('ports catalogue', `the form payload dropped the new fields: ${payload.slice(0, 300)}`);
+  }
+}
+
+/**
+ * app.js's ruleRowHTML carries a comment requiring it to stay identical to the
+ * server-rendered row in ports.html — same column order, same classes, same
+ * data-label values, same chip. Nothing checked that beyond eyeballing it, so
+ * the two are free to drift the next time either one is touched alone.
+ *
+ * Pick a catalogue row (browser-built, via ruleRowHTML) and read its shape;
+ * save and reload (server-rendered, via ports.html) and read the same row's
+ * shape; they must be the same markup, not just the same values.
+ */
+async function checkPortsRowAgreesWithServer(page) {
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+  await page.click('#catalogue-btn');
+  await page.click('.catalogue-item[data-service="pihole"]');
+
+  const shape = () => page.$eval('#rules-tbody tr[data-service="pihole"]', tr => ({
+    trClasses: tr.className,
+    cells: [...tr.querySelectorAll('td')].map(td => ({
+      classes: td.className,
+      label: td.getAttribute('data-label'),
+      chip: td.querySelector('.chip')?.textContent.trim() ?? null,
+    })),
+  }));
+
+  let clientShape;
+  try {
+    clientShape = await shape();
+  } catch {
+    fail('ports row agreement', 'picking Pi-hole did not add a tr[data-service="pihole"] row to compare');
+    return;
+  }
+
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#ports-form button[type=submit]"),
+  ]);
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+
+  let serverShape;
+  try {
+    serverShape = await shape();
+  } catch {
+    fail('ports row agreement', 'the saved catalogue row was not there after reload — could not compare');
+    return;
+  }
+
+  const before = JSON.stringify(clientShape);
+  const after = JSON.stringify(serverShape);
+  if (before !== after) {
+    fail('ports row agreement',
+      `the browser-built row (ruleRowHTML) and the server-rendered row (ports.html) disagree.\n` +
+      `  client: ${before}\n  server: ${after}`);
+  } else {
+    console.log('  ok   the catalogue-built row matches the server-rendered row after save and reload');
+  }
+}
+
+/**
  * The apply screen actually draws the preview, and the verdict names an address.
  *
  * The demo seeds a configuration drift, so /apply always has something to show.
@@ -566,6 +665,49 @@ async function checkLanguageSwitch(ctx) {
   await noJsCtx.close();
 }
 
+/**
+ * Every input in a rules table (.table-reflow — ports, forwarding, log) must
+ * show its own value. The page-wide overflow check above cannot see this: a
+ * column that squeezes its input to below the value's content width doesn't
+ * make the *page* scroll, table-layout: auto just clips the field in place.
+ * That is exactly how task 6's Sources column shipped — 190px showing a
+ * 307px default, fc00::/7 entirely invisible, and the page overflow check
+ * green throughout because nothing scrolled.
+ */
+async function checkNoInputClipsItsOwnValue(page, where, path) {
+  // The demo's own seed carries no Sources value long enough to prove
+  // anything either way. The catalogue's Pi-hole entry does — same fc00::/7
+  // default the demo config's two saved rows carry — so add it here,
+  // unsaved, purely to put that value on the page for this one check. The
+  // next page.goto in the caller's loop discards it; nothing is written to
+  // the account's rules, so checkPortsCatalogue's row count downstream is
+  // unaffected.
+  if (path.startsWith('/ports')) {
+    const btn = page.locator('#catalogue-btn');
+    if (await btn.count() && await btn.isVisible()) {
+      await btn.click();
+      const item = page.locator('.catalogue-item[data-service="pihole"]');
+      if (await item.count()) await item.click();
+    }
+  }
+
+  const clipped = await page.evaluate(() => {
+    const inputs = document.querySelectorAll('.table-reflow input');
+    return [...inputs]
+      .filter(el => el.scrollWidth > el.clientWidth)
+      .map(el => ({
+        label: el.getAttribute('aria-label') || el.name || el.className,
+        value: el.value,
+        clientWidth: el.clientWidth,
+        scrollWidth: el.scrollWidth,
+      }));
+  });
+  for (const c of clipped) {
+    fail(`input overflow [${where}]`, `${path} — "${c.label}" value "${c.value}" needs ` +
+      `${c.scrollWidth}px, only ${c.clientWidth}px visible`);
+  }
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
@@ -583,6 +725,7 @@ async function checkPageHealth(ctx, theme, width) {
     if (overflow > 0) {
       fail(`horizontal overflow [${where}]`, `${path} scrolls ${overflow}px sideways`);
     }
+    await checkNoInputClipsItsOwnValue(page, where, path);
     for (const problem of seen) {
       fail(`page problem [${where}]`, `${path} — ${problem}`);
     }
@@ -599,20 +742,17 @@ const launch = process.env.CHROME_PATH
 // 1600 was ever driven here, so "both themes, three widths" was a rule the
 // repository stated and checked a third of — and a mobile layout that scrolls
 // sideways is invisible at 1600.
-const WIDTHS = [1600, 900, 390];
+//
+// 1440 and 1200 added after the Sources column defect shipped invisible to
+// this suite: both sit in .page-grid's two-column band (aside present), where
+// a shared table can be squeezed well below what 1600 or 900 exercise. 1440
+// is an ordinary maximised laptop window and 1200 sat at the worst point of
+// the band that clipped — 10 of 30 fields — while every width already listed
+// here stayed clean throughout.
+const WIDTHS = [1600, 1440, 1200, 900, 390];
 
-const browser = await chromium.launch(launch);
-try {
-  console.log(`Driving ${BASE}`);
-  const setup = await browser.newContext({ ignoreHTTPSErrors: true });
-  const page = await setup.newPage();
-  await setUpAccount(page);
-  await signIn(page);
-  // One sign-in for the whole run — see signIn for what doing it per context
-  // cost. Every context below starts already authenticated.
-  const session = await setup.storageState();
-  await setup.close();
-
+/** The full health/regression suite — everything that isn't screenshotting. */
+async function runChecks(browser, session) {
   const langCtx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
   await checkLanguageSwitch(langCtx);
   await langCtx.close();
@@ -640,6 +780,8 @@ try {
   const p = await ctx.newPage();
   await checkForwardingRowEdgesLineUp(p);
   await checkForwardingPortIsNotReparsed(p);
+  await checkPortsCatalogue(p);
+  await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkEnrolmentFlow(p);
   await checkVerifyPage(browser);
@@ -647,12 +789,359 @@ try {
   // above is sharing, so anything after it would be driving a signed-out browser.
   await checkSignOutEndsTheSession(p);
   await ctx.close();
+}
+
+/**
+ * --screenshots [page ...]: capture docs/assets/img/screens/<page>-<theme>.png
+ * for each page, in both themes, instead of running the suite above. Pages are
+ * path segments ("ports", or "/ports") off a short default list when none are
+ * given. Reuses setUpAccount/signIn below — there is no second sign-in path
+ * to maintain.
+ */
+const screenshotFlagIdx = process.argv.indexOf('--screenshots');
+const screenshotMode = screenshotFlagIdx !== -1;
+const screenshotArgs = screenshotMode
+  ? process.argv.slice(screenshotFlagIdx + 1).map(a => a.startsWith('/') ? a : `/${a}`)
+  : [];
+// The pages docs/assets/img/screens/ actually ships figures for — grep
+// `base="/assets/img/screens/` across docs/_docs to regenerate this list.
+// Deliberately narrower than PAGES: /whitelist and /system have no figure of
+// their own (filters.md reuses the blacklist/options shots), and shooting
+// them here would add files nothing links to.
+const DEFAULT_SCREENSHOT_PAGES = [
+  '/dashboard', '/ports', '/blacklist', '/forwarding', '/custom',
+  '/options', '/settings', '/password', '/log', '/apply',
+];
+// The remaining names in that directory are not URL paths at all — the
+// first-run wizard (with its optional 2FA step), the login page a signed-out
+// visitor meets, and the two-factor setup/verify screens. Each needs its own
+// flow, several need an account that does not exist yet, and login/verify
+// need to be reached signed OUT — so they are captured by the functions
+// below rather than by visiting a path with an authenticated session.
+
+/**
+ * Fills in the one thing the seeded demo TCP tab does not otherwise show: a
+ * rule with sources filled in, and a catalogue-added rule with its service
+ * chip. Saved server-side, so it survives into every theme's own context.
+ */
+async function seedPortsScreenshot(page) {
+  await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+  await page.locator('#rules-tbody tr[data-idx] .f-sources').first().fill('203.0.113.10, 203.0.113.11');
+  if (await page.locator('#rules-tbody tr[data-service="pihole"]').count() === 0) {
+    await page.click('#catalogue-btn');
+    await page.click('.catalogue-item[data-service="pihole"]');
+  }
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#ports-form button[type=submit]"),
+  ]);
+}
+
+/** Screenshot one page into docs/assets/img/screens/<name>-<theme>.png. */
+async function shoot(page, name, theme) {
+  const out = `docs/assets/img/screens/${name}-${theme}.png`;
+  await page.screenshot({ path: out, fullPage: true });
+  console.log(`  wrote ${out}`);
+}
+
+/** A themed, 1440x900@1.5x context — every screenshot in the set uses this shape. */
+async function screenshotContext(browser, theme, extra = {}) {
+  const ctx = await browser.newContext({
+    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1.5, ...extra,
+  });
+  await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
+  return ctx;
+}
+
+async function takeScreenshots(browser, session, pages) {
+  console.log(`Screenshotting ${pages.join(', ')} in both themes`);
+  const prep = await browser.newContext({
+    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1.5, storageState: session,
+  });
+  if (pages.includes('/ports')) await seedPortsScreenshot(await prep.newPage());
+  await prep.close();
+
+  for (const theme of ['light', 'dark']) {
+    const ctx = await screenshotContext(browser, theme, { storageState: session });
+    const page = await ctx.newPage();
+    for (const path of pages) {
+      await page.goto(BASE + path, { waitUntil: 'networkidle' });
+      const name = path.replace(/^\//, '').replace(/\?.*$/, '');
+      await shoot(page, name, theme);
+    }
+    await ctx.close();
+  }
+}
+
+/**
+ * The signed-out login page, in one theme. No storageState, so this is always
+ * the form itself — never a redirect to /dashboard — and a GET costs nothing
+ * against the login rate limiter, which only counts the POST.
+ */
+async function takeLoginScreenshot(browser, theme) {
+  const ctx = await screenshotContext(browser, theme);
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/login`, { waitUntil: 'load' });
+  await shoot(page, 'login', theme);
+  await ctx.close();
+}
+
+/**
+ * Enabling 2FA from /password. Demo mode runs the whole flow and then
+ * discards the write (see handler_2fa.go's IsDemo branch) — correct there,
+ * but the page it renders says "not saved" and greys itself out, unlike
+ * every real enrolment. So this gets its own throwaway, non-demo instance,
+ * the same shape as takeVerifyScreenshot: the wizard creates a plain
+ * account (no 2FA yet), then /password's enrolment happens for real and
+ * actually lands on "enabled".
+ */
+async function takeEnrolmentScreenshots(browser, theme) {
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-2fa-'));
+  const port = 12232;
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `session_key = "ui-check-2fa-session-key-32bytes"`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/firstrun`);
+
+    const ctx = await screenshotContext(browser, theme);
+    const page = await ctx.newPage();
+
+    await page.goto(`${base}/firstrun`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await page.fill('input[name=password_confirm]', PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/firstrun'] button[type=submit]"),
+    ]);
+
+    await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/login'] button[type=submit]"),
+    ]);
+
+    await page.goto(`${base}/password`, { waitUntil: 'networkidle' });
+    await page.fill("form[action='/password/2fa/begin'] input[name=current_password]", PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/begin'] button[type=submit]"),
+    ]);
+    if (!(await page.$('.totp-secret'))) {
+      throw new Error('2FA setup did not show the QR/secret step');
+    }
+    await shoot(page, 'two-factor-setup', theme);
+
+    const key = (await page.textContent('.totp-secret')).trim();
+    await page.fill("form[action='/password/2fa/confirm'] input[name=code]", totp(key));
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/confirm'] button[type=submit]"),
+    ]);
+    if (!(await page.$('.recovery-code'))) {
+      throw new Error('2FA confirm did not show recovery codes');
+    }
+    await shoot(page, 'two-factor-codes', theme);
+
+    await ctx.close();
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The first-run wizard with its 2FA step, and the account it creates is never
+ * used again. Nothing else in this file can reach these three screens: the
+ * long-lived instance the rest of the set is shot against already has an
+ * account by the time this runs, and /firstrun redirects to /login the
+ * moment one exists. So each theme gets its own throwaway instance, spun up
+ * and torn down entirely inside this function.
+ */
+async function takeWizardScreenshots(browser, theme) {
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-wizard-'));
+  const port = 12229;
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `demo_mode = true`,
+    `session_key = "ui-check-wizard-session-key-32byte"`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/firstrun`);
+
+    const ctx = await screenshotContext(browser, theme);
+    const page = await ctx.newPage();
+
+    await page.goto(`${base}/firstrun`, { waitUntil: 'load' });
+    await shoot(page, 'firstrun', theme);
+
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await page.fill('input[name=password_confirm]', PASS);
+    await page.check('input[name=want_totp]');
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/firstrun'] button[type=submit]"),
+    ]);
+    if (!(await page.$('.totp-secret'))) {
+      throw new Error('firstrun did not reach the TOTP setup step with want_totp checked');
+    }
+    await shoot(page, 'firstrun-2fa', theme);
+
+    const key = (await page.textContent('.totp-secret')).trim();
+    await page.fill("form[action='/firstrun/confirm'] input[name=code]", totp(key));
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/firstrun/confirm'] button[type=submit]"),
+    ]);
+    if (!(await page.$('.recovery-code'))) {
+      throw new Error('firstrun/confirm did not show recovery codes');
+    }
+    await shoot(page, 'firstrun-codes', theme);
+
+    await ctx.close();
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The second step of a 2FA login. Reachable only against an account that
+ * already has a secret — the demo never stores one (see checkVerifyPage,
+ * which this mirrors) — so a fresh instance is seeded with the *shot*
+ * account's own password hash, read out of EASYWALL_CONFIG exactly as
+ * checkVerifyPage does, plus a secret this function controls.
+ *
+ * Returns false, naming the page, if it cannot get the hash — rather than
+ * leaving two-factor-verify-*.png stale and silently wrong about why.
+ */
+async function takeVerifyScreenshot(browser, theme) {
+  const configPath = process.env.EASYWALL_CONFIG || '/etc/easywall/web.toml';
+  const hash = readPasswordHash(configPath);
+  if (!hash) {
+    console.log(`  skip two-factor-verify-${theme}.png: could not read the password hash ` +
+      `out of ${configPath} — set EASYWALL_CONFIG to the file the shot account signed in against`);
+    return false;
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-verify-'));
+  const port = 12230;
+  const secret = 'JBSWY3DPEHPK3PXP';
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `session_key = "ui-check-verify-session-key-32byte"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = "${secret}"`,
+    `recovery_codes = []`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/login`);
+
+    const ctx = await screenshotContext(browser, theme);
+    const page = await ctx.newPage();
+    await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/login'] button[type=submit]"),
+    ]);
+    if (!page.url().includes('/login/verify')) {
+      throw new Error(`the password step landed on ${page.url()}, want /login/verify`);
+    }
+    await shoot(page, 'two-factor-verify', theme);
+    await ctx.close();
+    return true;
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The whole documented set: DEFAULT_SCREENSHOT_PAGES plus every screen that
+ * is not a plain authenticated GET. Account and dataset: whatever `admin`
+ * and the demo seed's DEMO_MODE instance at BASE hold — see this script's
+ * USER/PASS and internal/web/democlient.go's seed().
+ */
+async function takeFullScreenshotSet(browser, session) {
+  await takeScreenshots(browser, session, DEFAULT_SCREENSHOT_PAGES);
+  const notCaptured = [];
+  for (const theme of ['light', 'dark']) {
+    await takeLoginScreenshot(browser, theme);
+    await takeEnrolmentScreenshots(browser, theme);
+    await takeWizardScreenshots(browser, theme);
+    if (!(await takeVerifyScreenshot(browser, theme))) {
+      notCaptured.push(`two-factor-verify-${theme}.png`);
+    }
+  }
+  if (notCaptured.length) {
+    console.log(`\nNot re-taken (see the "skip" lines above for why): ${notCaptured.join(', ')}`);
+  }
+}
+
+const browser = await chromium.launch(launch);
+try {
+  console.log(`Driving ${BASE}`);
+  const setup = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await setup.newPage();
+  await setUpAccount(page);
+  await signIn(page);
+  // One sign-in for the whole run — see signIn for what doing it per context
+  // cost. Every context below starts already authenticated.
+  const session = await setup.storageState();
+  await setup.close();
+
+  if (screenshotMode) {
+    if (screenshotArgs.length) {
+      await takeScreenshots(browser, session, screenshotArgs);
+    } else {
+      await takeFullScreenshotSet(browser, session);
+    }
+  } else {
+    await runChecks(browser, session);
+  }
 } finally {
   await browser.close();
 }
 
-if (failures.length) {
+if (screenshotMode) {
+  console.log('\nScreenshots written');
+} else if (failures.length) {
   console.error(`\n${failures.length} UI check(s) failed`);
   process.exit(1);
+} else {
+  console.log('\nUI checks passed');
 }
-console.log('\nUI checks passed');

@@ -17,8 +17,7 @@ below. What is left helps you understand what you are doing, then lets you
 maintain it, then reaches further:
 
 ```
-Understand what you do   2.11  A rule names a service and who may reach it
-                          2.12  You can see it working
+Understand what you do   2.12  You can see it working
                           2.13  When something happens, you hear about it
 
 Be able to maintain it   2.14  Every entry has a why and an until
@@ -43,7 +42,6 @@ earlier as an end in itself and never twice.
 
 | Version | What | Why it comes when it does |
 |---|---|---|
-| **2.11** | **A rule names a service and who may reach it** — a curated catalogue ("Pi-hole", "Home Assistant") with a suggested source, and a free-text option that stays | A catalogue entry without a source restriction is wrong for the interesting cases; shipping them apart would mean rewriting every entry a release later |
 | **2.12** | **You can see it working** — a counter on every rule, reset on each apply | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
 | **2.13** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
 | **2.14** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
@@ -65,6 +63,13 @@ earlier as an end in itself and never twice.
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
 | Managing several hosts from one interface | The API in 3.0 makes Ansible possible. A fleet interface is a second product |
+
+## Done in 2.11
+
+| | |
+|---|---|
+| A rule names a service and who may reach it | a port rule carries a source restriction — empty still means everyone — and a catalogue of 29 services fills in its ports and a suggested restriction in one click. The service is a label: an entry corrected later leaves a live rule untouched |
+| The SSH brute-force chain stopped outranking the blacklist | it is consulted before the blacklist and used to **accept**, so a blacklisted address could open an SSH connection while it stayed under the rate limit, and port 22 was accepted outright whenever the module was on and no rule opened it. It now returns, and the rest of the chain decides |
 
 ## Done in 2.10
 

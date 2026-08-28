@@ -1,6 +1,9 @@
 package shared
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func port(p, desc string) PortRule { return PortRule{Port: p, Description: desc} }
 
@@ -181,6 +184,29 @@ func TestDiffConfig_NoDriftIsNoDeltas(t *testing.T) {
 	c := AppliedConfig{Firewall: FirewallOptions{SYNFlood: true, SYNFloodLimit: 100}}
 	if got := DiffConfig(c, c); len(got) != 0 {
 		t.Errorf("identical configs produced %v", got)
+	}
+}
+
+// Restricting a port that is already open is a change to the firewall, and the
+// preview is the screen that has to say so. It keyed on port and description
+// alone, so tightening a rule showed an empty diff and an apply button.
+func TestDiffPorts_SourceChangeIsAChange(t *testing.T) {
+	current := Rules{TCP: []PortRule{{Port: "8123", Description: "Home Assistant"}}}
+	staged := Rules{TCP: []PortRule{{Port: "8123", Description: "Home Assistant",
+		Sources: []string{"192.168.0.0/16"}}}}
+
+	deltas := DiffRules(current, staged)
+	if len(deltas) != 1 {
+		t.Fatalf("DiffRules reported %d deltas, want 1: %+v", len(deltas), deltas)
+	}
+	if deltas[0].Kind != DeltaChanged {
+		t.Errorf("kind = %s, want changed", deltas[0].Kind)
+	}
+	if !strings.Contains(deltas[0].To, "192.168.0.0/16") {
+		t.Errorf("the new restriction is not in the delta: %q", deltas[0].To)
+	}
+	if strings.Contains(deltas[0].From, "192.168.0.0/16") {
+		t.Errorf("the old side claims a restriction it did not have: %q", deltas[0].From)
 	}
 }
 

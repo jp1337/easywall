@@ -34,6 +34,23 @@ level, and `docs/architecture.md` used to claim the whole protocol was typed. It
 the one place where "a JSON command the typed protocol accepts" means slightly less
 than it sounds.
 
+## The rules payload
+
+`PortRule`, the element type of `Rules.TCP` and `Rules.UDP`:
+
+```go
+type PortRule struct {
+	Port        string   `json:"port"`
+	Description string   `json:"description"`
+	SSH         bool     `json:"ssh"`
+	Sources     []string `json:"sources,omitempty"`
+	Service     string   `json:"service,omitempty"`
+}
+```
+
+`sources` and `service` are `omitempty`, so a rules file written before 2.11 is
+byte-identical after a round-trip.
+
 ## The snapshot behind `GET_APPLIED_CONFIG`
 
 The core stores `applied-config.json` in its data directory, mode 0600, atomically,

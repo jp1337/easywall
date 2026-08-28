@@ -979,3 +979,84 @@ func TestIntegration_Snapshot_RuleCountsPresent(t *testing.T) {
 	}
 	t.Fatal("input chain not found in snapshot")
 }
+
+// A source restriction is one rule per source, and no source is still one rule.
+func TestIntegration_Apply_PortSources(t *testing.T) {
+	m := newIntegrationManager(t)
+
+	base := baseInputRules(t, m)
+
+	rules := shared.Rules{TCP: []shared.PortRule{
+		{Port: "443", Description: "HTTPS"},                                 // 1 rule
+		{Port: "8123", Sources: []string{"10.0.0.0/8", "192.168.0.0/16"}},   // 2 rules
+		{Port: "9090", Sources: []string{"# only the LAN", "", "10.1.2.3"}}, // 1 rule
+	}}
+	state := shared.RulesState{Current: rules, Staged: rules, Backup: rules}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	if got, want := ruleCount(t, m, "input"), base+4; got != want {
+		t.Errorf("expected %d rules (base + 1 + 2 + 1), got %d\ninput chain:\n  %s",
+			want, got, strings.Join(inputChainText(t, m), "\n  "))
+	}
+
+	text := inputChainText(t, m)
+	// The source match precedes the port test in the rule nft prints, and an
+	// unrestricted port carries no address match at all.
+	if i := indexOfRule(text, "ip saddr 10.0.0.0/8", "dport 8123"); i < 0 {
+		t.Errorf("no rule restricts 8123 to 10.0.0.0/8\ninput chain:\n  %s",
+			strings.Join(text, "\n  "))
+	}
+	if i := indexOfRule(text, "ip saddr 192.168.0.0/16", "dport 8123"); i < 0 {
+		t.Errorf("no rule restricts 8123 to 192.168.0.0/16\ninput chain:\n  %s",
+			strings.Join(text, "\n  "))
+	}
+	if i := indexOfRule(text, "dport 443"); i < 0 {
+		t.Errorf("443 is not open\ninput chain:\n  %s", strings.Join(text, "\n  "))
+	}
+	if i := indexOfRule(text, "saddr", "dport 443"); i >= 0 {
+		t.Errorf("443 has no sources and must carry no address match, got %q", text[i])
+	}
+	// The comment/blank entries in 9090's Sources must be skipped, not turned
+	// into "anywhere": there must be a rule binding it to 10.1.2.3, and no rule
+	// may open dport 9090 without a saddr match.
+	if i := indexOfRule(text, "ip saddr 10.1.2.3", "dport 9090"); i < 0 {
+		t.Errorf("no rule restricts 9090 to 10.1.2.3\ninput chain:\n  %s",
+			strings.Join(text, "\n  "))
+	}
+	// indexOfRule returns the FIRST match, which here is always the restricted
+	// rule above (it also contains "dport 9090"), so it could never see an
+	// unrestricted sibling rule. Search every match instead.
+	for _, line := range text {
+		if strings.Contains(line, "dport 9090") && !strings.Contains(line, "saddr") {
+			t.Errorf("9090 has sources and must not carry an unrestricted rule, got %q", line)
+		}
+	}
+}
+
+// A source list with nothing usable in it (all comments, all blank) must open
+// no rule at all — not the world. This is distinct from the "no Sources"
+// case above: a present-but-empty-of-substance list is an operator who has
+// not finished typing, and the one wrong answer available is "anywhere".
+func TestIntegration_Apply_PortSources_AllCommentsOpensNothing(t *testing.T) {
+	m := newIntegrationManager(t)
+
+	base := baseInputRules(t, m)
+
+	rules := shared.Rules{TCP: []shared.PortRule{
+		{Port: "7000", Sources: []string{"# nothing usable here", ""}},
+	}}
+	state := shared.RulesState{Current: rules, Staged: rules, Backup: rules}
+	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	if got, want := ruleCount(t, m, "input"), base; got != want {
+		t.Errorf("expected %d rules (all-comment source list opens nothing), got %d\ninput chain:\n  %s",
+			want, got, strings.Join(inputChainText(t, m), "\n  "))
+	}
+	if i := indexOfRule(inputChainText(t, m), "dport 7000"); i >= 0 {
+		t.Errorf("7000 must not be open when its source list has nothing usable, got %q", inputChainText(t, m)[i])
+	}
+}

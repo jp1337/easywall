@@ -39,6 +39,29 @@ func TestEveryReachVerdictHasALabel(t *testing.T) {
 	}
 }
 
+// Every catalogue suggestion has a rationale in every strict locale. ports.html
+// picks the label with a binary `if eq … "private"`, so a third Suggestion
+// constant would silently render as "Anywhere" rather than fail anywhere — this
+// is the guard AllSuggestions' doc comment refers to, and it fails loudly on
+// the missing label instead.
+func TestEverySuggestionHasALabel(t *testing.T) {
+	strict := strictLangSet()
+	for lang := range strict {
+		ids := localeIDs(t, lang)
+		for _, s := range shared.AllSuggestions {
+			key := "ports_suggest_" + string(s)
+			if !ids[key] {
+				t.Errorf("locales/%s.json has no %q for catalogue suggestion %q", lang, key, s)
+			}
+		}
+	}
+	if len(shared.AllSuggestions) != 2 {
+		t.Errorf("AllSuggestions has %d entries; ports.html's binary `if eq … \"private\"` "+
+			"only ever renders two labels — a third entry needs the template fixed too, "+
+			"not just this list", len(shared.AllSuggestions))
+	}
+}
+
 // The set headings come from the same list DiffRules labels its deltas with.
 func TestEveryPreviewSetHasALabel(t *testing.T) {
 	strict := strictLangSet()

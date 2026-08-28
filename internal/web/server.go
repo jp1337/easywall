@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -986,7 +987,7 @@ var clientStringKeys = []string{
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast",
-	"ports_port_hint", "ports_desc_hint", "action_remove_rule", "port_range_hint",
+	"ports_port_hint", "ports_desc_hint", "ports_sources_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
 	"totp_copy", "totp_copied", "totp_copy_failed",
@@ -1143,6 +1144,34 @@ func templateFuncs() template.FuncMap {
 			default:
 				return "pending"
 			}
+		},
+		// The source list is one comma-separated field: an operator types a
+		// list, and a repeated input per address would be a widget where a text
+		// box does. strings.Join, in the template, so the split half stays in
+		// one place — app.js — rather than being a second parser in Go.
+		"join": strings.Join,
+		// The rows a catalogue entry would add, as JSON in a data attribute.
+		// html/template escapes an attribute value, so this is a string the
+		// browser un-escapes and JSON.parse reads — not a script, and nothing
+		// the CSP has to allow.
+		"jsonAttr": func(v interface{}) (string, error) {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return string(b), nil
+		},
+		// The catalogue name for a stored id, or nothing. A rule whose id the
+		// catalogue no longer knows shows no chip and is otherwise untouched —
+		// the label is a label.
+		"serviceName": func(id string) string {
+			if id == "" {
+				return ""
+			}
+			if s, ok := shared.ServiceByID(id); ok {
+				return s.Name
+			}
+			return ""
 		},
 	}
 }
