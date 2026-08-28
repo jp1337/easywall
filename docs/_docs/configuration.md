@@ -238,6 +238,47 @@ Two logging switches belong to no module and are set here as well:
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 | `trusted_proxies` | array of strings | Addresses and networks whose `X-Forwarded-For` header is believed. Empty by default, which means the TCP peer is authoritative. See [Behind a reverse proxy](#behind-a-reverse-proxy) for what listing one costs |
 
+### Behind a reverse proxy
+
+`trusted_proxies` lists the addresses and networks whose `X-Forwarded-For`
+header easywall believes. Empty by default: the TCP peer is authoritative and no
+header's value is read.
+
+```toml
+trusted_proxies = ["127.0.0.1", "10.1.0.5"]
+```
+
+or `EASYWALL_WEB_TRUSTED_PROXIES=127.0.0.1,10.1.0.5`.
+
+**What it buys.** Behind a proxy every request otherwise appears to come from the
+proxy: the audit log records the proxy's address, the apply screen cannot tell
+you whether you are about to lock yourself out, and the login limiter's five
+attempts per ten minutes are shared by everyone — one attacker exhausts them for
+you. With the proxy listed, all three see the real client.
+
+**What it costs.** Being on this list is total trust in that peer. Two mistakes
+hand address spoofing to anyone who can reach the port:
+
+- listing an address that is **not** actually a proxy in front of easywall;
+- listing a **network** rather than the proxies themselves — every host in
+  `10.0.0.0/8` can then choose the address easywall records, verdicts on, and
+  rate limits.
+
+List the proxies. Not the subnet they live in, not `0.0.0.0/0`, and never an
+address you do not control.
+
+Only `X-Forwarded-For` is read. `X-Real-IP`, `True-Client-IP` and `Forwarded`
+still mark a request as arriving through something that forwards, but their
+values are never used — configure your proxy to send `X-Forwarded-For`.
+
+**If a listed proxy sends no `X-Forwarded-For`,** the request still resolves —
+to the proxy's own address, marked `via-proxy` in the audit log and reported as
+*cannot tell* on the apply screen. That marker is the symptom of the release's
+most likely misconfiguration: a proxy added to `trusted_proxies` without a
+matching `proxy_set_header X-Forwarded-For` in the proxy's own config. Every
+client behind it then shares that one address's rate-limit bucket, same as
+before the list existed — set the header and it goes away.
+
 ### How the interface picks a language
 
 Highest priority first:

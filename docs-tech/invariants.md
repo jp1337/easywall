@@ -33,6 +33,21 @@ a way no reviewer spotted by reading. When one fails, the useful question is not
 | `TestCoreWritesItsFilesForRootOnly` (extended) | `applied-config.json` is 0600, beside the audit log and the last-apply marker it now shares the assertion with | it holds the machine's whole firewall configuration and only the core reads it; the web process asks over the socket |
 | `TestLogEventPayloadCarriesNoFreeText` (extended) | `LogEventPayload.Proxied` stays a `bool` | the field derives from a header's presence, never its value; a string here would be a way for the web process to write arbitrary text into the core's own log through a field that looks like a flag |
 
+## Who a request is from
+
+A mistake in the trusted-proxy check is a login-rate-limiter bypass — the three
+advisories `buildRouter` has cited since it was written. Reading the code is not
+enough, and a unit test writes the one field a real request does not choose.
+
+| Test | Protects | What it would have shipped |
+|---|---|---|
+| `TestTheEmptyListIsTwoPointTwelve` | with no list configured, `resolveClient` equals the peer and the presence check, for every request shape | 2.13's default silently differing from 2.12's only behaviour, on every installation that configures nothing |
+| `TestIntegration_AnUntrustedPeerCannotChooseItsAddress` | a forwarding header from a peer that is not on the list changes neither the address, nor the marker, nor the bucket — measured with a kernel-assigned peer | the header believed unconditionally, which is `middleware.RealIP` and the advisories |
+| `TestIntegration_ATrustedPeerResolvesToTheClient` | a peer on the list resolves to the client and is no longer marked `via-proxy` | the feature wired to nothing: a list that parses, validates, documents, and never changes an answer |
+| `TestIntegration_TheCallerCannotNameATrustedProxyAsItself` | the rightmost-untrusted walk; naming a trusted address in the header does not hand the caller that identity | the smaller bypass — the caller picks its own address by writing the proxy's, and gets a fresh rate-limit budget per attempt |
+| `TestIntegration_TheLimiterKeysOnTheResolvedClient` | the bucket key is the resolved client both ways: one budget for an untrusted peer however it rewrites the header, one per client behind a trusted one | either half alone — a shared budget that was the point of the release, or a per-header budget that is the bypass |
+| `TestTheIntegrationJobCoversEveryTaggedPackage` | every package with an integration-tagged test is in the workflow's `go test` path | the five above green in CI and never executed — the job ran `./internal/core/...` alone |
+
 ## One source for a version
 
 | Test | Protects |
