@@ -442,13 +442,28 @@ func (s *Server) currentCredential() func() string {
 	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
 }
 
+// clientAddr is who this request is from and whether that address stands in for
+// somebody it cannot name, resolved against the configured trusted-proxy list.
+//
+// One method, three surfaces — the audit log, the apply screen's verdict and
+// the login limiter's bucket key — because the three disagreeing about who a
+// request is from is how a limiter comes to count the wrong thing.
+//
+// The list is read from cfg directly rather than through an accessor: it is not
+// a managed key, nothing in the interface writes it, and it does not change
+// while the process runs.
+func (s *Server) clientAddr(r *http.Request) (string, bool) {
+	return resolveClient(r, s.cfg.TrustedProxies)
+}
+
 // recordLoginEvent is the shape every handler calls: it takes the address off
 // the request and hands the event to the buffered dispatcher.
 func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left int) {
 	if s.events == nil {
 		return // a Server built by a test that does not care about events
 	}
-	s.events.Record(ev, peerIP(r), left, proxiedRequest(r))
+	addr, proxied := s.clientAddr(r)
+	s.events.Record(ev, addr, left, proxied)
 }
 
 // onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is

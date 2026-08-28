@@ -187,7 +187,7 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 	o shared.FirewallOptions, n shared.NetworkSettings) *applyVerdict {
 
-	rawAddr := peerIP(r)
+	rawAddr, proxied := s.clientAddr(r)
 	addr, err := netip.ParseAddr(rawAddr)
 	if err != nil {
 		// Not nil: reach_no_address is exactly the sentence for this, and it is
@@ -206,7 +206,7 @@ func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 	}
 
 	verdict, reason := shared.Reachable(staged, o, n, addr, uint16(port),
-		proxiedRequest(r), addressIsLocal(addr))
+		proxied, addressIsLocal(addr))
 	return &applyVerdict{
 		Verdict: verdict,
 		Reason:  reason,
