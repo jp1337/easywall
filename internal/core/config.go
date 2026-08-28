@@ -89,7 +89,11 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.fileConfig = cfg.CoreConfig // before the overlay, deliberately
 	// Before the caller's Validate(), which main runs next: an environment value
 	// has to face the same checks a file value does.
-	if err := shared.ApplyCoreEnv(&cfg.CoreConfig); err != nil {
+	//
+	// The map is discarded: the core has no interface to show provenance in, and
+	// the web process is the only reader. The error is not — an unparseable
+	// variable stops this daemon exactly as it stops the other one.
+	if _, err := shared.ApplyCoreEnv(&cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
 	return &cfg, nil

@@ -13,10 +13,11 @@ import (
 
 // recorder is a stand-in endpoint that remembers what reached it.
 type recorder struct {
-	mu    sync.Mutex
-	hits  []url.Values
-	agent string
-	srv   *httptest.Server
+	mu     sync.Mutex
+	hits   []url.Values
+	agent  string
+	method string
+	srv    *httptest.Server
 }
 
 func newRecorder(t *testing.T) *recorder {
@@ -26,8 +27,9 @@ func newRecorder(t *testing.T) *recorder {
 		rec.mu.Lock()
 		rec.hits = append(rec.hits, r.URL.Query())
 		rec.agent = r.Header.Get("User-Agent")
+		rec.method = r.Method
 		rec.mu.Unlock()
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusNoContent) // 204: what the live endpoint answered on 2026-08-28
 	}))
 	t.Cleanup(rec.srv.Close)
 
@@ -88,6 +90,13 @@ func TestReporter_SendsNothingWithoutAConsentFunction(t *testing.T) {
 
 // What is documented is what is sent: an identifier and a version, and nothing
 // else at all.
+//
+// This is also, verbatim, the request that reached
+// https://telemetry.wdkro.de/v1/count by hand on 2026-08-28 and was answered
+// 204 (recorder above returns the same code for that reason). A test against
+// a local httptest server cannot prove the endpoint is up; what it proves is
+// that the request has not drifted since — a third parameter, a renamed one,
+// or a POST where a GET was accepted would all be silent here without it.
 func TestReporter_SendsOnlyTheIdentifierAndTheVersion(t *testing.T) {
 	rec := newRecorder(t)
 	r := newTestReporter(t, func() bool { return true })
@@ -96,6 +105,9 @@ func TestReporter_SendsOnlyTheIdentifierAndTheVersion(t *testing.T) {
 
 	if n := rec.count(); n != 1 {
 		t.Fatalf("expected exactly one report, got %d", n)
+	}
+	if rec.method != http.MethodGet {
+		t.Errorf("method = %s, want GET", rec.method)
 	}
 	q := rec.last()
 	if len(q) != 2 {
@@ -315,6 +327,35 @@ func TestReporter_RunStopsWhenAsked(t *testing.T) {
 	}
 	if n := rec.count(); n != 0 {
 		t.Errorf("a report was sent while shutting down (%d)", n)
+	}
+}
+
+// The live endpoint answered 204 on the day it was verified, not the 200 the
+// plan guessed at. send already treats anything under 300 as success
+// (resp.StatusCode >= 300 is the only check), so 204 was already accepted —
+// this pins that boundary directly instead of one status code that happened
+// to be true. If the boundary ever narrowed to "only 200", the 204 case below
+// would start failing even though the live endpoint never changed.
+func TestReporter_AcceptsWhatTheLiveEndpointSentAndRejectsFailureStatuses(t *testing.T) {
+	respond := func(t *testing.T, status int) error {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+		}))
+		defer srv.Close()
+
+		previous := TelemetryEndpoint
+		TelemetryEndpoint = srv.URL + "/v1/count"
+		defer func() { TelemetryEndpoint = previous }()
+
+		return newTestReporter(t, func() bool { return true }).send("0123456789abcdef0123456789abcdef")
+	}
+
+	if err := respond(t, http.StatusNoContent); err != nil {
+		t.Errorf("204 (what the live endpoint sent on 2026-08-28) was treated as a failure: %v", err)
+	}
+	if err := respond(t, http.StatusMultipleChoices); err == nil {
+		t.Error("300 was treated as success — the >= 300 boundary has drifted")
 	}
 }
 

@@ -18,12 +18,18 @@ type systemData struct {
 	// goes, and being told that in the interface beats having to find the
 	// documentation.
 	TelemetryEndpoint string
+
+	// TelemetryProv is the marker beside the consent toggle, or nil when
+	// EASYWALL_WEB_TELEMETRY is unset — which is every installation that does
+	// not set it, and why the template guards with {{with}}.
+	TelemetryProv *provenanceView
 }
 
 func (s *Server) handleSystemGET(w http.ResponseWriter, r *http.Request) {
 	data := &systemData{
 		Telemetry:         s.cfg.TelemetryEnabled(),
 		TelemetryEndpoint: shared.TelemetryEndpoint,
+		TelemetryProv:     s.provenanceFor("telemetry"),
 	}
 
 	settings, err := s.client.GetSystem()
@@ -77,6 +83,41 @@ func (s *Server) handleSystemPOST(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTelemetryPOST(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// The reset button is a second submit inside the same form, so it arrives
+	// here rather than through a route of its own. It clears the stored answer;
+	// the checkbox's value is irrelevant to it and is deliberately not read.
+	if r.FormValue("reset") != "" {
+		if err := s.cfg.ResetTelemetry(); err != nil {
+			slog.Warn("could not reset the telemetry setting", "error", err)
+			s.respondPartialError(w, r, "/system", "save_error")
+			return
+		}
+		slog.Info("telemetry setting reset to the environment")
+
+		if !isHTMX(r) {
+			s.respondPartialSave(w, r, "/system", "provenance_reset_done")
+			return
+		}
+
+		// respondPartialSave's usual 204 leaves htmx with nothing to swap, and
+		// a reset changes what is true on screen, not just what is stored: the
+		// environment's value is now in force, so the checkbox may no longer
+		// match what it displayed a moment ago, and the button the operator
+		// just clicked must disappear — there is nothing left for it to
+		// reset. This release exists to stop the interface asserting a
+		// provenance it does not have; leaving the just-superseded state on
+		// screen after the very action that superseded it would be that same
+		// mistake. hx-swap="none" only suppresses the main response target;
+		// htmx still applies hx-swap-oob elements found in the body, which is
+		// how the checkbox and marker get back in sync without a page load.
+		w.Header().Set("HX-Trigger", `{"easywall:saved":"provenance_reset_done"}`)
+		s.renderPartial(w, r, "telemetry_state_oob", &systemData{
+			Telemetry:     s.cfg.TelemetryEnabled(),
+			TelemetryProv: s.provenanceFor("telemetry"),
+		})
 		return
 	}
 

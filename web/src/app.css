@@ -1069,6 +1069,17 @@ body {
 
   .field-help { font-size: 12px; color: var(--color-ink-subtle); }
 
+  /* The marker beside a control whose value an environment variable names.
+     Amber for the conflict state and nothing for the agreeing one: an
+     installation configured entirely from its environment should not read as
+     though something were wrong with it. */
+  .provenance {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 12px; color: var(--color-ink-subtle); margin-top: 6px;
+  }
+  .provenance-conflict { color: var(--color-state-warn-on-wash); }
+  .provenance-reset { flex: none; }
+
   /* ── Fieldset ──────────────────────────────────────────────────────────── */
   .fieldset {
     margin: 0;

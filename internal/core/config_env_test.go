@@ -8,13 +8,36 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/jp1337/easywall/config"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-func TestLoadConfig_EnvOverridesTheFile(t *testing.T) {
+// A file value the operator wrote beats the variable. This is the 2.12 change:
+// until then the environment won, so a value set in the interface came back
+// changed after a restart.
+func TestLoadConfig_AStoredValueBeatsTheEnvironment(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "easywall.toml")
 	if err := os.WriteFile(path, []byte("socket_path = \"/from/file.sock\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EASYWALL_CORE_SOCKET_PATH", "/from/env.sock")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.SocketPath != "/from/file.sock" {
+		t.Errorf("SocketPath = %q, want the stored /from/file.sock", cfg.SocketPath)
+	}
+}
+
+// And the variable beats a file that only repeats the built-in default, which is
+// every containerised installation.
+func TestLoadConfig_EnvBeatsTheShippedDefault(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "easywall.toml")
+	if err := os.WriteFile(path, config.Core, 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("EASYWALL_CORE_SOCKET_PATH", "/from/env.sock")
@@ -51,7 +74,16 @@ func TestEnvOverlayNeverReachesTheConfigFile(t *testing.T) {
 					"so it would skip the variable in silence", v.Name, v.Kind)
 			}
 			sentinel := "/from-the-environment" + filepath.Join("/", v.TOMLKey)
-			path := writeCoreConfig(t, "")
+			// The shipped file, not writeCoreConfig's fixture: writeCoreConfig sets
+			// socket_path, data_dir and log_dir to values of its own choosing, which
+			// the 2.12 precedence rule now reads as stored and would let win over
+			// the variable this subtest sets — proving nothing about the leak this
+			// test exists to catch. The shipped defaults are also the more honest
+			// fixture: this is the file every container image ships.
+			path := filepath.Join(t.TempDir(), "easywall.toml")
+			if err := os.WriteFile(path, config.Core, 0600); err != nil {
+				t.Fatal(err)
+			}
 
 			// What the file says for this key, which is what has to survive.
 			original, err := os.ReadFile(path)

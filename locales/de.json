@@ -427,6 +427,10 @@
   {"id": "system_telemetry_desc", "translation": "Ein kritischer Fix wiegt bei zehn Installationen anders als bei zehntausend. Nur eine Zählung sagt, welcher Fall vorliegt — und ob ein Fix die meisten erreicht hat."},
   {"id": "system_telemetry_switch_desc", "translation": "Einmal am Tag eine auf diesem Rechner erzeugte Zufalls-Kennung und die laufende Version. Nicht der Hostname, keine Adresse, keine Regel, keine Anzahl von irgendetwas, das du eingerichtet hast. Abschalten heißt: am nächsten Tag geht nichts mehr raus; die Kennung liegt in deinem Datenverzeichnis und darf gelöscht werden."},
   {"id": "system_telemetry_endpoint", "translation": "Ziel"},
+  {"id": "provenance_from_env", "translation": "Durch die Umgebung gesetzt — {{.Variable}}"},
+  {"id": "provenance_overridden", "translation": "Die Umgebung sagt {{.Variable}} = {{.Env}} — hier überschrieben"},
+  {"id": "provenance_reset", "translation": "Auf den Wert der Umgebung zurücksetzen"},
+  {"id": "provenance_reset_done", "translation": "Der gespeicherte Wert wurde entfernt. Der Wert der Umgebung gilt jetzt."},
 
   {"id": "apply_subtitle", "translation": "Die vorgemerkten Regeln an den Kernel geben und vor Ablauf des Fensters bestätigen, dass sie funktionieren."},
   {"id": "apply_lead_pending", "translation": "Die neuen Regeln sind aktiv, aber unbestätigt. Eine zweite Verbindung öffnen und prüfen, ob dieser Host noch erreichbar ist — dann bestätigen."},

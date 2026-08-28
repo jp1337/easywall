@@ -41,6 +41,12 @@ type Config struct {
 	// managedKeys are taken from the live struct — those are the keys the
 	// interface deliberately maintains.
 	fileConfig shared.WebConfig
+
+	// provenance records, for each key an environment variable names, what that
+	// variable said and whether the file beat it. Captured at load; the stored
+	// half is recomputed from fileConfig on read, so a save cannot leave the
+	// marker beside a control disagreeing with the file it describes.
+	provenance map[string]shared.Provenance
 }
 
 // Credentials returns the username and password hash in force right now.
@@ -94,9 +100,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	cfg.configPath = path
 	cfg.fileConfig = cfg.WebConfig // before the overlay, deliberately
-	if err := shared.ApplyWebEnv(&cfg.WebConfig); err != nil {
+	prov, err := shared.ApplyWebEnv(&cfg.WebConfig)
+	if err != nil {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
+	cfg.provenance = prov
 	return &cfg, nil
 }
 
@@ -235,6 +243,37 @@ func (c *Config) TelemetryEnabled() bool {
 	return c.Telemetry != nil && *c.Telemetry
 }
 
+// Provenance reports where the value in force for one TOML key came from, or
+// false when no environment variable is currently set for that key — an unset
+// variable leaves no entry for LoadConfig to have recorded, the same as one
+// that never existed.
+//
+// The stored half is recomputed from fileConfig rather than returned as it was
+// captured at load: a save changes the file, and a marker that still described
+// the file as it was at startup would tell the operator their override does not
+// exist seconds after they made it.
+func (c *Config) Provenance(tomlKey string) (shared.Provenance, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	p, ok := c.provenance[tomlKey]
+	if !ok {
+		return shared.Provenance{}, false
+	}
+	// c.provenance is built by LoadConfig from shared.ApplyWebEnv, which only
+	// ever records a key that is also one of shared.WebEnvVars' TOMLKeys — so a
+	// hit above always has a matching entry here too.
+	v, _ := shared.WebEnvVar(tomlKey)
+	file := c.fileConfig
+	def := shared.WebDefault()
+	if stored := v.Get(&file); stored != v.Get(&def) {
+		p.Stored = stored
+	} else {
+		p.Stored = ""
+	}
+	return p, true
+}
+
 // VersionCachePath returns the path for the version check cache file.
 func (c *Config) VersionCachePath() string {
 	if c.DataDir != "" {
@@ -276,10 +315,42 @@ func (c *Config) TOTPReplayPath() string {
 func (c *Config) SaveTelemetry(enabled bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	prev := c.Telemetry
+	prev, prevFile := c.Telemetry, c.fileConfig.Telemetry
+	// Both: the live value is what is in force from this moment, and the file
+	// value is what render writes and what the next start reads back as stored.
 	c.Telemetry = &enabled
+	c.fileConfig.Telemetry = &enabled
 	if err := c.saveLocked(); err != nil {
-		c.Telemetry = prev
+		c.Telemetry, c.fileConfig.Telemetry = prev, prevFile
+		return err
+	}
+	return nil
+}
+
+// ResetTelemetry removes the stored answer, handing the key back to
+// EASYWALL_WEB_TELEMETRY — or, with no variable set, to the built-in default,
+// which is that nobody has answered.
+//
+// Removing rather than writing the default: for a *bool whose absence is a
+// state, "write the default" and "clear the answer" are different files.
+//
+// Rolled back on a failed write like every Save* above.
+func (c *Config) ResetTelemetry() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	prev, prevFile := c.Telemetry, c.fileConfig.Telemetry
+	c.fileConfig.Telemetry = nil
+	// What is in force once the stored answer is gone: the variable, if there is
+	// one, and otherwise nothing.
+	c.Telemetry = nil
+	if p, ok := c.provenance["telemetry"]; ok {
+		if b, err := strconv.ParseBool(p.Env); err == nil {
+			c.Telemetry = &b
+		}
+	}
+	if err := c.saveLocked(); err != nil {
+		c.Telemetry, c.fileConfig.Telemetry = prev, prevFile
 		return err
 	}
 	return nil
@@ -413,17 +484,22 @@ func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 
 	prevUser, prevPass := c.Username, c.Password
 	prevTelemetry := c.Telemetry
+	prevFileTelemetry := c.fileConfig.Telemetry
 	prevSecret, prevCodes := c.WebConfig.TOTPSecret, c.WebConfig.RecoveryCodes
 
 	c.Username = a.Username
 	c.Password = a.PasswordHash
-	c.Telemetry = &a.Telemetry
+	telemetry := a.Telemetry
+	fileTelemetry := a.Telemetry
+	c.Telemetry = &telemetry
+	c.fileConfig.Telemetry = &fileTelemetry
 	c.WebConfig.TOTPSecret = a.TOTPSecret
 	c.WebConfig.RecoveryCodes = append([]string(nil), a.RecoveryHashes...)
 
 	if err := c.saveLocked(); err != nil {
 		c.Username, c.Password = prevUser, prevPass
 		c.Telemetry = prevTelemetry
+		c.fileConfig.Telemetry = prevFileTelemetry
 		c.WebConfig.TOTPSecret, c.WebConfig.RecoveryCodes = prevSecret, prevCodes
 		return err
 	}
@@ -513,12 +589,13 @@ var managedKeys = []string{"session_key", "username", "password", "telemetry", "
 // nothing to redact from a value whose destination is the file it came from.
 func (c *Config) encode() ([]byte, error) {
 	out := c.fileConfig
-	// The six keys the interface owns come from the live struct; everything else
-	// is what the file said. See the note on fileConfig.
+	// Five of the six keys the interface owns come from the live struct;
+	// everything else — including telemetry, the sixth — is left as fileConfig
+	// already has it. See the note on fileConfig for the general rule, and
+	// mergeSource for why telemetry is the one exception to it.
 	out.SessionKey = c.SessionKey
 	out.Username = c.Username
 	out.Password = c.Password
-	out.Telemetry = c.Telemetry
 	// Spelled through the embedded struct because Config has a TOTPSecret() and
 	// a RecoveryCodes() method: c.TOTPSecret is the method value, not the field.
 	out.TOTPSecret = c.WebConfig.TOTPSecret
@@ -531,7 +608,24 @@ func (c *Config) encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// render produces the bytes to write: the existing file with the four managed
+// mergeSource is the configuration mergeConfig is asked to express: everything
+// in force, except that telemetry comes from the file rather than from the live
+// struct.
+//
+// The live value is whatever is in force, and after EASYWALL_WEB_TELEMETRY that
+// is the variable's. Writing it back would turn a deployment setting into a
+// stored one — which, under 2.12's precedence, then beats the very variable it
+// came from, permanently, from the next password change onwards. The operator's
+// own answer reaches this through fileConfig, which SaveTelemetry updates.
+//
+// c.mu must be held.
+func (c *Config) mergeSource() shared.WebConfig {
+	out := c.WebConfig
+	out.Telemetry = c.fileConfig.Telemetry
+	return out
+}
+
+// render produces the bytes to write: the existing file with the six managed
 // values replaced, or a fresh encoding when that cannot be done safely.
 //
 // The file the package installs is three kilobytes of comments explaining what
@@ -544,11 +638,17 @@ func (c *Config) encode() ([]byte, error) {
 //
 // c.mu must be held.
 func (c *Config) render(existing []byte) ([]byte, error) {
-	if merged, ok := mergeConfig(existing, c.WebConfig); ok {
+	if merged, ok := mergeConfig(existing, c.mergeSource()); ok {
 		return merged, nil
 	}
 	return c.encode()
 }
+
+// removeLine is what managedValues maps a key to when the file must stop stating
+// it. Distinct from "leave the line alone": a telemetry line reading false is
+// indistinguishable from an operator who answered no, and that difference is
+// exactly what the precedence rule turns on.
+const removeLine = "\x00remove"
 
 // tomlValue renders a Go value as the TOML scalar for one of the managed keys.
 func tomlValue(v interface{}) (string, bool) {
@@ -557,7 +657,7 @@ func tomlValue(v interface{}) (string, bool) {
 		return strconv.Quote(t), true
 	case *bool:
 		if t == nil {
-			return "", false // unset: leave the file's line alone
+			return removeLine, true // unset: the file must stop stating this key
 		}
 		return strconv.FormatBool(*t), true
 	case []string:
@@ -653,6 +753,7 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 	want := managedValues(cfg)
 	lines := strings.Split(string(existing), "\n")
 	seen := make(map[string]bool, len(want))
+	drop := make(map[int]bool)
 	inTable := false
 	lastTopLevel := -1
 
@@ -679,6 +780,10 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 		seen[key] = true
 		lastTopLevel = i
 		if value, ok := want[key]; ok {
+			if value == removeLine {
+				drop[i] = true
+				continue
+			}
 			lines[i] = m[1] + key + m[3] + value + trailingComment(m[4])
 		}
 	}
@@ -687,8 +792,8 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 	// which keeps it out of whatever table follows.
 	var missing []string
 	for _, key := range managedKeys {
-		if _, ok := want[key]; ok && !seen[key] {
-			missing = append(missing, key+" = "+want[key])
+		if value, ok := want[key]; ok && !seen[key] && value != removeLine {
+			missing = append(missing, key+" = "+value)
 		}
 	}
 	if len(missing) > 0 {
@@ -699,6 +804,20 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 		lines = append(lines[:lastTopLevel+1], append(missing, rest...)...)
 	}
 
+	// Safe against the splice above only because every dropped index is a
+	// top-level assignment line, and lastTopLevel is set to that same index
+	// immediately before drop[i] is (line ~781) — so every drop[i] is <=
+	// lastTopLevel, and missing keys are inserted strictly after it. No
+	// dropped index can move before this loop reads it.
+	if len(drop) > 0 {
+		kept := make([]string, 0, len(lines))
+		for i, line := range lines {
+			if !drop[i] {
+				kept = append(kept, line)
+			}
+		}
+		lines = kept
+	}
 	merged := []byte(strings.Join(lines, "\n"))
 
 	// The guard. Decode what we are about to write and insist it says exactly
