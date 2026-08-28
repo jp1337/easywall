@@ -258,6 +258,11 @@ func sampleValue(kind EnvKind, seed, def string) string {
 	if kind == EnvBool {
 		return strconv.FormatBool(def != "true")
 	}
+	if kind == EnvList {
+		// Real addresses: the Set closure validates, and Get renders the same
+		// canonical comma form back, which is what the round trip compares.
+		return "192.0.2.10,198.51.100.0/24"
+	}
 	v := "/from-the-environment/" + seed
 	if v == def {
 		panic("sampleValue: " + seed + " collides with the shipped default " + def + "; pick a different seed")

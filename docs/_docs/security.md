@@ -82,16 +82,17 @@ marker's path: [Recovery & Panic Mode]({{ '/docs/features/recovery/' | relative_
 
 ## Behind a reverse proxy
 
-easywall terminates TLS itself and does **not** believe `X-Forwarded-For`,
-`X-Real-IP` or `True-Client-IP`. It is not assumed to sit behind a trusted proxy,
-and a client that can set its own source address walks straight past the login
-rate limiter.
+easywall terminates TLS itself and does **not** believe `X-Forwarded-For` —
+unless the peer sending the request is on `trusted_proxies`, a list configured
+explicitly and never a boolean — and never believes `X-Real-IP` or
+`True-Client-IP`. A client that can set its own source address and is not on
+that list walks straight past the login rate limiter.
 
 | | |
 |---|---|
-| What stays authoritative | `r.RemoteAddr` — the actual TCP peer |
-| The cost behind a proxy | every request looks like it comes from the proxy, so the limit of five attempts per ten minutes is shared by everyone. One person getting it wrong repeatedly locks the rest out until it refills |
-| What to do about it | reach easywall directly, or on a private network. A configurable list of trusted proxies is on the [roadmap]({{ '/docs/roadmap/' | relative_url }}) — a list of addresses, never a boolean |
+| What stays authoritative | `r.RemoteAddr` — the actual TCP peer, unless it is a listed proxy |
+| The cost of an untrusted proxy | every request looks like it comes from the proxy, so the limit of five attempts per ten minutes is shared by everyone. One person getting it wrong repeatedly locks the rest out until it refills |
+| What to do about it | list the proxy in `trusted_proxies` — see [Behind a reverse proxy]({{ '/docs/configuration/' | relative_url }}#behind-a-reverse-proxy) for what listing one buys and what it costs |
 
 This only affects the *login* limiter. The firewall's own protection modules count
 per source address in the kernel and are unaffected by any HTTP header.

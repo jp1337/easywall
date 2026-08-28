@@ -171,7 +171,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetryStop = make(chan struct{})
 	}
 
-	s.events = newAuditEvents(client)
+	s.events = newAuditEvents(client, cfg.DemoMode)
 	s.eventsStop = make(chan struct{})
 
 	// Non-fatal here so tests can build a Server without the asset tree; Start()
@@ -292,12 +292,15 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 	// Global middleware
 	//
-	// Deliberately NOT using middleware.RealIP: easywall-web terminates TLS
-	// itself and isn't assumed to sit behind a trusted reverse proxy, so
-	// X-Forwarded-For/X-Real-IP/True-Client-IP are attacker-controlled.
-	// Trusting them would let a client spoof its IP and bypass the
-	// per-IP login rate limiter. r.RemoteAddr (the actual TCP peer) stays
-	// authoritative — see GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp, GHSA-9g5q-2w5x-hmxf.
+	// Deliberately NOT using middleware.RealIP. Whether a forwarding header is
+	// believed is decided per request by resolveClient against the configured
+	// trusted-proxy list, which is empty by default: with no list, r.RemoteAddr
+	// (the actual TCP peer) is authoritative everywhere, exactly as before 2.13.
+	// RealIP has no such condition — it rewrites RemoteAddr from the header for
+	// every request, which is what lets a client spoof its address and bypass
+	// the per-client login rate limiter.
+	// See GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp, GHSA-9g5q-2w5x-hmxf, and
+	// docs-tech/threat-model.md for why the setting is a list and never a flag.
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
 	r.Use(MaxBodySize(64*1024, map[string]int64{"/import": maxImportBytes}))
@@ -316,7 +319,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
-		r.With(LoginRateLimit(s.onLoginBlocked)).Post("/login", s.handleLoginPOST)
+		r.With(LoginRateLimit(s.clientAddr, s.onLoginBlocked)).Post("/login", s.handleLoginPOST)
 		// The second step. Outside RequireAuth because nobody is signed in yet,
 		// and with no rate limit of its own — see handleLoginVerifyPOST for the
 		// arithmetic that makes the password step's limit cover it.
@@ -442,13 +445,28 @@ func (s *Server) currentCredential() func() string {
 	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
 }
 
+// clientAddr is who this request is from and whether that address stands in for
+// somebody it cannot name, resolved against the configured trusted-proxy list.
+//
+// One method, three surfaces — the audit log, the apply screen's verdict and
+// the login limiter's bucket key — because the three disagreeing about who a
+// request is from is how a limiter comes to count the wrong thing.
+//
+// The list is read from cfg directly rather than through an accessor: it is not
+// a managed key, nothing in the interface writes it, and it does not change
+// while the process runs.
+func (s *Server) clientAddr(r *http.Request) (string, bool) {
+	return resolveClient(r, s.cfg.TrustedProxies)
+}
+
 // recordLoginEvent is the shape every handler calls: it takes the address off
 // the request and hands the event to the buffered dispatcher.
 func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left int) {
 	if s.events == nil {
 		return // a Server built by a test that does not care about events
 	}
-	s.events.Record(ev, clientIP(r), left, proxiedRequest(r))
+	addr, proxied := s.clientAddr(r)
+	s.events.Record(ev, addr, left, proxied)
 }
 
 // onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is

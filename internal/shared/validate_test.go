@@ -8,13 +8,13 @@ import (
 func TestValidateIPOrCIDR(t *testing.T) {
 	valid := []string{"192.168.1.1", "10.0.0.0/8", "::1", "2001:db8::/32"}
 	for _, s := range valid {
-		if err := validateIPOrCIDR(s); err != nil {
+		if err := ValidateIPOrCIDR(s); err != nil {
 			t.Errorf("expected %q to be valid: %v", s, err)
 		}
 	}
 	invalid := []string{"", "notanip", "256.1.2.3", "10.0.0.0/33"}
 	for _, s := range invalid {
-		if err := validateIPOrCIDR(s); err == nil {
+		if err := ValidateIPOrCIDR(s); err == nil {
 			t.Errorf("expected %q to be invalid", s)
 		}
 	}

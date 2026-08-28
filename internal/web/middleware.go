@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -108,17 +107,26 @@ type rateBucket struct {
 	lastSeen time.Time
 }
 
-// LoginRateLimit limits login attempts to 5 requests per 10 minutes per source
-// IP, and calls onBlocked with the address and whether the request arrived
-// through a proxy each time it refuses one.
+// LoginRateLimit limits login attempts to 5 requests per 10 minutes per client,
+// and calls onBlocked with the address and whether that address stands in for
+// a client it could not name, each time it refuses one.
 //
-// The callback exists because login_ratelimited originates here and this file
-// must not know about CoreClient: a middleware that reaches for the core is a
-// middleware that cannot be tested without one, and the separation is the same
-// one the whole two-process design rests on. onBlocked may be nil. proxiedRequest
-// is a pure header check in this same package, so calling it here does not
-// break that separation.
-func LoginRateLimit(onBlocked func(ip string, proxied bool)) func(http.Handler) http.Handler {
+// resolve answers who a request is from. It is a parameter rather than a call
+// into the configuration because a middleware that reaches for Config is a
+// middleware that cannot be tested without one — the same separation the
+// two-process design rests on, and the reason onBlocked is a callback too. In
+// the running server it is (*Server).clientAddr, so the bucket key, the audit
+// address and the apply screen's verdict cannot disagree about who a caller is.
+//
+// Until 2.13 this keyed on r.RemoteAddr's host directly. Behind a reverse proxy
+// that is one bucket for everybody, so one attacker exhausted the budget for
+// every operator — the cost docs-tech/threat-model.md documented and this
+// release removes. It is removed only for peers on the trusted list: with an
+// empty list the key is the peer, exactly as before.
+//
+// onBlocked may be nil.
+func LoginRateLimit(resolve func(*http.Request) (string, bool),
+	onBlocked func(ip string, proxied bool)) func(http.Handler) http.Handler {
 	// Start the cleanup goroutine exactly once for the process lifetime,
 	// regardless of how many times this middleware factory is called (e.g. in tests).
 	loginLimiter.once.Do(func() {
@@ -139,10 +147,7 @@ func LoginRateLimit(onBlocked func(ip string, proxied bool)) func(http.Handler) 
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
+			ip, proxied := resolve(r)
 
 			loginLimiter.mu.Lock()
 			b, ok := loginLimiter.buckets[ip]
@@ -158,7 +163,7 @@ func LoginRateLimit(onBlocked func(ip string, proxied bool)) func(http.Handler) 
 			if !allowed {
 				slog.Warn("login rate limit exceeded", "ip", ip)
 				if onBlocked != nil {
-					onBlocked(ip, proxiedRequest(r))
+					onBlocked(ip, proxied)
 				}
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return

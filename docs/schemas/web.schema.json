@@ -75,6 +75,12 @@
       "description": "Argon2id hashes of the eight one-time recovery codes — never the codes themselves. Written by the interface; one entry is removed each time a code is used.",
       "default": []
     },
+    "trusted_proxies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Addresses and CIDR networks whose X-Forwarded-For header may be believed. Empty means the TCP peer is always authoritative. Being on this list is total trust in that peer.",
+      "default": []
+    },
     "update_check": {
       "type": "boolean",
       "description": "Check github.com once a day for a newer release and show a banner on the dashboard. One of the two requests easywall can make \u2014 the other is the installation count, which is off unless switched on. Set to false to remove this one. The dashboard never waits for it either way.",

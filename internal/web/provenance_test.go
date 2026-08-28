@@ -165,13 +165,14 @@ var keysMarkedInTheInterface = map[string]string{
 // the reason. A key here is documented on the environment page and nowhere else,
 // which is correct — there is no control that could lie about it.
 var keysWithoutAControl = map[string]string{
-	"bind_addr":    "the address the interface is being read over; changing it from the interface would end the request that changed it",
-	"socket_path":  "where the core is reached, decided by the deployment before either process starts",
-	"ssl_dir":      "a path, set before the first certificate exists",
-	"data_dir":     "a path, set before the first write",
-	"tls.cert":     "a path to a file the operator installs outside easywall",
-	"tls.key":      "a path to a file the operator installs outside easywall",
-	"demo_mode":    "decides whether there is a firewall behind the interface at all; a control for it inside that interface would be answering its own question",
-	"update_check": "no control exists yet; the switch is on the 2.x roadmap and the environment page is where it is documented meanwhile",
-	"language":     "the switch in the sidebar writes a cookie for this browser, not a stored value — so there is no stored-versus-environment conflict to draw",
+	"bind_addr":       "the address the interface is being read over; changing it from the interface would end the request that changed it",
+	"socket_path":     "where the core is reached, decided by the deployment before either process starts",
+	"ssl_dir":         "a path, set before the first certificate exists",
+	"data_dir":        "a path, set before the first write",
+	"tls.cert":        "a path to a file the operator installs outside easywall",
+	"tls.key":         "a path to a file the operator installs outside easywall",
+	"demo_mode":       "decides whether there is a firewall behind the interface at all; a control for it inside that interface would be answering its own question",
+	"update_check":    "no control exists yet; the switch is on the 2.x roadmap and the environment page is where it is documented meanwhile",
+	"language":        "the switch in the sidebar writes a cookie for this browser, not a stored value — so there is no stored-versus-environment conflict to draw",
+	"trusted_proxies": "a trust boundary set before the process starts, the same reason bind_addr and socket_path have none — a control that could widen it from inside the interface would let the interface decide who may impersonate its own caller",
 }

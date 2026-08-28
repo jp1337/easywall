@@ -253,7 +253,7 @@ key  = ""
 	}
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
 	// s.events.
-	s.events = newAuditEvents(client)
+	s.events = newAuditEvents(client, false)
 	s.eventsStop = make(chan struct{})
 	go s.events.run(s.eventsStop)
 	t.Cleanup(func() { close(s.eventsStop) })
@@ -319,7 +319,7 @@ key  = ""
 	}
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
 	// s.events.
-	s.events = newAuditEvents(client)
+	s.events = newAuditEvents(client, false)
 	s.eventsStop = make(chan struct{})
 	go s.events.run(s.eventsStop)
 	t.Cleanup(func() { close(s.eventsStop) })
@@ -480,12 +480,28 @@ func urlEncode(v string) string { return url.QueryEscape(v) }
 // newDemoTestServer builds a Server the way demo_mode = true builds one: the
 // in-memory mock behind the client, and cfg.DemoMode set, so a handler asking
 // "am I the demo" gets the same answer production gives it.
+//
+// newTestServer already built s.events against the fake core with demo=false —
+// correct for its own non-demo callers, wrong here. NewServer builds client
+// and events together from the same cfg.DemoMode, so a Server claiming to be
+// the demo but recording addresses through it would be exactly the kind of
+// mismatch this release's audit trail exists to avoid. The old dispatcher's
+// drain goroutine is stopped before a fresh one, wired to demo=true and the
+// demo client, replaces it; the cleanup newTestServer already registered
+// reads s.eventsStop at cleanup time, so it closes this new channel without
+// having to be re-registered.
 func newDemoTestServer(t *testing.T) *Server {
 	t.Helper()
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	s.cfg.DemoMode = true
 	s.client = NewDemoClient()
+
+	close(s.eventsStop)
+	s.events = newAuditEvents(s.client, true)
+	s.eventsStop = make(chan struct{})
+	go s.events.run(s.eventsStop)
+
 	s.router = s.buildRouter(s.cfg)
 	return s
 }

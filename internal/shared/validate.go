@@ -29,7 +29,7 @@ func ValidateRules(r Rules) error {
 		if IsListComment(ip) {
 			continue
 		}
-		if err := validateIPOrCIDR(ip); err != nil {
+		if err := ValidateIPOrCIDR(ip); err != nil {
 			return fmt.Errorf("blacklist %q: %w", ip, err)
 		}
 	}
@@ -37,7 +37,7 @@ func ValidateRules(r Rules) error {
 		if IsListComment(ip) {
 			continue
 		}
-		if err := validateIPOrCIDR(ip); err != nil {
+		if err := ValidateIPOrCIDR(ip); err != nil {
 			return fmt.Errorf("whitelist %q: %w", ip, err)
 		}
 	}
@@ -96,7 +96,7 @@ func validatePortRule(r PortRule) error {
 		if IsListComment(src) {
 			continue
 		}
-		if err := validateIPOrCIDR(strings.TrimSpace(src)); err != nil {
+		if err := ValidateIPOrCIDR(strings.TrimSpace(src)); err != nil {
 			return fmt.Errorf("source %q: %w", src, err)
 		}
 	}
@@ -184,7 +184,7 @@ func IsListComment(entry string) bool {
 	return entry == "" || strings.HasPrefix(entry, "#")
 }
 
-func validateIPOrCIDR(s string) error {
+func ValidateIPOrCIDR(s string) error {
 	if ip := net.ParseIP(s); ip != nil {
 		return nil
 	}
@@ -192,4 +192,24 @@ func validateIPOrCIDR(s string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid IP or CIDR: %s", s)
+}
+
+// ValidateProxyList checks a trusted-proxy list: bare addresses and CIDR
+// networks, the two shapes every other address list in the product accepts,
+// with comments and blanks skipped the same way.
+//
+// A malformed entry stops startup. Dropping it instead would leave a list one
+// entry short, which stops trusting a proxy that is really there — and the
+// operator meets that as a login limiter that suddenly counts everyone
+// together, six weeks later, with nothing anywhere naming the typo.
+func ValidateProxyList(entries []string) error {
+	for _, entry := range entries {
+		if IsListComment(entry) {
+			continue
+		}
+		if err := ValidateIPOrCIDR(strings.TrimSpace(entry)); err != nil {
+			return fmt.Errorf("trusted_proxies %q: %w", entry, err)
+		}
+	}
+	return nil
 }

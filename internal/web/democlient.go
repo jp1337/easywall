@@ -654,10 +654,10 @@ func (d *demoState) handleResume() shared.Response {
 // netip.ParseAddr and normalises it (loginevents.go), folds bursts of the
 // stranger-triggerable events into a debounced summary, and never repeats one
 // address twice running. This handler skips all of that and echoes p.Addr
-// verbatim. That is not a security problem — p.Addr is r.RemoteAddr, not
-// attacker-controlled input, and detailLabel escapes everything it did not
-// write itself — but it is not what the core does, so the comment must not
-// claim it is.
+// verbatim. That is not a security problem — rightmostUntrusted always returns
+// a canonical netip.Addr.String(), and in demo mode p.Addr is blank anyway —
+// and detailLabel escapes everything it did not write itself — but it is not
+// what the core does, so the comment must not claim it is.
 //
 // What it does share with the core is the log's cap: d.audit() below caps at
 // 200 entries, and a handler that appended straight to d.auditLog without that
@@ -676,8 +676,11 @@ func (d *demoState) handleLogEvent(payload []byte) shared.Response {
 	if p.Addr != "" {
 		detail = "from " + p.Addr
 		if p.Proxied {
-			// The same token the core writes. The public demo is behind nginx,
-			// which is where this was noticed, so the demo has to show it.
+			// The same token the core writes. Unreachable in the demo since
+			// 2.13 — no address is recorded there, so this branch's `detail`
+			// is never built — and kept because the handler is the demo's copy
+			// of the protocol, not a copy of the demo's configuration: it must
+			// go on refusing and accepting exactly what the core does.
 			detail += shared.ProxyToken
 		}
 	}
