@@ -13,10 +13,11 @@ import (
 
 // recorder is a stand-in endpoint that remembers what reached it.
 type recorder struct {
-	mu    sync.Mutex
-	hits  []url.Values
-	agent string
-	srv   *httptest.Server
+	mu     sync.Mutex
+	hits   []url.Values
+	agent  string
+	method string
+	srv    *httptest.Server
 }
 
 func newRecorder(t *testing.T) *recorder {
@@ -26,8 +27,9 @@ func newRecorder(t *testing.T) *recorder {
 		rec.mu.Lock()
 		rec.hits = append(rec.hits, r.URL.Query())
 		rec.agent = r.Header.Get("User-Agent")
+		rec.method = r.Method
 		rec.mu.Unlock()
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusNoContent) // 204: what the live endpoint answered on 2026-08-28
 	}))
 	t.Cleanup(rec.srv.Close)
 
@@ -88,6 +90,13 @@ func TestReporter_SendsNothingWithoutAConsentFunction(t *testing.T) {
 
 // What is documented is what is sent: an identifier and a version, and nothing
 // else at all.
+//
+// This is also, verbatim, the request that reached
+// https://telemetry.wdkro.de/v1/count by hand on 2026-08-28 and was answered
+// 204 (recorder above returns the same code for that reason). A test against
+// a local httptest server cannot prove the endpoint is up; what it proves is
+// that the request has not drifted since — a third parameter, a renamed one,
+// or a POST where a GET was accepted would all be silent here without it.
 func TestReporter_SendsOnlyTheIdentifierAndTheVersion(t *testing.T) {
 	rec := newRecorder(t)
 	r := newTestReporter(t, func() bool { return true })
@@ -96,6 +105,9 @@ func TestReporter_SendsOnlyTheIdentifierAndTheVersion(t *testing.T) {
 
 	if n := rec.count(); n != 1 {
 		t.Fatalf("expected exactly one report, got %d", n)
+	}
+	if rec.method != http.MethodGet {
+		t.Errorf("method = %s, want GET", rec.method)
 	}
 	q := rec.last()
 	if len(q) != 2 {
@@ -315,52 +327,6 @@ func TestReporter_RunStopsWhenAsked(t *testing.T) {
 	}
 	if n := rec.count(); n != 0 {
 		t.Errorf("a report was sent while shutting down (%d)", n)
-	}
-}
-
-// The request that reached https://telemetry.wdkro.de/v1/count by hand on
-// 2026-08-28: a GET to /v1/count carrying exactly two query parameters, id
-// and v, and nothing else.
-//
-// A test against a local httptest server cannot prove the endpoint is up.
-// What it can prove is that the request has not drifted from the one that
-// was checked by hand — a third parameter, a renamed one, or a POST where a
-// GET was accepted would all be silent here without it.
-func TestTheReportIsTheRequestTheEndpointWasVerifiedWith(t *testing.T) {
-	var got *url.URL
-	var method string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got = r.URL
-		method = r.Method
-		w.WriteHeader(http.StatusNoContent) // 204: what the live endpoint answered
-	}))
-	defer srv.Close()
-
-	previous := TelemetryEndpoint
-	TelemetryEndpoint = srv.URL + "/v1/count"
-	defer func() { TelemetryEndpoint = previous }()
-
-	r := newTestReporter(t, func() bool { return true })
-	r.reportIfDue()
-
-	if got == nil {
-		t.Fatal("no request reached the endpoint")
-	}
-	if method != http.MethodGet {
-		t.Errorf("method = %s, want GET", method)
-	}
-	if got.Path != "/v1/count" {
-		t.Errorf("path = %q, want /v1/count", got.Path)
-	}
-	q := got.Query()
-	if len(q) != 2 {
-		t.Errorf("query = %v, want exactly id and v", q)
-	}
-	if id := q.Get("id"); len(id) != 32 {
-		t.Errorf("id = %q, want 32 hex characters", id)
-	}
-	if q.Get("v") != CurrentVersion {
-		t.Errorf("v = %q, want %q", q.Get("v"), CurrentVersion)
 	}
 }
 
