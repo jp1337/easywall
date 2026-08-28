@@ -307,6 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   charges every language 18px of empty tile whether anything wraps or not;
   this charges none, because a row is as tall as its tallest label
 
+[2.12.0]: https://github.com/jp1337/easywall/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/jp1337/easywall/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/jp1337/easywall/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/jp1337/easywall/compare/v2.8.0...v2.9.0
@@ -1178,7 +1179,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.8.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.12.0...HEAD
 [2.2.0]: https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0
