@@ -318,6 +318,81 @@ func TestReporter_RunStopsWhenAsked(t *testing.T) {
 	}
 }
 
+// The request that reached https://telemetry.wdkro.de/v1/count by hand on
+// 2026-08-28: a GET to /v1/count carrying exactly two query parameters, id
+// and v, and nothing else.
+//
+// A test against a local httptest server cannot prove the endpoint is up.
+// What it can prove is that the request has not drifted from the one that
+// was checked by hand — a third parameter, a renamed one, or a POST where a
+// GET was accepted would all be silent here without it.
+func TestTheReportIsTheRequestTheEndpointWasVerifiedWith(t *testing.T) {
+	var got *url.URL
+	var method string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL
+		method = r.Method
+		w.WriteHeader(http.StatusNoContent) // 204: what the live endpoint answered
+	}))
+	defer srv.Close()
+
+	previous := TelemetryEndpoint
+	TelemetryEndpoint = srv.URL + "/v1/count"
+	defer func() { TelemetryEndpoint = previous }()
+
+	r := newTestReporter(t, func() bool { return true })
+	r.reportIfDue()
+
+	if got == nil {
+		t.Fatal("no request reached the endpoint")
+	}
+	if method != http.MethodGet {
+		t.Errorf("method = %s, want GET", method)
+	}
+	if got.Path != "/v1/count" {
+		t.Errorf("path = %q, want /v1/count", got.Path)
+	}
+	q := got.Query()
+	if len(q) != 2 {
+		t.Errorf("query = %v, want exactly id and v", q)
+	}
+	if id := q.Get("id"); len(id) != 32 {
+		t.Errorf("id = %q, want 32 hex characters", id)
+	}
+	if q.Get("v") != CurrentVersion {
+		t.Errorf("v = %q, want %q", q.Get("v"), CurrentVersion)
+	}
+}
+
+// The live endpoint answered 204 on the day it was verified, not the 200 the
+// plan guessed at. send already treats anything under 300 as success
+// (resp.StatusCode >= 300 is the only check), so 204 was already accepted —
+// this pins that boundary directly instead of one status code that happened
+// to be true. If the boundary ever narrowed to "only 200", the 204 case below
+// would start failing even though the live endpoint never changed.
+func TestReporter_AcceptsWhatTheLiveEndpointSentAndRejectsFailureStatuses(t *testing.T) {
+	respond := func(t *testing.T, status int) error {
+		t.Helper()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(status)
+		}))
+		defer srv.Close()
+
+		previous := TelemetryEndpoint
+		TelemetryEndpoint = srv.URL + "/v1/count"
+		defer func() { TelemetryEndpoint = previous }()
+
+		return newTestReporter(t, func() bool { return true }).send("0123456789abcdef0123456789abcdef")
+	}
+
+	if err := respond(t, http.StatusNoContent); err != nil {
+		t.Errorf("204 (what the live endpoint sent on 2026-08-28) was treated as a failure: %v", err)
+	}
+	if err := respond(t, http.StatusMultipleChoices); err == nil {
+		t.Error("300 was treated as success — the >= 300 boundary has drifted")
+	}
+}
+
 // A corrupt state file costs one double-count, not a crash and not a stuck
 // reporter.
 func TestReporter_RecoversFromAnUnreadableStateFile(t *testing.T) {

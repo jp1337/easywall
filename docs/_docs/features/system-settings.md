@@ -43,6 +43,16 @@ too long is an exposure window.
 Long enough to open a second connection and test what you changed; short enough that
 a lockout resolves itself before it costs you the afternoon.
 
+## Installation count
+
+Off unless you switch it on, here or during the first-run wizard — the full
+request is in [Counting installations]({{ '/docs/configuration/' | relative_url }}#counting-installations).
+
+The public demo at [demo.easywall-project.org](https://demo.easywall-project.org)
+reports too — it is switched on there through `EASYWALL_WEB_TELEMETRY`. So the
+number means *installations, including the demo*, not *installations somebody
+runs*.
+
 ## The Network page
 
 Three dispositions, all of them settled before any rule on any other page is
