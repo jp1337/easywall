@@ -34,6 +34,10 @@
               </div>
               <span class="toolbar-spacer"></span>
               <span class="toolbar-count" id="rules-count">{{$n := len .Rules}}{{$n}} {{plural $n (T "count_rule_one") (T "count_rule_many")}}</span>
+              <button type="button" id="catalogue-btn" class="btn btn-sm" hidden>
+                <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 4.25A2.25 2.25 0 015.25 2h9.5A2.25 2.25 0 0117 4.25v11.5A2.25 2.25 0 0114.75 18h-9.5A2.25 2.25 0 013 15.75V4.25zM6 6.5h8v1.5H6V6.5zm0 3.5h8v1.5H6V10zm0 3.5h5V15H6v-1.5z"/></svg>
+                {{T "ports_catalogue_add"}}
+              </button>
               <button type="button" id="add-rule-btn" class="btn btn-sm">
                 <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
                 {{T "ports_add"}}
@@ -46,16 +50,21 @@
                   <tr>
                     <th class="col-port">{{T "ports_port"}}</th>
                     <th class="col-toggle">{{T "ports_ssh"}}</th>
+                    <th class="col-sources">{{T "ports_sources"}}</th>
                     <th class="col-flex">{{T "ports_description"}}</th>
                     <th class="col-actions"><span class="sr-only">{{T "table_actions"}}</span></th>
                   </tr>
                 </thead>
                 <tbody id="rules-tbody">
                   {{range $i, $r := .Rules}}
-                  <tr data-idx="{{$i}}">
+                  <tr data-idx="{{$i}}"{{with $r.Service}} data-service="{{.}}"{{end}}>
                     <td data-label="{{T "ports_port"}}"><input class="f-port input-cell input-cell-data" type="text" value="{{$r.Port}}" placeholder="{{T "ports_port_hint"}}" aria-label="{{T "ports_port"}}"></td>
                     <td data-label="{{T "ports_ssh"}}"><input class="f-ssh checkbox" type="checkbox" {{if $r.SSH}}checked{{end}} aria-label="{{T "ports_ssh"}}"></td>
-                    <td class="cell-wide" data-label="{{T "ports_description"}}"><input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}"></td>
+                    <td class="cell-wide" data-label="{{T "ports_sources"}}"><input class="f-sources input-cell" type="text" value="{{join $r.Sources ", "}}" placeholder="{{T "ports_sources_hint"}}" aria-label="{{T "ports_sources"}}"></td>
+                    <td class="cell-wide" data-label="{{T "ports_description"}}">
+                      <input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}">
+                      {{with serviceName $r.Service}}<span class="chip">{{.}}</span>{{end}}
+                    </td>
                     <td>
                       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="{{T "action_remove_rule"}}">
                         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
@@ -93,7 +102,7 @@
               {{T "ports_syntax_title"}}
             </h2>
             <p>{{richText (T "ports_syntax_body")}}</p>
-            <p>{{richText (T "ports_scope_body") "/whitelist" (T "link_whitelist") "/custom" (T "link_custom_rule")}}</p>
+            <p>{{richText (T "ports_scope_body") "/whitelist" (T "link_whitelist")}}</p>
           </div>
 
           <div class="aside-card">
@@ -104,8 +113,43 @@
             <p>{{T "ports_ssh_card_body"}}</p>
             <p>{{richText (T "ports_ssh_card_note") "/options" (T "link_options")}}</p>
           </div>
+
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+              {{T "ports_sources_card_title"}}
+            </h2>
+            <p>{{richText (T "ports_sources_card_body")}}</p>
+            <p>{{richText (T "ports_sources_card_ipv6")}}</p>
+          </div>
         </div>
       </div>
+
+      <dialog id="catalogue-dialog" class="dialog">
+        <div class="dialog-head">
+          <h2 class="dialog-title">{{T "ports_catalogue_title"}}</h2>
+          <button type="button" class="btn-icon" id="catalogue-close" aria-label="{{T "action_close"}}">
+            <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
+          </button>
+        </div>
+        <p class="dialog-note">{{T "ports_catalogue_note"}}</p>
+        <ul class="catalogue-list">
+          {{range .Catalogue}}
+          <li>
+            <button type="button" class="catalogue-item" data-service="{{.ID}}"
+                    data-sources="{{.Sources}}" data-rows="{{jsonAttr .Rows}}">
+              <span class="catalogue-name">{{.Name}}</span>
+              <span class="catalogue-ports">
+                {{- range $i, $p := .Rows}}{{if $i}}, {{end}}{{$p.Port}}{{end -}}
+              </span>
+              <span class="chip {{if eq (printf "%s" .Suggest) "private"}}chip-accent{{else}}chip-warn{{end}}">
+                {{if eq (printf "%s" .Suggest) "private"}}{{T "ports_suggest_private"}}{{else}}{{T "ports_suggest_anywhere"}}{{end}}
+              </span>
+            </button>
+          </li>
+          {{end}}
+        </ul>
+      </dialog>
     </form>
     {{end}}
   </div>

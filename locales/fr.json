@@ -203,7 +203,6 @@
   {"id": "link_blacklist", "translation": "liste noire"},
   {"id": "link_port_rules", "translation": "règles de ports"},
   {"id": "link_options", "translation": "les options"},
-  {"id": "link_custom_rule", "translation": "règle personnalisée"},
   {"id": "link_system_settings", "translation": "les paramètres système"},
   {"id": "link_acceptance_window", "translation": "la fenêtre de confirmation"},
 

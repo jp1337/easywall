@@ -60,6 +60,7 @@ tmp/
 # caught — the config file at its root was exactly the part that got through.
 .claude/
 .opencode/
+.serena/
 
 # Playwright storage state from documentation screenshot runs — it holds a
 # session cookie and once got committed into the published assets directory.

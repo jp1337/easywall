@@ -25,6 +25,13 @@ linters:
         # Cleanup helpers in tests: os.Remove and json.Encode errors don't affect test correctness.
         - os.Remove
         - (*encoding/json.Encoder).Encode
+    misspell:
+      # Mosquitto is the Eclipse MQTT broker — a proper noun in the service
+      # catalogue, not a misspelling of the insect. misspell has no way to tell
+      # the two apart, so the name is listed here rather than bent to suit it.
+      ignore-rules:
+        - mosquitto
+
     gosec:
       excludes:
         - G104  # Errors unhandled — test cleanup code; not safety-relevant

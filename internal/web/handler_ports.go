@@ -4,13 +4,56 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
 
 type portsData struct {
-	RuleType string // "tcp" or "udp"
-	Rules    []shared.PortRule
+	RuleType  string // "tcp" or "udp"
+	Rules     []shared.PortRule
+	Catalogue []catalogueEntry
+}
+
+// catalogueEntry is one service as the picker needs it: the rows it would add
+// for *this* tab's protocol, and the suggested sources already joined into the
+// string the field holds.
+//
+// Rendered into the page rather than fetched. There is no route because there is
+// no request: the list is a compiled-in constant, it is small, and a second
+// endpoint would be a second thing to authorise, rate-limit and document.
+type catalogueEntry struct {
+	ID      string
+	Name    string
+	Suggest shared.Suggestion
+	Sources string // comma-separated, ready for the sources field
+	Rows    []shared.ServicePort
+}
+
+// catalogueFor filters the catalogue to one protocol. A service with no port in
+// this tab is left out: picking it would add nothing, and a button that does
+// nothing is worse than an absent one.
+func catalogueFor(proto string) []catalogueEntry {
+	out := make([]catalogueEntry, 0, len(shared.Catalogue))
+	for _, s := range shared.Catalogue {
+		var rows []shared.ServicePort
+		for _, p := range s.Ports {
+			if p.Proto == proto {
+				rows = append(rows, p)
+			}
+		}
+		if len(rows) == 0 {
+			continue
+		}
+		out = append(out, catalogueEntry{
+			ID:      s.ID,
+			Name:    s.Name,
+			Suggest: s.Suggest,
+			Sources: strings.Join(shared.SuggestedSources(s.Suggest), ", "),
+			Rows:    rows,
+		})
+	}
+	return out
 }
 
 func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +65,7 @@ func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
 	state, err := s.client.GetRules()
 	if err != nil {
 		slog.Warn("get rules error", "error", err)
-		s.render(w, r, "ports.html", "ports", &portsData{RuleType: ruleType})
+		s.render(w, r, "ports.html", "ports", &portsData{RuleType: ruleType, Catalogue: catalogueFor(ruleType)})
 		return
 	}
 
@@ -30,7 +73,8 @@ func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
 	if ruleType == "udp" {
 		rules = state.Staged.UDP
 	}
-	s.render(w, r, "ports.html", "ports", &portsData{RuleType: ruleType, Rules: rules})
+	s.render(w, r, "ports.html", "ports", &portsData{
+		RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType)})
 }
 
 func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +114,8 @@ func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
 		// redirect would have thrown the operator's typing away to prove it
 		// wrong. Same shape as the custom rules editor.
 		s.setFlash(w, r, "save_invalid_ports")
-		s.render(w, r, "ports.html", "ports", &portsData{RuleType: ruleType, Rules: rules})
+		s.render(w, r, "ports.html", "ports", &portsData{
+			RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType)})
 		return
 	}
 

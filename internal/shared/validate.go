@@ -84,11 +84,21 @@ func validatePortRule(r PortRule) error {
 		if hi < lo {
 			return fmt.Errorf("port range %d:%d ends before it starts", lo, hi)
 		}
-		return nil
+	} else if _, err := ParsePortNumber(r.Port); err != nil {
+		return err
 	}
 
-	if _, err := ParsePortNumber(r.Port); err != nil {
-		return err
+	// The source restriction is an address list like every other one in this
+	// file: comments and blank spacers are part of what the operator typed and
+	// are skipped rather than refused, exactly as cidrMatch skips them when it
+	// builds the rule.
+	for _, src := range r.Sources {
+		if IsListComment(src) {
+			continue
+		}
+		if err := validateIPOrCIDR(strings.TrimSpace(src)); err != nil {
+			return fmt.Errorf("source %q: %w", src, err)
+		}
 	}
 	return nil
 }

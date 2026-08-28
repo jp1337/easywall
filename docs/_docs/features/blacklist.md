@@ -24,6 +24,10 @@ only thing you really need to remember.
 evaluated first. A narrow allow inside a wide block does not work — take the entry off
 the blacklist instead.
 
+> **Fixed in 2.11.** The SSH brute-force chain is consulted before the blacklist
+> and used to accept, so a blacklisted address could still open an SSH connection
+> while it stayed under the rate limit. It now returns, and the blacklist decides.
+
 ## What each list does
 
 | | Blacklist | Whitelist |

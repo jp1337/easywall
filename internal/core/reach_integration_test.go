@@ -63,6 +63,9 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 		rules shared.Rules
 		opts  shared.FirewallOptions
 		net   shared.NetworkSettings
+		// wantReason, when set, is checked against the reason Reachable returns.
+		// Zero value means "not checked" so the pre-existing cases are untouched.
+		wantReason shared.ReachReason
 	}{
 		{name: "the port is open", rules: shared.Rules{TCP: open}},
 		{name: "nothing is open", rules: shared.Rules{}},
@@ -79,6 +82,34 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 		{name: "only a custom rule opens the port",
 			rules: shared.Rules{Custom: []string{
 				fmt.Sprintf("tcp dport %d accept", port)}}},
+		{name: "the port is open only to a network this source is not in",
+			rules: shared.Rules{TCP: []shared.PortRule{
+				{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"192.168.0.0/16"}}}},
+			wantReason: shared.ReasonPortSourceMismatch},
+		{name: "the port is open to the network this source is in",
+			rules: shared.Rules{TCP: []shared.PortRule{
+				{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"10.77.1.0/24"}}}},
+			wantReason: shared.ReasonPortOpen},
+		{name: "the source list holds only a comment",
+			rules: shared.Rules{TCP: []shared.PortRule{
+				{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"# not decided yet"}}}},
+			wantReason: shared.ReasonPortSourceMismatch},
+		// The reviewer's proof case: a restriction that excludes this source, plus
+		// a custom rule that accepts the port anyway. Custom rules are appended
+		// after everything netlink wrote, so the kernel accepts — and a verdict
+		// that put the restriction check before step 10's custom-rules loop said
+		// blocked here, a false lockout warning on the one screen that has to be
+		// believed.
+		{name: "a custom rule opens a port a restriction turned away",
+			rules: shared.Rules{
+				TCP: []shared.PortRule{{Port: strconv.Itoa(port), Description: "easywall",
+					Sources: []string{"192.168.0.0/16"}}},
+				Custom: []string{fmt.Sprintf("tcp dport %d accept", port)},
+			},
+			wantReason: shared.ReasonCustomRules},
 	}
 
 	for _, tc := range cases {
@@ -90,6 +121,10 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 
 			verdict, reason := shared.Reachable(tc.rules, tc.opts, tc.net, src, port, false, false)
 			accepted := tcpReaches(t, r.pidA, "10.77.1.1", port)
+
+			if tc.wantReason != "" && reason != tc.wantReason {
+				t.Errorf("Reachable reason = %s, want %s", reason, tc.wantReason)
+			}
 
 			switch verdict {
 			case shared.ReachOpen:
@@ -127,4 +162,110 @@ func tcpReaches(t *testing.T, pid, addr string, port int) bool {
 	err := cmd.Run()
 	t.Logf("connect to %s:%d from the namespace took %s: %v", addr, port, time.Since(start), err)
 	return err == nil
+}
+
+// The SSH brute-force chain used to end in accept, and Apply adds it to the
+// input chain before the blacklist. So a blacklisted address could open an SSH
+// connection as long as it stayed under the rate limit — the protection module
+// outranked the list whose whole job is to refuse an address.
+//
+// The chain now returns. Under-rate traffic falls back into the input chain and
+// meets the blacklist, then the whitelist, then the port rule. Over-rate still
+// drops in sshbrute-over.
+//
+// A dropped connection is not, by itself, evidence of anything: it is also
+// what a harness that is not routing at all looks like, and what a jump whose
+// match condition never fires (no conntrack, so "ct state new" never matches)
+// looks like when the blacklist happens to catch the packet by some other
+// route. So this also runs the same rules minus the blacklist entry first, as
+// a control, and asserts the order of the two rules in the kernel's own copy
+// of the chain — the actual claim the fix rests on — rather than trusting a
+// blocked connection to mean what it is supposed to.
+func TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist(t *testing.T) {
+	for _, bin := range []string{"bash", "timeout"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("skipping: %s is not installed, and this test opens a real TCP connection", bin)
+		}
+	}
+
+	m := newIntegrationManager(t)
+	r := newRouter(t)
+
+	const port = 12228
+	ln, err := net.Listen("tcp", "10.77.1.1:"+strconv.Itoa(port))
+	if err != nil {
+		t.Skipf("skipping: cannot listen on 10.77.1.1:%d: %v", port, err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	tcpRule := shared.PortRule{Port: strconv.Itoa(port), Description: "ssh", SSH: true}
+	opts := shared.FirewallOptions{SSHBruteForce: true, SSHBruteForceConnectionLimit: 5}
+
+	// Control: the same rules, minus the blacklist entry. A dropped connection
+	// below is only evidence of the blacklist outranking the module if a
+	// connection can get through this harness at all when nothing blocks it.
+	controlRules := shared.Rules{TCP: []shared.PortRule{tcpRule}}
+	controlState := shared.RulesState{Current: controlRules, Staged: controlRules, Backup: controlRules}
+	if err := m.Apply(controlState, opts, shared.NetworkSettings{}); err != nil {
+		t.Fatalf("Apply (control): %v", err)
+	}
+	if !tcpReaches(t, r.pidA, "10.77.1.1", port) {
+		t.Fatalf("control failed: an SSH-marked port under the rate limit, with no blacklist entry, " +
+			"refused a connection — the harness is not routing, so nothing below can be trusted")
+	}
+
+	rules := shared.Rules{
+		TCP:       []shared.PortRule{tcpRule},
+		Blacklist: []string{"10.77.1.2"},
+	}
+	state := shared.RulesState{Current: rules, Staged: rules, Backup: rules}
+	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// The ordering claim the fix rests on, asserted directly against the
+	// kernel's own copy of the chain: the sshbrute jump must still be added
+	// before the blacklist drop. If someone moves the module after the
+	// blacklist, this whole fix stops being necessary — and should be noticed,
+	// not silently pass because both orders happen to behave the same today.
+	input := inputChainText(t, m)
+	sshJump := indexOfRule(input, strconv.Itoa(port), "jump sshbrute")
+	blacklistDrop := indexOfRule(input, "10.77.1.2", "drop")
+	if sshJump == -1 {
+		t.Fatalf("no rule in the input chain jumps to sshbrute for port %d\n  %s",
+			port, strings.Join(input, "\n  "))
+	}
+	if blacklistDrop == -1 {
+		t.Fatalf("no rule in the input chain drops 10.77.1.2\n  %s", strings.Join(input, "\n  "))
+	}
+	if sshJump >= blacklistDrop {
+		t.Fatalf("the sshbrute jump (rule %d) is not before the blacklist drop (rule %d) in the input chain\n  %s",
+			sshJump, blacklistDrop, strings.Join(input, "\n  "))
+	}
+
+	if tcpReaches(t, r.pidA, "10.77.1.1", port) {
+		t.Errorf("a blacklisted address reached an SSH-marked port under the rate limit\n"+
+			"sshbrute chain:\n  %s\ninput chain:\n  %s",
+			strings.Join(chainText(t, "sshbrute"), "\n  "),
+			strings.Join(input, "\n  "))
+	}
+
+	// And the shape, so the reason a future edit breaks this is readable rather
+	// than a dropped connection with no explanation.
+	last := chainText(t, "sshbrute")
+	if len(last) == 0 {
+		t.Fatal("sshbrute chain is empty")
+	}
+	if got := last[len(last)-1]; !strings.Contains(got, "return") {
+		t.Errorf("sshbrute ends in %q; it must return so the input chain goes on deciding", got)
+	}
 }

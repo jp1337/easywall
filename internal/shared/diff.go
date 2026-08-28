@@ -107,17 +107,38 @@ func indexPorts(rules []PortRule) map[string]PortRule {
 }
 
 // portDetail is everything about a port rule that is not its port: what it is
-// for, and whether it routes through the SSH brute-force chain. It is what the
-// diff shows beside the number and what a "changed" delta carries.
+// for, whether it routes through the SSH brute-force chain, and who may reach
+// it. It is what the diff shows beside the number and what a "changed" delta
+// carries.
+//
+// The sources are here because tightening a rule that is already open is a
+// change to the firewall and the preview is the screen that has to say so.
+// Keyed on port and description alone, restricting a port produced an empty
+// diff beside an apply button — the exact shape of failure 2.10 existed to end.
 func portDetail(r PortRule) string {
-	switch {
-	case r.SSH && r.Description == "":
-		return "(ssh)"
-	case r.SSH:
-		return r.Description + " (ssh)"
-	default:
-		return r.Description
+	detail := r.Description
+	if r.SSH {
+		if detail == "" {
+			detail = "(ssh)"
+		} else {
+			detail += " (ssh)"
+		}
 	}
+	var sources []string
+	for _, s := range r.Sources {
+		if IsListComment(s) {
+			continue
+		}
+		sources = append(sources, strings.TrimSpace(s))
+	}
+	if len(sources) > 0 {
+		from := "from " + strings.Join(sources, ", ")
+		if detail == "" {
+			return from
+		}
+		return detail + " — " + from
+	}
+	return detail
 }
 
 // diffList compares an address list as a set, skipping the operator's comments

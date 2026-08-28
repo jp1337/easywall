@@ -285,7 +285,7 @@ func TestTemplateClassesExistInStylesheet(t *testing.T) {
 	// JavaScript and carry no styling of their own.
 	ignore := map[string]bool{
 		"f-port": true, "f-ssh": true, "f-desc": true, "f-proto": true,
-		"f-src": true, "f-dst": true, "del-rule": true, "inline": true,
+		"f-src": true, "f-dst": true, "f-sources": true, "del-rule": true, "inline": true,
 	}
 
 	classRe := regexp.MustCompile(`class="([^"{}]*)"`)

@@ -185,3 +185,95 @@ func TestHandlePortsPOST_CompleteRulesStillSave(t *testing.T) {
 		t.Errorf("expected the valid rule to reach the core, got %+v", saved)
 	}
 }
+
+// The sources round-trip: what the form posts is what the core is asked to save.
+func TestHandlePortsPOST_KeepsSources(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
+
+	var saved []shared.PortRule
+	fc.OnCommand(shared.CmdSaveRules, func(cmd shared.Command) {
+		var p shared.SaveRulesPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return
+		}
+		raw, _ := json.Marshal(p.Rules)
+		_ = json.Unmarshal(raw, &saved)
+	})
+
+	rules := []shared.PortRule{
+		{Port: "8123", Description: "Home Assistant", Sources: []string{"10.0.0.0/8", "192.168.0.0/16"}},
+		{Port: "443", Description: "HTTPS"},
+	}
+	rulesJSON, _ := json.Marshal(rules)
+
+	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules="+string(rulesJSON))
+	assertRedirect(t, rec, "/ports?type=tcp")
+
+	if len(saved) != 2 {
+		t.Fatalf("the core was asked to save %d rules, want 2: %+v", len(saved), saved)
+	}
+	if got := saved[0].Sources; len(got) != 2 || got[0] != "10.0.0.0/8" || got[1] != "192.168.0.0/16" {
+		t.Errorf("sources = %v, want [10.0.0.0/8 192.168.0.0/16]", got)
+	}
+	if got := saved[1].Sources; len(got) != 0 {
+		t.Errorf("an unrestricted rule arrived with sources %v", got)
+	}
+}
+
+// The picker is rendered by the server, so it needs no route and no fetch: the
+// entries are on the page, filtered to the tab's protocol.
+func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+
+	rec := doAuthRequest(t, s, "GET", "/ports?type=tcp", nil)
+	assertStatus(t, rec, http.StatusOK)
+	tcp := rec.Body.String()
+	if !strings.Contains(tcp, "Home Assistant") {
+		t.Error("the TCP tab does not offer Home Assistant, which listens on 8123/tcp")
+	}
+	// "10.0.0.0/8" alone proves nothing: it is also in the ports_sources_hint
+	// locale string ("Anywhere — or 10.0.0.0/8, 192.168.1.5"), which base.html
+	// inlines into window.easywallStrings on every page. The full joined private
+	// range list, anchored to Home Assistant's own data-service attribute, is
+	// what only the picker can produce.
+	if !strings.Contains(tcp, `data-service="homeassistant"`+"\n                    "+
+		`data-sources="10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, fc00::/7"`) {
+		t.Error("the private suggestion is not rendered into Home Assistant's catalogue item")
+	}
+
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	rec = doAuthRequest(t, s, "GET", "/ports?type=udp", nil)
+	assertStatus(t, rec, http.StatusOK)
+	udp := rec.Body.String()
+	if !strings.Contains(udp, "WireGuard") {
+		t.Error("the UDP tab does not offer WireGuard, which listens on 51820/udp")
+	}
+	if strings.Contains(udp, "Home Assistant") {
+		t.Error("the UDP tab offers a service with no UDP port; picking it would add nothing")
+	}
+}
+
+// A source that is not an address is refused with the message that names it, on
+// the page still holding the operator's typing — the shape the port field has.
+func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+
+	var reached bool
+	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
+
+	rulesJSON, _ := json.Marshal([]shared.PortRule{{Port: "443", Sources: []string{"nas.local"}}})
+	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules="+string(rulesJSON))
+
+	assertStatus(t, rec, http.StatusOK) // re-rendered, not redirected
+	if reached {
+		t.Error("an invalid source reached the core")
+	}
+	if !strings.Contains(rec.Body.String(), "nas.local") {
+		t.Error("the rejected source is not on the page that was re-rendered")
+	}
+}
