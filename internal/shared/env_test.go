@@ -16,7 +16,7 @@ func lookup(pairs map[string]string) func(string) (string, bool) {
 
 func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 	var cfg CoreConfig
-	err := applyEnv(&cfg, CoreEnvVars, lookup(map[string]string{
+	_, err := applyEnv(&cfg, CoreConfig{}, CoreEnvVars, lookup(map[string]string{
 		"EASYWALL_CORE_SOCKET_PATH": "/run/e.sock",
 		"EASYWALL_CORE_DATA_DIR":    "/data",
 		"EASYWALL_CORE_LOG_DIR":     "/logs",
@@ -37,7 +37,7 @@ func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 
 func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 	var cfg WebConfig
-	err := applyEnv(&cfg, WebEnvVars, lookup(map[string]string{
+	_, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
 		"EASYWALL_WEB_BIND_ADDR":    "0.0.0.0:9999",
 		"EASYWALL_WEB_SOCKET_PATH":  "/run/w.sock",
 		"EASYWALL_WEB_SSL_DIR":      "/ssl",
@@ -89,7 +89,7 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := WebConfig{Language: "de"}
-			if err := applyEnv(&cfg, WebEnvVars, lookup(env)); err != nil {
+			if _, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(env)); err != nil {
 				t.Fatalf("applyEnv: %v", err)
 			}
 			if cfg.Language != "de" {
@@ -104,7 +104,7 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 // believes they switched it off.
 func TestApplyWebEnv_UnparseableBoolNamesTheVariableAndTheValue(t *testing.T) {
 	var cfg WebConfig
-	err := applyEnv(&cfg, WebEnvVars, lookup(map[string]string{
+	_, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
 		"EASYWALL_WEB_UPDATE_CHECK": "yes",
 	}))
 	if err == nil {

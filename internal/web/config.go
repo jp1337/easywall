@@ -41,6 +41,12 @@ type Config struct {
 	// managedKeys are taken from the live struct — those are the keys the
 	// interface deliberately maintains.
 	fileConfig shared.WebConfig
+
+	// provenance records, for each key an environment variable names, what that
+	// variable said and whether the file beat it. Captured at load; the stored
+	// half is recomputed from fileConfig on read, so a save cannot leave the
+	// marker beside a control disagreeing with the file it describes.
+	provenance map[string]shared.Provenance
 }
 
 // Credentials returns the username and password hash in force right now.
@@ -94,9 +100,11 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	cfg.configPath = path
 	cfg.fileConfig = cfg.WebConfig // before the overlay, deliberately
-	if err := shared.ApplyWebEnv(&cfg.WebConfig); err != nil {
+	prov, err := shared.ApplyWebEnv(&cfg.WebConfig)
+	if err != nil {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
+	cfg.provenance = prov
 	return &cfg, nil
 }
 

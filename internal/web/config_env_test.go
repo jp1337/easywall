@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jp1337/easywall/config"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -19,8 +20,21 @@ func writeWebConfig(t *testing.T, body string) string {
 	return path
 }
 
-func TestLoadConfig_EnvOverridesTheFile(t *testing.T) {
+func TestLoadConfig_AStoredValueBeatsTheEnvironment(t *testing.T) {
 	path := writeWebConfig(t, "bind_addr = \"127.0.0.1:1111\"\n")
+	t.Setenv("EASYWALL_WEB_BIND_ADDR", "0.0.0.0:2222")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.BindAddr != "127.0.0.1:1111" {
+		t.Errorf("BindAddr = %q, want the stored 127.0.0.1:1111", cfg.BindAddr)
+	}
+}
+
+func TestLoadConfig_EnvBeatsTheShippedDefault(t *testing.T) {
+	path := writeWebConfig(t, string(config.Web))
 	t.Setenv("EASYWALL_WEB_BIND_ADDR", "0.0.0.0:2222")
 
 	cfg, err := LoadConfig(path)
