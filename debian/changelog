@@ -1,3 +1,48 @@
+easywall (2.12.0) unstable; urgency=medium
+
+  * Change: a stored value now beats the environment variable naming the same
+    key. Until 2.12 the environment overlaid the parsed file, so a value set
+    in the interface — or written into web.toml by hand — came back changed
+    after a restart, with nothing anywhere saying why. The order is now
+    stored value, then environment variable, then built-in default, and it is
+    the same order for all thirteen variables. THIS IS A BEHAVIOUR CHANGE FOR
+    EXISTING DOCKER INSTALLATIONS: a variable that used to win now loses to a
+    value stored in the file. The reset control on /system is the way back
+  * Change: "stored" means the file's value differs from the built-in default,
+    never that the key is present in the file. -write-config emits every
+    default and that file is what the container image ships; the other
+    reading would have disabled every environment variable in the product on
+    exactly the installations that use them
+  * Change: config/web.toml no longer pre-answers the counting question. The
+    telemetry = false line is now a commented example, because absent means
+    nobody has answered yet — a different state from "no", and under the new
+    precedence a pre-answered default would have let EASYWALL_WEB_TELEMETRY
+    overrule an operator who genuinely declined
+  * Change: the Options, Network and System pages save when you press Save.
+    They posted over HTMX on every change *and* carried a Save button, so the
+    button reported a write that had already happened. The button stays; the
+    automatic write goes
+  * Feat: every setting whose key an environment variable names says so on the
+    page. The control keeps working; beneath it the interface says either
+    "set by the environment" or "the environment says X — overridden here",
+    and in the second case offers "Reset to the environment value". Reset
+    removes the stored line rather than writing the default, because for a
+    flag whose absence is a state those are different files
+  * Feat: EASYWALL_WEB_TELEMETRY switches the installation count on from the
+    environment, so the public demo reports like any other installation —
+    which also means the number means installations including the demo.
+    Consent semantics are unchanged: unset still means no, and an answer
+    given in the interface beats the variable
+  * Feat: a precedence section and a diagram on the Environment Variables
+    documentation page, with a Control column saying which variables the
+    interface also offers
+  * Fix: the counting toggle on the System page can be saved without
+    JavaScript. Its form carried no submit button at all — hx-trigger was the
+    only thing that ever submitted it — so a script-free operator could move
+    a consent switch and never store the answer
+
+ -- easywall maintainers <12394156+jp1337@users.noreply.github.com>  Fri, 28 Aug 2026 00:00:00 +0000
+
 easywall (2.11.0) unstable; urgency=medium
 
   * Feat: a port rule can name who may reach it. Sources is a comma-separated
