@@ -189,14 +189,14 @@ rule evaluation fixes that.
 
 A client that forges one of those headers can therefore reach exactly one outcome:
 its own verdict becomes *cannot tell* and its own login line says `via-proxy`. It
-cannot insert an address, cannot change what `clientIP` recorded, and can move
+cannot insert an address, cannot change what `peerIP` recorded, and can move
 *its own* verdict to *cannot tell* and achieve nothing else — not anyone else's
 verdict, not anyone else's login line. That asymmetry is the whole argument for
 reading an untrusted header here, and it is why nothing else in the process does.
 
 ## Rate limiting
 
-`LoginRateLimit`: a token bucket per source address, 5 tokens refilling one every
+`LoginRateLimit`: a token bucket per resolved client, 5 tokens refilling one every
 2 minutes. Buckets unused for 15 minutes are swept by a goroutine started once per
 process.
 

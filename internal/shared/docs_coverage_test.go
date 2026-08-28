@@ -361,8 +361,8 @@ func TestLogEventPayloadCarriesNoFreeText(t *testing.T) {
 			// and can smuggle nothing.
 		case "Proxied":
 			if f.Type.Kind() != reflect.Bool {
-				t.Errorf("Proxied is a %s; it must stay a bool derived from a header's presence, "+
-					"or the web process can smuggle text through it", f.Type)
+				t.Errorf("Proxied is a %s; it must stay a bool, or the web process can "+
+					"smuggle text through it", f.Type)
 			}
 		default:
 			t.Errorf("LogEventPayload has gained a %s field (%s). If it carries text from the "+

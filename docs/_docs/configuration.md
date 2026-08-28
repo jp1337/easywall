@@ -240,10 +240,6 @@ Two logging switches belong to no module and are set here as well:
 
 ### Behind a reverse proxy
 
-`trusted_proxies` lists the addresses and networks whose `X-Forwarded-For`
-header easywall believes. Empty by default: the TCP peer is authoritative and no
-header's value is read.
-
 ```toml
 trusted_proxies = ["127.0.0.1", "10.1.0.5"]
 ```
@@ -267,9 +263,10 @@ hand address spoofing to anyone who can reach the port:
 List the proxies. Not the subnet they live in, not `0.0.0.0/0`, and never an
 address you do not control.
 
-Only `X-Forwarded-For` is read. `X-Real-IP`, `True-Client-IP` and `Forwarded`
-still mark a request as arriving through something that forwards, but their
-values are never used — configure your proxy to send `X-Forwarded-For`.
+Only `X-Forwarded-For` is read. From an untrusted peer, `X-Real-IP`,
+`True-Client-IP` and `Forwarded` still mark a request as arriving through
+something that forwards, but their values are never used; from a listed proxy
+they mark nothing at all — configure your proxy to send `X-Forwarded-For`.
 
 **If a listed proxy sends no `X-Forwarded-For`,** the request still resolves —
 to the proxy's own address, marked `via-proxy` in the audit log and reported as

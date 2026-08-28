@@ -102,8 +102,10 @@ var BogonRanges = []string{
 var dockerPoolRanges = []string{"172.16.0.0/12"}
 
 // Reachable reads the input chain in the order nft.Apply writes it and stops at
-// the first rule that decides. proxied comes from the *presence* of a
-// forwarding header on the request, never its value. local means "this address
+// the first rule that decides. proxied is false only when the walk named a
+// client; it is true whenever resolution fell back to the peer — an untrusted
+// peer sending a forwarding header, or a trusted peer whose X-Forwarded-For
+// named nobody. local means "this address
 // is one the host itself holds" — computed by the caller from
 // net.InterfaceAddrs(), which stays out of this package deliberately: this
 // function reasons about rules, not about which interfaces exist on the machine
