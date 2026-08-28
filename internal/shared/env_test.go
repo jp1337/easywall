@@ -82,6 +82,13 @@ func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 
 // An unset variable leaves the file's value alone; an empty one is unset too,
 // so `-e EASYWALL_WEB_LANGUAGE=` cannot blank a language the file set.
+//
+// The default passed here matches the file's "de" on purpose. With a default
+// that differed, "de" would already count as stored under the 2.12 precedence
+// rule, and applyEnv would never reach present() at all — this test would
+// keep passing even if present() stopped filtering an empty variable, because
+// nothing here would call Set either way. Matching the default isolates the
+// one thing this test means to guard.
 func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 	for name, env := range map[string]map[string]string{
 		"unset": {},
@@ -89,7 +96,7 @@ func TestApplyWebEnv_UnsetAndEmptyLeaveTheFileValue(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := WebConfig{Language: "de"}
-			if _, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(env)); err != nil {
+			if _, err := applyEnv(&cfg, WebConfig{Language: "de"}, WebEnvVars, lookup(env)); err != nil {
 				t.Fatalf("applyEnv: %v", err)
 			}
 			if cfg.Language != "de" {

@@ -62,8 +62,10 @@ type Provenance struct {
 	// Env is that variable's value.
 	Env string
 	// Stored is the file's value when the operator set it — that is, when it
-	// differs from the built-in default. Empty when the file only repeats the
-	// default, in which case Env is what is in force.
+	// differs from the built-in default. Empty both when the file only repeats
+	// the default and when an operator deliberately stored "" for a key whose
+	// default is also "" — the two are indistinguishable from this value alone,
+	// and Env is what is in force either way.
 	Stored string
 }
 
@@ -75,6 +77,13 @@ func (p Provenance) Overridden() bool { return p.Stored != "" && p.Stored != p.E
 // boolValue renders a *bool the way TOML would. A nil pointer is the key being
 // absent, which is a state config/web.toml uses for telemetry: never asked is
 // not the same answer as no.
+//
+// DemoMode is the one plain (non-pointer) bool below, and its Get skips this
+// function entirely — safe only because its shipped default is false, so an
+// omitted key decodes to the zero value, which happens to equal the default.
+// A plain bool shipping true would decode an omitted key to false and have
+// that read as stored, permanently disabling its variable; a *bool is what
+// keeps "never set" distinguishable from "set to the default".
 func boolValue(b *bool) string {
 	if b == nil {
 		return ""
@@ -170,12 +179,40 @@ var webDefault, coreDefault = func() (WebConfig, CoreConfig) {
 	return w, c
 }()
 
-// WebDefault returns the built-in easywall-web configuration. A copy, so a
-// caller comparing against it cannot edit what everybody else compares against.
-func WebDefault() WebConfig { return webDefault }
+// WebDefault returns the built-in easywall-web configuration.
+//
+// A real copy, not just a struct assignment: UpdateCheck and Telemetry are
+// *bool, and RecoveryCodes is a slice, so a plain `return webDefault` would
+// still alias the package-level value through those three fields. A caller
+// doing *WebDefault().UpdateCheck = false would then reach back and silently
+// change what every later comparison in the process compares against — after
+// which a file saying update_check = true reads as stored and
+// EASYWALL_WEB_UPDATE_CHECK is dead for the rest of the process's life. Cloned
+// here so a caller can hold and edit its own copy freely.
+func WebDefault() WebConfig {
+	d := webDefault
+	if d.UpdateCheck != nil {
+		v := *d.UpdateCheck
+		d.UpdateCheck = &v
+	}
+	if d.Telemetry != nil {
+		v := *d.Telemetry
+		d.Telemetry = &v
+	}
+	d.RecoveryCodes = append([]string(nil), d.RecoveryCodes...)
+	return d
+}
 
-// CoreDefault returns the built-in easywall-core configuration.
-func CoreDefault() CoreConfig { return coreDefault }
+// CoreDefault returns the built-in easywall-core configuration, cloned for the
+// same reason as WebDefault: Docker.CustomNetworks and Routing.Networks are
+// slices that a plain struct copy would still alias to the package-level
+// value.
+func CoreDefault() CoreConfig {
+	d := coreDefault
+	d.Docker.CustomNetworks = append([]string(nil), d.Docker.CustomNetworks...)
+	d.Routing.Networks = append([]string(nil), d.Routing.Networks...)
+	return d
+}
 
 // ApplyCoreEnv resolves the environment against a parsed easywall.toml.
 func ApplyCoreEnv(cfg *CoreConfig) (map[string]Provenance, error) {
