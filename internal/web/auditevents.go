@@ -2,8 +2,6 @@ package web
 
 import (
 	"log/slog"
-	"net"
-	"net/http"
 	"sync/atomic"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -65,43 +63,4 @@ func (a *auditEvents) run(stop <-chan struct{}) {
 			}
 		}
 	}
-}
-
-// clientIP is the peer address, and only the peer address.
-//
-// Deliberately not RealIP and deliberately not any forwarding header:
-// easywall-web terminates TLS itself and is not assumed to sit behind a trusted
-// reverse proxy, so X-Forwarded-For and friends are attacker-controlled. The
-// login rate limiter already refuses to read them — see the note at the top of
-// buildRouter — and an address in the firewall's own audit log that a client
-// chose would be worse than no address at all.
-func clientIP(r *http.Request) string {
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return ip
-}
-
-// proxyHeaders are the headers whose *presence* means the peer is not the
-// client. Their values are never read.
-var proxyHeaders = []string{"X-Forwarded-For", "X-Real-IP", "True-Client-IP", "Forwarded"}
-
-// proxiedRequest reports whether this request arrived through something that
-// forwards, so the interface can say that the address it recorded is not the
-// caller's.
-//
-// Presence only. clientIP stays the TCP peer and nothing on this path ever
-// trusts a header's contents, which is what makes reading one acceptable here: a
-// client that forges a header can move a verdict to "cannot tell" and achieve
-// nothing else. It cannot insert an address, cannot suppress a warning, and
-// cannot reach the recorded peer address. docs-tech/threat-model.md says it in
-// those terms.
-func proxiedRequest(r *http.Request) bool {
-	for _, h := range proxyHeaders {
-		if _, ok := r.Header[http.CanonicalHeaderKey(h)]; ok {
-			return true
-		}
-	}
-	return false
 }

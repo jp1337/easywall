@@ -187,7 +187,7 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 	o shared.FirewallOptions, n shared.NetworkSettings) *applyVerdict {
 
-	rawAddr := clientIP(r)
+	rawAddr := peerIP(r)
 	addr, err := netip.ParseAddr(rawAddr)
 	if err != nil {
 		// Not nil: reach_no_address is exactly the sentence for this, and it is

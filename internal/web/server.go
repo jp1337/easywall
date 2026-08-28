@@ -448,7 +448,7 @@ func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left in
 	if s.events == nil {
 		return // a Server built by a test that does not care about events
 	}
-	s.events.Record(ev, clientIP(r), left, proxiedRequest(r))
+	s.events.Record(ev, peerIP(r), left, proxiedRequest(r))
 }
 
 // onLoginBlocked is what LoginRateLimit calls when it refuses a request. It is

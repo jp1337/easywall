@@ -1,7 +1,6 @@
 package web
 
 import (
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -118,36 +117,5 @@ func TestAuditEvents_AnUnreachableCoreDoesNotStopAnything(t *testing.T) {
 	if a.dropped() > auditEventBuffer {
 		t.Errorf("%d of %d events were dropped against an unreachable socket; run() is not "+
 			"draining at all", a.dropped(), auditEventBuffer*2)
-	}
-}
-
-// r.RemoteAddr, never X-Forwarded-For. easywall-web terminates TLS itself and is
-// not assumed to sit behind a trusted proxy, so a header would let a client put
-// somebody else's address in the firewall's own audit log.
-func TestClientIP_IgnoresForwardingHeaders(t *testing.T) {
-	req := httptest.NewRequest("POST", "/login", nil)
-	req.RemoteAddr = "203.0.113.7:54321"
-	req.Header.Set("X-Forwarded-For", "198.51.100.1")
-	req.Header.Set("X-Real-IP", "198.51.100.2")
-
-	if got := clientIP(req); got != "203.0.113.7" {
-		t.Errorf("clientIP = %q, want 203.0.113.7 — a header must never reach the audit log", got)
-	}
-}
-
-// A client can put any of these headers on a request; none of it may ever be
-// read except to notice that it is there. This proves the second half of the
-// design — a forged header only ever moves the flag to true, never carries a
-// value anywhere.
-func TestProxiedRequest_ReadsPresenceAndNeverValue(t *testing.T) {
-	for _, header := range []string{"X-Forwarded-For", "X-Real-IP", "True-Client-IP", "Forwarded"} {
-		r := httptest.NewRequest("GET", "/apply", nil)
-		r.Header.Set(header, "not-an-address-at-all")
-		if !proxiedRequest(r) {
-			t.Errorf("%s is present and the request is not reported as proxied", header)
-		}
-	}
-	if proxiedRequest(httptest.NewRequest("GET", "/apply", nil)) {
-		t.Error("a request with no forwarding header is not proxied")
 	}
 }
