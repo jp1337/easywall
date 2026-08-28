@@ -91,9 +91,16 @@ jobs:
       # Integration tests run in an isolated network namespace created by
       # TestMain via CLONE_NEWNET (requires CAP_SYS_ADMIN = root via sudo).
       # They verify that actual nftables rules are applied correctly to the
-      # kernel — something unit-test mocking cannot achieve.
+      # kernel — something unit-test mocking cannot achieve — and, since 2.13,
+      # that the trusted-proxy resolution sees a peer address the kernel
+      # assigned rather than one a test wrote into a struct.
+      #
+      # The timeout is there to catch a hang, not to police seconds: two
+      # packages now run under it, namespace setup included, and a limit that
+      # trips intermittently costs far more to diagnose than a generous one
+      # costs to wait for.
       - name: Integration tests (kernel nftables)
-        run: sudo go test -tags integration -v -count=1 -timeout 120s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/...
+        run: sudo go test -tags integration -v -count=1 -timeout 300s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/... ./internal/web/...
 
       # Counted, not just run. Without this the rule builders in nftables.go
       # measured 0% — every one of them is exercised here and nowhere else, so

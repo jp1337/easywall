@@ -197,6 +197,14 @@ func TestNewServer_SSLDirIsFile(t *testing.T) {
 }
 
 func TestNewServer_CertGenerationError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		// The premise is a directory the process cannot write to, and root can
+		// write to it anyway. Since 2.13 CI runs this package under sudo for
+		// the integration tag, where the assertion below would otherwise fail
+		// on a claim the test never actually set up.
+		t.Skip("root ignores the mode this test relies on")
+	}
+
 	dir := t.TempDir()
 	sslDir := dir + "/ssl"
 	_ = os.MkdirAll(sslDir, 0750)

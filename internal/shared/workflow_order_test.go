@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -283,4 +285,80 @@ func TestPackageInstallsNativelyInsideAContainer(t *testing.T) {
 			"service and the job hangs until the platform gives up on it.",
 			strings.TrimSpace(installLine))
 	}
+}
+
+// The integration job has to cover every package that carries integration tests.
+//
+// It was ./internal/core/... alone, and 2.13's trusted-proxy proofs live in
+// internal/web: four tests that would have been green in CI while never
+// executing once. That is the failure spec §4.4 names — 2.11 produced five
+// tests that were green while proving nothing — reproduced in the workflow
+// rather than in the assertions.
+//
+// The package list is read off the tree rather than restated here, so a fourth
+// package that grows a file behind the integration tag is covered the day it
+// appears instead of the day somebody remembers this test.
+func TestTheIntegrationJobCoversEveryTaggedPackage(t *testing.T) {
+	block := jobBlock(t, repoFile(t, ".github", "workflows", "test.yml"), "test-integration")
+
+	var cmd string
+	for _, line := range strings.Split(block, "\n") {
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "run: sudo go test") {
+			cmd = trimmed
+			break
+		}
+	}
+	if cmd == "" {
+		t.Fatal("the integration job does not run go test")
+	}
+
+	root := repoRootDir(t)
+	pkgs, err := os.ReadDir(filepath.Join(root, "internal"))
+	if err != nil {
+		t.Fatalf("read internal/: %v", err)
+	}
+	for _, pkg := range pkgs {
+		if !pkg.IsDir() || !hasIntegrationTests(t, filepath.Join(root, "internal", pkg.Name())) {
+			continue
+		}
+		if !strings.Contains(cmd, "./internal/"+pkg.Name()+"/...") {
+			t.Errorf("internal/%s carries integration-tagged tests and the job does "+
+				"not run them:\n  %s\n  they would be green in CI while never "+
+				"executing once", pkg.Name(), cmd)
+		}
+	}
+}
+
+// hasIntegrationTests reports whether dir holds a test file behind the
+// integration build tag.
+//
+// Only the constraint header — the lines above `package` — counts. A plain
+// substring search over the whole file also matches the literal in this test's
+// own source, and reported internal/shared as carrying integration tests it
+// does not have.
+func hasIntegrationTests(t *testing.T, dir string) bool {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", e.Name(), err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "package ") {
+				break
+			}
+			if strings.HasPrefix(line, "//go:build ") && strings.Contains(line, "integration") {
+				return true
+			}
+		}
+	}
+	return false
 }
