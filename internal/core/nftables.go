@@ -1855,7 +1855,10 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 // everywhere else. No sources means no address match and one rule, which is
 // byte-identical to what every rule written before 2.11 produced.
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {
-	protoNum := unix.IPPROTO_TCP
+	// A byte from the start rather than an int converted at use: both values are
+	// untyped constants that fit, so this is a compile-time conversion and gosec
+	// has no runtime narrowing to warn about (G115).
+	var protoNum byte = unix.IPPROTO_TCP
 	if proto == "udp" {
 		protoNum = unix.IPPROTO_UDP
 	}
@@ -1864,7 +1867,7 @@ func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, pr
 		exprs := append([]expr.Any(nil), prefix...)
 		exprs = append(exprs,
 			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(protoNum)}},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{protoNum}},
 		)
 		exprs = append(exprs, buildPortExprs(rule.Port)...)
 		return append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
