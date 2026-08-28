@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/jp1337/easywall/config"
@@ -34,6 +35,11 @@ const (
 	EnvString EnvKind = iota
 	// EnvBool is parsed with strconv.ParseBool; anything else stops startup.
 	EnvBool
+	// EnvList is a comma-separated list. The separator is a comma and not
+	// whitespace because an address list is pasted from a proxy's own
+	// configuration as often as it is typed, and a stray newline in a
+	// docker-compose block should not become two entries.
+	EnvList
 )
 
 // EnvVar binds one variable to the TOML key it overrides, in a configuration of
@@ -160,6 +166,16 @@ var WebEnvVars = []EnvVar[WebConfig]{
 				return err
 			}
 			c.Telemetry = &b
+			return nil
+		}},
+	{"EASYWALL_WEB_TRUSTED_PROXIES", "trusted_proxies", EnvList,
+		func(c *WebConfig) string { return strings.Join(c.TrustedProxies, ",") },
+		func(c *WebConfig, v string) error {
+			list := splitList(v)
+			if err := ValidateProxyList(list); err != nil {
+				return err
+			}
+			c.TrustedProxies = list
 			return nil
 		}},
 }
@@ -315,4 +331,17 @@ func parseBool(v string) (bool, error) {
 		return false, fmt.Errorf("not a boolean; use true or false")
 	}
 	return b, nil
+}
+
+// splitList parses the comma-separated form a list variable carries. Empty
+// fields are dropped, so a trailing comma is a trailing comma and not an entry
+// nobody can parse.
+func splitList(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

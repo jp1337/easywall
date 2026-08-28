@@ -167,7 +167,7 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 	// the two worst outcomes available — a false alarm on every LAN request, or
 	// silence on a real lockout.
 	if o.Bogons && src.Is4() && inAnyCIDR(src, BogonRanges) &&
-		!inAnyEntry(src, r.Whitelist) && !inAnyCIDR(src, dockerNets) {
+		!InAnyEntry(src, r.Whitelist) && !inAnyCIDR(src, dockerNets) {
 		return ReachUnknown, ReasonBogonFilter
 	}
 
@@ -191,12 +191,12 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 
 	// 7. The blacklist drops, and it is consulted *before* the whitelist. An
 	// operator's own address on both lists is blocked. That is the trap.
-	if inAnyEntry(src, r.Blacklist) {
+	if InAnyEntry(src, r.Blacklist) {
 		return ReachBlocked, ReasonBlacklisted
 	}
 
 	// 8. The whitelist accepts.
-	if inAnyEntry(src, r.Whitelist) {
+	if InAnyEntry(src, r.Whitelist) {
 		return ReachOpen, ReasonWhitelisted
 	}
 
@@ -220,7 +220,7 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 			return ReachOpen, ReasonPortOpen
 		}
 		restricted = true
-		if inAnyEntry(src, rule.Sources) {
+		if InAnyEntry(src, rule.Sources) {
 			return ReachOpen, ReasonPortOpen
 		}
 	}
@@ -248,10 +248,14 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 	return ReachBlocked, ReasonNoRule
 }
 
-// inAnyEntry reports whether src is covered by an operator-written list entry —
+// InAnyEntry reports whether src is covered by an operator-written list entry —
 // a bare address or a network, with comments and blanks skipped, exactly as the
 // rule builders skip them.
-func inAnyEntry(src netip.Addr, entries []string) bool {
+//
+// Exported since 2.13: the trusted-proxy check is the same question about a
+// different list, and a second matcher beside this one is how a list check and
+// a rule check come to disagree about what an address means.
+func InAnyEntry(src netip.Addr, entries []string) bool {
 	for _, entry := range entries {
 		if IsListComment(entry) {
 			continue
@@ -270,7 +274,7 @@ func inAnyEntry(src netip.Addr, entries []string) bool {
 	return false
 }
 
-// inAnyCIDR is inAnyEntry for lists that hold networks only.
+// inAnyCIDR is InAnyEntry for lists that hold networks only.
 func inAnyCIDR(src netip.Addr, cidrs []string) bool {
 	for _, c := range cidrs {
 		if IsListComment(c) {
