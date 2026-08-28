@@ -676,8 +676,11 @@ func (d *demoState) handleLogEvent(payload []byte) shared.Response {
 	if p.Addr != "" {
 		detail = "from " + p.Addr
 		if p.Proxied {
-			// The same token the core writes. The public demo is behind nginx,
-			// which is where this was noticed, so the demo has to show it.
+			// The same token the core writes. Unreachable in the demo since
+			// 2.13 — no address is recorded there, so this branch's `detail`
+			// is never built — and kept because the handler is the demo's copy
+			// of the protocol, not a copy of the demo's configuration: it must
+			// go on refusing and accepting exactly what the core does.
 			detail += shared.ProxyToken
 		}
 	}

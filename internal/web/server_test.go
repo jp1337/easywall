@@ -104,6 +104,24 @@ func TestNewServer_AlwaysBuildsTheAuditEventDispatcher(t *testing.T) {
 			t.Errorf("NewServer(demo=%v) left s.eventsStop nil; Start would never "+
 				"drain the queue", demo)
 		}
+
+		// The wiring itself, not just its presence: a demo-configured Server
+		// must hand recordLoginEvent's caller an events dispatcher that drops
+		// the address, and a non-demo one must not. No run() goroutine is
+		// started here (that only happens in Start()), so the payload
+		// recordLoginEvent queues can be read straight off the channel.
+		req := httptest.NewRequest("GET", "/", nil)
+		req.RemoteAddr = "203.0.113.7:1234"
+		s.recordLoginEvent(req, shared.EvLoginOK, 0)
+		wantAddr := "203.0.113.7"
+		if demo {
+			wantAddr = ""
+		}
+		if p := <-s.events.ch; p.Addr != wantAddr {
+			t.Errorf("NewServer(demo=%v): recordLoginEvent queued Addr=%q, want %q",
+				demo, p.Addr, wantAddr)
+		}
+
 		s.Stop()
 	}
 }

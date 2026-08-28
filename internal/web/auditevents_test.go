@@ -10,7 +10,7 @@ import (
 // The handler drops its event and moves on. A login must not wait on a socket.
 func TestAuditEvents_RecordDoesNotBlockWhenNobodyIsDraining(t *testing.T) {
 	fc := newFakeCore(t)
-	a := newAuditEvents(NewCoreClient(fc.socketPath)) // no run() goroutine on purpose
+	a := newAuditEvents(NewCoreClient(fc.socketPath), false) // no run() goroutine on purpose
 
 	done := make(chan struct{})
 	go func() {
@@ -32,7 +32,7 @@ func TestAuditEvents_RecordDoesNotBlockWhenNobodyIsDraining(t *testing.T) {
 // not answering.
 func TestAuditEvents_AFullBufferDropsAndCounts(t *testing.T) {
 	fc := newFakeCore(t)
-	a := newAuditEvents(NewCoreClient(fc.socketPath))
+	a := newAuditEvents(NewCoreClient(fc.socketPath), false)
 
 	for i := 0; i < auditEventBuffer*2; i++ {
 		a.Record(shared.EvLoginFailed, "203.0.113.7", 0, false)
@@ -48,7 +48,7 @@ func TestAuditEvents_TheEventReachesTheCore(t *testing.T) {
 	seen := make(chan shared.Command, 4)
 	fc.OnCommand(shared.CmdLogEvent, func(c shared.Command) { seen <- c })
 
-	a := newAuditEvents(NewCoreClient(fc.socketPath))
+	a := newAuditEvents(NewCoreClient(fc.socketPath), false)
 	stop := make(chan struct{})
 	go a.run(stop)
 	t.Cleanup(func() { close(stop) })
@@ -82,7 +82,7 @@ func TestAuditEvents_AFailingCoreDoesNotStopTheDrain(t *testing.T) {
 	seen := make(chan struct{}, n)
 	fc.OnCommand(shared.CmdLogEvent, func(shared.Command) { seen <- struct{}{} })
 
-	a := newAuditEvents(NewCoreClient(fc.socketPath))
+	a := newAuditEvents(NewCoreClient(fc.socketPath), false)
 	stop := make(chan struct{})
 	go a.run(stop)
 	t.Cleanup(func() { close(stop) })
@@ -103,7 +103,7 @@ func TestAuditEvents_AFailingCoreDoesNotStopTheDrain(t *testing.T) {
 // journal and the login proceeds — 2.7's principle, inverted. There is no
 // socket at all here, which is a different failure from one that answers badly.
 func TestAuditEvents_AnUnreachableCoreDoesNotStopAnything(t *testing.T) {
-	a := newAuditEvents(NewCoreClient("/nonexistent/easywall.sock"))
+	a := newAuditEvents(NewCoreClient("/nonexistent/easywall.sock"), false)
 	stop := make(chan struct{})
 	go a.run(stop)
 	t.Cleanup(func() { close(stop) })

@@ -171,7 +171,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetryStop = make(chan struct{})
 	}
 
-	s.events = newAuditEvents(client)
+	s.events = newAuditEvents(client, cfg.DemoMode)
 	s.eventsStop = make(chan struct{})
 
 	// Non-fatal here so tests can build a Server without the asset tree; Start()

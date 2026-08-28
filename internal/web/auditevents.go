@@ -26,14 +26,35 @@ type auditEvents struct {
 	client *CoreClient
 	ch     chan shared.LogEventPayload
 	lost   atomic.Uint64
+
+	// demo suppresses the recorded address. See Record.
+	demo bool
 }
 
-func newAuditEvents(c *CoreClient) *auditEvents {
-	return &auditEvents{client: c, ch: make(chan shared.LogEventPayload, auditEventBuffer)}
+func newAuditEvents(c *CoreClient, demo bool) *auditEvents {
+	return &auditEvents{
+		client: c,
+		ch:     make(chan shared.LogEventPayload, auditEventBuffer),
+		demo:   demo,
+	}
 }
 
 // Record queues one event. It never blocks.
+//
+// In demo mode the address is dropped here, which is the one place both callers
+// pass through — recordLoginEvent and onLoginBlocked. The public demo is a page
+// anyone on the internet can open, and the addresses of everyone who has looked
+// at it are not something a demonstration needs to keep. The event itself is
+// still recorded: the /log page is one of the things the demo exists to show.
+//
+// Omitted rather than replaced with a placeholder, because the field is already
+// optional at both ends — the core's addrDetail returns "" for an empty
+// address, the demo's handleLogEvent builds no detail at all — so a dash would
+// be one more line of code making the same statement.
 func (a *auditEvents) Record(ev shared.LoginEvent, addr string, left int, proxied bool) {
+	if a.demo {
+		addr = ""
+	}
 	select {
 	case a.ch <- shared.LogEventPayload{Event: ev, Addr: addr, Left: left, Proxied: proxied}:
 	default:
