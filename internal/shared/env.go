@@ -266,10 +266,21 @@ func applyEnv[T any](cfg *T, def T, vars []EnvVar[T], look func(string) (string,
 		// parse is a mistake worth reporting whether or not a stored value beats
 		// it — otherwise the operator who removes the stored value discovers the
 		// typo then, on a restart, with the process refusing to start.
+		//
+		// Canonicalised in place once parsed: `1`, `TRUE` and `t` are the same
+		// boolean as a stored `true`, and Provenance.Env below is compared
+		// against Stored as plain strings (Provenance.Overridden). Comparing two
+		// spellings of one value would show a conflict where none exists —
+		// exactly the false "overridden here" the interface must not draw.
+		// Reassigning raw also means v.Set below receives the canonical form,
+		// and the marker shown to the operator is a well-formed boolean instead
+		// of whatever spelling they happened to type.
 		if v.Kind == EnvBool {
-			if _, err := parseBool(raw); err != nil {
+			b, err := parseBool(raw)
+			if err != nil {
 				return nil, fmt.Errorf("%s=%q: %w", v.Name, raw, err)
 			}
+			raw = strconv.FormatBool(b)
 		}
 
 		stored := v.Get(cfg)

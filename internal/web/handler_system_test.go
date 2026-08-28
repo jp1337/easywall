@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -205,6 +206,45 @@ func TestHandleTelemetryPOST_RecordsConsent(t *testing.T) {
 	doFormRequest(s, "POST", "/system/telemetry", "", makeAuthCookie(t, s))
 	if s.cfg.TelemetryEnabled() {
 		t.Error("switching it off was not recorded")
+	}
+}
+
+// The reset button is a second submit inside the telemetry form (name="reset"),
+// and it must take a different path through handleTelemetryPOST than an
+// ordinary save: it removes the stored line rather than writing one. A
+// mutation that disabled the "is this a reset" check would fold a bare
+// reset=1 submission (no telemetry checkbox in the body at all) into an
+// ordinary save of "off" — a save wearing a reset button, and one that would
+// have quietly reintroduced the exact "changed here, reverted after a
+// restart" bug 2.12 exists to remove.
+func TestHandleTelemetryPOST_ResetRemovesTheStoredLine(t *testing.T) {
+	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	if err := s.cfg.SaveTelemetry(false); err != nil {
+		t.Fatalf("SaveTelemetry: %v", err)
+	}
+	if s.cfg.TelemetryEnabled() {
+		t.Fatal("the stored no did not win, so this test starts from the wrong state")
+	}
+
+	rec := doFormRequest(s, "POST", "/system/telemetry", "reset=1", makeAuthCookie(t, s))
+	if rec.Code >= 400 {
+		t.Fatalf("the reset request failed: HTTP %d", rec.Code)
+	}
+
+	written, err := os.ReadFile(s.cfg.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(written), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "telemetry") {
+			t.Errorf("the stored line survived the reset: %q", trimmed)
+		}
+	}
+	if !s.cfg.TelemetryEnabled() {
+		t.Error("after the reset the environment's true is not in force")
 	}
 }
 

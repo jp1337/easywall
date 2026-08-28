@@ -804,6 +804,11 @@ func mergeConfig(existing []byte, cfg shared.WebConfig) ([]byte, bool) {
 		lines = append(lines[:lastTopLevel+1], append(missing, rest...)...)
 	}
 
+	// Safe against the splice above only because every dropped index is a
+	// top-level assignment line, and lastTopLevel is set to that same index
+	// immediately before drop[i] is (line ~781) — so every drop[i] is <=
+	// lastTopLevel, and missing keys are inserted strictly after it. No
+	// dropped index can move before this loop reads it.
 	if len(drop) > 0 {
 		kept := make([]string, 0, len(lines))
 		for i, line := range lines {

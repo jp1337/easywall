@@ -123,3 +123,36 @@ func TestApplyWebEnv_UnparseableBoolNamesTheVariableAndTheValue(t *testing.T) {
 		}
 	}
 }
+
+// `1`, `TRUE` and `t` are the same boolean as a stored `true` — strconv.
+// ParseBool accepts all four. Provenance.Env must carry the canonical
+// spelling, or the acceptance table's row 4 ("environment set, stored value
+// identical: show 'set by the environment', no conflict to display") breaks
+// for every spelling but the one that happens to match the file byte for
+// byte: EASYWALL_WEB_TELEMETRY=1 against a stored `telemetry = true` would
+// read as Env="1" != Stored="true", and the marker would draw a conflict (and
+// a reset button that changes nothing) where the two values agree.
+func TestApplyWebEnv_CanonicalisesABooleanEnvValueAgainstAMatchingStoredValue(t *testing.T) {
+	for _, spelling := range []string{"1", "TRUE", "t", "true"} {
+		t.Run(spelling, func(t *testing.T) {
+			stored := true
+			cfg := WebConfig{Telemetry: &stored}
+			prov, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
+				"EASYWALL_WEB_TELEMETRY": spelling,
+			}))
+			if err != nil {
+				t.Fatalf("applyEnv: %v", err)
+			}
+			p, ok := prov["telemetry"]
+			if !ok {
+				t.Fatal("no provenance recorded for telemetry")
+			}
+			if p.Env != "true" {
+				t.Errorf("Env = %q, want the canonical %q", p.Env, "true")
+			}
+			if p.Overridden() {
+				t.Errorf("Overridden() = true for EASYWALL_WEB_TELEMETRY=%s against a stored `true`; want no conflict", spelling)
+			}
+		})
+	}
+}
