@@ -54,3 +54,31 @@ func TestEveryManagedKeyIsEitherSecretOrDeliberatelyEnvSettable(t *testing.T) {
 		}
 	}
 }
+
+// The two tests above are both hand-written lists checked against each other,
+// which catches a key falling out of the accounting entirely but not a key
+// moved between the two categories in the same change: drop a key from
+// secretManagedKeys and add a matching entry to shared.WebEnvVars in one
+// commit, and both tests above still pass, each reading the other's half of
+// the same mistake as the reason it is fine.
+//
+// telemetry is the only managed key precedence lets a variable name (see the
+// header comment on shared.WebEnvVars), so the intersection of managedKeys
+// and the keys shared.WebEnvVars targets has exactly one member. A second
+// member means a secret was reclassified as env-settable, or the reverse,
+// without anyone deciding it belonged in this test's exception.
+func TestOnlyTelemetryIsBothManagedAndEnvSettable(t *testing.T) {
+	managed := map[string]bool{}
+	for _, k := range managedKeys {
+		managed[k] = true
+	}
+	var both []string
+	for _, v := range shared.WebEnvVars {
+		if managed[v.TOMLKey] {
+			both = append(both, v.TOMLKey)
+		}
+	}
+	if len(both) != 1 || both[0] != "telemetry" {
+		t.Errorf("managed keys named by an environment variable = %v, want exactly [telemetry]", both)
+	}
+}

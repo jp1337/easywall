@@ -112,18 +112,24 @@ func TestEnvOverlayNeverReachesTheConfigFile(t *testing.T) {
 	}
 }
 
-// fileSourcedManagedKeys are the managed keys encode()'s copy block takes from
-// fileConfig rather than from the live struct. telemetry alone, and for one
-// reason: since 2.12, EASYWALL_WEB_TELEMETRY can drive the live value, and
-// copying the live value into the file would turn a deployment setting into a
-// stored one — which then beats the very variable it came from, permanently,
-// from the next password change onwards. fileConfig is what SaveTelemetry and
-// SaveFirstRun update, so the operator's own answer still reaches the file;
-// TestTelemetryFromTheEnvironmentIsNeverWrittenToTheFile and
-// TestSaveTelemetryStillWritesTheOperatorsAnswer
+// fileSourcedManagedKeys are the managed keys encode() must leave exactly as
+// fileConfig already has them, rather than overwrite from the live struct.
+// telemetry alone, and for one reason: since 2.12, EASYWALL_WEB_TELEMETRY can
+// drive the live value, and copying it into the file would turn a deployment
+// setting into a stored one — which then beats the very variable it came
+// from, permanently, from the next password change onwards. fileConfig is
+// what SaveTelemetry and SaveFirstRun update, so the operator's own answer
+// still reaches the file; TestTelemetryFromTheEnvironmentIsNeverWrittenToTheFile
+// and TestSaveTelemetryStillWritesTheOperatorsAnswer
 // (config_telemetry_env_test.go) cover this from the other side — the first
 // proves the environment's value never lands on disk, the second that the
 // operator's answer does.
+//
+// Unlike the other five, encode() has no line copying this key at all: `out
+// := c.fileConfig` already carries it, and the correct behaviour is to leave
+// it alone. The risk this test guards against for telemetry is therefore the
+// opposite of the other five's — not a missing copy line, but somebody adding
+// one that overwrites the correct value with the live struct's.
 var fileSourcedManagedKeys = map[string]bool{"telemetry": true}
 
 // TestEncode_CopiesEveryManagedKey guards encode()'s hand-maintained copy
@@ -133,15 +139,20 @@ var fileSourcedManagedKeys = map[string]bool{"telemetry": true}
 // carrying that toml tag, sets only that one field to a value the zero value
 // could never produce — on the live struct for most keys, on fileConfig for
 // the one in fileSourcedManagedKeys — and insists encode() renders it from
-// whichever half the copy block is supposed to read for that key, with the
-// other half left zero so nothing else could have supplied the value.
+// whichever half is supposed to carry that key's value, with the other half
+// left zero so nothing else could have supplied it.
 //
-// Add a key to managedKeys without adding it to the copy block, and the
-// corresponding subtest goes red: the sentinel value never reaches the
-// output, because the half it was set on was never copied over. That is
-// exactly the failure mode this test exists to catch — a managed value
-// silently dropped from a save that falls back to encode(), with the caller
-// none the wiser.
+// For the five keys the copy block does copy: add one to managedKeys without
+// adding it to the block, and the corresponding subtest goes red, because the
+// live-struct sentinel it set never reaches the output. For telemetry, the
+// subtest instead guards the copy block from growing a line it should not
+// have: the sentinel is set on fileConfig and reaches the output because
+// nothing touches it, and a line reinstating `out.Telemetry = c.Telemetry`
+// would overwrite it with the (zero) live struct's and turn this subtest red
+// too. Either way, a change that stops the right half's value from reaching
+// encode()'s output is what this test exists to catch — a managed value
+// silently dropped or overwritten by a save that falls back to encode(), with
+// the caller none the wiser.
 func TestEncode_CopiesEveryManagedKey(t *testing.T) {
 	typ := reflect.TypeOf(shared.WebConfig{})
 

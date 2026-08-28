@@ -34,7 +34,7 @@ touches its config file.
 | `EASYWALL_WEB_LANGUAGE` | `language` | string | Fallback UI locale — `en` or `de` |
 | `EASYWALL_WEB_UPDATE_CHECK` | `update_check` | bool | Ask github.com once a day whether a newer release exists |
 | `EASYWALL_WEB_DEMO_MODE` | `demo_mode` | bool | Run against an in-memory mock instead of the core — the public demo only |
-| `EASYWALL_WEB_TELEMETRY` | `telemetry` | bool | Report to the installation count — off unless answered, and a stored answer always wins |
+| `EASYWALL_WEB_TELEMETRY` | `telemetry` | bool | Report to the installation count — off unless answered |
 
 ## `TZ`
 

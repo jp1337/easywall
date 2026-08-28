@@ -244,7 +244,9 @@ func (c *Config) TelemetryEnabled() bool {
 }
 
 // Provenance reports where the value in force for one TOML key came from, or
-// false when no environment variable names that key.
+// false when no environment variable is currently set for that key — an unset
+// variable leaves no entry for LoadConfig to have recorded, the same as one
+// that never existed.
 //
 // The stored half is recomputed from fileConfig rather than returned as it was
 // captured at load: a save changes the file, and a marker that still described
@@ -258,10 +260,10 @@ func (c *Config) Provenance(tomlKey string) (shared.Provenance, bool) {
 	if !ok {
 		return shared.Provenance{}, false
 	}
-	v, ok := shared.WebEnvVar(tomlKey)
-	if !ok {
-		return shared.Provenance{}, false
-	}
+	// c.provenance is built by LoadConfig from shared.ApplyWebEnv, which only
+	// ever records a key that is also one of shared.WebEnvVars' TOMLKeys — so a
+	// hit above always has a matching entry here too.
+	v, _ := shared.WebEnvVar(tomlKey)
 	file := c.fileConfig
 	def := shared.WebDefault()
 	if stored := v.Get(&file); stored != v.Get(&def) {
@@ -458,8 +460,10 @@ func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 
 	c.Username = a.Username
 	c.Password = a.PasswordHash
-	c.Telemetry = &a.Telemetry
-	c.fileConfig.Telemetry = &a.Telemetry
+	telemetry := a.Telemetry
+	fileTelemetry := a.Telemetry
+	c.Telemetry = &telemetry
+	c.fileConfig.Telemetry = &fileTelemetry
 	c.WebConfig.TOTPSecret = a.TOTPSecret
 	c.WebConfig.RecoveryCodes = append([]string(nil), a.RecoveryHashes...)
 
@@ -556,12 +560,13 @@ var managedKeys = []string{"session_key", "username", "password", "telemetry", "
 // nothing to redact from a value whose destination is the file it came from.
 func (c *Config) encode() ([]byte, error) {
 	out := c.fileConfig
-	// The six keys the interface owns come from the live struct; everything else
-	// is what the file said. See the note on fileConfig.
+	// Five of the six keys the interface owns come from the live struct;
+	// everything else — including telemetry, the sixth — is left as fileConfig
+	// already has it. See the note on fileConfig for the general rule, and
+	// mergeSource for why telemetry is the one exception to it.
 	out.SessionKey = c.SessionKey
 	out.Username = c.Username
 	out.Password = c.Password
-	out.Telemetry = c.fileConfig.Telemetry
 	// Spelled through the embedded struct because Config has a TOTPSecret() and
 	// a RecoveryCodes() method: c.TOTPSecret is the method value, not the field.
 	out.TOTPSecret = c.WebConfig.TOTPSecret

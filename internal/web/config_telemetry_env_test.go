@@ -50,6 +50,36 @@ func TestAStoredNoBeatsTelemetryFromTheEnvironment(t *testing.T) {
 	}
 }
 
+// Provenance recomputes the stored half from fileConfig on every call rather
+// than handing back what applyEnv captured at load — a save is exactly the
+// moment that value changes, and this is the path an operator's own answer
+// takes to reach it. Caching the load-time value would report a fresh save as
+// unstored until the next restart.
+func TestProvenanceReflectsASaveMadeAfterLoad(t *testing.T) {
+	path := writeWebConfig(t, string(config.Web))
+	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if p, ok := cfg.Provenance("telemetry"); !ok || p.Overridden() {
+		t.Fatalf("provenance = %+v, ok=%v; before any save nothing is stored yet", p, ok)
+	}
+
+	if err := cfg.SaveTelemetry(false); err != nil {
+		t.Fatalf("SaveTelemetry: %v", err)
+	}
+
+	p, ok := cfg.Provenance("telemetry")
+	if !ok {
+		t.Fatal("no provenance for telemetry after a save, and the variable is still set")
+	}
+	if !p.Overridden() {
+		t.Errorf("provenance = %+v, want the just-saved value reported as overriding", p)
+	}
+}
+
 // The variable's value must never become content of the operator's file. It
 // would stop being a deployment setting and become a stored one — which then
 // beats the very variable it came from, permanently, from the next password
