@@ -50,6 +50,7 @@ Each of these cost a release. They are not style preferences.
 | **A generated file is rebuilt and diffed, never assumed** | Tailwind drops a rule silently and the build stays green — grep the built file |
 | **`-ldflags -X` writes to a `var`** | `CurrentVersion` was a `const`, so every release binary reported the literal in the source and the flag reported nothing |
 | **Plan larger changes first, and read the code in full** | Keyword-grepping produced confident answers about code that did not say what the grep suggested |
+| **A test is verified by breaking the code, not by reading it** | 2.12's reviews found seven tests that passed for the wrong reason — a sample equal to the shipped default, a fixture where the precedence rule carried the test, a key appended past a `[tls]` header into the wrong table, a recomputation with no guard. All seven were green, and all seven were found by mutating the implementation |
 | **A fix carries its documentation** | Both locales, the schema, the UI copy — or the next audit finds the mismatch you created |
 | **One source for the Go toolchain** | Five places disagreed for months; see [dependencies](docs-tech/dependencies.md) |
 
