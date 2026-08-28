@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the middle of a column that then went blank, on 22 of the 34 files. Both had
   been true since 2.11. The set is taken at 1600 now, in a window grown to the
   document, and all 34 files are re-taken
+- **The version badge in the sidebar clipped anything longer than six
+  characters.** `.brand-version` was capped at 9ch, which fits `2.13.0` and
+  nothing else: the Dockerfile and the Makefile are handed `git describe`, so
+  every container image showed `v2.13…` instead of its own version — and
+  `2.13.10` clips just the same, which would have reached every installation at
+  the first patch release past `.9`. The cap is 18ch, the longest string a build
+  here can carry, and it is measured in the browser rather than asserted against
+  the stylesheet: whether text fits a box is not something a number in a CSS
+  file can say
 
 ## [2.13.0] — 2026-08-28
 

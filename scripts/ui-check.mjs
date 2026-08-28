@@ -546,6 +546,48 @@ async function checkApplyPreview(page) {
  * So this drives the control rather than the URL: click it, then ask for a page
  * behind the login and see where it lands.
  */
+/**
+ * The version badge fits the version strings a build of this repository can
+ * carry.
+ *
+ * `.brand-version` was capped at 9ch, which fits "2.13.0" and nothing longer.
+ * The .deb sets the version from the changelog and gets six characters; the
+ * Dockerfile and the Makefile pass `git describe`, so every container image
+ * showed "v2.13…" instead of its own version. "2.13.10" clips just the same,
+ * which would have reached every installation at the first patch release past
+ * .9 — the one shape of this bug nobody would have read as a packaging quirk.
+ *
+ * Measured in the browser rather than asserted against the stylesheet: what
+ * matters is whether the text fits the box, and no number in a CSS file says
+ * that. The `title` attribute carries the full string either way, but a tooltip
+ * is not a version number on the screen.
+ */
+async function checkVersionBadgeFitsTheVersion(page) {
+  await page.goto(`${BASE}/dashboard`, { waitUntil: 'load' });
+  const bad = await page.evaluate(() => {
+    const el = document.querySelector('.brand-version');
+    if (!el) return ['(the sidebar has no .brand-version badge at all)'];
+    const brand = el.parentElement;
+    const original = el.textContent;
+    const clipped = [];
+    // The changelog version, `git describe` with and without a tag suffix, and
+    // a two-digit patch — every shape the packaging here can hand the binary.
+    for (const v of ['2.13.0', 'v2.13.0', '2.13.10', 'v2.13.10', 'v2.13.0-rc1', 'v2.13.0-dirty']) {
+      el.textContent = v;
+      if (el.scrollWidth > el.clientWidth) clipped.push(v);
+      // A badge that fits by pushing the product name out of the row is not a
+      // fix; the cap has to leave the brand line intact as well.
+      else if (brand.scrollWidth > brand.clientWidth) clipped.push(`${v} (overflows the brand row)`);
+    }
+    el.textContent = original;
+    return clipped;
+  });
+  if (bad.length) {
+    throw new Error(`the version badge cannot show: ${bad.join(', ')}`);
+  }
+  console.log('  ok   the version badge fits every version string a build can carry');
+}
+
 async function checkSignOutEndsTheSession(page) {
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
 
@@ -784,6 +826,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkEnrolmentFlow(p);
+  await checkVersionBadgeFitsTheVersion(p);
   await checkVerifyPage(browser);
   // Last, and deliberately: signing out revokes the session id every context
   // above is sharing, so anything after it would be driving a signed-out browser.
