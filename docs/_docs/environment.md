@@ -60,6 +60,12 @@ the one in effect.
 | `EASYWALL_WEB_UPDATE_CHECK` | `update_check` | bool | — | Ask github.com once a day whether a newer release exists |
 | `EASYWALL_WEB_DEMO_MODE` | `demo_mode` | bool | — | Run against an in-memory mock instead of the core — the public demo only |
 | `EASYWALL_WEB_TELEMETRY` | `telemetry` | bool | **System** | Report this installation once a day — off unless set |
+| `EASYWALL_WEB_TRUSTED_PROXIES` | `trusted_proxies` | list | — | Comma-separated addresses and networks whose `X-Forwarded-For` header is believed |
+
+A **list** variable is comma-separated: `EASYWALL_WEB_TRUSTED_PROXIES=127.0.0.1,10.1.0.0/24`.
+Whitespace around an entry is ignored and an empty field is dropped, so a
+trailing comma is not an entry. An entry that is neither an address nor a
+CIDR network stops startup and names itself.
 
 The language switch in the sidebar sets a cookie for the browser you are reading
 in. It does not write `web.toml`, so it neither overrides `EASYWALL_WEB_LANGUAGE`

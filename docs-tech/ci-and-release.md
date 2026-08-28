@@ -30,7 +30,7 @@ optimising; cost is not.
 | Job | Note |
 |---|---|
 | `test` | `-race`, coverage uploaded to Codecov. The profile is checked non-empty by a step that *can* fail, because the upload step cannot (`continue-on-error`) |
-| `test-integration` | `sudo go test -tags integration` in a network namespace created by `TestMain` via `CLONE_NEWNET`. The only place `nftables.go`'s rule builders execute — without this job they measure 0% |
+| `test-integration` | `sudo go test -tags integration` over `./internal/core/...` and, since 2.13, `./internal/web/...` — `-timeout 300s` for both packages together. Namespaced via `CLONE_NEWNET` in `TestMain`; the only place `nftables.go`'s rule builders execute (without this job they measure 0%) and the only place the trusted-proxy resolution sees a kernel-assigned peer rather than one a test wrote into a struct |
 | `assets` | rebuilds both stylesheets and diffs them, runs `check:diagrams`, and re-copies `htmx.min.js` from `node_modules` and diffs that. Three committed artefacts, three freshness checks |
 | `ui` | Playwright against demo mode. Catches what no Go assertion can: the forwarding editor storing `1E+04` as port 1, a console error, a sideways scroll, in both themes |
 | `lint` | `golangci-lint` |

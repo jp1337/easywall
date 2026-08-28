@@ -154,9 +154,11 @@ func ValidLoginEvent(ev LoginEvent) bool {
 // netip.ParseAddr in the core and normalised there; if that fails the entry is
 // written *without* an address rather than dropped, because the entry is the
 // record and the address is the annotation. Left is an integer and can smuggle
-// nothing. Proxied is a boolean the web process derives from the *presence* of a
-// forwarding header, never its value — see docs-tech/threat-model.md for why
-// reading one is acceptable in that one direction. The submitted username is
+// nothing. Proxied is a boolean: false only when the resolved-client walk named
+// a client, true whenever it fell back to the peer — a derivation shaped by a
+// header's value, but a bool still smuggles no free text into the log. See
+// docs-tech/threat-model.md for why reading a trusted header is acceptable at
+// all. The submitted username is
 // deliberately absent: it would be foreign text in the record, and with exactly
 // one account it says nothing.
 type LogEventPayload struct {

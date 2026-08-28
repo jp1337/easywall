@@ -117,6 +117,12 @@ func (c *Config) Validate() error {
 	if c.SocketPath == "" && !c.DemoMode {
 		return fmt.Errorf("socket_path is required")
 	}
+	// The environment's copy was checked when it was parsed; this covers the
+	// other half — a malformed entry written into web.toml by hand, which the
+	// overlay never touches because a stored value wins.
+	if err := shared.ValidateProxyList(c.TrustedProxies); err != nil {
+		return err
+	}
 	if c.SSLDir == "" {
 		return fmt.Errorf("ssl_dir is required")
 	}

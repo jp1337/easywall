@@ -67,7 +67,7 @@ func TestTheEnvironmentPageStatesTheRightTypes(t *testing.T) {
 		vars = append(vars, documented{v.Name, v.Kind})
 	}
 
-	want := map[EnvKind]string{EnvString: "string", EnvBool: "bool"}
+	want := map[EnvKind]string{EnvString: "string", EnvBool: "bool", EnvList: "list"}
 	for _, v := range vars {
 		stated, ok := want[v.kind]
 		if !ok {

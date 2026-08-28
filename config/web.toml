@@ -14,6 +14,21 @@ language    = "en"
 # See https://easywall-project.org/installation/demo/ for details.
 demo_mode = false
 
+# ─── Behind a reverse proxy ─────────────────────────────────────────────────
+# The addresses and networks whose X-Forwarded-For header may be believed.
+# Empty — the default — means no header's value is ever read and the TCP peer
+# is authoritative, which is how easywall behaved before 2.13.
+#
+# List the proxies themselves, never a network they merely sit in. Being on
+# this list is total trust: anything that can reach this port from a listed
+# address chooses the address easywall records in the audit log, gives the
+# lockout verdict for, and counts login attempts against.
+#
+#   trusted_proxies = ["127.0.0.1", "10.1.0.5"]
+#
+# EASYWALL_WEB_TRUSTED_PROXIES sets the same list, comma-separated.
+trusted_proxies = []
+
 # ─── Update check ───────────────────────────────────────────────────────────
 # The dashboard asks github.com once a day whether a newer release exists. It
 # never delays a page: the answer comes from a cache on disk. Set to false to

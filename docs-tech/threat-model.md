@@ -128,11 +128,58 @@ proxy, every request appears to come from the proxy**, so the login limiter's fi
 attempts per ten minutes are shared by everyone. One attacker exhausts the budget
 and nobody can sign in until it refills.
 
-Making that configurable is on the roadmap and must be opt-in and explicit — a
-list of trusted proxy addresses, not a boolean. A boolean that says "trust the
-header" is the vulnerability those three advisories describe.
+2.13 made it configurable, and kept the condition this section set: `trusted_proxies`
+is **a list of addresses and networks**, never a boolean. A boolean that says
+"trust the header" is the vulnerability GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp
+and GHSA-9g5q-2w5x-hmxf describe, and no configuration of easywall can express
+one.
+
+Empty is the default and means what this section always meant: `r.RemoteAddr` is
+authoritative, no header's value is read.
+`TestTheEmptyListIsTwoPointTwelve` holds the two paths byte-identical.
+
+### What the list defends, and what being on it costs
+
+| | |
+|---|---|
+| Decided by | the TCP peer — the one field on a request nobody can write |
+| Read when the peer is on the list | `X-Forwarded-For`, and nothing else |
+| The client | the rightmost hop that is not itself on the list; the peer when there is none |
+| `via-proxy` | false only when the walk **named** a client |
+| The limiter | keys on the resolved client, so the shared budget above is gone for anyone who configures the list |
+
+`via-proxy` is true for an untrusted peer sending any of the four headers, same
+as before 2.13 — and true for a trusted peer too, whenever its header names
+nobody and the walk falls back to the peer as a stand-in.
+
+**Being on the list is total trust in that peer.** It chooses the address the
+audit log records, the address the lockout verdict is computed for, and the key
+the login limiter counts against. Two ways to give that away:
+
+- listing a proxy that is not actually in front of easywall;
+- listing a **network** wider than the proxies it holds — anything that can
+  reach the port from inside that range then picks its own identity.
+
+The rightmost-untrusted walk is what stops the smaller version of the same
+attack: a caller writing its proxy's own address into the header and being
+handed that identity. `TestIntegration_TheCallerCannotNameATrustedProxyAsItself`
+measures it against a real peer address, because a unit test sets `RemoteAddr`
+itself and that is the one field a real request does not get from its caller.
+
+A third way costs more than either: a trusted proxy that does **not** sanitise
+an incoming `X-Forwarded-For` — one that passes a client's own header through
+instead of appending to it — hands that client a fresh rate-limit bucket on
+every request it sends, by naming a different address each time. The walk
+named a client, so `proxied` reads false and nothing marks the request —
+unlike listing a non-proxy or an over-wide network, which at least tend to
+surface as `via-proxy` when the "proxy" sends no header of its own. Inherent
+to total trust in the peer, not a defect in the walk.
 
 ### Presence, not value
+
+This subsection describes the **untrusted** branch only — the peer is not on
+`trusted_proxies`, so the header's value is never read, only whether it is
+there at all.
 
 2.10 reads whether `X-Forwarded-For`, `X-Real-IP`, `True-Client-IP` or `Forwarded`
 is **present**, and never what it says. That flag does two things: it marks a login
@@ -142,14 +189,14 @@ rule evaluation fixes that.
 
 A client that forges one of those headers can therefore reach exactly one outcome:
 its own verdict becomes *cannot tell* and its own login line says `via-proxy`. It
-cannot insert an address, cannot change what `clientIP` recorded, and can move
+cannot insert an address, cannot change what `peerIP` recorded, and can move
 *its own* verdict to *cannot tell* and achieve nothing else — not anyone else's
 verdict, not anyone else's login line. That asymmetry is the whole argument for
 reading an untrusted header here, and it is why nothing else in the process does.
 
 ## Rate limiting
 
-`LoginRateLimit`: a token bucket per source address, 5 tokens refilling one every
+`LoginRateLimit`: a token bucket per resolved client, 5 tokens refilling one every
 2 minutes. Buckets unused for 15 minutes are swept by a goroutine started once per
 process.
 

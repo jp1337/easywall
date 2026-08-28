@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -238,7 +239,7 @@ func TestMaxBodySize_OverriddenPathGetsItsOwnLimit(t *testing.T) {
 
 func TestLoginRateLimit_Allows(t *testing.T) {
 	// Reset global limiter state for this test by using a new IP
-	handler := LoginRateLimit(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -255,7 +256,7 @@ func TestLoginRateLimit_Allows(t *testing.T) {
 func TestLoginRateLimit_RateExceeded(t *testing.T) {
 	// Use a unique IP not used by any other test to avoid interference
 	const ip = "10.99.200.201"
-	handler := LoginRateLimit(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -275,7 +276,7 @@ func TestLoginRateLimit_RateExceeded(t *testing.T) {
 
 func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
 	// RemoteAddr without port — SplitHostPort fails, falls back to full addr
-	handler := LoginRateLimit(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -295,10 +296,11 @@ func TestLoginRateLimit_SplitHostPortError(t *testing.T) {
 func TestLoginRateLimit_TellsSomebodyWhenItBlocks(t *testing.T) {
 	var blocked []string
 	var proxied []bool
-	handler := LoginRateLimit(func(ip string, p bool) {
-		blocked = append(blocked, ip)
-		proxied = append(proxied, p)
-	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+	handler := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) },
+		func(ip string, p bool) {
+			blocked = append(blocked, ip)
+			proxied = append(proxied, p)
+		})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
 
 	for i := 0; i < 7; i++ {
 		req := httptest.NewRequest("POST", "/login", nil)
@@ -398,5 +400,119 @@ func TestRequireAuth_SessionWithoutAFingerprintIsRejected(t *testing.T) {
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 	if called {
 		t.Error("a session with no credential fingerprint must be refused")
+	}
+}
+
+// resetLoginLimiter empties the process-wide bucket map. The limiter is
+// deliberately package-level — one budget per address for the life of the
+// process is the point — so tests that share an address have to start clean.
+func resetLoginLimiter() {
+	loginLimiter.mu.Lock()
+	defer loginLimiter.mu.Unlock()
+	loginLimiter.buckets = make(map[string]*rateBucket)
+}
+
+// Behind a trusted proxy the budget is the client's, not the proxy's. This is
+// the shared-budget cost docs-tech/threat-model.md documents, and the reason
+// the maintainer chose the full scope over a display-only change.
+func TestTheLimiterCountsPerResolvedClient(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+
+	trusted := []string{"10.1.0.5"}
+	resolve := func(r *http.Request) (string, bool) { return resolveClient(r, trusted) }
+	h := LoginRateLimit(resolve, nil)(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	// Six requests through the trusted proxy, each from a different client.
+	// Five is the budget, so a sixth from the *same* client would be refused;
+	// six different ones must all pass.
+	for i := 0; i < 6; i++ {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = "10.1.0.5:41000"
+		r.Header.Set("X-Forwarded-For", fmt.Sprintf("198.51.100.%d", i+1))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("request %d from a distinct client got %d; the budget is still shared",
+				i+1, w.Code)
+		}
+	}
+
+	// The distinct-clients loop above only proves separate budgets exist; it
+	// says nothing about whether any one of them is actually capped. Reset so
+	// its buckets don't count against this client, then send six requests
+	// from the *same* forwarded client: the sixth must be refused, or the
+	// trusted branch is handing out an unlimited budget per request.
+	resetLoginLimiter()
+	for i := 0; i < 6; i++ {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = "10.1.0.5:41000"
+		r.Header.Set("X-Forwarded-For", "198.51.100.9")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if i == 5 && w.Code != http.StatusTooManyRequests {
+			t.Errorf("request 6 from the same forwarded client got %d, want 429 — "+
+				"the trusted branch is not capping a single client", w.Code)
+		}
+	}
+}
+
+// And an untrusted peer cannot buy itself a fresh budget by rewriting the
+// header. This is the bypass the three advisories describe, at the unit level;
+// the veth test proves the same against a kernel-assigned peer.
+func TestRewritingTheHeaderDoesNotBuyAFreshBudget(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+
+	resolve := func(r *http.Request) (string, bool) { return resolveClient(r, nil) }
+	h := LoginRateLimit(resolve, nil)(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	var last int
+	for i := 0; i < 6; i++ {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = "203.0.113.7:5555"
+		r.Header.Set("X-Forwarded-For", fmt.Sprintf("198.51.100.%d", i+1))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		last = w.Code
+	}
+	if last != http.StatusTooManyRequests {
+		t.Errorf("the sixth attempt got %d, want 429 — a rewritten header bought a new bucket", last)
+	}
+}
+
+// A trusted proxy with no usable X-Forwarded-For resolves to (peer, true): the
+// walk fell back to the peer, so the recorded address stands in for a client it
+// could not name. onBlocked must be given that same pair — a regression here
+// would silently hide a trusted_proxies-without-proxy_set_header
+// misconfiguration in the audit log, reporting a proxy's own address as a
+// confirmed client.
+func TestOnBlockedReportsProxiedWhenTheTrustedPeerNamesNoClient(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+
+	trusted := []string{"10.1.0.5"}
+	resolve := func(r *http.Request) (string, bool) { return resolveClient(r, trusted) }
+	var blockedIP string
+	var blockedProxied bool
+	h := LoginRateLimit(resolve, func(ip string, p bool) {
+		blockedIP, blockedProxied = ip, p
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	// No X-Forwarded-For at all: the trusted peer cannot be resolved to a
+	// client, so the walk falls back to the peer itself.
+	for i := 0; i < 6; i++ {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = "10.1.0.5:41000"
+		h.ServeHTTP(httptest.NewRecorder(), r)
+	}
+
+	if blockedIP != "10.1.0.5" {
+		t.Errorf("onBlocked was given ip %q, want 10.1.0.5", blockedIP)
+	}
+	if !blockedProxied {
+		t.Error("onBlocked was given proxied=false for a trusted peer with no usable header, want true")
 	}
 }

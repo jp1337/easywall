@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+
+### Added
+
+- **`trusted_proxies`, and `EASYWALL_WEB_TRUSTED_PROXIES` beside it.** A list of
+  addresses and networks whose `X-Forwarded-For` header easywall believes. When
+  the TCP peer is on that list — and only then — the resolved client becomes the
+  address in the audit log, the address the lockout verdict is computed for, and
+  the key the login limiter counts against. Empty by default, and an empty list
+  behaves exactly as 2.12 did. A **list** and never a boolean: "trust the
+  header" with no way to say whose is GHSA-3fxj-6jh8-hvhx,
+  GHSA-rjr7-jggh-pgcp and GHSA-9g5q-2w5x-hmxf, and no configuration of easywall
+  can express it. Listing a network wider than the proxies it holds hands
+  address spoofing to anything that can reach the port from inside it — the
+  [Configuration](https://easywall-project.org/docs/configuration/) page says so
+  in those words
+- **Five proofs against a real peer address.** The resolution is measured over a
+  veth pair, where the peer comes from the kernel rather than from a struct a
+  test filled in, and each was watched failing with the feature reverted before
+  it was counted as written
+
+### Changed
+
+- **The login limiter now counts per resolved client.** Behind a reverse proxy
+  it counted per proxy, which is one budget for everybody: five attempts per ten
+  minutes shared by every operator, exhausted by one attacker. **This changes
+  behaviour for anyone already running behind a proxy** — and only once
+  `trusted_proxies` names that proxy. Until it does, nothing changes
+- **The `via-proxy` marker now means the resolved address is a stand-in, not a
+  confirmed client.** True whenever resolution falls back to the peer — an
+  untrusted peer sending a forwarding header, same as before, or a trusted one
+  whose header named nobody — and false only when the walk actually named a
+  client
+- **The demo records no login addresses.** Its audit log shows that somebody
+  signed in and not from where — the field is omitted, not filled with a
+  placeholder
+
 ## [2.12.0] — 2026-08-28
 
 ### Added

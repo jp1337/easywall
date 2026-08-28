@@ -382,6 +382,21 @@ type WebConfig struct {
 	// deployment so visitors can explore every page without affecting any
 	// real firewall. State resets when the process restarts.
 	DemoMode bool `toml:"demo_mode"`
+
+	// TrustedProxies lists the addresses and networks whose forwarding header
+	// may be believed. Empty — the default — means no header's value is ever
+	// read and the TCP peer stays authoritative, which is 2.12's behaviour
+	// exactly and what TestTheEmptyListIsTwoPointTwelve holds to.
+	//
+	// A list and never a boolean. "Trust the header" is the vulnerability
+	// GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp and GHSA-9g5q-2w5x-hmxf
+	// describe, and docs-tech/threat-model.md says so in those words.
+	//
+	// Being on this list is total trust in that peer: it chooses the address
+	// easywall records, verdicts on, and rate limits. Listing a network wider
+	// than the proxies it holds hands that choice to anything that can reach
+	// the port from inside it.
+	TrustedProxies []string `toml:"trusted_proxies"`
 }
 
 // NetworkSettings groups the IPv6, Docker and routing configuration for IPC
