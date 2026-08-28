@@ -810,9 +810,12 @@ case at 12, and repeated as the only structural device they became the interface
 mannerism. Panel headings now use `section-label` and column headers `column-label`, both
 sentence case in Inter.
 
-The uppercase mono `label` survives in exactly one place: the sidebar's *Rules* and *System*
-dividers. There it separates groups rather than titling content, it appears twice, and the
-smallness is the point.
+The uppercase mono `label` survives in one role: separating groups in a sidebar rather than
+titling content. In the application that is the *Rules* and *System* dividers, twice. The
+documentation site's sidebar uses the same device for the same reason — five groups, each
+one a `<summary>` that opens and closes — and two of them are called *Rules* and *System*
+on purpose: a reader looking at Ports in easywall finds its page under the label the product
+put it under. The smallness is the point in both.
 
 ## Layout
 

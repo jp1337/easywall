@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+
+### Changed
+
+- **The documentation sidebar groups its pages.** One flat list of twenty-seven
+  links became five sections — Installation, Rules, System, How it works,
+  Project — of which only the one holding the page being read is open. *Rules*
+  and *System* are the application's own sidebar dividers, in its order, so a
+  page found in easywall is documented under the label the product put it under.
+  A group is a `<details>`, so the toggle, the keyboard handling and the
+  disclosure semantics are the element's; which one is open is derived from the
+  current page, and nothing is stored. The sidebar had needed scrolling to reach
+  its last eight entries on a 1000px-tall window, and every one of them in the
+  drawer on a phone
+
 ## [2.13.0] — 2026-08-28
 
 ### Added

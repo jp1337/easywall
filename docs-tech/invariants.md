@@ -22,6 +22,7 @@ a way no reviewer spotted by reading. When one fails, the useful question is not
 | `TestDocsVersionMatchesRelease` | `docs/_config.yml` `version:` equals `shared.CurrentVersion` | the sidebar badge was hardcoded `v2.4` and drifted a patch release behind |
 | `TestEveryEnvVarIsDocumented` | every `shared.CoreEnvVars`/`shared.WebEnvVars` name appears in `docs/_docs/environment.md`, and the page names nothing else | the operator complaint that started the environment-variable feature was "there is no list" — a page that drifts from the code recreates exactly that |
 | `TestTheEnvironmentPageIsInTheNav` | `docs/_config.yml`'s `nav:` links to `/docs/environment/` | a page reachable only by its URL is, for a page whose whole point is being findable, the same as not adding it |
+| `TestEveryDocsPageIsInTheNav` | every page under `docs/_docs/` has a `nav:` entry, and every `/docs/` nav entry has a page | the same check applied to the collection instead of to one name. Grouping the twenty-seven flat sidebar entries into five sections moved every path in the file at once — a page dropped in that move, or a path mistyped into a link that 404s from the sidebar of every page on the site, is invisible in the diff |
 
 ## The preview reports everything it can change
 

@@ -117,12 +117,25 @@
       <div class="sidebar-nav">
         {% for item in site.nav %}
           {% if item.group %}
-            <div class="nav-group-label">{{ item.title }}</div>
-            <div class="nav-section">
-              {% for child in item.children %}
-                <a href="{{ child.path | relative_url }}" class="nav-link nav-sub{% if page.url == child.path %} active{% endif %}">{{ child.title }}</a>
-              {% endfor %}
-            </div>
+            {%- comment -%}
+              A group is open when it holds the page being read, and closed
+              otherwise. Nothing stores that: the current page is the answer, so
+              there is no state to persist across a navigation and no script to
+              restore it. <details> carries the rest — the toggle, the keyboard
+              handling and the disclosure semantics are the element's own.
+            {%- endcomment -%}
+            {% assign group_open = false %}
+            {% for child in item.children %}
+              {% if page.url == child.path %}{% assign group_open = true %}{% endif %}
+            {% endfor %}
+            <details class="nav-group"{% if group_open %} open{% endif %}>
+              <summary class="nav-group-label">{{ item.title }}</summary>
+              <div class="nav-section">
+                {% for child in item.children %}
+                  <a href="{{ child.path | relative_url }}" class="nav-link nav-sub{% if page.url == child.path %} active{% endif %}">{{ child.title }}</a>
+                {% endfor %}
+              </div>
+            </details>
           {% else %}
             <div class="nav-section-single">
               <a href="{{ item.path | relative_url }}" class="nav-link{% if page.url == item.path %} active{% endif %}">{{ item.title }}</a>

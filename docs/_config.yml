@@ -72,14 +72,26 @@ exclude:
   - .jekyll-cache
   - vendor
 
+# The sidebar. Two single links, then five groups — and the groups are not an
+# arbitrary tidy-up: Rules and System are the same two sections, in the same
+# order, that the application's own sidebar shows. An operator looking at Ports
+# in easywall finds the page under the label it sits under in the product.
+#
+# It was one flat group of twenty-seven links, which needed a scroll on a
+# 1000px-tall window to reach the last eight. A group renders as <details> and
+# only the one holding the current page is open — that state is derived in the
+# layout from page.url, so there is nothing here to keep in sync and nothing to
+# store. TestEveryDocsPageIsInTheNav holds both directions: every page in the
+# collection has an entry here, and every entry here has a page.
 nav:
   - title: Home
     path: /
-  - title: Docs
+  - title: Overview
+    path: /docs/
+
+  - title: Installation
     group: true
     children:
-      - title: Overview
-        path: /docs/
       - title: Requirements
         path: /docs/installation/requirements/
       - title: Debian / Ubuntu
@@ -92,18 +104,10 @@ nav:
         path: /docs/installation/demo/
       - title: First Run
         path: /docs/installation/first-run/
-      - title: Architecture
-        path: /docs/architecture/
-      - title: Configuration
-        path: /docs/configuration/
-      - title: Environment Variables
-        path: /docs/environment/
-      - title: Security
-        path: /docs/security/
-      - title: Dashboard
-        path: /docs/features/dashboard/
-      - title: Applying Rules
-        path: /docs/features/apply/
+
+  - title: Rules
+    group: true
+    children:
       - title: Ports
         path: /docs/features/ports/
       - title: Blacklist & Whitelist
@@ -116,16 +120,40 @@ nav:
         path: /docs/features/filters/
       - title: Docker Coexistence
         path: /docs/features/docker/
-      - title: Export & Import
-        path: /docs/features/export-import/
-      - title: Audit Log
-        path: /docs/features/audit-log/
-      - title: Recovery & Panic Mode
-        path: /docs/features/recovery/
+
+  - title: System
+    group: true
+    children:
+      - title: Dashboard
+        path: /docs/features/dashboard/
+      - title: Applying Rules
+        path: /docs/features/apply/
       - title: System & Network Settings
         path: /docs/features/system-settings/
       - title: Second Factor
         path: /docs/features/two-factor/
+      - title: Audit Log
+        path: /docs/features/audit-log/
+      - title: Export & Import
+        path: /docs/features/export-import/
+      - title: Recovery & Panic Mode
+        path: /docs/features/recovery/
+
+  - title: How it works
+    group: true
+    children:
+      - title: Architecture
+        path: /docs/architecture/
+      - title: Configuration
+        path: /docs/configuration/
+      - title: Environment Variables
+        path: /docs/environment/
+      - title: Security
+        path: /docs/security/
+
+  - title: Project
+    group: true
+    children:
       - title: Roadmap
         path: /docs/roadmap/
       - title: Contributing
