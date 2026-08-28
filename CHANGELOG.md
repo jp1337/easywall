@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its last eight entries on a 1000px-tall window, and every one of them in the
   drawer on a phone
 
+### Fixed
+
+- **Every screenshot in the documentation showed the narrow layout, and half of
+  them a sidebar that stopped mid-image.** The published set was taken in a
+  1440x900 window. `.page-grid` drops its 320px context column below 1570px, so
+  every figure showed the collapsed single-column fallback with the aside cards
+  under the table instead of beside it; and `.sidebar` is `position: fixed` at
+  `100vh`, which in a full-page capture stays laid out against the window it was
+  rendered in — the language switch, the theme toggle and *Logout* floated in
+  the middle of a column that then went blank, on 22 of the 34 files. Both had
+  been true since 2.11. The set is taken at 1600 now, in a window grown to the
+  document, and all 34 files are re-taken
+
 ## [2.13.0] — 2026-08-28
 
 ### Added

@@ -837,17 +837,48 @@ async function seedPortsScreenshot(page) {
   ]);
 }
 
-/** Screenshot one page into docs/assets/img/screens/<name>-<theme>.png. */
+// The shape every published screenshot is taken in.
+//
+// 1600 rather than the 1440 this used from 2.11 to 2.13: `.page-grid` drops its
+// 320px context column below 1570px, so at 1440 every screenshot in docs/ showed
+// the collapsed single-column fallback — the aside cards stacked under the table
+// instead of beside it, on ports, blacklist, forwarding, custom and options
+// alike. 1440 is still exercised, by WIDTHS above, where squeezing the layout is
+// the whole point. A screenshot is documentation, and documents the layout the
+// design is actually about.
+const SHOT_VIEWPORT = { width: 1600, height: 900 };
+
+/**
+ * Screenshot one page into docs/assets/img/screens/<name>-<theme>.png.
+ *
+ * The viewport is grown to the document's height first rather than passing
+ * `fullPage`. `.sidebar` is `position: fixed` with `min-height: 100vh`, and a
+ * fullPage capture leaves a fixed element pinned to the viewport it was laid out
+ * in: on every page taller than 900px the sidebar stopped mid-image, with the
+ * language switch, the theme toggle and Logout floating in the middle of it and
+ * nothing below. Twenty-two of the thirty-four shipped files carried it — every
+ * page with a sidebar that ran past 900px. Growing
+ * the window instead renders the page the way a reader with a window that tall
+ * would see it — which is also the right answer for the sticky save bar.
+ */
 async function shoot(page, name, theme) {
   const out = `docs/assets/img/screens/${name}-${theme}.png`;
-  await page.screenshot({ path: out, fullPage: true });
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  if (height > SHOT_VIEWPORT.height) {
+    await page.setViewportSize({ width: SHOT_VIEWPORT.width, height });
+    // The reflow is synchronous, but a sticky element's resolved position and
+    // any transition on it are not.
+    await page.waitForTimeout(200);
+  }
+  await page.screenshot({ path: out });
+  await page.setViewportSize(SHOT_VIEWPORT);
   console.log(`  wrote ${out}`);
 }
 
-/** A themed, 1440x900@1.5x context — every screenshot in the set uses this shape. */
+/** A themed, 1600x900@1.5x context — every screenshot in the set uses this shape. */
 async function screenshotContext(browser, theme, extra = {}) {
   const ctx = await browser.newContext({
-    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
     deviceScaleFactor: 1.5, ...extra,
   });
   await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
@@ -857,7 +888,7 @@ async function screenshotContext(browser, theme, extra = {}) {
 async function takeScreenshots(browser, session, pages) {
   console.log(`Screenshotting ${pages.join(', ')} in both themes`);
   const prep = await browser.newContext({
-    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
     deviceScaleFactor: 1.5, storageState: session,
   });
   if (pages.includes('/ports')) await seedPortsScreenshot(await prep.newPage());
