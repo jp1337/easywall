@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and should be counted like anything else — which also means the number means
   *installations including the demo*. Consent semantics are unchanged: unset
   still means no, and an answer given in the interface beats the variable. The
-  path from the variable to the request was exercised end to end against the
-  live endpoint on 2026-08-28 and answered `204`
+  request the reporter sends was issued against the live endpoint on
+  2026-08-28 and answered `204`
 - **Every setting whose key an environment variable names says so on the page.**
   The control keeps working; beneath it the interface says either *set by the
   environment* or *the environment says X — overridden here*, and in the second

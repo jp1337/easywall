@@ -7,7 +7,9 @@ description: Every environment variable easywall reads, and why the list stops w
 # Environment Variables
 
 Every variable easywall reads, the TOML key it names, and whether the interface
-has a control for the same value.
+has a control for the same value. What each key configures, and the file it
+lives in, is on the [Configuration]({{ '/docs/configuration/' | relative_url }})
+page.
 
 ## Which value wins
 
@@ -19,14 +21,18 @@ has a control for the same value.
 | — | — | the built-in default |
 | set | — | the environment |
 | set | differs | the stored value |
-| set | identical | the stored value — which is the same thing |
-| removed | present | the stored value |
+| set | differs, but equals the environment | the stored value — which is the same thing |
+| removed | differs | the stored value |
 
 **Stored** means the file's value differs from the built-in default — not that
 the key is present in the file. `easywall-core -write-config` and
 `easywall-web -write-config` emit every default, and that is exactly the file the
 container image ships; if presence counted, every variable in this page would be
 dead on every containerised installation.
+
+A boolean is compared after parsing, not as text, so a stored `true` and an
+environment of `1` are the same value: the fourth row above, not a conflict for
+the interface to draw.
 
 A control that names a key you have also set through the environment says so on
 the page, and offers **Reset to the environment value** when your stored value is
