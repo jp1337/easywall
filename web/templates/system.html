@@ -84,12 +84,12 @@
                 <span class="switch-name">{{T "firstrun_telemetry"}}</span>
                 <span class="switch-desc">{{T "system_telemetry_switch_desc"}}</span>
               </span>
-              <input type="checkbox" name="telemetry" class="toggle"
+              <input type="checkbox" name="telemetry" id="telemetry-toggle" class="toggle"
                      {{if .Telemetry}}checked{{end}}>
             </label>
 
             {{with .TelemetryProv}}
-            <div class="switch-detail">
+            <div class="switch-detail" id="telemetry-provenance">
               {{template "provenance" .}}
             </div>
             {{end}}
@@ -132,4 +132,26 @@
   </div>
 </div>
 {{template "foot" .}}
+{{end}}
+
+{{/* The telemetry checkbox and its provenance marker, out-of-band. A
+     successful reset changes what is true — the environment's value is now
+     in force — and over HTMX the main response is hx-swap="none", so nothing
+     would otherwise update the two controls that just went stale: the
+     checkbox may no longer match what the toggle displays, and the reset
+     button that was just used must disappear now there is nothing left to
+     reset. hx-swap="none" only suppresses swapping the *response target*;
+     htmx still applies any hx-swap-oob elements found in the body, which is
+     how these two get back in sync without a full page load. Rendered with
+     the same field names (.Telemetry, .TelemetryProv) system.html itself
+     uses, so a future second provenance-backed control on this page can
+     reuse the same pattern rather than inventing its own. */}}
+{{define "telemetry_state_oob"}}
+<input type="checkbox" name="telemetry" id="telemetry-toggle" class="toggle" hx-swap-oob="true"
+       {{if .Telemetry}}checked{{end}}>
+{{with .TelemetryProv}}
+<div class="switch-detail" id="telemetry-provenance" hx-swap-oob="true">
+  {{template "provenance" .}}
+</div>
+{{end}}
 {{end}}

@@ -96,7 +96,28 @@ func (s *Server) handleTelemetryPOST(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		slog.Info("telemetry setting reset to the environment")
-		s.respondPartialSave(w, r, "/system", "provenance_reset_done")
+
+		if !isHTMX(r) {
+			s.respondPartialSave(w, r, "/system", "provenance_reset_done")
+			return
+		}
+
+		// respondPartialSave's usual 204 leaves htmx with nothing to swap, and
+		// a reset changes what is true on screen, not just what is stored: the
+		// environment's value is now in force, so the checkbox may no longer
+		// match what it displayed a moment ago, and the button the operator
+		// just clicked must disappear — there is nothing left for it to
+		// reset. This release exists to stop the interface asserting a
+		// provenance it does not have; leaving the just-superseded state on
+		// screen after the very action that superseded it would be that same
+		// mistake. hx-swap="none" only suppresses the main response target;
+		// htmx still applies hx-swap-oob elements found in the body, which is
+		// how the checkbox and marker get back in sync without a page load.
+		w.Header().Set("HX-Trigger", `{"easywall:saved":"provenance_reset_done"}`)
+		s.renderPartial(w, r, "telemetry_state_oob", &systemData{
+			Telemetry:     s.cfg.TelemetryEnabled(),
+			TelemetryProv: s.provenanceFor("telemetry"),
+		})
 		return
 	}
 

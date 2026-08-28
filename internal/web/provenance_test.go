@@ -18,10 +18,13 @@ func TestProvenanceForIsNilWhenNoVariableIsSet(t *testing.T) {
 	}
 }
 
-// provenanceFor must keep Env and Stored apart: swapping them would have the
-// marker quote the operator's own stored value as "the environment says", and
-// nothing short of checking both fields against their actual sources catches
-// that — Overridden alone is true either way the two are assigned.
+// provenanceFor must read Env from the environment's own side, not the stored
+// one: swapping them would have the marker quote the operator's own stored
+// value as "the environment says", and Overridden alone would not catch it —
+// it is true either way the two are assigned. There is no Stored field on
+// provenanceView to check directly (nothing renders it), but a swap here
+// still shows up in Env: this test's Env and Stored disagree, so the wrong
+// assignment gives a value neither "true" nor absent.
 func TestProvenanceForKeepsEnvAndStoredApart(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
@@ -39,9 +42,6 @@ func TestProvenanceForKeepsEnvAndStoredApart(t *testing.T) {
 	}
 	if got.Env != "true" {
 		t.Errorf("Env = %q, want the environment's value %q", got.Env, "true")
-	}
-	if got.Stored != "false" {
-		t.Errorf("Stored = %q, want the operator's stored value %q", got.Stored, "false")
 	}
 	if !got.Overridden {
 		t.Error("Overridden = false, want true: the stored value disagrees with the environment")

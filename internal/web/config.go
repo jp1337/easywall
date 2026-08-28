@@ -625,7 +625,7 @@ func (c *Config) mergeSource() shared.WebConfig {
 	return out
 }
 
-// render produces the bytes to write: the existing file with the four managed
+// render produces the bytes to write: the existing file with the six managed
 // values replaced, or a fresh encoding when that cannot be done safely.
 //
 // The file the package installs is three kilobytes of comments explaining what

@@ -122,8 +122,6 @@ func TestAStoredValueEqualToTheEnvironmentIsNotAConflict(t *testing.T) {
 // not discover the typo then.
 func TestAnUnparseableBoolFailsEvenWhenItWouldHaveLost(t *testing.T) {
 	cfg := WebDefault()
-	yes := true
-	cfg.UpdateCheck = &yes
 	cfg.Language = "de" // make something else stored too, so the config is realistic
 
 	no := false
