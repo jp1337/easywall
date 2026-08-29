@@ -92,7 +92,7 @@ that list walks straight past the login rate limiter.
 |---|---|
 | What stays authoritative | `r.RemoteAddr` — the actual TCP peer, unless it is a listed proxy |
 | The cost of an untrusted proxy | every request looks like it comes from the proxy, so the limit of five attempts per ten minutes is shared by everyone. One person getting it wrong repeatedly locks the rest out until it refills |
-| What to do about it | list the proxy in `trusted_proxies` — see [Behind a reverse proxy]({{ '/docs/configuration/' | relative_url }}#behind-a-reverse-proxy) for what listing one buys and what it costs |
+| What to do about it | list the proxy in `trusted_proxies` — [Behind a reverse proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}) is the whole task, with nginx and Docker |
 
 This only affects the *login* limiter. The firewall's own protection modules count
 per source address in the kernel and are unaffected by any HTTP header.

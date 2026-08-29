@@ -113,6 +113,8 @@ nav:
         path: /docs/installation/demo/
       - title: First Run
         path: /docs/installation/first-run/
+      - title: Behind a Reverse Proxy
+        path: /docs/installation/reverse-proxy/
 
   - title: Rules
     group: true

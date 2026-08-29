@@ -244,29 +244,15 @@ Two logging switches belong to no module and are set here as well:
 trusted_proxies = ["127.0.0.1", "10.1.0.5"]
 ```
 
-or `EASYWALL_WEB_TRUSTED_PROXIES=127.0.0.1,10.1.0.5`.
+Each entry is an address or a CIDR network whose `X-Forwarded-For` easywall
+believes. Empty by default, which means the TCP peer is authoritative.
 
-**What it buys.** Behind a proxy every request otherwise appears to come from the
-proxy: the audit log records the proxy's address, the apply screen cannot tell
-you whether you are about to lock yourself out, and the login limiter's five
-attempts per ten minutes are shared by everyone — one attacker exhausts them for
-you. With the proxy listed, all three see the real client.
+**Being on this list is total trust in that peer.** List the proxies
+themselves, never the network they live in: every host in `10.0.0.0/8` can then
+choose the address easywall records, decides lockouts on, and rate limits.
 
-**What it costs.** Being on this list is total trust in that peer. Two mistakes
-hand address spoofing to anyone who can reach the port:
-
-- listing an address that is **not** actually a proxy in front of easywall;
-- listing a **network** rather than the proxies themselves — every host in
-  `10.0.0.0/8` can then choose the address easywall records, verdicts on, and
-  rate limits.
-
-List the proxies. Not the subnet they live in, not `0.0.0.0/0`, and never an
-address you do not control.
-
-Only `X-Forwarded-For` is read. From an untrusted peer, `X-Real-IP`,
-`True-Client-IP` and `Forwarded` still mark a request as arriving through
-something that forwards, but their values are never used; from a listed proxy
-they mark nothing at all — configure your proxy to send `X-Forwarded-For`.
+The whole task — nginx in front, the value to use, the Docker case, and how to
+check it took — is [Behind a reverse proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}).
 
 **If a listed proxy sends no `X-Forwarded-For`,** the request still resolves —
 to the proxy's own address, marked `via-proxy` in the audit log and reported as

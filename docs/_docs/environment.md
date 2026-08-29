@@ -67,6 +67,9 @@ Whitespace around an entry is ignored and an empty field is dropped, so a
 trailing comma is not an entry. An entry that is neither an address nor a
 CIDR network stops startup and names itself.
 
+Setting up the proxy itself is
+[Behind a reverse proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}).
+
 The language switch in the sidebar sets a cookie for the browser you are reading
 in. It does not write `web.toml`, so it neither overrides `EASYWALL_WEB_LANGUAGE`
 nor is overridden by it: the variable decides the language a browser with no
