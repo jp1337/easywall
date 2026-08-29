@@ -6,8 +6,8 @@ description: The acceptance window that makes a bad rule recoverable, and the Ne
 
 # System & Network Settings
 
-Two pages in the interface, and both of them decide something the rule pages
-cannot: **System** holds the acceptance window, and **Network** holds the three
+Two pages in the interface, and both decide something the rule pages cannot.
+**System** holds the acceptance window; **Network** holds the three
 dispositions that apply before any rule is consulted.
 
 ## The acceptance window
@@ -77,9 +77,9 @@ consulted.
 
 Both take **one CIDR network per line** — `192.168.1.0/24`, not `192.168.1.5` — and,
 like the address lists, treat a blank line or a line beginning with `#` as a comment.
-An entry that is not a network is named on save rather than stored, and the same
-check runs when the file is read, so a hand-edited network cannot reach the kernel
-as nothing.
+An entry that is not a network is named on save rather than stored. The same
+check runs when the file is read, so a hand-edited network cannot reach the
+kernel as nothing.
 
 ## Saving
 
