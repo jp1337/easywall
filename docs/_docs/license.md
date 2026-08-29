@@ -54,6 +54,6 @@ contributor licence agreement and nothing to sign — see
 
 easywall puts a web interface in front of a machine's packet filter. Anyone
 running it is trusting the code with the one thing standing between their host
-and the network, and a licence that lets a modified copy be handed on with the
+and the network. A licence that lets a modified copy be handed on with the
 modification hidden is the wrong licence for that. GPL-3.0 means the version
 somebody hands you is a version you can read.

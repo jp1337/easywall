@@ -8,7 +8,7 @@ description: Ten releases, ordered by exposure — comprehension first now the h
 
 Correctness first: a firewall that quietly does less than it says is worse than
 one that does less and says so. What follows is planned in this order, not
-promised in it — it gets corrected when something changes rather than quietly
+promised in it. It gets corrected when something changes rather than quietly
 ageing, which is exactly the failure the version before this one demonstrated.
 
 **Ordering principle: by exposure.** The two holes an attacker could actually
@@ -37,14 +37,14 @@ earlier as an end in itself and never twice.
 
 > **Amended in 2.12.** Two releases were inserted here and everything below
 > them moved back two places. **3.0 and 3.1 kept their numbers**: those are
-> statements rather than positions — 3.0 is a major because an API is a second
-> public interface and a compatibility promise, and 3.1 follows 3.0 because
+> statements rather than positions. 3.0 is a major because an API is a second
+> public interface and a compatibility promise. 3.1 follows 3.0 because
 > WebAuthn needs a registrable hostname. Both stay true however many 2.x
 > releases come first. 2.13 also takes the trusted-proxy list out of 3.0's row,
 > where it had been a clause.
 
 > **Amended in 2.8.** Passkeys were a clause inside 3.0's row; they are now
-> 3.1, their own entry, sitting after 3.0 rather than beside it — WebAuthn
+> 3.1, their own entry, sitting after 3.0 rather than beside it. WebAuthn
 > requires a registrable domain as its Relying Party ID, which most easywall
 > installations do not have.
 

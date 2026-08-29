@@ -52,8 +52,11 @@ are expected and explained inside the file.
 | **Screenshots follow the interface** | A page you changed gets its `docs/assets/img/screens/*` retaken, both themes, in the same pull request |
 
 **Render what you changed.** Every defect worth catching in this interface was
-invisible in the stylesheet and obvious in a screenshot — a clipped port number, a
-class that no longer existed, a whole page on a white background.
+invisible in the stylesheet and obvious in a screenshot:
+
+- A clipped port number
+- A class that no longer existed
+- A whole page on a white background
 
 ## Adding a language
 
