@@ -169,3 +169,5 @@ nav:
         path: /docs/contributing/
       - title: Changelog
         path: /docs/changelog/
+      - title: License
+        path: /docs/license/
