@@ -43,16 +43,17 @@ holds no privilege worth stealing.
 
 With a second factor enrolled, the password step ends in a redirect rather than a
 session, and the code is checked at `/login/verify`. That step has no rate limit
-of its own and does not need one: three code attempts per intermediate state,
-five password rounds per ten minutes per address, so **fifteen code attempts per
-ten minutes per address** against a target that rotates every thirty seconds.
+of its own and does not need one. One intermediate state allows three code
+attempts, and a new one costs a password round. Five password rounds are allowed
+per ten minutes per address, so **fifteen code attempts per ten minutes per
+address** against a target that rotates every thirty seconds.
 `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` is that sentence as an
 executable claim.
 
 ## Panic mode
 
 Since 2.7, `easywall-core` puts the last confirmed rule set back into the kernel
-at startup — a reboot no longer empties the firewall the way it used to, and no
+at startup. A reboot no longer empties the firewall the way it used to, and no
 longer works as an accidental way back in. `easywall-core panic` is the
 deliberate one that replaces it: a console command that takes the firewall down
 immediately, whether or not the web interface is reachable at all.
@@ -62,15 +63,15 @@ belongs on this page whether or not it feels like a feature. Two things about it
 matter for the rest of this model:
 
 - **It survives a restart on purpose.** Panic mode is recorded in a marker file
-  and the startup restore refuses to run while it exists — otherwise the next
+  and the startup restore refuses to run while it exists. Otherwise the next
   reboot would put the very rules back that panic mode exists to remove.
 - **While the marker exists, an apply is refused and the acceptance rollback
-  stops at the kernel.** The stored rules are still reverted — an apply nobody
+  stops at the kernel.** The stored rules are still reverted: an apply nobody
   confirmed never gets to keep `Current`, or the next restore would install it
-  with no window of its own — but the previous rules are not written back into a
+  with no window of its own. But the previous rules are not written back into a
   table the console has deliberately torn down. That kernel half is the one place
-  in easywall where the central promise, every apply reverts itself unless you
-  confirm it, is switched off outright, because there is nothing running to roll
+  in easywall where the central promise — every apply reverts itself unless you
+  confirm it — is switched off outright. There is nothing running to roll
   back onto. Both take effect the instant the marker is written and end the
   instant `easywall-core resume` clears it.
 
@@ -83,10 +84,10 @@ marker's path: [Recovery & Panic Mode]({{ '/docs/features/recovery/' | relative_
 ## Behind a reverse proxy
 
 easywall terminates TLS itself and does **not** believe `X-Forwarded-For` —
-unless the peer sending the request is on `trusted_proxies`, a list configured
-explicitly and never a boolean — and never believes `X-Real-IP`,
-`True-Client-IP` or `Forwarded`. A client that can set its own source address and is not on
-that list walks straight past the login rate limiter.
+unless the peer sending the request is on `trusted_proxies`. `trusted_proxies` is
+a list configured explicitly, never a boolean. easywall never believes
+`X-Real-IP`, `True-Client-IP` or `Forwarded`. A client that can set its own
+source address and is not on that list walks straight past the login rate limiter.
 
 | | |
 |---|---|
@@ -100,9 +101,9 @@ per source address in the kernel and are unaffected by any HTTP header.
 ## Transport
 
 HTTPS only, TLS 1.2+. No plaintext port is opened at all. Without a configured
-certificate easywall generates a self-signed **ECDSA P-256** one into `ssl_dir`, and
-replaces it once it comes within 30 days of expiry — at startup, and twice a day while
-the service is running. The certificate is read per handshake rather than once at
+certificate easywall generates a self-signed **ECDSA P-256** one into `ssl_dir`.
+It replaces that certificate once it comes within 30 days of expiry — checked at
+startup, and twice a day while the service is running. The certificate is read per handshake rather than once at
 startup, so a renewal takes effect without a restart. That matters for a service that
 may well outlive its own one-year certificate.
 
@@ -168,7 +169,7 @@ and nothing else changes. The exact request the count makes is printed verbatim
 under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
-> event, which htmx does not emit — so `allowEval` stayed at its default of `true`
+> event, which htmx does not emit. So `allowEval` stayed at its default of `true`
 > and the script nonce was never applied. It goes through the
 > `meta[name=htmx-config]` tag now. Found by tightening `style-src`, which surfaced
 > an inline `<style>` block htmx had been injecting unnoticed.
@@ -196,8 +197,8 @@ no identity yet. It names the process, not the person — see the
 
 > **Since 2.8, logins are in the audit log.** Nine events — signed in, sign-in
 > failed, second factor failed, a recovery code used, sign-in attempts blocked,
-> signed out, and the second factor switched on, off or regenerated — see
-> [the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
+> signed out, and the second factor switched on, off or regenerated.
+> See [the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
 > None of them carries colour: a sign-in does not move the firewall.
 
 Reading it: [Audit log]({{ '/docs/features/audit-log/' | relative_url }}).

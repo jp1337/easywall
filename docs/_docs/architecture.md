@@ -67,8 +67,8 @@ means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
 core re-encodes and decodes into the type named by `rule_type`. An unknown
-`rule_type` is rejected and the decoded rules are validated before they are stored
-— but the field is not typed at the protocol level, and this page used to claim the
+`rule_type` is rejected. The decoded rules are validated before they are stored.
+The field itself is not typed at the protocol level — this page once claimed the
 whole protocol was.
 
 | Command | Purpose |

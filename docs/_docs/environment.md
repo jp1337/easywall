@@ -27,15 +27,15 @@ page.
 **Stored** means the file's value differs from the built-in default — not that
 the key is present in the file. `easywall-core -write-config` and
 `easywall-web -write-config` emit every default, and that is exactly the file the
-container image ships; if presence counted, every variable in this page would be
+container image ships. If presence counted, every variable in this page would be
 dead on every containerised installation.
 
 A boolean is compared after parsing, not as text, so a stored `true` and an
-environment of `1` are the same value: the fourth row above, not a conflict for
-the interface to draw.
+environment of `1` are the same value. That's the fourth row above, not a
+conflict for the interface to draw.
 
 A control that names a key you have also set through the environment says so on
-the page, and offers **Reset to the environment value** when your stored value is
+the page. It offers **Reset to the environment value** when your stored value is
 the one in effect.
 
 ## `easywall-core`
@@ -95,7 +95,7 @@ interface configures what the firewall does.
   interface having reported the change as saved.
 - **Credentials, the session key, the TOTP secret, the recovery codes** —
   `username`, `password`, `session_key`, `totp_secret`, `recovery_codes` — are
-  secrets, and an environment variable is not one: it is visible to
+  secrets, and an environment variable is not one. It is visible to
   `docker inspect`, to anything that reads `/proc/<pid>/environ`, and to
   whatever log somebody pastes into an issue. `web.toml` is `0600`; the
   environment of a running container is not.
@@ -110,7 +110,7 @@ interface configures what the firewall does.
 An empty variable counts as unset — `-e EASYWALL_WEB_LANGUAGE=` leaves the
 file's value alone rather than blanking it. A boolean variable is read with
 `strconv.ParseBool`, so `1`, `t`, `T`, `true`, `TRUE` and `True` all mean true
-and `0`, `f`, `F`, `false`, `FALSE` and `False` all mean false; anything else
+and `0`, `f`, `F`, `false`, `FALSE` and `False` all mean false. Anything else
 stops the process at startup, with the variable named in the error. Prefer
 `true` and `false` — the rest are accepted, not recommended.
 
