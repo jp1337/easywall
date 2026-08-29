@@ -1706,9 +1706,35 @@ article.content-body mark.pagefind-highlight {
 .content-body .docs-copy:hover { color: var(--text); background: var(--surface-3); }
 .content-body .docs-copy[data-copied] { color: var(--accent); }
 
-/* A touch screen never hovers, so on one the button is simply there. */
+/* The <pre> scrolls horizontally but .highlighter-rouge, which the button is
+   anchored to, does not — so at scroll position 0 a long first line runs
+   directly under the button with no transition, an abrupt collision rather
+   than a fade. padding-right on the <pre> cannot fix this: with horizontal
+   scrolling that padding lands at the end of the scrollable content, not at
+   the visible right edge, so the first line would still run under the button
+   at scroll position 0. A gradient in the block's own background colour, on
+   together with the button, fades the text out before it gets there instead. */
+.content-body .highlighter-rouge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 72px;
+  height: 2.6rem;
+  background: linear-gradient(to left, var(--surface-2), transparent);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.content-body .highlighter-rouge:hover::before,
+.content-body .highlighter-rouge:focus-within::before { opacity: 1; }
+
+/* A touch screen never hovers, so on one the button — and its fade — are
+   simply there. */
 @media (hover: none) {
   .content-body .docs-copy { opacity: 1; }
+  .content-body .highlighter-rouge::before { opacity: 1; }
 }
 
 

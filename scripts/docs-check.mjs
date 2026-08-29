@@ -189,6 +189,30 @@ async function checkCopyButton(context, page, base) {
   }
   ok(await page.evaluate(() => navigator.clipboard.readText()) === want,
      'the clipboard holds the code block');
+
+  // The button is anchored to .highlighter-rouge, not to the (horizontally
+  // scrolling) <pre>, so at a narrow width a long first line's tail can sit
+  // directly under it at rest. The fade behind the button — in the block's
+  // own background colour — has to reach at least as far left as the
+  // button's own left edge, or there is a bare seam where full-strength text
+  // meets the solid button: the same collision with different geometry.
+  // Checked as pure layout, not by sampling rendered pixel colour: a colour
+  // check would ride font antialiasing and platform text rendering, which
+  // differ between machines and would make this pass or fail for reasons
+  // that have nothing to do with the CSS being tested. The fade's own
+  // computed extent either reaches the button or it doesn't — deterministic
+  // at a fixed viewport. Last, because it repoints the shared page's
+  // viewport and nothing else in this file runs after it.
+  await page.setViewportSize({ width: 390, height: 900 });
+  const fadeReachesButton = await block.evaluate((el) => {
+    const before = getComputedStyle(el, '::before');
+    const btn = el.querySelector('.docs-copy');
+    const blockRight = el.getBoundingClientRect().right;
+    const btnLeft = btn.getBoundingClientRect().left;
+    const fadeLeft = blockRight - parseFloat(before.width);
+    return fadeLeft <= btnLeft;
+  });
+  ok(fadeReachesButton, 'the fade behind the button reaches at least as far as the button itself');
 }
 
 async function main() {
