@@ -307,6 +307,64 @@
       spy();
     })();
 
+    // A copy button in every code block. .highlighter-rouge is the element
+    // carrying the frame — div.highlight and pre.highlight inside it are
+    // deliberately bare — so the button is positioned against that and not
+    // against the <pre>, which scrolls horizontally and would carry the button
+    // off the screen with it.
+    //
+    // The confirmation is the button's own label for two seconds plus one
+    // aria-live region: the convention on GitHub and on MDN. A floating toast
+    // needs positioning it cannot get right over a scrolling <pre>, and is
+    // announced either badly or not at all.
+    (function () {
+      var blocks = document.querySelectorAll('.content-body .highlighter-rouge');
+      if (!blocks.length || !navigator.clipboard) return;
+
+      // Styled inline rather than with .sr-only: nothing under docs/ uses that
+      // class, so the utility is correctly absent from the built stylesheet —
+      // see the note in TestDocsStylesheetKeepsLoadBearingRules — and adding a
+      // class here to make Tailwind emit it again is the tail wagging the dog.
+      var live = document.createElement('div');
+      live.setAttribute('aria-live', 'polite');
+      live.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;' +
+                           'clip:rect(0 0 0 0);white-space:nowrap';
+      document.body.appendChild(live);
+
+      [].forEach.call(blocks, function (block) {
+        var pre = block.querySelector('pre');
+        if (!pre) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'docs-copy';
+        btn.textContent = 'Copy';
+
+        btn.addEventListener('click', function () {
+          // innerText, not textContent: it is what the reader sees, with the
+          // rouge spans flattened and the line breaks kept. The trailing
+          // newline goes; a trailing space inside a config example does not.
+          navigator.clipboard.writeText(pre.innerText.replace(/\n$/, '')).then(function () {
+            btn.textContent = 'Copied';
+            btn.setAttribute('data-copied', '');
+            live.textContent = 'Copied to clipboard';
+            setTimeout(function () {
+              btn.textContent = 'Copy';
+              btn.removeAttribute('data-copied');
+              live.textContent = '';
+            }, 2000);
+          }, function () {
+            // A clipboard write is refused over plain HTTP and in a few
+            // configurations over HTTPS. Say so rather than confirming.
+            btn.textContent = 'Ctrl+C';
+            setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+          });
+        });
+
+        block.appendChild(btn);
+      });
+    })();
+
     // Diagrams and screenshots used to be reconciled with the theme from here, by
     // reassigning img.src against a <picture> that chose from prefers-color-scheme.
     // That never worked — a matching <source> outranks the src — so a reader on a

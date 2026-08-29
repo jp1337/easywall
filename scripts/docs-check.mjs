@@ -162,6 +162,35 @@ async function checkSearchResults(page, base) {
   await page.keyboard.press('Escape');
 }
 
+// The clipboard is the only part of this that a screenshot cannot show, and the
+// only part that can be silently wrong: a button that says Copied having
+// written nothing looks exactly like one that worked.
+async function checkCopyButton(context, page, base) {
+  console.log('copy buttons');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
+  await page.goto(base + '/docs/installation/debian/');
+
+  const block = page.locator('.content-body .highlighter-rouge').first();
+  const want = (await block.locator('pre').innerText()).replace(/\n$/, '');
+  const btn = block.locator('.docs-copy');
+
+  ok(await btn.count() === 1, 'a code block carries exactly one copy button');
+  if (!(await btn.count())) return;
+
+  await btn.click();
+  // waitFor a text match rather than sampling once: the label reverts to Copy
+  // after 2 seconds, so a single read races that timeout and is flaky either
+  // way it lands.
+  try {
+    await btn.filter({ hasText: 'Copied' }).waitFor({ state: 'visible', timeout: 1000 });
+    ok(true, 'the button confirms in its own label');
+  } catch {
+    ok(false, 'the button confirms in its own label');
+  }
+  ok(await page.evaluate(() => navigator.clipboard.readText()) === want,
+     'the clipboard holds the code block');
+}
+
 async function main() {
   const { server, port } = await serve(ROOT);
   const base = `http://127.0.0.1:${port}`;
@@ -173,6 +202,7 @@ async function main() {
     await checkContents(page, base);
     await checkSearchKey(page, base);
     await checkSearchResults(page, base);
+    await checkCopyButton(context, page, base);
   } finally {
     await browser.close();
     server.close();
