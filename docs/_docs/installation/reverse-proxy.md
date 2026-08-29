@@ -7,10 +7,13 @@ description: Put easywall behind nginx and have it still know which client is ta
 # Behind a Reverse Proxy
 
 easywall terminates TLS itself, so a proxy in front of it is a choice rather
-than a requirement. Make that choice and one thing breaks quietly: every request
-now arrives from the proxy, so the audit log records the proxy's address, the
-apply screen cannot tell whether *you* are about to be locked out, and the login
-limiter's five attempts per ten minutes are shared by everybody behind it.
+than a requirement. Make that choice, and one thing breaks quietly: every
+request now arrives from the proxy. That has three consequences:
+
+- the audit log records the proxy's address
+- the apply screen cannot tell whether *you* are about to be locked out
+- the login limiter's five attempts per ten minutes are shared by everybody
+  behind it
 
 Listing the proxy in `trusted_proxies` fixes all three. Getting the list wrong
 hands address spoofing to anything that can reach the port.
@@ -85,8 +88,8 @@ spoofing to anyone who can reach the port:
 
 List the proxies. Not the subnet they live in, not `0.0.0.0/0`, and never an
 address you do not control. This is why the setting is a *list* and not a
-boolean: "trust the header" with no way to say whose is
-GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp and GHSA-9g5q-2w5x-hmxf, and no
+boolean. "Trust the header" with no way to say whose is
+GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp and GHSA-9g5q-2w5x-hmxf. No
 configuration of easywall can express it.
 
 `X-Real-IP`, `True-Client-IP` and `Forwarded` are never believed, from any peer.
