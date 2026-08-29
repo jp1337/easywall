@@ -66,7 +66,7 @@ earlier as an end in itself and never twice.
 | | |
 |---|---|
 | SMTP notifications | Credentials in `web.toml`, foreign mail servers, deliverability — ntfy reaches the same phone without any of it |
-| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.15) |
+| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.17) |
 | Zones, on the firewalld model | easywall runs on hosts with one uplink; what zones would be for is covered by `routing.mode` |
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
