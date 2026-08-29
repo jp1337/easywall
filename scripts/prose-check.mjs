@@ -34,22 +34,25 @@
  * descriptions — real prose this corpus definition excludes from the gated
  * count on purpose, but worth seeing. It never affects exit status.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { readFileSync, readdirSync, statSync, realpathSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 const MAX = 30;
 const AVG = 18;
-const ROOT = new URL('..', import.meta.url).pathname;
-const CHANGELOG = resolve(ROOT, 'docs/_docs/changelog.md');
+const ROOT = realpathSync(new URL('..', import.meta.url).pathname);
+const CHANGELOG = realpathSync(join(ROOT, 'docs/_docs/changelog.md'));
 
 function walk(p, out = []) {
-  // Targets arrive both absolute (the default docs/_docs walk) and relative
-  // (a path typed on the command line, or passed straight through by a task
-  // that runs this per batch) — resolve() before comparing, or the exclusion
-  // above only ever fires for the one form it happened to be spelled in.
+  // This repo can be reached through a symlinked /home as well as its real
+  // /var/home — the same changelog.md then has two different absolute
+  // spellings depending on which one a target argument used. resolve()
+  // normalizes ".."/"." but does not follow symlinks, so it agreed with
+  // itself on one spelling and not the other; realpathSync() collapses both
+  // to the same canonical path before comparing. statSync above already
+  // proved p exists, so this can't throw here on a path that isn't there.
   if (statSync(p).isDirectory()) {
     for (const e of readdirSync(p).sort()) walk(join(p, e), out);
-  } else if (p.endsWith('.md') && resolve(p) !== CHANGELOG) {
+  } else if (p.endsWith('.md') && realpathSync(p) !== CHANGELOG) {
     out.push(p);
   }
   return out;
@@ -183,8 +186,16 @@ const split = t => t
   .filter(Boolean);
 
 const targets = process.argv.slice(2).filter(a => !a.startsWith('--'));
-const files = (targets.length ? targets : [join(ROOT, 'docs/_docs')])
-  .flatMap(t => walk(t));
+let files;
+try {
+  files = (targets.length ? targets : [join(ROOT, 'docs/_docs')])
+    .flatMap(t => walk(t));
+} catch (err) {
+  // statSync/realpathSync throw on a target that doesn't exist — a clear
+  // one-line error beats a stack trace for a typo'd path.
+  console.error(`error: ${err.message}`);
+  process.exit(1);
+}
 
 let allWords = [], breaches = 0;
 let advCells = [], advAlts = [];
@@ -238,6 +249,7 @@ if (advCells.length || advAlts.length) {
 }
 
 if (breaches || avg >= AVG) {
+  if (breaches) console.error(`${breaches} sentence(s) over ${MAX} words`);
   if (avg >= AVG) console.error(`average is ${avg.toFixed(1)}, want under ${AVG}`);
   process.exit(1);
 }
