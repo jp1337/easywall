@@ -302,12 +302,12 @@
 
   {"id": "whitelist_subtitle", "translation": "Vertrauenswürdige Quellen, die jeden Port erreichen — auch nie geöffnete."},
   {"id": "whitelist_section", "translation": "Immer erlaubte Adressen"},
-  {"id": "whitelist_section_desc", "translation": "Werden angenommen, bevor die Port-Regeln geprüft werden, und sind von den Schutzmodulen ausgenommen."},
+  {"id": "whitelist_section_desc", "translation": "Werden angenommen, bevor die Port-Regeln geprüft werden. Die Schutzmodule laufen trotzdem vorher — nur der Bogon-Filter nimmt diese Liste aus."},
   {"id": "whitelist_wayback_title", "translation": "Der eigene Weg zurück"},
   {"id": "whitelist_wayback_body", "translation": "Die eigene Verwaltungsadresse gehört hierher. Sie hält den Host erreichbar, auch wenn eine Port-Regel SSH schließt oder eine Begrenzung auslöst."},
   {"id": "whitelist_wayback_note", "translation": "Eine freigegebene Quelle überspringt die Port-Regeln vollständig und erreicht damit auch Dienste, die unter {} gar nicht eingetragen sind."},
   {"id": "whitelist_narrow_title", "translation": "Die Liste eng halten"},
-  {"id": "whitelist_narrow_body", "translation": "Ein Eintrag hier umgeht jedes Schutzmodul. Eine einzelne Adresse ist einem Bereich vorzuziehen, ein Bereich einem ganzen Netz."},
+  {"id": "whitelist_narrow_body", "translation": "Ein Eintrag hier erreicht jeden Port, auch nicht geöffnete. Eine einzelne Adresse ist einem Bereich vorzuziehen, ein Bereich einem ganzen Netz."},
   {"id": "whitelist_order_note", "translation": "Die {} wird zuerst geprüft: eine Adresse in beiden Listen wird verworfen, nicht erlaubt."},
 
   {"id": "forwarding_subtitle", "translation": "Verkehr, der auf einem Port ankommt, auf einen anderen Port dieses Hosts umleiten."},
