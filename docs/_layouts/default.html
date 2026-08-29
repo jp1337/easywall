@@ -403,19 +403,19 @@
             for (var m = 0; m < marks.length; m++) texts.push(marks[m].textContent.toLowerCase());
 
             // Every word typed has to have marked, somewhere in this result, a
-            // word it is a genuine prefix of. The length test alone is not
+            // word it is a genuine prefix of. The prefix test alone is not
             // enough on a two-word query, where one word can match fully and
             // carry a second that was truncated.
             var keep = !words.length || words.every(function (w) {
-              return texts.some(function (k) { return k.length >= w.length && k.indexOf(w) === 0; });
+              return texts.some(function (k) { return k.indexOf(w) === 0; });
             });
 
             // ponytail: a stemmed query whose marked form is shorter than what
             // was typed — `running` marked as `run` — is dropped by this rule.
             // No such term exists in the corpus today; if one appears, widen to
             // "or the mark is a prefix of the word and at least 3 characters"
-            // rather than removing the length test.
-            if (cards[i].hidden === keep) cards[i].hidden = !keep;
+            // rather than loosening the prefix test itself.
+            cards[i].hidden = !keep;
             if (keep) kept++;
           }
 
@@ -427,6 +427,14 @@
             // Only when it differs, or writing it is itself a mutation and the
             // observer below calls this forever.
             if (msg.textContent !== want) msg.textContent = want;
+          }
+
+          // "No results" sitting above a Load-more button contradicts itself.
+          var more = panel.querySelector('.pagefind-ui__button');
+          if (more) {
+            var hideMore = words.length > 0 && kept === 0;
+            // Same trap as the message above: write only on change.
+            if (more.hidden !== hideMore) more.hidden = hideMore;
           }
         }
 

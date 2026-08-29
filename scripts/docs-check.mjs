@@ -130,12 +130,14 @@ async function checkSearchResults(page, base) {
   }
 
   const shown = page.locator('#docs-search-panel .pagefind-ui__result:not([hidden])');
+  const more = page.locator('#docs-search-panel .pagefind-ui__button');
 
   await field.fill('asdasd');
   await page.waitForTimeout(900);   // PagefindUI debounces at 300ms
   ok(await shown.count() === 0, 'asdasd finds nothing');
   ok(/no results/i.test(await page.locator('#docs-search-panel .pagefind-ui__message').textContent()),
      'and says so');
+  ok(!(await more.isVisible()), 'and hides the load-more control');
 
   await field.fill('config');
   await page.waitForTimeout(900);
@@ -143,6 +145,7 @@ async function checkSearchResults(page, base) {
                           .evaluateAll(as => as.map(a => a.getAttribute('href')));
   ok(hrefs.some(h => h && h.includes('/docs/configuration/')),
      'config still finds the configuration page');
+  ok(await more.isVisible(), 'and the load-more control is back for a real query');
 
   await page.keyboard.press('Escape');
 }
