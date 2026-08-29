@@ -162,6 +162,61 @@ async function checkSearchResults(page, base) {
   await page.keyboard.press('Escape');
 }
 
+// The clear button used to stand at Pagefind's own 58px height with its own
+// asymmetric padding — a panel bolted to the field rather than a control
+// inside it, and its label jammed against the left edge with a bare gap on
+// the right. Both read as "a CSS rule changed" in a diff of docs.css, not as
+// "the button now looks wrong", which is why this is asserted from the
+// rendered box rather than left as a screenshot-only check.
+async function checkSearchClearButton(page, base) {
+  console.log('search clear button size');
+  await page.goto(base + '/docs/features/ports/');
+  await page.keyboard.press('/');
+
+  const clear = page.locator('#docs-search-panel .pagefind-ui__search-clear');
+  try {
+    await clear.waitFor({ state: 'visible', timeout: 20000 });
+  } catch {
+    ok(false, 'the clear button mounts for the size check');
+    return;
+  }
+
+  const field = page.locator('#docs-search-panel .pagefind-ui__search-input');
+  await field.fill('acceptance duration trusted_proxies EASYWALL_WEB_TRUSTED_PROXIES');
+  await page.waitForTimeout(300);
+
+  const geo = await page.evaluate(() => {
+    const f = document.querySelector('#docs-search-panel .pagefind-ui__search-input');
+    const b = document.querySelector('#docs-search-panel .pagefind-ui__search-clear');
+    const fr = f.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(b);
+    const tr = range.getBoundingClientRect();
+    return {
+      fieldHeight: fr.height,
+      fieldCenter: fr.top + fr.height / 2,
+      buttonHeight: br.height,
+      buttonCenter: br.top + br.height / 2,
+      leftGap: tr.left - br.left,
+      rightGap: br.right - tr.right,
+      padRight: parseFloat(getComputedStyle(f).paddingRight),
+      buttonWidth: br.width
+    };
+  });
+
+  ok(geo.buttonHeight < geo.fieldHeight * 0.6,
+     `the button (${geo.buttonHeight}px) is a control inside a ${geo.fieldHeight}px field, not a panel filling it`);
+  ok(Math.abs(geo.buttonCenter - geo.fieldCenter) < 2,
+     'the button sits vertically centred on the field, not shifted off it');
+  ok(Math.abs(geo.leftGap - geo.rightGap) < 2,
+     'the label sits centred in the button, not jammed against one edge');
+  ok(geo.padRight >= geo.buttonWidth,
+     'the field reserves at least the button\'s width, so a full query stops before it');
+
+  await page.keyboard.press('Escape');
+}
+
 // The clipboard is the only part of this that a screenshot cannot show, and the
 // only part that can be silently wrong: a button that says Copied having
 // written nothing looks exactly like one that worked.
@@ -226,6 +281,7 @@ async function main() {
     await checkContents(page, base);
     await checkSearchKey(page, base);
     await checkSearchResults(page, base);
+    await checkSearchClearButton(page, base);
     await checkCopyButton(context, page, base);
   } finally {
     await browser.close();

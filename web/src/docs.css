@@ -1318,15 +1318,23 @@ html, body {
 /* Reserved space above, so the query never runs underneath this button. It
    used to sit on the last 44px of a 223px field: what you had typed was
    unreadable, and the field scrolled to hide the rest. */
-/* Only the look, and the height. Its width and its right offset stay Pagefind's,
-   because the inline padding-right above is measured from them: a narrower
-   button here means the query runs under it there. At its own 58px it read as a
-   panel stuck to the field rather than a control inside it. */
+/* Its width and its right offset stay Pagefind's — not set here at all — because
+   the inline padding-right above is measured at runtime from the button's own
+   rendered box: a narrower button here shrinks that reservation to match, a
+   wider one grows it. top, height, font-size, padding and colour are ours. At
+   Pagefind's own padding (0 15px 0 2px) the "Clear" text sat against the left
+   edge with a bare gap on the right, and at its own height (58px) the button
+   read as a panel stuck to the field rather than a control inside it. The
+   symmetric 3px/9px padding matches the docs-copy button (line 1684) so every
+   small control on the page shares one shape; height: 26px is that button's
+   own rendered height, and top: 19px centers it within the field's 64px. */
 #docs-search-panel .pagefind-ui__search-clear {
-  top: 15px;
-  height: 34px;
+  top: 19px;
+  height: 26px;
+  padding: 3px 9px;
   font-family: var(--font-sans);
   font-size: 11.5px;
+  line-height: 1.6;
   color: var(--text-subtle);
   background: var(--surface-2);
   border: 1px solid var(--border);
