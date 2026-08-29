@@ -47,7 +47,7 @@ entry is still the way to allow an address on *every* port at once.
 
 > **IPv6.** The catalogue's *private networks* suggestion fills in RFC 1918 and
 > `fc00::/7`. A LAN numbered out of global IPv6 space is not covered by any
-> constant — add that range yourself, or the restriction locks you out over IPv6
+> constant. Add that range yourself, or the restriction locks you out over IPv6
 > while looking correct over IPv4.
 
 ## The catalogue
