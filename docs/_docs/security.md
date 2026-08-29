@@ -84,8 +84,8 @@ marker's path: [Recovery & Panic Mode]({{ '/docs/features/recovery/' | relative_
 
 easywall terminates TLS itself and does **not** believe `X-Forwarded-For` —
 unless the peer sending the request is on `trusted_proxies`, a list configured
-explicitly and never a boolean — and never believes `X-Real-IP` or
-`True-Client-IP`. A client that can set its own source address and is not on
+explicitly and never a boolean — and never believes `X-Real-IP`,
+`True-Client-IP` or `Forwarded`. A client that can set its own source address and is not on
 that list walks straight past the login rate limiter.
 
 | | |
