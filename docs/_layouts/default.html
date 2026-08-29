@@ -163,7 +163,7 @@
       <!-- Filled from the rendered headings by the script at the end of this
            file, and removed again if the page is too short to need it. Empty
            in the served HTML on purpose: kramdown owns the heading ids, and
-           Liquid cannot read them back out of {{ content }}. -->
+           Liquid cannot read them back out of {% raw %}{{ content }}{% endraw %}. -->
       {%- unless page.toc == false %}
       <nav class="docs-toc" id="docs-toc" aria-labelledby="docs-toc-title" hidden>
         <p class="docs-toc-title" id="docs-toc-title">On this page</p>
