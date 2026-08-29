@@ -89,10 +89,12 @@ nothing. The `user` column says `web` for all nine.
 
 ## The address is the peer, and says when it is not
 
-easywall records the TCP peer: whoever actually opened the connection. It never
-reads `X-Forwarded-For`, because easywall-web terminates TLS itself and is not
-assumed to sit behind a trusted proxy — an address in the firewall's own audit log
-that a client chose would be worse than no address at all.
+easywall records the TCP peer: whoever actually opened the connection — unless
+that peer is on `trusted_proxies`, in which case it records what
+`X-Forwarded-For` names instead. Without an entry there, easywall-web
+terminates TLS itself and is not assumed to sit behind a trusted proxy: an
+address in the firewall's own audit log that any client could choose would be
+worse than no address at all.
 
 Behind a reverse proxy the peer **is** the proxy, so every login shows the same
 address. When that happens the entry says so: the detail reads the address followed
