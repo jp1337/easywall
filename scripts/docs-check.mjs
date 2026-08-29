@@ -147,6 +147,18 @@ async function checkSearchResults(page, base) {
      'config still finds the configuration page');
   ok(await more.isVisible(), 'and the load-more control is back for a real query');
 
+  // `web/static/style.css` marks on `static` too — a compound token, not a
+  // word starting with it — and that card also carries no other, genuine
+  // mark. asdasd and config both miss this branch: every compound-token mark
+  // they turn up shares a card with a genuine prefix mark, so texts.some()
+  // passes on the second one and the first is never what decides the card.
+  await field.fill('static');
+  await page.waitForTimeout(900);
+  const staticHrefs = await page.locator('#docs-search-panel .pagefind-ui__result:not([hidden]) a')
+                                .evaluateAll(as => as.map(a => a.getAttribute('href')));
+  ok(!staticHrefs.some(h => h && h.includes('/docs/contributing/')),
+     'static hides the card that only matches a non-leading substring');
+
   await page.keyboard.press('Escape');
 }
 
