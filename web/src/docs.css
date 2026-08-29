@@ -1583,6 +1583,44 @@ article.content-body mark.pagefind-highlight {
 
 .content-body blockquote > :last-child { margin-bottom: 0; }
 
+/* ── Disclosures in the body ──────────────────────────────────────────
+   The changelog is thirty of these. Only the sidebar's groups were styled, so
+   in the content body a <summary> arrived with the browser's default marker
+   and no hit area worth the name. */
+.content-body details {
+  margin: 0 0 0.55rem;
+  border: 1px solid var(--border-muted);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.content-body summary {
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.content-body summary::-webkit-details-marker { display: none; }
+
+/* The disclosure triangle, drawn rather than inherited, so it turns with the
+   state and matches the sidebar's. */
+.content-body summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--text-subtle);
+  transition: transform 120ms ease;
+}
+
+.content-body details[open] > summary::before { transform: rotate(90deg); }
+.content-body summary:hover { background: var(--surface-2); }
+.content-body details[open] > summary { border-bottom: 1px solid var(--border-muted); }
+.content-body details > :not(summary) { padding: 0 0.9rem; }
+.content-body details > :not(summary):first-of-type { padding-top: 0.8rem; }
+.content-body details > :last-child { padding-bottom: 0.8rem; }
+
 /* ── Inline code ───────────────────────────────────────────────────────
    Deliberately NOT --accent: links are accent-coloured, and on a page like
    configuration.md — where nearly every table cell holds a key or a value —

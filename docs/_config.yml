@@ -158,3 +158,5 @@ nav:
         path: /docs/roadmap/
       - title: Contributing
         path: /docs/contributing/
+      - title: Changelog
+        path: /docs/changelog/

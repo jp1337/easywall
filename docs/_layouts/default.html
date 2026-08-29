@@ -240,7 +240,11 @@
       var body = document.querySelector('.content-body');
       if (!nav || !body) return;
 
-      var heads = [].slice.call(body.querySelectorAll('h2[id], h3[id]'));
+      // A heading inside a collapsed <details> is not on the page as far as the
+      // reader is concerned, and an entry that scrolls to something invisible is
+      // worse than no entry. The changelog is thirty disclosures deep.
+      var heads = [].slice.call(body.querySelectorAll('h2[id], h3[id]'))
+                    .filter(function (h) { return !h.closest('details'); });
       // Two entries is a list, not an overview; it would cost more attention
       // than it saves. Removing the column also has to release the space
       // reserved for it in CSS, or the page keeps a 340px empty gutter for a

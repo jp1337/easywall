@@ -10,6 +10,8 @@
     "check:diagrams": "node scripts/render-diagrams.mjs --check",
     "build:docs": "scripts/docs-build.sh",
     "check:docs": "node scripts/docs-check.mjs",
+    "build:changelog": "node scripts/render-changelog.mjs",
+    "check:changelog": "node scripts/render-changelog.mjs --check",
     "check:ui": "node scripts/ui-check.mjs"
   },
   "devDependencies": {
