@@ -330,13 +330,7 @@
       var trigger = document.getElementById('docs-search-open');
       var dialog  = document.getElementById('docs-search-dialog');
       var panel   = document.getElementById('docs-search-panel');
-      var hint    = document.getElementById('docs-search-key');
       if (!trigger || !dialog || !panel || !dialog.showModal) return;
-
-      // The markup says Ctrl because that is right for most readers of a Linux
-      // firewall's documentation; this corrects it for the rest. navigator.platform
-      // is deprecated and still the only thing every shipping browser answers.
-      if (/Mac|iPhone|iPad|iPod/.test(navigator.platform || '')) hint.textContent = '⌘ K';
 
       var loading = false;
       function load() {
@@ -396,10 +390,15 @@
       trigger.addEventListener('click', open);
 
       document.addEventListener('keydown', function (e) {
-        if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-          e.preventDefault();
-          open();
-        }
+        if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+        // Or `/` cannot be typed into the search field this very handler opened,
+        // and every future field on the page inherits the same problem.
+        // isContentEditable covers the case where the editor is a <div>.
+        var t = e.target;
+        if (t && (t.isContentEditable ||
+                  (t.matches && t.matches('input, textarea, select')))) return;
+        e.preventDefault();
+        open();
       });
 
       // A click on the backdrop reports the dialog itself as the target; a click

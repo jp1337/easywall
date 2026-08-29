@@ -80,6 +80,39 @@ async function checkContents(page, base) {
      'the last entry is current at the bottom of a short page');
 }
 
+// `/` is the convention every documentation site with a search uses, it is the
+// same key on every keyboard, and it needs no platform sniff to print. What it
+// does need is a guard: without one, `/` cannot be typed into the search field
+// it just opened.
+async function checkSearchKey(page, base) {
+  console.log('search shortcut');
+  await page.goto(base + '/docs/features/ports/');
+
+  ok((await page.locator('#docs-search-key').textContent()).trim() === '/',
+     'the badge on the trigger reads /');
+
+  await page.keyboard.press('/');
+  const dialog = page.locator('#docs-search-dialog');
+  ok(await dialog.evaluate(d => d.open), '/ opens the search overlay');
+
+  const field = page.locator('#docs-search-panel input');
+  try {
+    await field.waitFor({ state: 'visible', timeout: 20000 });
+  } catch {
+    // The field never mounted — PagefindUI failed to load, or the overlay
+    // never opened. Record it as a failure and skip the assertions that
+    // depend on the field existing, instead of letting the rejection kill
+    // every check still queued after this one.
+    ok(false, '/ reaches the search field');
+    return;
+  }
+  await field.pressSequentially('a/b');
+  ok(await dialog.evaluate(d => d.open), 'the overlay stays open while / is typed into it');
+  ok(await field.inputValue() === 'a/b', '/ reaches the search field');
+
+  await page.keyboard.press('Escape');
+}
+
 async function main() {
   const { server, port } = await serve(ROOT);
   const base = `http://127.0.0.1:${port}`;
@@ -89,6 +122,7 @@ async function main() {
 
   try {
     await checkContents(page, base);
+    await checkSearchKey(page, base);
   } finally {
     await browser.close();
     server.close();
