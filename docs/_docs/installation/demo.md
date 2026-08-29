@@ -45,18 +45,6 @@ The startup log confirms it:
 demo mode active — using in-memory mock instead of core socket
 ```
 
-## What the mock does
-
-| Command | In demo |
-|---|---|
-| every `Get*` | returns the in-memory state |
-| every `Save*` | updates it and appends an audit entry |
-| `ApplyRules` | promotes Staged to Current, starts the acceptance timer |
-| `Accept` | cancels the timer |
-| timeout | rolls Current back to Backup |
-| `ExportRules` / `ImportRules` | round-trips the state as JSON |
-| `ValidateCustom` | **reports the checker as unavailable** |
-
 > **Custom-rule syntax cannot be checked.** There is no `nft` binary, so the page says
 > live validation is not running rather than reporting a verdict it has no basis for.
 > It used to answer "no errors" whatever was typed — a false green on the one page
