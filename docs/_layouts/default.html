@@ -264,9 +264,12 @@
       });
       nav.hidden = false;
 
-      // Scroll spy. rootMargin pins the "active" line near the top of the
-      // viewport, so a heading counts as current from the moment it settles
-      // under the topbar until the next one does.
+      // Scroll spy. One rAF-throttled scroll handler, not an
+      // IntersectionObserver: the observer watched a band that ended 70% up the
+      // viewport, so on a short page — three headings and 475 words, which is
+      // export-import — the last heading could never enter it and the last
+      // entries never became current. Reported as the column not reaching the
+      // bottom; it is the right height and always was.
       var current = null;
       function mark(a) {
         if (current === a) return;
@@ -275,15 +278,33 @@
         if (current) current.setAttribute('aria-current', 'true');
       }
 
-      if (!('IntersectionObserver' in window)) return;
-      var seen = new Map();
-      var obs = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) { seen.set(e.target, e.isIntersecting); });
-        for (var i = 0; i < heads.length; i++) {
-          if (seen.get(heads[i])) { mark(links[i]); return; }
+      // Two rules, and the second is the fix: current is the last heading whose
+      // top has passed 100px — just under the 72px topbar — and unconditionally
+      // the last heading once the document is scrolled to its end.
+      function spy() {
+        ticking = false;
+        var i = 0;
+        for (var j = 0; j < heads.length; j++) {
+          if (heads[j].getBoundingClientRect().top <= 100) i = j;
         }
-      }, { rootMargin: '-72px 0px -70% 0px', threshold: 0 });
-      heads.forEach(function (h) { obs.observe(h); });
+        // 2px of slack, not 0: a fractional device pixel ratio leaves scrollY
+        // a hair short of the arithmetic bottom, and the last entry would light
+        // up on some displays and not others.
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+          i = heads.length - 1;
+        }
+        mark(links[i]);
+      }
+
+      var ticking = false;
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(spy);
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      spy();
     })();
 
     // Diagrams and screenshots used to be reconciled with the theme from here, by

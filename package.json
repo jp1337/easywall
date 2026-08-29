@@ -9,6 +9,7 @@
     "build:diagrams": "node scripts/render-diagrams.mjs",
     "check:diagrams": "node scripts/render-diagrams.mjs --check",
     "build:docs": "scripts/docs-build.sh",
+    "check:docs": "node scripts/docs-check.mjs",
     "check:ui": "node scripts/ui-check.mjs"
   },
   "devDependencies": {
