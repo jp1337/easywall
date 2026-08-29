@@ -1530,10 +1530,6 @@ article.content-body mark.pagefind-highlight {
   font-weight: 600;
 }
 
-.content-body em {
-  color: var(--text-muted);
-}
-
 /* Tailwind's preflight sets list-style:none on ul and ol. Nothing put it
    back, so every bullet and every number in the documentation was missing —
    including the numbered priority list in configuration.md, where the order
@@ -1586,10 +1582,6 @@ article.content-body mark.pagefind-highlight {
 }
 
 .content-body blockquote > :last-child { margin-bottom: 0; }
-
-/* em is muted body-wide; inside a callout that lands on the tinted ground
-   and loses contrast, so keep it at full strength here. */
-.content-body blockquote em { color: inherit; }
 
 /* ── Inline code ───────────────────────────────────────────────────────
    Deliberately NOT --accent: links are accent-coloured, and on a page like
