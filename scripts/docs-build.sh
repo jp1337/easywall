@@ -15,11 +15,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The exact version .github/workflows/docs.yml pins ruby-version to, in both
+# its build and deploy jobs. There is no docs/Gemfile.lock, so gems resolve
+# fresh on every run — this version is the only thing holding the local stack
+# and the CI stack together. Change it there, change it here, in the same commit.
 podman run --rm \
   -v "$PWD/docs:/srv:Z" \
   -v easywall-docs-gems:/usr/local/bundle \
   -w /srv \
-  docker.io/library/ruby:3.4 \
+  docker.io/library/ruby:4.0.6 \
   sh -c 'bundle install --quiet && JEKYLL_ENV=production bundle exec jekyll build'
 
 # The exact version .github/actions/build-search-index pins, with the exact same
