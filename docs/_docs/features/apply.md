@@ -37,12 +37,13 @@ The page lists every difference between the staged set and the running one —
 ports, addresses, forwards, custom rules — and the configuration changes that go
 in with them. An options or network change is a pending change like any other:
 it is written to the daemon's config immediately and takes effect at the next
-apply, and until 2.10 this page said there was nothing to apply while the options
+apply. Until 2.10 this page said there was nothing to apply while the options
 page was telling you to.
 
-Add and remove are `+`, `-` and `~` in the left column and carry no colour. A new
-blacklist entry is not good news and a removed port is not a failure; colour on
-this page means firewall state, and it belongs to the line above the list.
+Add and remove are `+`, `-` and `~` in the left column and carry no colour. A
+new blacklist entry is not good news, and a removed port is not a failure.
+Colour on this page means firewall state, and it belongs to the line above the
+list.
 
 ## Whether it still admits a new connection from you
 
@@ -58,17 +59,21 @@ port this interface answers on, with one of three verdicts:
 **It is about a new connection, and that is the point.** Applying rules flushes
 and rebuilds the table; it does not touch conntrack. The connection your browser
 already has stays `ESTABLISHED`, matches the established/related rule, and keeps
-working — so this page can go on answering while the firewall admits nobody new,
-and confirming from it would confirm a lockout. Open a second connection and check
+working. So this page can go on answering while the firewall admits nobody new.
+Confirming from it would confirm a lockout — open a second connection and check
 there, exactly as step 2 says.
 
-*Cannot tell* is not a hedge. The bogon filter matches on which interface a packet
-arrives at, and nothing in the web interface knows that; an auto-detected Docker
-bridge network is settled in the core at apply time, which is also not knowable
-from here — a network you named yourself in the Docker settings is different and
-gets a plain **reachable**; custom rules are raw nftables and are appended after
-everything else. Each of those says so in its own words rather than guessing,
-because a wrong *blocks new connections* would cost the trust the true one needs.
+*Cannot tell* is not a hedge. Three things are not knowable from the web
+interface, and each says so in its own words rather than guessing:
+
+- The bogon filter matches on which interface a packet arrives at, and nothing
+  in the web interface knows that.
+- An auto-detected Docker bridge network is settled in the core at apply time,
+  which is also not knowable from here. A network you named yourself in the
+  Docker settings is different, and gets a plain **reachable**.
+- Custom rules are raw nftables and are appended after everything else.
+
+A wrong *blocks new connections* would cost the trust the true one needs.
 
 ## What the status card says
 
