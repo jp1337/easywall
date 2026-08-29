@@ -8,6 +8,7 @@
     "dev:docs-css": "tailwindcss -i web/src/docs.css -o docs/assets/css/style.css --watch",
     "build:diagrams": "node scripts/render-diagrams.mjs",
     "check:diagrams": "node scripts/render-diagrams.mjs --check",
+    "build:docs": "scripts/docs-build.sh",
     "check:ui": "node scripts/ui-check.mjs"
   },
   "devDependencies": {
