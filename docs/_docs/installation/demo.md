@@ -10,7 +10,7 @@ description: The whole interface against an in-memory mock — no root, no nftab
 every save is recorded, every apply runs the acceptance state machine. Nothing reaches
 a firewall.
 
-**Try it:** [easywall.wdkro.de](https://easywall.wdkro.de) — sign in with `demo` / `demo`.
+{% include demo-callout.html %}
 
 | | |
 |---|---|

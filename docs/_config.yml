@@ -37,6 +37,15 @@ defaults:
 # config rather than repeating the code.
 discord: https://discord.gg/3zJMvChvUA
 
+# The public demo. Three values in one place because five files hardcoded the
+# host and four of them were still naming the one before this a release after
+# the move — see TestTheOldDemoHostIsNotPublished. _includes/demo-callout.html
+# and both landing-page buttons read them from here; README.md cannot, because
+# GitHub does not run Jekyll over it.
+demo_url: https://demo.easywall-project.org
+demo_user: demo
+demo_password: demo
+
 social:
   name: jp1337
   links:
