@@ -12,6 +12,7 @@
     "check:docs": "node scripts/docs-check.mjs",
     "build:changelog": "node scripts/render-changelog.mjs",
     "check:changelog": "node scripts/render-changelog.mjs --check",
+    "check:prose": "node scripts/prose-check.mjs",
     "check:ui": "node scripts/ui-check.mjs"
   },
   "devDependencies": {
