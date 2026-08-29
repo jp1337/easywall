@@ -90,6 +90,10 @@ GHSA-3fxj-6jh8-hvhx, GHSA-rjr7-jggh-pgcp and GHSA-9g5q-2w5x-hmxf, and no
 configuration of easywall can express it.
 
 `X-Real-IP`, `True-Client-IP` and `Forwarded` are never believed, from any peer.
+From an untrusted one they still flip the audit log's `via-proxy` marker —
+their presence alone says something forwarded this, even though what they say
+is never read. From a listed proxy they mark nothing at all: only
+`X-Forwarded-For` decides there, which is why step 1 sets exactly that header.
 
 ## When it does not work
 
