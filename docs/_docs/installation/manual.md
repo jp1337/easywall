@@ -65,8 +65,8 @@ sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 
 > **`/var/lib/easywall` used to be listed here as `easywall:easywall`, and that does
 > not work.** The unit reduces the daemon to `CAP_NET_ADMIN`, which for a root
-> service also removes `CAP_DAC_OVERRIDE` — so root cannot enter a directory it does
-> not own, `rules.json` is never written, and every request fails on a permission
+> service also removes `CAP_DAC_OVERRIDE`. So root cannot enter a directory it does
+> not own. `rules.json` is never written. Every request fails on a permission
 > error raised deep inside the call. The package had the same bug and it is what the
 > `0770 root:easywall` above fixes.
 

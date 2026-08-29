@@ -37,7 +37,7 @@ it is published. The release refuses to publish a package whose `Architecture` f
 or whose binaries do not match the leg that built it.
 
 > **Every release before 2.5.0 was missing this file.** No release carried a `.deb`
-> at all — it was a CI artefact that expired after seven days and needed a GitHub
+> at all. It was a CI artefact that expired after seven days and needed a GitHub
 > login, so the documented install path never worked for anyone. From 2.5.1 the
 > release publishes it and refuses to publish one without binaries in it.
 
@@ -54,10 +54,10 @@ or whose binaries do not match the leg that built it.
 Full key reference: [Configuration]({{ '/docs/configuration/' | relative_url }}).
 
 **Upgrades never touch your two `.toml` files.** The package installs the
-templates and creates each real file only when it is missing, so neither is a
-dpkg conffile and an upgrade cannot prompt about one or overwrite it. easywall
-edits both itself — the settings pages write `easywall.toml`, the wizard and the
-password page write `web.toml` — and a file a program rewrites has no business
+templates and creates each real file only when it is missing. So neither is a
+dpkg conffile, and an upgrade cannot prompt about one or overwrite it. easywall
+edits both itself. The settings pages write `easywall.toml`. The wizard and the
+password page write `web.toml`. A file a program rewrites has no business
 being managed by the package manager. The templates are also where to look for a
 key a newer release added: they are replaced on upgrade, your files are not.
 
