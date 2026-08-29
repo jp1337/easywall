@@ -37,7 +37,7 @@ everyone — what every rule written before 2.11 means, and still the default.
 | `# not decided yet` | nobody — a comment is not an address |
 
 Each usable entry becomes its own nft rule, matched on the source address before
-the port is tested. A [whitelist]({{ '/docs/features/blacklist/' | relative_url }})
+the port is tested. A [whitelist]({{ '/docs/features/whitelist/' | relative_url }})
 entry is still the way to allow an address on *every* port at once.
 
 > **A network is matched by its network address.** `10.9.9.9/24` is applied as
@@ -77,7 +77,7 @@ rate-limits new connections per source address.
 > opens it. Before 2.11 a marked-nothing host had 22 accepted by the module alone.
 
 Each source address gets its own budget, so somebody else being rate-limited does not
-affect you. A [whitelist]({{ '/docs/features/blacklist/' | relative_url }}) entry does not
+affect you. A [whitelist]({{ '/docs/features/whitelist/' | relative_url }}) entry does not
 exempt you from it, though — protection modules are consulted before the whitelist,
 as the [rule order]({{ '/docs/features/filters/' | relative_url }}) shows.
 

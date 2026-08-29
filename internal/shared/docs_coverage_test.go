@@ -40,7 +40,7 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/apply":        "_docs/features/apply.md",
 		"/ports":        "_docs/features/ports.md",
 		"/blacklist":    "_docs/features/blacklist.md",
-		"/whitelist":    "_docs/features/blacklist.md",
+		"/whitelist":    "_docs/features/whitelist.md",
 		"/forwarding":   "_docs/features/forwarding.md",
 		"/custom":       "_docs/features/custom-rules.md",
 		"/options":      "_docs/features/filters.md",
