@@ -86,7 +86,7 @@ goes straight to the sign-in page, the same as leaving the box unticked.
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/firstrun-codes" ext="png"
      alt="Eight one-time recovery codes shown once, right after the first-run wizard confirms a second factor, with a Copy codes button and a Continue to sign in button." %}
-  <figcaption>The only time these eight codes are ever shown — the same screen as [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}), reached a step earlier here.</figcaption>
+  <figcaption>The only time these eight codes are shown. Copy them now; the second-factor page can issue new ones, but it cannot show these again.</figcaption>
 </figure>
 
 <figure class="docs-shot">

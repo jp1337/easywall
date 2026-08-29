@@ -12,7 +12,7 @@ firewall, and it is the only page that changes what the kernel is doing.
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/apply" ext="png"
      alt="The Apply Rules page: a reachability verdict above a list of staged changes grouped by rule set and options, with an Apply now button beside a card explaining the confirmation window." %}
-  <figcaption>Before the button: whether a new connection from you still gets in, and everything that would change.</figcaption>
+  <figcaption>The verdict is about a new connection — the one this page is loaded over keeps working regardless.</figcaption>
 </figure>
 
 ## The three steps

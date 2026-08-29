@@ -28,7 +28,7 @@ The question most people arrive with. Details for each module are below.
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/options" ext="png"
      alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. An accent edge marks a module that is switched on." %}
-  <figcaption>An accent edge down the left of a card means that module is on.</figcaption>
+  <figcaption>Toggling a module here stages the change at once — the kernel does not see it until the next apply.</figcaption>
 </figure>
 
 ## Where the modules sit

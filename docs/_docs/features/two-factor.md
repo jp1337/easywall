@@ -37,7 +37,7 @@ It can also be switched on during the first run, before this page exists to swit
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-codes" ext="png"
      alt="Eight one-time recovery codes shown once after setup succeeds, with a notice that they will not be shown again." %}
-  <figcaption>This screen is the only time the eight codes are ever shown in full.</figcaption>
+  <figcaption>This screen shows all eight; reloading afterward reveals only how many are left, never the codes.</figcaption>
 </figure>
 
 The eight recovery codes are shown once, on the same page, right after the
@@ -56,7 +56,7 @@ invalidates every old one, at any time — not only after losing the phone.
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-verify" ext="png"
      alt="The second-step sign-in page: a single field for a six-digit code or a recovery code, with no indication of whether the earlier password was correct." %}
-  <figcaption>Nothing on this screen says whether the password was right — only whether the code was.</figcaption>
+  <figcaption>Three wrong codes return you to the sign-in form — with no hint which one you got wrong.</figcaption>
 </figure>
 
 | Step | What happens |
