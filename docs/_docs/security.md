@@ -71,8 +71,8 @@ matter for the rest of this model:
   with no window of its own. But the previous rules are not written back into a
   table the console has deliberately torn down. That kernel half is the one place
   in easywall where the central promise — every apply reverts itself unless you
-  confirm it — is switched off outright. There is nothing running to roll
-  back onto. Both take effect the instant the marker is written and end the
+  confirm it — is switched off outright. That is because there is nothing
+  running to roll back onto. Both take effect the instant the marker is written and end the
   instant `easywall-core resume` clears it.
 
 Ending panic mode is console-only, without exception: the banner the interface
