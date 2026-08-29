@@ -365,6 +365,7 @@
             // difference between an answer and a page to read again.
             highlightParam: 'highlight'
           });
+          prune.watch();
           focusField();
         };
         js.onerror = function () {
@@ -373,6 +374,70 @@
         };
         document.body.appendChild(js);
       }
+
+      // Pagefind truncates a query term until a prefix matches something in the
+      // index: `asdasd` returns 23 results, every one of them matching `as`, and
+      // `xyzzyq` returns one, matching the `X` in `iptables -X`. Forward prefix
+      // matching is the behaviour that is wanted — `config` has to find
+      // `configuration` — and it is also the clean discriminator, because a real
+      // prefix match marks a word at least as long as what was typed while
+      // truncation always marks a shorter one.
+      //
+      // This runs over the rendered results, and not through the processResult
+      // option, which looks like the hook for exactly this and is not: 1.5.2
+      // applies it per card as `data = processResult(data) ?? data`, so
+      // returning null hands the original straight back and the card renders
+      // anyway — and it runs after the count has been computed. Read in the
+      // built bundle, not inferred from the option list.
+      var prune = (function () {
+        function run() {
+          var field = panel.querySelector('.pagefind-ui__search-input');
+          var typed = (field && field.value || '').toLowerCase();
+          var words = typed.split(/\s+/).filter(Boolean);
+          var cards = panel.querySelectorAll('.pagefind-ui__result');
+          var kept = 0;
+
+          for (var i = 0; i < cards.length; i++) {
+            var marks = cards[i].querySelectorAll('mark');
+            var texts = [];
+            for (var m = 0; m < marks.length; m++) texts.push(marks[m].textContent.toLowerCase());
+
+            // Every word typed has to have marked, somewhere in this result, a
+            // word it is a genuine prefix of. The length test alone is not
+            // enough on a two-word query, where one word can match fully and
+            // carry a second that was truncated.
+            var keep = !words.length || words.every(function (w) {
+              return texts.some(function (k) { return k.length >= w.length && k.indexOf(w) === 0; });
+            });
+
+            // ponytail: a stemmed query whose marked form is shorter than what
+            // was typed — `running` marked as `run` — is dropped by this rule.
+            // No such term exists in the corpus today; if one appears, widen to
+            // "or the mark is a prefix of the word and at least 3 characters"
+            // rather than removing the length test.
+            if (cards[i].hidden === keep) cards[i].hidden = !keep;
+            if (keep) kept++;
+          }
+
+          var msg = panel.querySelector('.pagefind-ui__message');
+          if (msg && words.length) {
+            var want = kept === 0
+              ? 'No results for ' + (field.value || '')
+              : kept + (kept === 1 ? ' result for ' : ' results for ') + (field.value || '');
+            // Only when it differs, or writing it is itself a mutation and the
+            // observer below calls this forever.
+            if (msg.textContent !== want) msg.textContent = want;
+          }
+        }
+
+        return {
+          watch: function () {
+            new MutationObserver(function () { run(); })
+              .observe(panel, { childList: true, subtree: true });
+            run();
+          }
+        };
+      })();
 
       // PagefindUI renders its own input, so there is nothing to focus until it
       // has mounted; open() calls this too, for every open after the first.

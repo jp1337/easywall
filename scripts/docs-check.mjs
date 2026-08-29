@@ -113,6 +113,40 @@ async function checkSearchKey(page, base) {
   await page.keyboard.press('Escape');
 }
 
+// Both directions, in one check, because either alone is satisfiable by doing
+// nothing: today `asdasd` finds 23 pages, and a filter crude enough to fix that
+// takes `config` -> `configuration` with it.
+async function checkSearchResults(page, base) {
+  console.log('search results');
+  await page.goto(base + '/docs/features/ports/');
+  await page.keyboard.press('/');
+
+  const field = page.locator('#docs-search-panel input');
+  try {
+    await field.waitFor({ state: 'visible', timeout: 20000 });
+  } catch {
+    ok(false, 'search field mounts for the results check');
+    return;
+  }
+
+  const shown = page.locator('#docs-search-panel .pagefind-ui__result:not([hidden])');
+
+  await field.fill('asdasd');
+  await page.waitForTimeout(900);   // PagefindUI debounces at 300ms
+  ok(await shown.count() === 0, 'asdasd finds nothing');
+  ok(/no results/i.test(await page.locator('#docs-search-panel .pagefind-ui__message').textContent()),
+     'and says so');
+
+  await field.fill('config');
+  await page.waitForTimeout(900);
+  const hrefs = await page.locator('#docs-search-panel .pagefind-ui__result:not([hidden]) a')
+                          .evaluateAll(as => as.map(a => a.getAttribute('href')));
+  ok(hrefs.some(h => h && h.includes('/docs/configuration/')),
+     'config still finds the configuration page');
+
+  await page.keyboard.press('Escape');
+}
+
 async function main() {
   const { server, port } = await serve(ROOT);
   const base = `http://127.0.0.1:${port}`;
@@ -123,6 +157,7 @@ async function main() {
   try {
     await checkContents(page, base);
     await checkSearchKey(page, base);
+    await checkSearchResults(page, base);
   } finally {
     await browser.close();
     server.close();
