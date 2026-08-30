@@ -1621,6 +1621,21 @@ article.content-body mark.pagefind-highlight {
 .content-body details > :not(summary):first-of-type { padding-top: 0.8rem; }
 .content-body details > :last-child { padding-bottom: 0.8rem; }
 
+/* A <ul>/<ol> is a direct child too, so the rule above set its padding-left to
+   0.9rem — overriding the browser's own list indent, which is the room a
+   marker needs to sit to the left of the text. With list-style-position:
+   outside (kept deliberately, see .content-body ul above), the disc or number
+   then painted into that 0.9rem and landed on the panel's own border. This
+   adds the panel's inset back to the 1.5rem already proven elsewhere to be
+   enough room for this site's markers (.content-body ul, ol above), so the
+   marker clears the border instead of sitting on it. A list nested inside a
+   list item is not a direct child of <details> and is untouched — it already
+   gets that same 1.5rem from the rule above, relative to its own <li>. */
+.content-body details > ul,
+.content-body details > ol {
+  padding-left: calc(0.9rem + 1.5rem);
+}
+
 /* ── Inline code ───────────────────────────────────────────────────────
    Deliberately NOT --accent: links are accent-coloured, and on a page like
    configuration.md — where nearly every table cell holds a key or a value —
