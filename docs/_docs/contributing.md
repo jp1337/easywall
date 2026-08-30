@@ -24,8 +24,7 @@ make test lint
 
 ## Rebuilding the committed assets
 
-Three build outputs are committed, so a release needs no Node toolchain. CI
-rebuilds each one and fails on any difference.
+Three build outputs are committed, so a release needs no Node toolchain.
 
 ```bash
 npm run build:css         # web/static/style.css      — the application
@@ -33,7 +32,10 @@ npm run build:docs-css    # docs/assets/css/style.css — this site
 npm run build:diagrams    # docs/assets/diagrams/*.svg — two per source
 ```
 
-`npm run check:diagrams` fails if a `.mmd` source changed without a re-render.
+CI rebuilds the two stylesheets and fails on any difference. A diagram render is
+not reproducible byte-for-byte — mermaid jitters its curve control points between
+runs. Don't verify one by rebuilding and diffing; `npm run check:diagrams` checks
+a digest instead, and fails if a `.mmd` source changed without a re-render.
 `npx @google/design.md lint DESIGN.md` validates the design system; some warnings
 are expected and explained inside the file.
 

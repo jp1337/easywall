@@ -48,7 +48,7 @@ a lockout resolves itself before it costs you the afternoon.
 Off unless you switch it on, here or during the first-run wizard — the full
 request is in [Counting installations]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
-The public demo at [demo.easywall-project.org](https://demo.easywall-project.org)
+The public demo at [{{ site.demo_url | remove: 'https://' }}]({{ site.demo_url }})
 reports too — it is switched on there through `EASYWALL_WEB_TELEMETRY`. So the
 number means *installations, including the demo*, not *installations somebody
 runs*.
