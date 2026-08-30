@@ -1717,7 +1717,7 @@ article.content-body mark.pagefind-highlight {
    Positioned against .highlighter-rouge, which is the element carrying the
    frame. Against the <pre> the button would scroll out of the block with a
    long command. */
-.content-body .highlighter-rouge { position: relative; }
+.content-body div.highlighter-rouge { position: relative; }
 
 .content-body .docs-copy {
   position: absolute;
@@ -1738,7 +1738,7 @@ article.content-body mark.pagefind-highlight {
 
 /* Focus has to reveal it, or it is a tab stop that cannot be seen — worse than
    no tab stop at all. */
-.content-body .highlighter-rouge:hover .docs-copy,
+.content-body div.highlighter-rouge:hover .docs-copy,
 .content-body .docs-copy:focus-visible { opacity: 1; }
 
 .content-body .docs-copy:hover { color: var(--text); background: var(--surface-3); }
@@ -1752,7 +1752,7 @@ article.content-body mark.pagefind-highlight {
    the visible right edge, so the first line would still run under the button
    at scroll position 0. A gradient in the block's own background colour, on
    together with the button, fades the text out before it gets there instead. */
-.content-body .highlighter-rouge::before {
+.content-body div.highlighter-rouge::before {
   content: '';
   position: absolute;
   top: 0;
@@ -1765,14 +1765,14 @@ article.content-body mark.pagefind-highlight {
   pointer-events: none;
 }
 
-.content-body .highlighter-rouge:hover::before,
-.content-body .highlighter-rouge:focus-within::before { opacity: 1; }
+.content-body div.highlighter-rouge:hover::before,
+.content-body div.highlighter-rouge:focus-within::before { opacity: 1; }
 
 /* A touch screen never hovers, so on one the button — and its fade — are
    simply there. */
 @media (hover: none) {
   .content-body .docs-copy { opacity: 1; }
-  .content-body .highlighter-rouge::before { opacity: 1; }
+  .content-body div.highlighter-rouge::before { opacity: 1; }
 }
 
 
