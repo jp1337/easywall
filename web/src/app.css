@@ -321,7 +321,16 @@ body {
 
   .brand-version {
     margin-left: auto;
-    max-width: 9ch;
+    /* 18ch, not the 9ch this shipped with. At 9 the badge fit "2.13.0" and
+       nothing longer: "v2.13.0" — what the Dockerfile is handed, because the
+       Makefile passes `git describe` — rendered as "v2.13…", and so would
+       "2.13.10" on every installation at the first patch release past .9. The
+       title attribute held the full string, which is a tooltip, not a version
+       number on the screen. 18ch is the longest a build here can produce, a
+       dirty local one: "v2.13.0-dirty". It is a cap, not a width — a plain
+       "2.13.0" still renders at its own 51px, and the brand row has room for
+       the full 18 either way. */
+    max-width: 18ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

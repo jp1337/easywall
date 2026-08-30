@@ -41,7 +41,7 @@ The one thing worth knowing before you write a rule. A whitelisted address reach
 | Install on Debian or Ubuntu — amd64 or arm64 | [.deb package]({% link _docs/installation/debian.md %}) |
 | Run it in a container | [Docker]({% link _docs/installation/docker.md %}) |
 | Build from source | [Manual install]({% link _docs/installation/manual.md %}) |
-| Try it without installing anything | [Live demo](https://easywall.wdkro.de) · [Demo mode]({% link _docs/installation/demo.md %}) |
+| Try it without installing anything | [Live demo]({{ site.demo_url }}) · [Demo mode]({% link _docs/installation/demo.md %}) |
 | Know what the setup page is asking | [First run]({% link _docs/installation/first-run.md %}) |
 | Put rules into the kernel, safely | [Applying rules]({% link _docs/features/apply.md %}) |
 | Understand the design | [Architecture]({% link _docs/architecture.md %}) · [Security]({% link _docs/security.md %}) |

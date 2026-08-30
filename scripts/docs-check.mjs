@@ -1,0 +1,295 @@
+#!/usr/bin/env node
+/**
+ * Targeted assertions about the documentation site, in a real browser.
+ *
+ * scripts/ui-check.mjs drives the application in demo mode; nothing drove the
+ * documentation. Everything Phase 1 of the docs-site-polish branch changed is
+ * behaviour — a scroll handler, a key binding, a result filter, a clipboard
+ * write — and none of it is visible to a Go test against the stylesheet or to
+ * a diff.
+ *
+ * This is not a suite; it is the handful of things that were broken.
+ *
+ *   npm run build:docs && npm run check:docs
+ *
+ * The browser is Playwright's own Chromium — install it with
+ * `npx playwright-core install chromium`. CHROME_PATH uses a different build,
+ * which is how it runs against a Chromium already on the machine.
+ */
+import { chromium } from 'playwright-core';
+import { createServer } from 'node:http';
+import { readFile, stat } from 'node:fs/promises';
+import { join, extname } from 'node:path';
+
+const ROOT = new URL('../docs/_site/', import.meta.url).pathname;
+
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.woff2': 'font/woff2',
+  '.xml': 'application/xml',
+  '.wasm': 'application/wasm'
+};
+
+// Jekyll writes pretty URLs as directories holding index.html, so a static
+// server that does not resolve a directory serves 404 for every page on the
+// site.
+function serve(root) {
+  const server = createServer(async (req, res) => {
+    let p = join(root, decodeURIComponent(req.url.split('?')[0]));
+    try {
+      if ((await stat(p)).isDirectory()) p = join(p, 'index.html');
+      const body = await readFile(p);
+      res.writeHead(200, { 'content-type': TYPES[extname(p)] ?? 'application/octet-stream' });
+      res.end(body);
+    } catch {
+      res.writeHead(404).end();
+    }
+  });
+  return new Promise(r =>
+    server.listen(0, '127.0.0.1', () => r({ server, port: server.address().port })));
+}
+
+let failed = 0;
+function ok(cond, what) {
+  console.log((cond ? '  ok    ' : '  FAIL  ') + what);
+  if (!cond) failed++;
+}
+
+// export-import is the shortest page that still gets a contents column: 475
+// words and exactly three headings, which is the minimum the layout renders one
+// for. That is precisely the case the IntersectionObserver could not answer —
+// its band ended 70% up the viewport, and on a page this short the last heading
+// never reached it.
+async function checkContents(page, base) {
+  console.log('on-page contents');
+  await page.goto(base + '/docs/features/export-import/');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(250);
+
+  const entries = page.locator('.docs-toc-item a');
+  const n = await entries.count();
+  ok(n >= 3, `the contents column has ${n} entries`);
+  if (!n) return;
+  ok(await entries.nth(n - 1).getAttribute('aria-current') === 'true',
+     'the last entry is current at the bottom of a short page');
+}
+
+// `/` is the convention every documentation site with a search uses, it is the
+// same key on every keyboard, and it needs no platform sniff to print. What it
+// does need is a guard: without one, `/` cannot be typed into the search field
+// it just opened.
+async function checkSearchKey(page, base) {
+  console.log('search shortcut');
+  await page.goto(base + '/docs/features/ports/');
+
+  ok((await page.locator('#docs-search-key').textContent()).trim() === '/',
+     'the badge on the trigger reads /');
+
+  await page.keyboard.press('/');
+  const dialog = page.locator('#docs-search-dialog');
+  ok(await dialog.evaluate(d => d.open), '/ opens the search overlay');
+
+  const field = page.locator('#docs-search-panel input');
+  try {
+    await field.waitFor({ state: 'visible', timeout: 20000 });
+  } catch {
+    // The field never mounted — PagefindUI failed to load, or the overlay
+    // never opened. Record it as a failure and skip the assertions that
+    // depend on the field existing, instead of letting the rejection kill
+    // every check still queued after this one.
+    ok(false, '/ reaches the search field');
+    return;
+  }
+  await field.pressSequentially('a/b');
+  ok(await dialog.evaluate(d => d.open), 'the overlay stays open while / is typed into it');
+  ok(await field.inputValue() === 'a/b', '/ reaches the search field');
+
+  await page.keyboard.press('Escape');
+}
+
+// Both directions, in one check, because either alone is satisfiable by doing
+// nothing: today `asdasd` finds 23 pages, and a filter crude enough to fix that
+// takes `config` -> `configuration` with it.
+async function checkSearchResults(page, base) {
+  console.log('search results');
+  await page.goto(base + '/docs/features/ports/');
+  await page.keyboard.press('/');
+
+  const field = page.locator('#docs-search-panel input');
+  try {
+    await field.waitFor({ state: 'visible', timeout: 20000 });
+  } catch {
+    ok(false, 'search field mounts for the results check');
+    return;
+  }
+
+  const shown = page.locator('#docs-search-panel .pagefind-ui__result:not([hidden])');
+  const more = page.locator('#docs-search-panel .pagefind-ui__button');
+
+  await field.fill('asdasd');
+  await page.waitForTimeout(900);   // PagefindUI debounces at 300ms
+  ok(await shown.count() === 0, 'asdasd finds nothing');
+  ok(/no results/i.test(await page.locator('#docs-search-panel .pagefind-ui__message').textContent()),
+     'and says so');
+  ok(!(await more.isVisible()), 'and hides the load-more control');
+
+  await field.fill('config');
+  await page.waitForTimeout(900);
+  const hrefs = await page.locator('#docs-search-panel .pagefind-ui__result:not([hidden]) a')
+                          .evaluateAll(as => as.map(a => a.getAttribute('href')));
+  ok(hrefs.some(h => h && h.includes('/docs/configuration/')),
+     'config still finds the configuration page');
+  ok(await more.isVisible(), 'and the load-more control is back for a real query');
+
+  // `web/static/style.css` marks on `static` too — a compound token, not a
+  // word starting with it — and that card also carries no other, genuine
+  // mark. asdasd and config both miss this branch: every compound-token mark
+  // they turn up shares a card with a genuine prefix mark, so texts.some()
+  // passes on the second one and the first is never what decides the card.
+  await field.fill('static');
+  await page.waitForTimeout(900);
+  const staticHrefs = await page.locator('#docs-search-panel .pagefind-ui__result:not([hidden]) a')
+                                .evaluateAll(as => as.map(a => a.getAttribute('href')));
+  ok(!staticHrefs.some(h => h && h.includes('/docs/contributing/')),
+     'static hides the card that only matches a non-leading substring');
+
+  await page.keyboard.press('Escape');
+}
+
+// The clear button used to stand at Pagefind's own 58px height with its own
+// asymmetric padding — a panel bolted to the field rather than a control
+// inside it, and its label jammed against the left edge with a bare gap on
+// the right. Both read as "a CSS rule changed" in a diff of docs.css, not as
+// "the button now looks wrong", which is why this is asserted from the
+// rendered box rather than left as a screenshot-only check.
+async function checkSearchClearButton(page, base) {
+  console.log('search clear button size');
+  await page.goto(base + '/docs/features/ports/');
+  await page.keyboard.press('/');
+
+  const clear = page.locator('#docs-search-panel .pagefind-ui__search-clear');
+  try {
+    await clear.waitFor({ state: 'visible', timeout: 20000 });
+  } catch {
+    ok(false, 'the clear button mounts for the size check');
+    return;
+  }
+
+  const field = page.locator('#docs-search-panel .pagefind-ui__search-input');
+  await field.fill('acceptance duration trusted_proxies EASYWALL_WEB_TRUSTED_PROXIES');
+  await page.waitForTimeout(300);
+
+  const geo = await page.evaluate(() => {
+    const f = document.querySelector('#docs-search-panel .pagefind-ui__search-input');
+    const b = document.querySelector('#docs-search-panel .pagefind-ui__search-clear');
+    const fr = f.getBoundingClientRect();
+    const br = b.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(b);
+    const tr = range.getBoundingClientRect();
+    return {
+      fieldHeight: fr.height,
+      fieldCenter: fr.top + fr.height / 2,
+      buttonHeight: br.height,
+      buttonCenter: br.top + br.height / 2,
+      leftGap: tr.left - br.left,
+      rightGap: br.right - tr.right,
+      padRight: parseFloat(getComputedStyle(f).paddingRight),
+      buttonWidth: br.width
+    };
+  });
+
+  ok(geo.buttonHeight < geo.fieldHeight * 0.6,
+     `the button (${geo.buttonHeight}px) is a control inside a ${geo.fieldHeight}px field, not a panel filling it`);
+  ok(Math.abs(geo.buttonCenter - geo.fieldCenter) < 2,
+     'the button sits vertically centred on the field, not shifted off it');
+  ok(Math.abs(geo.leftGap - geo.rightGap) < 2,
+     'the label sits centred in the button, not jammed against one edge');
+  ok(geo.padRight >= geo.buttonWidth,
+     'the field reserves at least the button\'s width, so a full query stops before it');
+
+  await page.keyboard.press('Escape');
+}
+
+// The clipboard is the only part of this that a screenshot cannot show, and the
+// only part that can be silently wrong: a button that says Copied having
+// written nothing looks exactly like one that worked.
+async function checkCopyButton(context, page, base) {
+  console.log('copy buttons');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base });
+  await page.goto(base + '/docs/installation/debian/');
+
+  const block = page.locator('.content-body .highlighter-rouge').first();
+  const want = (await block.locator('pre').innerText()).replace(/\n$/, '');
+  const btn = block.locator('.docs-copy');
+
+  ok(await btn.count() === 1, 'a code block carries exactly one copy button');
+  if (!(await btn.count())) return;
+
+  await btn.click();
+  // waitFor a text match rather than sampling once: the label reverts to Copy
+  // after 2 seconds, so a single read races that timeout and is flaky either
+  // way it lands.
+  try {
+    await btn.filter({ hasText: 'Copied' }).waitFor({ state: 'visible', timeout: 1000 });
+    ok(true, 'the button confirms in its own label');
+  } catch {
+    ok(false, 'the button confirms in its own label');
+  }
+  ok(await page.evaluate(() => navigator.clipboard.readText()) === want,
+     'the clipboard holds the code block');
+
+  // The button is anchored to .highlighter-rouge, not to the (horizontally
+  // scrolling) <pre>, so at a narrow width a long first line's tail can sit
+  // directly under it at rest. The fade behind the button — in the block's
+  // own background colour — has to reach at least as far left as the
+  // button's own left edge, or there is a bare seam where full-strength text
+  // meets the solid button: the same collision with different geometry.
+  // Checked as pure layout, not by sampling rendered pixel colour: a colour
+  // check would ride font antialiasing and platform text rendering, which
+  // differ between machines and would make this pass or fail for reasons
+  // that have nothing to do with the CSS being tested. The fade's own
+  // computed extent either reaches the button or it doesn't — deterministic
+  // at a fixed viewport. Last, because it repoints the shared page's
+  // viewport and nothing else in this file runs after it.
+  await page.setViewportSize({ width: 390, height: 900 });
+  const fadeReachesButton = await block.evaluate((el) => {
+    const before = getComputedStyle(el, '::before');
+    const btn = el.querySelector('.docs-copy');
+    const blockRight = el.getBoundingClientRect().right;
+    const btnLeft = btn.getBoundingClientRect().left;
+    const fadeLeft = blockRight - parseFloat(before.width);
+    return fadeLeft <= btnLeft;
+  });
+  ok(fadeReachesButton, 'the fade behind the button reaches at least as far as the button itself');
+}
+
+async function main() {
+  const { server, port } = await serve(ROOT);
+  const base = `http://127.0.0.1:${port}`;
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+
+  try {
+    await checkContents(page, base);
+    await checkSearchKey(page, base);
+    await checkSearchResults(page, base);
+    await checkSearchClearButton(page, base);
+    await checkCopyButton(context, page, base);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+
+  console.log(failed ? `\n${failed} failed` : '\nall checks passed');
+  process.exit(failed ? 1 : 0);
+}
+
+main();

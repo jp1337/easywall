@@ -7,8 +7,11 @@ description: Raw nftables statements for what the other pages cannot express —
 # Custom Rules
 
 nftables statements, written by hand, appended to easywall's input chain. This is
-the escape hatch for anything the typed pages cannot say: a port open to one
-source only, a rate limit on a specific service, a log line you want.
+the escape hatch for anything the typed pages cannot say:
+
+- a port open to one source only
+- a rate limit on a specific service
+- a log line you want
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/custom" ext="png"
@@ -45,8 +48,8 @@ on import, and again inside the core.
 > **Demonstrated, not theoretical.** An imported rule containing a newline wrote
 > into a neighbouring table, which is precisely what "easywall owns one table and
 > never looks at another" says cannot happen. The check is on the *shape* of the
-> input rather than on nft's grammar, so it does not depend on a subprocess being
-> available or on a wrapper happening to be unbalanced. The reasoning is in
+> input rather than on nft's grammar. So it does not depend on a subprocess being
+> available, or on a wrapper happening to be unbalanced. The reasoning is in
 > [Security]({{ '/docs/security/' | relative_url }}).
 
 There is also a ceiling of **256 statements** per check, which is far above any
@@ -88,8 +91,9 @@ claiming your rules are valid.
 
 Saving stages, like every other page. Worth knowing here: a statement that passes
 the syntax check can still be refused by the **kernel** at
-[apply]({{ '/docs/features/apply/' | relative_url }}) time — a chain that does not exist,
-a set that is not defined — and a failed apply rolls back to the previous rules.
+[apply]({{ '/docs/features/apply/' | relative_url }}) time. Two examples: a chain
+that does not exist, a set that is not defined. A failed apply rolls back to the
+previous rules.
 
 ## When it does not work
 

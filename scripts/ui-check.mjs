@@ -546,6 +546,48 @@ async function checkApplyPreview(page) {
  * So this drives the control rather than the URL: click it, then ask for a page
  * behind the login and see where it lands.
  */
+/**
+ * The version badge fits the version strings a build of this repository can
+ * carry.
+ *
+ * `.brand-version` was capped at 9ch, which fits "2.13.0" and nothing longer.
+ * The .deb sets the version from the changelog and gets six characters; the
+ * Dockerfile and the Makefile pass `git describe`, so every container image
+ * showed "v2.13…" instead of its own version. "2.13.10" clips just the same,
+ * which would have reached every installation at the first patch release past
+ * .9 — the one shape of this bug nobody would have read as a packaging quirk.
+ *
+ * Measured in the browser rather than asserted against the stylesheet: what
+ * matters is whether the text fits the box, and no number in a CSS file says
+ * that. The `title` attribute carries the full string either way, but a tooltip
+ * is not a version number on the screen.
+ */
+async function checkVersionBadgeFitsTheVersion(page) {
+  await page.goto(`${BASE}/dashboard`, { waitUntil: 'load' });
+  const bad = await page.evaluate(() => {
+    const el = document.querySelector('.brand-version');
+    if (!el) return ['(the sidebar has no .brand-version badge at all)'];
+    const brand = el.parentElement;
+    const original = el.textContent;
+    const clipped = [];
+    // The changelog version, `git describe` with and without a tag suffix, and
+    // a two-digit patch — every shape the packaging here can hand the binary.
+    for (const v of ['2.13.0', 'v2.13.0', '2.13.10', 'v2.13.10', 'v2.13.0-rc1', 'v2.13.0-dirty']) {
+      el.textContent = v;
+      if (el.scrollWidth > el.clientWidth) clipped.push(v);
+      // A badge that fits by pushing the product name out of the row is not a
+      // fix; the cap has to leave the brand line intact as well.
+      else if (brand.scrollWidth > brand.clientWidth) clipped.push(`${v} (overflows the brand row)`);
+    }
+    el.textContent = original;
+    return clipped;
+  });
+  if (bad.length) {
+    throw new Error(`the version badge cannot show: ${bad.join(', ')}`);
+  }
+  console.log('  ok   the version badge fits every version string a build can carry');
+}
+
 async function checkSignOutEndsTheSession(page) {
   await page.goto(`${BASE}/dashboard`, { waitUntil: 'networkidle' });
 
@@ -784,6 +826,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkEnrolmentFlow(p);
+  await checkVersionBadgeFitsTheVersion(p);
   await checkVerifyPage(browser);
   // Last, and deliberately: signing out revokes the session id every context
   // above is sharing, so anything after it would be driving a signed-out browser.
@@ -837,17 +880,48 @@ async function seedPortsScreenshot(page) {
   ]);
 }
 
-/** Screenshot one page into docs/assets/img/screens/<name>-<theme>.png. */
+// The shape every published screenshot is taken in.
+//
+// 1600 rather than the 1440 this used from 2.11 to 2.13: `.page-grid` drops its
+// 320px context column below 1570px, so at 1440 every screenshot in docs/ showed
+// the collapsed single-column fallback — the aside cards stacked under the table
+// instead of beside it, on ports, blacklist, forwarding, custom and options
+// alike. 1440 is still exercised, by WIDTHS above, where squeezing the layout is
+// the whole point. A screenshot is documentation, and documents the layout the
+// design is actually about.
+const SHOT_VIEWPORT = { width: 1600, height: 900 };
+
+/**
+ * Screenshot one page into docs/assets/img/screens/<name>-<theme>.png.
+ *
+ * The viewport is grown to the document's height first rather than passing
+ * `fullPage`. `.sidebar` is `position: fixed` with `min-height: 100vh`, and a
+ * fullPage capture leaves a fixed element pinned to the viewport it was laid out
+ * in: on every page taller than 900px the sidebar stopped mid-image, with the
+ * language switch, the theme toggle and Logout floating in the middle of it and
+ * nothing below. Twenty-two of the thirty-four shipped files carried it — every
+ * page with a sidebar that ran past 900px. Growing
+ * the window instead renders the page the way a reader with a window that tall
+ * would see it — which is also the right answer for the sticky save bar.
+ */
 async function shoot(page, name, theme) {
   const out = `docs/assets/img/screens/${name}-${theme}.png`;
-  await page.screenshot({ path: out, fullPage: true });
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  if (height > SHOT_VIEWPORT.height) {
+    await page.setViewportSize({ width: SHOT_VIEWPORT.width, height });
+    // The reflow is synchronous, but a sticky element's resolved position and
+    // any transition on it are not.
+    await page.waitForTimeout(200);
+  }
+  await page.screenshot({ path: out });
+  await page.setViewportSize(SHOT_VIEWPORT);
   console.log(`  wrote ${out}`);
 }
 
-/** A themed, 1440x900@1.5x context — every screenshot in the set uses this shape. */
+/** A themed, 1600x900@1.5x context — every screenshot in the set uses this shape. */
 async function screenshotContext(browser, theme, extra = {}) {
   const ctx = await browser.newContext({
-    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
     deviceScaleFactor: 1.5, ...extra,
   });
   await ctx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
@@ -857,7 +931,7 @@ async function screenshotContext(browser, theme, extra = {}) {
 async function takeScreenshots(browser, session, pages) {
   console.log(`Screenshotting ${pages.join(', ')} in both themes`);
   const prep = await browser.newContext({
-    ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 },
+    ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
     deviceScaleFactor: 1.5, storageState: session,
   });
   if (pages.includes('/ports')) await seedPortsScreenshot(await prep.newPage());

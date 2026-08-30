@@ -10,10 +10,9 @@ Two TOML files in `/etc/easywall/`, one per process, read at startup.
 
 A value that cannot be interpreted stops the daemon with a message naming the key —
 an unknown `ipv6.mode`, a missing path. A value that is merely out of range is brought
-into range and **said out loud** in the log, because a firewall daemon that refuses to
-start is a worse outcome than one running a documented default: `acceptance.duration`
-is clamped to 10–3600, and a rate limit of zero on an enabled module becomes that
-module's default.
+into range and **said out loud** in the log. A firewall daemon that refuses to start is
+a worse outcome than one running a documented default. `acceptance.duration` is clamped
+to 10–3600. A rate limit of zero on an enabled module becomes that module's default.
 
 The same value arriving through the interface is refused instead, with the key named.
 Nothing is substituted quietly in either direction — that used to be five rate limits,
@@ -24,13 +23,13 @@ and the file and the running firewall could disagree with nothing to say so.
 | `easywall.toml` | `root:root` `0600` | firewall options, acceptance window, IPv6, Docker, routing |
 | `web.toml` | `easywall:easywall` `0600` | bind address, TLS, session secret, credentials |
 
-The split is the point: the web process rewrites its own file — the wizard and the
-password page write into it — and must not be able to touch the one the root daemon
+The split is the point: the web process rewrites its own file. The wizard and the
+password page write into it. It must not be able to touch the one the root daemon
 reads.
 
 The package and the container install both, already filled in — from
-`*.toml.template`, created once and never touched again, because easywall edits
-both files itself and a file a program rewrites must not be managed by the
+`*.toml.template`. Both are created once and never touched again: easywall edits
+both files itself, and a file a program rewrites must not be managed by the
 package manager. An upgrade replaces the templates and leaves your two files
 alone. Either binary can also write a commented default — it carries one, so this
 works on a host that has nothing but the binary:
@@ -42,7 +41,7 @@ sudo easywall-web  --write-config /etc/easywall/web.toml
 
 **It never overwrites.** Both paths hold a working firewall's settings once
 easywall is running, and `web.toml` also holds the session key and the password
-hash; pointed at a file that exists, the command says so and changes nothing.
+hash. Pointed at a file that exists, the command says so and changes nothing.
 
 ## The command line
 
@@ -85,7 +84,7 @@ The range is enforced, not merely suggested. Below ten seconds the window closes
 the confirmation page can be read, so every apply rolls back and the firewall can no
 longer be changed through the interface. A value outside the range in an existing file
 is brought to the nearest permitted one, with a warning, rather than keeping the daemon
-from starting; a value set through the interface is rejected outright.
+from starting. A value set through the interface is rejected outright.
 
 ### `[ipv6]`
 
@@ -99,8 +98,8 @@ Both ICMPv6 keys apply only under `mode = "filter"`. Under `passthrough` the tra
 is already accepted and under `block` already gone.
 
 > **`enabled` is obsolete.** It was documented as "off means IPv6 traffic is not
-> filtered at all" and did the opposite: the table is `inet`, so every rule and the
-> drop policy still applied to IPv6 and only the ICMPv6 exemptions were removed —
+> filtered at all," and did the opposite. The table is `inet`, so every rule and the
+> drop policy still applied to IPv6, and only the ICMPv6 exemptions were removed —
 > IPv6 came out filtered *and* non-functional. A config still carrying the key loads,
 > and both old values become `mode = "filter"`.
 
@@ -126,11 +125,11 @@ named, at startup and on `SIGHUP`.
 > **Nothing checked these two lists when they arrived in the file.** Only the
 > Network page checked, and only on the way in — so an entry edited in by hand
 > reached the kernel as no rule at all. With `routing.mode = "networks"` and
-> `networks = ["10.8.0.0/24", "10.9.0.0-24"]` the daemon started with no warning
-> and the `forward` chain came up holding the accept for the first network and
+> `networks = ["10.8.0.0/24", "10.9.0.0-24"]` the daemon started with no warning.
+> The `forward` chain came up holding the accept for the first network and
 > none for the second, which the drop policy then destroyed. The page had the
 > opposite failure: it validated with the address-list rules, which accept a bare
-> address, so `192.168.1.5` passed there, was refused by the core, and was
+> address. So `192.168.1.5` passed there, was refused by the core, and was
 > reported as *Failed to save changes. Check core connection.*
 
 ### `[routing]`
@@ -151,7 +150,7 @@ container, into a published container port.
 
 > **A closed `forward` chain is not the same as an unfiltered one.** A base chain
 > whose rules give no verdict falls through to its policy, so an empty chain with
-> `policy drop` destroys every routed packet — including ones another table's
+> `policy drop` destroys every routed packet. That includes packets another table's
 > forward chain has already accepted. Until 2.5.0 that was the only behaviour and
 > nothing said so, which meant every Docker container lost its network the moment
 > easywall applied. Docker's networks now cross regardless of `mode`; anything else
@@ -182,9 +181,9 @@ reference.
 | Multicast | `drop_multicast` — off | — | — |
 | Anycast | `drop_anycast` — off | — | — |
 
-Every number above has a permitted range, and it is the daemon that holds it —
-the `max` on the options page and the `maximum` in the JSON Schema are hints to a
-browser and an editor, and neither reaches a `curl` or a hand-edited file:
+Every number above has a permitted range, and it is the daemon that holds it.
+The `max` on the options page and the `maximum` in the JSON Schema are hints to a
+browser and an editor. Neither reaches a `curl` or a hand-edited file:
 
 | Key | Range | Default |
 |---|---|---|
@@ -244,33 +243,19 @@ Two logging switches belong to no module and are set here as well:
 trusted_proxies = ["127.0.0.1", "10.1.0.5"]
 ```
 
-or `EASYWALL_WEB_TRUSTED_PROXIES=127.0.0.1,10.1.0.5`.
+Each entry is an address or a CIDR network whose `X-Forwarded-For` easywall
+believes. Empty by default, which means the TCP peer is authoritative.
 
-**What it buys.** Behind a proxy every request otherwise appears to come from the
-proxy: the audit log records the proxy's address, the apply screen cannot tell
-you whether you are about to lock yourself out, and the login limiter's five
-attempts per ten minutes are shared by everyone — one attacker exhausts them for
-you. With the proxy listed, all three see the real client.
+**Being on this list is total trust in that peer.** List the proxies
+themselves, never the network they live in: every host in `10.0.0.0/8` can then
+choose the address easywall records, decides lockouts on, and rate limits.
 
-**What it costs.** Being on this list is total trust in that peer. Two mistakes
-hand address spoofing to anyone who can reach the port:
-
-- listing an address that is **not** actually a proxy in front of easywall;
-- listing a **network** rather than the proxies themselves — every host in
-  `10.0.0.0/8` can then choose the address easywall records, verdicts on, and
-  rate limits.
-
-List the proxies. Not the subnet they live in, not `0.0.0.0/0`, and never an
-address you do not control.
-
-Only `X-Forwarded-For` is read. From an untrusted peer, `X-Real-IP`,
-`True-Client-IP` and `Forwarded` still mark a request as arriving through
-something that forwards, but their values are never used; from a listed proxy
-they mark nothing at all — configure your proxy to send `X-Forwarded-For`.
+The whole task — nginx in front, the value to use, the Docker case, and how to
+check it took — is [Behind a reverse proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}).
 
 **If a listed proxy sends no `X-Forwarded-For`,** the request still resolves —
-to the proxy's own address, marked `via-proxy` in the audit log and reported as
-*cannot tell* on the apply screen. That marker is the symptom of the release's
+to the proxy's own address. That's marked `via-proxy` in the audit log and reported
+as *cannot tell* on the apply screen. That marker is the symptom of the release's
 most likely misconfiguration: a proxy added to `trusted_proxies` without a
 matching `proxy_set_header X-Forwarded-For` in the proxy's own config. Every
 client behind it then shares that one address's rate-limit bucket, same as
@@ -289,7 +274,7 @@ Highest priority first:
 4. **English.**
 
 The languages on offer are whatever `locales/*.json` contains, and each file names
-itself through its own `language_name` key — so `Deutsch` reads as `Deutsch` and
+itself through its own `language_name` key. So `Deutsch` reads as `Deutsch` and
 `Français` as `Français`, whatever language the interface is currently in. A
 language nobody has reviewed yet says so in the switch, and a coverage report
 says how much of it is there. Adding a locale file is all it takes for it to
@@ -319,7 +304,7 @@ Leave both keys empty to use an auto-generated self-signed certificate in `ssl_d
 | `key` | Absolute path to the matching private key PEM file |
 
 The auto-generated certificate is valid for a year and is replaced once it comes within
-30 days of expiry — checked at startup and twice a day while the service runs, so a
+30 days of expiry. That's checked at startup and twice a day while the service runs, so a
 server that stays up past its own certificate keeps working.
 
 A custom certificate is **never** overwritten. It is re-read when the file changes, so
@@ -327,7 +312,7 @@ an ACME client renewing it in place takes effect on the next connection without 
 restart.
 
 Set both `cert` and `key` or neither. Setting one alone is refused at startup: easywall
-would otherwise pair your file with the other half of its own generated pair, and TLS
+would otherwise pair your file with the other half of its own generated pair. TLS then
 fails with a key-mismatch error naming a certificate you never configured.
 
 ## Every request that leaves the host
@@ -344,7 +329,7 @@ Two, and this is the whole list.
 | Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface |
 
 Neither delays a page. The update check is served from a cache on disk and
-refreshed in the background, and a failure is remembered for an hour so a host with
+refreshed in the background. A failure is remembered for an hour so a host with
 no route out is not retrying on every load. The count runs in the background and
 gives up after ten seconds.
 
@@ -356,7 +341,7 @@ else — the version easywall is running is shown either way.
 ### Counting installations
 
 The first-run wizard asks rather than assumes. A critical bug matters differently
-at ten installations than at ten thousand, and the count is the only way to know
+at ten installations than at ten thousand. The count is the only way to know
 which this is — or to say a fix has reached most of them.
 
 What it sends, in full — once a day, nothing else, ever:

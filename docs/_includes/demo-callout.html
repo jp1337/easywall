@@ -1,0 +1,12 @@
+{% comment %}
+  The demo banner, wherever the documentation offers the demo. One component, so
+  the host and the credentials live in _config.yml instead of in five files —
+  four of which were still on the previous host a release after it changed.
+
+  Liquid is expanded before kramdown runs, so the blockquote below is markdown
+  by the time the parser sees it and needs no markdown="1".
+
+  The landing page keeps its own buttons. A marketing hero and a documentation
+  callout are not one component, and making them one makes both worse.
+{% endcomment %}
+> **Try it without installing anything.** [{{ site.demo_url | remove: 'https://' }}]({{ site.demo_url }}) — sign in with `{{ site.demo_user }}` / `{{ site.demo_password }}`. Nothing there reaches a real firewall, and the state resets periodically.

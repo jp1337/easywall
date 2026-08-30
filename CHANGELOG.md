@@ -5,7 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+
+**The documentation sidebar groups its pages into five sections.**
+
+### Changed
+
+- **The documentation sidebar groups its pages.** One flat list of twenty-seven
+  links became five sections — Installation, Rules, System, How it works,
+  Project — of which only the one holding the page being read is open. *Rules*
+  and *System* are the application's own sidebar dividers, in its order, so a
+  page found in easywall is documented under the label the product put it under.
+  A group is a `<details>`, so the toggle, the keyboard handling and the
+  disclosure semantics are the element's; which one is open is derived from the
+  current page, and nothing is stored. The sidebar had needed scrolling to reach
+  its last eight entries on a 1000px-tall window, and every one of them in the
+  drawer on a phone
+
+### Fixed
+
+- **Every screenshot in the documentation showed the narrow layout, and half of
+  them a sidebar that stopped mid-image.** The published set was taken in a
+  1440x900 window. `.page-grid` drops its 320px context column below 1570px, so
+  every figure showed the collapsed single-column fallback with the aside cards
+  under the table instead of beside it; and `.sidebar` is `position: fixed` at
+  `100vh`, which in a full-page capture stays laid out against the window it was
+  rendered in — the language switch, the theme toggle and *Logout* floated in
+  the middle of a column that then went blank, on 22 of the 34 files. Both had
+  been true since 2.11. The set is taken at 1600 now, in a window grown to the
+  document, and all 34 files are re-taken
+- **The version badge in the sidebar clipped anything longer than six
+  characters.** `.brand-version` was capped at 9ch, which fits `2.13.0` and
+  nothing else: the Dockerfile and the Makefile are handed `git describe`, so
+  every container image showed `v2.13…` instead of its own version — and
+  `2.13.10` clips just the same, which would have reached every installation at
+  the first patch release past `.9`. The cap is 18ch, the longest string a build
+  here can carry, and it is measured in the browser rather than asserted against
+  the stylesheet: whether text fits a box is not something a number in a CSS
+  file can say
+
 ## [2.13.0] — 2026-08-28
+
+**Behind a proxy, easywall knows who you are.**
 
 ### Added
 
@@ -43,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   placeholder
 
 ## [2.12.0] — 2026-08-28
+
+**The configuration comes from outside, and the page says so.**
 
 ### Added
 
@@ -97,6 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.11.0] — 2026-08-27
 
+**A rule names a service and who may reach it.**
+
 ### Added
 
 - **A port rule can name who may reach it.** `Sources` is a comma-separated list
@@ -148,6 +193,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behaviour change
 
 ## [2.10.0] — 2026-08-27
+
+**What changes is on the screen.**
 
 ### Added
 
@@ -241,6 +288,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to "cannot tell" and achieve nothing else
 
 ## [2.9.0] — 2026-08-21
+
+**The interface speaks French, and both binaries read their environment.**
 
 ### Added
 
@@ -351,6 +400,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.9.0]: https://github.com/jp1337/easywall/compare/v2.8.0...v2.9.0
 
 ## [2.8.0] — 2026-08-20
+
+**A stolen password alone no longer opens the firewall.**
 
 ### Added
 
@@ -481,6 +532,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.7.0] — 2026-08-18
 
+**The firewall survives a reboot.**
+
 ### Fixed
 
 - **The firewall survives a reboot.** `nft.Apply` was reachable from exactly two places in the whole codebase — `internal/core/firewall.go`'s apply, and its rollback — and nothing else ever called it. Not `NewFirewall`, not `Daemon.Start`, not `cmd/easywall-core/main.go`. nftables itself forgets everything on a restart, so every reboot left the machine unfiltered until somebody opened the web interface and pressed Apply — on a product whose first sentence is a safety promise. `Status()` already asked the kernel rather than assuming, so the dashboard would have said so correctly, but only to somebody who was looking. Nothing in the published documentation mentioned it, and the original Python easywall had the identical gap, reported and never fixed as issue #22. The core now puts the stored `Current` rule set into the kernel before its socket accepts a single connection — with **no acceptance window**. That is not a breach of the window's own promise: `Current` is, by definition, a rule set that has already survived one, on the way in through an apply that was confirmed. A window here could not do anything useful even offered: nobody is present at boot to confirm it, so it would expire, and the rollback it triggered would install `Backup` — which nobody confirmed either, with no further window behind it to catch that. Docker complicates the timing: `easywall-core.service` starts after `network.target`, and Docker is not part of it, so the coexistence rules the restore builds can come out without a bridge that has not appeared yet. A background reconciler retries for a bounded window afterward rather than a systemd drop-in ordering after `docker.service` — that dependency would be hard and unconditional on a unit most installations do not have, and gating it on `docker.enabled` is not possible because that flag lives in a TOML file systemd cannot read; a unit that refuses to start because Docker is absent would be a worse bug than the one being fixed
@@ -506,6 +559,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [2.7.0]: https://github.com/jp1337/easywall/compare/v2.6.0...v2.7.0
 
 ## [2.6.0] — 2026-08-16
+
+**`--write-config`, the flag the documentation had been promising.**
 
 ### Added
 
@@ -612,12 +667,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.5.1] — 2026-08-12
 
+**The documented Debian install command was a 404.**
+
 ### Fixed
 
 - **The documented Debian install command has always been a 404.** `installation/debian.md` tells operators to `wget .../releases/latest/download/easywall_amd64.deb`, and no release has ever carried a `.deb` — v2.5.0, v2.4.2, v2.4.1, v2.4.0 and v2.3.0 all hold two tarballs and a checksum file. The package was built by the Build workflow and kept as a CI artefact, which expires after seven days and cannot be fetched without a GitHub login. So the install path for the platform easywall targets first has never worked, on top of the package containing no binaries when it was built at all. The release now builds it with `dpkg-buildpackage` — the same `debian/` definition the Build workflow installs and checks on every pull request, deliberately not a second description in `.goreleaser.yaml` — verifies the artefact contains both binaries and carries the tag's version, and uploads it as `easywall_amd64.deb`. The v2.5.0 release was given its package after the fact. The page's claim that arm64 packages are "on the same release page" was untrue as well and now points at the tarball, because no cross-build of the package is exercised anywhere
 - **The maintainer's private address was in the packaging.** `debian/control` and two `debian/changelog` sign-offs carried a personal Gmail address, in a public repository, since the 2.0.0 rewrite in April. Replaced with a GitHub noreply address, which does the same job and is public by construction. A test walks every tracked file and fails on any address that is not a noreply or a reserved documentation domain, so the next changelog entry copied from the one above it cannot bring it back
 
 ## [2.5.0] — 2026-08-11
+
+**Every switch on the options page reaches the firewall.**
 
 ### Fixed
 
@@ -773,6 +832,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.4.2] - 2026-08-09
 
+**The documentation site stops drawing boxes inside boxes.**
+
 ### Fixed
 
 Documentation site — six rendering defects, all of them visible only on screen:
@@ -810,6 +871,8 @@ Documentation site — layout and content:
 
 ## [2.4.1] - 2026-08-04
 
+**The documentation site has a dark mode.**
+
 ### Fixed
 
 - **Dark mode on the documentation site.** daisyUI's base layer had been supplying the page background and `color-scheme`; removing daisyUI in 2.4.0 took them with it and nothing replaced them, so the site rendered dark components on a browser-white page. Light mode looked correct by coincidence, which is how it shipped
@@ -844,6 +907,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 [2.4.1]: https://github.com/jp1337/easywall/compare/v2.4.0...v2.4.1
 
 ## [2.4.0] - 2026-08-03
+
+**A public demo, running the whole interface against nothing.**
 
 ### Added
 
@@ -882,6 +947,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [2.3.0] - 2026-05-03
 
+**The interface is built from a component library instead of by hand.**
+
 ### Added
 
 - DaisyUI 5.5 component library + HTMX 2.0 are now part of the web UI build. All 15 templates use DaisyUI primitives (cards, buttons, alerts, fieldsets, toggles, tables, badges, tabs, steps); the custom CSS in `web/src/app.css` now contains only layout-specific chrome
@@ -902,6 +969,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [2.2.0] - 2026-04-28
 
+**The audit log is readable from the interface.**
+
 ### Added
 
 - Audit log viewer (`GET /log`) — the core's per-change `audit.log` is now accessible from the web UI in a table showing timestamp, action, rule type, detail, and user; most-recent entries first (up to 200)
@@ -909,6 +978,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - `GET/POST /system` — acceptance window duration and enabled flag are now configurable from the web UI without editing `easywall.toml`
 
 ## [2.1.0] - 2026-04-27
+
+**The protection modules are editable from the interface.**
 
 ### Added
 
@@ -934,6 +1005,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - CI build workflow updated: Debian package step uses `-d` to skip Go build-dependency check and artifacts are moved to `dist/` before upload
 
 ## [2.0.0] - 2026-04-26
+
+**easywall is Go, end to end.**
 
 ### Added
 
@@ -964,7 +1037,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.3.1] - 2021-02-17
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1)
+**A shell flag that broke the installer on older systems.**
 
 ### Changed
 
@@ -972,7 +1045,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.3.0] - 2020-09-30
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)
+**A port can say what it is for.**
 
 ### Added
 
@@ -997,7 +1070,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.2.4] - 2020-09-06
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
+**The demo page's security headers are checked.**
 
 ### Added
 
@@ -1017,7 +1090,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.2.3] - 2020-08-28
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3)
+**The installation works.**
 
 ### Changed
 
@@ -1027,7 +1100,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.2.2] - 2020-08-24
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2)
+**The readme explains the thing it is the readme for.**
 
 ### Added
 
@@ -1043,7 +1116,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.2.1] - 2020-08-22
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
+**easywall installs from a Debian package.**
 
 ### Added
 
@@ -1068,7 +1141,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 ## [0.2.0] - 2020-07-20
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
+**The project can be sponsored.**
 
 ### Added
 
@@ -1125,7 +1198,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.1.0] - 2020-06-21
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0)
+**Almost every line is covered by a unit test.**
 
 ### Added
 
@@ -1152,7 +1225,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.0.4] - 2019-10-04
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4)
+**Custom iptables rules can be applied.**
 
 ### Added
 
@@ -1171,7 +1244,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.0.3] - 2019-06-30
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3)
+**A web interface, on Flask.**
 
 ### Added
 
@@ -1194,7 +1267,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 ## [0.0.2] - 2019-06-08
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2)
+**The Python rewrite takes over from master.**
 
 ### Added
 
@@ -1209,6 +1282,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - Removed quiet option in install.sh for apt-get and pip3 for better user experience
 
 ## [0.0.1] - 2019-04-24
+
+**Two parts: one running as root, one not.**
 
 ### Added
 

@@ -33,8 +33,8 @@ with `#` comments allowed. Anything else is refused by name rather than accepted
 silently skipped.
 
 > **These networks are also what opens the `forward` chain.** Container traffic is
-> routed, not addressed to the host, and an empty base chain with `policy drop`
-> destroys it at the hook whatever Docker's own chain accepted — until 2.5.0 that
+> routed, not addressed to the host. An empty base chain with `policy drop`
+> destroys it at the hook, whatever Docker's own chain accepted. Until 2.5.0 that
 > killed every arrangement below. Traffic with a source *or* destination in these
 > networks now crosses it **whatever `routing.mode` says**: anything else would take
 > a host's containers off the network on the first upgrade.

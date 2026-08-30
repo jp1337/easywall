@@ -107,16 +107,27 @@ host — not a support request.
 
 ## Blacklist and whitelist semantics
 
-What a block actually does to traffic, and that the whitelist does not just
-skip the blacklist — it bypasses port rules and every protection module too.
+What a block actually does to traffic, and that the whitelist skips the port
+rules — not the protection modules, which still run first. `internal/core/
+nftables.go:848–875` and `:1131–1144` (`addBogonFilter`, `addSSHBruteForce`)
+build the chain in that order: protection modules, then the Docker bridge,
+then the blacklist, then the whitelist, then the ports. The bogon filter is
+the single exception — it exempts the whitelist and the Docker bridge because
+its own premise ("nothing legitimately has this source address") is what an
+operator contradicts by whitelisting a private network; nothing else in the
+chain makes an exception for the whitelist. `whitelist_section_desc` and
+`whitelist_narrow_body` said the opposite — "exempt from the protection
+modules" and "bypasses every protection module" — until this review caught it;
+see `internal/core/nftables_bogon_test.go:53` for the test that pins the one
+real exception.
 
 | id | English text |
 |---|---|
 | `blacklist_section_desc` | Nothing from these sources reaches an open port. |
 | `whitelist_subtitle` | Trusted sources that reach every port, including ports you never opened. |
-| `whitelist_section_desc` | Accepted before the port rules are consulted, and exempt from the protection modules. |
+| `whitelist_section_desc` | Accepted before the port rules are consulted. The protection modules still run first — only the bogon filter makes an exception for this list. |
 | `whitelist_wayback_note` | A whitelisted source skips the port rules entirely, so it reaches services that are not listed under {} at all. |
-| `whitelist_narrow_body` | An entry here bypasses every protection module. Prefer a single address over a range, and a range over a whole network. |
+| `whitelist_narrow_body` | An entry here reaches every port, open or not. Prefer a single address over a range, and a range over a whole network. |
 | `tile_blacklist_note` | dropped before any rule |
 | `tile_whitelist_note` | bypass every port rule |
 

@@ -31,7 +31,7 @@ toc: false
 
   <div class="docs-hero-buttons">
     <a href="{{ '/docs/installation/debian/' | relative_url }}" class="btn btn-primary btn-lg">Install</a>
-    <a href="https://easywall.wdkro.de" class="btn btn-soft btn-lg">Live demo ↗</a>
+    <a href="{{ site.demo_url }}" class="btn btn-soft btn-lg">Live demo ↗</a>
     <a href="{{ '/docs/' | relative_url }}" class="btn btn-ghost btn-lg">Documentation</a>
   </div>
 
@@ -95,10 +95,10 @@ No cloud, no account, no telemetry you did not agree to.
   <h2>Try it before you install it</h2>
   <p>A full interface running against an in-memory mock. Nothing reaches a real firewall.</p>
   <div class="docs-cta-buttons">
-    <a href="https://easywall.wdkro.de" class="btn btn-primary btn-lg" target="_blank" rel="noopener">Open the demo ↗</a>
+    <a href="{{ site.demo_url }}" class="btn btn-primary btn-lg" target="_blank" rel="noopener">Open the demo ↗</a>
     <a href="{{ '/docs/installation/requirements/' | relative_url }}" class="btn btn-soft btn-lg">Requirements</a>
   </div>
-  <p class="docs-cta-credentials">Sign in with <code>demo</code> / <code>demo</code></p>
+  <p class="docs-cta-credentials">Sign in with <code>{{ site.demo_user }}</code> / <code>{{ site.demo_password }}</code></p>
 </section>
 
 ## Built as open source, for 2026
