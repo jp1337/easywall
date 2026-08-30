@@ -28,7 +28,7 @@ The question most people arrive with. Details for each module are below.
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/options" ext="png"
      alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. An accent edge marks a module that is switched on." %}
-  <figcaption>An accent edge down the left of a card means that module is on.</figcaption>
+  <figcaption>Toggling a module here stages the change at once — the kernel does not see it until the next apply.</figcaption>
 </figure>
 
 ## Where the modules sit
@@ -68,9 +68,9 @@ creates two more, and what they do has consequences worth knowing.
 | `forward` | **drop** by default | Traffic this host would *route* — between two interfaces, out of a container, into a published container port. Governed by `[routing]` |
 
 > **Closed is not the same as unfiltered.** A base chain whose rules give no verdict
-> falls through to its policy, so an empty `forward` chain with `policy drop` destroys
-> every routed packet at that hook — including ones another table has already
-> accepted. The drop is final: a forward chain of your own cannot overrule it, and
+> falls through to its policy. An empty `forward` chain with `policy drop` destroys
+> every routed packet at that hook. That includes packets another table has
+> already accepted. The drop is final: a forward chain of your own cannot overrule it, and
 > [custom rules]({{ '/docs/features/custom-rules/' | relative_url }}) go into `input`.
 > Costs nothing on a plain server; stopped every Docker container dead until 2.5.0.
 
@@ -126,7 +126,7 @@ function at all.
 ### What it does not drop
 
 Anything on the whitelist, and any Docker bridge network, is exempt. Both are lists
-of RFC 1918 addresses, which is exactly what this filter drops — and it runs before
+of RFC 1918 addresses, which is exactly what this filter drops. It runs before
 either of them, so switching it on used to turn both features off without saying so.
 Whitelisting `192.168.1.0/24` had no effect at all, and neither did letting Docker's
 `172.17.0.0/16` through.
@@ -186,8 +186,8 @@ Each log rule sits directly in front of the drop it belongs to and carries the
 same match, so what appears in the log is exactly what was dropped.
 
 > **None of this worked before 2.5.0.** Eight switches produced no rule at all, and
-> the one that did carried no prefix — the log expression's `Key` field is a bitmask
-> and was set to a bare attribute number, so the kernel got an empty log group. The
+> the one that did carried no prefix. The log expression's `Key` field is a bitmask,
+> and it was set to a bare attribute number. So the kernel got an empty log group. The
 > command above matched nothing, whatever was switched on.
 
 This is the *kernel* log — packets. Administrative changes are in the

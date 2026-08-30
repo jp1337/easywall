@@ -46,7 +46,7 @@ the port your [port rules]({{ '/docs/features/ports/' | relative_url }}) must op
 
 > **This was the other way round before 2.5.0.** The rule matched the destination
 > port and redirected to the incoming one, so the documented example produced
-> `tcp dport 22 redirect to :2222` — it captured SSH on 22 and sent it where
+> `tcp dport 22 redirect to :2222`. It captured SSH on 22 and sent it where
 > nothing was listening. The guidance named the wrong port to open, too.
 
 ## What it is not

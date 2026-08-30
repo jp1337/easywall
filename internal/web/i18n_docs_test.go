@@ -47,6 +47,10 @@ var languageEnumerations = []string{
 // docs-tech/specs are deliberately absent: a changelog entry saying "i18n
 // support (English and German)" was true when it was written, and editing it to
 // mention French would be falsifying a record rather than fixing a claim.
+// docs/_docs/changelog.md carries the identical reasoning for the identical
+// reason — it is CHANGELOG.md, rendered by scripts/render-changelog.mjs rather
+// than typed a second time — so it is excluded here rather than by teaching the
+// generator to reword thirty historical entries to satisfy this test.
 func currentTruthDocs(t *testing.T) []string {
 	t.Helper()
 	root := filepath.Dir(localesDir(t))
@@ -56,6 +60,7 @@ func currentTruthDocs(t *testing.T) []string {
 		out = append(out, filepath.Join(root, name))
 	}
 	docs := filepath.Join(root, "docs")
+	generatedChangelog := filepath.Join(docs, "_docs", "changelog.md")
 	err := filepath.WalkDir(docs, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -63,6 +68,9 @@ func currentTruthDocs(t *testing.T) []string {
 		// docs/vendor is the Jekyll bundle: thousands of files, none of them ours.
 		if d.IsDir() && d.Name() == "vendor" {
 			return filepath.SkipDir
+		}
+		if path == generatedChangelog {
+			return nil
 		}
 		if !d.IsDir() && strings.HasSuffix(d.Name(), ".md") {
 			out = append(out, path)

@@ -100,6 +100,18 @@ Demo mode disables nothing else: authentication, CSRF, the CSP and the rate
 limiter all behave normally, which is what makes it a usable target for the
 Playwright suite in `test.yml`.
 
+## What the demo mock answers
+
+| Command | In demo |
+|---|---|
+| every `Get*` | returns the in-memory state |
+| every `Save*` | updates it and appends an audit entry |
+| `ApplyRules` | promotes Staged to Current, starts the acceptance timer |
+| `Accept` | cancels the timer |
+| timeout | rolls Current back to Backup |
+| `ExportRules` / `ImportRules` | round-trips the state as JSON |
+| `ValidateCustom` | **reports the checker as unavailable** |
+
 ## Adding a command
 
 1. The constant in `internal/shared/protocol.go`, plus its payload struct.

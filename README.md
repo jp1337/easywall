@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <a href="https://easywall.wdkro.de"><strong>Live demo</strong></a> ·
+  <a href="https://demo.easywall-project.org"><strong>Live demo</strong></a> ·
   <a href="https://easywall-project.org"><strong>Documentation</strong></a> ·
   <a href="CHANGELOG.md">Changelog</a>
 </p>

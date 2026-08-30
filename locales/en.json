@@ -302,12 +302,12 @@
 
   {"id": "whitelist_subtitle", "translation": "Trusted sources that reach every port, including ports you never opened."},
   {"id": "whitelist_section", "translation": "Always-allowed addresses"},
-  {"id": "whitelist_section_desc", "translation": "Accepted before the port rules are consulted, and exempt from the protection modules."},
+  {"id": "whitelist_section_desc", "translation": "Accepted before the port rules are consulted. The protection modules still run first — only the bogon filter makes an exception for this list."},
   {"id": "whitelist_wayback_title", "translation": "Use it as your way back in"},
   {"id": "whitelist_wayback_body", "translation": "Your own management address belongs here. It keeps you reachable even if a port rule closes SSH or a rate limit trips."},
   {"id": "whitelist_wayback_note", "translation": "A whitelisted source skips the port rules entirely, so it reaches services that are not listed under {} at all."},
   {"id": "whitelist_narrow_title", "translation": "Keep the list narrow"},
-  {"id": "whitelist_narrow_body", "translation": "An entry here bypasses every protection module. Prefer a single address over a range, and a range over a whole network."},
+  {"id": "whitelist_narrow_body", "translation": "An entry here reaches every port, open or not. Prefer a single address over a range, and a range over a whole network."},
   {"id": "whitelist_order_note", "translation": "The {} is evaluated first: an address in both lists is dropped, not allowed."},
 
   {"id": "forwarding_subtitle", "translation": "Redirect traffic arriving on one port to another port on this host."},

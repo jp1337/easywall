@@ -49,9 +49,9 @@ Neither touches the running firewall — see
 ## The update notice
 
 A banner appears when a newer release exists. The answer comes from a cache on
-disk, refreshed in the background once a day, so it never delays the page; on a
-host with no route out the failure is remembered for an hour rather than retried
-on every load. `update_check = false` removes it entirely — see
+disk, refreshed in the background once a day, so it never delays the page. On a
+host with no route out, the failure is remembered for an hour rather than
+retried on every load. `update_check = false` removes it entirely — see
 [Configuration]({{ '/docs/configuration/' | relative_url }}#the-update-check).
 
 ## When it looks wrong

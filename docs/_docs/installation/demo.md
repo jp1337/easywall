@@ -10,7 +10,7 @@ description: The whole interface against an in-memory mock — no root, no nftab
 every save is recorded, every apply runs the acceptance state machine. Nothing reaches
 a firewall.
 
-**Try it:** [easywall.wdkro.de](https://easywall.wdkro.de) — sign in with `demo` / `demo`.
+{% include demo-callout.html %}
 
 | | |
 |---|---|
@@ -44,18 +44,6 @@ The startup log confirms it:
 ```
 demo mode active — using in-memory mock instead of core socket
 ```
-
-## What the mock does
-
-| Command | In demo |
-|---|---|
-| every `Get*` | returns the in-memory state |
-| every `Save*` | updates it and appends an audit entry |
-| `ApplyRules` | promotes Staged to Current, starts the acceptance timer |
-| `Accept` | cancels the timer |
-| timeout | rolls Current back to Backup |
-| `ExportRules` / `ImportRules` | round-trips the state as JSON |
-| `ValidateCustom` | **reports the checker as unavailable** |
 
 > **Custom-rule syntax cannot be checked.** There is no `nft` binary, so the page says
 > live validation is not running rather than reporting a verdict it has no basis for.

@@ -291,12 +291,12 @@
 
   {"id": "whitelist_subtitle", "translation": "Sources de confiance qui atteignent tous les ports, y compris ceux que vous n'avez jamais ouverts."},
   {"id": "whitelist_section", "translation": "Adresses toujours autorisées"},
-  {"id": "whitelist_section_desc", "translation": "Acceptées avant que les règles de ports ne soient consultées, et exemptées des modules de protection."},
+  {"id": "whitelist_section_desc", "translation": "Acceptées avant que les règles de ports ne soient consultées. Les modules de protection s'exécutent tout de même en premier — seul le filtre bogon fait une exception pour cette liste."},
   {"id": "whitelist_wayback_title", "translation": "Votre porte de secours"},
   {"id": "whitelist_wayback_body", "translation": "Votre propre adresse d'administration a sa place ici. Elle vous garde joignable même si une règle de port ferme SSH ou si une limitation de débit se déclenche."},
   {"id": "whitelist_wayback_note", "translation": "Une source en liste blanche saute entièrement les règles de ports : elle atteint donc des services qui ne figurent pas du tout dans les {}."},
   {"id": "whitelist_narrow_title", "translation": "Gardez la liste étroite"},
-  {"id": "whitelist_narrow_body", "translation": "Une entrée ici contourne tout module de protection. Préférez une adresse seule à une plage, et une plage à un réseau entier."},
+  {"id": "whitelist_narrow_body", "translation": "Une entrée ici atteint tous les ports, même ceux qui ne sont pas ouverts. Préférez une adresse seule à une plage, et une plage à un réseau entier."},
   {"id": "whitelist_order_note", "translation": "La {} est évaluée en premier : une adresse présente dans les deux listes est rejetée, pas autorisée."},
 
   {"id": "forwarding_subtitle", "translation": "Rediriger le trafic qui arrive sur un port vers un autre port de cet hôte."},

@@ -1,18 +1,19 @@
 ---
 layout: default
-title: Blacklist & Whitelist
-description: Two address lists. One drops before anything else is considered, the other accepts every port whether it is open or not.
+title: Blacklist
+description: A list of addresses that are dropped before anything else is considered.
 ---
 
-# Blacklist & Whitelist
+# Blacklist
 
-Two lists of addresses. One drops, one accepts — and the order between them is the
-only thing you really need to remember.
+A list of addresses that are dropped. It is consulted before every other rule
+that can accept a packet, which is the only thing about it you really need to
+remember.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/blacklist" ext="png"
      alt="The blacklist editor: a textarea of blocked addresses with a live entry count, per-line validation, and context cards explaining what gets blocked and that the order matters." %}
-  <figcaption>Both editors validate every line as you type, and name the line number when one does not parse.</figcaption>
+  <figcaption>Every line is validated as you type, and the line number is named when one does not parse.</figcaption>
 </figure>
 
 ## The order
@@ -28,19 +29,17 @@ the blacklist instead.
 > and used to accept, so a blacklisted address could still open an SSH connection
 > while it stayed under the rate limit. It now returns, and the blacklist decides.
 
-## What each list does
+The list consulted immediately after this one is the
+[whitelist]({{ '/docs/features/whitelist/' | relative_url }}), which accepts.
 
-| | Blacklist | Whitelist |
-|---|---|---|
-| Effect | DROP | ACCEPT |
-| Evaluated | before the whitelist | after the blacklist, before the ports |
-| Reaches closed ports | — | **yes, every port** |
-| Skips the protection modules | no — those run first | no — those run first, except the bogon filter, which reads this list |
-| Use it for | a scanner, an abusive network | the address you administer from |
+## What it does
 
-> **A whitelisted source reaches services you never opened.** It does not pass the
-> port rules, it skips them. Prefer a single address over a range, and a range over a
-> whole network.
+| | |
+|---|---|
+| Effect | DROP |
+| Evaluated | before the whitelist, and before the port rules |
+| Skips the protection modules | no — those run first |
+| Use it for | a scanner, an abusive network |
 
 ## Accepted input
 
@@ -55,30 +54,14 @@ One entry per line. Lines starting with `#` are comments; blank lines are ignore
 
 The counter under the editor counts real entries — comments and blanks do not inflate it.
 
-## Your way back in
-
-Put the address you administer the host from on the whitelist **before** you start
-changing port rules.
-
-| | |
-|---|---|
-| What it survives | a closed SSH port, and every port rule you change |
-| What it does **not** survive | the protection modules — they run before the whitelist, so a packet a module drops never reaches it |
-| Why that rarely bites | the rate limits are counted per source address, so somebody else's flood cannot spend your budget |
-| The one exception | the [bogon filter]({{ '/docs/features/filters/' | relative_url }}) reads this list. It drops private source addresses, so without that it would drop you for administering the host from one — and the entry meant to prevent that could never be reached |
-
-Together with the [acceptance window]({{ '/docs/features/apply/' | relative_url }}), that
-is two independent ways not to lose access to your own machine.
-
 ## When it does not work
 
 | Symptom | Cause |
 |---|---|
-| A whitelisted address is still blocked | It is on the blacklist too — that is checked first. Or a protection module dropped it, which happens before the whitelist. The bogon filter is the exception: it honours the whitelist |
 | A blacklisted address still gets through | The connection was already established; the list only affects new ones |
+| An address you also whitelisted is still blocked | The blacklist is checked first, and it wins. Take the entry off the blacklist |
 | Nothing changed after saving | Saving stages. It goes live on [Apply]({{ '/docs/features/apply/' | relative_url }}) |
 | The editor names a line number | That line is not a valid address or CIDR; the message says why |
-| You allowed too broad a range | Remove it, save, apply. If it already locked you out, do nothing — the window rolls it back |
 
 Need the network a single address belongs to?
 

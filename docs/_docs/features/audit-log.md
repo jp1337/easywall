@@ -37,11 +37,12 @@ coloured tag would stop meaning anything.
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
 > running firewall untouched. The same goes for `apply_refused_panic` and
-> `rollback_skipped`: neither leaves the firewall doing anything new — an apply
-> that was refused, or whose rules were taken straight back down when panic mode
-> appeared underneath it, and a rollback that left the kernel as the console's
-> teardown had it. `rollback_skipped` does still revert the stored rules to the
-> set that was live before the apply; what it skips is the write into a table
+> `rollback_skipped`. Neither leaves the firewall doing anything new. One is an
+> apply that was refused, or whose rules were taken straight back down when
+> panic mode appeared underneath it. The other is a rollback that left the
+> kernel as the console's teardown had it. `rollback_skipped` does still revert
+> the stored rules to the set that was live before the apply; what it skips is
+> the write into a table
 > nobody wants filled. The news in both cases is `panic_engaged`, which is red a
 > few lines away. Only the 10 actions above describe what the firewall is
 > actually doing, however consequential an event feels.
@@ -66,7 +67,7 @@ New in 2.8, where there were none at all: this page used to send you to
 states: colour means the firewall moved. A sign-in does not move it.
 
 **Three of them are folded.** `login_failed`, `login_2fa_failed` and
-`login_ratelimited` are the three a stranger can trigger, so a burst from one
+`login_ratelimited` are the three a stranger can trigger. A burst from one
 address becomes two lines — the first immediately, then a summary sixty seconds
 later saying how many followed. Without that, forty addresses knocking for an
 hour would push everything else off the 200 lines this page shows. Beyond 1024
@@ -89,15 +90,18 @@ nothing. The `user` column says `web` for all nine.
 
 ## The address is the peer, and says when it is not
 
-easywall records the TCP peer: whoever actually opened the connection. It never
-reads `X-Forwarded-For`, because easywall-web terminates TLS itself and is not
-assumed to sit behind a trusted proxy — an address in the firewall's own audit log
-that a client chose would be worse than no address at all.
+easywall records the TCP peer: whoever actually opened the connection — unless
+that peer is on `trusted_proxies`, in which case it records what
+`X-Forwarded-For` names instead. Without an entry there, easywall-web
+terminates TLS itself and is not assumed to sit behind a trusted proxy. An
+address in the firewall's own audit log that any client could choose would be
+worse than no address at all.
 
 Behind a reverse proxy the peer **is** the proxy, so every login shows the same
-address. When that happens the entry says so: the detail reads the address followed
-by a **via proxy** chip, and the line in `/var/log/easywall/audit.log` carries the
-token `via-proxy`, so `grep 'via-proxy' audit.log` finds every one of them.
+address. When that happens the entry says so: the detail reads the address
+followed by a **via proxy** chip. The line in `/var/log/easywall/audit.log`
+carries the token `via-proxy`, so `grep 'via-proxy' audit.log` finds every one
+of them.
 
 ## The user column
 
@@ -141,8 +145,9 @@ tail -f /var/log/easywall/audit.log
 ```
 
 Each line stores its time as RFC 3339 in UTC. The interface converts it to the
-server's local zone for display and keeps the stored value in the `title`
-attribute of the cell, so hovering shows the exact instant the core recorded.
+server's local zone for display. It also keeps the stored value in the
+`title` attribute of the cell, so hovering shows the exact instant the core
+recorded.
 
 `rollback_failed` is the one worth alerting on: it means the new rules did not
 take **and** the previous ones did not come back.

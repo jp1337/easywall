@@ -27,8 +27,10 @@
   <meta name="description" content="{% if page.description %}{{ page.description }}{% else %}{{ site.description }}{% endif %}">
   <link rel="preload" href="{{ '/assets/fonts/inter-var.woff2' | relative_url }}" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="{{ '/assets/fonts/jetbrains-mono-var.woff2' | relative_url }}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}?v=3">
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}?v={{ site.time | date: '%s' }}">
   <link rel="icon" type="image/svg+xml" href="{{ '/assets/img/icon.svg' | relative_url }}">
+  <link rel="apple-touch-icon" href="{{ '/assets/img/icon-180.png' | relative_url }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ '/assets/img/icon-32.png' | relative_url }}">
   {% seo %}
 
   {%- if page.seo == "software" -%}
@@ -117,12 +119,25 @@
       <div class="sidebar-nav">
         {% for item in site.nav %}
           {% if item.group %}
-            <div class="nav-group-label">{{ item.title }}</div>
-            <div class="nav-section">
-              {% for child in item.children %}
-                <a href="{{ child.path | relative_url }}" class="nav-link nav-sub{% if page.url == child.path %} active{% endif %}">{{ child.title }}</a>
-              {% endfor %}
-            </div>
+            {%- comment -%}
+              A group is open when it holds the page being read, and closed
+              otherwise. Nothing stores that: the current page is the answer, so
+              there is no state to persist across a navigation and no script to
+              restore it. <details> carries the rest — the toggle, the keyboard
+              handling and the disclosure semantics are the element's own.
+            {%- endcomment -%}
+            {% assign group_open = false %}
+            {% for child in item.children %}
+              {% if page.url == child.path %}{% assign group_open = true %}{% endif %}
+            {% endfor %}
+            <details class="nav-group"{% if group_open %} open{% endif %}>
+              <summary class="nav-group-label">{{ item.title }}</summary>
+              <div class="nav-section">
+                {% for child in item.children %}
+                  <a href="{{ child.path | relative_url }}" class="nav-link nav-sub{% if page.url == child.path %} active{% endif %}">{{ child.title }}</a>
+                {% endfor %}
+              </div>
+            </details>
           {% else %}
             <div class="nav-section-single">
               <a href="{{ item.path | relative_url }}" class="nav-link{% if page.url == item.path %} active{% endif %}">{{ item.title }}</a>
@@ -150,7 +165,7 @@
       <!-- Filled from the rendered headings by the script at the end of this
            file, and removed again if the page is too short to need it. Empty
            in the served HTML on purpose: kramdown owns the heading ids, and
-           Liquid cannot read them back out of {{ content }}. -->
+           Liquid cannot read them back out of {% raw %}{{ content }}{% endraw %}. -->
       {%- unless page.toc == false %}
       <nav class="docs-toc" id="docs-toc" aria-labelledby="docs-toc-title" hidden>
         <p class="docs-toc-title" id="docs-toc-title">On this page</p>
@@ -163,7 +178,7 @@
       </article>
 
       <footer class="page-footer">
-        <p>easywall — <em>Your firewall. Your rules. No surprises.</em> · GPL-3.0 · <a href="https://github.com/jp1337/easywall" target="_blank" rel="noopener">GitHub</a> · <a href="{{ site.discord }}" target="_blank" rel="noopener">Discord</a></p>
+        <p>easywall — <em>Your firewall. Your rules. No surprises.</em> · <a href="{{ '/docs/license/' | relative_url }}">GPL-3.0</a> · <a href="https://github.com/jp1337/easywall" target="_blank" rel="noopener">GitHub</a> · <a href="{{ site.discord }}" target="_blank" rel="noopener">Discord</a></p>
       </footer>
     </main>
 
@@ -227,7 +242,11 @@
       var body = document.querySelector('.content-body');
       if (!nav || !body) return;
 
-      var heads = [].slice.call(body.querySelectorAll('h2[id], h3[id]'));
+      // A heading inside a collapsed <details> is not on the page as far as the
+      // reader is concerned, and an entry that scrolls to something invisible is
+      // worse than no entry. The changelog is thirty disclosures deep.
+      var heads = [].slice.call(body.querySelectorAll('h2[id], h3[id]'))
+                    .filter(function (h) { return !h.closest('details'); });
       // Two entries is a list, not an overview; it would cost more attention
       // than it saves. Removing the column also has to release the space
       // reserved for it in CSS, or the page keeps a 340px empty gutter for a
@@ -251,9 +270,12 @@
       });
       nav.hidden = false;
 
-      // Scroll spy. rootMargin pins the "active" line near the top of the
-      // viewport, so a heading counts as current from the moment it settles
-      // under the topbar until the next one does.
+      // Scroll spy. One rAF-throttled scroll handler, not an
+      // IntersectionObserver: the observer watched a band that ended 70% up the
+      // viewport, so on a short page — three headings and 475 words, which is
+      // export-import — the last heading could never enter it and the last
+      // entries never became current. Reported as the column not reaching the
+      // bottom; it is the right height and always was.
       var current = null;
       function mark(a) {
         if (current === a) return;
@@ -262,15 +284,91 @@
         if (current) current.setAttribute('aria-current', 'true');
       }
 
-      if (!('IntersectionObserver' in window)) return;
-      var seen = new Map();
-      var obs = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) { seen.set(e.target, e.isIntersecting); });
-        for (var i = 0; i < heads.length; i++) {
-          if (seen.get(heads[i])) { mark(links[i]); return; }
+      // Two rules, and the second is the fix: current is the last heading whose
+      // top has passed 100px — just under the 72px topbar — and unconditionally
+      // the last heading once the document is scrolled to its end.
+      function spy() {
+        ticking = false;
+        var i = 0;
+        for (var j = 0; j < heads.length; j++) {
+          if (heads[j].getBoundingClientRect().top <= 100) i = j;
         }
-      }, { rootMargin: '-72px 0px -70% 0px', threshold: 0 });
-      heads.forEach(function (h) { obs.observe(h); });
+        // 2px of slack, not 0: a fractional device pixel ratio leaves scrollY
+        // a hair short of the arithmetic bottom, and the last entry would light
+        // up on some displays and not others.
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+          i = heads.length - 1;
+        }
+        mark(links[i]);
+      }
+
+      var ticking = false;
+      function onScroll() {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(spy);
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      spy();
+    })();
+
+    // A copy button in every code block. .highlighter-rouge is the element
+    // carrying the frame — div.highlight and pre.highlight inside it are
+    // deliberately bare — so the button is positioned against that and not
+    // against the <pre>, which scrolls horizontally and would carry the button
+    // off the screen with it.
+    //
+    // The confirmation is the button's own label for two seconds plus one
+    // aria-live region: the convention on GitHub and on MDN. A floating toast
+    // needs positioning it cannot get right over a scrolling <pre>, and is
+    // announced either badly or not at all.
+    (function () {
+      var blocks = document.querySelectorAll('.content-body .highlighter-rouge');
+      if (!blocks.length || !navigator.clipboard) return;
+
+      // Styled inline rather than with .sr-only: nothing under docs/ uses that
+      // class, so the utility is correctly absent from the built stylesheet —
+      // see the note in TestDocsStylesheetKeepsLoadBearingRules — and adding a
+      // class here to make Tailwind emit it again is the tail wagging the dog.
+      var live = document.createElement('div');
+      live.setAttribute('aria-live', 'polite');
+      live.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;' +
+                           'clip:rect(0 0 0 0);white-space:nowrap';
+      document.body.appendChild(live);
+
+      [].forEach.call(blocks, function (block) {
+        var pre = block.querySelector('pre');
+        if (!pre) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'docs-copy';
+        btn.textContent = 'Copy';
+
+        btn.addEventListener('click', function () {
+          // innerText, not textContent: it is what the reader sees, with the
+          // rouge spans flattened and the line breaks kept. The trailing
+          // newline goes; a trailing space inside a config example does not.
+          navigator.clipboard.writeText(pre.innerText.replace(/\n$/, '')).then(function () {
+            btn.textContent = 'Copied';
+            btn.setAttribute('data-copied', '');
+            live.textContent = 'Copied to clipboard';
+            setTimeout(function () {
+              btn.textContent = 'Copy';
+              btn.removeAttribute('data-copied');
+              live.textContent = '';
+            }, 2000);
+          }, function () {
+            // A clipboard write is refused over plain HTTP and in a few
+            // configurations over HTTPS. Say so rather than confirming.
+            btn.textContent = 'Ctrl+C';
+            setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+          });
+        });
+
+        block.appendChild(btn);
+      });
     })();
 
     // Diagrams and screenshots used to be reconciled with the theme from here, by
@@ -296,13 +394,7 @@
       var trigger = document.getElementById('docs-search-open');
       var dialog  = document.getElementById('docs-search-dialog');
       var panel   = document.getElementById('docs-search-panel');
-      var hint    = document.getElementById('docs-search-key');
       if (!trigger || !dialog || !panel || !dialog.showModal) return;
-
-      // The markup says Ctrl because that is right for most readers of a Linux
-      // firewall's documentation; this corrects it for the rest. navigator.platform
-      // is deprecated and still the only thing every shipping browser answers.
-      if (/Mac|iPhone|iPad|iPod/.test(navigator.platform || '')) hint.textContent = '⌘ K';
 
       var loading = false;
       function load() {
@@ -337,6 +429,7 @@
             // difference between an answer and a page to read again.
             highlightParam: 'highlight'
           });
+          prune.watch();
           focusField();
         };
         js.onerror = function () {
@@ -345,6 +438,78 @@
         };
         document.body.appendChild(js);
       }
+
+      // Pagefind truncates a query term until a prefix matches something in the
+      // index: `asdasd` returns 23 results, every one of them matching `as`, and
+      // `xyzzyq` returns one, matching the `X` in `iptables -X`. Forward prefix
+      // matching is the behaviour that is wanted — `config` has to find
+      // `configuration` — and it is also the clean discriminator, because a real
+      // prefix match marks a word at least as long as what was typed while
+      // truncation always marks a shorter one.
+      //
+      // This runs over the rendered results, and not through the processResult
+      // option, which looks like the hook for exactly this and is not: 1.5.2
+      // applies it per card as `data = processResult(data) ?? data`, so
+      // returning null hands the original straight back and the card renders
+      // anyway — and it runs after the count has been computed. Read in the
+      // built bundle, not inferred from the option list.
+      var prune = (function () {
+        function run() {
+          var field = panel.querySelector('.pagefind-ui__search-input');
+          var typed = (field && field.value || '').toLowerCase();
+          var words = typed.split(/\s+/).filter(Boolean);
+          var cards = panel.querySelectorAll('.pagefind-ui__result');
+          var kept = 0;
+
+          for (var i = 0; i < cards.length; i++) {
+            var marks = cards[i].querySelectorAll('mark');
+            var texts = [];
+            for (var m = 0; m < marks.length; m++) texts.push(marks[m].textContent.toLowerCase());
+
+            // Every word typed has to have marked, somewhere in this result, a
+            // word it is a genuine prefix of. The prefix test alone is not
+            // enough on a two-word query, where one word can match fully and
+            // carry a second that was truncated.
+            var keep = !words.length || words.every(function (w) {
+              return texts.some(function (k) { return k.indexOf(w) === 0; });
+            });
+
+            // ponytail: a stemmed query whose marked form is shorter than what
+            // was typed — `running` marked as `run` — is dropped by this rule.
+            // No such term exists in the corpus today; if one appears, widen to
+            // "or the mark is a prefix of the word and at least 3 characters"
+            // rather than loosening the prefix test itself.
+            cards[i].hidden = !keep;
+            if (keep) kept++;
+          }
+
+          var msg = panel.querySelector('.pagefind-ui__message');
+          if (msg && words.length) {
+            var want = kept === 0
+              ? 'No results for ' + (field.value || '')
+              : kept + (kept === 1 ? ' result for ' : ' results for ') + (field.value || '');
+            // Only when it differs, or writing it is itself a mutation and the
+            // observer below calls this forever.
+            if (msg.textContent !== want) msg.textContent = want;
+          }
+
+          // "No results" sitting above a Load-more button contradicts itself.
+          var more = panel.querySelector('.pagefind-ui__button');
+          if (more) {
+            var hideMore = words.length > 0 && kept === 0;
+            // Same trap as the message above: write only on change.
+            if (more.hidden !== hideMore) more.hidden = hideMore;
+          }
+        }
+
+        return {
+          watch: function () {
+            new MutationObserver(function () { run(); })
+              .observe(panel, { childList: true, subtree: true });
+            run();
+          }
+        };
+      })();
 
       // PagefindUI renders its own input, so there is nothing to focus until it
       // has mounted; open() calls this too, for every open after the first.
@@ -362,10 +527,15 @@
       trigger.addEventListener('click', open);
 
       document.addEventListener('keydown', function (e) {
-        if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-          e.preventDefault();
-          open();
-        }
+        if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+        // Or `/` cannot be typed into the search field this very handler opened,
+        // and every future field on the page inherits the same problem.
+        // isContentEditable covers the case where the editor is a <div>.
+        var t = e.target;
+        if (t && (t.isContentEditable ||
+                  (t.matches && t.matches('input, textarea, select')))) return;
+        e.preventDefault();
+        open();
       });
 
       // A click on the backdrop reports the dialog itself as the target; a click

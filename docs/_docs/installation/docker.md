@@ -73,9 +73,9 @@ security_opt:
 ```
 
 `NET_ADMIN` and nothing beyond it. The shipped compose file also asked for
-`SYS_MODULE` — the capability to load kernel modules, which from a container that
-already shares the host's network is host root under another name, and which this
-page never listed. It is gone; applying a full rule set was verified without it. If
+`SYS_MODULE` — the capability to load kernel modules. From a container that
+already shares the host's network, that capability is host root under another
+name. This page never listed it. It is gone; applying a full rule set was verified without it. If
 `nf_tables` is not loaded, load it on the host with `modprobe nf_tables` — a host
 already running nftables has it.
 
