@@ -53,6 +53,8 @@ which is the file GitHub and the release tooling read.
   the stylesheet: whether text fits a box is not something a number in a CSS
   file can say
 
+[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.13.0...HEAD)
+
 </details>
 
 <details markdown="1">
@@ -92,6 +94,8 @@ which is the file GitHub and the release tooling read.
 - **The demo records no login addresses.** Its audit log shows that somebody
   signed in and not from where — the field is omitted, not filled with a
   placeholder
+
+[See the code changes between 2.12.0 and 2.13.0](https://github.com/jp1337/easywall/compare/v2.12.0...v2.13.0)
 
 </details>
 
@@ -149,6 +153,8 @@ which is the file GitHub and the release tooling read.
   ever submitted it — so a script-free operator could move a consent switch and
   never store the answer
 
+[See the code changes between 2.11.0 and 2.12.0](https://github.com/jp1337/easywall/compare/v2.11.0...v2.12.0)
+
 </details>
 
 <details markdown="1">
@@ -203,6 +209,8 @@ which is the file GitHub and the release tooling read.
   the jump — connection limit, RST flood, broadcast/multicast/anycast drops —
   which the old `accept` short-circuited; harmless at defaults, but a real
   behaviour change
+
+[See the code changes between 2.10.0 and 2.11.0](https://github.com/jp1337/easywall/compare/v2.10.0...v2.11.0)
 
 </details>
 
@@ -299,6 +307,8 @@ which is the file GitHub and the release tooling read.
   chip in the interface. The flag comes from the *presence* of a forwarding
   header and never its value, so a client that forges one can move its own verdict
   to "cannot tell" and achieve nothing else
+
+[See the code changes between 2.9.0 and 2.10.0](https://github.com/jp1337/easywall/compare/v2.9.0...v2.10.0)
 
 </details>
 
@@ -406,6 +416,8 @@ which is the file GitHub and the release tooling read.
   label is. Reserving a second label line would have been the other fix and
   charges every language 18px of empty tile whether anything wraps or not;
   this charges none, because a row is as tall as its tallest label
+
+[See the code changes between 2.8.0 and 2.9.0](https://github.com/jp1337/easywall/compare/v2.8.0...v2.9.0)
 
 </details>
 
@@ -537,6 +549,8 @@ which is the file GitHub and the release tooling read.
   same ending across the upgrade itself — a session issued under the old
   fingerprint scheme is, correctly, not one the new scheme recognises
 
+[See the code changes between 2.7.0 and 2.8.0](https://github.com/jp1337/easywall/compare/v2.7.0...v2.8.0)
+
 </details>
 
 <details markdown="1">
@@ -563,6 +577,8 @@ which is the file GitHub and the release tooling read.
 - **The panic marker is flushed to disk before `panic` reports success.** It was written through a temporary file and a rename with no `fsync` anywhere, under a console message promising the machine "stays that way across a restart". On ext4 defaults the rename can sit in the page cache, so `panic` followed by the hard power-cycle a locked-out operator actually performs could come up filtered again, behind the rules they ran `panic` to escape
 - **An unreadable panic marker no longer withdraws the acceptance rollback.** `PanicEngaged` treats "cannot tell" as "engaged", which is right where the alternative is filtering a machine somebody deliberately unfiltered — and wrong at `rollback`, where it silently turned a firewall that always lets you back in into one that does not, and blamed a decision at the console. A three-way reader sits beside it; the rollback proceeds when the state is unknown, and the fault is reported once at startup as `boot_enforce_failed` with the marker path and the errno
 - **An apply started while the marker exists is refused synchronously**, in the dispatch case itself rather than inside the goroutine the daemon had already answered `{"status":"started"}` from — so the refusal reaches the caller that asked for it instead of a false "started" for work that was never going to happen
+
+[See the code changes between 2.6.0 and 2.7.0](https://github.com/jp1337/easywall/compare/v2.6.0...v2.7.0)
 
 </details>
 
@@ -670,6 +686,8 @@ which is the file GitHub and the release tooling read.
 - **`debian/control` asked for a Go it does not need and could not build with.** `golang-go (>= 1.21)` since the 2.0.0 rewrite, while `internal/web/server.go` calls `http.NewCrossOriginProtection` — a Go 1.25 API. It now names the version the `toolchain` line pins. Debian trixie ships Go 1.24, so building the package there needs golang from backports; the manual-install page says so
 - The `go` directive stays at 1.25.0 on purpose and Renovate is configured not to touch it. It states the oldest Go this code compiles with, which is a claim about the source and not about the machine that builds it; Go's own guidance is to leave it alone until an API forces it
 
+[See the code changes between 2.5.1 and 2.6.0](https://github.com/jp1337/easywall/compare/v2.5.1...v2.6.0)
+
 </details>
 
 <details markdown="1">
@@ -679,6 +697,8 @@ which is the file GitHub and the release tooling read.
 
 - **The documented Debian install command has always been a 404.** `installation/debian.md` tells operators to `wget .../releases/latest/download/easywall_amd64.deb`, and no release has ever carried a `.deb` — v2.5.0, v2.4.2, v2.4.1, v2.4.0 and v2.3.0 all hold two tarballs and a checksum file. The package was built by the Build workflow and kept as a CI artefact, which expires after seven days and cannot be fetched without a GitHub login. So the install path for the platform easywall targets first has never worked, on top of the package containing no binaries when it was built at all. The release now builds it with `dpkg-buildpackage` — the same `debian/` definition the Build workflow installs and checks on every pull request, deliberately not a second description in `.goreleaser.yaml` — verifies the artefact contains both binaries and carries the tag's version, and uploads it as `easywall_amd64.deb`. The v2.5.0 release was given its package after the fact. The page's claim that arm64 packages are "on the same release page" was untrue as well and now points at the tarball, because no cross-build of the package is exercised anywhere
 - **The maintainer's private address was in the packaging.** `debian/control` and two `debian/changelog` sign-offs carried a personal Gmail address, in a public repository, since the 2.0.0 rewrite in April. Replaced with a GitHub noreply address, which does the same job and is public by construction. A test walks every tracked file and fails on any address that is not a noreply or a reserved documentation domain, so the next changelog entry copied from the one above it cannot bring it back
+
+[See the code changes between 2.5.0 and 2.5.1](https://github.com/jp1337/easywall/compare/v2.5.0...v2.5.1)
 
 </details>
 
@@ -837,6 +857,8 @@ which is the file GitHub and the release tooling read.
 - **The container ran the web process as root.** `supervisord` had no `user=` directive, so `easywall-web` inherited root inside a container holding `NET_ADMIN` and `SYS_MODULE` — while `architecture.md` states, in a table and in every diagram, that it runs as an unprivileged user. The Debian units always had `User=easywall`; the image did not
 - **mermaid 11.16.0 → 11.16.1**, closing five advisories: prototype pollution in the configuration APIs and in architecture diagrams, denial of service in XY charts and radar diagrams, and CSS injection into siblings of a diagram. Build-time exposure only — mermaid is a devDependency used by `scripts/render-diagrams.mjs` to pre-render diagrams into committed SVGs, and no runtime copy is served (that was removed in 2.4.1)
 
+[See the code changes between 2.4.2 and 2.5.0](https://github.com/jp1337/easywall/compare/v2.4.2...v2.5.0)
+
 </details>
 
 <details markdown="1">
@@ -877,6 +899,8 @@ Documentation site — layout and content:
 - **An on-page contents column** on wide viewports, built from the rendered headings so it cannot drift from the page, and absent on pages with fewer than three. Earns its place on the long reference pages — `configuration.md` runs to about 5,600px
 - `internal/web/docs_style_test.go` asserts that load-bearing rules survive into the built documentation stylesheet. Nothing had ever checked that file, and it has now broken twice in a way no build could catch — once when removing daisyUI took the page background with it, once when a mistyped comment terminator silently deleted the rule that hides the non-current theme's images. Each assertion was confirmed to fail with the defect reintroduced
 
+[See the code changes between 2.4.1 and 2.4.2](https://github.com/jp1337/easywall/compare/v2.4.1...v2.4.2)
+
 </details>
 
 <details markdown="1">
@@ -909,6 +933,8 @@ Eight statements that were not true, several of them security-relevant:
 - **The demo indicator** is a neutral chip, not an amber banner — amber is reserved for firewall state
 
 Also now stated rather than omitted: the audit log's `detail` column is empty for every save and apply, so the column that should answer *what changed* is almost always a dash.
+
+[See the code changes between 2.4.0 and 2.4.1](https://github.com/jp1337/easywall/compare/v2.4.0...v2.4.1)
 
 </details>
 
@@ -948,6 +974,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - `--form-max` was referenced by `.content-narrow` and `.form-stack` but never declared, so neither had any effect
 - The first-run screen printed its own subtitle again as a notice; it now carries the one thing an operator cannot look up once locked out — that this is the only account, and resetting it needs shell access
 
+[See the code changes between 2.3.0 and 2.4.0](https://github.com/jp1337/easywall/compare/v2.3.0...v2.4.0)
+
 </details>
 
 <details markdown="1">
@@ -969,6 +997,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 - Custom rules in `state.Current.Custom` are now actually applied to the nftables kernel after the typed rules flush; previously the slice was stored and validated but never passed to `nft`
 
+[See the code changes between 2.2.0 and 2.3.0](https://github.com/jp1337/easywall/compare/v2.2.0...v2.3.0)
+
 </details>
 
 <details markdown="1">
@@ -979,6 +1009,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - Audit log viewer (`GET /log`) — the core's per-change `audit.log` is now accessible from the web UI in a table showing timestamp, action, rule type, detail, and user; most-recent entries first (up to 200)
 - Dashboard rule-count cards — TCP port count, UDP port count, blocked IPs (blacklist), and allowed IPs (whitelist) are now shown as stat-cards on the dashboard, each linking to the relevant management page
 - `GET/POST /system` — acceptance window duration and enabled flag are now configurable from the web UI without editing `easywall.toml`
+
+[See the code changes between 2.1.0 and 2.2.0](https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0)
 
 </details>
 
@@ -1007,6 +1039,8 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - CSP `script-src` and `style-src` no longer contain `'unsafe-inline'`; inline scripts use per-request nonces instead
 - GoReleaser Docker configuration migrated from deprecated `dockers` + `docker_manifests` to `dockers_v2`
 - CI build workflow updated: Debian package step uses `-d` to skip Go build-dependency check and artifacts are moved to `dist/` before upload
+
+[See the code changes between 2.0.0 and 2.1.0](https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0)
 
 </details>
 
@@ -1040,23 +1074,23 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - Rules storage changed from YAML files to a single JSON file with three-state versioning
 - nftables replaces iptables as the kernel firewall backend
 
+[See the code changes between 0.3.1 and 2.0.0](https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.3.1</strong> · 2021-02-17 — A shell flag that broke the installer on older systems</summary>
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1)
-
 ### Changed
 
 - Remove `--show-progress` from shell scripts and fix issue #26
+
+[See the code changes between 0.3.0 and 0.3.1](https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1)
 
 </details>
 
 <details markdown="1">
 <summary><strong>0.3.0</strong> · 2020-09-30 — A port can say what it is for</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)
 
 ### Added
 
@@ -1079,12 +1113,12 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 - Rules are no longer stored in the rules folder but in config/rules.yml. The folder structure under rules can therefore be deleted. There is no import of old rules, because easywall is still in beta status.
 
+[See the code changes between 0.2.4 and 0.3.0](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.2.4</strong> · 2020-09-06 — The demo page's security headers are checked</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
 
 ### Added
 
@@ -1102,12 +1136,12 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - Error messages when saving the options are now displayed correctly
 - Fixed several errors when starting the web interface in debug mode
 
+[See the code changes between 0.2.3 and 0.2.4](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.2.3</strong> · 2020-08-28 — The installation works</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3)
 
 ### Changed
 
@@ -1115,12 +1149,12 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - Installation guide improved
 - Problems at startup under Ubuntu 18.04 solved
 
+[See the code changes between 0.2.2 and 0.2.3](https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.2.2</strong> · 2020-08-24 — The readme explains the thing it is the readme for</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2)
 
 ### Added
 
@@ -1134,12 +1168,12 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 - Inline Javascript moved to separate file
 
+[See the code changes between 0.2.1 and 0.2.2](https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.2.1</strong> · 2020-08-22 — easywall installs from a Debian package</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
 
 ### Added
 
@@ -1162,12 +1196,12 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 - The SSL settings were hardened - only current browsers can be used
 - The easywall_web folder was moved to the easywall folder as "easywall/web
 
+[See the code changes between 0.2.0 and 0.2.1](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.2.0</strong> · 2020-07-20 — The project can be sponsored</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
 
 ### Added
 
@@ -1222,12 +1256,12 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - 135 neighbor solicitation
 - 136 neighbor advertisement
 
+[See the code changes between 0.1.0 and 0.2.0](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.1.0</strong> · 2020-06-21 — Almost every line is covered by a unit test</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0)
 
 ### Added
 
@@ -1252,12 +1286,12 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - SSL Implementation for web application
 - write documentation for installing and uninstalling
 
+[See the code changes between 0.0.4 and 0.1.0](https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.0.4</strong> · 2019-10-04 — Custom iptables rules can be applied</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4)
 
 ### Added
 
@@ -1274,12 +1308,12 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - too many, I can't count them
 - there was a long time since the last version
 
+[See the code changes between 0.0.3 and 0.0.4](https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.0.3</strong> · 2019-06-30 — A web interface, on Flask</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3)
 
 ### Added
 
@@ -1300,12 +1334,12 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - the `.running` file was not deleted properly
 - moved the system `os.system` to a single function where security checks can be implemented in the future
 
+[See the code changes between 0.0.2 and 0.0.3](https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3)
+
 </details>
 
 <details markdown="1">
 <summary><strong>0.0.2</strong> · 2019-06-08 — The Python rewrite takes over from master</summary>
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2)
 
 ### Added
 
@@ -1319,6 +1353,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - Information of the user in install.sh if not running as root or using sudo
 - Removed quiet option in install.sh for apt-get and pip3 for better user experience
 
+[See the code changes between 0.0.1 and 0.0.2](https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2)
+
 </details>
 
 <details markdown="1">
@@ -1330,5 +1366,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall is split in two parts in the new concept
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
+
+[See the code as first released](https://github.com/jp1337/easywall/releases/tag/v0.0.1)
 
 </details>

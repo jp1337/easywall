@@ -5,7 +5,10 @@
  * CHANGELOG.md stays the single source at the repository root: GitHub reads it
  * and release tooling reads it. This renders it as one page with a <details>
  * per version, the newest open — thirty versions and 1,272 lines is fifteen
- * screens flat, and a URL per version is thirty URLs nobody links to.
+ * screens flat — and gives each version a link to the code changes against
+ * the release before it, built from the link reference definitions already
+ * at the foot of CHANGELOG.md (the same ones GitHub uses to link every
+ * `## [x]` heading there).
  *
  *   npm run build:changelog    write docs/_docs/changelog.md
  *   npm run check:changelog    fail if the committed page is not what this
@@ -26,13 +29,19 @@ const OUT = new URL('../docs/_docs/changelog.md', import.meta.url);
 // thirty historical entries to satisfy one regex is the tail wagging the dog.
 const HEADER = /^## \[([^\]]+)\](?:\s*[—-]\s*(\S+))?\s*$/;
 
+// The link reference definitions at the foot of the file — `[2.13.0]: …/compare/
+// v2.12.0...v2.13.0` — are keyed lowercase even where the heading above reads
+// `## [unreleased]`; matching is done lowercase either way so a future
+// capitalised heading does not silently lose its link.
+const LINK_DEF = /^\[([^\]]+)\]:\s*(https?:\S+)/;
+
 function parse(md) {
   const versions = [];
+  const compareLinks = new Map();
   let cur = null;
   for (const line of md.split('\n')) {
-    // The link reference definitions at the foot of the file are machinery,
-    // not content, and they follow the last version's body.
-    if (/^\[[^\]]+\]:\s*https?:/.test(line)) continue;
+    const def = LINK_DEF.exec(line);
+    if (def) { compareLinks.set(def[1].toLowerCase(), def[2]); continue; }
     const m = HEADER.exec(line);
     if (m) {
       cur = { version: m[1], date: m[2] || '', body: [] };
@@ -41,7 +50,7 @@ function parse(md) {
     }
     if (cur) cur.body.push(line);
   }
-  return versions;
+  return { versions, compareLinks };
 }
 
 // The collapsed row needs one line saying what the release was, and nothing in
@@ -78,7 +87,24 @@ function summary(v, text) {
          esc(text).replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
-function render(versions) {
+// One line at the end of the expanded body, not in <summary> — the thirty
+// summary rows are a deliberately scannable list and a link on each would
+// clutter it. `Compare` links against a tag pair; the earliest release
+// (v0.0.1) has none before it and links its release instead.
+const COMPARE = /\/compare\/(.+?)\.\.\.(.+)$/;
+
+function compareLine(v, url) {
+  if (v.version.toLowerCase() === 'unreleased') {
+    return `[See everything changed since the last release](${url})`;
+  }
+  const m = COMPARE.exec(url);
+  if (!m) return `[See the code as first released](${url})`;
+  const from = m[1].replace(/^v/, '');
+  const to = m[2].replace(/^v/, '');
+  return `[See the code changes between ${from} and ${to}](${url})`;
+}
+
+function render(versions, compareLinks) {
   const out = [
     '---',
     'layout: default',
@@ -109,6 +135,14 @@ function render(versions) {
     out.push('');
     out.push(h.body.join('\n').replace(/^\n+/, '').replace(/\n+$/, ''));
     out.push('');
+    const link = compareLinks.get(v.version.toLowerCase());
+    if (!link) {
+      console.error(`CHANGELOG.md: [${v.version}] has no link reference definition ` +
+                    `(\`[${v.version.toLowerCase()}]: https://...\`) at the foot of the file.`);
+      process.exit(1);
+    }
+    out.push(compareLine(v, link));
+    out.push('');
     out.push('</details>');
     out.push('');
   });
@@ -116,8 +150,8 @@ function render(versions) {
   return out.join('\n');
 }
 
-const versions = parse(readFileSync(SRC, 'utf8'));
-const want = render(versions);
+const { versions, compareLinks } = parse(readFileSync(SRC, 'utf8'));
+const want = render(versions, compareLinks);
 
 if (CHECK) {
   let have = '';

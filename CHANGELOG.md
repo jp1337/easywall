@@ -1039,8 +1039,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 **A shell flag that broke the installer on older systems.**
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.3.0...v0.3.1)
-
 ### Changed
 
 - Remove `--show-progress` from shell scripts and fix issue #26
@@ -1048,8 +1046,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 ## [0.3.0] - 2020-09-30
 
 **A port can say what it is for.**
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.4...v0.3.0)
 
 ### Added
 
@@ -1076,8 +1072,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 **The demo page's security headers are checked.**
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.3...v0.2.4)
-
 ### Added
 
 - Security headers of the demo page are checked for correctness and actuality.
@@ -1098,8 +1092,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 **The installation works.**
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.2...v0.2.3)
-
 ### Changed
 
 - Problems with the installation fixed
@@ -1109,8 +1101,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 ## [0.2.2] - 2020-08-24
 
 **The readme explains the thing it is the readme for.**
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.1...v0.2.2)
 
 ### Added
 
@@ -1127,8 +1117,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 ## [0.2.1] - 2020-08-22
 
 **easywall installs from a Debian package.**
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.2.0...v0.2.1)
 
 ### Added
 
@@ -1154,8 +1142,6 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 ## [0.2.0] - 2020-07-20
 
 **The project can be sponsored.**
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.1.0...v0.2.0)
 
 ### Added
 
@@ -1214,8 +1200,6 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 **Almost every line is covered by a unit test.**
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.4...v0.1.0)
-
 ### Added
 
 - This version is almost completely tested by unit tests.
@@ -1243,8 +1227,6 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 **Custom iptables rules can be applied.**
 
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.3...v0.0.4)
-
 ### Added
 
 - added possibility to apply custom IPTables rules
@@ -1263,8 +1245,6 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 ## [0.0.3] - 2019-06-30
 
 **A web interface, on Flask.**
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.2...v0.0.3)
 
 ### Added
 
@@ -1288,8 +1268,6 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 ## [0.0.2] - 2019-06-08
 
 **The Python rewrite takes over from master.**
-
-[Full Changelog](https://github.com/jp1337/easywall/compare/v0.0.1...v0.0.2)
 
 ### Added
 
