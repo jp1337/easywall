@@ -12,6 +12,11 @@ name: Docs
 # the indexing command and of the assertion that the index covers every page,
 # and a pull request editing it ran no job at all — while a push editing it did
 # not redeploy, so the change reached main without ever reaching the site.
+#
+# CHANGELOG.md is in both lists for the same reason: check:changelog fails
+# when it and the generated docs/_docs/changelog.md disagree, and a pull
+# request that touches only CHANGELOG.md — exactly the drift that check
+# exists to catch — would otherwise run no job at all.
 on:
   push:
     branches: [main]
@@ -19,11 +24,13 @@ on:
       - "docs/**"
       - ".github/workflows/docs.yml"
       - ".github/actions/**"
+      - "CHANGELOG.md"
   pull_request:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
       - ".github/actions/**"
+      - "CHANGELOG.md"
 
 # Read-only by default. Publishing rights are granted to the deploy job alone, so
 # a pull-request run cannot reach GitHub Pages even in principle.
@@ -38,6 +45,30 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+
+      # codespell is a typo-only dictionary — near-zero false positives on
+      # nftables, conntrack and argon2id, where hunspell floods. Configuration,
+      # and the reasoning for every skip and every ignored word, is in
+      # .codespellrc. First, because it needs no Ruby, no Node and no build.
+      - name: Spelling
+        run: pipx run codespell
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - run: npm ci
+
+      # Two checks that need no Ruby and no built site: the generated
+      # changelog page matches CHANGELOG.md, and the prose is inside the two
+      # limits the docs-site-polish branch set. check:docs is not here — it
+      # needs a built _site and a browser, and it runs after the build below.
+      - name: The changelog page matches CHANGELOG.md
+        run: npm run check:changelog
+
+      - name: Prose stays inside its limits
+        run: npm run check:prose
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -77,6 +108,19 @@ jobs:
       # is the part that matters — see
       # TestTheSearchIndexIsBuiltBeforeThePagesUpload.
       - uses: ./.github/actions/build-search-index
+
+      # playwright-core ships no browser of its own — see test.yml's own
+      # "Install Chromium" step for why --with-deps and not --only-shell.
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+
+      # The one check here that needs the built site and a real browser:
+      # scripts/docs-check.mjs is Phase 1's only proof for a scroll handler, a
+      # key binding, a result filter and a clipboard write — none of it visible
+      # to a stylesheet diff or a Go test. Last, because it is the slowest step
+      # in the job and everything above it fails faster.
+      - name: The documentation site behaves as the browser sees it
+        run: npm run check:docs
 
   deploy:
     name: Deploy to Pages
@@ -134,6 +178,29 @@ jobs:
       # is the part that matters — see
       # TestTheSearchIndexIsBuiltBeforeThePagesUpload.
       - uses: ./.github/actions/build-search-index
+
+      # Not a repeat of the pull-request job's spelling and prose checks —
+      # those are author-facing and a pull request already proved them, so
+      # failing them again here would block a deploy for a typo and help
+      # nobody. check:docs is different in kind: every one of its assertions
+      # exists because that exact behaviour shipped broken once (see
+      # scripts/docs-check.mjs). main carries no required status checks
+      # (`enforce_admins` is on, but there is no `required_status_checks`), so
+      # a push here is not guaranteed to have passed the pull-request job
+      # first — the same reasoning "The site is not empty" and
+      # build-search-index above are already duplicated in this job for.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+
+      - name: The documentation site behaves as the browser sees it
+        run: npm run check:docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

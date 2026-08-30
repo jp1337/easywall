@@ -1,0 +1,63 @@
+# codespell, not hunspell: a typo-only dictionary, so nftables, conntrack and
+# argon2id do not need excusing.
+#
+# skip: files and directories that are not prose in this corpus, or that this
+# branch does not own.
+#   ./docs/_site           the built Jekyll output — generated, gitignored
+#   ./node_modules          npm dependencies
+#   ./.git                  version control internals
+#   ./docs/Gemfile.lock     Ruby lockfile: dependency hashes, not prose
+#   ./docs/assets/css/style.css   generated, minified Tailwind output
+#   ./web/static            generated JS/CSS bundle shipped with easywall-web
+#   ./docs/vendor           bundler installs gems here (docs/.bundle/config);
+#                           local-only (.git/info/exclude), same class as
+#                           node_modules
+#   ./go.sum                Go module lockfile: base64 dependency hashes
+#                           occasionally spell an English word by accident
+#                           (see go.sum:29, "tE" -> "the") — same reasoning as
+#                           docs/Gemfile.lock above
+#   ./locales/de.json       German UI strings. codespell's dictionary is
+#                           English-only and flags most of the file (246
+#                           hits: Sie, oder, ist, unter, ...) — none of them
+#                           real typos. en.json, the source of truth locale,
+#                           has none.
+#   ./locales/fr.json       same, French (137 hits)
+#   ./docs-tech/plans       dated, historical implementation logs. Several
+#                           quote German UI strings verbatim while reviewing
+#                           i18n (Adresse, deine, vor, Sie, oder, ...) and are
+#                           never rewritten once dated — the same reasoning
+#                           scripts/prose-check.mjs gives for excluding
+#                           docs/_docs/changelog.md by exact path.
+#   ./docs-tech/specs       same as plans
+[codespell]
+skip = ./docs/_site,./node_modules,./.git,./docs/Gemfile.lock,./docs/assets/css/style.css,./web/static,./docs/vendor,./go.sum,./locales/de.json,./locales/fr.json,./docs-tech/plans,./docs-tech/specs
+
+# Every entry below is a real word codespell misreads as a typo of something
+# else, verified by hand against every hit in this corpus (see
+# docs-tech/task-24-report for the full run). None of these is a near-miss
+# spelling of a common real word the way `nd` (-> and) and `ba` (-> by)
+# are — ignoring them creates no blind spot for a genuine typo landing on
+# the same token, because nobody in this corpus is ever trying to write
+# "rogue", "if" missing its second `i`, or "unparsable" and landing on one of
+# these by accident.
+#   rouge        Jekyll's syntax-highlighter gem (docs/_config.yml,
+#                _layouts/default.html, web/src/docs.css) — codespell reads
+#                it as "rogue"
+#   iif          nftables' own keyword, "input interface"
+#                (`iif eth0 ... accept`) — codespell reads it as "if"
+#   oder         German for "or", a map key in
+#                internal/web/i18n_docs_test.go's joinWords table — codespell
+#                reads it as "order"
+#   unparseable  the spelling used consistently across internal/core,
+#                internal/web and internal/shared (10 call sites) —
+#                codespell prefers "unparsable" but both are correct English
+ignore-words-list = rouge,iif,oder,unparseable
+
+# No entry for `nd` or `ba`. The brief that drafted this file believed they
+# were needed for "2nd" and a base32 TOTP example, but neither pattern
+# currently exists anywhere in the repo (searched: docs/, README.md,
+# CHANGELOG.md, docs-tech/*.md, every *.go source file) — `ignore-words-list`
+# would have silently stopped catching `and` and `by` misspelled as `nd`/`ba`
+# repo-wide for a false positive that does not exist. If a future page adds
+# ordinals or a base32 secret and codespell starts flagging it, scope the fix
+# with `ignore-regex` to that file/line pattern, not a bare word here.
