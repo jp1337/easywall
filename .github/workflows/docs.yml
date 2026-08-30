@@ -25,12 +25,14 @@ on:
       - ".github/workflows/docs.yml"
       - ".github/actions/**"
       - "CHANGELOG.md"
+      - ".codespellrc"
   pull_request:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
       - ".github/actions/**"
       - "CHANGELOG.md"
+      - ".codespellrc"
 
 # Read-only by default. Publishing rights are granted to the deploy job alone, so
 # a pull-request run cannot reach GitHub Pages even in principle.
