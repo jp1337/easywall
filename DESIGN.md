@@ -817,6 +817,15 @@ one a `<summary>` that opens and closes — and two of them are called *Rules* a
 on purpose: a reader looking at Ports in easywall finds its page under the label the product
 put it under. The smallness is the point in both.
 
+**The documentation sidebar adds a hairline and an indent.** `label` at `text-subtle` and a
+nav link at `text-muted` sit twelve steps apart per channel — distinct on paper, the same
+grey once rendered, and with the label the *lighter* of the two the label read as the
+weaker element rather than the divider it is. Colour alone does not carry the separation, so
+each group now opens with a `rule`-weight `border-top` above the label and its links sit
+indented, so the eye reads container-then-contents instead of two rows of equal-weight text.
+The first group carries no border — it follows the ungrouped Home and Overview links, not
+another group, and a rule there divided nothing.
+
 ## Layout
 
 The frame is fixed by the `layout` tokens: a `sidebar-width` of 240px, a `topbar-height` of
