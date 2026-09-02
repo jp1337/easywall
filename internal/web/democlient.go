@@ -34,6 +34,14 @@ type demoState struct {
 	acceptance shared.AcceptanceStatus
 	lastApply  string // RFC3339, empty when never applied
 
+	// acceptanceReason is why the last window ended — "timeout" or "cancelled
+	// by operator" — mirroring core.Acceptance.reason. Without it the demo
+	// answered acceptance_reason as empty always, which is the same false
+	// green docs-tech/protocol.md's "Adding a command" step 3 warns about: a
+	// demo client that answers without acting on the field the real core now
+	// fills in.
+	acceptanceReason string
+
 	// Pending acceptance timer; if it fires before CmdAccept arrives,
 	// state rolls back to .Backup and acceptance becomes "rolled_back".
 	acceptanceTimer *time.Timer
@@ -370,7 +378,19 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 		HasPending:          d.hasPendingLocked(),
 		LastApply:           d.lastApply,
 		AcceptanceRemaining: d.acceptanceRemainingLocked(),
+		AcceptanceReason:    d.acceptanceReasonLocked(),
 	}
+}
+
+// acceptanceReasonLocked mirrors core.Firewall.Status: the reason is only
+// meaningful once a window has ended, so it is withheld while one is still
+// open or before any has ever run — matching shared.FirewallStatus's own doc
+// comment. Caller holds d.mu.
+func (d *demoState) acceptanceReasonLocked() string {
+	if d.acceptance != shared.AcceptanceRolledBack {
+		return ""
+	}
+	return d.acceptanceReason
 }
 
 // acceptanceRemainingLocked mirrors core.Firewall.Status: whole seconds, rounded
@@ -617,6 +637,7 @@ func (d *demoState) rollbackWithDetail(detail string) {
 	// same reason Firewall.rollback does.
 	d.appliedConfig = shared.AppliedConfig{Firewall: d.options, Network: d.settings}
 	d.acceptance = shared.AcceptanceRolledBack
+	d.acceptanceReason = detail
 	d.audit("apply_rolledback", "all", detail) // the tokens the real core writes
 	d.acceptanceTimer = nil
 	d.acceptanceDeadline = time.Time{}

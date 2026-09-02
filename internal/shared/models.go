@@ -471,4 +471,10 @@ type FirewallStatus struct {
 	// cannot be wrong about a clock it never crosses. The browser ticks locally
 	// between polls and takes this number as the correction on each one.
 	AcceptanceRemaining int `json:"acceptance_remaining"`
+	// AcceptanceReason is why the window ended, empty while one is open or when
+	// none has run. It exists because "rolled back" is one status for two very
+	// different events, and the interface said "the window closed without a
+	// confirmation" to an operator who had just ended it by hand — on the screen
+	// whose whole argument is that it says what is true.
+	AcceptanceReason string `json:"acceptance_reason"`
 }

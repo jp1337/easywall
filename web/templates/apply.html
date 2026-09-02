@@ -135,7 +135,16 @@
               {{else if eq $acc "accepted"}}
               {{T "apply_lead_accepted"}}
               {{else if eq $acc "rolled_back"}}
+              {{/* The token the core (and the demo) write is the literal string
+                   "cancelled by operator"; anything else — including a fresh
+                   install's empty string — is the timeout wording, which was
+                   the only story this screen could tell before 2.14 added a
+                   second way for the window to end. */}}
+              {{if eq .Status.AcceptanceReason "cancelled by operator"}}
+              {{T "apply_lead_rolled_back_operator"}}
+              {{else}}
               {{T "apply_lead_rolled_back"}}
+              {{end}}
               {{else if .Status.HasPending}}
               {{T "apply_lead_staged"}}
               {{else}}

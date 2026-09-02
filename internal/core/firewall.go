@@ -665,17 +665,30 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		remaining = int((d + time.Second - 1) / time.Second)
 	}
 
+	// Captured once so Acceptance and AcceptanceReason below describe the same
+	// instant. Acceptance.Reason() is set to "timeout" the moment a window
+	// opens, before anyone knows how it will end — reading it whenever a window
+	// is merely Pending would tell the operator a timeout has already happened.
+	// The one status where the reason is the whole point is RolledBack, which is
+	// the only one it is read for here.
+	accStatus := f.acceptance.Status()
+	reason := ""
+	if accStatus == shared.AcceptanceRolledBack {
+		reason = f.acceptance.Reason()
+	}
+
 	return shared.FirewallStatus{
 		// Asked of the kernel, not inferred from this process being alive. The
 		// dashboard renders this as "rules are live", which is a claim about
 		// what the kernel holds; answering it with "the daemon is running" made
 		// that sentence unverified, and green after the table had been deleted.
 		Active:              f.nft.Enforcing(),
-		Acceptance:          f.acceptance.Status(),
+		Acceptance:          accStatus,
 		HasPending:          pending,
 		LastApply:           lastApply,
 		Panic:               f.PanicEngaged(),
 		AcceptanceRemaining: remaining,
+		AcceptanceReason:    reason,
 	}
 }
 

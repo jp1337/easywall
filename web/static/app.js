@@ -519,8 +519,30 @@ function initApplyStatus() {
     // so keep polling and let the UI transition naturally to idle.
     if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
+
+      // The core (and the demo) write the literal string "cancelled by
+      // operator" only when the operator clicked Roll back now; anything
+      // else — including a fresh install's empty string — is a timeout. Before
+      // this, every rollback announced "acceptance timeout" here, including
+      // the one the operator had just caused by clicking the button — because
+      // a timeout used to be the only way a window could end. Written as an
+      // if/else of two literal str() calls, not a computed key, so
+      // TestClientStringsCoverWhatAppJSAsksFor can see both keys are actually
+      // used and clientStringKeys is not shipping dead weight.
+      const operator = data.acceptance_reason === 'cancelled by operator';
+      const toast = operator ? str('apply_rolled_back_operator_toast') : str('apply_rolled_back_toast');
       statusEl.insertAdjacentHTML('afterend',
-        `<div role="alert" class="alert alert-crit mt-3"><span>${esc(str('apply_rolled_back_toast'))}</span></div>`);
+        `<div role="alert" class="alert alert-crit mt-3"><span>${esc(toast)}</span></div>`);
+
+      // apply.html renders the lead paragraph once, from the status the page
+      // loaded with. A window watched to its natural end without navigating
+      // away left it reading "The new rules are live but unconfirmed" beside a
+      // dot that this same render() had just changed to "Rolled back" — the
+      // poll owns the dot, so it has to own the sentence under it too.
+      const lead = document.querySelector('.apply-lead');
+      if (lead) {
+        lead.textContent = operator ? str('apply_lead_rolled_back_operator') : str('apply_lead_rolled_back');
+      }
     }
   };
 
