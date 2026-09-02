@@ -71,6 +71,13 @@ type PageData struct {
 	// the dashboard carries is one an operator does not see, and not seeing it
 	// is the whole problem with panic mode.
 	Panic bool
+
+	// AcceptancePending and AcceptanceRemaining drive the topbar chip. On
+	// PageData rather than on one handler's data for the same reason Panic is:
+	// an operator who opens /ports during the window must not lose the clock,
+	// and a countdown only the apply page carries is one they navigate away from.
+	AcceptancePending   bool
+	AcceptanceRemaining int
 }
 
 // Server is the easywall web frontend.
@@ -109,6 +116,61 @@ type Server struct {
 	events     *auditEvents
 	eventsStop chan struct{}
 	eventsOnce sync.Once
+
+	// statusMu, statusCached and statusAt hold one GET_STATUS for a moment, so
+	// the panic banner and the acceptance chip — which every authenticated
+	// render draws — do not each pay a socket round trip.
+	//
+	// carried-forward recorded the cost before the chip made it a requirement:
+	// Enforcing() can block behind a whole apply cycle, up to 30 s, during which
+	// every page stalls for the 5 s client deadline and render swallows the
+	// error, so the banner disappears exactly when the core is busiest. With a
+	// countdown on every page that stall would eat the countdown too.
+	//
+	// Only render reads this. Handlers that act on the status — the apply page,
+	// the /apply/status poll — ask the core directly, because a two-second-old
+	// answer is fine for a chip that ticks locally and is not fine for a page
+	// deciding which button to draw.
+	statusMu     sync.Mutex
+	statusCached *shared.FirewallStatus
+	statusAt     time.Time
+}
+
+// statusTTL is how long one GET_STATUS answer serves the per-render banner and
+// chip. Two seconds, matching the apply page's own poll interval: the chip ticks
+// locally between polls and takes the server's number as the correction, so a
+// number up to two seconds stale is corrected before it can drift further.
+const statusTTL = 2 * time.Second
+
+// statusForRender returns the status for the banner and the chip, from cache
+// when it is fresh. nil when the core could not be reached — render treats that
+// as "draw neither", which is what it already did with the error it swallowed.
+func (s *Server) statusForRender() *shared.FirewallStatus {
+	s.statusMu.Lock()
+	if s.statusCached != nil && time.Since(s.statusAt) < statusTTL {
+		cached := s.statusCached
+		s.statusMu.Unlock()
+		return cached
+	}
+	s.statusMu.Unlock()
+
+	// Asked for outside the lock, deliberately. SendCommand dials a fresh
+	// connection and can block for as long as the core is busy — up to the
+	// client deadline — and holding statusMu across it would queue every
+	// concurrent render behind one slow round trip. That is the stall this
+	// cache exists to remove, reintroduced at a narrower point. Several
+	// renders arriving on a cold cache each pay their own GetStatus, which is
+	// exactly what happened before the cache and is bounded by the TTL.
+	status, err := s.client.GetStatus()
+	if err != nil {
+		// Not cached: a blip must not be served to everyone for the whole TTL.
+		return nil
+	}
+
+	s.statusMu.Lock()
+	s.statusCached, s.statusAt = status, time.Now()
+	s.statusMu.Unlock()
+	return status
 }
 
 // NewServer initialises the web server with all dependencies.
@@ -405,6 +467,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/apply", s.handleApplyGET)
 		r.Post("/apply/start", s.handleApplyStart)
 		r.Post("/apply/confirm", s.handleApplyConfirm)
+		r.Post("/apply/rollback", s.handleApplyRollback)
 		r.Get("/apply/status", s.handleApplyStatus)
 
 		r.Get("/export", s.handleExport)
@@ -497,17 +560,22 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 
 	user, _ := sess.Values[SessionUserKey].(string)
 
-	// One GET_STATUS per authenticated render, over a local Unix socket. The
-	// cost is deliberate and the alternative was worse: reading the marker file
-	// from here would mean guessing where the core's data directory is, and the
-	// two processes may be configured apart.
+	// At most one GET_STATUS every statusTTL, over a local Unix socket — see
+	// statusForRender. The socket round trip is deliberate and the alternative
+	// was worse: reading the marker file from here would mean guessing where
+	// the core's data directory is, and the two processes may be configured
+	// apart.
 	//
 	// Never for a signed-out visitor. /login and /firstrun are served before
 	// there is a session and have to work with no core at all.
 	panicMode := false
+	acceptancePending := false
+	acceptanceRemaining := 0
 	if user != "" {
-		if status, err := s.client.GetStatus(); err == nil {
+		if status := s.statusForRender(); status != nil {
 			panicMode = status.Panic
+			acceptancePending = status.Acceptance == shared.AcceptancePending
+			acceptanceRemaining = status.AcceptanceRemaining
 		}
 	}
 
@@ -549,6 +617,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Data:    data,
 		Panic:   panicMode,
 		FlashN:  flashN,
+
+		AcceptancePending:   acceptancePending,
+		AcceptanceRemaining: acceptanceRemaining,
 	}
 
 	// Render into a buffer first. Executing straight into the ResponseWriter
@@ -904,7 +975,8 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 // rules themselves, or an nftables error, which is diagnostic output rather than
 // a sentence and is shown verbatim.
 var auditDetailKeys = map[string]string{
-	"timeout": "audit_detail_timeout",
+	"timeout":               "audit_detail_timeout",
+	"cancelled by operator": "audit_detail_cancelled_by_operator",
 }
 
 // detailLabel translates a detail the core wrote from a known vocabulary, and
@@ -991,6 +1063,13 @@ func shortTime(v string) string {
 	return t.Format("2 Jan 2006 15:04")
 }
 
+func mmss(seconds int) string {
+	if seconds < 0 {
+		seconds = 0
+	}
+	return fmt.Sprintf("%02d:%02d", seconds/60, seconds%60)
+}
+
 // clientStringKeys are the message ids app.js needs. Kept as an explicit list
 // rather than shipping every translation: the blob is inlined into every page.
 // The column labels are not here: a row added in the browser reads them out of
@@ -1004,7 +1083,9 @@ var clientStringKeys = []string{
 	"options_invalid_limit", "provenance_reset_done",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
-	"apply_rolled_back_toast",
+	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",
+	"apply_lead_rolled_back", "apply_lead_rolled_back_operator",
+	"apply_chip_confirmed", "apply_chip_rolled_back",
 	"ports_port_hint", "ports_desc_hint", "ports_sources_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
@@ -1050,6 +1131,9 @@ func templateFuncs() template.FuncMap {
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
+		// Neither is a failure of the system: the operator asked for the window
+		// to end early, and either it did or it had already closed on its own.
+		"rules_rolled_back": true, "rollback_too_late": true,
 		// The important half worked: the account and the second factor exist,
 		// and the codes below are shown. Only the ports/IPv6 staging failed —
 		// amber, not the red firstrun_choices_failed would otherwise imply
@@ -1073,6 +1157,11 @@ func templateFuncs() template.FuncMap {
 
 	return template.FuncMap{
 		"add1": func(i int) int { return i + 1 },
+		// mm:ss with a leading zero, always. tnum holds the column width; the
+		// leading zero holds the character count, or the block reflows by one
+		// glyph at 1:00 → 0:59. Carries to 60:00, which AcceptanceDurationMax =
+		// 3600 makes the longest window there is.
+		"mmss": mmss,
 		// The list editors hold raw lines, comments and blanks included. A
 		// counter that reports those as entries is simply wrong, and it is the
 		// number an operator uses to sanity-check a paste.

@@ -138,6 +138,13 @@ where the page looks right on the machine that has the old file cached.
 | `TestEveryKernelWriteIsFollowedByThePanicCheck` | every `f.nft.Apply` in `firewall.go` and `restore.go` is followed by a `panicLandedDuringWrite`, two of them per function because `nft.Apply` reports errors from work that runs after the ruleset is committed | the check was a *missing call* to begin with, and nothing noticed one going away: deleting the one in `apply` left the whole suite green. The nothing-went-unparsed half compares the per-function tally with the file-wide count, so a fourth writer of the table fails the test instead of silently escaping it |
 | `TestRunSubcommand_NoDaemonFallbackNamesItselfInTheAuditLog` | the console fallback writes `console-no-daemon` as the audit user | `user` renders literally in the log table — no label map, no view function — so a rename would have left two spellings for the same event with every test still green |
 
+## The acceptance window
+
+| Test | Protects | What happened without it |
+|---|---|---|
+| `TestAcceptance_ShutdownBeforeTheWindowOpensDoesNotOpenOne` | A SIGTERM that lands between `beginApply` and `Acceptance.Start` is remembered rather than discarded | `Stop` cancels and then waits on the WaitGroup that tracks the apply goroutine. `Cancel` no-ops while the status is `Idle`, so the cancel was lost, the window opened after it, and `Stop` sat behind `Wait` for the full duration — past `TimeoutStopSec`, after which `SIGKILL` leaves the unconfirmed rules live. That is exactly the failure `Cancel` was written to prevent |
+| `TestFirewallApply_OpensTheWindowBeforeItWritesTheKernel` | `f.acceptance.Start` precedes `f.nft.Apply` in `Firewall.apply` | `Start`'s doc comment required it and the call site did the opposite. Between the two ran a panic-marker stat, an applied-config write, a settings read and an audit write — two file writes, which on an SD card are not microseconds. For all of it the kernel held unconfirmed rules while `Status()` answered `idle`, so the interface showed no window during the one gap where a lockout is possible and invisible. Held by statement order alone, so it is read off the source |
+
 ## The second factor
 
 | Test | Protects |

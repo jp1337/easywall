@@ -16,10 +16,33 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <details open markdown="1">
-<summary><strong>Unreleased</strong> — The documentation sidebar groups its pages into five sections</summary>
+<summary><strong>Unreleased</strong> — The window shows that it is running</summary>
+
+Every apply reverts itself after 120 seconds unless it is confirmed — and for
+four releases the screen said so with a static clock glyph and the word *Open*.
+Two screenshots nine seconds apart were pixel-identical. The countdown now runs,
+at 40px, on the apply screen and as a chip on every other page, and *Roll back
+now* sits beside *Confirm* rather than being described in a sentence.
+
+### Added
+
+- The acceptance window carries a deadline, so the number on the screen and the
+  timer that fires are one value.
+- `CANCEL_ACCEPTANCE`, the twentieth protocol command, reaches the rollback that
+  has existed since 2.7 and was never routable.
 
 ### Changed
 
+- The apply screen lists what is live during the window, instead of only
+  counting it.
+- One `GET_STATUS` per render is cached for ~2 s, so a busy core no longer costs
+  every page its banner — or its countdown.
+- **A failed apply's audit log now shows that it started.** With the acceptance
+  window enabled, a failing `nft.Apply` or a panic-marker hit writes
+  `apply_started` before `apply_failed` or `apply_refused_panic`; previously
+  only the failure event appeared, because `apply_started` sat below the kernel
+  write. `apply_started` is still written exactly once per apply — the new
+  order is the truthful one, since an apply that failed did in fact start.
 - **The documentation sidebar groups its pages.** One flat list of twenty-seven
   links became five sections — Installation, Rules, System, How it works,
   Project — of which only the one holding the page being read is open. *Rules*
@@ -33,6 +56,13 @@ which is the file GitHub and the release tooling read.
 
 ### Fixed
 
+- A SIGTERM landing between an apply starting and its window opening was
+  discarded, and shutdown then waited out the full window — past systemd's
+  `TimeoutStopSec`, after which `SIGKILL` left the unconfirmed rules live.
+- The window now opens before the rules reach the kernel, as `Acceptance.Start`'s
+  own contract had always required. It used to open after two file writes,
+  during which the kernel held unconfirmed rules and the interface showed no
+  window at all.
 - **Every screenshot in the documentation showed the narrow layout, and half of
   them a sidebar that stopped mid-image.** The published set was taken in a
   1440x900 window. `.page-grid` drops its 320px context column below 1570px, so

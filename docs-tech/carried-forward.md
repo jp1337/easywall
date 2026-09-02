@@ -14,7 +14,7 @@ source. See `TestTheTechnicalDocsAreNotPublished`.
 | **`boot_enforce_failed` reads "at startup"** | 2.7 also writes it when a mid-apply panic teardown fails. The colour is right, the label is not, and `actionLabel` is what the audit filter searches — so somebody hunting a 15:00 teardown failure must search for "startup". Fixing it means rewording both locales and the *Reads as* column in `features/audit-log.md` |
 | **`rollback_skipped`'s label** | Same shape, same fix: it now also covers a rollback that *was* written and then torn down. The detail says so; the label says "Rollback skipped" |
 | **A forgotten panic mode is invisible to monitoring** | `easywall-core status` exits 0 under panic, deliberately — it is a state somebody chose. So a panic nobody remembers never pages anyone. Documented in the man page. A product decision, not a defect |
-| **Every page pays a `GET_STATUS`** | The panic banner is filled per authenticated render, and `Enforcing()` blocks behind a whole apply cycle — up to 30 s. During a slow custom-rules apply every page stalls for the 5 s client deadline, and `render` swallows the error, so the banner disappears exactly when the core is busiest. A ~2 s TTL cache of the flag, roughly fifteen lines |
+| **Every page pays a `GET_STATUS`** | **Shipped in 2.14** as `Server.statusForRender`, a ~2 s TTL cache read only by `render`. Not a passenger: the topbar countdown put a clock on every page, and a stall that used to cost the panic banner would have cost the countdown as well. Handlers that act on the status still ask the core directly |
 
 ## Invisible failures
 

@@ -62,7 +62,7 @@ Step by step: [Applying rules]({{ '/docs/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
-Nineteen message kinds, declared as Go structs on both sides. Adding an operation
+Twenty message kinds, declared as Go structs on both sides. Adding an operation
 means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
@@ -75,6 +75,7 @@ whole protocol was.
 |---|---|
 | `GET_RULES` · `SAVE_RULES` | read all three sets · write **Staged** |
 | `APPLY_RULES` · `ACCEPT` | promote Staged and start the timer · confirm |
+| `CANCEL_ACCEPTANCE` | end the open window now, without waiting out the timeout |
 | `GET_OPTIONS` · `SAVE_OPTIONS` | protection modules |
 | `GET_SETTINGS` · `SAVE_SETTINGS` | IPv6 and Docker |
 | `GET_SYSTEM` · `SAVE_SYSTEM` | acceptance window |

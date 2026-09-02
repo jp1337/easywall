@@ -2510,6 +2510,25 @@ body {
     color: var(--color-state-crit-on-wash);
   }
 
+  /* DESIGN.md's countdown role: 40/300 JetBrains Mono with tnum, state-warn on
+     surface. The largest type in the system, because this is the most
+     consequential screen in the product. tnum is load-bearing — without it the
+     block jitters horizontally once a second, which is the one motion in this
+     interface that would mean nothing. */
+  .countdown {
+    font-family: var(--font-data);
+    font-size: 40px;
+    font-weight: 300;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-state-warn);
+  }
+
+  /* Two "still happening" indicators side by side is one too many, and the
+     digits say it more precisely. DESIGN.md's Motion section permits both
+     loops; permitting is not requiring. Amended in 2.14. */
+  .status-dot.pending.static::before { animation: none; }
+
   /* ── Validation results ───────────────────────────────────────────────────
      The per-line list inside a validation alert. Was four Tailwind utilities
      repeated at each call site; it is one thing, so it is one class. */
@@ -2752,6 +2771,39 @@ body {
 
   @media (max-width: 1100px) {
     .demo-chip-text { display: none; }
+  }
+
+  /* ── Acceptance chip ──────────────────────────────────────────────────────
+     Follows the operator to every page but /apply, which carries the same
+     clock at 40px — two clocks side by side make neither of them important.
+     Same pill shape as .demo-chip beside it; state-warn instead of neutral,
+     because unlike the demo notice this one is telling you something is
+     about to happen. */
+  .apply-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 9px 2px 7px;
+    border: 1px solid var(--color-state-warn);
+    border-radius: var(--radius-full, 9999px);
+    color: var(--color-state-warn-on-wash);
+    text-decoration: none;
+    transition: border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  /* data-sm: 11/400 mono with tnum, the role DESIGN.md assigns to chips,
+     timestamps and counters. tnum for the same reason .countdown needs it — a
+     chip that changes width once a second is motion that means nothing. */
+  .apply-chip-time {
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The label is the first thing to go on a narrow topbar; the number and the
+     dot are the information. */
+  @media (max-width: 640px) {
+    .apply-chip-label { display: none; }
   }
 
   /* ── Update banner ─────────────────────────────────────────────────────── */

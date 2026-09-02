@@ -131,6 +131,26 @@ func (c *CoreClient) Accept() (bool, error) {
 	return result.Accepted, nil
 }
 
+// CancelAcceptance rolls the open window back now. The bool reports whether a
+// window was actually open: false means the rollback came too late and the
+// previous rules had already been restored by the timeout.
+func (c *CoreClient) CancelAcceptance() (bool, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdCancelAcceptance})
+	if err != nil {
+		return false, err
+	}
+	if !resp.Success {
+		return false, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var result shared.CancelResult
+	if len(resp.Data) > 0 {
+		if err := json.Unmarshal(resp.Data, &result); err != nil {
+			return false, fmt.Errorf("decode cancel result: %w", err)
+		}
+	}
+	return result.Cancelled, nil
+}
+
 // Panic takes the firewall down through the core. The web interface does not
 // offer this — `easywall-core panic` is the console tool — but the demo needs a
 // way to reach the state, and a client method that exists is easier to keep

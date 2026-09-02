@@ -461,4 +461,20 @@ type FirewallStatus struct {
 	// because only the core knows where its data directory is — the two may be
 	// configured apart — and because the interface has to show it on every page.
 	Panic bool `json:"panic"`
+	// AcceptanceRemaining is whole seconds left in the open window, 0 when none
+	// is open.
+	//
+	// Relative rather than an absolute instant, on purpose. An absolute deadline
+	// is read against the browser's clock, and the machines a firewall is
+	// administered from are exactly the ones whose clocks drift — a Pi with no
+	// RTC, a laptop that just changed timezone, a VPN client. A relative count
+	// cannot be wrong about a clock it never crosses. The browser ticks locally
+	// between polls and takes this number as the correction on each one.
+	AcceptanceRemaining int `json:"acceptance_remaining"`
+	// AcceptanceReason is why the window ended, empty while one is open or when
+	// none has run. It exists because "rolled back" is one status for two very
+	// different events, and the interface said "the window closed without a
+	// confirmation" to an operator who had just ended it by hand — on the screen
+	// whose whole argument is that it says what is true.
+	AcceptanceReason string `json:"acceptance_reason"`
 }

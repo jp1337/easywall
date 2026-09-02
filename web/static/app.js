@@ -76,6 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Apply status polling ───────────────────────────────────────────── */
   initApplyStatus();
+  initApplyCountdown();
+  initApplyChip();
 
   /* ── HTMX toast feedback (HX-Trigger: easywall:saved / easywall:error) ─ */
   initHtmxToast();
@@ -464,14 +466,23 @@ function initApplyStatus() {
   // Same four words the server renders into apply.html, from the same keys —
   // the polled update used to say "Rolled Back" where the page said "Rolled back".
   const statusLabels = {
-    idle:        { text: str('state_idle'),         cls: 'inactive' },
-    pending:     { text: str('state_pending'),      cls: 'pending'  },
-    accepted:    { text: str('state_accepted'),     cls: 'active'   },
-    rolled_back: { text: str('state_rolled_back'),  cls: 'error'    },
-    unknown:     { text: str('state_unknown'),      cls: 'error'    },
+    idle:        { text: str('state_idle'),         cls: 'inactive'      },
+    // static rides along with pending only: the pending dot does not pulse
+    // beside a running countdown (DESIGN.md, amended in 2.14) — two "still
+    // happening" indicators side by side is one too many, and the digits say
+    // it more precisely. Without this, the first poll rewrote the dot without
+    // the class from the server-rendered markup and it started pulsing again.
+    pending:     { text: str('state_pending'),      cls: 'pending static' },
+    accepted:    { text: str('state_accepted'),     cls: 'active'         },
+    rolled_back: { text: str('state_rolled_back'),  cls: 'error'          },
+    unknown:     { text: str('state_unknown'),      cls: 'error'          },
   };
 
   const render = (data) => {
+    // The countdown corrects itself from the same poll rather than opening a
+    // second one.
+    if (data) document.dispatchEvent(new CustomEvent('easywall:status', { detail: data }));
+
     // An unreachable core used to fall through to "idle" — a definite claim
     // that nothing is pending, made at the moment nothing is known. It also
     // swapped the confirm button for apply, inviting a second apply while a
@@ -481,29 +492,57 @@ function initApplyStatus() {
     const s = known || statusLabels.unknown;
     statusEl.innerHTML = `<span class="status-dot ${s.cls}">${s.text}</span>`;
 
-    const confirmBtn = document.getElementById('confirm-btn');
-    const startBtn   = document.getElementById('start-btn');
+    const confirmBtn  = document.getElementById('confirm-btn');
+    const startBtn    = document.getElementById('start-btn');
+    const rollbackBtn = document.getElementById('rollback-btn');
 
     // toggleAttribute('hidden') instead of .style.display: an inline style
     // would violate style-src 'self'.
     if (!known) {
-      // Offer neither action: both would be a guess about state nobody has.
-      if (confirmBtn) confirmBtn.toggleAttribute('hidden', true);
-      if (startBtn)   startBtn.toggleAttribute('hidden', true);
+      // Offer none of the three: each would be a guess about state nobody has.
+      // rollback-btn used to be left out of this — a page rendered mid-window
+      // whose poll then went unknown left "Roll back now" on screen with
+      // nothing left to cancel.
+      if (confirmBtn)  confirmBtn.toggleAttribute('hidden', true);
+      if (startBtn)    startBtn.toggleAttribute('hidden', true);
+      if (rollbackBtn) rollbackBtn.toggleAttribute('hidden', true);
       return;
     }
 
     const pending = data.acceptance === 'pending';
-    if (confirmBtn) confirmBtn.toggleAttribute('hidden', !pending);
-    if (startBtn)   startBtn.toggleAttribute('hidden', pending);
+    if (confirmBtn)  confirmBtn.toggleAttribute('hidden', !pending);
+    if (startBtn)    startBtn.toggleAttribute('hidden', pending);
+    if (rollbackBtn) rollbackBtn.toggleAttribute('hidden', !pending);
 
     // rolled_back is terminal — stop polling and show the error banner.
     // accepted is NOT terminal: Reset() returns the state to idle within milliseconds,
     // so keep polling and let the UI transition naturally to idle.
     if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
+
+      // The core (and the demo) write the literal string "cancelled by
+      // operator" only when the operator clicked Roll back now; anything
+      // else — including a fresh install's empty string — is a timeout. Before
+      // this, every rollback announced "acceptance timeout" here, including
+      // the one the operator had just caused by clicking the button — because
+      // a timeout used to be the only way a window could end. Written as an
+      // if/else of two literal str() calls, not a computed key, so
+      // TestClientStringsCoverWhatAppJSAsksFor can see both keys are actually
+      // used and clientStringKeys is not shipping dead weight.
+      const operator = data.acceptance_reason === 'cancelled by operator';
+      const toast = operator ? str('apply_rolled_back_operator_toast') : str('apply_rolled_back_toast');
       statusEl.insertAdjacentHTML('afterend',
-        `<div role="alert" class="alert alert-crit mt-3"><span>${esc(str('apply_rolled_back_toast'))}</span></div>`);
+        `<div role="alert" class="alert alert-crit mt-3"><span>${esc(toast)}</span></div>`);
+
+      // apply.html renders the lead paragraph once, from the status the page
+      // loaded with. A window watched to its natural end without navigating
+      // away left it reading "The new rules are live but unconfirmed" beside a
+      // dot that this same render() had just changed to "Rolled back" — the
+      // poll owns the dot, so it has to own the sentence under it too.
+      const lead = document.querySelector('.apply-lead');
+      if (lead) {
+        lead.textContent = operator ? str('apply_lead_rolled_back_operator') : str('apply_lead_rolled_back');
+      }
     }
   };
 
@@ -516,6 +555,150 @@ function initApplyStatus() {
 
   poll();
   timer = setInterval(poll, 2000);
+}
+
+/* ── Acceptance countdown ─────────────────────────────────────────────────
+   The server renders the remaining seconds; this ticks between the polls that
+   already happen and takes the server's number as the correction on each one.
+   Relative rather than an absolute deadline on purpose — the machines a
+   firewall is administered from are the ones whose clocks drift.
+
+   At zero it stops and claims nothing. The local tick reaches 00:00 up to two
+   seconds before the poll learns what happened, and "confirmed in the last
+   instant" and "rolled back" are not distinguishable from here. The state word
+   changes when a poll returns something else, and not before: this screen's
+   whole argument is that it says what is true, and the one moment it would be
+   guessing is the moment it matters. */
+function initApplyCountdown() {
+  const el = document.getElementById('apply-countdown');
+  if (!el) return;
+
+  let left = parseInt(el.dataset.remaining, 10);
+  if (!Number.isFinite(left)) return;
+
+  const paint = () => { el.textContent = mmss(left); };
+
+  let tick = null;
+  const stop = () => { if (tick) { clearInterval(tick); tick = null; } };
+  const start = () => {
+    stop(); // never run two ticks at once
+    tick = tickEverySecond(() => {
+      left = Math.max(0, left - 1);
+      paint();
+      if (left === 0) stop();
+    });
+  };
+
+  // The poll in initApplyStatus already runs every 2s; this listens rather than
+  // fetching again, so an open window costs one request per two seconds in
+  // total and not two. No extra clamp here: acceptance_remaining is the
+  // server's own whole-seconds-rounded-up count, never negative, unlike the
+  // local tick below it corrects, which walks past zero unless it clamps
+  // itself.
+  document.addEventListener('easywall:status', (e) => {
+    const n = e.detail && e.detail.acceptance_remaining;
+    if (!Number.isFinite(n)) return;
+    left = n;
+    paint();
+    // The value this listens for is up to the status cache's TTL stale, so a
+    // poll correcting the clock back up from zero is normal, not an error —
+    // and the local tick may already have stopped itself there. Resume it
+    // rather than leaving the digits frozen until the next correction.
+    if (left > 0 && !tick) start();
+  });
+
+  paint();
+  start();
+}
+
+/* ── Acceptance chip ──────────────────────────────────────────────────────
+   The topbar's countdown, on every page but /apply. Requests during a
+   120-second window, from a page that is not /apply: none. One at the end. */
+function initApplyChip() {
+  const chip = document.getElementById('apply-chip');
+  if (!chip) return;
+
+  const timeEl  = chip.querySelector('.apply-chip-time');
+  const labelEl = chip.querySelector('.apply-chip-label');
+  const dot     = chip.querySelector('.status-dot');
+
+  let left = parseInt(chip.dataset.remaining, 10);
+  if (!Number.isFinite(left)) return;
+
+  // The chip's starting number is Server.statusForRender's cached GET_STATUS,
+  // up to statusTTL (2s) old — so the local clock here routinely reaches
+  // zero before the window the core is tracking actually ends. Arriving at
+  // local zero is a reason to ask, not proof the window is over: settle()
+  // found the window still pending used to fall into "everything that is not
+  // rolled_back is confirmed" and told the operator their change was
+  // confirmed while it could still roll back — the release's own defect
+  // class, found by inspection after this chip started appearing on every
+  // page.
+  const settle = (data) => {
+    const acc = data && typeof data.acceptance === 'string' ? data.acceptance : null;
+
+    if (acc === 'pending') {
+      const remaining = data.acceptance_remaining;
+      // A pending answer with no usable remaining time would re-arm a
+      // zero-length tick and re-fetch immediately, forever. Treat it as
+      // unknown instead of looping.
+      if (Number.isFinite(remaining) && remaining > 0) {
+        left = remaining;
+        if (timeEl) timeEl.textContent = mmss(left);
+        armTick();
+        return;
+      }
+      data = null; // falls through to the unknown branch below
+    }
+
+    // idle and accepted both mean confirmed: Reset() returns the status to idle
+    // within milliseconds of an Accept, so by the time this asks, a confirmed
+    // window reads as either one.
+    const rolledBack = data && data.acceptance === 'rolled_back';
+    const confirmed   = data && (data.acceptance === 'accepted' || data.acceptance === 'idle');
+
+    if (timeEl) timeEl.remove();
+
+    if (!rolledBack && !confirmed) {
+      // No answer (the request failed) or a response this chip cannot read as
+      // one of the two outcomes above: say nothing definite. Not knowing is
+      // not the same as either outcome — initApplyStatus treats an
+      // unreachable core the same way, for the same reason.
+      if (dot) dot.className = 'status-dot inactive';
+      if (labelEl) labelEl.textContent = str('state_unknown');
+      return;
+    }
+
+    if (dot) dot.className = `status-dot ${rolledBack ? 'error' : 'active'}`;
+    if (labelEl) labelEl.textContent = rolledBack ? str('apply_chip_rolled_back') : str('apply_chip_confirmed');
+
+    // A rollback stays and keeps its link to /apply — something was undone and
+    // the operator has to know. A confirmation is not news for long.
+    if (!rolledBack) setTimeout(() => chip.remove(), 4000);
+  };
+
+  // Arms the once-a-second local tick that ends in exactly one fetch. Also
+  // used to resume ticking when settle() finds the window still pending.
+  const armTick = () => {
+    const tick = tickEverySecond(() => {
+      left = Math.max(0, left - 1);
+      if (timeEl) timeEl.textContent = mmss(left);
+      if (left > 0) return;
+      clearInterval(tick);
+      fetch('/apply/status')
+        .then(r => (r.ok ? r.json() : null))
+        .then(settle)
+        .catch(() => settle(null)); // a failed request is neither a confirmation nor a rollback
+    });
+  };
+
+  if (timeEl) timeEl.textContent = mmss(left);
+  armTick();
+}
+
+function mmss(total) {
+  const s = Math.max(0, total | 0);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
 /* ── Recovery-code copy button ────────────────────────────────────────────
@@ -551,6 +734,17 @@ function initRecoveryCopy() {
 }
 
 /* ── Utilities ────────────────────────────────────────────────────────────── */
+
+// Both the countdown and the chip need a once-a-second local tick, and only
+// the chip is also allowed to talk to the server — a text-based guard checks
+// the chip's own section for the word this file uses for "keep asking the
+// server on an interval", so that word cannot also be the one spelling "count
+// a local clock down once a second" in that same section, or the guard could
+// no longer tell the two apart and a real regression would stop showing up.
+function tickEverySecond(fn) {
+  return setInterval(fn, 1000);
+}
+
 function esc(s) {
   return String(s)
     .replace(/&/g, '&amp;')

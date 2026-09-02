@@ -34,9 +34,23 @@ type demoState struct {
 	acceptance shared.AcceptanceStatus
 	lastApply  string // RFC3339, empty when never applied
 
+	// acceptanceReason is why the last window ended — "timeout" or "cancelled
+	// by operator" — mirroring core.Acceptance.reason. Without it the demo
+	// answered acceptance_reason as empty always, which is the same false
+	// green docs-tech/protocol.md's "Adding a command" step 3 warns about: a
+	// demo client that answers without acting on the field the real core now
+	// fills in.
+	acceptanceReason string
+
 	// Pending acceptance timer; if it fires before CmdAccept arrives,
 	// state rolls back to .Backup and acceptance becomes "rolled_back".
 	acceptanceTimer *time.Timer
+
+	// acceptanceDeadline is when acceptanceTimer fires. time.Timer does not
+	// expose that, and the demo has to answer FirewallStatus.AcceptanceRemaining
+	// the way the core does — the public deployment is where most people ever
+	// see the window run.
+	acceptanceDeadline time.Time
 
 	// User identity recorded in audit log entries — overridable but
 	// "demo" by default since we don't have a real session here.
@@ -277,6 +291,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handleApplyRules()
 	case shared.CmdAccept:
 		return d.handleAccept()
+	case shared.CmdCancelAcceptance:
+		return d.handleCancelAcceptance()
 	case shared.CmdGetOptions:
 		return demoOK(d.options)
 	case shared.CmdSaveOptions:
@@ -356,12 +372,38 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 		// this mock has and Active follows its negation the same way the rest
 		// of this struct's derived fields (HasPending) follow the state
 		// underneath them rather than being tracked independently.
-		Active:     !d.panicMode,
-		Panic:      d.panicMode,
-		Acceptance: d.acceptance,
-		HasPending: d.hasPendingLocked(),
-		LastApply:  d.lastApply,
+		Active:              !d.panicMode,
+		Panic:               d.panicMode,
+		Acceptance:          d.acceptance,
+		HasPending:          d.hasPendingLocked(),
+		LastApply:           d.lastApply,
+		AcceptanceRemaining: d.acceptanceRemainingLocked(),
+		AcceptanceReason:    d.acceptanceReasonLocked(),
 	}
+}
+
+// acceptanceReasonLocked mirrors core.Firewall.Status: the reason is only
+// meaningful once a window has ended, so it is withheld while one is still
+// open or before any has ever run — matching shared.FirewallStatus's own doc
+// comment. Caller holds d.mu.
+func (d *demoState) acceptanceReasonLocked() string {
+	if d.acceptance != shared.AcceptanceRolledBack {
+		return ""
+	}
+	return d.acceptanceReason
+}
+
+// acceptanceRemainingLocked mirrors core.Firewall.Status: whole seconds, rounded
+// up, zero when no window is open. Caller holds d.mu.
+func (d *demoState) acceptanceRemainingLocked() int {
+	if d.acceptance != shared.AcceptancePending {
+		return 0
+	}
+	left := time.Until(d.acceptanceDeadline)
+	if left <= 0 {
+		return 0
+	}
+	return int((left + time.Second - 1) / time.Second)
 }
 
 // audit appends a newest-first entry to the log, capped at 200 to mirror
@@ -479,6 +521,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 	if d.acceptanceTimer != nil {
 		d.acceptanceTimer.Stop()
 		d.acceptanceTimer = nil
+		d.acceptanceDeadline = time.Time{}
 	}
 
 	// Snapshot the current rules as backup; promote staged → current.
@@ -502,6 +545,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 		d.audit("apply_started", "all", "")
 		d.acceptance = shared.AcceptancePending
 		dur := time.Duration(d.system.Acceptance.Duration) * time.Second
+		d.acceptanceDeadline = time.Now().Add(dur)
 		d.acceptanceTimer = time.AfterFunc(dur, d.rollback)
 	} else {
 		d.audit("apply_started", "all", "acceptance window disabled — applied without confirmation")
@@ -527,6 +571,7 @@ func (d *demoState) handleAccept() shared.Response {
 	if d.acceptanceTimer != nil {
 		d.acceptanceTimer.Stop()
 		d.acceptanceTimer = nil
+		d.acceptanceDeadline = time.Time{}
 	}
 	// Confirmation is what makes an apply final, so this is where the log records
 	// it and where the dashboard's "last apply" is stamped.
@@ -537,19 +582,65 @@ func (d *demoState) handleAccept() shared.Response {
 	return demoOK(shared.AcceptResult{Accepted: true})
 }
 
+// handleCancelAcceptance is the operator asking for the rollback now. It runs
+// the demo's own rollback rather than a second copy of it, so the audit line,
+// the restored rule set and the status all match what a timeout produces —
+// which is the point: it is the same outcome, reached sooner.
+//
+// A demo client that silently does nothing is how the validation false-green
+// happened; docs-tech/protocol.md's "Adding a command" says so in step 3.
+//
+// Called from Send's dispatch switch, which already holds d.mu — unlike
+// rollback below, this must not lock again: sync.Mutex is not reentrant, and a
+// second Lock() from the same goroutine that holds the first blocks forever
+// rather than failing loudly.
+func (d *demoState) handleCancelAcceptance() shared.Response {
+	if d.acceptance != shared.AcceptancePending {
+		return demoOK(shared.CancelResult{Cancelled: false})
+	}
+	if d.acceptanceTimer != nil {
+		d.acceptanceTimer.Stop()
+		d.acceptanceTimer = nil
+	}
+	d.rollbackWithDetail("cancelled by operator")
+	return demoOK(shared.CancelResult{Cancelled: true})
+}
+
 // rollback fires from a time.AfterFunc when the acceptance window expires
 // without an Accept. It must lock independently because it runs on its own
 // goroutine.
 func (d *demoState) rollback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	// The timer may already have fired and be waiting on d.mu while an operator
+	// rollback ran under Send's lock. Without this it writes a second
+	// apply_rolledback, detail "timeout", for a window that was already ended by
+	// hand — one event, two entries, the second untrue. The same race exists
+	// against handleAccept, which this guard covers too.
+	if d.acceptance != shared.AcceptancePending {
+		return
+	}
+	d.rollbackWithDetail("timeout")
+}
+
+// rollbackWithDetail restores the previous rules and records why. The two
+// reasons — the window expiring and the operator asking — are one outcome and
+// one audit action; only the detail differs.
+//
+// Callers must already hold d.mu: rollback (above) takes it before calling in,
+// since it runs on its own goroutine; handleCancelAcceptance runs under the
+// lock Send already holds and calls straight in without a second Lock().
+func (d *demoState) rollbackWithDetail(detail string) {
 	d.rules.Current = d.rules.Backup
 	// The rules just reverted; record the configuration alongside them for the
 	// same reason Firewall.rollback does.
 	d.appliedConfig = shared.AppliedConfig{Firewall: d.options, Network: d.settings}
 	d.acceptance = shared.AcceptanceRolledBack
-	d.audit("apply_rolledback", "all", "timeout") // the token the real core writes
+	d.acceptanceReason = detail
+	d.audit("apply_rolledback", "all", detail) // the tokens the real core writes
 	d.acceptanceTimer = nil
+	d.acceptanceDeadline = time.Time{}
 }
 
 // delayedReset matches the real core's behavior: after Accept, the status

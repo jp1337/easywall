@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -695,5 +697,170 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 	}
 	if fw.Status().HasPending {
 		t.Error("a rollback that just recorded its own configuration still reports a pending change")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Task 11: apply's window, against a real kernel
+// ---------------------------------------------------------------------------
+
+// The window is open while the kernel holds the rules, not only after the
+// bookkeeping finishes. Asserted from the outside — Status() is what the
+// interface reads — so it survives a refactor of apply's internals.
+//
+// With a stub NftablesManager this cannot be exercised at all: nft.Apply
+// fails immediately and the code never reaches the kernel-write step whose
+// ordering relative to acceptance.Start is exactly what this test is about.
+func TestIntegration_TheWindowIsOpenWhileTheRulesAreLive(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	fw.cfg.Acceptance.Duration = 3
+
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "8443"}}); err != nil {
+		t.Fatalf("SaveStaged: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fw.apply("test") }()
+
+	// The moment the kernel is enforcing, the status must already say pending.
+	//
+	// Polled as fast as the scheduler allows, with no sleep between samples:
+	// the gap this test is watching for — between nft.Apply returning and
+	// acceptance.Start being called — is a handful of instructions, not
+	// milliseconds. A 10ms poll interval missed it on roughly a third of runs
+	// against the mutation that reintroduces the gap (moving Start below
+	// nft.Apply); tightening the loop rather than the assertion is what the
+	// brief for this task calls for.
+	deadline := time.Now().Add(2 * time.Second)
+	sawEnforcingWithoutAWindow := false
+	for time.Now().Before(deadline) {
+		s := fw.Status()
+		if s.Active && s.Acceptance != shared.AcceptancePending {
+			sawEnforcingWithoutAWindow = true
+			break
+		}
+		if s.Acceptance == shared.AcceptancePending {
+			if s.AcceptanceRemaining <= 0 || s.AcceptanceRemaining > 3 {
+				t.Errorf("AcceptanceRemaining in a 3s window = %d, want 1..3", s.AcceptanceRemaining)
+			}
+			break
+		}
+		runtime.Gosched()
+	}
+	if sawEnforcingWithoutAWindow {
+		t.Error("the kernel was enforcing while Status() reported no acceptance window; " +
+			"unconfirmed rules were live and the interface showed nothing")
+	}
+
+	fw.acceptance.Cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+}
+
+// An earlier review found that an operator rollback would write two
+// apply_rolledback audit lines — one from apply's own !accepted branch,
+// which unconditionally read the literal "timeout", and a second the fix
+// added without removing the first. That could not be caught by a unit test:
+// every unit-test Firewall holds an NftablesManager with a nil connection, so
+// nft.Apply fails before apply ever reaches Wait(), and the whole
+// Reason()-wiring this test exists for never runs. It also confirms the
+// rollback actually reaches the kernel, not only the state files.
+func TestIntegration_OperatorRollbackRestoresTheKernel(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	fw.cfg.Acceptance.Duration = 30
+
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "8443"}}); err != nil {
+		t.Fatalf("SaveStaged: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- fw.apply("test") }()
+
+	waitForAcceptance(t, fw, shared.AcceptancePending)
+
+	if !fw.Rollback() {
+		t.Fatal("Rollback found no open window")
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	// The port that was rolled back must not be in the kernel.
+	if rs := ruleset(t); strings.Contains(rs, "8443") {
+		t.Error("the rolled-back port is still in the kernel ruleset")
+	}
+
+	// The one assertion this task exists for: exactly one apply_rolledback
+	// entry for this rollback, and its detail names the operator, not a
+	// timeout that never happened.
+	entries, err := readAuditLog(fw.cfg.AuditLogPath(), 200)
+	if err != nil {
+		t.Fatalf("readAuditLog: %v", err)
+	}
+	var rolledBack []shared.AuditLogEntry
+	for _, e := range entries {
+		if e.Action == "apply_rolledback" {
+			rolledBack = append(rolledBack, e)
+		}
+	}
+	if len(rolledBack) != 1 {
+		t.Fatalf("got %d apply_rolledback entries, want exactly 1: %+v", len(rolledBack), rolledBack)
+	}
+	if rolledBack[0].Detail != "cancelled by operator" {
+		t.Errorf("apply_rolledback detail = %q, want %q", rolledBack[0].Detail, "cancelled by operator")
+	}
+}
+
+// A stop during the gap before the window opens — the rules read, the backup
+// write, the nft snapshot subprocess, the promote, all of which run before
+// acceptance.Start — must not hold shutdown either. CancelForShutdown's
+// "stopping" latch exists exactly for this race: without it, a Stop that
+// arrives before Start has run is silently discarded, the window then opens
+// for its full length, and Stop sits behind Wait() until systemd's
+// TimeoutStopSec kills the process with the unconfirmed rules still live.
+//
+// Unlike TestIntegration_StopDuringAnOpenWindowRollsBack, Stop is called
+// immediately after dispatch rather than after waiting for the window to
+// open — that gap before Start is exactly what this test is racing against.
+func TestIntegration_StopDuringTheGapBeforeTheWindowOpens(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	fw.cfg.Acceptance.Duration = 3600 // long enough that only the shutdown latch can end it
+
+	d := &Daemon{cfg: fw.cfg, firewall: fw, quit: make(chan struct{})}
+
+	// Stage a change so a rollback has something visible to undo.
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "4712"}}); err != nil {
+		t.Fatalf("SaveStaged: %v", err)
+	}
+
+	resp := d.dispatch(shared.Command{Type: shared.CmdApplyRules})
+	if !resp.Success {
+		t.Fatalf("apply was not started: %s", resp.Error)
+	}
+
+	// No wait for the window here, deliberately: Stop must win the race
+	// against apply even when it arrives before Start has run at all.
+	stopped := make(chan struct{})
+	go func() { d.Stop(); close(stopped) }()
+
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop took more than 10s. It cancelled a window that had not opened yet, the " +
+			"cancel was discarded, and it then waited out the full window — past systemd's " +
+			"TimeoutStopSec, after which SIGKILL leaves the unconfirmed rules live")
+	}
+
+	// The effect, not the transient status: the unconfirmed rule must not
+	// have survived, whether Stop won the race before Start or after.
+	state, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatalf("GetState: %v", err)
+	}
+	for _, r := range state.Current.TCP {
+		if r.Port == "4712" {
+			t.Error("the unconfirmed rule is still current; Stop did not roll it back")
+		}
 	}
 }

@@ -246,6 +246,20 @@ was never applied. It is configured through the `meta[name=htmx-config]` tag now
 found by tightening `style-src`, which surfaced the inline `<style>` block htmx had
 been injecting unnoticed.
 
+## Why the rollback button exists and the panic banner has no control
+
+Two refusals that look alike and are not.
+
+| | Panic banner | Rollback button |
+|---|---|---|
+| Direction | would **re-arm** a firewall a human disarmed at the console | **restores** the last confirmed rule set |
+| What a stolen session gains | the ability to undo a deliberate teardown | nothing — waiting 120 seconds reaches the same state |
+| Therefore | no control on the network-facing side; `easywall-core resume` at the console | `POST /apply/rollback`, session-authenticated like every other write |
+
+The button grants no capability. It saves the wait. Anything that could reach it
+could reach the identical outcome by doing nothing, which is why this is not the
+panic button pointed the other way.
+
 ## What is not defended
 
 - A compromised root account. Root owns the core.

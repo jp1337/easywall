@@ -38,6 +38,10 @@
   {"id": "panic_banner_title", "translation": "Notfallmodus: Diese Maschine wird nicht gefiltert"},
   {"id": "panic_banner_body",  "translation": "Die Firewall wurde über die Konsole abgeschaltet und bleibt es auch nach einem Neustart. Auf der Maschine ausführen, um die Regeln zurückzuholen:"},
 
+  {"id": "apply_chip_unconfirmed", "translation": "unbestätigt"},
+  {"id": "apply_chip_confirmed", "translation": "Bestätigt"},
+  {"id": "apply_chip_rolled_back", "translation": "Zurückgenommen"},
+
   {"id": "firstrun_title",         "translation": "Willkommen bei easywall"},
   {"id": "firstrun_subtitle",      "translation": "Konto einrichten und festlegen, wie dieser Host startet"},
   {"id": "firstrun_username",      "translation": "Benutzername"},
@@ -132,6 +136,8 @@
   {"id": "apply_confirm",    "translation": "Bestätigen — Regeln funktionieren"},
   {"id": "apply_waiting",    "translation": "Warte auf Bestätigung…"},
   {"id": "apply_rollback",   "translation": "Regeln werden automatisch zurückgesetzt, wenn nicht bestätigt."},
+  {"id": "apply_rollback_now", "translation": "Jetzt zurücknehmen"},
+  {"id": "apply_live_title", "translation": "Jetzt aktiv — unbestätigt"},
 
   {"id": "save",             "translation": "Speichern"},
   {"id": "cancel",           "translation": "Abbrechen"},
@@ -156,6 +162,9 @@
   {"id": "accept_error",         "translation": "Bestätigung fehlgeschlagen."},
   {"id": "rules_accepted",       "translation": "Regeln erfolgreich bestätigt und angewendet."},
   {"id": "accept_too_late",      "translation": "Zu spät — das Bestätigungsfenster war schon zu, die vorherigen Regeln sind zurück. Deine Änderungen sind weiterhin vorgemerkt und können erneut angewendet werden."},
+  {"id": "rules_rolled_back",    "translation": "Die Regeln wurden zurückgenommen. Der zuletzt bestätigte Satz ist wieder aktiv."},
+  {"id": "rollback_too_late",    "translation": "Das Fenster war bereits geschlossen, es wurde nichts zurückgenommen — die vorherigen Regeln sind von selbst zurückgekehrt."},
+  {"id": "rollback_error",       "translation": "Die Rücknahme konnte nicht an den Kern gesendet werden."},
   {"id": "export_error",         "translation": "Export fehlgeschlagen."},
   {"id": "import_no_file",       "translation": "Keine Datei hochgeladen."},
   {"id": "import_read_error",    "translation": "Datei konnte nicht gelesen werden."},
@@ -436,6 +445,7 @@
   {"id": "apply_lead_pending", "translation": "Die neuen Regeln sind aktiv, aber unbestätigt. Eine zweite Verbindung öffnen und prüfen, ob dieser Host noch erreichbar ist — dann bestätigen."},
   {"id": "apply_lead_accepted", "translation": "Die Regeln sind bestätigt und bleiben in Kraft."},
   {"id": "apply_lead_rolled_back", "translation": "Das Fenster lief ohne Bestätigung ab, also wurden die vorherigen Regeln wiederhergestellt. Nichts Vorgemerktes ist verloren — prüfen und erneut anwenden."},
+  {"id": "apply_lead_rolled_back_operator", "translation": "Du hast die Änderung zurückgenommen, die vorherigen Regeln sind wieder aktiv. Nichts Vorgemerktes ist verloren — prüfen und erneut anwenden."},
   {"id": "apply_lead_staged", "translation": "Es gibt vorgemerkte Änderungen, die die laufende Firewall noch nicht hat."},
   {"id": "apply_lead_clean", "translation": "Die laufende Firewall entspricht dem Vorgemerkten. Es gibt nichts anzuwenden."},
   {"id": "apply_confirm_action", "translation": "Regeln bestätigen"},
@@ -443,6 +453,7 @@
   {"id": "apply_nothing_staged", "translation": "Nichts vorgemerkt zum Anwenden"},
   {"id": "apply_staged_warning", "translation": "Vorgemerkte Änderungen warten. Sie wirken erst, wenn sie angewendet werden."},
   {"id": "apply_rolled_back_toast", "translation": "Regeln wurden zurückgenommen — Bestätigungsfenster abgelaufen."},
+  {"id": "apply_rolled_back_operator_toast", "translation": "Die Regeln wurden auf deinen Wunsch zurückgenommen."},
   {"id": "apply_how_title", "translation": "Wie das Anwenden abläuft"},
   {"id": "apply_step1_title", "translation": "Regeln werden aktiv"},
   {"id": "apply_step1_desc", "translation": "Der vorgemerkte Satz geht sofort an den Kernel und beginnt zu filtern."},
@@ -547,6 +558,7 @@
   {"id": "validate_unavailable", "translation": "Die Live-Prüfung läuft nicht — der Core-Dienst ist offline. Fehler zeigen sich beim Speichern."},
 
   {"id": "audit_detail_timeout", "translation": "Bestätigungsfenster abgelaufen"},
+  {"id": "audit_detail_cancelled_by_operator", "translation": "Vom Betreiber zurückgenommen"},
   {"id": "audit_detail_via_proxy", "translation": "über Proxy"},
 
   {"id": "og_description", "translation": "Linux-Firewall-Verwaltung mit Weboberfläche. Go, nftables, Sicherheit zuerst."}
