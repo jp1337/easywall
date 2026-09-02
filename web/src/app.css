@@ -2773,6 +2773,39 @@ body {
     .demo-chip-text { display: none; }
   }
 
+  /* ── Acceptance chip ──────────────────────────────────────────────────────
+     Follows the operator to every page but /apply, which carries the same
+     clock at 40px — two clocks side by side make neither of them important.
+     Same pill shape as .demo-chip beside it; state-warn instead of neutral,
+     because unlike the demo notice this one is telling you something is
+     about to happen. */
+  .apply-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 2px 9px 2px 7px;
+    border: 1px solid var(--color-state-warn);
+    border-radius: var(--radius-full, 9999px);
+    color: var(--color-state-warn-on-wash);
+    text-decoration: none;
+    transition: border-color var(--motion-fast) var(--motion-ease);
+  }
+
+  /* data-sm: 11/400 mono with tnum, the role DESIGN.md assigns to chips,
+     timestamps and counters. tnum for the same reason .countdown needs it — a
+     chip that changes width once a second is motion that means nothing. */
+  .apply-chip-time {
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The label is the first thing to go on a narrow topbar; the number and the
+     dot are the information. */
+  @media (max-width: 640px) {
+    .apply-chip-label { display: none; }
+  }
+
   /* ── Update banner ─────────────────────────────────────────────────────── */
   .update-banner {
     display: flex;

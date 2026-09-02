@@ -38,6 +38,10 @@
   {"id": "panic_banner_title", "translation": "Panic mode: this machine is not filtered"},
   {"id": "panic_banner_body",  "translation": "The firewall was taken down from the console and stays down across a restart. Run this on the machine to put your rules back:"},
 
+  {"id": "apply_chip_unconfirmed", "translation": "unconfirmed"},
+  {"id": "apply_chip_confirmed", "translation": "Confirmed"},
+  {"id": "apply_chip_rolled_back", "translation": "Rolled back"},
+
   {"id": "firstrun_title",         "translation": "Welcome to easywall"},
   {"id": "firstrun_subtitle",      "translation": "Set up your account, and how this host starts out"},
   {"id": "firstrun_username",      "translation": "Username"},

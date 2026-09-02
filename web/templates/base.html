@@ -221,6 +221,18 @@
     <span class="demo-chip-text">{{T "demo_notice"}}</span>
   </span>
   {{end}}
+  {{/* Hidden on /apply, which carries the clock at 40px: two clocks side by
+       side make neither of them important. The server renders the remaining
+       seconds; the browser ticks locally and makes exactly one request, at
+       zero, to learn which way it ended. A window that is not this page's
+       costs no polling at all. */}}
+  {{if and .AcceptancePending (ne .Page "apply")}}
+  <a href="/apply" class="apply-chip" id="apply-chip" data-remaining="{{.AcceptanceRemaining}}">
+    <span class="status-dot pending static" aria-hidden="true"></span>
+    <span class="apply-chip-time">{{mmss .AcceptanceRemaining}}</span>
+    <span class="apply-chip-label">{{T "apply_chip_unconfirmed"}}</span>
+  </a>
+  {{end}}
   {{if .User}}
   <div class="topbar-user">
     <div class="user-avatar">{{slice .User 0 1}}</div>

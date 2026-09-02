@@ -71,6 +71,13 @@ type PageData struct {
 	// the dashboard carries is one an operator does not see, and not seeing it
 	// is the whole problem with panic mode.
 	Panic bool
+
+	// AcceptancePending and AcceptanceRemaining drive the topbar chip. On
+	// PageData rather than on one handler's data for the same reason Panic is:
+	// an operator who opens /ports during the window must not lose the clock,
+	// and a countdown only the apply page carries is one they navigate away from.
+	AcceptancePending   bool
+	AcceptanceRemaining int
 }
 
 // Server is the easywall web frontend.
@@ -109,6 +116,49 @@ type Server struct {
 	events     *auditEvents
 	eventsStop chan struct{}
 	eventsOnce sync.Once
+
+	// statusMu, statusCached and statusAt hold one GET_STATUS for a moment, so
+	// the panic banner and the acceptance chip — which every authenticated
+	// render draws — do not each pay a socket round trip.
+	//
+	// carried-forward recorded the cost before the chip made it a requirement:
+	// Enforcing() can block behind a whole apply cycle, up to 30 s, during which
+	// every page stalls for the 5 s client deadline and render swallows the
+	// error, so the banner disappears exactly when the core is busiest. With a
+	// countdown on every page that stall would eat the countdown too.
+	//
+	// Only render reads this. Handlers that act on the status — the apply page,
+	// the /apply/status poll — ask the core directly, because a two-second-old
+	// answer is fine for a chip that ticks locally and is not fine for a page
+	// deciding which button to draw.
+	statusMu     sync.Mutex
+	statusCached *shared.FirewallStatus
+	statusAt     time.Time
+}
+
+// statusTTL is how long one GET_STATUS answer serves the per-render banner and
+// chip. Two seconds, matching the apply page's own poll interval: the chip ticks
+// locally between polls and takes the server's number as the correction, so a
+// number up to two seconds stale is corrected before it can drift further.
+const statusTTL = 2 * time.Second
+
+// statusForRender returns the status for the banner and the chip, from cache
+// when it is fresh. nil when the core could not be reached — render treats that
+// as "draw neither", which is what it already did with the error it swallowed.
+func (s *Server) statusForRender() *shared.FirewallStatus {
+	s.statusMu.Lock()
+	defer s.statusMu.Unlock()
+
+	if s.statusCached != nil && time.Since(s.statusAt) < statusTTL {
+		return s.statusCached
+	}
+	status, err := s.client.GetStatus()
+	if err != nil {
+		// Not cached: a failure must not be served for two seconds to everyone.
+		return nil
+	}
+	s.statusCached, s.statusAt = status, time.Now()
+	return status
 }
 
 // NewServer initialises the web server with all dependencies.
@@ -498,17 +548,22 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 
 	user, _ := sess.Values[SessionUserKey].(string)
 
-	// One GET_STATUS per authenticated render, over a local Unix socket. The
-	// cost is deliberate and the alternative was worse: reading the marker file
-	// from here would mean guessing where the core's data directory is, and the
-	// two processes may be configured apart.
+	// At most one GET_STATUS every statusTTL, over a local Unix socket — see
+	// statusForRender. The socket round trip is deliberate and the alternative
+	// was worse: reading the marker file from here would mean guessing where
+	// the core's data directory is, and the two processes may be configured
+	// apart.
 	//
 	// Never for a signed-out visitor. /login and /firstrun are served before
 	// there is a session and have to work with no core at all.
 	panicMode := false
+	acceptancePending := false
+	acceptanceRemaining := 0
 	if user != "" {
-		if status, err := s.client.GetStatus(); err == nil {
+		if status := s.statusForRender(); status != nil {
 			panicMode = status.Panic
+			acceptancePending = status.Acceptance == shared.AcceptancePending
+			acceptanceRemaining = status.AcceptanceRemaining
 		}
 	}
 
@@ -550,6 +605,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Data:    data,
 		Panic:   panicMode,
 		FlashN:  flashN,
+
+		AcceptancePending:   acceptancePending,
+		AcceptanceRemaining: acceptanceRemaining,
 	}
 
 	// Render into a buffer first. Executing straight into the ResponseWriter
