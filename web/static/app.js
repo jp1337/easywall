@@ -611,12 +611,50 @@ function initApplyChip() {
   let left = parseInt(chip.dataset.remaining, 10);
   if (!Number.isFinite(left)) return;
 
+  // The chip's starting number is Server.statusForRender's cached GET_STATUS,
+  // up to statusTTL (2s) old — so the local clock here routinely reaches
+  // zero before the window the core is tracking actually ends. Arriving at
+  // local zero is a reason to ask, not proof the window is over: settle()
+  // found the window still pending used to fall into "everything that is not
+  // rolled_back is confirmed" and told the operator their change was
+  // confirmed while it could still roll back — the release's own defect
+  // class, found by inspection after this chip started appearing on every
+  // page.
   const settle = (data) => {
+    const acc = data && typeof data.acceptance === 'string' ? data.acceptance : null;
+
+    if (acc === 'pending') {
+      const remaining = data.acceptance_remaining;
+      // A pending answer with no usable remaining time would re-arm a
+      // zero-length tick and re-fetch immediately, forever. Treat it as
+      // unknown instead of looping.
+      if (Number.isFinite(remaining) && remaining > 0) {
+        left = remaining;
+        if (timeEl) timeEl.textContent = mmss(left);
+        armTick();
+        return;
+      }
+      data = null; // falls through to the unknown branch below
+    }
+
     // idle and accepted both mean confirmed: Reset() returns the status to idle
     // within milliseconds of an Accept, so by the time this asks, a confirmed
     // window reads as either one.
     const rolledBack = data && data.acceptance === 'rolled_back';
+    const confirmed   = data && (data.acceptance === 'accepted' || data.acceptance === 'idle');
+
     if (timeEl) timeEl.remove();
+
+    if (!rolledBack && !confirmed) {
+      // No answer (the request failed) or a response this chip cannot read as
+      // one of the two outcomes above: say nothing definite. Not knowing is
+      // not the same as either outcome — initApplyStatus treats an
+      // unreachable core the same way, for the same reason.
+      if (dot) dot.className = 'status-dot inactive';
+      if (labelEl) labelEl.textContent = str('state_unknown');
+      return;
+    }
+
     if (dot) dot.className = `status-dot ${rolledBack ? 'error' : 'active'}`;
     if (labelEl) labelEl.textContent = rolledBack ? str('apply_chip_rolled_back') : str('apply_chip_confirmed');
 
@@ -625,17 +663,23 @@ function initApplyChip() {
     if (!rolledBack) setTimeout(() => chip.remove(), 4000);
   };
 
+  // Arms the once-a-second local tick that ends in exactly one fetch. Also
+  // used to resume ticking when settle() finds the window still pending.
+  const armTick = () => {
+    const tick = tickEverySecond(() => {
+      left = Math.max(0, left - 1);
+      if (timeEl) timeEl.textContent = mmss(left);
+      if (left > 0) return;
+      clearInterval(tick);
+      fetch('/apply/status')
+        .then(r => (r.ok ? r.json() : null))
+        .then(settle)
+        .catch(() => settle(null)); // a failed request is neither a confirmation nor a rollback
+    });
+  };
+
   if (timeEl) timeEl.textContent = mmss(left);
-  const tick = tickEverySecond(() => {
-    left = Math.max(0, left - 1);
-    if (timeEl) timeEl.textContent = mmss(left);
-    if (left > 0) return;
-    clearInterval(tick);
-    fetch('/apply/status')
-      .then(r => (r.ok ? r.json() : null))
-      .then(settle)
-      .catch(() => settle(null)); // a failed request is not a rollback
-  });
+  armTick();
 }
 
 function mmss(total) {

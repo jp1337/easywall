@@ -42,6 +42,34 @@ func TestAppJS_TheChipDoesNotPoll(t *testing.T) {
 	}
 }
 
+// The chip's starting number is a cached GET_STATUS up to statusTTL (2s) old,
+// so its local clock routinely reaches zero before the window the core is
+// tracking actually ends. A poll landing on pending must resume ticking, not
+// read as a confirmation — found by inspection after this chip started
+// appearing on every page.
+func TestAppJS_ChipDoesNotConfirmAPendingWindow(t *testing.T) {
+	src := appJS(t)
+	chip := section(t, src, "Acceptance chip")
+	if !strings.Contains(chip, "'pending'") {
+		t.Error("settle() no longer branches on the window still being pending; a chip whose " +
+			"local clock reaches zero before the cached status catches up would announce a " +
+			"still-open window as confirmed")
+	}
+}
+
+// A failed request is not a rollback (that was already true) and it is not a
+// confirmation either — the chip must say nothing definite when it cannot
+// tell what happened, the same way initApplyStatus treats an unreachable core.
+func TestAppJS_ChipDoesNotConfirmWhenItCannotTellWhatHappened(t *testing.T) {
+	src := appJS(t)
+	chip := section(t, src, "Acceptance chip")
+	if !strings.Contains(chip, "state_unknown") {
+		t.Error("settle() has no unknown outcome; a failed request or an unparseable response " +
+			"falls into the same branch as a real confirmation and announces something that " +
+			"has not happened")
+	}
+}
+
 // At zero the screen waits rather than guesses. The local tick reaches 00:00 up
 // to two seconds before the poll learns what actually happened, and the two
 // outcomes — confirmed in the last instant, or rolled back — are not
