@@ -74,6 +74,19 @@ func TestApplyRollback_CoreError(t *testing.T) {
 
 	rec := doAuthFormRequest(t, s, "/apply/rollback", "")
 	assertRedirect(t, rec, "/apply")
+
+	cookie := rec.Result().Cookies()
+	if len(cookie) == 0 {
+		t.Fatal("expected a flash cookie explaining what happened")
+	}
+	follow := doRequest(s, "GET", "/apply", nil, cookie[0], makeAuthCookie(t, s))
+	body := follow.Body.String()
+	if !strings.Contains(body, "The rollback could not be sent to the core") {
+		t.Errorf("expected the page to say the rollback could not be sent to the core; body was:\n%s", body)
+	}
+	if strings.Contains(body, "nothing was rolled back") {
+		t.Error("a core error must not be reported as the too-late case — they are different failures")
+	}
 }
 
 func TestApplyRollback_RequiresAuth(t *testing.T) {

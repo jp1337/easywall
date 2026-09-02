@@ -936,10 +936,12 @@ applying firewall rules is watching for confirmation, not for choreography.
 Nothing animates for longer than 200ms. Nothing loops except the two indicators that mean
 "still happening": the pending status dot and the acceptance-window countdown.
 
-**Amended 2026-09-02.** Not both at once. On the acceptance screen the pending dot
-does not pulse, because the countdown is already the motion that means "still
-happening" and says it more precisely. Permitting both loops was never requiring
-them. Everywhere else the dot pulses as before.
+**Amended 2026-09-02.** Not both at once. Wherever the pending dot sits beside a
+running countdown — the acceptance screen, and the topbar chip that carries the
+same countdown on every other page — the dot does not pulse, because the
+countdown is already the motion that means "still happening" and says it more
+precisely. Permitting both loops was never requiring them. Everywhere else the
+dot pulses as before.
 
 A spinner that outlives its request is a lie about the state of the system.
 

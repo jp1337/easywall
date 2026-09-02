@@ -1047,13 +1047,6 @@ func actionTone(action string) string { return auditActionTones[action] }
 // Storage stays UTC. One unambiguous instant on disk is right for an audit log,
 // and it is the only form that survives a daylight-saving boundary without
 // argument. This is a display decision and it belongs here.
-func mmss(seconds int) string {
-	if seconds < 0 {
-		seconds = 0
-	}
-	return fmt.Sprintf("%02d:%02d", seconds/60, seconds%60)
-}
-
 func shortTime(v string) string {
 	t, err := time.Parse(time.RFC3339, v)
 	if err != nil {
@@ -1068,6 +1061,13 @@ func shortTime(v string) string {
 		return t.Format("2 Jan 15:04")
 	}
 	return t.Format("2 Jan 2006 15:04")
+}
+
+func mmss(seconds int) string {
+	if seconds < 0 {
+		seconds = 0
+	}
+	return fmt.Sprintf("%02d:%02d", seconds/60, seconds%60)
 }
 
 // clientStringKeys are the message ids app.js needs. Kept as an explicit list

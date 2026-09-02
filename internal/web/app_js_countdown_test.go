@@ -91,6 +91,21 @@ func TestAppJS_TheCountdownStopsAtZeroAndClaimsNothing(t *testing.T) {
 	}
 }
 
+// The server-rendered starting value came from a poll up to the status cache's
+// TTL stale, so a correction landing after the local tick already reached zero
+// and stopped itself is normal, not an error. Repainting the digits without
+// resuming the interval would leave the countdown frozen at the corrected
+// value until the next poll two seconds later.
+func TestAppJS_CountdownResumesAfterACorrection(t *testing.T) {
+	src := appJS(t)
+	countdown := section(t, src, "Acceptance countdown")
+	if !strings.Contains(countdown, "!tick") {
+		t.Error("the correction listener never checks whether the tick already stopped, so it " +
+			"cannot restart it — a correction that arrives after the local clock reached zero " +
+			"repaints the digits and then leaves them frozen")
+	}
+}
+
 // The pending dot must keep the class that stops it pulsing beside a running
 // countdown (DESIGN.md, amended in 2.14: two "still happening" indicators side
 // by side is one too many) when the poll rewrites the element two seconds

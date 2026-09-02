@@ -42,7 +42,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
   `apply_started` before `apply_failed` or `apply_refused_panic`; previously
   only the failure event appeared, because `apply_started` sat below the kernel
   write. `apply_started` is still written exactly once per apply — the new
-  order is the truthful one, since an apply that failed did in fact start
+  order is the truthful one, since an apply that failed did in fact start.
 - **The documentation sidebar groups its pages.** One flat list of twenty-seven
   links became five sections — Installation, Rules, System, How it works,
   Project — of which only the one holding the page being read is open. *Rules*

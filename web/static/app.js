@@ -578,6 +578,17 @@ function initApplyCountdown() {
 
   const paint = () => { el.textContent = mmss(left); };
 
+  let tick = null;
+  const stop = () => { if (tick) { clearInterval(tick); tick = null; } };
+  const start = () => {
+    stop(); // never run two ticks at once
+    tick = tickEverySecond(() => {
+      left = Math.max(0, left - 1);
+      paint();
+      if (left === 0) stop();
+    });
+  };
+
   // The poll in initApplyStatus already runs every 2s; this listens rather than
   // fetching again, so an open window costs one request per two seconds in
   // total and not two. No extra clamp here: acceptance_remaining is the
@@ -586,15 +597,18 @@ function initApplyCountdown() {
   // itself.
   document.addEventListener('easywall:status', (e) => {
     const n = e.detail && e.detail.acceptance_remaining;
-    if (Number.isFinite(n)) { left = n; paint(); }
+    if (!Number.isFinite(n)) return;
+    left = n;
+    paint();
+    // The value this listens for is up to the status cache's TTL stale, so a
+    // poll correcting the clock back up from zero is normal, not an error —
+    // and the local tick may already have stopped itself there. Resume it
+    // rather than leaving the digits frozen until the next correction.
+    if (left > 0 && !tick) start();
   });
 
   paint();
-  const tick = tickEverySecond(() => {
-    left = Math.max(0, left - 1);
-    paint();
-    if (left === 0) clearInterval(tick);
-  });
+  start();
 }
 
 /* ── Acceptance chip ──────────────────────────────────────────────────────
