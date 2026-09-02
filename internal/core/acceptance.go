@@ -19,6 +19,12 @@ type Acceptance struct {
 	cancelCh  chan struct{}
 	cancelled bool
 	duration  time.Duration
+
+	// stopping records that the daemon is shutting down, so a window that has
+	// not opened yet opens already cancelled. Sticky on purpose and set only by
+	// CancelForShutdown: a process that is stopping is not going to start
+	// applying again, and Panic — which also cancels — must not set it.
+	stopping bool
 }
 
 // NewAcceptance creates a new Acceptance controller with the given timeout.
@@ -68,6 +74,15 @@ func (a *Acceptance) Start(duration time.Duration) error {
 	a.cancelCh = make(chan struct{})
 	a.cancelled = false
 	a.status = shared.AcceptancePending
+
+	// The shutdown that already happened. Opening the window pre-cancelled is
+	// what makes "the machine was told to stop" mean "nobody confirmed", which
+	// is what the window promises: Wait returns false at once and the caller
+	// rolls back, rather than holding Stop for up to an hour.
+	if a.stopping {
+		a.cancelled = true
+		close(a.cancelCh)
+	}
 	return nil
 }
 
@@ -133,6 +148,22 @@ func (a *Acceptance) Cancel() {
 	}
 	a.cancelled = true
 	close(a.cancelCh)
+}
+
+// CancelForShutdown ends an open window and guarantees that no later one opens.
+//
+// Cancel alone is not enough on the shutdown path. Stop cancels and then waits
+// on the WaitGroup that tracks the apply goroutine, and that goroutine only
+// reaches Start after a rules read, a backup write, an nft snapshot subprocess
+// and a promote — so the cancel routinely arrives while the status is still
+// Idle, where Cancel is a no-op. The cancel was then lost, the window opened
+// anyway, and Stop sat behind Wait for the full duration until systemd's
+// TimeoutStopSec SIGKILLed the daemon with the unconfirmed rules live.
+func (a *Acceptance) CancelForShutdown() {
+	a.mu.Lock()
+	a.stopping = true
+	a.mu.Unlock()
+	a.Cancel()
 }
 
 // Accept signals that the admin confirmed the new rules work, and reports

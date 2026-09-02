@@ -253,7 +253,12 @@ func (d *Daemon) Stop() {
 	// confirmed", so the rules roll back, which is what the window promises: the
 	// operator did not confirm, and the reason they did not is that the machine
 	// was told to stop.
-	d.firewall.CancelAcceptance()
+	//
+	// The latching variant, because the window may not be open yet. An apply
+	// that is between beginApply and Start — a rules read, a backup write, an
+	// nft snapshot subprocess and a promote — would otherwise swallow this
+	// cancel and open a full-length window with Stop already waiting on it.
+	d.firewall.ShutdownAcceptance()
 
 	d.wg.Wait()
 	_ = os.Remove(d.cfg.SocketPath)

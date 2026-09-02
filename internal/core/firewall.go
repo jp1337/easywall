@@ -549,9 +549,18 @@ func (f *Firewall) Accept() bool {
 }
 
 // CancelAcceptance ends an open window as not accepted, so the apply that owns
-// it rolls back and returns. Used on shutdown.
+// it rolls back and returns.
+//
+// Used by Panic, which must not latch: an installation that panics and then
+// resumes has to be able to apply again. Shutdown wants ShutdownAcceptance.
 func (f *Firewall) CancelAcceptance() {
 	f.acceptance.Cancel()
+}
+
+// ShutdownAcceptance ends an open window and prevents a later one, for a daemon
+// that is stopping. See Acceptance.CancelForShutdown.
+func (f *Firewall) ShutdownAcceptance() {
+	f.acceptance.CancelForShutdown()
 }
 
 // Status returns the current firewall status for dashboard display.
