@@ -398,9 +398,16 @@ func doFormRequest(s *Server, method, url, formBody string, cookies ...*http.Coo
 // plain int — a bug that made the login page call the core would otherwise
 // race the test's read against the observer's write instead of just failing
 // the assertion.
+//
+// GET_STATUS answers a parseable status rather than the fakeCore's bare
+// {Success: true}: a caller using this to exercise statusForRender's cache
+// needs the first call to actually populate it, or every render after it is a
+// cache miss for the wrong reason. The login test never triggers GetStatus at
+// all, so what it would parse to does not affect that assertion.
 func newTestServerCountingStatusCalls(t *testing.T) (*Server, *int32) {
 	t.Helper()
 	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Acceptance: shared.AcceptanceIdle}))
 	var calls int32
 	fc.OnCommand(shared.CmdGetStatus, func(shared.Command) {
 		atomic.AddInt32(&calls, 1)

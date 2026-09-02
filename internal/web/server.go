@@ -147,17 +147,29 @@ const statusTTL = 2 * time.Second
 // as "draw neither", which is what it already did with the error it swallowed.
 func (s *Server) statusForRender() *shared.FirewallStatus {
 	s.statusMu.Lock()
-	defer s.statusMu.Unlock()
-
 	if s.statusCached != nil && time.Since(s.statusAt) < statusTTL {
-		return s.statusCached
+		cached := s.statusCached
+		s.statusMu.Unlock()
+		return cached
 	}
+	s.statusMu.Unlock()
+
+	// Asked for outside the lock, deliberately. SendCommand dials a fresh
+	// connection and can block for as long as the core is busy — up to the
+	// client deadline — and holding statusMu across it would queue every
+	// concurrent render behind one slow round trip. That is the stall this
+	// cache exists to remove, reintroduced at a narrower point. Several
+	// renders arriving on a cold cache each pay their own GetStatus, which is
+	// exactly what happened before the cache and is bounded by the TTL.
 	status, err := s.client.GetStatus()
 	if err != nil {
-		// Not cached: a failure must not be served for two seconds to everyone.
+		// Not cached: a blip must not be served to everyone for the whole TTL.
 		return nil
 	}
+
+	s.statusMu.Lock()
 	s.statusCached, s.statusAt = status, time.Now()
+	s.statusMu.Unlock()
 	return status
 }
 
