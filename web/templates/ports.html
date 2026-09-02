@@ -35,7 +35,13 @@
               <span class="toolbar-spacer"></span>
               <span class="toolbar-count" id="rules-count">{{$n := len .Rules}}{{$n}} {{plural $n (T "count_rule_one") (T "count_rule_many")}}</span>
               <button type="button" id="catalogue-btn" class="btn btn-sm" hidden>
-                <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M3 4.25A2.25 2.25 0 015.25 2h9.5A2.25 2.25 0 0117 4.25v11.5A2.25 2.25 0 0114.75 18h-9.5A2.25 2.25 0 013 15.75V4.25zM6 6.5h8v1.5H6V6.5zm0 3.5h8v1.5H6V10zm0 3.5h5V15H6v-1.5z"/></svg>
+                <!-- fill-rule="evenodd": the outer rounded rectangle and the three
+                     inner lines are subpaths of one path. Under the default nonzero
+                     rule the lines wind the same way as the rectangle and are filled
+                     along with it, so this icon rendered as a solid block — in the
+                     interface and in docs/assets/img/screens/ports-*.png. evenodd
+                     makes the overlaps holes, which is what the lines are. -->
+                <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h9.5A2.25 2.25 0 0117 4.25v11.5A2.25 2.25 0 0114.75 18h-9.5A2.25 2.25 0 013 15.75V4.25zM6 6.5h8v1.5H6V6.5zm0 3.5h8v1.5H6V10zm0 3.5h5V15H6v-1.5z"/></svg>
                 {{T "ports_catalogue_add"}}
               </button>
               <button type="button" id="add-rule-btn" class="btn btn-sm">
