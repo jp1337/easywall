@@ -44,6 +44,28 @@ never runs it for you.
 | The login rate limiter | 5 attempts per 10 minutes per IP. A sweep that signs in once per viewport trips it and silently screenshots the login page instead. Restarting the server is the only reset — it is an in-memory package var. |
 | The self-signed interstitial can't be automated | The Chrome extension cannot click through it. On the fallback path a human has to, once per browser per origin. |
 
+## The integration suite, without host root
+
+`sudo go test -tags integration ./internal/core/...` runs against the host's own
+kernel and its `inet easywall` table — every apply and flush in the suite happens
+for real, on the same firewall the maintainer's machine is running. Rootless
+podman with its own network namespace gives the tests a real kernel to apply
+against without either: a throwaway netns is flushed when the container exits,
+not the host's.
+
+```bash
+podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN \
+  -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.25 \
+  sh -c 'apt-get update -qq && apt-get install -y -qq nftables >/dev/null && \
+         go test -tags integration ./internal/core/... -v'
+```
+
+`--cap-add=NET_ADMIN` alone is not enough: `TestMain` re-execs into a fresh
+network namespace via `CLONE_NEWNET`, which needs `CAP_SYS_ADMIN` too — without
+it the child re-exec fails before a single test runs, surfacing only as a bare
+`exit status 1`. Keep the host command beside this one: a container kernel is
+not the host kernel, and either may need running.
+
 ## The documentation site
 
 `docs/` is Jekyll, and there is no ruby on this machine — `scripts/docs-build.sh`

@@ -576,6 +576,55 @@ async function addPortRule(page, port, description = '') {
 }
 
 /**
+ * Set the acceptance window's duration through the interface, stage something
+ * nameable, and press Apply — shared by checkAcceptanceWindow (the
+ * WINDOW_SECONDS floor, so the health-check run does not wait two minutes)
+ * and the apply-window screenshot (the shipped 120s default, so the
+ * remaining time in the shot reads plausibly). One place opens a window, not
+ * two.
+ *
+ * A no-op if a window from an earlier run is already open — a second apply is
+ * refused, not queued, and an already-open window is exactly what a caller
+ * wants here regardless of who opened it.
+ *
+ * 9443, not 8443: the demo seeds 8443 into both Current and Staged from the
+ * start (see democlient.go's seed()), so staging it again is not a change —
+ * DiffRules would show nothing. 9443 is not in the seed on either side.
+ */
+async function openAcceptanceWindow(page, durationSeconds) {
+  await page.goto(`${BASE}/apply`, { waitUntil: 'networkidle' });
+  if (await page.locator('#rollback-btn').count()) return;
+
+  // This form posts through htmx (hx-swap="none"), so the click never
+  // navigates anywhere — waitForNavigation here would just hang until its own
+  // timeout. Waiting for the response the click itself starts is the same fix
+  // signIn uses for /login, for the same reason: a load-state wait can resolve
+  // against a page that was already there before the request finished.
+  await page.goto(`${BASE}/system`, { waitUntil: 'networkidle' });
+  await page.fill('input[name=acceptance_duration]', String(durationSeconds));
+  const [saved] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/system') && r.request().method() === 'POST'),
+    page.click("form[action='/system'] button[type=submit]"),
+  ]);
+  if (!saved.ok()) {
+    throw new Error(`saving a ${durationSeconds}s window on /system answered ${saved.status()}`);
+  }
+
+  // Stage something nameable, then apply. Everything up to the click on
+  // #start-btn happens before the window opens, so none of it counts against
+  // how long the window actually runs.
+  await page.goto(`${BASE}/ports`, { waitUntil: 'networkidle' });
+  await addPortRule(page, '9443');
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#ports-form button[type=submit]"),
+  ]);
+
+  await page.goto(`${BASE}/apply`, { waitUntil: 'networkidle' });
+  await Promise.all([page.waitForNavigation(), page.click('#start-btn')]);
+}
+
+/**
  * Drive a whole acceptance window: apply, read the countdown falling, roll
  * back, and assert the rules came back.
  *
@@ -586,43 +635,12 @@ async function checkAcceptanceWindow(page) {
   let ok = true;
   const failHere = (detail) => { fail('acceptance window', detail); ok = false; };
 
-  // A short window, set through the interface, so the run does not wait two
-  // minutes. WINDOW_SECONDS is the floor read out of models.go above this
-  // function, not a number typed here that a future change to the floor could
-  // silently drift under.
-  await page.goto(`${BASE}/system`, { waitUntil: 'networkidle' });
-  await page.fill('input[name=acceptance_duration]', String(WINDOW_SECONDS));
-  // This form posts through htmx (hx-swap="none"), so the click never
-  // navigates anywhere — waitForNavigation here would just hang until its own
-  // timeout. Waiting for the response the click itself starts is the same fix
-  // signIn uses for /login, for the same reason: a load-state wait can resolve
-  // against a page that was already there before the request finished.
-  const [saved] = await Promise.all([
-    page.waitForResponse(r => r.url().endsWith('/system') && r.request().method() === 'POST'),
-    page.click("form[action='/system'] button[type=submit]"),
-  ]);
-  if (!saved.ok()) {
-    fail('acceptance window', `saving a ${WINDOW_SECONDS}s window on /system answered ${saved.status()}`);
+  try {
+    await openAcceptanceWindow(page, WINDOW_SECONDS);
+  } catch (e) {
+    fail('acceptance window', e.message);
     return;
   }
-
-  // Stage something nameable, then apply. Everything up to the click on
-  // #start-btn happens before the window opens, so none of it counts against
-  // how long the window actually runs.
-  //
-  // 9443, not 8443: the demo seeds 8443 into both Current and Staged from the
-  // start (see democlient.go's seed()), so staging it again is not a change —
-  // DiffRules would show nothing and the assertion below would pass for the
-  // wrong reason. 9443 is not in the seed on either side.
-  await page.goto(`${BASE}/ports`, { waitUntil: 'networkidle' });
-  await addPortRule(page, '9443');
-  await Promise.all([
-    page.waitForNavigation(),
-    page.click("#ports-form button[type=submit]"),
-  ]);
-
-  await page.goto(`${BASE}/apply`, { waitUntil: 'networkidle' });
-  await Promise.all([page.waitForNavigation(), page.click('#start-btn')]);
 
   const countdown = page.locator('#apply-countdown');
   if (!(await countdown.count())) {
@@ -1004,7 +1022,7 @@ const screenshotArgs = screenshotMode
 // them here would add files nothing links to.
 const DEFAULT_SCREENSHOT_PAGES = [
   '/dashboard', '/ports', '/blacklist', '/forwarding', '/custom',
-  '/options', '/settings', '/password', '/log', '/apply',
+  '/options', '/settings', '/password', '/log', '/apply', '/apply-window',
 ];
 // The remaining names in that directory are not URL paths at all — the
 // first-run wizard (with its optional 2FA step), the login page a signed-out
@@ -1081,22 +1099,49 @@ async function screenshotContext(browser, theme, extra = {}) {
 
 async function takeScreenshots(browser, session, pages) {
   console.log(`Screenshotting ${pages.join(', ')} in both themes`);
+  // apply-window is not a URL: it is /apply with a window open, captured after
+  // everything else so that opening it does not leak into the plain /apply
+  // shot, which has to keep showing the idle/staged screen. See below.
+  const mainPages = pages.filter(p => p !== '/apply-window');
+  const wantWindow = pages.includes('/apply-window');
+
   const prep = await browser.newContext({
     ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
     deviceScaleFactor: 1.5, storageState: session,
   });
-  if (pages.includes('/ports')) await seedPortsScreenshot(await prep.newPage());
+  if (mainPages.includes('/ports')) await seedPortsScreenshot(await prep.newPage());
   await prep.close();
 
   for (const theme of ['light', 'dark']) {
     const ctx = await screenshotContext(browser, theme, { storageState: session });
     const page = await ctx.newPage();
-    for (const path of pages) {
+    for (const path of mainPages) {
       await page.goto(BASE + path, { waitUntil: 'networkidle' });
       const name = path.replace(/^\//, '').replace(/\?.*$/, '');
       await shoot(page, name, theme);
     }
     await ctx.close();
+  }
+
+  // Opened once, after both themes' ordinary pages are already shot — the
+  // window is real backend state (see openAcceptanceWindow), shared across
+  // every context that follows, and a window opened before the plain /apply
+  // pass would leave that shot showing the countdown instead of the screen it
+  // is actually documenting.
+  if (wantWindow) {
+    const openCtx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+    // The shipped 120s default, not WINDOW_SECONDS: a screenshot is meant to be
+    // looked at, and a remaining time in the single digits reads as a bug.
+    await openAcceptanceWindow(await openCtx.newPage(), 120);
+    await openCtx.close();
+
+    for (const theme of ['light', 'dark']) {
+      const ctx = await screenshotContext(browser, theme, { storageState: session });
+      const page = await ctx.newPage();
+      await page.goto(`${BASE}/apply`, { waitUntil: 'networkidle' });
+      await shoot(page, 'apply-window', theme);
+      await ctx.close();
+    }
   }
 }
 

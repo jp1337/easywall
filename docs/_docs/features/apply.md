@@ -90,6 +90,12 @@ that caused it are still on their pages.
 
 ## While the window is open
 
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/apply-window" ext="png"
+     alt="The apply screen with the window open: a large mm:ss countdown, Confirm and Roll back now side by side, and a card listing what just went live." %}
+  <figcaption>The countdown is this page's whole promise, running instead of described.</figcaption>
+</figure>
+
 - The countdown lives in the core daemon, not in your browser. Closing the tab,
   losing the connection or restarting `easywall-web` confirms nothing.
 - Stopping `easywall-core` counts as not confirming: the rules roll back before it
