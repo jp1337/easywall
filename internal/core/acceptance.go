@@ -20,6 +20,11 @@ type Acceptance struct {
 	cancelled bool
 	duration  time.Duration
 
+	// deadline is when the open window ends. Set by Start, read by Wait and by
+	// Remaining, so the timer that fires and the number on the screen are one
+	// value rather than two derivations of a duration that might disagree.
+	deadline time.Time
+
 	// stopping records that the daemon is shutting down, so a window that has
 	// not opened yet opens already cancelled. Sticky on purpose and set only by
 	// CancelForShutdown: a process that is stopping is not going to start
@@ -74,6 +79,7 @@ func (a *Acceptance) Start(duration time.Duration) error {
 	a.cancelCh = make(chan struct{})
 	a.cancelled = false
 	a.status = shared.AcceptancePending
+	a.deadline = time.Now().Add(a.duration)
 
 	// The shutdown that already happened. Opening the window pre-cancelled is
 	// what makes "the machine was told to stop" mean "nobody confirmed", which
@@ -86,22 +92,53 @@ func (a *Acceptance) Start(duration time.Duration) error {
 	return nil
 }
 
-// Duration returns the window length the next Wait will use.
+// Duration returns the length the window was asked to be.
+//
+// One caller, deliberately: the "duration" field on the timeout log line, where
+// how long the window was is worth its two lines. Nothing may derive a *time*
+// from it — Wait times from the deadline, and Remaining reports from the same
+// instant, so the count on screen and the rollback that fires are one value.
 func (a *Acceptance) Duration() time.Duration {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.duration
 }
 
+// Remaining is what is left of the open window: zero when none is open, and
+// never negative.
+//
+// The web process renders this as mm:ss on every page. Both clamps are load-
+// bearing — an idle controller holds the previous window's deadline, and a
+// deadline a fraction of a second in the past renders as a negative clock on
+// the one screen whose argument is that it says what is true.
+func (a *Acceptance) Remaining() time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.status != shared.AcceptancePending {
+		return 0
+	}
+	if d := time.Until(a.deadline); d > 0 {
+		return d
+	}
+	return 0
+}
+
 // Wait blocks until the admin calls Accept() or the timeout expires.
 // Returns true if accepted, false if timed out (rollback needed).
 func (a *Acceptance) Wait() bool {
-	timer := time.NewTimer(a.Duration())
-	defer timer.Stop()
-
 	a.mu.Lock()
-	acceptCh, cancelCh := a.acceptCh, a.cancelCh
+	acceptCh, cancelCh, deadline := a.acceptCh, a.cancelCh, a.deadline
 	a.mu.Unlock()
+
+	// From the deadline, never from Duration(). Duration is what the window was
+	// asked to be; the deadline is what it is, and it is also the number the
+	// interface renders — one instant, so the count on the screen and the
+	// rollback that fires cannot be two different clocks. A zero deadline means
+	// Wait was reached without a Start: time.Until is then hugely negative, the
+	// timer fires at once and the rules roll back, which is the safe direction.
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
 
 	select {
 	case <-cancelCh:
