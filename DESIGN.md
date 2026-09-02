@@ -934,8 +934,14 @@ applying firewall rules is watching for confirmation, not for choreography.
 | `easing` | `cubic-bezier(0.2, 0, 0.2, 1)` | Everything — fast out, settled in |
 
 Nothing animates for longer than 200ms. Nothing loops except the two indicators that mean
-"still happening": the pending status dot and the acceptance-window countdown. A spinner
-that outlives its request is a lie about the state of the system.
+"still happening": the pending status dot and the acceptance-window countdown.
+
+**Amended 2026-09-02.** Not both at once. On the acceptance screen the pending dot
+does not pulse, because the countdown is already the motion that means "still
+happening" and says it more precisely. Permitting both loops was never requiring
+them. Everywhere else the dot pulses as before.
+
+A spinner that outlives its request is a lie about the state of the system.
 
 Honour `prefers-reduced-motion: reduce` by dropping all transitions and both loops to a
 static state — the pending dot stays visibly amber, it simply stops pulsing. The
@@ -1031,6 +1037,19 @@ at 40px in `state-warn` — and both actions are offered plainly: confirm, or ro
 Never style the confirm button as the calm default and the rollback as a subdued link. An
 operator who reached this screen because they locked themselves out needs the escape route
 to be as findable as the confirmation.
+
+**Amended 2026-09-02.** The `pending` state carries no icon. It used to show a
+48px circular clock glyph, which above a running clock is a drawing of the thing
+standing beside the thing; the countdown takes that slot and the signature gets
+its weight without anything being added. `accepted`, `rolled_back` and `idle` keep
+their icons.
+
+Five defaults were considered and refused, each by a rule already in this file: a
+depleting ring (the system is flat, separated by hairlines), a green→amber→red
+ramp (rule 1 — `state-crit` means rolled back, unreachable, validation failed), a
+pulsing glow (decoration; the digits are the motion), a progress bar (says what
+the number says, less precisely), and confirm-large/rollback-as-a-link (forbidden
+above, in those words).
 
 ### Forms
 
@@ -1207,18 +1226,13 @@ typeface changes.
 
 ## Known Gaps
 
-- **The acceptance countdown is specified but cannot be built.** This document defines a
-  `countdown` role at 40px for the acceptance window, and asks that *roll back now* be
-  offered as plainly as *confirm*. The interface can deliver neither yet, and no timer is
-  faked in its place. `shared.FirewallStatus` carries `active`, `acceptance`, `has_pending`
-  and `last_apply` — no deadline — and `core.Acceptance` holds only a `time.Timer`, not the
-  instant it fires, so there is no remaining-seconds value to render. There is also no
-  rollback endpoint: the routes are `apply/start`, `apply/confirm` and `apply/status`.
-  Until the core exposes a deadline and a rollback command, the apply screen states the
-  escape route in words — doing nothing restores the previous rules — because that is what
-  is actually true. Still the case in 2.10: that release added what could be added
-  without either one — the diff and the reachability verdict — and left this gap
-  exactly as it was.
+- ~~**The acceptance countdown is specified but cannot be built.**~~ **Built in
+  2.14.** `shared.FirewallStatus` carries `acceptance_remaining` and the protocol
+  carries `CANCEL_ACCEPTANCE`, so the screen renders a real deadline and offers a
+  real rollback. The paragraph that stood here across four releases described the
+  gap accurately and understated how small it was — `Acceptance.Cancel` had
+  existed since 2.7 and only lacked a route. See
+  `docs-tech/specs/2026-09-02-2.14-the-window-shows-that-it-is-running.md`.
 - **Charts.** There is no data-visualisation language yet. If traffic graphs or connection
   histories arrive, they will need a categorical palette that does not collide with the
   three state colours — a genuinely hard constraint given how much of the spectrum is

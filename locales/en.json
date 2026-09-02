@@ -132,6 +132,8 @@
   {"id": "apply_confirm",    "translation": "Confirm — everything still works"},
   {"id": "apply_waiting",    "translation": "Waiting for confirmation…"},
   {"id": "apply_rollback",   "translation": "Rules will be rolled back automatically if not confirmed."},
+  {"id": "apply_rollback_now", "translation": "Roll back now"},
+  {"id": "apply_live_title", "translation": "Live now — unconfirmed"},
 
   {"id": "save",             "translation": "Save"},
   {"id": "cancel",           "translation": "Cancel"},

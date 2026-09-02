@@ -977,6 +977,13 @@ func actionTone(action string) string { return auditActionTones[action] }
 // Storage stays UTC. One unambiguous instant on disk is right for an audit log,
 // and it is the only form that survives a daylight-saving boundary without
 // argument. This is a display decision and it belongs here.
+func mmss(seconds int) string {
+	if seconds < 0 {
+		seconds = 0
+	}
+	return fmt.Sprintf("%02d:%02d", seconds/60, seconds%60)
+}
+
 func shortTime(v string) string {
 	t, err := time.Parse(time.RFC3339, v)
 	if err != nil {
@@ -1078,6 +1085,11 @@ func templateFuncs() template.FuncMap {
 
 	return template.FuncMap{
 		"add1": func(i int) int { return i + 1 },
+		// mm:ss with a leading zero, always. tnum holds the column width; the
+		// leading zero holds the character count, or the block reflows by one
+		// glyph at 1:00 → 0:59. Carries to 60:00, which AcceptanceDurationMax =
+		// 3600 makes the longest window there is.
+		"mmss": mmss,
 		// The list editors hold raw lines, comments and blanks included. A
 		// counter that reports those as entries is simply wrong, and it is the
 		// number an operator uses to sanity-check a paste.

@@ -2510,6 +2510,25 @@ body {
     color: var(--color-state-crit-on-wash);
   }
 
+  /* DESIGN.md's countdown role: 40/300 JetBrains Mono with tnum, state-warn on
+     surface. The largest type in the system, because this is the most
+     consequential screen in the product. tnum is load-bearing — without it the
+     block jitters horizontally once a second, which is the one motion in this
+     interface that would mean nothing. */
+  .countdown {
+    font-family: var(--font-data);
+    font-size: 40px;
+    font-weight: 300;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-state-warn);
+  }
+
+  /* Two "still happening" indicators side by side is one too many, and the
+     digits say it more precisely. DESIGN.md's Motion section permits both
+     loops; permitting is not requiring. Amended in 2.14. */
+  .status-dot.pending.static::before { animation: none; }
+
   /* ── Validation results ───────────────────────────────────────────────────
      The per-line list inside a validation alert. Was four Tailwind utilities
      repeated at each call site; it is one thing, so it is one class. */

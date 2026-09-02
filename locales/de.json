@@ -132,6 +132,8 @@
   {"id": "apply_confirm",    "translation": "Bestätigen — Regeln funktionieren"},
   {"id": "apply_waiting",    "translation": "Warte auf Bestätigung…"},
   {"id": "apply_rollback",   "translation": "Regeln werden automatisch zurückgesetzt, wenn nicht bestätigt."},
+  {"id": "apply_rollback_now", "translation": "Jetzt zurücknehmen"},
+  {"id": "apply_live_title", "translation": "Jetzt aktiv — unbestätigt"},
 
   {"id": "save",             "translation": "Speichern"},
   {"id": "cancel",           "translation": "Abbrechen"},
