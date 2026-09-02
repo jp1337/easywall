@@ -396,8 +396,15 @@ func (f *Firewall) apply(user string) error {
 	accepted := f.acceptance.Wait()
 
 	if !accepted {
-		slog.Warn("acceptance timeout — rolling back")
-		WriteAuditLog(f.cfg.AuditLogPath(), "apply_rolledback", "all", "timeout", user)
+		// Read right where the literal used to sit: Reason() is either what Start
+		// set ("timeout") or what an operator rollback overwrote it to before
+		// Cancel woke Wait up ("cancelled by operator"). The deferred Reset() above
+		// only clears status, not reason, and runs at function exit anyway, so
+		// nothing races this read — it stays here, next to the write, so the two
+		// obviously agree.
+		reason := f.acceptance.Reason()
+		slog.Warn("acceptance ended without confirmation — rolling back", "reason", reason)
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_rolledback", "all", reason, user)
 		f.rollback(state, user)
 		return nil
 	}
@@ -582,6 +589,23 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 // reports whether a window was open to receive it.
 func (f *Firewall) Accept() bool {
 	return f.acceptance.Accept()
+}
+
+// Rollback ends an open window at the operator's request, and reports whether
+// there was one. Wait then returns false and apply's existing !accepted branch
+// runs unchanged — the same path a timeout takes, because it is the same
+// outcome reached sooner.
+//
+// It writes no audit entry of its own. apply already writes exactly one
+// apply_rolledback line on every path out of Wait, reading the reason from
+// f.acceptance.Reason() — which CancelByOperator set to "cancelled by operator"
+// before waking Wait up. Writing a second entry here would double the record
+// for one event, and the second of the two would say "timeout" regardless,
+// because that is the literal apply used to write unconditionally. A second
+// action would also need a second label, a second colour and a second
+// translation for what is, to the operator, the same thing happening earlier.
+func (f *Firewall) Rollback(user string) bool {
+	return f.acceptance.CancelByOperator()
 }
 
 // CancelAcceptance ends an open window as not accepted, so the apply that owns

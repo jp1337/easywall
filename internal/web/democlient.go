@@ -283,6 +283,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handleApplyRules()
 	case shared.CmdAccept:
 		return d.handleAccept()
+	case shared.CmdCancelAcceptance:
+		return d.handleCancelAcceptance()
 	case shared.CmdGetOptions:
 		return demoOK(d.options)
 	case shared.CmdSaveOptions:
@@ -560,18 +562,53 @@ func (d *demoState) handleAccept() shared.Response {
 	return demoOK(shared.AcceptResult{Accepted: true})
 }
 
+// handleCancelAcceptance is the operator asking for the rollback now. It runs
+// the demo's own rollback rather than a second copy of it, so the audit line,
+// the restored rule set and the status all match what a timeout produces —
+// which is the point: it is the same outcome, reached sooner.
+//
+// A demo client that silently does nothing is how the validation false-green
+// happened; docs-tech/protocol.md's "Adding a command" says so in step 3.
+//
+// Called from Send's dispatch switch, which already holds d.mu — unlike
+// rollback below, this must not lock again: sync.Mutex is not reentrant, and a
+// second Lock() from the same goroutine that holds the first blocks forever
+// rather than failing loudly.
+func (d *demoState) handleCancelAcceptance() shared.Response {
+	if d.acceptance != shared.AcceptancePending {
+		return demoOK(shared.CancelResult{Cancelled: false})
+	}
+	if d.acceptanceTimer != nil {
+		d.acceptanceTimer.Stop()
+		d.acceptanceTimer = nil
+	}
+	d.rollbackWithDetail("cancelled by operator")
+	return demoOK(shared.CancelResult{Cancelled: true})
+}
+
 // rollback fires from a time.AfterFunc when the acceptance window expires
 // without an Accept. It must lock independently because it runs on its own
 // goroutine.
 func (d *demoState) rollback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.rollbackWithDetail("timeout")
+}
+
+// rollbackWithDetail restores the previous rules and records why. The two
+// reasons — the window expiring and the operator asking — are one outcome and
+// one audit action; only the detail differs.
+//
+// Callers must already hold d.mu: rollback (above) takes it before calling in,
+// since it runs on its own goroutine; handleCancelAcceptance runs under the
+// lock Send already holds and calls straight in without a second Lock().
+func (d *demoState) rollbackWithDetail(detail string) {
 	d.rules.Current = d.rules.Backup
 	// The rules just reverted; record the configuration alongside them for the
 	// same reason Firewall.rollback does.
 	d.appliedConfig = shared.AppliedConfig{Firewall: d.options, Network: d.settings}
 	d.acceptance = shared.AcceptanceRolledBack
-	d.audit("apply_rolledback", "all", "timeout") // the token the real core writes
+	d.audit("apply_rolledback", "all", detail) // the tokens the real core writes
 	d.acceptanceTimer = nil
 	d.acceptanceDeadline = time.Time{}
 }

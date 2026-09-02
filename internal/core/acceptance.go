@@ -30,6 +30,17 @@ type Acceptance struct {
 	// CancelForShutdown: a process that is stopping is not going to start
 	// applying again, and Panic — which also cancels — must not set it.
 	stopping bool
+
+	// reason records why the window ended, for the audit line Firewall.apply
+	// writes. It defaults to a timeout because that is what a window that nobody
+	// touches does, and only an operator-requested rollback overrides it.
+	//
+	// It exists because the detail on that line used to be the literal string
+	// "timeout", written by apply on every path out of Wait. A rollback the
+	// operator asked for was therefore recorded as a window that expired, which is
+	// the same shape of lie as reporting a confirmation that arrived too late as a
+	// success.
+	reason string
 }
 
 // NewAcceptance creates a new Acceptance controller with the given timeout.
@@ -80,6 +91,11 @@ func (a *Acceptance) Start(duration time.Duration) error {
 	a.cancelled = false
 	a.status = shared.AcceptancePending
 	a.deadline = time.Now().Add(a.duration)
+
+	// Every window starts as a timeout until something says otherwise. Set here,
+	// not once at construction, so a second window does not inherit whatever the
+	// first one was cancelled with.
+	a.reason = "timeout"
 
 	// The shutdown that already happened. Opening the window pre-cancelled is
 	// what makes "the machine was told to stop" mean "nobody confirmed", which
@@ -164,7 +180,7 @@ func (a *Acceptance) Wait() bool {
 }
 
 // Cancel ends a pending window as *not* accepted, so Wait returns false and the
-// caller rolls back.
+// caller rolls back. It reports whether there was an open window to cancel.
 //
 // It exists for shutdown. An apply's window can stay open for up to an hour,
 // and until the daemon waited for it, stopping in the middle — a package
@@ -173,7 +189,13 @@ func (a *Acceptance) Wait() bool {
 // whole promise of the window never ran. Not confirming has to mean the old
 // rules come back, including when the reason nobody confirmed is that the
 // machine was told to stop.
-func (a *Acceptance) Cancel() {
+//
+// The return value matters just as much as Accept()'s does, and for the same
+// reason: a rollback that arrives after the window has already closed changed
+// nothing — the previous rules are already back, on their own — and reporting
+// it as a success would tell the caller they acted at the one moment they did
+// not.
+func (a *Acceptance) Cancel() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -181,10 +203,37 @@ func (a *Acceptance) Cancel() {
 	// a nil channel blocks forever, which would turn a cancel into a full-length
 	// window — the opposite of what shutdown needs.
 	if a.status != shared.AcceptancePending || a.cancelled || a.cancelCh == nil {
-		return
+		return false
 	}
 	a.cancelled = true
 	close(a.cancelCh)
+	return true
+}
+
+// CancelByOperator cancels the open window on the operator's own request, and
+// records that as the reason the window ended, for the audit line apply
+// writes. It reports whether there was a window to cancel, exactly as Cancel
+// does — CancelByOperator is Cancel, with the reason recorded first.
+//
+// The reason is set before the cancel, not after: if Cancel finds nothing to
+// cancel, the reason is left stale, but nobody reads it until the next Start,
+// which resets it — so no rollback of the write is needed.
+func (a *Acceptance) CancelByOperator() bool {
+	a.mu.Lock()
+	a.reason = "cancelled by operator"
+	a.mu.Unlock()
+	return a.Cancel()
+}
+
+// Reason reports why the current or most recently ended window ended: either
+// "timeout" or "cancelled by operator". It is what Firewall.apply writes as
+// the audit detail for apply_rolledback, so that one action carries two
+// distinguishable stories instead of the literal string "timeout" it used to
+// write on every path out of Wait.
+func (a *Acceptance) Reason() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.reason
 }
 
 // CancelForShutdown ends an open window and guarantees that no later one opens.

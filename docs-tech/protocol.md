@@ -6,12 +6,13 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Nineteen command types:
+Twenty command types:
 
 | | |
 |---|---|
 | `GET_RULES` · `SAVE_RULES` | read all three sets · write **Staged** |
 | `APPLY_RULES` · `ACCEPT` | promote Staged and start the timer · confirm |
+| `CANCEL_ACCEPTANCE` | end the open window now — the rollback the timeout would have run, without the wait |
 | `GET_OPTIONS` · `SAVE_OPTIONS` | the protection modules |
 | `GET_SETTINGS` · `SAVE_SETTINGS` | IPv6, Docker, routing |
 | `GET_SYSTEM` · `SAVE_SYSTEM` | the acceptance window |

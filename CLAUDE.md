@@ -62,7 +62,7 @@ Each of these cost a release. They are not style preferences.
 | [packaging](docs-tech/packaging.md) | `debian/`, the trap that shipped a package with no binaries, the permission layout, the capability story |
 | [dependencies](docs-tech/dependencies.md) | Renovate's configuration rule by rule, and why the `go` directive is left alone |
 | [invariants](docs-tech/invariants.md) | every guard test, what it protects, and the incident that produced it |
-| [protocol](docs-tech/protocol.md) | the socket protocol: fifteen commands, and the one field that is not typed |
+| [protocol](docs-tech/protocol.md) | the socket protocol: twenty commands, and the one field that is not typed |
 | [threat-model](docs-tech/threat-model.md) | session internals, the deliberate refusal of `X-Forwarded-For`, what is not defended |
 
 Contributor-facing rules — commit format, review checklist, adding a language —
