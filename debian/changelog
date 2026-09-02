@@ -1,3 +1,31 @@
+easywall (2.14.0) unstable; urgency=medium
+
+  * Feat: the acceptance window is visible while it runs. Every apply reverts
+    itself after 120 seconds unless it is confirmed, and the interface showed
+    that with a static clock glyph and the word Open — two screenshots nine
+    seconds apart were pixel-identical. There is now a countdown at 40px on the
+    apply screen, a chip carrying the same number in the topbar of every other
+    page, and Roll back now beside Confirm. The number and the timer that fires
+    come from one instant, so they cannot disagree.
+  * Feat: CANCEL_ACCEPTANCE, the twentieth protocol command. It reaches the
+    Cancel that has existed since 2.7 and had no route to it. Rolling back
+    restores the last confirmed rule set — the state the operator already
+    approved — so it grants nothing that waiting out the window does not.
+  * Fix: a SIGTERM landing between an apply starting and its window opening was
+    discarded, and shutdown then waited out the whole window — past systemd's
+    TimeoutStopSec, after which SIGKILL left the unconfirmed rules live. That is
+    the failure the window exists to prevent.
+  * Fix: the window now opens before the rules reach the kernel, as
+    Acceptance.Start's own contract had always required. It used to open after
+    two file writes, during which the kernel held unconfirmed rules while the
+    interface reported no window at all.
+  * Fix: an operator rollback is recorded as one audit entry saying so, rather
+    than two of which the second claimed a timeout.
+  * Fix: the Add from catalogue button drew a solid block instead of an icon,
+    and had done since the catalogue shipped in 2.11.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Wed, 02 Sep 2026 20:58:21 +0200
+
 easywall (2.13.0) unstable; urgency=medium
 
   * Feat: trusted_proxies, and EASYWALL_WEB_TRUSTED_PROXIES beside it. A list

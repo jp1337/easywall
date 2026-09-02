@@ -16,7 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <details open markdown="1">
-<summary><strong>Unreleased</strong> — The window shows that it is running</summary>
+<summary><strong>2.14.0</strong> · 2026-09-02 — The window shows that it is running</summary>
 
 Every apply reverts itself after 120 seconds unless it is confirmed — and for
 four releases the screen said so with a static clock glyph and the word *Open*.
@@ -93,7 +93,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
   the stylesheet: whether text fits a box is not something a number in a CSS
   file can say
 
-[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.13.0...HEAD)
+[See the code changes between 2.13.0 and 2.14.0](https://github.com/jp1337/easywall/compare/v2.13.0...v2.14.0)
 
 </details>
 
