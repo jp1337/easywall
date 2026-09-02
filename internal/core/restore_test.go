@@ -530,9 +530,7 @@ func TestDaemonStart_RecordsAMarkerItCannotRead(t *testing.T) {
 	fw, cfg := lockedMarkerFirewall(t)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	go func() { _ = d.Start() }()
-	t.Cleanup(d.Stop)
-	waitForSocket(t, cfg.SocketPath)
+	startTestDaemon(t, d)
 
 	entries := auditEntries(t, cfg)
 	if len(entries) == 0 || entries[0].Action != "boot_enforce_failed" {

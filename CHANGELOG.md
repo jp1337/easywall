@@ -54,6 +54,16 @@ now* sits beside *Confirm* rather than being described in a sentence.
   own contract had always required. It used to open after two file writes,
   during which the kernel held unconfirmed rules and the interface showed no
   window at all.
+- **The *Add from catalogue* button carried a solid black square instead of an
+  icon.** Its SVG draws the outer rounded rectangle and the three inner lines as
+  subpaths of one path, and under SVG's default nonzero fill rule the lines wind
+  the same way as the rectangle and are filled along with it — so the whole glyph
+  filled in, black on the light theme and white on the dark one. It had been
+  there since the catalogue shipped in 2.11 and reached `docs/`, where
+  `ports-light.png` and `ports-dark.png` showed the block as though it were the
+  design. `fill-rule="evenodd"` makes the overlaps holes, which is what the lines
+  are, and both screenshots are re-taken. It is the only one of the interface's
+  ninety inline icons with the fault
 - **Every screenshot in the documentation showed the narrow layout, and half of
   them a sidebar that stopped mid-image.** The published set was taken in a
   1440x900 window. `.page-grid` drops its 320px context column below 1570px, so
