@@ -281,13 +281,49 @@ func (f *Firewall) apply(user string) error {
 		return fmt.Errorf("re-read rules after promote: %w", err)
 	}
 
-	// 4. Apply new rules to kernel
-	// One snapshot for the whole apply, so the rules that reach the kernel
-	// describe a single configuration rather than whatever each field happened
-	// to hold as it was read — and so recordAppliedConfig below records exactly
-	// what nft.Apply was given, not whatever f.cfg holds by the time it runs.
+	// 4. The acceptance window opens *before* the kernel write.
+	//
+	// One snapshot of the configuration for the whole apply, so the rules that
+	// reach the kernel describe a single configuration rather than whatever each
+	// field happened to hold as it was read — and so recordAppliedConfig below
+	// records exactly what nft.Apply was given, not whatever f.cfg holds by the
+	// time it runs. The acceptance switch is read from the same snapshot, for
+	// the same reason.
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
+	acceptanceOn := f.cfg.SystemSettings().Acceptance.Enabled
+
+	// acceptance.enabled was never read until 2.5.0. The system settings page
+	// offers the switch and documents "Off — an apply is final. There is no
+	// automatic way back", but the window ran regardless: an operator who
+	// deliberately turned it off, on a machine they can physically reach, still
+	// had the change rolled out from under them when the timer expired.
+	//
+	// The order here is the fix 2.14 shipped. Start's doc comment has always
+	// said "It must be called before nftables rules are applied" and the call
+	// site did the opposite, leaving a gap — a panic-marker stat, an
+	// applied-config write, a settings read, an audit write — during which the
+	// kernel held unconfirmed rules while Status() answered idle and the
+	// interface showed no window at all. The consequence of the move, stated
+	// plainly: the kernel write and the two file writes are now inside the
+	// window rather than before it. Milliseconds on a fast host, perhaps a
+	// second or two of 120 on an SD card. That is the right direction — the
+	// moment an operator can be locked out is the moment the rules land, not
+	// the moment the bookkeeping finishes.
+	if acceptanceOn {
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all", "", user)
+		if err := f.acceptance.Start(f.cfg.AcceptanceDuration()); err != nil {
+			return err
+		}
+	}
+
+	// 5. Apply new rules to kernel
 	if err := f.nft.Apply(updatedState, opts, nets); err != nil {
+		// The window is open and nothing will ever confirm it. Without this the
+		// status stays pending for the full duration on a machine whose apply
+		// failed and was rolled back on the next line, and the interface counts
+		// down towards a rollback that has already happened.
+		f.acceptance.Reset()
+
 		// Rule application failed — roll back immediately without waiting
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all", err.Error(), user)
 		// The marker before the rollback, on the failure path too. nft.Apply can
@@ -323,6 +359,10 @@ func (f *Firewall) apply(user string) error {
 		// nobody has confirmed it — leaving it there is what would be restored,
 		// with no acceptance window, at the next boot or resume. rollback puts
 		// Current back and, because the marker is set, leaves the kernel down.
+		//
+		// The window opened above; close it before rolling back, or the status
+		// counts down on a machine the console has already taken down.
+		f.acceptance.Reset()
 		f.rollback(state, user)
 		return ErrPanicEngaged
 	}
@@ -333,14 +373,8 @@ func (f *Firewall) apply(user string) error {
 	// read of f.cfg — see recordAppliedConfig's own comment.
 	f.recordAppliedConfig(opts, nets)
 
-	// 5. Acceptance window, unless it has been switched off.
-	//
-	// acceptance.enabled was never read until 2.5.0. The system settings page
-	// offers the switch and documents "Off — an apply is final. There is no
-	// automatic way back", but the window ran regardless: an operator who
-	// deliberately turned it off, on a machine they can physically reach, still
-	// had the change rolled out from under them when the timer expired.
-	if !f.cfg.SystemSettings().Acceptance.Enabled {
+	// 6. Wait out the window, unless it was switched off above.
+	if !acceptanceOn {
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all",
 			"acceptance window disabled — applied without confirmation", user)
 		f.setLastApply(time.Now())
@@ -348,12 +382,6 @@ func (f *Firewall) apply(user string) error {
 			"no confirmation required", user)
 		slog.Info("rules applied; acceptance window is disabled", "user", user)
 		return nil
-	}
-
-	WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all", "", user)
-
-	if err := f.acceptance.Start(f.cfg.AcceptanceDuration()); err != nil {
-		return err
 	}
 
 	accepted := f.acceptance.Wait()
