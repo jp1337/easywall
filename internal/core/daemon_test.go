@@ -95,6 +95,35 @@ func startTestSocket(t *testing.T, d *Daemon) {
 	t.Cleanup(func() { ln.Close() })
 }
 
+// startTestDaemon runs the real Start in the background, waits for its socket,
+// and registers a cleanup that stops the daemon *and waits for Start to return*.
+//
+// The wait is the point. d.wg covers the boot restore, the bridge reconciler and
+// each served connection — deliberately not the accept loop, so Stop returns as
+// soon as it has closed the listener, while the Start goroutine has still to come
+// back from Accept, take the quit branch and return. That overlap was measured at
+// 3 runs in 200: Stop had returned and Start was still executing. A test that ends
+// there leaves a goroutine touching t.TempDir()-scoped state while testing tears
+// the frame down, which is what -race reported on main as
+// TestDaemonStart_RestoresAtStartup on 2026-08-30.
+//
+// The daemon itself is not the problem and is not changed: in production Stop is
+// followed by process exit, and the accept loop is outside d.wg for the reason
+// given on Start. It is the tests that must not outrun it.
+func startTestDaemon(t *testing.T, d *Daemon) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = d.Start()
+	}()
+	t.Cleanup(func() {
+		d.Stop()
+		<-done
+	})
+	waitForSocket(t, d.cfg.SocketPath)
+}
+
 // TestDaemonDispatch uses dispatch() directly to avoid goroutine lifecycle complexity.
 
 func TestDaemonDispatch_GetStatus(t *testing.T) {
@@ -718,17 +747,7 @@ func TestDaemonStart_AcceptsAndResponds(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	go func() { _ = d.Start() }()
-	t.Cleanup(d.Stop)
-
-	// Wait for socket
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(cfg.SocketPath); err == nil {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	startTestDaemon(t, d)
 
 	resp := sendDaemonCmd(t, cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
 	if !resp.Success {
@@ -769,10 +788,7 @@ func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	go func() { _ = d.Start() }()
-	t.Cleanup(d.Stop)
-
-	waitForSocket(t, cfg.SocketPath)
+	startTestDaemon(t, d)
 
 	// The restore fails on the nil netlink connection, and that failure is the
 	// observable proof it was attempted.
@@ -800,10 +816,7 @@ func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	go func() { _ = d.Start() }()
-	t.Cleanup(d.Stop)
-
-	waitForSocket(t, cfg.SocketPath)
+	startTestDaemon(t, d)
 
 	// Send a GetStatus command and wait for the response.
 	resp := sendDaemonCmd(t, cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
