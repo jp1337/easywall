@@ -64,6 +64,7 @@ Each of these cost a release. They are not style preferences.
 | [invariants](docs-tech/invariants.md) | every guard test, what it protects, and the incident that produced it |
 | [protocol](docs-tech/protocol.md) | the socket protocol: twenty commands, and the one field that is not typed |
 | [threat-model](docs-tech/threat-model.md) | session internals, the deliberate refusal of `X-Forwarded-For`, what is not defended |
+| [local-review](docs-tech/local-review.md) | running the interface with no core, no root, no nftables — and why that used to open on a certificate interstitial |
 
 Contributor-facing rules — commit format, review checklist, adding a language —
 are in [CONTRIBUTING.md](CONTRIBUTING.md), and the design system is
