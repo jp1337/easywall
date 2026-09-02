@@ -38,6 +38,12 @@ type demoState struct {
 	// state rolls back to .Backup and acceptance becomes "rolled_back".
 	acceptanceTimer *time.Timer
 
+	// acceptanceDeadline is when acceptanceTimer fires. time.Timer does not
+	// expose that, and the demo has to answer FirewallStatus.AcceptanceRemaining
+	// the way the core does — the public deployment is where most people ever
+	// see the window run.
+	acceptanceDeadline time.Time
+
 	// User identity recorded in audit log entries — overridable but
 	// "demo" by default since we don't have a real session here.
 	actor string
@@ -356,12 +362,26 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 		// this mock has and Active follows its negation the same way the rest
 		// of this struct's derived fields (HasPending) follow the state
 		// underneath them rather than being tracked independently.
-		Active:     !d.panicMode,
-		Panic:      d.panicMode,
-		Acceptance: d.acceptance,
-		HasPending: d.hasPendingLocked(),
-		LastApply:  d.lastApply,
+		Active:              !d.panicMode,
+		Panic:               d.panicMode,
+		Acceptance:          d.acceptance,
+		HasPending:          d.hasPendingLocked(),
+		LastApply:           d.lastApply,
+		AcceptanceRemaining: d.acceptanceRemainingLocked(),
 	}
+}
+
+// acceptanceRemainingLocked mirrors core.Firewall.Status: whole seconds, rounded
+// up, zero when no window is open. Caller holds d.mu.
+func (d *demoState) acceptanceRemainingLocked() int {
+	if d.acceptance != shared.AcceptancePending {
+		return 0
+	}
+	left := time.Until(d.acceptanceDeadline)
+	if left <= 0 {
+		return 0
+	}
+	return int((left + time.Second - 1) / time.Second)
 }
 
 // audit appends a newest-first entry to the log, capped at 200 to mirror
@@ -479,6 +499,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 	if d.acceptanceTimer != nil {
 		d.acceptanceTimer.Stop()
 		d.acceptanceTimer = nil
+		d.acceptanceDeadline = time.Time{}
 	}
 
 	// Snapshot the current rules as backup; promote staged → current.
@@ -502,6 +523,7 @@ func (d *demoState) handleApplyRules() shared.Response {
 		d.audit("apply_started", "all", "")
 		d.acceptance = shared.AcceptancePending
 		dur := time.Duration(d.system.Acceptance.Duration) * time.Second
+		d.acceptanceDeadline = time.Now().Add(dur)
 		d.acceptanceTimer = time.AfterFunc(dur, d.rollback)
 	} else {
 		d.audit("apply_started", "all", "acceptance window disabled — applied without confirmation")
@@ -527,6 +549,7 @@ func (d *demoState) handleAccept() shared.Response {
 	if d.acceptanceTimer != nil {
 		d.acceptanceTimer.Stop()
 		d.acceptanceTimer = nil
+		d.acceptanceDeadline = time.Time{}
 	}
 	// Confirmation is what makes an apply final, so this is where the log records
 	// it and where the dashboard's "last apply" is stamped.
@@ -550,6 +573,7 @@ func (d *demoState) rollback() {
 	d.acceptance = shared.AcceptanceRolledBack
 	d.audit("apply_rolledback", "all", "timeout") // the token the real core writes
 	d.acceptanceTimer = nil
+	d.acceptanceDeadline = time.Time{}
 }
 
 // delayedReset matches the real core's behavior: after Accept, the status

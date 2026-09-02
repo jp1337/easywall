@@ -629,16 +629,25 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		lastApply = last.UTC().Format(time.RFC3339)
 	}
 
+	// Rounded up, so a window with 119.6 s left reads 120 and the first render
+	// of a 120-second window says 02:00 rather than 01:59. This is the only
+	// number on that screen; starting it a second in is wrong about it.
+	remaining := 0
+	if d := f.acceptance.Remaining(); d > 0 {
+		remaining = int((d + time.Second - 1) / time.Second)
+	}
+
 	return shared.FirewallStatus{
 		// Asked of the kernel, not inferred from this process being alive. The
 		// dashboard renders this as "rules are live", which is a claim about
 		// what the kernel holds; answering it with "the daemon is running" made
 		// that sentence unverified, and green after the table had been deleted.
-		Active:     f.nft.Enforcing(),
-		Acceptance: f.acceptance.Status(),
-		HasPending: pending,
-		LastApply:  lastApply,
-		Panic:      f.PanicEngaged(),
+		Active:              f.nft.Enforcing(),
+		Acceptance:          f.acceptance.Status(),
+		HasPending:          pending,
+		LastApply:           lastApply,
+		Panic:               f.PanicEngaged(),
+		AcceptanceRemaining: remaining,
 	}
 }
 
