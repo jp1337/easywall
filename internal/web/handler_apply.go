@@ -30,6 +30,12 @@ type applyData struct {
 	// open. Counted from Backup against Current, which is exactly what was
 	// promoted and not yet confirmed.
 	LiveCount int
+
+	// Live is what the open window is holding, grouped the way the preview is.
+	// The preview is nil while a window is open — a preview of what is already
+	// live is history — but the operator is being told to check that their
+	// services still answer, and the count alone does not name a port.
+	Live []applyPreviewSet
 }
 
 type applyPreview struct {
@@ -80,15 +86,15 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 	data := &applyData{Status: status}
 	switch {
 	case status.Acceptance == shared.AcceptancePending:
-		data.LiveCount = s.liveChangeCount()
+		data.Live, data.LiveCount = s.liveChanges()
 	case status.HasPending:
 		data.Preview = s.buildPreview(r)
 	}
 	s.render(w, r, "apply.html", "apply", data)
 }
 
-// liveChangeCount is how much of what is in the kernel has not been confirmed.
-// Backup is the set that was in force before this apply and Current is the set it
+// liveChanges is what of the kernel's contents has not been confirmed. Backup is
+// the set that was in force before this apply and Current is the set it
 // promoted, so the difference between them is the change the open window is
 // holding.
 //
@@ -99,13 +105,32 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 // came before it. So an apply that changed options only, with no rule diff at
 // all, legitimately shows no live count here; it is not a bug in this
 // function, there being nothing else here to count it against.
-func (s *Server) liveChangeCount() int {
+//
+// Grouped by set in the sidebar's order, so it renders through the same .diff
+// markup the preview uses. The heading is not the preview's — apply_live_title,
+// "Live now — unconfirmed", against apply_preview_title, "What changes" — because
+// the two say different things about the same rows.
+func (s *Server) liveChanges() ([]applyPreviewSet, int) {
 	state, err := s.client.GetRules()
 	if err != nil {
-		slog.Warn("could not read the rules to count what is live", "error", err)
-		return 0
+		slog.Warn("could not read the rules to list what is live", "error", err)
+		return nil, 0
 	}
-	return len(shared.DiffRules(state.Backup, state.Current))
+	deltas := shared.DiffRules(state.Backup, state.Current)
+
+	var sets []applyPreviewSet
+	for _, set := range previewSetOrder {
+		var group []shared.RuleDelta
+		for _, d := range deltas {
+			if d.Set == set {
+				group = append(group, d)
+			}
+		}
+		if len(group) > 0 {
+			sets = append(sets, applyPreviewSet{Set: set, Deltas: group})
+		}
+	}
+	return sets, len(deltas)
 }
 
 // buildPreview assembles what the operator is about to do. Five reads over a
@@ -299,6 +324,38 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 
 	s.setFlash(w, r, "rules_accepted")
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+}
+
+// handleApplyRollback ends the open window now, instead of waiting it out.
+//
+// It grants nothing. What comes back is the last *confirmed* rule set — the
+// state the operator already approved — and doing nothing for the rest of the
+// window reaches the identical outcome. The button saves the wait; it is not a
+// new capability, which is why it exists on the network-facing side while the
+// panic banner deliberately carries no control at all. See
+// docs-tech/threat-model.md.
+func (s *Server) handleApplyRollback(w http.ResponseWriter, r *http.Request) {
+	cancelled, err := s.client.CancelAcceptance()
+	if err != nil {
+		slog.Warn("rollback error", "error", err)
+		s.setFlash(w, r, "rollback_error")
+		http.Redirect(w, r, "/apply", http.StatusSeeOther)
+		return
+	}
+
+	// The window had already closed, so this undid nothing: the previous rules
+	// came back on their own when it expired. Reporting a rollback here would
+	// tell the operator they acted at the one moment they did not — the same
+	// shape of untruth accept_too_late exists to prevent.
+	if !cancelled {
+		slog.Info("a rollback arrived after the acceptance window had closed")
+		s.setFlash(w, r, "rollback_too_late")
+		http.Redirect(w, r, "/apply", http.StatusSeeOther)
+		return
+	}
+
+	s.setFlash(w, r, "rules_rolled_back")
+	http.Redirect(w, r, "/apply", http.StatusSeeOther)
 }
 
 // handleApplyStatus returns the current acceptance status as JSON for HTMX polling.

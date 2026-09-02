@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Ten releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
+description: Eleven releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
 ---
 
 # Roadmap
@@ -17,16 +17,17 @@ walk through came first and shipped in 2.7 and 2.8 — see the
 understand what you are doing, then lets you maintain it, then reaches further:
 
 ```
-Understand what you do   2.14  You can see it working
-                          2.15  When something happens, you hear about it
+Understand what you do   2.14  The window shows that it is running
+                          2.15  You can see it working
+                          2.16  When something happens, you hear about it
 
-Be able to maintain it   2.16  Every entry has a why and an until
-                          2.17  Whoever knocks gets locked out
-                          2.18  Other people's lists, and countries
+Be able to maintain it   2.17  Every entry has a why and an until
+                          2.18  Whoever knocks gets locked out
+                          2.19  Other people's lists, and countries
 
-Reach further            2.19  Outbound traffic
-                          2.20  More than one account
-                          2.21  Eight languages
+Reach further            2.20  Outbound traffic
+                          2.21  More than one account
+                          2.22  Eight languages
                           3.0   Reachable from outside
                           3.1   Passkeys, as a second factor
 ```
@@ -34,6 +35,11 @@ Reach further            2.19  Outbound traffic
 One theme per release, sayable in one sentence — the changelog heading then
 writes itself. A model change travels with the feature that justifies it, never
 earlier as an end in itself and never twice.
+
+> **Amended in 2.14.** One release was inserted here and everything below it
+> moved back one place. The acceptance window's own visibility turned out to
+> need a release of its own, once it gained a deadline and a route to the
+> rollback it never had. The counters that would have been 2.14 are 2.15.
 
 > **Amended in 2.12.** Two releases were inserted here and everything below
 > them moved back two places. **3.0 and 3.1 kept their numbers**: those are
@@ -50,14 +56,15 @@ earlier as an end in itself and never twice.
 
 | Version | What | Why it comes when it does |
 |---|---|---|
-| **2.14** | **You can see it working** — a counter on every rule, reset on each apply | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
-| **2.15** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
-| **2.16** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
-| **2.17** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |
-| **2.18** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
-| **2.19** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
-| **2.20** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
-| **2.21** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
+| **2.14** | **The window shows that it is running** — a countdown that runs, at 40px, on the apply screen and as a chip on every other page, with *Roll back now* beside *Confirm* | For four releases the screen promised the same 120 seconds with a static clock glyph; two screenshots nine seconds apart were pixel-identical, and the rollback it named had no route to the daemon until this release gave it one |
+| **2.15** | **You can see it working** — a counter on every rule, reset on each apply | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
+| **2.16** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
+| **2.17** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
+| **2.18** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |
+| **2.19** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
+| **2.20** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
+| **2.21** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
+| **2.22** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
 | **3.0** | **Reachable from outside** — a REST API with token auth and ACME as an alternative to a reverse proxy | A major version because an API is a second public interface and a compatibility promise easywall has not made before |
 | **3.1** | **Passkeys, as a second factor** — WebAuthn alongside TOTP, never in place of the password | Wait for 3.0 on purpose: WebAuthn requires a registrable domain as its Relying Party ID and **rejects a bare IP address**, which is how most easywall installations are reached (`https://192.168.1.10:12227`) — passkeys cannot come before a real hostname and certificate exist |
 

@@ -97,6 +97,18 @@ const (
 	// unauthenticated input, and the payload is therefore a fixed enum with no
 	// free-text field anywhere in it. See LoginEvent below.
 	CmdLogEvent CommandType = "LOG_EVENT"
+
+	// CmdCancelAcceptance ends an open acceptance window at the operator's
+	// request, so the rules roll back now instead of in two minutes.
+	//
+	// It is not the panic button in reverse. The panic banner deliberately
+	// carries no control, because the network-facing process may not *re-arm* a
+	// firewall a human disarmed at the console — a stolen session would then be
+	// able to. This runs the other way: it restores the last *confirmed* rule
+	// set, the state the operator already approved, and a stolen session reaches
+	// the identical outcome today by doing nothing for 120 seconds. It grants no
+	// capability; it saves the wait.
+	CmdCancelAcceptance CommandType = "CANCEL_ACCEPTANCE"
 )
 
 // AllCommandTypes is the complete list of every command the protocol declares.
@@ -105,7 +117,7 @@ const (
 // process — and its documentation must agree on what commands exist, and this
 // list is the authoritative answer.
 var AllCommandTypes = []CommandType{
-	CmdGetRules, CmdSaveRules, CmdApplyRules, CmdAccept,
+	CmdGetRules, CmdSaveRules, CmdApplyRules, CmdAccept, CmdCancelAcceptance,
 	CmdGetStatus, CmdGetOptions, CmdSaveOptions,
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
@@ -206,6 +218,13 @@ type SaveRulesPayload struct {
 // closed and the rules had been rolled back.
 type AcceptResult struct {
 	Accepted bool `json:"accepted"`
+}
+
+// CancelResult is returned for CmdCancelAcceptance. Cancelled is false when no
+// window was open — the rollback arrived after it had already closed, and the
+// previous rules came back on their own.
+type CancelResult struct {
+	Cancelled bool `json:"cancelled"`
 }
 
 // ErrApplyInProgressText is the exact Response.Error the core returns when

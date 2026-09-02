@@ -253,14 +253,16 @@ func TestHandleApplyGET_TheVerdictNamesTheOperatorsOwnAddress(t *testing.T) {
 }
 
 // A window that is open is not a preview: the change is live already. The page
-// says how much of it is, and shows no diff.
+// shows no preview of it — a preview of something already live is history —
+// and 2.14 gave the window its own diff instead, so what actually must be
+// absent is the preview card, not diff-group-head itself: the live diff below
+// the panel uses the identical markup, just under a different heading.
 //
 // The original version of this test asserted the body did not contain
 // `class="diff"` — but the diff card renders `class="card diff mb-4"`, so that
 // exact substring never appears whatever happens; it passed before the feature
-// existed. diff-group-head is the marker that actually only renders inside a
-// preview, and the collapsed live-count sentence is the assertion that was
-// missing entirely: nothing proved LiveCount ever reached the page.
+// existed. The collapsed live-count sentence and the live diff's own port are
+// the assertions that prove LiveCount and Live actually reached the page.
 func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
@@ -276,11 +278,14 @@ func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 	rec := doAuthRequest(t, s, "GET", "/apply", nil)
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if strings.Contains(body, "diff-group-head") {
-		t.Error("a preview of a change that is already live is history, not a preview")
+	if strings.Contains(body, `class="card diff mb-4"`) {
+		t.Error("the preview card rendered during an open window; the change is already live")
 	}
 	if !strings.Contains(body, "live and unconfirmed") {
 		t.Errorf("the collapsed line naming what is live never reached the page:\n%s", body)
+	}
+	if !strings.Contains(body, "8443") {
+		t.Error("the live diff does not name the port the open window made live")
 	}
 }
 
