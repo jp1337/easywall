@@ -314,6 +314,15 @@ func (f *Firewall) apply(user string) error {
 		if err := f.acceptance.Start(f.cfg.AcceptanceDuration()); err != nil {
 			return err
 		}
+		// Registered where the window opens, not after Wait returns. Everything
+		// between the two is now real work — the kernel write, the panic-marker
+		// check, the applied-config write — and the apply goroutine's recover()
+		// in daemon.go logs and returns without touching acceptance. Start arms
+		// no timer of its own, so a panic in that span would leave the status
+		// Pending with nothing left to roll it back: the interface counts down
+		// forever, and the next apply is poisoned too, because Start is
+		// idempotent on Pending and its Wait then sees a deadline already past.
+		defer f.acceptance.Reset()
 	}
 
 	// 5. Apply new rules to kernel
@@ -385,7 +394,6 @@ func (f *Firewall) apply(user string) error {
 	}
 
 	accepted := f.acceptance.Wait()
-	defer f.acceptance.Reset()
 
 	if !accepted {
 		slog.Warn("acceptance timeout — rolling back")

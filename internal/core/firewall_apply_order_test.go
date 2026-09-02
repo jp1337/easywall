@@ -47,6 +47,20 @@ func TestFirewallApply_OpensTheWindowBeforeItWritesTheKernel(t *testing.T) {
 			"while Status() reports idle and the interface shows no window at all. " +
 			"Acceptance.Start's own doc comment has always required this order.")
 	}
+
+	// And it has to be called, not launched. A `go func(){ f.acceptance.Start(…) }()`
+	// placed above f.nft.Apply satisfies the ordering above while opening the window
+	// asynchronously — the apply goroutine carries on into the kernel write without
+	// waiting for Start to run at all, which destroys the guarantee the ordering
+	// check above exists for.
+	const asynchronous = "so nft.Apply can run before the window is actually open. It must " +
+		"be a synchronous call in Firewall.apply"
+	switch {
+	case inGoroutine(body, startAt[0][0]):
+		t.Error("f.acceptance.Start is inside a `go func` literal, " + asynchronous)
+	case launchedByABareGo(body, startAt[0][0]):
+		t.Error("f.acceptance.Start is launched by a bare `go` statement, " + asynchronous)
+	}
 }
 
 func firewallApplyBody(t *testing.T) string {
