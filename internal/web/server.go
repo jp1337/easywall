@@ -1084,6 +1084,7 @@ var clientStringKeys = []string{
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast",
+	"apply_chip_confirmed", "apply_chip_rolled_back",
 	"ports_port_hint", "ports_desc_hint", "ports_sources_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
