@@ -38,31 +38,39 @@ func TestAcceptance_WaitFiresAtTheDeadlineAndNotAtTheDuration(t *testing.T) {
 }
 
 // A second Start while a window is open must not extend it. The early return is
-// what makes it idempotent, and moving the deadline there would let a repeated
-// APPLY_RULES hold unconfirmed rules live indefinitely.
+// what makes it idempotent, and a deadline written before that return would let
+// a repeated APPLY_RULES hold unconfirmed rules live for as long as it keeps
+// asking.
+//
+// Asserted on the deadline instant, not on Remaining(). Two Remaining() readings
+// cannot see this: with the deadline written above the early return, the *first*
+// Start captures the duration the controller was built with rather than the one
+// it was called with, so the mutation corrupts the earlier reading and the later
+// one looks smaller — which is what a correct implementation also produces. The
+// constructor and the call are given the same duration here for the same reason:
+// a mismatch between them is a second variable in a test that has to isolate one.
 func TestAcceptance_SecondStartDoesNotMoveTheDeadline(t *testing.T) {
-	a := NewAcceptance(time.Hour)
+	a := NewAcceptance(2 * time.Second)
 
 	if err := a.Start(2 * time.Second); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	first := a.Remaining()
+	a.mu.Lock()
+	first := a.deadline
+	a.mu.Unlock()
 
 	time.Sleep(200 * time.Millisecond)
-	if err := a.Start(time.Hour); err != nil {
+	if err := a.Start(2 * time.Second); err != nil {
 		t.Fatalf("second Start: %v", err)
 	}
-	second := a.Remaining()
+	a.mu.Lock()
+	second := a.deadline
+	a.mu.Unlock()
 
-	// Strictly less. 200ms of the window has gone by, so a deadline that did not
-	// move must report less time than it did before. "Not much more" is not the
-	// assertion: a second Start that re-derives the deadline from a stale
-	// duration lands within microseconds of the first one and slips past a
-	// greater-than check, which is what the mutation exposed.
-	if second >= first {
-		t.Fatalf("a second Start moved the deadline: %v left before, %v after a 200ms "+
-			"sleep; a repeated apply can hold unconfirmed rules live for as long as it "+
-			"keeps asking", first, second)
+	if !second.Equal(first) {
+		t.Fatalf("a second Start moved the deadline from %v to %v (%v later); a repeated "+
+			"apply can hold unconfirmed rules live for as long as it keeps asking",
+			first, second, second.Sub(first))
 	}
 }
 
