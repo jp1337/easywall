@@ -224,13 +224,58 @@ any fork's pull request into arbitrary code execution on that runner. It is gate
 behind the repository variable `DEPLOY_DEMO`, because a job whose labels no runner
 answers does not fail: it queues for 24 hours and reports as cancelled.
 
+## What protects `main`
+
+Set 2026-09-01, after a red `Test` run reached `main` and nothing stopped it.
+
+| | |
+|---|---|
+| Required status checks | the thirteen below, `strict: false` |
+| Enforced for administrators | **yes** — the rules apply to the owner too |
+| Force pushes, deletions | refused |
+| Required reviews | none; this is a one-maintainer repository and a self-approval is theatre |
+
+```
+Test (ubuntu-24.04)     Lint     Integration tests (nftables / CAP_NET_ADMIN)
+Generated assets are current     Interface in a browser
+CodeQL     gosec     govulncheck
+Binaries (linux/amd64)     Binaries (linux/arm64)
+Debian Package (amd64)     Debian Package (arm64)     Docker Image
+```
+
+**`Site builds` and `Deploy to Pages` are deliberately absent.** `docs.yml` is
+path-filtered, so on a pull request that touches no `docs/**` file those checks
+never report at all — and a required check that never reports leaves the pull
+request blocked forever rather than failing it. The same reasoning excludes
+`publish-edge.yml`'s jobs, which run on `main` and never on a pull request.
+`codecov/patch` and `codecov/project` are left informational: a change that
+legitimately lowers coverage should be arguable, not refused.
+
+`strict: false` on purpose. Requiring a branch to be up to date before merging
+costs a full re-run of all thirteen on every merge, and Renovate rebases its
+branches whenever `main` moves.
+
+**What this does not do.** It would not have caught the incident that prompted
+it. The pull request's own run was green and the `main` run of the same tree was
+red — a flake in `TestDaemonStart_RestoresAtStartup`, fixed by `startTestDaemon`
+and guarded by `TestDaemonTests_StartInAGoroutineIsAlwaysWaitedFor`. Required
+checks stop a *knowingly* red merge. Noticing a red `main` is a separate problem
+and is still unsolved.
+
 ## Cutting a release
 
-1. `CHANGELOG.md`: move `[Unreleased]` to the new version with today's date.
+The release commit goes through a pull request like everything else. Direct
+pushes to `main` are refused since the protection above, for the owner as well —
+a brand-new commit has no passing checks, which is exactly what the rule says.
+
+1. On a branch: `CHANGELOG.md`, move `[Unreleased]` to the new version with
+   today's date.
 2. `debian/changelog`: a new entry — `debian/rules` takes the package version from
    it, and it once sat at 2.0.0 for five releases.
 3. `internal/shared/version.go` and `docs/_config.yml`'s `version:` —
    `TestDocsVersionMatchesRelease` fails if they disagree.
-4. Tag `vX.Y.Z` and push it.
-5. Read the release run's log rather than the tick, and download one `.deb` to
+4. Open the pull request, let the thirteen run, merge it.
+5. Tag `vX.Y.Z` on the resulting `main` commit and push the tag. Tags are not
+   branches; the protection does not apply to them.
+6. Read the release run's log rather than the tick, and download one `.deb` to
    confirm it contains what it should.
