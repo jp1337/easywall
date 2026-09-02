@@ -54,10 +54,15 @@ func TestAcceptance_SecondStartDoesNotMoveTheDeadline(t *testing.T) {
 	}
 	second := a.Remaining()
 
-	if second > first {
-		t.Fatalf("a second Start moved the deadline: %v left before, %v after; "+
-			"a repeated apply can hold unconfirmed rules live for as long as it keeps asking",
-			first, second)
+	// Strictly less. 200ms of the window has gone by, so a deadline that did not
+	// move must report less time than it did before. "Not much more" is not the
+	// assertion: a second Start that re-derives the deadline from a stale
+	// duration lands within microseconds of the first one and slips past a
+	// greater-than check, which is what the mutation exposed.
+	if second >= first {
+		t.Fatalf("a second Start moved the deadline: %v left before, %v after a 200ms "+
+			"sleep; a repeated apply can hold unconfirmed rules live for as long as it "+
+			"keeps asking", first, second)
 	}
 }
 
@@ -112,12 +117,20 @@ func TestAcceptance_PlainCancelDoesNotPoisonTheNextWindow(t *testing.T) {
 	}
 	a.Reset()
 
-	// The next apply gets a real window.
-	if err := a.Start(time.Second); err != nil {
+	// Through Wait, not Remaining. Remaining reports from the deadline and never
+	// consults the cancel flags, so a poisoned controller still shows a full
+	// count while Wait returns instantly — a Remaining-based assertion here pins
+	// nothing, which the mutation proved.
+	if err := a.Start(400 * time.Millisecond); err != nil {
 		t.Fatalf("second Start: %v", err)
 	}
-	if d := a.Remaining(); d < 500*time.Millisecond {
-		t.Fatalf("the window after a plain Cancel has %v left, want roughly a second; "+
-			"a non-shutdown cancel has poisoned the controller", d)
+	start := time.Now()
+	if a.Wait() {
+		t.Fatal("the second window reported acceptance when nobody confirmed it")
+	}
+	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
+		t.Fatalf("the window after a plain Cancel ended in %v instead of running its "+
+			"400ms; a non-shutdown cancel has poisoned the controller, so the first "+
+			"apply after `easywall-core resume` would roll itself back instantly", elapsed)
 	}
 }
