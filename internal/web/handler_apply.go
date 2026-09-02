@@ -301,6 +301,38 @@ func (s *Server) handleApplyConfirm(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }
 
+// handleApplyRollback ends the open window now, instead of waiting it out.
+//
+// It grants nothing. What comes back is the last *confirmed* rule set — the
+// state the operator already approved — and doing nothing for the rest of the
+// window reaches the identical outcome. The button saves the wait; it is not a
+// new capability, which is why it exists on the network-facing side while the
+// panic banner deliberately carries no control at all. See
+// docs-tech/threat-model.md.
+func (s *Server) handleApplyRollback(w http.ResponseWriter, r *http.Request) {
+	cancelled, err := s.client.CancelAcceptance()
+	if err != nil {
+		slog.Warn("rollback error", "error", err)
+		s.setFlash(w, r, "rollback_error")
+		http.Redirect(w, r, "/apply", http.StatusSeeOther)
+		return
+	}
+
+	// The window had already closed, so this undid nothing: the previous rules
+	// came back on their own when it expired. Reporting a rollback here would
+	// tell the operator they acted at the one moment they did not — the same
+	// shape of untruth accept_too_late exists to prevent.
+	if !cancelled {
+		slog.Info("a rollback arrived after the acceptance window had closed")
+		s.setFlash(w, r, "rollback_too_late")
+		http.Redirect(w, r, "/apply", http.StatusSeeOther)
+		return
+	}
+
+	s.setFlash(w, r, "rules_rolled_back")
+	http.Redirect(w, r, "/apply", http.StatusSeeOther)
+}
+
 // handleApplyStatus returns the current acceptance status as JSON for HTMX polling.
 func (s *Server) handleApplyStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := s.client.GetStatus()

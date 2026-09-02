@@ -156,6 +156,9 @@
   {"id": "accept_error",         "translation": "Failed to confirm rules."},
   {"id": "rules_accepted",       "translation": "Rules accepted and applied successfully."},
   {"id": "accept_too_late",      "translation": "Too late — the confirmation window had already closed, and the previous rules are back. Your edits are still staged; apply them again when you are ready."},
+  {"id": "rules_rolled_back",    "translation": "The rules were rolled back. The set you last confirmed is live again."},
+  {"id": "rollback_too_late",    "translation": "The window had already closed, so nothing was rolled back — the previous rules came back on their own."},
+  {"id": "rollback_error",       "translation": "The rollback could not be sent to the core."},
   {"id": "export_error",         "translation": "Failed to export rules."},
   {"id": "import_no_file",       "translation": "No file uploaded."},
   {"id": "import_read_error",    "translation": "Failed to read uploaded file."},
@@ -547,6 +550,7 @@
   {"id": "validate_unavailable", "translation": "Live validation is not running — the core daemon is offline. Errors will surface on save."},
 
   {"id": "audit_detail_timeout", "translation": "Acceptance window expired"},
+  {"id": "audit_detail_cancelled_by_operator", "translation": "Rolled back by the operator"},
   {"id": "audit_detail_via_proxy", "translation": "via proxy"},
 
   {"id": "og_description", "translation": "Linux firewall management with a web interface. Go, nftables, security-first."}

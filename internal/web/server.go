@@ -405,6 +405,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/apply", s.handleApplyGET)
 		r.Post("/apply/start", s.handleApplyStart)
 		r.Post("/apply/confirm", s.handleApplyConfirm)
+		r.Post("/apply/rollback", s.handleApplyRollback)
 		r.Get("/apply/status", s.handleApplyStatus)
 
 		r.Get("/export", s.handleExport)
@@ -904,7 +905,8 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 // rules themselves, or an nftables error, which is diagnostic output rather than
 // a sentence and is shown verbatim.
 var auditDetailKeys = map[string]string{
-	"timeout": "audit_detail_timeout",
+	"timeout":               "audit_detail_timeout",
+	"cancelled by operator": "audit_detail_cancelled_by_operator",
 }
 
 // detailLabel translates a detail the core wrote from a known vocabulary, and
@@ -1050,6 +1052,9 @@ func templateFuncs() template.FuncMap {
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
+		// Neither is a failure of the system: the operator asked for the window
+		// to end early, and either it did or it had already closed on its own.
+		"rules_rolled_back": true, "rollback_too_late": true,
 		// The important half worked: the account and the second factor exist,
 		// and the codes below are shown. Only the ports/IPv6 staging failed —
 		// amber, not the red firstrun_choices_failed would otherwise imply

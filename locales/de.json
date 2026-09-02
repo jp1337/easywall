@@ -156,6 +156,9 @@
   {"id": "accept_error",         "translation": "Bestätigung fehlgeschlagen."},
   {"id": "rules_accepted",       "translation": "Regeln erfolgreich bestätigt und angewendet."},
   {"id": "accept_too_late",      "translation": "Zu spät — das Bestätigungsfenster war schon zu, die vorherigen Regeln sind zurück. Deine Änderungen sind weiterhin vorgemerkt und können erneut angewendet werden."},
+  {"id": "rules_rolled_back",    "translation": "Die Regeln wurden zurückgenommen. Der zuletzt bestätigte Satz ist wieder aktiv."},
+  {"id": "rollback_too_late",    "translation": "Das Fenster war bereits geschlossen, es wurde nichts zurückgenommen — die vorherigen Regeln sind von selbst zurückgekehrt."},
+  {"id": "rollback_error",       "translation": "Die Rücknahme konnte nicht an den Kern gesendet werden."},
   {"id": "export_error",         "translation": "Export fehlgeschlagen."},
   {"id": "import_no_file",       "translation": "Keine Datei hochgeladen."},
   {"id": "import_read_error",    "translation": "Datei konnte nicht gelesen werden."},
@@ -547,6 +550,7 @@
   {"id": "validate_unavailable", "translation": "Die Live-Prüfung läuft nicht — der Core-Dienst ist offline. Fehler zeigen sich beim Speichern."},
 
   {"id": "audit_detail_timeout", "translation": "Bestätigungsfenster abgelaufen"},
+  {"id": "audit_detail_cancelled_by_operator", "translation": "Vom Betreiber zurückgenommen"},
   {"id": "audit_detail_via_proxy", "translation": "über Proxy"},
 
   {"id": "og_description", "translation": "Linux-Firewall-Verwaltung mit Weboberfläche. Go, nftables, Sicherheit zuerst."}
