@@ -104,6 +104,25 @@ function readPasswordHash(configPath) {
   return m && m[1] ? m[1] : null;
 }
 
+/**
+ * The floor of the acceptance window, read out of the Go source that defines
+ * it rather than typed again here. models.go explains why the bound exists at
+ * all — an HTML min="" is a hint to the browser and nothing more, the server
+ * took any positive number until it did not — and a literal 10 copied into
+ * this file would just as quietly stop matching it the next time it moves.
+ */
+function readAcceptanceDurationMin() {
+  const text = readFileSync('internal/shared/models.go', 'utf8');
+  const m = text.match(/AcceptanceDurationMin\s*=\s*(\d+)/);
+  if (!m) {
+    throw new Error('could not read AcceptanceDurationMin out of internal/shared/models.go');
+  }
+  return parseInt(m[1], 10);
+}
+// The shortest window the server will accept, used below so checkAcceptanceWindow
+// never waits anywhere near the real default of 120s.
+const WINDOW_SECONDS = readAcceptanceDurationMin();
+
 /** Polls an HTTPS URL, ignoring certificate errors, until it answers or times out. */
 async function waitForPort(url, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -534,6 +553,137 @@ async function checkApplyPreview(page) {
 }
 
 /**
+ * Adds one port rule via #add-rule-btn — the same control
+ * checkForwardingPortIsNotReparsed already drives for the forwarding table,
+ * since ports.html's row editor works the same way: click to append a row,
+ * then fill its fields.
+ *
+ * Skips the click if the port is already staged. This function saves what it
+ * adds, and the demo server this runs against keeps its state across runs
+ * (see democlient.go's own comment on that) — so a rerun must not pile a
+ * second, identical row onto whatever the previous run already left behind.
+ */
+async function addPortRule(page, port, description = '') {
+  const already = await page.$$eval('#rules-tbody tr[data-idx] .f-port',
+    (els, port) => els.some(el => el.value === port), port);
+  if (already) return;
+
+  await page.click('#add-rule-btn');
+  const rows = await page.$$('#rules-tbody tr[data-idx]');
+  const row = rows[rows.length - 1];
+  await (await row.$('.f-port')).fill(port);
+  if (description) await (await row.$('.f-desc')).fill(description);
+}
+
+/**
+ * Drive a whole acceptance window: apply, read the countdown falling, roll
+ * back, and assert the rules came back.
+ *
+ * The demo runs a real timer, so this is a real window. A fixture here would
+ * prove nothing about the one screen that carries the product's thesis.
+ */
+async function checkAcceptanceWindow(page) {
+  let ok = true;
+  const failHere = (detail) => { fail('acceptance window', detail); ok = false; };
+
+  // A short window, set through the interface, so the run does not wait two
+  // minutes. WINDOW_SECONDS is the floor read out of models.go above this
+  // function, not a number typed here that a future change to the floor could
+  // silently drift under.
+  await page.goto(`${BASE}/system`, { waitUntil: 'networkidle' });
+  await page.fill('input[name=acceptance_duration]', String(WINDOW_SECONDS));
+  // This form posts through htmx (hx-swap="none"), so the click never
+  // navigates anywhere — waitForNavigation here would just hang until its own
+  // timeout. Waiting for the response the click itself starts is the same fix
+  // signIn uses for /login, for the same reason: a load-state wait can resolve
+  // against a page that was already there before the request finished.
+  const [saved] = await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/system') && r.request().method() === 'POST'),
+    page.click("form[action='/system'] button[type=submit]"),
+  ]);
+  if (!saved.ok()) {
+    fail('acceptance window', `saving a ${WINDOW_SECONDS}s window on /system answered ${saved.status()}`);
+    return;
+  }
+
+  // Stage something nameable, then apply. Everything up to the click on
+  // #start-btn happens before the window opens, so none of it counts against
+  // how long the window actually runs.
+  //
+  // 9443, not 8443: the demo seeds 8443 into both Current and Staged from the
+  // start (see democlient.go's seed()), so staging it again is not a change —
+  // DiffRules would show nothing and the assertion below would pass for the
+  // wrong reason. 9443 is not in the seed on either side.
+  await page.goto(`${BASE}/ports`, { waitUntil: 'networkidle' });
+  await addPortRule(page, '9443');
+  await Promise.all([
+    page.waitForNavigation(),
+    page.click("#ports-form button[type=submit]"),
+  ]);
+
+  await page.goto(`${BASE}/apply`, { waitUntil: 'networkidle' });
+  await Promise.all([page.waitForNavigation(), page.click('#start-btn')]);
+
+  const countdown = page.locator('#apply-countdown');
+  if (!(await countdown.count())) {
+    fail('acceptance window', 'no countdown on /apply with a window open');
+    return;
+  }
+
+  const first = await countdown.innerText();
+  if (!/^\d{2}:\d{2}$/.test(first)) {
+    failHere(`the countdown reads ${JSON.stringify(first)}, want mm:ss`);
+  }
+
+  // It has to actually fall. A rendered "00:10" that never changes is the
+  // defect this release exists to remove, with better typography. This is
+  // the one wait in this file that measures the passage of time on purpose,
+  // rather than standing in for a condition — and the window is only
+  // WINDOW_SECONDS long, so everything from here on is written to spend as
+  // little of it as possible.
+  await page.waitForTimeout(2500);
+  const second = await countdown.innerText();
+  if (second === first) {
+    failHere(`the countdown did not move in 2.5s: ${first} -> ${second}`);
+  }
+
+  // The live diff names what is live — no reload needed, this is still the
+  // page #start-btn's own navigation rendered.
+  if (!(await page.locator('.diff-row', { hasText: '9443' }).count())) {
+    failHere('the open window does not name the port it made live');
+  }
+
+  // The chip follows the operator off this page. `load` rather than the usual
+  // `networkidle`: every second spent waiting here is one the rollback below
+  // has less of the window left to beat.
+  await page.goto(`${BASE}/ports`, { waitUntil: 'load' });
+  if (!(await page.locator('#apply-chip').count())) {
+    failHere('the countdown does not follow the operator to /ports');
+  }
+
+  // Roll back, and check the window actually closed.
+  await page.goto(`${BASE}/apply`, { waitUntil: 'load' });
+  await Promise.all([page.waitForNavigation(), page.click('#rollback-btn')]);
+
+  // A rollback restores what is live, not what is staged: handlePortsGET
+  // always reads Staged, and the rollback only touches Current/Backup. So the
+  // port just added is expected to still be on /ports — asserting it is gone
+  // would fail the check on the one thing this release deliberately kept.
+  // What must be true instead is that the apply page offers a start again,
+  // not a confirm.
+  if (await page.locator('#confirm-btn').count()) {
+    failHere('the window is still open after a rollback');
+  }
+  if (!(await page.locator('#start-btn').count())) {
+    failHere('the apply page offers no way forward after a rollback');
+  }
+
+  if (ok) {
+    console.log('  ok   a whole acceptance window: it runs, it is visible everywhere, it rolls back');
+  }
+}
+
+/**
  * Signing out has to end the session by pressing the control the operator sees.
  *
  * The Go suite proves the *route* is right: GET /logout answers 405, a
@@ -825,6 +975,7 @@ async function runChecks(browser, session) {
   await checkPortsCatalogue(p);
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
+  await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(p);
   await checkVersionBadgeFitsTheVersion(p);
   await checkVerifyPage(browser);
