@@ -592,6 +592,15 @@ func (d *demoState) handleCancelAcceptance() shared.Response {
 func (d *demoState) rollback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	// The timer may already have fired and be waiting on d.mu while an operator
+	// rollback ran under Send's lock. Without this it writes a second
+	// apply_rolledback, detail "timeout", for a window that was already ended by
+	// hand — one event, two entries, the second untrue. The same race exists
+	// against handleAccept, which this guard covers too.
+	if d.acceptance != shared.AcceptancePending {
+		return
+	}
 	d.rollbackWithDetail("timeout")
 }
 

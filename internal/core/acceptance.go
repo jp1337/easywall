@@ -195,7 +195,23 @@ func (a *Acceptance) Wait() bool {
 // nothing — the previous rules are already back, on their own — and reporting
 // it as a success would tell the caller they acted at the one moment they did
 // not.
-func (a *Acceptance) Cancel() bool {
+func (a *Acceptance) Cancel() bool { return a.cancel("") }
+
+// CancelByOperator is Cancel with the reason the audit line will carry: it
+// cancels the open window on the operator's own request and, only if there
+// truly was one, records that as why it ended.
+func (a *Acceptance) CancelByOperator() bool { return a.cancel("cancelled by operator") }
+
+// cancel ends the window and, when the caller named one, records why — both
+// under the same lock. The reason may not be written before the window is
+// known to be open: Wait's timeout branch sets the status and then logs
+// before returning, and a cancel arriving in that gap would stamp "cancelled
+// by operator" onto a window that had just genuinely expired — the one
+// mislabel this command exists to prevent. A prior version set the reason in
+// CancelByOperator before taking this lock, on the claim that a stale reason
+// is never read because the next Start resets it; that claim was false for
+// exactly this gap, where apply reads Reason() before any Start runs again.
+func (a *Acceptance) cancel(reason string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -205,24 +221,12 @@ func (a *Acceptance) Cancel() bool {
 	if a.status != shared.AcceptancePending || a.cancelled || a.cancelCh == nil {
 		return false
 	}
+	if reason != "" {
+		a.reason = reason
+	}
 	a.cancelled = true
 	close(a.cancelCh)
 	return true
-}
-
-// CancelByOperator cancels the open window on the operator's own request, and
-// records that as the reason the window ended, for the audit line apply
-// writes. It reports whether there was a window to cancel, exactly as Cancel
-// does — CancelByOperator is Cancel, with the reason recorded first.
-//
-// The reason is set before the cancel, not after: if Cancel finds nothing to
-// cancel, the reason is left stale, but nobody reads it until the next Start,
-// which resets it — so no rollback of the write is needed.
-func (a *Acceptance) CancelByOperator() bool {
-	a.mu.Lock()
-	a.reason = "cancelled by operator"
-	a.mu.Unlock()
-	return a.Cancel()
 }
 
 // Reason reports why the current or most recently ended window ended: either

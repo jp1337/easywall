@@ -596,15 +596,19 @@ func (f *Firewall) Accept() bool {
 // runs unchanged — the same path a timeout takes, because it is the same
 // outcome reached sooner.
 //
-// It writes no audit entry of its own. apply already writes exactly one
-// apply_rolledback line on every path out of Wait, reading the reason from
-// f.acceptance.Reason() — which CancelByOperator set to "cancelled by operator"
-// before waking Wait up. Writing a second entry here would double the record
-// for one event, and the second of the two would say "timeout" regardless,
-// because that is the literal apply used to write unconditionally. A second
-// action would also need a second label, a second colour and a second
-// translation for what is, to the operator, the same thing happening earlier.
-func (f *Firewall) Rollback(user string) bool {
+// It writes no audit entry of its own, and takes no user: the single
+// apply_rolledback line is written by apply, which already has one — the user
+// who ran the apply, not whoever cancelled it — and reads the reason from
+// f.acceptance.Reason(), which CancelByOperator set to "cancelled by operator"
+// before waking Wait up. So the entry names the apply's operator, and a
+// caller here has no user to contribute; that is a documented consequence of
+// one writer owning the line, not a gap. Writing a second entry would double
+// the record for one event, and the second of the two would say "timeout"
+// regardless, because that is the literal apply used to write
+// unconditionally. A second action would also need a second label, a second
+// colour and a second translation for what is, to the operator, the same
+// thing happening earlier.
+func (f *Firewall) Rollback() bool {
 	return f.acceptance.CancelByOperator()
 }
 

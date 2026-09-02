@@ -373,7 +373,7 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 	case shared.CmdCancelAcceptance:
 		// Whether it landed is the answer the caller needs, exactly as for
 		// ACCEPT: a rollback that arrives after the window closed undid nothing.
-		data, _ := json.Marshal(shared.CancelResult{Cancelled: d.firewall.Rollback("web")})
+		data, _ := json.Marshal(shared.CancelResult{Cancelled: d.firewall.Rollback()})
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdGetOptions:

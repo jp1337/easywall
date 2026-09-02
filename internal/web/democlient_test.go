@@ -542,6 +542,44 @@ func TestDemo_ApplyWithoutAcceptanceWindowLogsBoth(t *testing.T) {
 	}
 }
 
+// The command-coverage guard below only proves CANCEL_ACCEPTANCE is not
+// unhandled — it accepts any Success:true response, including one from a
+// handler that does nothing. That is exactly the gap PANIC and RESUME fell
+// into two tasks after they were added: a demo that answers without acting
+// passes the suite and fails silently in the browser. This test asserts on
+// the actual effect: the rules really revert, the status really moves to
+// rolled_back, and the audit line really reads apply_rolledback / cancelled
+// by operator rather than the timeout token the same code path writes for the
+// other reason a window ends.
+func TestDemo_CancelAcceptanceRollsBackNow(t *testing.T) {
+	d := newDemoState()
+	d.mu.Lock()
+	d.rules.Staged.TCP = append(d.rules.Staged.TCP, shared.PortRule{Port: "9999"})
+	backup := d.rules.Current
+	d.mu.Unlock()
+
+	if resp := d.Send(shared.Command{Type: shared.CmdApplyRules}); !resp.Success {
+		t.Fatalf("apply failed: %s", resp.Error)
+	}
+	resp := d.Send(shared.Command{Type: shared.CmdCancelAcceptance})
+	var got shared.CancelResult
+	if err := json.Unmarshal(resp.Data, &got); err != nil || !got.Cancelled {
+		t.Fatalf("cancel reported %+v (err %v)", got, err)
+	}
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.acceptance != shared.AcceptanceRolledBack {
+		t.Errorf("status is %q, want rolled_back", d.acceptance)
+	}
+	if len(d.rules.Current.TCP) != len(backup.TCP) {
+		t.Errorf("the rules were not restored: current TCP %v", d.rules.Current.TCP)
+	}
+	if e := d.auditLog[0]; e.Action != "apply_rolledback" || e.Detail != "cancelled by operator" {
+		t.Errorf("newest entry is %q/%q, want apply_rolledback/cancelled by operator", e.Action, e.Detail)
+	}
+}
+
 // ── Every declared command ───────────────────────────────────────────────
 
 // The demo has to answer every command the protocol declares. It has a default

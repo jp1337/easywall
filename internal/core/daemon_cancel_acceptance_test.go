@@ -32,6 +32,26 @@ func TestAcceptance_CancelReportsWhetherThereWasAWindow(t *testing.T) {
 	}
 }
 
+// A CancelByOperator that lands with no open window must not touch the
+// reason. Wait's timeout branch sets the status to RolledBack and then logs
+// before returning; an operator cancel arriving in that gap has nothing left
+// to cancel, and if it wrote the reason anyway it would relabel a genuine
+// timeout as an operator rollback — the exact mislabel this command exists to
+// prevent. Simulated here by cancelling against a controller that was never
+// started, i.e. status stays AcceptanceIdle throughout, which is the same
+// "not Pending" shape as landing after Wait's timeout branch has already run.
+func TestAcceptance_CancelByOperatorDoesNotStompReasonWithNoWindowOpen(t *testing.T) {
+	a := NewAcceptance(time.Minute)
+	before := a.Reason()
+
+	if a.CancelByOperator() {
+		t.Fatal("CancelByOperator reported success against a controller with no open window")
+	}
+	if got := a.Reason(); got != before {
+		t.Errorf("Reason changed from %q to %q even though nothing was cancelled", before, got)
+	}
+}
+
 // The reason is what apply writes as the audit detail, so a window nobody
 // touched has to read "timeout" and one the operator ended has to read
 // something else — or the log records the two as the same event.
@@ -66,7 +86,7 @@ func TestAcceptance_ReasonDistinguishesATimeoutFromAnOperatorRollback(t *testing
 func TestFirewallRollback_CarriesTheOperatorsReason(t *testing.T) {
 	fw := newTestFirewall(t, newTestConfig(t))
 
-	if fw.Rollback("web") {
+	if fw.Rollback() {
 		t.Error("Rollback reported success with no window open")
 	}
 
@@ -75,7 +95,7 @@ func TestFirewallRollback_CarriesTheOperatorsReason(t *testing.T) {
 	}
 	t.Cleanup(fw.acceptance.Reset)
 
-	if !fw.Rollback("web") {
+	if !fw.Rollback() {
 		t.Fatal("Rollback reported no open window while one was pending")
 	}
 	if got := fw.acceptance.Reason(); got != "cancelled by operator" {
