@@ -272,6 +272,26 @@ func (f *Firewall) collectUsageBeforeWrite() {
 }
 
 // resetUsageBaselines follows the kernel write. See UsageStore.ResetBaselines.
+//
+// A tick's CollectUsage can be blocked on the nft mutex nft.Apply is holding —
+// for up to NftTimeout — and unblock the instant apply reaches this call. If
+// that tick's Collect commits first, it writes a correct fresh baseline for the
+// table apply just rebuilt, and this reset then zeroes it anyway, so the next
+// collect measures its delta against 0 and double-books the handful of packets
+// the tick already booked. Collect and ResetBaselines are each internally
+// serialised but give no ordering guarantee between them, and -race cannot see
+// this: it is a logic race, not a data race.
+//
+// Left as-is rather than fixed. The stored packet and byte totals run slightly
+// high, once, and only when a tick lands in that exact instant — nothing an
+// operator can act on, because GET_USAGE's reply carries LastSeen and nothing
+// else (see RuleUsage's doc comment); the tick's own Collect already set
+// LastSeen correctly before the double-booking happens. The cure costs more
+// than the defect: closing it needs Collect and ResetBaselines serialised
+// against each other, or a reset that merges with a baseline written since the
+// collect it follows, rather than zeroing unconditionally — either is a new
+// lock straddling the apply path, which does not otherwise take one for a
+// nicety counter.
 func (f *Firewall) resetUsageBaselines() {
 	if err := f.usage.ResetBaselines(); err != nil {
 		slog.Warn("could not reset the usage baselines after writing the rules; the next "+

@@ -371,6 +371,10 @@ func (f *Firewall) apply(user string) error {
 	// returns before touching the table when ValidateRules refuses, and a
 	// baseline zeroed there would re-book the whole lifetime of every live rule
 	// at the next collect.
+	//
+	// A ticker tick can be mid-collect right here, having queued on the nft
+	// mutex behind the write above — see resetUsageBaselines' own comment for
+	// what that costs and why it is accepted rather than locked away.
 	f.resetUsageBaselines()
 
 	// The marker again, now that the rules are actually in the kernel. The check
