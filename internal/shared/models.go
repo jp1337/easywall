@@ -2,6 +2,15 @@ package shared
 
 // PortRule represents a TCP or UDP port to be opened.
 type PortRule struct {
+	// ID identifies this rule across applies, edits and reorderings. Usage
+	// counters are keyed by it, and 2.18's per-entry metadata will key by it
+	// too. Assigned once at creation, never rewritten.
+	//
+	// Twelve hex characters. omitempty keeps a rules.json written before 2.15
+	// byte-identical until it is touched — the promise Sources made in 2.11,
+	// kept the same way.
+	ID string `json:"id,omitempty"`
+
 	Port        string `json:"port"`        // single port "80" or range "8000:9000"
 	Description string `json:"description"` // human-readable label
 	SSH         bool   `json:"ssh"`         // route through SSH brute-force chain

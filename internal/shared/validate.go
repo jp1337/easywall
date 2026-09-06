@@ -25,6 +25,25 @@ func ValidateRules(r Rules) error {
 			return fmt.Errorf("udp rule %q: %w", rule.Port, err)
 		}
 	}
+	// Two rules sharing an id share a usage counter, and the number an operator
+	// would then close a port on is the sum of two ports' traffic. EnsureRuleIDs
+	// repairs this on every write path, so reaching here means a rules.json
+	// edited by hand — which is exactly the case that needs an error rather than
+	// a silently merged history. An empty id is not a duplicate: a file written
+	// before 2.15 has nothing else.
+	seenIDs := make(map[string]bool, len(r.TCP)+len(r.UDP))
+	for _, list := range [][]PortRule{r.TCP, r.UDP} {
+		for _, rule := range list {
+			if rule.ID == "" {
+				continue
+			}
+			if seenIDs[rule.ID] {
+				return fmt.Errorf("rule id %q is used by two rules; ids key the usage "+
+					"counters, so the two would share one history", rule.ID)
+			}
+			seenIDs[rule.ID] = true
+		}
+	}
 	for _, ip := range r.Blacklist {
 		if IsListComment(ip) {
 			continue
