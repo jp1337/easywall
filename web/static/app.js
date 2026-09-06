@@ -205,7 +205,14 @@ function initRuleEditor() {
       const sources = (tr.querySelector('.f-sources')?.value ?? '')
         .split(',').map(s => s.trim()).filter(s => s !== '');
       const service = tr.dataset.service ?? '';
+      // The identity the usage counters are keyed by. Empty on a row the
+      // operator just added — the core assigns one when it stores it — and
+      // carried unchanged on every row that already has one. Dropping it here
+      // would re-key every rule on the page at every save, because the server
+      // rebuilds the stored list from exactly this payload.
+      const id = tr.dataset.id ?? '';
       const rule = { port, description: desc, ssh };
+      if (id) rule.id = id;
       if (sources.length) rule.sources = sources;
       if (service) rule.service = service;
       return rule;

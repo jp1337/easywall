@@ -63,7 +63,7 @@
                 </thead>
                 <tbody id="rules-tbody">
                   {{range $i, $r := .Rules}}
-                  <tr data-idx="{{$i}}"{{with $r.Service}} data-service="{{.}}"{{end}}>
+                  <tr data-idx="{{$i}}" data-id="{{$r.ID}}"{{with $r.Service}} data-service="{{.}}"{{end}}>
                     <td data-label="{{T "ports_port"}}"><input class="f-port input-cell input-cell-data" type="text" value="{{$r.Port}}" placeholder="{{T "ports_port_hint"}}" aria-label="{{T "ports_port"}}"></td>
                     <td data-label="{{T "ports_ssh"}}"><input class="f-ssh checkbox" type="checkbox" {{if $r.SSH}}checked{{end}} aria-label="{{T "ports_ssh"}}"></td>
                     <td class="cell-wide" data-label="{{T "ports_sources"}}"><input class="f-sources input-cell" type="text" value="{{join $r.Sources ", "}}" placeholder="{{T "ports_sources_hint"}}" aria-label="{{T "ports_sources"}}"></td>

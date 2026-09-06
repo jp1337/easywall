@@ -257,6 +257,36 @@ func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
 	}
 }
 
+// The id is part of the payload, not something the server re-derives. A POST
+// that carries one must forward it unchanged — the handler validates and
+// forwards, and a rule stripped of its id here is a counter history thrown away.
+func TestPortsPOST_ForwardsTheRuleID(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
+
+	var saved []shared.PortRule
+	fc.OnCommand(shared.CmdSaveRules, func(cmd shared.Command) {
+		var p shared.SaveRulesPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return
+		}
+		raw, _ := json.Marshal(p.Rules)
+		_ = json.Unmarshal(raw, &saved)
+	})
+
+	rulesJSON := `[{"id":"deadbeefcafe","port":"443","description":"HTTPS","ssh":false}]`
+	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules="+urlEncode(rulesJSON))
+	assertRedirect(t, rec, "/ports?type=tcp")
+
+	if len(saved) != 1 {
+		t.Fatalf("want one saved rule, got %d", len(saved))
+	}
+	if got := saved[0].ID; got != "deadbeefcafe" {
+		t.Errorf("stored id = %q, want deadbeefcafe", got)
+	}
+}
+
 // A source that is not an address is refused with the message that names it, on
 // the page still holding the operator's typing — the shape the port field has.
 func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
