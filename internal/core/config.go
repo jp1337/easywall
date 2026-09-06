@@ -307,6 +307,12 @@ func (c *Config) AppliedConfigPath() string {
 	return c.DataDir + "/applied-config.json"
 }
 
+// UsagePath returns the path of the per-rule usage counters. See usage.go for
+// why the baseline in it is persisted rather than held in memory.
+func (c *Config) UsagePath() string {
+	return c.DataDir + "/usage.json"
+}
+
 // PanicMarkerPath returns the path of the file that records panic mode.
 //
 // In the data directory rather than in this config file for two reasons, neither

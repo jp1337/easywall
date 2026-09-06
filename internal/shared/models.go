@@ -1,5 +1,7 @@
 package shared
 
+import "time"
+
 // PortRule represents a TCP or UDP port to be opened.
 type PortRule struct {
 	// ID identifies this rule across applies, edits and reorderings. Usage
@@ -433,6 +435,42 @@ type AppliedConfig struct {
 type AppliedConfigResult struct {
 	Recorded bool          `json:"recorded"`
 	Config   AppliedConfig `json:"config"`
+}
+
+// RuleUsage is what one port rule has carried, and what the daemon needs to
+// keep booking it correctly across restarts and applies.
+//
+// It is both the stored record and the reply to GET_USAGE. The baseline fields
+// travel with it because they have to be in the file, and they are harmless on
+// the wire — the interface reads LastSeen and nothing else.
+type RuleUsage struct {
+	Packets uint64 `json:"packets"`
+	Bytes   uint64 `json:"bytes"`
+
+	// FirstSeen is the first interval in which this rule carried anything, and
+	// LastSeen the most recent one. Zero means never observed — which is not the
+	// same as a rule with no id, and the interface says so with a different word.
+	FirstSeen time.Time `json:"first_seen,omitzero"`
+	LastSeen  time.Time `json:"last_seen,omitzero"`
+
+	// KernelPackets and KernelBytes are the last values read out of the kernel:
+	// the baseline the next delta is measured from.
+	//
+	// Persisted, not held in memory, and that is the whole point of the field.
+	// The nftables table outlives the daemon, so a baseline that started at zero
+	// on every start would make the first collect after a restart re-count every
+	// packet already booked before it — a port that saw one packet a month ago
+	// reporting as busy today. TestUsageStore_ADaemonRestartDoesNotDoubleCount
+	// is what holds it.
+	KernelPackets uint64 `json:"kernel_packets"`
+	KernelBytes   uint64 `json:"kernel_bytes"`
+}
+
+// UsageResult is the reply to GET_USAGE: what every rule has carried, keyed by
+// rule id, and when the figures were last read out of the kernel.
+type UsageResult struct {
+	Usage       map[string]RuleUsage `json:"usage"`
+	CollectedAt time.Time            `json:"collected_at,omitzero"`
 }
 
 // SystemSettings groups the acceptance window configuration for IPC transport.
