@@ -1604,10 +1604,23 @@ body {
      so the number was reached by measuring the rendered input, not by adding
      up padding on paper. */
   .col-sources { width: 25rem; }
-  /* Wide enough for the longest sentence lastUsed can produce without wrapping
-     — German's "vor 59 Minuten" at 14px — and no wider, because every pixel
-     here comes off the description, which is the column an operator scans. */
-  .col-used    { width: 9rem; }
+  /* The longest string lastUsed can produce, in either language, is not
+     "vor 59 Minuten" (14 characters) as an earlier version of this comment
+     claimed — it is the singular forms "vor einer Minute" and "vor einer
+     Stunde" (16 characters, tied), which render for any port used within the
+     last minute or hour. On a firewall that is actually carrying traffic that
+     is the common case, not an edge one, and it is exactly what wrapped: a
+     row 57px tall against 45px for its neighbours, at a width where the table
+     had already compressed this column below its declared size.
+     10rem is a hint sized with headroom for that string, not a guarantee —
+     table-layout: auto only honours a declared width when nothing forces the
+     column wider (see .col-sources above), which is how a compressed table
+     ate the 9rem down to 126px in the first place. white-space: nowrap is
+     what actually prevents wrapping: it forces this column to grow instead,
+     and every pixel it takes still comes off .col-flex, the description
+     column an operator scans — the same trade the old comment named, now
+     enforced rather than assumed. */
+  .col-used    { width: 10rem; white-space: nowrap; }
   .col-actions { width: 56px;  text-align: right; }
 
   /* The lead cell of a rule row: the identifier the operator scans for. */

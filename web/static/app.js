@@ -352,7 +352,7 @@ function ruleRowHTML(idx, r, labels) {
          placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[3] ?? '')}">
       ${r.serviceName ? `<span class="chip">${esc(r.serviceName)}</span>` : ''}
     </td>
-    <td class="text-ink-subtle" data-label="${esc(L[4] ?? '')}">&mdash;</td>
+    <td class="col-used text-ink-subtle" data-label="${esc(L[4] ?? '')}">&mdash;</td>
     <td>
       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"
