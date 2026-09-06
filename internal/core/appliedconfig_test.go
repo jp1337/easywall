@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,13 +13,24 @@ import (
 )
 
 // countingHandler counts the records it is asked to log, without formatting
-// them anywhere a test would need to parse.
-type countingHandler struct{ n *int }
+// them anywhere a test would need to parse. If substr is non-empty, only
+// records whose message contains it are counted — so a test can ask "did
+// *this* warning fire" rather than "did anything log", which an unrelated
+// warning elsewhere in the same call would otherwise satisfy.
+type countingHandler struct {
+	n      *int
+	substr string
+}
 
-func (h countingHandler) Enabled(context.Context, slog.Level) bool  { return true }
-func (h countingHandler) Handle(context.Context, slog.Record) error { *h.n++; return nil }
-func (h countingHandler) WithAttrs([]slog.Attr) slog.Handler        { return h }
-func (h countingHandler) WithGroup(string) slog.Handler             { return h }
+func (h countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h countingHandler) Handle(_ context.Context, r slog.Record) error {
+	if strings.Contains(r.Message, h.substr) {
+		*h.n++
+	}
+	return nil
+}
+func (h countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h countingHandler) WithGroup(string) slog.Handler      { return h }
 
 func TestAppliedConfig_AMissingFileIsNotRecorded(t *testing.T) {
 	res, err := readAppliedConfig(filepath.Join(t.TempDir(), "applied-config.json"))

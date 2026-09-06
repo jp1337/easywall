@@ -53,9 +53,12 @@ func TestValidate_ClampsANegativeUsageInterval(t *testing.T) {
 	// increment n, and the assertion below would pass for the wrong reason.
 	c.IPv6.Mode = shared.IPv6Filter
 
+	// Matched on message content, not merely counted: any other warning that
+	// Validate happens to log on this fixture — present or added later — must
+	// not be able to stand in for this one.
 	var n int
 	prev := slog.Default()
-	slog.SetDefault(slog.New(countingHandler{n: &n}))
+	slog.SetDefault(slog.New(countingHandler{n: &n, substr: "usage.interval"}))
 	defer slog.SetDefault(prev)
 
 	if err := c.Validate(); err != nil {
@@ -65,6 +68,6 @@ func TestValidate_ClampsANegativeUsageInterval(t *testing.T) {
 		t.Errorf("after Validate, UsageInterval() = %v, want 0", got)
 	}
 	if n == 0 {
-		t.Error("Validate clamped a negative usage.interval without logging a warning")
+		t.Error("Validate clamped a negative usage.interval without logging a warning mentioning it")
 	}
 }
