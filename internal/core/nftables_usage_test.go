@@ -92,14 +92,16 @@ func TestPortAcceptRules_TheCounterSitsAfterTheMatch(t *testing.T) {
 	}
 }
 
-// The collector reads the input chain, and addPortAccept writes to it and to no
-// other. Point one of them somewhere else and they stop describing the same
-// rules — the counters would be read from a chain that has none, and every port
-// would report "never" for ever.
-//
-// Source-read rather than behavioural: the chain a manager writes to is decided
-// by an argument at two call sites, and no runtime assertion short of a kernel
-// can see which one was passed.
+// This is a source-read guard, not a behavioural one: it proves that the
+// chain-name comparison inside RuleCounters is written against inputChainName
+// (the same constant every addPortAccept call site passes as inputChain), and
+// that RuleCounters' body mentions none of the other chain names. It cannot
+// prove RuleCounters actually reads only rules from the input chain at
+// runtime — grep sees source text, not behaviour, and a comparison could
+// still be wrong in a way no substring check catches. That proof is
+// behavioural and belongs to a real kernel: Task 17 points RuleCounters at
+// the forward chain and asserts the counters it reads are wrong, which is
+// the mutation this guard cannot perform on its own.
 func TestCollectionReadsTheInputChain(t *testing.T) {
 	if inputChainName != "input" {
 		t.Fatalf("inputChainName = %q; the kernel's base input chain is called \"input\"", inputChainName)
@@ -122,12 +124,17 @@ func TestCollectionReadsTheInputChain(t *testing.T) {
 		}
 	}
 
-	// And the collector reads that chain by the same constant, not by a literal
-	// of its own that could drift.
+	// And the collector's chain filter compares against that same constant.
+	// Asserting on the comparison expression itself, not merely on
+	// inputChainName appearing somewhere in the body — the constant also
+	// appears in the "read the %s chain" error message, so a body that
+	// compares against a drifted-away literal while still mentioning
+	// inputChainName in that error string would pass a bare-token check.
 	body := funcBody(t, src, "nftables.go", "func (m *NftablesManager) RuleCounters(")
-	if !strings.Contains(body, "inputChainName") {
-		t.Error("RuleCounters does not name inputChainName; it is reading some other chain, " +
-			"or a literal that can drift away from the one addPortAccept writes to")
+	if !strings.Contains(body, "Name != inputChainName") {
+		t.Error("RuleCounters' chain filter does not compare against inputChainName; it is reading " +
+			"some other chain, or a literal of its own that could drift away from the one " +
+			"addPortAccept writes to")
 	}
 	for _, other := range []string{`"forward"`, `"output"`, `"prerouting"`, `"sshbrute"`} {
 		if strings.Contains(body, other) {
@@ -143,5 +150,27 @@ func TestRuleCounters_NoConnectionIsAnError_NoTableIsNot(t *testing.T) {
 	m := &NftablesManager{}
 	if _, err := m.RuleCounters(); err == nil {
 		t.Error("RuleCounters with no netlink connection returned no error")
+	}
+}
+
+// userdata.Get (nftables v0.3.0, userdata/userdata.go:62) slices
+// udata[2:2+length] before it checks the length is actually there, so a
+// truncated TLV panics rather than returning "not found". The input chain is
+// not guaranteed to hold only easywall's rules — Snapshot's doc comment says
+// so — and this parse runs in the root daemon on a ticker, so a single
+// malformed comment must cost one rule's counter, not the process.
+func TestIdFromUserData_TruncatedTLVYieldsNoID_NotAPanic(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("idFromUserData panicked on truncated user data: %v", r)
+		}
+	}()
+
+	// Type TypeComment (0), a claimed length of 5, and only two bytes actually
+	// following it — the exact shape that makes userdata.Get slice past the
+	// end of the buffer.
+	truncated := []byte{byte(userdata.TypeComment), 5, 'a', 'b'}
+	if id, ok := idFromUserData(truncated); ok {
+		t.Errorf("truncated TLV parsed as id %q, ok=true; want ok=false", id)
 	}
 }

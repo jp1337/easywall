@@ -312,7 +312,7 @@ func (m *NftablesManager) RuleCounters() (map[string]RuleCounter, error) {
 			return nil, fmt.Errorf("read the %s chain: %w", inputChainName, err)
 		}
 		for _, r := range rules {
-			id, ok := userdata.GetString(r.UserData, userdata.TypeComment)
+			id, ok := idFromUserData(r.UserData)
 			if !ok || id == "" {
 				continue
 			}
@@ -327,6 +327,26 @@ func (m *NftablesManager) RuleCounters() (map[string]RuleCounter, error) {
 		}
 	}
 	return out, nil
+}
+
+// idFromUserData reads the rule-id comment out of a kernel rule's UserData,
+// treating malformed TLV bytes as "no id" rather than letting them reach the
+// caller as a panic.
+//
+// userdata.Get (nftables v0.3.0, userdata/userdata.go:62) slices
+// udata[2:2+length] before it checks len(udata) < 2+length, so a truncated
+// or corrupt TLV panics instead of returning an error. RuleCounters cannot
+// assume every rule in the input chain is one of ours — Snapshot's own doc
+// comment concedes a hand-written ruleset can share this table and chain
+// namespace — and this runs in the root daemon, on a ticker and inside
+// apply(), so a single bad comment must not be able to take it down.
+func idFromUserData(userData []byte) (id string, ok bool) {
+	defer func() {
+		if recover() != nil {
+			id, ok = "", false
+		}
+	}()
+	return userdata.GetString(userData, userdata.TypeComment)
 }
 
 // Reset deletes and recreates the easywall table, giving us a clean slate.
