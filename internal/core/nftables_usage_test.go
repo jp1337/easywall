@@ -135,3 +135,13 @@ func TestCollectionReadsTheInputChain(t *testing.T) {
 		}
 	}
 }
+
+// No table, no counters, and that is not an error. Panic mode deletes the whole
+// table; a collector that reported a failure there would fill the journal for as
+// long as the machine stays deliberately unfiltered.
+func TestRuleCounters_NoConnectionIsAnError_NoTableIsNot(t *testing.T) {
+	m := &NftablesManager{}
+	if _, err := m.RuleCounters(); err == nil {
+		t.Error("RuleCounters with no netlink connection returned no error")
+	}
+}

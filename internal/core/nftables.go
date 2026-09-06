@@ -237,7 +237,7 @@ func (m *NftablesManager) Enforcing() bool {
 		return false
 	}
 	for _, ch := range chains {
-		if ch.Table == nil || ch.Table.Name != tableName || ch.Name != "input" {
+		if ch.Table == nil || ch.Table.Name != tableName || ch.Name != inputChainName {
 			continue
 		}
 		rules, err := m.conn.GetRules(table, ch)
@@ -250,6 +250,83 @@ func (m *NftablesManager) Enforcing() bool {
 		return len(rules) > 0
 	}
 	return false
+}
+
+// RuleCounter is what one rule id's kernel rules have counted between them.
+type RuleCounter struct {
+	Packets uint64
+	Bytes   uint64
+}
+
+// RuleCounters reads the packet counters off the input chain and sums them by
+// rule id.
+//
+// One UI rule with three sources is three kernel rules — addPortAccept builds
+// one per source — so the figure for that port is their sum, and the id in each
+// rule's comment is what makes summing them possible. A rule with no comment is
+// skipped: the module rules, the blacklist, the whitelist and the Docker
+// exceptions all carry no id and are not what this counts.
+//
+// The input chain and nothing else. addPortAccept writes there and nowhere
+// else, and TestCollectionReadsTheInputChain pins both halves of that so the
+// collector cannot quietly start reading a chain nothing writes into — which
+// would report "never" for every port for ever, with no error anywhere.
+//
+// A missing table is an empty map and no error. Panic mode deletes the table on
+// purpose, and a collector that treated that as a failure would log one line
+// per tick for as long as the machine stays deliberately unfiltered.
+func (m *NftablesManager) RuleCounters() (map[string]RuleCounter, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.conn == nil {
+		return nil, fmt.Errorf("nftables connection not available")
+	}
+
+	tables, err := m.conn.ListTables()
+	if err != nil {
+		return nil, fmt.Errorf("list tables: %w", err)
+	}
+	var table *nftables.Table
+	for _, tbl := range tables {
+		if tbl.Name == tableName && tbl.Family == nftables.TableFamilyINet {
+			table = tbl
+			break
+		}
+	}
+	if table == nil {
+		return map[string]RuleCounter{}, nil
+	}
+
+	chains, err := m.conn.ListChains()
+	if err != nil {
+		return nil, fmt.Errorf("list chains: %w", err)
+	}
+	out := map[string]RuleCounter{}
+	for _, ch := range chains {
+		if ch.Table == nil || ch.Table.Name != tableName ||
+			ch.Table.Family != nftables.TableFamilyINet || ch.Name != inputChainName {
+			continue
+		}
+		rules, err := m.conn.GetRules(table, ch)
+		if err != nil {
+			return nil, fmt.Errorf("read the %s chain: %w", inputChainName, err)
+		}
+		for _, r := range rules {
+			id, ok := userdata.GetString(r.UserData, userdata.TypeComment)
+			if !ok || id == "" {
+				continue
+			}
+			c := out[id]
+			for _, e := range r.Exprs {
+				if counter, isCounter := e.(*expr.Counter); isCounter {
+					c.Packets += counter.Packets
+					c.Bytes += counter.Bytes
+				}
+			}
+			out[id] = c
+		}
+	}
+	return out, nil
 }
 
 // Reset deletes and recreates the easywall table, giving us a clean slate.
