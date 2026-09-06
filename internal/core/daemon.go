@@ -501,6 +501,14 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		data, _ := json.Marshal(res)
 		return shared.Response{Success: true, Data: data}
 
+	case shared.CmdGetUsage:
+		usage, err := d.firewall.Usage()
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(usage)
+		return shared.Response{Success: true, Data: data}
+
 	case shared.CmdPanic:
 		if err := d.firewall.Panic("console"); err != nil {
 			return errResp(err)

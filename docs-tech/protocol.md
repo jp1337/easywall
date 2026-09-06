@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Twenty command types:
+Twenty-one command types:
 
 | | |
 |---|---|
@@ -21,6 +21,7 @@ Twenty command types:
 | `EXPORT_RULES` · `IMPORT_RULES` | the rule set as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
+| `GET_USAGE` | what each port rule has carried, keyed by rule id, and when the figures were read |
 | `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
 | `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
 
@@ -41,6 +42,7 @@ than it sounds.
 
 ```go
 type PortRule struct {
+	ID          string   `json:"id,omitempty"`
 	Port        string   `json:"port"`
 	Description string   `json:"description"`
 	SSH         bool     `json:"ssh"`
@@ -49,8 +51,10 @@ type PortRule struct {
 }
 ```
 
-`sources` and `service` are `omitempty`, so a rules file written before 2.11 is
-byte-identical after a round-trip.
+`id`, `sources` and `service` are `omitempty`, so a rules file written before
+the release that added each one is byte-identical after a round-trip. `id` is
+filled in once, at the first start of 2.15, on every path that writes the file
+and on none that reads it.
 
 ## The snapshot behind `GET_APPLIED_CONFIG`
 

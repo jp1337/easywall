@@ -44,6 +44,7 @@ func newTestFirewall(t *testing.T, cfg *Config) *Firewall {
 		nft:        &NftablesManager{}, // nil conn — safe for dispatch tests that don't trigger Apply
 		rules:      store,
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
+		usage:      NewUsageStore(cfg.UsagePath()),
 	}
 }
 

@@ -88,6 +88,18 @@ const (
 	// nothing on either side could see the difference between the two.
 	CmdGetAppliedConfig CommandType = "GET_APPLIED_CONFIG"
 
+	// CmdGetUsage returns what each port rule has carried and when it last
+	// carried anything, keyed by rule id, with the time the figures were read.
+	//
+	// Read-only, one file, so it keeps the short deadline: the core answers it
+	// out of usage.json and never touches netlink. Collecting here would queue
+	// behind the nft mutex, which an apply holds for up to NftTimeout — six
+	// times what this command's client is willing to wait.
+	//
+	// No audit entry. Reading a counter is not an event, which is the same
+	// reasoning CmdGetStatus already runs on.
+	CmdGetUsage CommandType = "GET_USAGE"
+
 	// CmdLogEvent hands the core a login event to record.
 	//
 	// It exists because the audit log had no logins in it at all —
@@ -121,7 +133,7 @@ var AllCommandTypes = []CommandType{
 	CmdGetStatus, CmdGetOptions, CmdSaveOptions,
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
-	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig,
+	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig, CmdGetUsage,
 	CmdPanic, CmdResume, CmdLogEvent,
 }
 
