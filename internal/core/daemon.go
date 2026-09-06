@@ -140,6 +140,15 @@ func (d *Daemon) Start() error {
 		d.firewall.reconcileDockerBridges(d.quit)
 	}()
 
+	// The counter ticker, tracked in wg for the same reason as the reconciler:
+	// Stop waits for it to notice d.quit rather than leaving it reading netlink
+	// into a closed daemon. It returns immediately when usage.interval is 0.
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+		d.firewall.collectUsagePeriodically(d.quit)
+	}()
+
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
 

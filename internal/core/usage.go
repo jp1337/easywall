@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -196,4 +197,115 @@ func (u *UsageStore) write(res shared.UsageResult) error {
 		return fmt.Errorf("atomic rename: %w", err)
 	}
 	return nil
+}
+
+// CollectUsage reads the kernel counters once and books what has arrived since
+// the last call.
+//
+// Errors are returned rather than logged here, so the two callers can each say
+// something true about their own situation: the ticker logs and carries on, and
+// apply() logs and applies anyway — a bookkeeping file that cannot be written is
+// no reason to refuse to change the firewall.
+func (f *Firewall) CollectUsage() error {
+	counters, err := f.nft.RuleCounters()
+	if err != nil {
+		return fmt.Errorf("read the kernel counters: %w", err)
+	}
+	live, err := f.liveRuleIDs()
+	if err != nil {
+		return err
+	}
+	return f.usage.Collect(counters, live)
+}
+
+// liveRuleIDs is every rule id the stored rules still name.
+//
+// Current *and* Staged: a rule deleted from Staged is still in the kernel and
+// still counting until the next apply, and forgetting its history the moment
+// somebody unchecks it in the interface — before they have applied, and while
+// they can still change their mind — would be the wrong answer twice over.
+// Backup is deliberately not included: a rule that is only in Backup is not in
+// the kernel, and a rollback that brings it back gets a fresh history, which is
+// the honest answer for a rule nothing has been counting.
+func (f *Firewall) liveRuleIDs() (map[string]bool, error) {
+	state, err := f.rules.GetState()
+	if err != nil {
+		return nil, fmt.Errorf("read rules for the usage collector: %w", err)
+	}
+	live := map[string]bool{}
+	for _, set := range []shared.Rules{state.Current, state.Staged} {
+		for _, list := range [][]shared.PortRule{set.TCP, set.UDP} {
+			for _, r := range list {
+				if r.ID != "" {
+					live[r.ID] = true
+				}
+			}
+		}
+	}
+	return live, nil
+}
+
+// Usage is what GET_USAGE answers with: the stored record, read from the file
+// and never from the kernel.
+//
+// A netlink read here would queue behind the nft mutex, which an apply holds for
+// up to NftTimeout — thirty seconds — and the web process's deadline for this
+// command is five. The ticker and apply() do the collecting; this is a file read.
+func (f *Firewall) Usage() (shared.UsageResult, error) {
+	return f.usage.Read()
+}
+
+// collectUsageBeforeWrite books the counters immediately before an apply
+// destroys them.
+//
+// nft.Apply deletes and rebuilds the table, and every counter in it goes back to
+// zero. Whatever arrived since the last tick is in those counters and nowhere
+// else, so reading them here is the difference between losing five minutes of
+// traffic per apply and losing none. A failure is logged and swallowed: the
+// operator asked for an apply, and a bookkeeping file is not a reason to refuse
+// one.
+func (f *Firewall) collectUsageBeforeWrite() {
+	if err := f.CollectUsage(); err != nil {
+		slog.Warn("could not read the port counters before applying; the traffic since the "+
+			"last collect will not be counted", "error", err)
+	}
+}
+
+// resetUsageBaselines follows the kernel write. See UsageStore.ResetBaselines.
+func (f *Firewall) resetUsageBaselines() {
+	if err := f.usage.ResetBaselines(); err != nil {
+		slog.Warn("could not reset the usage baselines after writing the rules; the next "+
+			"collect may under-count", "error", err)
+	}
+}
+
+// collectUsagePeriodically reads the counters every UsageInterval until quit.
+//
+// It exists so "last used" has a resolution that does not depend on somebody
+// opening the page. Without it the only collect is the one apply() runs, and a
+// port used between two applies — which is every port, on a machine whose rules
+// are not being changed — would be dated at the next apply or not at all.
+//
+// An interval of zero stops the ticker and nothing else: the apply-time collect
+// still runs, because that call exists to keep the flush from destroying a
+// number rather than to sample one.
+func (f *Firewall) collectUsagePeriodically(quit <-chan struct{}) {
+	interval := f.cfg.UsageInterval()
+	if interval <= 0 {
+		slog.Info("the usage counter ticker is switched off; Last used will only advance " +
+			"when rules are applied")
+		return
+	}
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+	for {
+		select {
+		case <-quit:
+			return
+		case <-tick.C:
+			if err := f.CollectUsage(); err != nil {
+				slog.Warn("could not read the port counters", "error", err)
+			}
+		}
+	}
 }

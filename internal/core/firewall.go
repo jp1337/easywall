@@ -77,6 +77,11 @@ type Firewall struct {
 	// the same line for as long as the page stays open.
 	appliedConfigErrMu   sync.Mutex
 	appliedConfigLastErr string
+
+	// usage owns DataDir/usage.json: what each rule has carried, and the
+	// persisted baseline the next delta is measured from. Written by the ticker
+	// Daemon.Start launches and by apply(), read by GET_USAGE.
+	usage *UsageStore
 }
 
 // ErrApplyInProgress is returned when an apply is asked for while a cycle is
@@ -160,6 +165,7 @@ func NewFirewall(cfg *Config) (*Firewall, error) {
 		acceptance:    NewAcceptance(cfg.AcceptanceDuration()),
 		reconcilePoll: 2 * time.Second,
 		reconcileWait: 90 * time.Second,
+		usage:         NewUsageStore(cfg.UsagePath()),
 	}
 	f.lastApply = readLastApply(cfg.LastApplyPath())
 	return f, nil
@@ -247,6 +253,13 @@ func (f *Firewall) apply(user string) error {
 		slog.Warn("apply refused: panic mode is engaged", "user", user)
 		return ErrPanicEngaged
 	}
+
+	// Before anything else this function does, because everything it does next
+	// leads to a kernel write that zeroes every counter. The rules file reads,
+	// the snapshot and the promote all sit between here and nft.Apply, and none
+	// of them touches the kernel — so this is as late as it can be read and as
+	// early as it needs to be.
+	f.collectUsageBeforeWrite()
 
 	slog.Info("starting rule apply", "user", user)
 
@@ -352,6 +365,13 @@ func (f *Firewall) apply(user string) error {
 		f.rollback(state, user)
 		return fmt.Errorf("apply nftables rules: %w", err)
 	}
+
+	// The table has been rebuilt, so every baseline in usage.json describes
+	// counters that no longer exist. After the call and not before it: nft.Apply
+	// returns before touching the table when ValidateRules refuses, and a
+	// baseline zeroed there would re-book the whole lifetime of every live rule
+	// at the next collect.
+	f.resetUsageBaselines()
 
 	// The marker again, now that the rules are actually in the kernel. The check
 	// at the top of this function was made before two rules-file reads, two
