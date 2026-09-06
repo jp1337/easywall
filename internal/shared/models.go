@@ -217,6 +217,31 @@ func ValidAcceptanceDuration(d int) bool {
 	return d >= AcceptanceDurationMin && d <= AcceptanceDurationMax
 }
 
+// UsageIntervalDefault is how often the per-rule counters are read, in seconds,
+// when nothing says otherwise. Five minutes: "last used" needs a resolution
+// that does not depend on somebody opening the page, and a netlink read of one
+// chain every five minutes costs nothing measurable on the hardware this
+// product is written for.
+const UsageIntervalDefault = 300
+
+// UsageConfig controls how often the per-rule packet counters are read.
+type UsageConfig struct {
+	// Interval is seconds between counter reads. Unset means
+	// UsageIntervalDefault; 0 stops the ticker.
+	//
+	// A pointer for the same reason WebConfig.UpdateCheck is one: every
+	// installation upgrading from 2.14 has no [usage] section, and an int whose
+	// zero value means "off" would switch the feature off on all of them
+	// without anybody choosing it.
+	//
+	// 0 stops the *ticker* only. An apply still collects, because that call
+	// exists to keep the flush from destroying a number rather than to sample
+	// one — so a host with collection switched off still shows a Last used that
+	// advances at every apply, and configuration.md says exactly that instead of
+	// leaving it to be discovered.
+	Interval *int `toml:"interval"`
+}
+
 // IPv6Mode says what the firewall does with IPv6 traffic.
 //
 // This replaces a boolean that could not express the question. `enabled = false`
@@ -329,6 +354,7 @@ type DockerConfig struct {
 type CoreConfig struct {
 	Firewall   FirewallOptions  `toml:"firewall"`
 	Acceptance AcceptanceConfig `toml:"acceptance"`
+	Usage      UsageConfig      `toml:"usage"`
 	IPv6       IPv6Config       `toml:"ipv6"`
 	Docker     DockerConfig     `toml:"docker"`
 	Routing    RoutingConfig    `toml:"routing"`
