@@ -1872,6 +1872,14 @@ body {
     color: var(--color-ink-subtle);
   }
 
+  /* The second line of a tile's note. A block inside the note rather than a
+     fifth child of the tile: .stat-tile is a subgrid spanning a fixed number of
+     rows, and a conditional child would give six tiles two different heights.
+     No colour — DESIGN.md rule 1 reserves green, amber and red for firewall
+     state, and an unused open port is none of live, unconfirmed, rolled back or
+     failing. */
+  .tile-note-second { display: block; margin-block-start: 2px; }
+
   .stat-tile-value-primary { color: var(--color-accent-on-wash); }
   .stat-tile-value-success { color: var(--color-state-ok-on-wash); }
   .stat-tile-value-warning { color: var(--color-state-warn-on-wash); }

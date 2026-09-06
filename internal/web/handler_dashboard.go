@@ -3,6 +3,7 @@ package web
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -26,6 +27,43 @@ type dashboardData struct {
 	// PendingCount is how many changes the Unapplied changes chip is about. Zero
 	// when nothing is pending, and the chip is not shown then either.
 	PendingCount int
+
+	// UnusedTCP is how many open TCP ports have not carried a packet in thirty
+	// days. Zero hides the line rather than printing a zero: "0 unused for 30+
+	// days" is a sentence about nothing.
+	UnusedTCP int
+}
+
+// unusedThreshold is how long a port has to have been quiet before the dashboard
+// mentions it. Thirty days, following FortiGate's convention — the interface most
+// operators will have met this idea in.
+const unusedThreshold = 30 * 24 * time.Hour
+
+// unusedForThirtyDays counts the rules whose last recorded use is older than the
+// threshold.
+//
+// A rule that has never been observed is *not* counted, and the omission is the
+// honest one: FirstSeen is the first use, not the moment the rule was written,
+// so there is nothing to date a never-used rule from. "Unused for 30+ days"
+// about a rule added yesterday would be a claim about a duration nobody
+// measured. The port table says "never" for it, which is the true statement, and
+// features/ports.md says why the tile and the table disagree.
+func unusedForThirtyDays(rules []shared.PortRule, usage map[string]shared.RuleUsage) int {
+	cutoff := time.Now().Add(-unusedThreshold)
+	n := 0
+	for _, r := range rules {
+		if r.ID == "" {
+			continue
+		}
+		u, ok := usage[r.ID]
+		if !ok || u.LastSeen.IsZero() {
+			continue
+		}
+		if u.LastSeen.Before(cutoff) {
+			n++
+		}
+	}
+	return n
 }
 
 // recentActivityLimit is how many audit entries the dashboard shows. Enough to
@@ -69,6 +107,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			Whitelist:  countListEntries(rules.Current.Whitelist),
 			Custom:     countListEntries(rules.Current.Custom),
 			Forwarding: len(rules.Current.Forwarding),
+		}
+
+		// One more command, and only when there are rules to say anything about.
+		if res, err := s.client.GetUsage(); err == nil {
+			data.UnusedTCP = unusedForThirtyDays(rules.Current.TCP, res.Usage)
+		} else {
+			slog.Debug("could not read the usage counters for the dashboard", "error", err)
 		}
 	}
 
