@@ -46,8 +46,16 @@ func TestRuleIDsAreUniqueAndStable(t *testing.T) {
 		Backup:  shared.Rules{UDP: []shared.PortRule{{Port: "53"}}},
 	})
 
-	if _, err := NewRulesStore(path); err != nil {
+	s1, err := NewRulesStore(path)
+	if err != nil {
 		t.Fatalf("NewRulesStore: %v", err)
+	}
+	// GetState is the read entry point every caller — the web process included
+	// — actually uses. A backfill relocated to the read path fires here, not at
+	// construction, so this call is what makes that relocation observable.
+	firstRead, err := s1.GetState()
+	if err != nil {
+		t.Fatalf("GetState: %v", err)
 	}
 	first := readRulesFile(t, path)
 
@@ -68,12 +76,31 @@ func TestRuleIDsAreUniqueAndStable(t *testing.T) {
 		}
 	}
 
+	// What GetState hands back must be what is on disk. A read-path backfill
+	// fails this immediately: it invents an id in memory for the caller without
+	// ever writing it, so the reader's value and the file's value part ways on
+	// the very first call, before a second open is even needed.
+	if firstRead.Current.TCP[0].ID != first.Current.TCP[0].ID || firstRead.Current.TCP[1].ID != first.Current.TCP[1].ID {
+		t.Errorf("GetState disagrees with the file on current tcp ids: %q/%q vs %q/%q",
+			firstRead.Current.TCP[0].ID, firstRead.Current.TCP[1].ID,
+			first.Current.TCP[0].ID, first.Current.TCP[1].ID)
+	}
+	if firstRead.Backup.UDP[0].ID != first.Backup.UDP[0].ID {
+		t.Errorf("GetState disagrees with the file on the backup id: %q vs %q",
+			firstRead.Backup.UDP[0].ID, first.Backup.UDP[0].ID)
+	}
+
 	// Stable: a second open must not hand out new values. This is what fails
 	// when the backfill is moved to the read path — every read is a new id, and
 	// every counter is keyed to a rule that no longer exists by the time it is
 	// read back.
-	if _, err := NewRulesStore(path); err != nil {
+	s2, err := NewRulesStore(path)
+	if err != nil {
 		t.Fatalf("second NewRulesStore: %v", err)
+	}
+	secondRead, err := s2.GetState()
+	if err != nil {
+		t.Fatalf("second GetState: %v", err)
 	}
 	second := readRulesFile(t, path)
 	for i := range first.Current.TCP {
@@ -81,9 +108,23 @@ func TestRuleIDsAreUniqueAndStable(t *testing.T) {
 			t.Errorf("current tcp rule %d changed id between opens: %q then %q",
 				i, first.Current.TCP[i].ID, second.Current.TCP[i].ID)
 		}
+		// The same comparison against what GetState hands back, not just what is
+		// on disk: a read-path backfill that never persists would still show a
+		// stable (empty) file while handing every caller a fresh, different id
+		// on every call — this is the check that catches that, distinctly from
+		// a backfill removed outright, which hands back the same empty id every
+		// time and would pass this comparison while failing the "has no id"
+		// checks above.
+		if secondRead.Current.TCP[i].ID != firstRead.Current.TCP[i].ID {
+			t.Errorf("current tcp rule %d changed id between GetState reads: %q then %q",
+				i, firstRead.Current.TCP[i].ID, secondRead.Current.TCP[i].ID)
+		}
 	}
 	if second.Backup.UDP[0].ID != first.Backup.UDP[0].ID {
 		t.Error("the backup rule changed id between opens")
+	}
+	if secondRead.Backup.UDP[0].ID != firstRead.Backup.UDP[0].ID {
+		t.Error("the backup rule changed id between GetState reads")
 	}
 }
 
