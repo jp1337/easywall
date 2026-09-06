@@ -1604,6 +1604,10 @@ body {
      so the number was reached by measuring the rendered input, not by adding
      up padding on paper. */
   .col-sources { width: 25rem; }
+  /* Wide enough for the longest sentence lastUsed can produce without wrapping
+     — German's "vor 59 Minuten" at 14px — and no wider, because every pixel
+     here comes off the description, which is the column an operator scans. */
+  .col-used    { width: 9rem; }
   .col-actions { width: 56px;  text-align: right; }
 
   /* The lead cell of a rule row: the identifier the operator scans for. */
