@@ -112,3 +112,76 @@ func TestValidateRules_AcceptsSeveralRulesWithNoID(t *testing.T) {
 		t.Fatalf("a rule set written before 2.15 was rejected: %v", err)
 	}
 }
+
+// The format, and the reason it is a hard error rather than a tidy-up.
+//
+// This value is written into the kernel verbatim as an nftables comment, and
+// userdata.Append writes the TLV length as byte(len(data)) with no check. A
+// 254-character id declares a length past NFT_USERDATA_MAXLEN and the kernel
+// refuses the entire netlink batch — so every apply fails until that one rule is
+// deleted, and the firewall cannot be changed. At 255 the length byte wraps to
+// zero and the id read back out of the kernel is "", so Collect books the
+// traffic under a key no rule has and the port reads "never" for ever.
+//
+// Reached from the web process, which is why it belongs in the validator and not
+// only in EnsureRuleIDs: a 400-character id in the ports form's JSON payload was
+// stored and rendered before this existed.
+func TestValidateRules_RejectsAnIDThatIsNotOne(t *testing.T) {
+	for _, id := range []string{
+		"ABCABCABCABC",              // uppercase: not what NewRuleID produces
+		"abcabcabcab",               // eleven
+		"abcabcabcabcd",             // thirteen
+		"abcabcabcabz",              // 'z' is not hex
+		"abc-abc-abca",              // punctuation
+		strings.Repeat("a", 253),    // the last length that round-trips at all
+		strings.Repeat("a", 254),    // declares a length over NFT_USERDATA_MAXLEN
+		strings.Repeat("a", 255),    // the length byte wraps to zero
+		strings.Repeat("ab", 200),   // 45 wrong bytes come back
+		"aaaaaaaaaaaa\naaaaaaaaaaa", // a newline in an nft comment
+	} {
+		err := ValidateRules(Rules{TCP: []PortRule{{Port: "22", ID: id}}})
+		if err == nil {
+			t.Errorf("id %q (%d characters) was accepted; it reaches the kernel as an "+
+				"nftables comment whose length field is one byte", id, len(id))
+			continue
+		}
+		if !strings.Contains(err.Error(), "twelve") {
+			t.Errorf("the error for %q does not say what a rule id is: %v", id, err)
+		}
+	}
+
+	// And the shape NewRuleID produces is accepted, on both protocols.
+	if err := ValidateRules(Rules{
+		TCP: []PortRule{{Port: "22", ID: NewRuleID()}},
+		UDP: []PortRule{{Port: "53", ID: "0123456789ab"}},
+	}); err != nil {
+		t.Errorf("a well-formed rule id was rejected: %v", err)
+	}
+}
+
+// A malformed id is repaired on the write paths rather than left to be refused
+// at apply time. Without this a hand-edited rules.json reaches nft.Apply, is
+// refused there, and the machine's firewall cannot be applied at all until
+// somebody finds the offending line — a worse outcome than losing one rule's
+// counter history.
+func TestEnsureRuleIDs_ReplacesAMalformedID(t *testing.T) {
+	r := Rules{TCP: []PortRule{
+		{Port: "22", ID: "not-an-id"},
+		{Port: "80", ID: strings.Repeat("f", 300)},
+		{Port: "443", ID: "0123456789ab"},
+	}}
+	if !EnsureRuleIDs(&r) {
+		t.Fatal("EnsureRuleIDs reported no change on a set holding two malformed ids")
+	}
+	for i, rule := range r.TCP {
+		if !ValidRuleID(rule.ID) {
+			t.Errorf("rule %d kept the id %q, which is not a rule id", i, rule.ID)
+		}
+	}
+	if r.TCP[2].ID != "0123456789ab" {
+		t.Errorf("the well-formed id was rewritten to %q", r.TCP[2].ID)
+	}
+	if err := ValidateRules(r); err != nil {
+		t.Errorf("the repaired set still fails validation: %v", err)
+	}
+}
