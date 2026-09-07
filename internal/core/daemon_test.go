@@ -458,8 +458,16 @@ func TestDaemonDispatch_ApplyRules_ReturnsSuccess(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for dispatch")
 	}
-	// Brief pause to let the async Apply goroutine start and finish
-	time.Sleep(50 * time.Millisecond)
+	// d.wg, not a sleep. The dispatch case adds to it before it starts the
+	// goroutine — "Tracked in d.wg so Stop waits for it" — so waiting on it
+	// waits for exactly this apply and nothing else.
+	//
+	// A sleep here was a hope, and it broke: DataDir is t.TempDir(), the apply
+	// writes into it, and 2.15 gave it two more writes on that path (the usage
+	// collect and the baseline reset). On a loaded runner the goroutine landed
+	// after the test returned and t.TempDir()'s RemoveAll failed with
+	// "directory not empty" — a docs-only pull request went red on it.
+	d.wg.Wait()
 }
 
 func TestDaemonDispatch_GetRules_Error(t *testing.T) {
@@ -574,9 +582,16 @@ func TestDaemonDispatch_ApplyRules_GoroutineError(t *testing.T) {
 	if !resp.Success {
 		t.Fatalf("dispatch CmdApplyRules should return Success: %s", resp.Error)
 	}
-	// Give the goroutine enough time to run Apply (which fails with nil conn)
-	// and reach slog.Error("apply error", ...)
-	time.Sleep(100 * time.Millisecond)
+	// d.wg, not a sleep. The dispatch case adds to it before it starts the
+	// goroutine — "Tracked in d.wg so Stop waits for it" — so waiting on it
+	// waits for exactly this apply and nothing else.
+	//
+	// A sleep here was a hope, and it broke: DataDir is t.TempDir(), the apply
+	// writes into it, and 2.15 gave it two more writes on that path (the usage
+	// collect and the baseline reset). On a loaded runner the goroutine landed
+	// after the test returned and t.TempDir()'s RemoveAll failed with
+	// "directory not empty" — a docs-only pull request went red on it.
+	d.wg.Wait()
 }
 
 // TestDaemonDispatch_ApplyRules_PanicRecovery exercises the recover() branch inside
@@ -596,8 +611,16 @@ func TestDaemonDispatch_ApplyRules_PanicRecovery(t *testing.T) {
 	if !resp.Success {
 		t.Fatalf("dispatch should return success immediately: %s", resp.Error)
 	}
-	// Wait for the goroutine to panic and recover
-	time.Sleep(100 * time.Millisecond)
+	// d.wg, not a sleep. The dispatch case adds to it before it starts the
+	// goroutine — "Tracked in d.wg so Stop waits for it" — so waiting on it
+	// waits for exactly this apply and nothing else.
+	//
+	// A sleep here was a hope, and it broke: DataDir is t.TempDir(), the apply
+	// writes into it, and 2.15 gave it two more writes on that path (the usage
+	// collect and the baseline reset). On a loaded runner the goroutine landed
+	// after the test returned and t.TempDir()'s RemoveAll failed with
+	// "directory not empty" — a docs-only pull request went red on it.
+	d.wg.Wait()
 }
 
 func TestLookupGroup_OpenError(t *testing.T) {
