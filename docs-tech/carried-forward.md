@@ -93,6 +93,7 @@ added mid-run. What follows is what was seen and left alone, and why.
 |---|---|
 | ~~**Marker check to netlink write is not atomic**~~ | **Closed 2026-09-07.** The known state is now passed into the helper rather than re-read a third time; see `TestPanicLandedDuringWriteIsToldTheMarkerState` in [invariants](invariants.md) |
 | ~~**`Panic` and `Resume` share no lock**~~ | **Closed 2026-09-07.** `panicMu` serialises them; see `TestPanicAndResumeShareALock` in [invariants](invariants.md) |
+| ~~**The accept loop `Add`s to `d.wg` from a counter of zero**~~ | **Closed 2026-09-07.** Opened by the test-race fix, which fixed only the test side and recorded the production half as still open. `Daemon.track` now takes the slot under the `d.mu` that `Stop` holds before it waits, so an accept either registers before the wait or is refused and the connection closed. Reproduced at 76 process runs in 160, 0 in 256 after; see `TestDaemonStart_StopRefusesAConnectionItCannotWaitFor` in [invariants](invariants.md) |
 
 ## Wording and hygiene
 

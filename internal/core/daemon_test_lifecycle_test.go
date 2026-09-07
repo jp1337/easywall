@@ -8,12 +8,12 @@ import (
 	"testing"
 )
 
-// Running the real Daemon.Start from a test takes two things that are easy to
-// leave out, and both of them have been left out, in two different releases.
-// So the rule is not "remember them" but "there is one place that has them":
-// startDaemonGoroutine. This guard says nothing else may spawn Start.
+// Running the real Daemon.Start from a test takes something that is easy to
+// leave out, and it has been left out in two different releases. So the rule is
+// not "remember it" but "there is one place that has it": startDaemonGoroutine.
+// This guard says nothing else may spawn Start.
 //
-// The first thing is observing the goroutine return. Stop closes the listener and
+// The thing is observing the goroutine return. Stop closes the listener and
 // waits on d.wg — which covers the boot restore, the bridge reconciler and each
 // served connection, but deliberately not the accept loop (see the comment on
 // Start). So Stop can return while the Start goroutine is still coming back from
@@ -24,18 +24,19 @@ import (
 // which discards the only signal that goroutine ever gives, so none of them
 // could wait and none of them did.
 //
-// The second is holding a slot in d.wg for as long as Start runs, so that no Add
-// inside the daemon is ever the transition from zero. Without it the accept loop
-// Adds at zero while the Stop in the test's own goroutine is inside d.wg.Wait(),
-// and sync.WaitGroup reports that pairing by design. That is the flake CI hit on
-// 2.15, on TestDaemonStart_RecordsAMarkerItCannotRead — reproduced at 7 process
-// runs in 160. Waiting for Start, the 2026-08-30 fix, could never have covered
-// it: the wait happens after Stop, and this races inside Stop.
+// The helper also used to hold a slot in d.wg for as long as Start ran, so that
+// no Add inside the daemon was ever the transition from zero — the flake CI hit
+// on 2.15, on TestDaemonStart_RecordsAMarkerItCannotRead, reproduced at 7
+// process runs in 160. That was a workaround for a hazard the daemon carried in
+// production too, and it hid it: no test could see the accept loop Add at zero
+// while the slot existed. The daemon now refuses that Add under d.mu instead
+// (Daemon.track), the slot is gone, and
+// TestDaemonStart_StopRefusesAConnectionItCannotWaitFor is what would go red if
+// the refusal were removed — 76 process runs in 160 before the fix, 0 in 256
+// after.
 //
-// Seven tests spawn Start. Six take the helper's cleanup through startTestDaemon;
-// the three that assert on Start's own return value take the channel it returns.
-// The daemon is not changed for either half: in production Stop is followed by
-// process exit.
+// Eight tests spawn Start. Five take the helper's cleanup through
+// startTestDaemon; the rest take the channel it returns.
 //
 // The guard reads the package's own test sources, the idiom
 // TestDaemonStart_SourceRestoresBeforeItListens already uses here. A pattern that
@@ -99,9 +100,9 @@ func TestDaemonTests_StartIsOnlySpawnedByTheHelper(t *testing.T) {
 	}
 	if len(offenders) > 0 {
 		t.Errorf("Daemon.Start is spawned outside %s in %d place(s):\n  %s\n\n"+
-			"Use it instead: it holds a slot in d.wg for as long as Start runs and "+
-			"hands back the channel Start's error lands on. Both are needed, and both "+
-			"have gone missing once already — read the comment above this test.",
+			"Use it instead: it hands back the channel Start's error lands on, which "+
+			"is the only signal that goroutine ever gives, and it has gone missing "+
+			"once already — read the comment above this test.",
 			allowed, len(offenders), strings.Join(offenders, "\n  "))
 	}
 }

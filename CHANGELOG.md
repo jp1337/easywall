@@ -69,6 +69,17 @@ Ten entries carried forward from earlier releases, closed in the same pass.
   seventeen. The test assertion says *at least fifteen*, deliberately, and the
   entry now says why.
 
+And one this release found in itself:
+
+- **A socket request in flight during a restart could be dropped.** The accept
+  loop registered each connection in the daemon's WaitGroup from a counter of
+  zero, which is the ordering `sync.WaitGroup.Add` documents as forbidden while
+  a `Wait` is running — so `Stop` could return without counting a connection it
+  had just accepted, and `easywall-web` reported the core unreachable for that
+  one request. A connection accepted in that instant is now either registered
+  before the wait begins or refused and closed. Reproduced at 76 process runs in
+  160 under load, 0 in 256 after.
+
 ### Known limits
 
 - A flush easywall did not perform — `nft flush ruleset` typed by hand — loses

@@ -102,33 +102,23 @@ func startTestSocket(t *testing.T, d *Daemon) {
 // getting this right is two lines, seven tests needed them, and the two lines
 // went missing twice.
 //
-// The slot is the reason the function exists. d.wg is the daemon's own counter:
-// the boot restore, the bridge reconciler, the counter ticker and each served
-// connection take one, and Stop waits on it. sync.WaitGroup reports "Add from a
-// counter of zero, concurrently with Wait" deliberately, as a read and a write
-// of wg.sema — the race.Read/race.Write pair in sync/waitgroup.go — because
-// Add's own documentation forbids that ordering. Start does exactly that: the
-// accept loop calls d.wg.Add(1) for a connection while the counter is zero, and
-// nothing orders that against the d.wg.Wait() inside the Stop the test calls
-// from its own goroutine. Holding one slot for precisely as long as Start runs
-// means no Add inside the daemon is ever the transition from zero, so the word
-// the race is reported on is only ever touched by the goroutine that took the
-// slot here.
+// It used to hold a slot in d.wg for as long as Start ran, so that no Add inside
+// the daemon was ever the transition from a counter of zero — because the accept
+// loop's d.wg.Add(1) was exactly that, concurrently with the d.wg.Wait() inside
+// the Stop the test calls from its own goroutine, which is the ordering
+// sync.WaitGroup.Add's own documentation forbids and which -race reports as a
+// read and a write of wg.sema. The slot made the tests quiet without making the
+// daemon right: the same pairing dropped a socket request in flight at
+// systemctl restart, and the web process reported the core unreachable for it.
 //
-// Precisely as long as Start runs, and not a moment less: the first attempt
-// released the slot at the top of the cleanup instead, on the reasoning that the
-// test body had returned and nothing was left to dial. Wrong — waitForSocket's
-// dial is already satisfied by the listen backlog, so the accept it provokes can
-// land after that, and the rate went from 7 process runs in 160 to 15 in 192.
-//
-// The daemon is not changed for any of this: in production Stop is followed by
-// process exit, and the accept loop is outside d.wg for the reason given on
-// Start. It is the tests that must not outrun it.
+// The daemon now refuses that Add instead of racing it — Daemon.track — so the
+// slot has gone. Deliberately: with it in place no test could ever see the
+// production hazard, which is why the fix went a release unmade.
+// TestDaemonStart_StopRefusesAConnectionItCannotWaitFor is the test that sees
+// it, and it only sees it because nothing here masks the counter any more.
 func startDaemonGoroutine(d *Daemon) <-chan error {
-	d.wg.Add(1)
 	errCh := make(chan error, 1)
 	go func() {
-		defer d.wg.Done()
 		errCh <- d.Start()
 	}()
 	return errCh
@@ -147,7 +137,8 @@ func startDaemonGoroutine(d *Daemon) <-chan error {
 // TestDaemonStart_RestoresAtStartup on 2026-08-30.
 //
 // Waiting was only half of it — the wait happens after Stop, and the other half
-// races inside it. That half is the slot in startDaemonGoroutine above.
+// raced inside it. That half is now closed in the daemon rather than papered
+// over here; see startDaemonGoroutine above and Daemon.track.
 func startTestDaemon(t *testing.T, d *Daemon) {
 	t.Helper()
 	errCh := startDaemonGoroutine(d)
@@ -770,6 +761,53 @@ func TestDaemonStart_AcceptErrorDefaultBranch(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Error("Start did not return within 3s")
+	}
+}
+
+// TestDaemonStart_StopRefusesAConnectionItCannotWaitFor arranges the window the
+// accept loop's registration in d.wg lives in, and dials into it.
+//
+// Two things have to be true for the accept loop's d.wg.Add(1) to be the
+// transition from zero — which is the ordering Add's own documentation forbids
+// while a Wait is running. The bridge reconciler has to have returned, which it
+// does at once with Docker coexistence off, and the counter ticker has to have
+// returned too, which it does only when usage.interval is 0. The default is 300
+// seconds, so the ticker normally holds a slot for the daemon's whole life and
+// the counter never reaches zero at all; the interval is therefore set here
+// explicitly rather than left to newTestConfig.
+//
+// Then Stop runs while a dial storm is in flight, so an accept lands in the
+// instant between Stop taking d.mu and Stop reaching d.wg.Wait(). Either the
+// connection is registered before Stop begins waiting, or it is refused and
+// closed — never counted into a WaitGroup nobody is waiting on any more.
+func TestDaemonStart_StopRefusesAConnectionItCannotWaitFor(t *testing.T) {
+	cfg := newTestConfig(t)
+	off := 0
+	cfg.Usage.Interval = &off
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	errCh := startDaemonGoroutine(d)
+	waitForSocket(t, cfg.SocketPath)
+
+	dialing := make(chan struct{})
+	go func() {
+		defer close(dialing)
+		payload, _ := json.Marshal(shared.Command{Type: shared.CmdGetStatus})
+		for {
+			conn, err := net.Dial("unix", cfg.SocketPath)
+			if err != nil {
+				return // the socket is gone: Stop got there
+			}
+			_, _ = conn.Write(payload)
+			_ = conn.Close()
+		}
+	}()
+
+	d.Stop()
+	<-dialing
+	if err := <-errCh; err != nil {
+		t.Errorf("Start returned %v after Stop", err)
 	}
 }
 

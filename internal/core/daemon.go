@@ -29,10 +29,12 @@ type Daemon struct {
 	quit     chan struct{}
 	quitOnce sync.Once
 
-	// mu guards listener only. Start writes it and Stop reads it, and the two
-	// are called from different goroutines — Start blocks for the process
-	// lifetime, so Stop necessarily runs on another one. Without this, a
-	// SIGTERM arriving while the socket is still being set up races the write.
+	// mu guards listener, and orders every d.wg.Add the daemon makes against
+	// the d.wg.Wait inside Stop — see track. Start writes the listener and Stop
+	// reads it, and the two are called from different goroutines — Start blocks
+	// for the process lifetime, so Stop necessarily runs on another one.
+	// Without this, a SIGTERM arriving while the socket is still being set up
+	// races the write.
 	mu       sync.Mutex
 	listener net.Listener
 
@@ -106,18 +108,24 @@ func (d *Daemon) Start() error {
 	// only thing that makes this process observable, so putting the kernel work
 	// first ensures no client can observe a half-restored firewall by construction.
 	//
-	// There is a brief window of a few instructions between the quit check above
-	// and Add(1) below, but it is tolerable: a restore that installs the already-
-	// stored rules on a daemon that is shutting down leaves the kernel holding
-	// exactly what the machine is supposed to have, and the next start would do
-	// the same thing anyway.
+	// The quit check above used to leave a window of a few instructions before
+	// the Add below, tolerated on the grounds that a restore installing the
+	// already-stored rules on a daemon that is shutting down leaves the kernel
+	// holding exactly what the machine is supposed to have. track closes it as a
+	// side effect: it re-reads d.quit under d.mu, so the slot and the decision
+	// to restore are now the same step.
 	//
 	// The WaitGroup exists so Stop() waits for kernel work, not for client connections.
 	// Its scope is the restore only, not the accept loop, so the counter is released
 	// the moment the restore returns. Extending it over the loop would couple
 	// shutdown correctness to Stop() closing the listener first, a dependency that
 	// is not obvious and should not exist.
-	d.wg.Add(1)
+	//
+	// track rather than a bare Add, here and at every other Add below, for the
+	// reason given on it.
+	if !d.track() {
+		return nil
+	}
 	func() {
 		defer d.wg.Done()
 		if err := d.firewall.RestoreCurrent(RestoreReasonBoot); err != nil {
@@ -134,20 +142,22 @@ func (d *Daemon) Start() error {
 	// goroutine's job only starts once the boot restore has already run, and
 	// it can poll for up to reconcileWait — Stop has to wait for it to notice
 	// d.quit, not for the boot restore that came before it.
-	d.wg.Add(1)
-	go func() {
-		defer d.wg.Done()
-		d.firewall.reconcileDockerBridges(d.quit)
-	}()
+	if d.track() {
+		go func() {
+			defer d.wg.Done()
+			d.firewall.reconcileDockerBridges(d.quit)
+		}()
+	}
 
 	// The counter ticker, tracked in wg for the same reason as the reconciler:
 	// Stop waits for it to notice d.quit rather than leaving it reading netlink
 	// into a closed daemon. It returns immediately when usage.interval is 0.
-	d.wg.Add(1)
-	go func() {
-		defer d.wg.Done()
-		d.firewall.collectUsagePeriodically(d.quit)
-	}()
+	if d.track() {
+		go func() {
+			defer d.wg.Done()
+			d.firewall.collectUsagePeriodically(d.quit)
+		}()
+	}
 
 	// Remove stale socket file if it exists
 	_ = os.Remove(d.cfg.SocketPath)
@@ -218,11 +228,59 @@ func (d *Daemon) Start() error {
 				continue
 			}
 		}
-		d.wg.Add(1)
+		// Registered, or refused and closed — see track. The refusal only
+		// happens once Stop has closed d.quit, so the very next Accept fails
+		// into the quit branch above and this loop returns; there is no spin.
+		if !d.track() {
+			_ = conn.Close()
+			continue
+		}
 		go func() {
 			defer d.wg.Done()
 			d.handleConn(conn)
 		}()
+	}
+}
+
+// track takes a slot in d.wg for a piece of work the daemon is about to start,
+// and reports whether it got one. Every Add the daemon makes outside a served
+// connection goes through here.
+//
+// It exists for the ordering, not the bookkeeping. sync.WaitGroup.Add's own
+// documentation forbids "calls with a positive delta that start when the counter
+// is zero" that do not happen before a Wait, and reports that pairing as a data
+// race on wg.sema by design. Start does exactly that, four times over: the boot
+// restore is the first Add and so always at zero, the reconciler's and the
+// ticker's are at zero whenever the work before them has already finished, and
+// the accept loop's is at zero once both of those have returned — which is the
+// ordinary state of a daemon whose Docker coexistence is off and whose
+// usage.interval is 0. Stop's d.wg.Wait() runs on another goroutine, so nothing
+// ordered any of them against it, and a connection accepted in that instant
+// could be one Wait had already stopped waiting for: dropped at
+// `systemctl restart easywall-core`, and reported by the web process as an
+// unreachable core.
+//
+// d.mu is the ordering. Stop closes d.quit before it takes d.mu, and waits after
+// it has released it, so a critical section here either runs before Stop's — in
+// which case the mutex puts its Add before the Wait — or runs after it, sees the
+// closed channel and adds nothing. Refusing is the right answer at that point:
+// Stop is followed by process exit.
+//
+// Deliberately not a slot held for the accept loop's lifetime, and not a
+// done-channel Stop waits on. Either would make shutdown depend on Stop closing
+// the listener first, because the loop only returns when Accept fails — the
+// dependency the comment on Start rejects. This adds no wait to Stop at all; it
+// only decides, under the lock Stop already takes, whether an Add may still
+// happen.
+func (d *Daemon) track() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	select {
+	case <-d.quit:
+		return false
+	default:
+		d.wg.Add(1)
+		return true
 	}
 }
 
@@ -245,6 +303,11 @@ func (d *Daemon) setListener(ln net.Listener) {
 
 // Stop gracefully shuts down the daemon. Safe to call more than once, and safe
 // to call before or during Start.
+//
+// The order of the first three statements is load-bearing, not stylistic:
+// d.quit is closed before d.mu is taken and d.mu is released before d.wg is
+// waited on, which is what makes every Add in track either happen before this
+// Wait or not happen at all. Read track before moving any of them.
 func (d *Daemon) Stop() {
 	d.quitOnce.Do(func() { close(d.quit) })
 
