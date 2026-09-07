@@ -816,20 +816,27 @@ async function checkSignOutEndsTheSession(page) {
  */
 /**
  * Picks a language from the select and waits for the POST it is supposed to
- * trigger. Returns whether that POST actually happened.
+ * trigger to be *answered*. Returns whether that happened.
  *
- * The wait is armed *before* the option is picked, and it waits for the request
- * rather than for a load state. `selectOption` then `waitForLoadState` looks
- * equivalent and is not: the page is already loaded when the second call runs,
- * so if the change handler has not yet started its navigation, the wait
- * resolves against the load that already happened and the cookie is read
- * before the POST has been made. That passes on a fast machine and fails on a
- * CI runner, which is exactly what it did — a green check locally and one red
- * job with "cookie is unset".
+ * The wait is armed before the option is picked, and it waits for the response
+ * rather than for the request or for a load state. Each of the two weaker waits
+ * has its own failure:
+ *
+ *   - `waitForLoadState` alone resolves against the document that is already
+ *     loaded, because the page has not started navigating yet when it is called.
+ *   - `waitForRequest` resolves when the browser has *sent* the POST, which is
+ *     still one round trip before Set-Cookie exists. The waitForLoadState after
+ *     it then returns against that same already-loaded document, and
+ *     ctx.cookies() is read before the server has answered.
+ *
+ * The second is what shipped, and it did exactly what a race does: green on a
+ * fast machine, and one red CI job reporting "the POST went through but the
+ * cookie is unset". waitForResponse is the wait that means the cookie exists.
  */
 async function switchTo(page, code) {
   const posted = page
-    .waitForRequest(r => r.url().endsWith('/language') && r.method() === 'POST', { timeout: 5000 })
+    .waitForResponse(r => r.url().endsWith('/language') && r.request().method() === 'POST',
+      { timeout: 5000 })
     .then(() => true, () => false);
   await page.locator('#lang-select').selectOption({ value: code });
   const ok = await posted;
@@ -886,8 +893,9 @@ async function checkLanguageSwitch(ctx) {
       'an operator who cannot read the interface would have no way to change it');
   } else {
     await noJsPage.locator('#lang-select').selectOption({ value: 'de' });
-    // click() auto-waits for the navigation a submit button starts, so this one
-    // was never racy the way the change handler above was.
+    // click() auto-waits for the navigation a submit button starts, so unlike
+    // the change handler above this path never needed an explicit wait of its
+    // own — the difference is the control, not the care taken over it.
     await noJsSubmit.click();
     await noJsPage.waitForLoadState('load');
     const lang = (await noJsCtx.cookies()).find(c => c.name === 'easywall_lang');
