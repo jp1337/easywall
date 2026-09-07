@@ -551,7 +551,7 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 
-	if fw.panicLandedDuringWrite("boot_enforce_failed", "no marker here", "core") {
+	if fw.panicLandedDuringWrite(fw.PanicEngaged(), "boot_enforce_failed", "no marker here", "core") {
 		t.Error("with no marker on disk the write that just happened stands")
 	}
 	if got := auditActions(t, cfg); len(got) != 0 {
@@ -564,7 +564,7 @@ func TestPanicLandedDuringWrite_RecordsAndReportsTheTeardown(t *testing.T) {
 
 	// apply_refused_panic is what the apply path asks for, and the teardown below
 	// cannot work on this fixture — so this also pins the substitution.
-	if !fw.panicLandedDuringWrite("apply_refused_panic", "the console got there first", "web") {
+	if !fw.panicLandedDuringWrite(fw.PanicEngaged(), "apply_refused_panic", "the console got there first", "web") {
 		t.Fatal("a marker that appeared during the write must be reported")
 	}
 	entries := auditEntries(t, cfg)

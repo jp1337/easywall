@@ -94,6 +94,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		// teardown anywhere: exactly the defect the success path below was
 		// written to close.
 		f.panicLandedDuringWrite(
+			f.PanicEngaged(),
 			"boot_enforce_failed",
 			fmt.Sprintf("%s: panic mode was engaged while a failing restore was writing, "+
 				"and rules can reach the kernel before nft.Apply reports an error", reason),
@@ -108,6 +109,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// window where this daemon has no socket for it to reach — see
 	// panicLandedDuringWrite.
 	if f.panicLandedDuringWrite(
+		f.PanicEngaged(),
 		"boot_enforce_failed",
 		fmt.Sprintf("%s: panic mode was engaged while the rules were being restored", reason),
 		"core",
@@ -129,9 +131,22 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	return nil
 }
 
-// panicLandedDuringWrite reports whether panic mode was engaged while a write to
-// the kernel was in flight, and tears the table down again if it was. Call it
-// immediately after nft.Apply returns; action and detail are what to record.
+// panicLandedDuringWrite tears the table down again when panic mode was engaged
+// while a write to the kernel was in flight, and reports whether it did. Call it
+// immediately after nft.Apply returns; requested and situation are what to
+// record.
+//
+// engaged is what the *caller* read, and the helper does not look again. Three
+// stats of one marker in a single rollback is three chances for them to
+// disagree: the gate reads PanicState — which distinguishes "not engaged" from
+// "cannot tell", because withdrawing the acceptance window's undo on a
+// permission fault is the worse failure — and the helper then used PanicEngaged,
+// which answers "cannot tell" with "engaged". A marker that became unreadable
+// between the two put the inversion straight back, one statement further on.
+//
+// Callers that have not already looked pass f.PanicEngaged() at the call site,
+// which keeps that fail-safe default exactly where it belongs: at a write that
+// is about to start filtering.
 //
 // Every other panic check in this package runs *before* a write and none ran
 // after one, under a comment in cmd/easywall-core/subcommands.go asserting that
@@ -176,14 +191,10 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 // restore path, where it is coloured crit. The alternative was one machine state
 // rendered in two colours depending on which code path reached it. No new action,
 // so nothing to register, translate or re-screenshot.
-func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) bool {
-	if !f.PanicEngaged() {
+func (f *Firewall) panicLandedDuringWrite(engaged bool, requested, situation, user string) bool {
+	if !engaged {
 		return false
 	}
-	// PanicEngaged, not PanicState: this is the direction its fail-safe default
-	// is built for. An unreadable marker here costs a teardown of a table that
-	// is about to be rebuilt by the next apply or restore; the other way round
-	// costs a machine that filters while the console believes it does not.
 	action, detail := requested, situation
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode was engaged while the rules were being written and the "+
@@ -223,6 +234,9 @@ func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) boo
 // EngagePanic and the audit entry that follows come first, and
 // CancelAcceptance comes after them, never before.
 func (f *Firewall) Panic(user string) error {
+	f.panicMu.Lock()
+	defer f.panicMu.Unlock()
+
 	if err := EngagePanic(f.cfg.PanicMarkerPath()); err != nil {
 		return fmt.Errorf("engage panic mode: %w", err)
 	}
@@ -253,6 +267,9 @@ func (f *Firewall) Panic(user string) error {
 // does not leave a machine that is unfiltered *and* claims to be in panic mode —
 // two different problems reported as one.
 func (f *Firewall) Resume(user string) error {
+	f.panicMu.Lock()
+	defer f.panicMu.Unlock()
+
 	if err := ClearPanic(f.cfg.PanicMarkerPath()); err != nil {
 		return fmt.Errorf("end panic mode: %w", err)
 	}

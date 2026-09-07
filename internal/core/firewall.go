@@ -65,6 +65,22 @@ type Firewall struct {
 	// See dockerreconcile.go.
 	bootBridges []string
 
+	// panicMu serialises Panic and Resume against each other.
+	//
+	// They are the two console commands that write the marker, and they were
+	// racing on it. Panic writes the marker and then tears the table down;
+	// Resume clears the marker and then restores. A Resume landing between
+	// Panic's EngagePanic and its nft.Reset leaves exactly the state neither
+	// command can produce on its own: no marker, and an empty table. The machine
+	// is unfiltered, nothing on it records that anybody chose that, and the next
+	// boot restores the rules as though nothing had happened.
+	//
+	// Not applyMu: Panic deliberately does not take the apply slot, because it
+	// has to interrupt a cycle that already holds it — that is the whole point
+	// of a panic button. This lock is only ever held for the length of one of
+	// these two commands, and nothing inside either reaches back for it.
+	panicMu sync.Mutex
+
 	// reconcilePoll and reconcileWait bound that watch. Fields rather than
 	// constants so the tests do not take ninety seconds.
 	reconcilePoll time.Duration
@@ -357,6 +373,7 @@ func (f *Firewall) apply(user string) error {
 		// the kernel alone rather than writing the previous rules on top of a
 		// teardown, which is the guard F1 rests on.
 		f.panicLandedDuringWrite(
+			f.PanicEngaged(),
 			"apply_refused_panic",
 			"panic mode was engaged while a failing apply was writing, and rules can "+
 				"reach the kernel before nft.Apply reports an error",
@@ -383,6 +400,7 @@ func (f *Firewall) apply(user string) error {
 	// that gap, including through the CLI's own teardown while this daemon's
 	// socket was not yet listening — see panicLandedDuringWrite.
 	if f.panicLandedDuringWrite(
+		f.PanicEngaged(),
 		"apply_refused_panic",
 		"panic mode was engaged while this apply was being written",
 		user,
@@ -579,14 +597,22 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		// Reset() fails, which is the one outcome here that is genuinely worse
 		// than the branch above — a machine still filtering behind a marker
 		// that says it is not.
-		var tornDownAgain bool
-		if engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath()); engagedNow && knownNow {
-			tornDownAgain = f.panicLandedDuringWrite(
-				"rollback_skipped",
-				"panic mode was engaged while the previous rules were being written back",
-				user,
-			)
-		}
+		//
+		// Gated on PanicState rather than on the helper's own default, and this
+		// is not redundant: PanicEngaged answers an unreadable marker with
+		// "engaged", which is the safe direction at a write that would start
+		// filtering and the wrong one here, where it would tear down the very
+		// rules this rollback just restored on the strength of a permission
+		// fault. Only a marker known to be present earns a teardown at this
+		// site — and now that state is read once and passed on, rather than read
+		// here and read again inside the helper.
+		engagedNow, knownNow, _ := PanicState(f.cfg.PanicMarkerPath())
+		tornDownAgain := f.panicLandedDuringWrite(
+			engagedNow && knownNow,
+			"rollback_skipped",
+			"panic mode was engaged while the previous rules were being written back",
+			user,
+		)
 
 		// Only now, after the same final panic re-check apply and RestoreCurrent
 		// perform before their own recordAppliedConfig — this used to sit right
