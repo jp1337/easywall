@@ -258,7 +258,11 @@ branches whenever `main` moves.
 **What this does not do.** It would not have caught the incident that prompted
 it. The pull request's own run was green and the `main` run of the same tree was
 red — a flake in `TestDaemonStart_RestoresAtStartup`, fixed by `startTestDaemon`
-and guarded by `TestDaemonTests_StartInAGoroutineIsAlwaysWaitedFor`. Required
+and guarded by `TestDaemonTests_StartIsOnlySpawnedByTheHelper`. The same flake
+came back in 2.15 from a second cause — a `d.wg.Add` from a counter of zero,
+which the helper then papered over and the daemon has since been fixed not to
+make at all — and blocked a one-line dependency bump from merging; both
+reproductions are in [invariants](invariants.md). Required
 checks stop a *knowingly* red merge. Noticing a red `main` is a separate problem
 and is still unsolved.
 

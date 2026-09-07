@@ -9,6 +9,16 @@ log_dir     = "/var/log/easywall"
 enabled  = true
 duration = 120  # seconds before auto-rollback if not confirmed
 
+# ─── Usage counters ─────────────────────────────────────────────────────────
+# How often the per-rule packet counters are read out of the kernel, in
+# seconds. This is what the "Last used" column on the port pages is built from.
+#
+# 0 stops the ticker. An apply still reads the counters before it writes, because
+# writing the rules resets every one of them — so "Last used" keeps advancing at
+# every apply even with the ticker off.
+[usage]
+interval = 300
+
 [ipv6]
 # filter      — apply every rule to IPv6 as well as IPv4 (default)
 # passthrough — accept all IPv6 before any rule; IPv6 is managed elsewhere

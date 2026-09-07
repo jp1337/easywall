@@ -25,6 +25,53 @@ func ValidateRules(r Rules) error {
 			return fmt.Errorf("udp rule %q: %w", rule.Port, err)
 		}
 	}
+	// Two rules sharing an id share a usage counter, and the number an operator
+	// would then close a port on is the sum of two ports' traffic. EnsureRuleIDs
+	// repairs this on every write path, so reaching here means a rules.json
+	// edited by hand — which is exactly the case that needs an error rather than
+	// a silently merged history. An empty id is not a duplicate: a file written
+	// before 2.15 has nothing else.
+	// No capacity hint: these hold one entry per port rule, which is dozens,
+	// and len(r.TCP)+len(r.UDP) is the only size arithmetic in the tree —
+	// CodeQL's size-computation-overflow query flags it as a high-severity
+	// alert. The sum cannot overflow an int without exabytes of PortRule, so
+	// the alert is wrong, but the hint was worth nothing to begin with and
+	// arguing with a scanner over ceremony is the worse trade.
+	seenIDs := make(map[string]bool)
+	for _, list := range [][]PortRule{r.TCP, r.UDP} {
+		for _, rule := range list {
+			if rule.ID == "" {
+				continue
+			}
+			// The format, and it is not cosmetic. This value is written verbatim
+			// into the kernel as an nftables comment, and userdata.Append writes
+			// the TLV length as byte(len(data)) — an unchecked narrowing. An id of
+			// 254 characters declares a length past the kernel's
+			// NFT_USERDATA_MAXLEN and every apply is refused until that rule is
+			// deleted: the firewall cannot be changed. At 255 the length byte
+			// wraps to zero, so the id read back out of the kernel is the empty
+			// string, Collect books the traffic under a key no rule has, and the
+			// port reports "never" for ever. The same value also lands in
+			// `nft list ruleset`, where an operator and any script reading that
+			// output see it.
+			//
+			// Here rather than only in EnsureRuleIDs, which repairs a malformed id
+			// on every write path: this is the boundary the web process crosses,
+			// and it is the one place that must not trust the shape of what it was
+			// handed. ValidRuleID rejects the empty string, which is why the check
+			// sits after the continue above.
+			if !ValidRuleID(rule.ID) {
+				return fmt.Errorf("rule id %q is not a rule id; it must be exactly twelve "+
+					"lowercase hex characters, because it is written into the kernel as an "+
+					"nftables comment whose length field is a single byte", rule.ID)
+			}
+			if seenIDs[rule.ID] {
+				return fmt.Errorf("rule id %q is used by two rules; ids key the usage "+
+					"counters, so the two would share one history", rule.ID)
+			}
+			seenIDs[rule.ID] = true
+		}
+	}
 	for _, ip := range r.Blacklist {
 		if IsListComment(ip) {
 			continue

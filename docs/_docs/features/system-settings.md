@@ -92,10 +92,10 @@ browsers with JavaScript disabled. Both pages behave the same way, as does
 [options]({{ '/docs/features/filters/' | relative_url }}).
 
 Editing the file directly works too. `SIGHUP` reloads `[firewall]`,
-`[acceptance]`, `[ipv6]`, `[docker]` and `[routing]` without dropping the socket; the paths are
-bound at startup and a change to one is logged and ignored until a restart. A file
-that does not parse or does not validate is refused and the running configuration
-stays — a typo must not disarm anything.
+`[acceptance]`, `[ipv6]`, `[docker]`, `[routing]` and `[usage]` without dropping
+the socket. The paths are bound at startup, and a change to one is logged and
+ignored until a restart. A file that does not parse or does not validate is
+refused and the running configuration stays — a typo must not disarm anything.
 
 ```toml
 [acceptance]

@@ -1,3 +1,24 @@
+easywall (2.15.0) unstable; urgency=medium
+
+  * Feat: every port rule carries a kernel packet counter and a stable id, so
+    the port pages say when each port last carried a packet the firewall
+    accepted, and the dashboard says how many open ports nobody has used in
+    thirty days. An open port nobody uses is the most common avoidable
+    exposure on a hobby server, and until now nothing here could point at one.
+    The figure survives an apply, which rebuilds the table and resets every
+    counter in it: the counters are read immediately before the flush and
+    accumulated in /var/lib/easywall/usage.json, and the baseline is kept
+    there too so a daemon restart does not re-count what it already booked.
+    [usage] interval sets how often they are read, 300 seconds by default;
+    0 stops the periodic read, not the counting.
+  * Fix: ten entries carried forward from earlier releases — two races, four
+    paths through apply that failed without writing an audit entry, two guards
+    that read less than they claimed, and four wording defects. One more,
+    shipped in 2.14 and found here: a request arriving as the daemon shut down
+    could be abandoned rather than answered.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Mon, 07 Sep 2026 14:25:39 +0200
+
 easywall (2.14.0) unstable; urgency=medium
 
   * Feat: the acceptance window is visible while it runs. Every apply reverts

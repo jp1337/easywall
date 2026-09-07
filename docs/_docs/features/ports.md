@@ -50,6 +50,53 @@ entry is still the way to allow an address on *every* port at once.
 > constant. Add that range yourself, or the restriction locks you out over IPv6
 > while looking correct over IPv4.
 
+## Last used
+
+The right-hand column says when the rule on that line last accepted a packet.
+Every rule easywall writes carries a kernel counter tagged with the rule's own
+id, read every five minutes and once more immediately before each write to the
+kernel. Rebuilding the table resets every counter in it, so the figure is booked
+before that happens rather than lost with it.
+
+> **The counter follows the rule, not the port number.** A rule keeps its
+> identity for as long as it exists — that is what lets you edit the sources or
+> the description without throwing its history away. Renumber a row from `22` to
+> `9999` and the date beside it is still that row's own history. It can read
+> *9 minutes ago* for a port nothing has ever reached. To start clean, delete
+> the row and add the new port as a new one.
+
+| The column says | It means |
+|---|---|
+| `just now`, `3 days ago` | the last packet this rule accepted, to the resolution of the collection interval |
+| `never` | this rule has accepted nothing since easywall started counting it |
+| `—` | nothing is known: the rule has no id yet, or the counters could not be read |
+
+`never` and `—` are different claims and the difference matters. `never` is a
+measurement — this port has been open and nothing has come through it, which is
+what makes it worth closing. `—` is the absence of one, and a rule you have just
+added shows it until the next page load.
+
+> **A rule that has never been used is not counted on the dashboard.** The tile
+> says *2 unused for 30+ days*, and it can only say that about rules with a
+> recorded use to date it from. A rule that has never carried anything has no
+> date at all, so it is left out of the count and reads `never` here instead. Both
+> are worth acting on; only one can be given a number.
+
+> **Custom rules carry no counter.** They are raw nftables statements written
+> through to the kernel as text, and easywall cannot tag one without changing what
+> you wrote. The [custom rules]({{ '/docs/features/custom-rules/' | relative_url }})
+> page has no such column, rather than a blank one that would read as *never used*.
+
+> **The SSH limiter counts separately.** A connection dropped by the brute-force
+> limiter never reaches this rule and is not counted here. That is the right
+> answer for a column headed *Last used*: it says what got through, not what
+> knocked. The first is what you need to decide whether to close the port.
+
+Reading the counters costs one netlink read of one chain. `[usage] interval` in
+[the configuration reference]({{ '/docs/configuration/' | relative_url }}) sets
+how often, and `0` stops it — an apply still collects, so the column keeps
+advancing, just at the resolution of your applies.
+
 ## The catalogue
 
 **Add from catalogue** appends the rows a service listens on, with a suggested

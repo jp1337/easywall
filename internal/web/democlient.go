@@ -31,6 +31,12 @@ type demoState struct {
 
 	auditLog []shared.AuditLogEntry
 
+	// usage is what the Last used column reads, seeded so the public demo shows
+	// this release's headline feature without a visitor having to do anything.
+	// Nothing advances it — there is no kernel here — so the dates are fixed
+	// relative to process start, which is also when the demo resets.
+	usage shared.UsageResult
+
 	acceptance shared.AcceptanceStatus
 	lastApply  string // RFC3339, empty when never applied
 
@@ -148,6 +154,50 @@ func (d *demoState) seed() {
 		Staged:  example,
 		Backup:  example,
 	}
+
+	// Ids first: the counters are keyed by them, and a demo rule with no id
+	// would render an em dash rather than a date.
+	shared.EnsureRuleIDs(&d.rules.Current)
+	d.rules.Staged = d.rules.Current
+	d.rules.Backup = d.rules.Current
+
+	// Then the usage, spread across the three states the column can show. 22,
+	// 80 and 443 are busy; 25 is a fortnight quiet; 8443 has not carried a
+	// packet in sixty days, which is what puts the second line on the dashboard
+	// tile and is the whole point of the feature.
+	now := time.Now().UTC()
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
+	byPort := map[string]time.Time{
+		"22":    ago(4 * time.Minute),
+		"80":    ago(90 * time.Second),
+		"443":   ago(20 * time.Second),
+		"25":    ago(14 * 24 * time.Hour),
+		"587":   ago(3 * 24 * time.Hour),
+		"993":   ago(31 * time.Hour),
+		"8443":  ago(60 * 24 * time.Hour),
+		"53":    ago(11 * time.Second),
+		"123":   ago(6 * time.Hour),
+		"51820": ago(45 * 24 * time.Hour),
+	}
+	d.usage = shared.UsageResult{
+		Usage:       map[string]shared.RuleUsage{},
+		CollectedAt: ago(30 * time.Second),
+	}
+	for _, list := range [][]shared.PortRule{d.rules.Current.TCP, d.rules.Current.UDP} {
+		for i, r := range list {
+			seen, ok := byPort[r.Port]
+			if !ok {
+				continue // 5432 stays "never" — a rule nobody has ever reached
+			}
+			d.usage.Usage[r.ID] = shared.RuleUsage{
+				Packets:   uint64(1000 * (i + 1)),
+				Bytes:     uint64(180000 * (i + 1)),
+				FirstSeen: seen.AddDate(0, -3, 0),
+				LastSeen:  seen,
+			}
+		}
+	}
+
 	d.options = shared.FirewallOptions{
 		SSHBruteForce:                true,
 		SSHBruteForceLog:             true,
@@ -210,7 +260,6 @@ func (d *demoState) seed() {
 	// therefore the one place shortTime's offset-preserving behaviour looked
 	// correct. A demo that does not behave like the product cannot be used to
 	// check the product.
-	now := time.Now().UTC()
 	d.auditLog = buildSeedAuditLog(now)
 
 	// Recent, not two hours stale. The demo is reset every few hours and this is
@@ -305,6 +354,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return demoOK(d.system)
 	case shared.CmdGetAppliedConfig:
 		return demoOK(shared.AppliedConfigResult{Recorded: true, Config: d.appliedConfig})
+	case shared.CmdGetUsage:
+		return demoOK(d.usage)
 	case shared.CmdSaveSystem:
 		return d.handleSaveSystem(cmd.Payload)
 	case shared.CmdGetLog:
@@ -485,6 +536,11 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 	default:
 		return demoErr(fmt.Errorf("unknown rule type %q", generic.RuleType))
 	}
+
+	// The same assignment the core's SaveStaged makes. Without it a rule added
+	// in the demo has no id, renders an em dash for ever, and the demo shows
+	// something the product does not do.
+	shared.EnsureRuleIDs(&d.rules.Staged)
 
 	// The same check the core runs. Without it the demo accepted input the real
 	// thing refuses — and the demo is what people judge the product by before

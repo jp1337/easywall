@@ -598,6 +598,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		"detailLabel": func(detail string) template.HTML {
 			return detailLabel(tFunc, detail)
 		},
+		"lastUsed": func(id string, usage map[string]shared.RuleUsage, known bool) string {
+			return lastUsed(tFunc, id, usage, known)
+		},
 	})
 
 	nonce, _ := r.Context().Value(nonceCtxKey).(string)
@@ -664,6 +667,9 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 		},
 		"detailLabel": func(detail string) template.HTML {
 			return detailLabel(tFunc, detail)
+		},
+		"lastUsed": func(id string, usage map[string]shared.RuleUsage, known bool) string {
+			return lastUsed(tFunc, id, usage, known)
 		},
 	})
 	// Buffered for the same reason as render: htmx swaps the response body into
@@ -1063,6 +1069,59 @@ func shortTime(v string) string {
 	return t.Format("2 Jan 2006 15:04")
 }
 
+// lastUsed renders one rule's Last used cell.
+//
+// Four states, and the difference between two of them is the whole reason this
+// column can be trusted:
+//
+//   - the rule has no id, or the counters could not be read at all → an em dash.
+//     Nothing has been measured, and the cell says so by not making a claim.
+//   - the rule has an id and no recorded use → "never". Something *has* been
+//     measured: this port has not carried a packet since easywall started
+//     counting, which is precisely the finding the column exists to surface.
+//   - a recent use → "just now", or a count of minutes, hours or days.
+//
+// Printing "never" for the first case would be a measurement nobody took, and it
+// is the one an operator would act on. TestARuleWithoutAnIDRendersEmDash holds
+// the distinction.
+//
+// tFunc is the per-request T, passed in rather than reached for, exactly as
+// actionLabel takes it — so the column is in the language of the page around it.
+func lastUsed(tFunc func(string, ...interface{}) string, id string, usage map[string]shared.RuleUsage, known bool) string {
+	if id == "" || !known {
+		return "—"
+	}
+	u, ok := usage[id]
+	if !ok || u.LastSeen.IsZero() {
+		return tFunc("used_never")
+	}
+
+	// A clock that stepped backwards — NTP, a resumed snapshot — must not print
+	// a future date in a column headed Last used.
+	since := time.Since(u.LastSeen)
+	if since < time.Minute {
+		return tFunc("used_just_now")
+	}
+	switch {
+	case since < time.Hour:
+		return countedAgo(tFunc, int(since.Minutes()), "used_minutes_one", "used_minutes_many")
+	case since < 24*time.Hour:
+		return countedAgo(tFunc, int(since.Hours()), "used_hours_one", "used_hours_many")
+	default:
+		return countedAgo(tFunc, int(since.Hours()/24), "used_days_one", "used_days_many")
+	}
+}
+
+// countedAgo picks the singular or the plural sentence and fills the number in.
+// Two whole messages rather than a number glued to a noun: "vor 1 Stunde" and
+// "vor 3 Stunden" differ in more than the digit, and a translator needs both.
+func countedAgo(tFunc func(string, ...interface{}) string, n int, one, many string) string {
+	if n == 1 {
+		return tFunc(one)
+	}
+	return tFunc(many, map[string]interface{}{"N": n})
+}
+
 func mmss(seconds int) string {
 	if seconds < 0 {
 		seconds = 0
@@ -1185,6 +1244,9 @@ func templateFuncs() template.FuncMap {
 		// actionLabel is rebound per request in render()/renderPartial(), where the
 		// localizer exists. This entry only keeps ParseGlob happy at startup.
 		"actionLabel": func(action string) string { return action },
+		// lastUsed is rebound per request in render()/renderPartial(), where the
+		// localizer exists. This entry only keeps ParseGlob happy at startup.
+		"lastUsed": func(id string, usage map[string]shared.RuleUsage, known bool) string { return id },
 		"detailLabel": func(detail string) template.HTML {
 			// #nosec G203 -- escaped on the line it is written
 			return template.HTML(template.HTMLEscapeString(detail)) //nolint:gosec // G203 — see above

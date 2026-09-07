@@ -18,6 +18,7 @@ import (
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
+	"github.com/google/nftables/userdata"
 	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/sys/unix"
 )
@@ -37,6 +38,12 @@ var (
 
 const (
 	tableName = "easywall"
+
+	// inputChainName is the base input chain, and the one place port rules are
+	// written. The usage collector reads it by this name — see RuleCounters and
+	// TestCollectionReadsTheInputChain, which is what keeps the two from
+	// drifting apart into a collector that reads a chain nothing writes.
+	inputChainName = "input"
 
 	// nftables chain priorities
 	prioFilter = 0
@@ -230,7 +237,7 @@ func (m *NftablesManager) Enforcing() bool {
 		return false
 	}
 	for _, ch := range chains {
-		if ch.Table == nil || ch.Table.Name != tableName || ch.Name != "input" {
+		if ch.Table == nil || ch.Table.Name != tableName || ch.Name != inputChainName {
 			continue
 		}
 		rules, err := m.conn.GetRules(table, ch)
@@ -243,6 +250,103 @@ func (m *NftablesManager) Enforcing() bool {
 		return len(rules) > 0
 	}
 	return false
+}
+
+// RuleCounter is what one rule id's kernel rules have counted between them.
+type RuleCounter struct {
+	Packets uint64
+	Bytes   uint64
+}
+
+// RuleCounters reads the packet counters off the input chain and sums them by
+// rule id.
+//
+// One UI rule with three sources is three kernel rules — addPortAccept builds
+// one per source — so the figure for that port is their sum, and the id in each
+// rule's comment is what makes summing them possible. A rule with no comment is
+// skipped: the module rules, the blacklist, the whitelist and the Docker
+// exceptions all carry no id and are not what this counts.
+//
+// The input chain and nothing else. addPortAccept writes there and nowhere
+// else, and TestCollectionReadsTheInputChain pins both halves of that so the
+// collector cannot quietly start reading a chain nothing writes into — which
+// would report "never" for every port for ever, with no error anywhere.
+//
+// A missing table is an empty map and no error. Panic mode deletes the table on
+// purpose, and a collector that treated that as a failure would log one line
+// per tick for as long as the machine stays deliberately unfiltered.
+func (m *NftablesManager) RuleCounters() (map[string]RuleCounter, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.conn == nil {
+		return nil, fmt.Errorf("nftables connection not available")
+	}
+
+	tables, err := m.conn.ListTables()
+	if err != nil {
+		return nil, fmt.Errorf("list tables: %w", err)
+	}
+	var table *nftables.Table
+	for _, tbl := range tables {
+		if tbl.Name == tableName && tbl.Family == nftables.TableFamilyINet {
+			table = tbl
+			break
+		}
+	}
+	if table == nil {
+		return map[string]RuleCounter{}, nil
+	}
+
+	chains, err := m.conn.ListChains()
+	if err != nil {
+		return nil, fmt.Errorf("list chains: %w", err)
+	}
+	out := map[string]RuleCounter{}
+	for _, ch := range chains {
+		if ch.Table == nil || ch.Table.Name != tableName ||
+			ch.Table.Family != nftables.TableFamilyINet || ch.Name != inputChainName {
+			continue
+		}
+		rules, err := m.conn.GetRules(table, ch)
+		if err != nil {
+			return nil, fmt.Errorf("read the %s chain: %w", inputChainName, err)
+		}
+		for _, r := range rules {
+			id, ok := idFromUserData(r.UserData)
+			if !ok || id == "" {
+				continue
+			}
+			c := out[id]
+			for _, e := range r.Exprs {
+				if counter, isCounter := e.(*expr.Counter); isCounter {
+					c.Packets += counter.Packets
+					c.Bytes += counter.Bytes
+				}
+			}
+			out[id] = c
+		}
+	}
+	return out, nil
+}
+
+// idFromUserData reads the rule-id comment out of a kernel rule's UserData,
+// treating malformed TLV bytes as "no id" rather than letting them reach the
+// caller as a panic.
+//
+// userdata.Get (nftables v0.3.0, userdata/userdata.go:62) slices
+// udata[2:2+length] before it checks len(udata) < 2+length, so a truncated
+// or corrupt TLV panics instead of returning an error. RuleCounters cannot
+// assume every rule in the input chain is one of ours — Snapshot's own doc
+// comment concedes a hand-written ruleset can share this table and chain
+// namespace — and this runs in the root daemon, on a ticker and inside
+// apply(), so a single bad comment must not be able to take it down.
+func idFromUserData(userData []byte) (id string, ok bool) {
+	defer func() {
+		if recover() != nil {
+			id, ok = "", false
+		}
+	}()
+	return userdata.GetString(userData, userdata.TypeComment)
 }
 
 // Reset deletes and recreates the easywall table, giving us a clean slate.
@@ -384,7 +488,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 
 	// --- INPUT chain (base, default DROP) ---
 	inputChain := m.conn.AddChain(&nftables.Chain{
-		Name:     "input",
+		Name:     inputChainName,
 		Table:    table,
 		Type:     nftables.ChainTypeFilter,
 		Hooknum:  nftables.ChainHookInput,
@@ -1854,7 +1958,34 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 // operator's note inside the source list is skipped here exactly as it is
 // everywhere else. No sources means no address match and one rule, which is
 // byte-identical to what every rule written before 2.11 produced.
+//
+// The building is in portAcceptRules, which takes no connection, because the
+// two things this release added — the counter and the rule id — are exactly the
+// things no test could see. addPortAccept cannot be called without netlink, so
+// what it builds had never been asserted on at all.
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {
+	for _, r := range portAcceptRules(t, c, proto, rule) {
+		m.conn.AddRule(r)
+	}
+}
+
+// portAcceptRules returns the kernel rules one port rule becomes: one per usable
+// source, or exactly one when there are none.
+//
+// Each carries an expr.Counter placed after the matches and immediately before
+// the verdict. The order is the whole correctness of the feature. Before the
+// matches, the counter counts every packet that *reaches* the rule rather than
+// every packet it *accepts* — a number that measures the rules above it and
+// nothing else, rises steadily on a port nobody has ever connected to, and is
+// indistinguishable from a real figure. TestPortAcceptRules_TheCounterSitsAfterTheMatch
+// is what holds it.
+//
+// UserData is the rule id as an ordinary nftables comment. TypeComment rather
+// than a private TLV type, so `nft list ruleset` shows an operator the same key
+// the interface uses, and a rule read back through Conn.GetRules can be summed
+// with its siblings — a UI rule with three sources is three kernel rules, and
+// the counter for that port is their sum.
+func portAcceptRules(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) []*nftables.Rule {
 	// A byte from the start rather than an int converted at use: both values are
 	// untyped constants that fit, so this is a compile-time conversion and gosec
 	// has no runtime narrowing to warn about (G115).
@@ -1870,7 +2001,26 @@ func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, pr
 			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{protoNum}},
 		)
 		exprs = append(exprs, buildPortExprs(rule.Port)...)
+		// After the match, before the verdict. Read the comment above before
+		// moving this line.
+		exprs = append(exprs, &expr.Counter{})
 		return append(exprs, &expr.Verdict{Kind: expr.VerdictAccept})
+	}
+
+	// The id travels with every kernel rule this UI rule produces. Built once:
+	// userdata.AppendString appends to the slice it is given, so a single shared
+	// value handed to several rules would be fine here but is a trap the moment
+	// a second TLV is ever added.
+	tag := func() []byte {
+		if rule.ID == "" {
+			// A rule with no id is not tagged and has no counter history. It can
+			// only happen to a set built in code — every path that writes the
+			// rules file fills the ids in — and the interface renders an em dash
+			// for it rather than "never", because "not observed" and "observed
+			// to be idle" are different claims.
+			return nil
+		}
+		return userdata.AppendString(nil, userdata.TypeComment, rule.ID)
 	}
 
 	var matches [][]expr.Any
@@ -1892,16 +2042,17 @@ func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, pr
 	// comments alone is an operator who has not finished typing; opening the
 	// port to the world would be the one wrong answer available.
 	if len(rule.Sources) > 0 && len(matches) == 0 {
-		return
+		return nil
 	}
 
 	if len(matches) == 0 {
-		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: portMatch(nil)})
-		return
+		return []*nftables.Rule{{Table: t, Chain: c, Exprs: portMatch(nil), UserData: tag()}}
 	}
+	out := make([]*nftables.Rule, 0, len(matches))
 	for _, match := range matches {
-		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: portMatch(match)})
+		out = append(out, &nftables.Rule{Table: t, Chain: c, Exprs: portMatch(match), UserData: tag()})
 	}
+	return out
 }
 
 func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.ForwardingRule) {

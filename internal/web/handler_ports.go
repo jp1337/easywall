@@ -13,6 +13,27 @@ type portsData struct {
 	RuleType  string // "tcp" or "udp"
 	Rules     []shared.PortRule
 	Catalogue []catalogueEntry
+
+	// Usage is what each rule has carried, keyed by rule id, and UsageKnown is
+	// whether the core answered at all. The two are separate because they are
+	// different claims: an empty map from a core that answered means no rule has
+	// carried anything, and an empty map from one that did not means nothing is
+	// known — the column renders "never" for the first and an em dash for the
+	// second.
+	Usage      map[string]shared.RuleUsage
+	UsageKnown bool
+}
+
+// portUsage asks the core for the counters. A failure is logged and reported as
+// "not known": the ports page is the rule editor first, and it has to work when
+// the counters cannot be read.
+func (s *Server) portUsage() (map[string]shared.RuleUsage, bool) {
+	res, err := s.client.GetUsage()
+	if err != nil {
+		slog.Debug("could not read the port usage counters", "error", err)
+		return nil, false
+	}
+	return res.Usage, true
 }
 
 // catalogueEntry is one service as the picker needs it: the rows it would add
@@ -65,7 +86,10 @@ func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
 	state, err := s.client.GetRules()
 	if err != nil {
 		slog.Warn("get rules error", "error", err)
-		s.render(w, r, "ports.html", "ports", &portsData{RuleType: ruleType, Catalogue: catalogueFor(ruleType)})
+		usage, usageKnown := s.portUsage()
+		s.render(w, r, "ports.html", "ports", &portsData{
+			RuleType: ruleType, Catalogue: catalogueFor(ruleType),
+			Usage: usage, UsageKnown: usageKnown})
 		return
 	}
 
@@ -73,8 +97,10 @@ func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
 	if ruleType == "udp" {
 		rules = state.Staged.UDP
 	}
+	usage, usageKnown := s.portUsage()
 	s.render(w, r, "ports.html", "ports", &portsData{
-		RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType)})
+		RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType),
+		Usage: usage, UsageKnown: usageKnown})
 }
 
 func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
@@ -114,8 +140,10 @@ func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
 		// redirect would have thrown the operator's typing away to prove it
 		// wrong. Same shape as the custom rules editor.
 		s.setFlash(w, r, "save_invalid_ports")
+		usage, usageKnown := s.portUsage()
 		s.render(w, r, "ports.html", "ports", &portsData{
-			RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType)})
+			RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType),
+			Usage: usage, UsageKnown: usageKnown})
 		return
 	}
 

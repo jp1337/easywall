@@ -27,8 +27,9 @@
  * A second easywall-web is started by the script itself, from `bin/easywall-web`
  * — see checkVerifyPage — because the second login step is unreachable in the
  * demo, where no secret is ever stored. It reads the password hash the wizard
- * above just wrote out of EASYWALL_CONFIG (default /etc/easywall/web.toml); point
- * that at wherever the demo's web.toml lives if it is not there.
+ * above just wrote out of the config the demo is running, which webConfigPath()
+ * finds without being told: scripts/demo-server.sh's own directory first, then
+ * an installed /etc/easywall/web.toml. EASYWALL_CONFIG overrides both.
  *
  * `--screenshots` with no page names shoots the whole documented set,
  * including the pages above cannot reach with a single signed-in session —
@@ -37,8 +38,8 @@
  */
 import { chromium } from 'playwright-core';
 import { createHmac } from 'node:crypto';
-import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import https from 'node:https';
@@ -93,6 +94,29 @@ function totp(secretBase32, at = Date.now()) {
  * this needs no argon2 in JavaScript and no environment variable to carry it.
  * A four-line regex read of the `password = "…"` line the wizard wrote.
  */
+/**
+ * The web.toml the running instance is using.
+ *
+ * This defaulted to /etc/easywall/web.toml, which scripts/demo-server.sh has
+ * never written — it keeps its state under $HOME so that a mkcert leaf survives
+ * a reboot. So a bare `npm run check:ui` reported "could not read the password
+ * hash" and needed EASYWALL_CONFIG set by hand every time. This is the check
+ * that catches what a stylesheet diff and a Go test cannot see, and friction on
+ * it is what makes it get skipped.
+ *
+ * The order is: an explicit EASYWALL_CONFIG, then the demo's own directory
+ * (EASYWALL_DEMO_DIR, defaulted exactly as demo-server.sh defaults it), then an
+ * installed /etc/easywall/web.toml for a run against a real installation.
+ */
+function webConfigPath() {
+  if (process.env.EASYWALL_CONFIG) return process.env.EASYWALL_CONFIG;
+  const demo = join(
+    process.env.EASYWALL_DEMO_DIR || join(homedir(), '.local', 'share', 'easywall-demo'),
+    'web.toml',
+  );
+  return existsSync(demo) ? demo : '/etc/easywall/web.toml';
+}
+
 function readPasswordHash(configPath) {
   let text;
   try {
@@ -261,9 +285,10 @@ async function checkVerifyPage(browser) {
   // this needs no argon2 in JavaScript and no environment variable. An
   // env-gated skip would be a check that never runs anywhere but on the machine
   // of whoever set the variable — which is the same as not having the check.
-  const hash = readPasswordHash(process.env.EASYWALL_CONFIG || '/etc/easywall/web.toml');
+  const configPath = webConfigPath();
+  const hash = readPasswordHash(configPath);
   if (!hash) {
-    fail('second step', 'could not read the password hash out of the demo config; ' +
+    fail('second step', `could not read the password hash out of ${configPath}; ` +
       'set EASYWALL_CONFIG to the web.toml run 1 signed in against');
     return;
   }
@@ -1302,14 +1327,15 @@ async function takeWizardScreenshots(browser, theme) {
  * The second step of a 2FA login. Reachable only against an account that
  * already has a secret — the demo never stores one (see checkVerifyPage,
  * which this mirrors) — so a fresh instance is seeded with the *shot*
- * account's own password hash, read out of EASYWALL_CONFIG exactly as
- * checkVerifyPage does, plus a secret this function controls.
+ * account's own password hash, read out of the running instance's config
+ * exactly as checkVerifyPage does — see webConfigPath — plus a secret this
+ * function controls.
  *
  * Returns false, naming the page, if it cannot get the hash — rather than
  * leaving two-factor-verify-*.png stale and silently wrong about why.
  */
 async function takeVerifyScreenshot(browser, theme) {
-  const configPath = process.env.EASYWALL_CONFIG || '/etc/easywall/web.toml';
+  const configPath = webConfigPath();
   const hash = readPasswordHash(configPath);
   if (!hash) {
     console.log(`  skip two-factor-verify-${theme}.png: could not read the password hash ` +

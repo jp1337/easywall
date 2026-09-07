@@ -1,7 +1,18 @@
 package shared
 
+import "time"
+
 // PortRule represents a TCP or UDP port to be opened.
 type PortRule struct {
+	// ID identifies this rule across applies, edits and reorderings. Usage
+	// counters are keyed by it, and 2.18's per-entry metadata will key by it
+	// too. Assigned once at creation, never rewritten.
+	//
+	// Twelve hex characters. omitempty keeps a rules.json written before 2.15
+	// byte-identical until it is touched — the promise Sources made in 2.11,
+	// kept the same way.
+	ID string `json:"id,omitempty"`
+
 	Port        string `json:"port"`        // single port "80" or range "8000:9000"
 	Description string `json:"description"` // human-readable label
 	SSH         bool   `json:"ssh"`         // route through SSH brute-force chain
@@ -206,6 +217,31 @@ func ValidAcceptanceDuration(d int) bool {
 	return d >= AcceptanceDurationMin && d <= AcceptanceDurationMax
 }
 
+// UsageIntervalDefault is how often the per-rule counters are read, in seconds,
+// when nothing says otherwise. Five minutes: "last used" needs a resolution
+// that does not depend on somebody opening the page, and a netlink read of one
+// chain every five minutes costs nothing measurable on the hardware this
+// product is written for.
+const UsageIntervalDefault = 300
+
+// UsageConfig controls how often the per-rule packet counters are read.
+type UsageConfig struct {
+	// Interval is seconds between counter reads. Unset means
+	// UsageIntervalDefault; 0 stops the ticker.
+	//
+	// A pointer for the same reason WebConfig.UpdateCheck is one: every
+	// installation upgrading from 2.14 has no [usage] section, and an int whose
+	// zero value means "off" would switch the feature off on all of them
+	// without anybody choosing it.
+	//
+	// 0 stops the *ticker* only. An apply still collects, because that call
+	// exists to keep the flush from destroying a number rather than to sample
+	// one — so a host with collection switched off still shows a Last used that
+	// advances at every apply, and configuration.md says exactly that instead of
+	// leaving it to be discovered.
+	Interval *int `toml:"interval"`
+}
+
 // IPv6Mode says what the firewall does with IPv6 traffic.
 //
 // This replaces a boolean that could not express the question. `enabled = false`
@@ -318,6 +354,7 @@ type DockerConfig struct {
 type CoreConfig struct {
 	Firewall   FirewallOptions  `toml:"firewall"`
 	Acceptance AcceptanceConfig `toml:"acceptance"`
+	Usage      UsageConfig      `toml:"usage"`
 	IPv6       IPv6Config       `toml:"ipv6"`
 	Docker     DockerConfig     `toml:"docker"`
 	Routing    RoutingConfig    `toml:"routing"`
@@ -424,6 +461,51 @@ type AppliedConfig struct {
 type AppliedConfigResult struct {
 	Recorded bool          `json:"recorded"`
 	Config   AppliedConfig `json:"config"`
+}
+
+// RuleUsage is what one port rule has carried, and what the daemon needs to
+// keep booking it correctly across restarts and applies.
+//
+// It is both the stored record and the reply to GET_USAGE. The baseline fields
+// travel with it because they have to be in the file, and they are harmless on
+// the wire — the interface reads LastSeen and nothing else.
+type RuleUsage struct {
+	Packets uint64 `json:"packets"`
+	Bytes   uint64 `json:"bytes"`
+
+	// FirstSeen is the first interval in which this rule carried anything, and
+	// LastSeen the most recent one. Zero means never observed — which is not the
+	// same as a rule with no id, and the interface says so with a different word.
+	FirstSeen time.Time `json:"first_seen,omitzero"`
+	LastSeen  time.Time `json:"last_seen,omitzero"`
+
+	// KernelPackets and KernelBytes are the last values read out of the kernel:
+	// the baseline the next delta is measured from.
+	//
+	// Persisted, not held in memory, and that is the whole point of the field. A
+	// baseline that started at zero on every start would make the first collect
+	// after a restart re-count every packet already booked before it — a port
+	// that saw one packet a month ago reporting as busy today.
+	// TestUsageStore_ADaemonRestartDoesNotDoubleCount is what holds it.
+	//
+	// The claim here used to be "the nftables table outlives the daemon", which
+	// is narrower than it sounds: Daemon.Start calls RestoreCurrent
+	// unconditionally, so on the ordinary restart the table is rebuilt and its
+	// counters are back at zero. What prevents the double count on that path is
+	// Collect's below-baseline branch. The persistence is load-bearing for the
+	// paths where the table really does survive — a daemon that crashed or was
+	// stopped and started while the rules stayed live, and a boot restore that
+	// failed — and it is the cheaper of the two guarantees to keep, since a
+	// baseline in a struct field would need both branches to be right.
+	KernelPackets uint64 `json:"kernel_packets"`
+	KernelBytes   uint64 `json:"kernel_bytes"`
+}
+
+// UsageResult is the reply to GET_USAGE: what every rule has carried, keyed by
+// rule id, and when the figures were last read out of the kernel.
+type UsageResult struct {
+	Usage       map[string]RuleUsage `json:"usage"`
+	CollectedAt time.Time            `json:"collected_at,omitzero"`
 }
 
 // SystemSettings groups the acceptance window configuration for IPC transport.

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -257,6 +258,36 @@ func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
 	}
 }
 
+// The id is part of the payload, not something the server re-derives. A POST
+// that carries one must forward it unchanged — the handler validates and
+// forwards, and a rule stripped of its id here is a counter history thrown away.
+func TestPortsPOST_ForwardsTheRuleID(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
+
+	var saved []shared.PortRule
+	fc.OnCommand(shared.CmdSaveRules, func(cmd shared.Command) {
+		var p shared.SaveRulesPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return
+		}
+		raw, _ := json.Marshal(p.Rules)
+		_ = json.Unmarshal(raw, &saved)
+	})
+
+	rulesJSON := `[{"id":"deadbeefcafe","port":"443","description":"HTTPS","ssh":false}]`
+	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules="+urlEncode(rulesJSON))
+	assertRedirect(t, rec, "/ports?type=tcp")
+
+	if len(saved) != 1 {
+		t.Fatalf("want one saved rule, got %d", len(saved))
+	}
+	if got := saved[0].ID; got != "deadbeefcafe" {
+		t.Errorf("stored id = %q, want deadbeefcafe", got)
+	}
+}
+
 // A source that is not an address is refused with the message that names it, on
 // the page still holding the operator's typing — the shape the port field has.
 func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
@@ -275,5 +306,66 @@ func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "nas.local") {
 		t.Error("the rejected source is not on the page that was re-rendered")
+	}
+}
+
+// The column, end to end: a rule the core has usage for shows a date, the one
+// it does not shows "never".
+func TestPortsGET_RendersTheLastUsedColumn(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{
+			TCP: []shared.PortRule{
+				{ID: "aaaaaaaaaaaa", Port: "443", Description: "HTTPS"},
+				{ID: "bbbbbbbbbbbb", Port: "80", Description: "HTTP"},
+			},
+		},
+	}))
+	fc.SetResponse(shared.CmdGetUsage, successResp(shared.UsageResult{
+		Usage: map[string]shared.RuleUsage{
+			// "bbbbbbbbbbbb" carries no entry at all: the rule that has never
+			// carried a packet, which is the finding this column exists for.
+			"aaaaaaaaaaaa": {LastSeen: time.Now().Add(-3 * 24 * time.Hour)},
+		},
+	}))
+
+	rec := doAuthRequest(t, s, "GET", "/ports?type=tcp", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+
+	if !strings.Contains(body, "Last used") {
+		t.Error("the ports page has no Last used column heading")
+	}
+	if !strings.Contains(body, "never") {
+		t.Error("no row reads never; one rule carries no usage entry, and " +
+			"never is the finding this column exists for")
+	}
+	if !strings.Contains(body, "days ago") {
+		t.Error("no row reads a date; either the usage never reached the template or " +
+			"every rule is being rendered as unknown")
+	}
+}
+
+// A core that can list rules but cannot answer GET_USAGE must not turn every
+// port into "never" — the two commands are independent, and nothing was
+// measured just because nothing could be read. The page still renders — it is
+// the rule editor, and it works without the counters — and every cell claims
+// nothing.
+func TestPortsGET_SurvivesACoreThatCannotAnswerGetUsage(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{
+			TCP: []shared.PortRule{{ID: "cccccccccccc", Port: "22", Description: "SSH"}},
+		},
+	}))
+	fc.SetResponse(shared.CmdGetUsage, errorRespFor("usage store unavailable"))
+
+	rec := doAuthRequest(t, s, "GET", "/ports?type=tcp", nil)
+	assertStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), ">never<") {
+		t.Error("a core that could not answer GET_USAGE produced never; nothing was measured, so " +
+			"nothing may be claimed")
 	}
 }

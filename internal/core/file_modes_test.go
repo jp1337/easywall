@@ -45,6 +45,14 @@ func TestCoreWritesItsFilesForRootOnly(t *testing.T) {
 		}
 		assertMode(t, path, 0600)
 	})
+
+	t.Run("usage counters", func(t *testing.T) {
+		path := filepath.Join(dir, "usage.json")
+		if err := NewUsageStore(path).ResetBaselines(); err != nil {
+			t.Fatalf("ResetBaselines: %v", err)
+		}
+		assertMode(t, path, 0600)
+	})
 }
 
 func assertMode(t *testing.T, path string, want os.FileMode) {

@@ -31,6 +31,22 @@ func (f *Firewall) reconcileDockerBridges(quit <-chan struct{}) {
 		return
 	}
 
+	// Nothing to reconcile on a machine somebody deliberately unfiltered.
+	//
+	// Without this the loop polled for its full ninety seconds and, on finding a
+	// bridge, logged "docker bridges appeared after startup; putting the rules
+	// back" immediately before RestoreCurrent logged its refusal to do anything
+	// of the kind. Two adjacent journal lines, one of them false, on the one
+	// machine state where an operator most needs the log to be exact.
+	//
+	// Checked once, at the top, and not on every tick: panic mode is ended at
+	// the console by `easywall-core resume`, which restores through
+	// RestoreCurrent itself — so a machine that leaves panic mode gets its rules
+	// back with the bridges that exist at that moment, without this loop.
+	if f.PanicEngaged() {
+		return
+	}
+
 	// Bridges that were already there at boot are already in the rules. Only
 	// their appearance afterwards is worth a second apply.
 	if len(f.getBootBridges()) > 0 {
@@ -69,7 +85,7 @@ func (f *Firewall) reconcileDockerBridges(quit <-chan struct{}) {
 			// panic mode, or the apply slot already taken — and even then it
 			// changes nothing, because this function has already committed to
 			// returning either way.
-			if err := f.RestoreCurrent(RestoreReasonBoot); err != nil {
+			if err := f.RestoreCurrent(RestoreReasonDockerBridge); err != nil {
 				slog.Error("could not restore after the docker bridges appeared", "error", err)
 			}
 			return
