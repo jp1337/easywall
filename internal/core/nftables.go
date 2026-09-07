@@ -809,6 +809,52 @@ func (m *NftablesManager) addLoopbackAccept(t *nftables.Table, c *nftables.Chain
 	})
 }
 
+// ── Conntrack state matching ────────────────────────────────────────────────
+//
+// The kernel writes ct state into a register as a **native** u32, so the mask
+// a bitwise expression compares it against has to be in native byte order too.
+// nft's own code generation is the reference:
+//
+//	$ nft --debug=netlink -c -f - <<<'... ct state established,related accept ...'
+//	[ bitwise reg 1 = ( reg 1 & 0x00000006 ) ^ 0x00000000 ]
+//
+// All three masks in this file were written byte-reversed instead, as
+// []byte{0x00, 0x00, 0x00, 0x06}. The kernel renders that back as
+// `ct state 0x2000000,0x4000000` — bits no conntrack state ever sets — so the
+// rule matched nothing at all, silently, while `nft list ruleset` showed a rule
+// that looked present.
+//
+// What the established/related one cost, which is the whole input chain's
+// stateful half: a reply packet had no rule to match, so an installation with a
+// live table could not complete a single outbound connection — no DNS, no
+// `apt update`, no version check — and applying the table dropped whatever SSH
+// session was already open, because the only rules still matching were the
+// stateless `dport N accept` ones. Measured in a veth pair against an HTTP
+// server: 0 packets on the reversed rule and 6 on the corrected one, for the
+// same request. addInvalidPacketDrop and addSSHBruteForce were the same
+// mistake failing open — two protection modules that reported themselves on
+// and enforced nothing.
+//
+// binaryutil.NativeEndian is what the rest of this file already uses for a
+// register-width constant (see addAnycastDrop); these three were the outliers.
+const (
+	ctStateInvalid     = 0x01
+	ctStateEstablished = 0x02
+	ctStateRelated     = 0x04
+	ctStateNew         = 0x08
+)
+
+// ctStateMask returns the register mask that matches any of the given ct state
+// bits, in the byte order the kernel actually compares against.
+func ctStateMask(bits uint32) []byte {
+	return binaryutil.NativeEndian.PutUint32(bits)
+}
+
+// ctStateNoMatch is the zero a masked ct state is compared against. Byte order
+// does not enter into it — every byte is zero — so it is named rather than
+// repeated as a literal beside three masks where order is the whole point.
+var ctStateNoMatch = []byte{0x00, 0x00, 0x00, 0x00}
+
 func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Chain) {
 	m.conn.AddRule(&nftables.Rule{
 		Table: t,
@@ -819,10 +865,10 @@ func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Ch
 				SourceRegister: 1,
 				DestRegister:   1,
 				Len:            4,
-				Mask:           []byte{0x00, 0x00, 0x00, 0x06}, // ESTABLISHED | RELATED
-				Xor:            []byte{0x00, 0x00, 0x00, 0x00},
+				Mask:           ctStateMask(ctStateEstablished | ctStateRelated),
+				Xor:            ctStateNoMatch,
 			},
-			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
+			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
 			&expr.Verdict{Kind: expr.VerdictAccept},
 		},
 	})
@@ -893,10 +939,10 @@ func (m *NftablesManager) addInvalidPacketDrop(t *nftables.Table, c *nftables.Ch
 			SourceRegister: 1,
 			DestRegister:   1,
 			Len:            4,
-			Mask:           []byte{0x00, 0x00, 0x00, 0x01}, // INVALID state
-			Xor:            []byte{0x00, 0x00, 0x00, 0x00},
+			Mask:           ctStateMask(ctStateInvalid),
+			Xor:            ctStateNoMatch,
 		},
-		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
 	}
 	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
 		logSpec{enabled: opts.InvalidPacketsLog, prefix: logPrefixInvalid})
@@ -1272,10 +1318,10 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 					SourceRegister: 1,
 					DestRegister:   1,
 					Len:            4,
-					Mask:           []byte{0x00, 0x00, 0x00, 0x08}, // NEW state
-					Xor:            []byte{0x00, 0x00, 0x00, 0x00},
+					Mask:           ctStateMask(ctStateNew),
+					Xor:            ctStateNoMatch,
 				},
-				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00, 0x00, 0x00}},
+				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
 				&expr.Verdict{Kind: expr.VerdictJump, Chain: "sshbrute"},
 			),
 		})

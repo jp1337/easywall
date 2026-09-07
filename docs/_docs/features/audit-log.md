@@ -15,7 +15,7 @@ on disk keeps everything.
   <figcaption>The filter matches the wording on screen as well as the identifier stored on disk.</figcaption>
 </figure>
 
-## Only 10 entries carry colour
+## Only 11 entries carry colour
 
 Colour outside the accent family always means firewall state — green live, amber
 unconfirmed, red rolled back. If a merely informational event were tinted too, a
@@ -29,6 +29,7 @@ coloured tag would stop meaning anything.
 | 🔴 | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
 | 🔴 | `rollback_failed` | Rollback failed | The worst outcome there is: the new rules did not take **and** the old ones did not come back |
 | 🟢 | `boot_enforced` | Rules restored at startup | The stored rules were back in the kernel before anything else started |
+| 🟠 | `boot_not_configured` | Not filtering — nothing configured yet | The daemon started on a host where nothing has ever been applied, and left the machine exactly as it found it. Enforcing the empty rule set a new installation ships with would close every port, including SSH and the interface whose first-run wizard is the only thing that opens them. Filtering starts at your first apply, which has the acceptance window to undo it |
 | 🔴 | `boot_enforce_failed` | Rules could not be restored at startup | The machine came up and is not filtering — nothing on this list is worse. Also written when the panic marker cannot be read at all, when panic mode was engaged from the console while the restore was still writing, and whenever a panic teardown itself failed and the machine may still be filtering behind a marker that says it is not. The detail says which |
 | 🔴 | `panic_engaged` | Panic mode engaged | A human at the console took the firewall down on purpose. Deliberate does not make it neutral: the machine is unfiltered either way |
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |

@@ -237,6 +237,7 @@
   {"id": "audit_settings_saved", "translation": "Settings saved"},
   {"id": "audit_system_saved", "translation": "System settings saved"},
   {"id": "audit_boot_enforced", "translation": "Rules restored at startup"},
+  {"id": "audit_boot_not_configured", "translation": "Not filtering — nothing configured yet"},
   {"id": "audit_boot_enforce_failed", "translation": "Rules could not be restored at startup"},
   {"id": "audit_panic_engaged", "translation": "Panic mode engaged"},
   {"id": "audit_panic_resumed", "translation": "Panic mode ended"},

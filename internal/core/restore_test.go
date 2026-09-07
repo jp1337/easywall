@@ -72,6 +72,10 @@ func TestRestoreCurrent_SkipsWhenPanicIsEngaged(t *testing.T) {
 func TestRestoreCurrent_AttemptsAndRecordsFailure(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
+	// The restore reaches nftables only on a host that has been configured;
+	// an installation where nothing was ever applied is left alone instead.
+	// See TestRestoreCurrent_DoesNotEnforceAnInstallationNobodyConfigured.
+	configureTestFirewall(t, fw)
 
 	err := fw.RestoreCurrent(RestoreReasonBoot)
 	if err == nil {
@@ -679,6 +683,7 @@ func TestRestoreCurrent_RecordsTheBridgesItBakedIn(t *testing.T) {
 
 	cfg := newTestConfig(t)
 	f := newTestFirewall(t, cfg)
+	configureTestFirewall(t, f)
 
 	if got := f.getBootBridges(); len(got) != 0 {
 		t.Fatalf("a fresh firewall already records %v", got)
@@ -694,5 +699,90 @@ func TestRestoreCurrent_RecordsTheBridgesItBakedIn(t *testing.T) {
 			"reconciler cannot tell a host whose bridges were already there from one "+
 			"whose bridges have not appeared yet, and restores a second time on every "+
 			"container host", got)
+	}
+}
+
+// A host that has never been configured is left exactly as easywall found it.
+//
+// The incident: a VPS was cut off from its owner immediately after
+// `docker compose up -d`. RulesStore initialises rules.json with emptyState(),
+// Daemon.Start restores it unconditionally, and an empty rule set at policy drop
+// closes every port — SSH, and the web interface whose first-run wizard is the
+// only thing that would have opened SSH. `dpkg -i` reaches the same place; the
+// documented first step is https://localhost:12227, and loopback is accepted,
+// which is why it was never seen locally.
+//
+// The evidence that nothing was written: the test firewall has a nil netlink
+// connection, so any restore that reaches nftables fails at Reset and records
+// boot_enforce_failed — as TestRestoreCurrent_AttemptsAndRecordsFailure above
+// asserts it does on a configured host. Getting boot_not_configured instead, and
+// a nil error, is proof this one turned back before the kernel.
+func TestRestoreCurrent_DoesNotEnforceAnInstallationNobodyConfigured(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if err := fw.RestoreCurrent(RestoreReasonBoot); err != nil {
+		t.Errorf("restoring an unconfigured installation must succeed by doing nothing, got %v", err)
+	}
+
+	got := auditActions(t, cfg)
+	if len(got) != 1 || got[0] != "boot_not_configured" {
+		t.Fatalf("audit says %v, want exactly one boot_not_configured\n"+
+			"  boot_enforce_failed here means the restore reached nftables and would "+
+			"have installed a drop-all table on a machine nobody has configured", got)
+	}
+}
+
+// An operator who deliberately applied an empty rule set keeps it across a
+// reboot. That choice was made through an acceptance window that let them undo
+// it, which is exactly what a fresh install has never had.
+//
+// Without this the guard above would be "empty means never configured", and a
+// host somebody deliberately left wide open — or one upgrading from a release
+// before the guard existed, where Current may legitimately be empty — would
+// quietly stop being restored at boot.
+func TestRestoreCurrent_EnforcesAnEmptySetSomebodyApplied(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	// The marker an accepted apply leaves behind, and nothing else: Current
+	// stays empty, so the marker is the only thing saying this host is configured.
+	fw.setLastApply(time.Now())
+
+	err := fw.RestoreCurrent(RestoreReasonBoot)
+	if err == nil {
+		t.Fatal("the restore must reach nftables and fail there on the nil connection")
+	}
+
+	got := auditActions(t, cfg)
+	if len(got) != 1 || got[0] != "boot_enforce_failed" {
+		t.Errorf("audit says %v, want exactly one boot_enforce_failed\n"+
+			"  boot_not_configured here means a deliberately-applied empty rule set "+
+			"stopped being enforced across a reboot", got)
+	}
+}
+
+// The two signals are independent: a non-empty Current with no marker is a
+// configured host too. That is the shape an installation has between the
+// first-run apply and the marker being written, and the shape of any host whose
+// marker file was lost.
+func TestEverConfigured_TakesEitherSignal(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	var state shared.RulesState
+	if fw.everConfigured(state) {
+		t.Error("empty Current and no last-apply marker is an unconfigured installation")
+	}
+
+	state.Current.TCP = []shared.PortRule{{Port: "22"}}
+	if !fw.everConfigured(state) {
+		t.Error("a rule in Current means somebody configured this host")
+	}
+
+	state.Current = shared.Rules{}
+	fw.setLastApply(time.Now())
+	if !fw.everConfigured(state) {
+		t.Error("a last-apply marker means somebody applied something, empty or not")
 	}
 }
