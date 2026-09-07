@@ -96,6 +96,44 @@ func startTestSocket(t *testing.T, d *Daemon) {
 	t.Cleanup(func() { ln.Close() })
 }
 
+// startDaemonGoroutine runs the real Start in a goroutine and returns the
+// channel its error lands on. Every test that runs the real Start goes through
+// here, and TestDaemonTests_StartIsOnlySpawnedByTheHelper keeps it that way —
+// getting this right is two lines, seven tests needed them, and the two lines
+// went missing twice.
+//
+// The slot is the reason the function exists. d.wg is the daemon's own counter:
+// the boot restore, the bridge reconciler, the counter ticker and each served
+// connection take one, and Stop waits on it. sync.WaitGroup reports "Add from a
+// counter of zero, concurrently with Wait" deliberately, as a read and a write
+// of wg.sema — the race.Read/race.Write pair in sync/waitgroup.go — because
+// Add's own documentation forbids that ordering. Start does exactly that: the
+// accept loop calls d.wg.Add(1) for a connection while the counter is zero, and
+// nothing orders that against the d.wg.Wait() inside the Stop the test calls
+// from its own goroutine. Holding one slot for precisely as long as Start runs
+// means no Add inside the daemon is ever the transition from zero, so the word
+// the race is reported on is only ever touched by the goroutine that took the
+// slot here.
+//
+// Precisely as long as Start runs, and not a moment less: the first attempt
+// released the slot at the top of the cleanup instead, on the reasoning that the
+// test body had returned and nothing was left to dial. Wrong — waitForSocket's
+// dial is already satisfied by the listen backlog, so the accept it provokes can
+// land after that, and the rate went from 7 process runs in 160 to 15 in 192.
+//
+// The daemon is not changed for any of this: in production Stop is followed by
+// process exit, and the accept loop is outside d.wg for the reason given on
+// Start. It is the tests that must not outrun it.
+func startDaemonGoroutine(d *Daemon) <-chan error {
+	d.wg.Add(1)
+	errCh := make(chan error, 1)
+	go func() {
+		defer d.wg.Done()
+		errCh <- d.Start()
+	}()
+	return errCh
+}
+
 // startTestDaemon runs the real Start in the background, waits for its socket,
 // and registers a cleanup that stops the daemon *and waits for Start to return*.
 //
@@ -108,19 +146,14 @@ func startTestSocket(t *testing.T, d *Daemon) {
 // the frame down, which is what -race reported on main as
 // TestDaemonStart_RestoresAtStartup on 2026-08-30.
 //
-// The daemon itself is not the problem and is not changed: in production Stop is
-// followed by process exit, and the accept loop is outside d.wg for the reason
-// given on Start. It is the tests that must not outrun it.
+// Waiting was only half of it — the wait happens after Stop, and the other half
+// races inside it. That half is the slot in startDaemonGoroutine above.
 func startTestDaemon(t *testing.T, d *Daemon) {
 	t.Helper()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_ = d.Start()
-	}()
+	errCh := startDaemonGoroutine(d)
 	t.Cleanup(func() {
 		d.Stop()
-		<-done
+		<-errCh
 	})
 	waitForSocket(t, d.cfg.SocketPath)
 }
@@ -633,8 +666,7 @@ func TestDaemonStart_Stop(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	// Wait for the socket file to appear (Start → net.Listen → Accept loop).
 	deadline := time.Now().Add(2 * time.Second)
@@ -680,8 +712,7 @@ func TestDaemonStart_ChownPath(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	// Wait for the socket — once it appears, Start has already executed the chown path.
 	deadline := time.Now().Add(2 * time.Second)
@@ -711,8 +742,7 @@ func TestDaemonStart_AcceptErrorDefaultBranch(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
