@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Twelve releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
+description: Fourteen releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
 ---
 
 # Roadmap
@@ -26,9 +26,11 @@ Be able to maintain it   2.18  Every entry has a why and an until
                           2.19  Whoever knocks gets locked out
                           2.20  Other people's lists, and countries
 
-Reach further            2.21  Outbound traffic
-                          2.22  More than one account
-                          2.23  Eight languages
+Reach further            2.21  One package, four formats
+                          2.22  Updates arrive on their own
+                          2.23  Outbound traffic
+                          2.24  More than one account
+                          2.25  Eight languages
                           3.0   Reachable from outside
                           3.1   Passkeys, as a second factor
 ```
@@ -36,6 +38,22 @@ Reach further            2.21  Outbound traffic
 One theme per release, sayable in one sentence — the changelog heading then
 writes itself. A model change travels with the feature that justifies it, never
 earlier as an end in itself and never twice.
+
+> **Amended after 2.15.** Two releases were inserted at the head of *Reach
+> further* and everything below them moved back two places. Reaching an operator
+> who cannot install easywall at all comes before reaching new traffic
+> directions or new languages.
+>
+> **2.21 — One package, four formats** replaces `debian/` rather than adding
+> beside it. `release.yml` already rejects a second packaging definition, and
+> only a replacement satisfies that reasoning. **Alpine is in on purpose**: it
+> buys a second init class, OpenRC, to be tested for as long as it is supported.
+>
+> **2.22 — Updates arrive on their own** is the first entry here whose cost is
+> *operational*. A signing key and a URL outlive any release that produces them,
+> which is why it sits after the packaging rather than beside it.
+>
+> **3.0 and 3.1 keep their numbers**, for the reason the 2.12 amendment gives.
 
 > **Amended in 2.15.** One release was inserted here and everything below it
 > moved back one place. **2.16 — The interface looks like a firewall** is not a
@@ -75,9 +93,11 @@ earlier as an end in itself and never twice.
 | **2.18** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
 | **2.19** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |
 | **2.20** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
-| **2.21** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
-| **2.22** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
-| **2.23** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
+| **2.21** | **One package, four formats** — `.deb`, `.rpm`, Arch and Alpine from one description, with `debian/` replaced by an nfpm manifest rather than joined by one | `requirements.md` says of Arch, Fedora and openSUSE that they *should work but are not in CI*: they get a tarball and write the service units themselves. `release.yml` refuses a second packaging definition in as many words — *two definitions of one artefact is how a package comes to contain no binaries* — and only a replacement honours that. The nine paths with their owners and modes are declared once and **proven by four install-verify jobs, not asserted**. Alpine is taken deliberately, knowing it means OpenRC and therefore a second init class to keep tested |
+| **2.22** | **Updates arrive on their own** — a signed APT and RPM repository, so `apt upgrade` and `dnf upgrade` find easywall | The documented install is `wget` and `dpkg -i`, so an operator learns about 2.16 only because the interface says so and installs it by hand. After 2.21, because a repository serves finished packages and not the other way round. It is also this project's first promise that means **operation** rather than code: a signing key to keep for years, and a URL that must not move |
+| **2.23** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
+| **2.24** | **More than one account** — the `user` field the protocol has never carried, plus an observer role that can see but not apply | `WriteAuditLog` already takes a user; nothing upstream of it has one to give. Every audit entry has said `web` since it existed |
+| **2.25** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
 | **3.0** | **Reachable from outside** — a REST API with token auth and ACME as an alternative to a reverse proxy | A major version because an API is a second public interface and a compatibility promise easywall has not made before |
 | **3.1** | **Passkeys, as a second factor** — WebAuthn alongside TOTP, never in place of the password | Wait for 3.0 on purpose: WebAuthn requires a registrable domain as its Relying Party ID and **rejects a bare IP address**, which is how most easywall installations are reached (`https://192.168.1.10:12227`) — passkeys cannot come before a real hostname and certificate exist |
 
