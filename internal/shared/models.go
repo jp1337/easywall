@@ -482,12 +482,21 @@ type RuleUsage struct {
 	// KernelPackets and KernelBytes are the last values read out of the kernel:
 	// the baseline the next delta is measured from.
 	//
-	// Persisted, not held in memory, and that is the whole point of the field.
-	// The nftables table outlives the daemon, so a baseline that started at zero
-	// on every start would make the first collect after a restart re-count every
-	// packet already booked before it — a port that saw one packet a month ago
-	// reporting as busy today. TestUsageStore_ADaemonRestartDoesNotDoubleCount
-	// is what holds it.
+	// Persisted, not held in memory, and that is the whole point of the field. A
+	// baseline that started at zero on every start would make the first collect
+	// after a restart re-count every packet already booked before it — a port
+	// that saw one packet a month ago reporting as busy today.
+	// TestUsageStore_ADaemonRestartDoesNotDoubleCount is what holds it.
+	//
+	// The claim here used to be "the nftables table outlives the daemon", which
+	// is narrower than it sounds: Daemon.Start calls RestoreCurrent
+	// unconditionally, so on the ordinary restart the table is rebuilt and its
+	// counters are back at zero. What prevents the double count on that path is
+	// Collect's below-baseline branch. The persistence is load-bearing for the
+	// paths where the table really does survive — a daemon that crashed or was
+	// stopped and started while the rules stayed live, and a boot restore that
+	// failed — and it is the cheaper of the two guarantees to keep, since a
+	// baseline in a struct field would need both branches to be right.
 	KernelPackets uint64 `json:"kernel_packets"`
 	KernelBytes   uint64 `json:"kernel_bytes"`
 }

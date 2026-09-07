@@ -52,16 +52,23 @@ entry is still the way to allow an address on *every* port at once.
 
 ## Last used
 
-The right-hand column says when this port last carried a packet the firewall
-accepted. Every rule easywall writes carries a kernel counter tagged with the
-rule's own id, read every five minutes and once more immediately before each
-apply. An apply rebuilds the table and resets every counter in it, so the
-figure is booked before that happens rather than lost with it.
+The right-hand column says when the rule on that line last accepted a packet.
+Every rule easywall writes carries a kernel counter tagged with the rule's own
+id, read every five minutes and once more immediately before each write to the
+kernel. Rebuilding the table resets every counter in it, so the figure is booked
+before that happens rather than lost with it.
+
+> **The counter follows the rule, not the port number.** A rule keeps its
+> identity for as long as it exists — that is what lets you edit the sources or
+> the description without throwing its history away. Renumber a row from `22` to
+> `9999` and the date beside it is still that row's own history. It can read
+> *9 minutes ago* for a port nothing has ever reached. To start clean, delete
+> the row and add the new port as a new one.
 
 | The column says | It means |
 |---|---|
-| `just now`, `3 days ago` | the last accepted packet, to the resolution of the collection interval |
-| `never` | this rule has carried nothing since easywall started counting it |
+| `just now`, `3 days ago` | the last packet this rule accepted, to the resolution of the collection interval |
+| `never` | this rule has accepted nothing since easywall started counting it |
 | `—` | nothing is known: the rule has no id yet, or the counters could not be read |
 
 `never` and `—` are different claims and the difference matters. `never` is a

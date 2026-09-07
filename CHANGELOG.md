@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.15.0] — 2026-09-06
+## [2.15.0] — 2026-09-07
 
 **You can see it working.**
 
@@ -24,9 +24,11 @@ carried nothing in a month.
   30+ days*. No new tile, and no colour — `DESIGN.md` reserves colour for
   firewall state.
 - **Every port rule has an id**, twelve hex characters, assigned once and never
-  rewritten. It survives editing the port, the sources and the description, and
-  it is what the counters are keyed by. 2.18's per-entry metadata will key by it
-  too.
+  rewritten, and it is what the counters are keyed by. Editing a rule's sources
+  or description keeps its history. Editing its *port number* keeps it too —
+  the counter follows the rule and not the port, so a row renumbered from `22`
+  to `9999` still shows the old port's dates. Delete the row and add the new
+  port to start clean. 2.18's per-entry metadata will key by the id as well.
 - **`GET_USAGE`**, the twenty-first protocol command. Read-only, answered out of
   a file: collecting inside it would queue behind the nft mutex, which an apply
   holds for six times as long as the client waits.
@@ -70,9 +72,17 @@ Ten entries carried forward from earlier releases, closed in the same pass.
 ### Known limits
 
 - A flush easywall did not perform — `nft flush ruleset` typed by hand — loses
-  the interval since the last collect. The counter restarting below its baseline
-  is detected and the new count is booked in full; what happened before it is
-  gone. The reconciler already owns that class of event.
+  the interval since the last collect. Every write easywall *does* perform books
+  the counters first: an apply, an acceptance-window rollback, a boot or
+  `resume` restore, and a `panic` teardown. The counter restarting below its
+  baseline is detected either way and the new count booked in full; what
+  happened before an unannounced flush is gone. The reconciler already owns that
+  class of event.
+- The stored packet and byte totals can run slightly high, once, if a scheduled
+  collection lands in the instant between an apply's kernel write and its
+  baseline reset. Nothing reaches the screen from it: the reply carries only the
+  last-used date, and that date is already correct. Closing it would put a new
+  lock across the apply path for a nicety counter.
 - Custom rules carry no counter. They are raw nftables statements and cannot be
   tagged without changing what was written.
 - A connection the SSH brute-force limiter drops never reaches the port's accept

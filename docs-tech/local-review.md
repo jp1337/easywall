@@ -16,6 +16,22 @@ under `$EASYWALL_DEMO_ADDR` (default `127.0.0.1:12227`). Signs in as
 uses, so a session started by hand and one driven by the script are
 interchangeable.
 
+## Driving it in a browser
+
+```bash
+scripts/demo-server.sh &        # or in another terminal
+npm run check:ui
+```
+
+Nothing to set. The script finds the demo's `web.toml` under
+`$EASYWALL_DEMO_DIR` (default `~/.local/share/easywall-demo`) and falls back to
+`/etc/easywall/web.toml` for a run against a real installation; `EASYWALL_CONFIG`
+overrides both. That default used to be `/etc/easywall/web.toml` alone — a file
+`demo-server.sh` has never written — so a bare `npm run check:ui` reported
+"could not read the password hash" and every run needed the variable set by
+hand. It is the check that caught this release's worst defect, and friction on
+it is what gets it skipped.
+
 ## The certificate
 
 `mkcert -install` trusts a local CA in Chrome once. For years the demo server
@@ -55,10 +71,15 @@ not the host's.
 
 ```bash
 podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN --security-opt unmask=ALL \
-  -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.25 \
+  -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.27 \
   sh -c 'apt-get update -qq && apt-get install -y -qq nftables iproute2 iputils-ping >/dev/null && \
          go test -tags integration ./internal/core/... -v'
 ```
+
+The image tag has to be at least the `go` directive in `go.mod`, or the run
+stops before a test with `go.mod requires go >= …` — the container sets
+`GOTOOLCHAIN=local`, so it will not fetch a newer toolchain the way the host
+does. This command said `golang:1.25` until 2.15 and by then did not run at all.
 
 `--cap-add=NET_ADMIN` alone is not enough: `TestMain` re-execs into a fresh
 network namespace via `CLONE_NEWNET`, which needs `CAP_SYS_ADMIN` too — without
