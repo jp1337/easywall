@@ -77,7 +77,13 @@ func NewRuleID() string {
 // value on every read, and every counter would be keyed to a rule that no
 // longer exists by the time it is read back.
 func EnsureRuleIDs(r *Rules) bool {
-	seen := make(map[string]bool, len(r.TCP)+len(r.UDP))
+	// No capacity hint: these hold one entry per port rule, which is dozens,
+	// and len(r.TCP)+len(r.UDP) is the only size arithmetic in the tree —
+	// CodeQL's size-computation-overflow query flags it as a high-severity
+	// alert. The sum cannot overflow an int without exabytes of PortRule, so
+	// the alert is wrong, but the hint was worth nothing to begin with and
+	// arguing with a scanner over ceremony is the worse trade.
+	seen := make(map[string]bool)
 	changed := false
 	for _, list := range []*[]PortRule{&r.TCP, &r.UDP} {
 		for i := range *list {

@@ -31,7 +31,13 @@ func ValidateRules(r Rules) error {
 	// edited by hand — which is exactly the case that needs an error rather than
 	// a silently merged history. An empty id is not a duplicate: a file written
 	// before 2.15 has nothing else.
-	seenIDs := make(map[string]bool, len(r.TCP)+len(r.UDP))
+	// No capacity hint: these hold one entry per port rule, which is dozens,
+	// and len(r.TCP)+len(r.UDP) is the only size arithmetic in the tree —
+	// CodeQL's size-computation-overflow query flags it as a high-severity
+	// alert. The sum cannot overflow an int without exabytes of PortRule, so
+	// the alert is wrong, but the hint was worth nothing to begin with and
+	// arguing with a scanner over ceremony is the worse trade.
+	seenIDs := make(map[string]bool)
 	for _, list := range [][]PortRule{r.TCP, r.UDP} {
 		for _, rule := range list {
 			if rule.ID == "" {
