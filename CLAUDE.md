@@ -52,6 +52,7 @@ Each of these cost a release. They are not style preferences.
 | **Plan larger changes first, and read the code in full** | Keyword-grepping produced confident answers about code that did not say what the grep suggested |
 | **A test is verified by breaking the code, not by reading it** | 2.12's reviews found seven tests that passed for the wrong reason — a sample equal to the shipped default, a fixture where the precedence rule carried the test, a key appended past a `[tls]` header into the wrong table, a recomputation with no guard. All seven were green, and all seven were found by mutating the implementation |
 | **A fix carries its documentation** | Both locales, the schema, the UI copy — or the next audit finds the mismatch you created |
+| **A release fixes what it caused. `carried-forward.md` is for what it *found*** | 2.15 clipped six port descriptions with its own new column, and deferring that would have shipped the defect this repository's rendered-check rule exists to catch. An entry may only be carried if it is proven to predate the branch — and *proven against the pre-branch base*, not against the branch head: 2.15 had a `check:prose` failure reported as pre-existing that its own Task 7 had introduced, and only a comparison against `origin/main` before the branch showed it |
 | **One source for the Go toolchain** | Five places disagreed for months; see [dependencies](docs-tech/dependencies.md) |
 
 ## The deeper documentation

@@ -4,6 +4,15 @@ What a piece of work found and deliberately did not fix, with enough context to 
 on. Every entry was reviewed, triaged and ruled on rather than forgotten; the
 reasoning for deferring is part of the entry. Newest first.
 
+**What may not go in here: anything the release caused, or anything belonging to
+the feature it shipped.** A release is complete or it is not finished, and this file
+is not a place to put the difference. An entry earns its place by being *found* by
+the work rather than *made* by it — and that has to be proven against the base the
+branch started from, not against the branch's own head, which already contains the
+release's mistakes. 2.15 carried a `check:prose` failure as pre-existing on exactly
+that error; comparing against `origin/main` showed its own earlier task had written
+the sentence.
+
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
 
