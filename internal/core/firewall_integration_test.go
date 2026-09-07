@@ -342,8 +342,7 @@ func TestIntegration_NewDaemon_Start_Stop(t *testing.T) {
 	}
 
 	// Start the daemon in a goroutine — it blocks until Stop is called.
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	// Wait for the socket to appear (Start calls net.Listen and then loops on Accept).
 	deadline := time.Now().Add(3 * time.Second)
