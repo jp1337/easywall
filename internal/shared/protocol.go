@@ -35,16 +35,29 @@ const defaultCommandTimeout = 5 * time.Second
 // said it had not been — and the obvious next move after "import failed" is to
 // try again or to apply, on top of a rule set that is not the one on screen.
 //
-// The nft-backed commands, plus PANIC, get NftTimeout plus room for the core's
-// own work either side. PANIC can queue behind an apply's nft subprocess — it is
-// designed to win rather than to fail fast — so the client must wait as long as
-// the server might. RESUME restores through beginApply and returns ErrApplyInProgress
-// immediately rather than blocking, so it belongs on the short deadline.
-// Everything else keeps the short deadline, because a status poll that hangs for
-// half a minute is its own problem.
+// The nft-backed commands, plus PANIC and RESUME, get NftTimeout plus room for
+// the core's own work either side. PANIC can queue behind an apply's nft
+// subprocess — it is designed to win rather than to fail fast — so the client
+// must wait as long as the server might.
+//
+// RESUME used to be classified with the short deadline, on the reasoning that
+// RestoreCurrent's beginApply() fails fast with ErrApplyInProgress rather than
+// blocking. That stopped being true the moment Firewall.Panic and
+// Firewall.Resume started sharing panicMu (see restore.go): RESUME now
+// acquires that lock before it ever reaches beginApply, and a PANIC already
+// queued behind the nft mutex — up to NftTimeout, per NftablesManager's own
+// comment — holds panicMu for that whole window. A RESUME landing there blocks
+// on the lock, not on the file operation the old reasoning was about, and a
+// five-second deadline sitting in front of a thirty-second wait is exactly the
+// failure IMPORT_RULES used to produce: the client gives up and reports a
+// failure for work the core goes on to finish. RESUME now shares PANIC's
+// deadline because it shares PANIC's queue.
+//
+// Everything else keeps the short deadline, because a status poll that hangs
+// for half a minute is its own problem.
 func CommandTimeout(cmd CommandType) time.Duration {
 	switch cmd {
-	case CmdImportRules, CmdValidateCustom, CmdPanic:
+	case CmdImportRules, CmdValidateCustom, CmdPanic, CmdResume:
 		return NftTimeout + defaultCommandTimeout
 	default:
 		return defaultCommandTimeout

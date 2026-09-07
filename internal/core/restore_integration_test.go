@@ -236,7 +236,7 @@ func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
 	// pins the other half of the substitution rule: the requested action is what
 	// gets written when the teardown *works*. The unit test covers the failing
 	// teardown, which no fixture with a live connection can produce.
-	if !fw.panicLandedDuringWrite("apply_refused_panic", "test: the console got there first", "web") {
+	if !fw.panicLandedDuringWrite(fw.PanicEngaged(), "apply_refused_panic", "test: the console got there first", "web") {
 		t.Fatal("the marker is on disk; the check has to see it")
 	}
 	if fw.nft.Enforcing() {
