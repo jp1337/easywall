@@ -16,6 +16,12 @@ the sentence.
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
 
+# From the check:ui race fix
+
+| | |
+|---|---|
+| **`checkPortsCatalogue` is not idempotent against a demo server that has already run it** | Picking Pi-hole a second time adds its rows to a set that already holds them, and the check fails with *"picking Pi-hole added 4 TCP rows, expected 2"*. Invisible in CI, which starts a fresh `easywall-web` for every run; it bites only a maintainer whose `scripts/demo-server.sh` has been up across two `npm run check:ui` invocations — where it reads as a real regression and costs a bisect. Reproduced on unmodified `main`, so it predates this branch. The fix is either a check that tolerates the rows already being there or a demo reset the script performs itself, and that is a decision about what `check:ui` may do to a maintainer's running session |
+
 # From 2.15.1
 
 Found while analysing the Discord lockout report, proven against `main` before
