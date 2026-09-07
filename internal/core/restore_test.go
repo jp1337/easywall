@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -642,5 +643,50 @@ func TestRollback_UnderPanicSaysSoWhenTheRevertItselfFailed(t *testing.T) {
 	}
 	if strings.Contains(skipped.Detail, "were reverted") {
 		t.Errorf("the entry asserts a revert that did not happen: %q", skipped.Detail)
+	}
+}
+
+// RestoreCurrent records the Docker bridges it baked into the rules, and
+// reconcileDockerBridges reads that record to tell "no bridges yet" from "no
+// bridges at all" the one time it looks.
+//
+// All four reconciler tests write the field directly, so deleting
+// setBootBridges from RestoreCurrent left the whole suite green — and that call
+// was the entire subject of the commit that added it. This is the test that was
+// missing.
+//
+// The nft connection is nil, so the restore fails at its kernel write. That is
+// deliberate and sufficient: setBootBridges runs before it, which is the
+// ordering the reconciler depends on — the bridges have to be recorded whether
+// or not the write that would have used them succeeded.
+func TestRestoreCurrent_RecordsTheBridgesItBakedIn(t *testing.T) {
+	origInterfaces, origAddrs := netInterfacesFn, ifaceAddrsFn
+	t.Cleanup(func() { netInterfacesFn, ifaceAddrsFn = origInterfaces, origAddrs })
+
+	netInterfacesFn = func() ([]net.Interface, error) {
+		return []net.Interface{{Index: 1, Name: "br-abc123"}}, nil
+	}
+	ifaceAddrsFn = func(net.Interface) ([]net.Addr, error) {
+		_, n, _ := net.ParseCIDR("172.30.0.0/16")
+		return []net.Addr{n}, nil
+	}
+
+	cfg := newTestConfig(t)
+	f := newTestFirewall(t, cfg)
+
+	if got := f.getBootBridges(); len(got) != 0 {
+		t.Fatalf("a fresh firewall already records %v", got)
+	}
+
+	// The write fails — there is no netlink connection — and the record is
+	// still expected, because it is made before the write.
+	_ = f.RestoreCurrent(RestoreReasonBoot)
+
+	got := f.getBootBridges()
+	if len(got) != 1 || got[0] != "172.30.0.0/16" {
+		t.Errorf("RestoreCurrent recorded %v, want [172.30.0.0/16]; without this the "+
+			"reconciler cannot tell a host whose bridges were already there from one "+
+			"whose bridges have not appeared yet, and restores a second time on every "+
+			"container host", got)
 	}
 }
