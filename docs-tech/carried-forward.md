@@ -13,7 +13,7 @@ Two layout defects found while verifying the *Last used* column, both proven
 independent of it, both belonging to 2.16 — *The interface looks like a
 firewall* — where the tables are the subject rather than a passenger.
 
-## The ports table is too narrow for its own placeholder
+## The ports table's widths don't add up
 
 | | |
 |---|---|

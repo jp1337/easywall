@@ -117,10 +117,26 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	}
 
 	// The table has been rebuilt, so every baseline in usage.json describes
-	// counters that are no longer in the kernel. Same call, same placement and
-	// same reasoning as apply's — see resetUsageBaselines, and Amendment A4 in
-	// the 2.15 plan for why it is after the call rather than between the collect
-	// and the call.
+	// counters that are no longer in the kernel. Same call and placement as
+	// apply's — see resetUsageBaselines, and Amendment A4 in the 2.15 plan for
+	// why it is after the call rather than between the collect and the call —
+	// but not the same coverage. apply's error branch always has rollback to
+	// fall through to, and rollback resets the baselines as its own last step.
+	// This function's error branch above has no such fallback: it returns
+	// straight after panicLandedDuringWrite, so a post-commit nft.Apply failure
+	// here leaves a rebuilt table with every baseline still describing the
+	// counters that used to be in it.
+	//
+	// Left uncovered rather than mirrored, because there is nothing to fall
+	// back to: RestoreCurrent only ever writes what is already stored, so a
+	// failed write has no second state for a rollback to restore instead. What
+	// this costs is bounded — Collect's below-baseline branch (see usage.go)
+	// catches most of it on its own, and what slips past is a one-time
+	// mis-booking of Packets and Bytes on a rule whose kernel counter climbs
+	// past the stale baseline before the next collect. Accepted rather than
+	// fixed: RuleUsage's own doc comment and handler_dashboard.go's
+	// unusedForThirtyDays both read LastSeen and nothing else, so nothing wrong
+	// reaches a screen.
 	f.resetUsageBaselines()
 
 	// The marker again, now that the rules are actually in the kernel. The check
