@@ -52,35 +52,35 @@ added mid-run. What follows is what was seen and left alone, and why.
 
 | | |
 |---|---|
-| **Four audit-silent paths in `apply`** | The second `GetState` (the re-read after promote), `BackupCurrent`, `PromoteStaged` and `acceptance.Start` all return without an audit entry. 2.7 fixed the first `GetState` and left its four neighbours; do them in one pass, because four invisible paths beside two visible ones is the actual shape |
-| **`acceptance.Start`'s error path** | Returns with the new rules live, no window, no rollback and no entry. Unreachable today and the comment says so; it should roll back rather than return |
+| ~~**Four audit-silent paths in `apply`**~~ | **Closed 2026-09-06.** The second `GetState` (the re-read after promote), `BackupCurrent`, `PromoteStaged` and `acceptance.Start` now all write an audit entry before returning; see `TestEveryFailurePathInApplyIsAudited` in [invariants](invariants.md) |
+| ~~**`acceptance.Start`'s error path**~~ | **Closed 2026-09-06.** This entry described 2.7's ordering. Since 2.14 the window opens before the kernel write, so what the error path left behind was not live rules but a stored `Current` holding an unconfirmed set — which the next boot or `resume` would install with no window at all. It now rolls back rather than return |
 
 ## Guards that do not see enough
 
 | | |
 |---|---|
-| **The kernel-write guard is scoped to two files** | `daemon_source_order_test.go` enumerates `firewall.go` and `restore.go`, so a fourth writer of the table added in a third file of the package is invisible — which is the guard's stated purpose. `filepath.Glob` over the package closes it. Nothing exploits it today: `f.nft.Apply(` occurs exactly three times repo-wide |
-| **…and cannot see reachability** | The same guard passes when the panic check is kept textually but wrapped in `if false`. Not closable without `go/parser` and constant folding; worth a comment saying so |
-| **…nor call order beyond "after the write"** | Moving `apply`'s check to after `f.rollback` does not fire it, though a comment says the order matters |
-| **`bootBridges` has no test** | All four reconciler tests write the field directly, so deleting `setBootBridges` from `RestoreCurrent` leaves the suite green — and that call was the whole subject of the commit that added it |
+| ~~**The kernel-write guard is scoped to two files**~~ | **Closed 2026-09-06.** `daemon_source_order_test.go` no longer enumerates `firewall.go` and `restore.go`; `coreSources` now globs every non-test source file in the package with `filepath.Glob`, so a fourth writer of the table added in a third file cannot be added invisibly |
+| **…and cannot see reachability** | The same guard passes when the panic check is kept textually but wrapped in `if false`. Not closable without `go/parser` and constant folding; now named directly in the guard's own comment in `daemon_source_order_test.go` |
+| **…nor call order beyond "after the write"** | Moving `apply`'s check to after `f.rollback` does not fire it, though a comment says the order matters — also now named in the guard's own comment |
+| ~~**`bootBridges` has no test**~~ | **Closed 2026-09-06.** `TestRestoreCurrent_RecordsTheBridgesItBakedIn` writes through `RestoreCurrent` rather than the field directly, so deleting `setBootBridges` from it fails the suite |
 | **The nft mutex is pinned only under `integration`** | `make test` cannot notice `mu sync.Mutex` being deleted. Self-documented in `nftables_mutex_test.go`, and CI's `test-integration` job does run it |
 
 ## Narrow races
 
 | | |
 |---|---|
-| **Marker check to netlink write is not atomic** | Closed in 2.7 by re-reading the marker after every write. What remains is a microsecond window at the third site, which stats the marker three times — twice in the gate, once inside the helper via `PanicEngaged`. A marker becoming unreadable between the second and third read reintroduces the inversion. Pass the known state into the helper |
-| **`Panic` and `Resume` share no lock** | `Resume`'s `ClearPanic` interleaving between `EngagePanic` and `nft.Reset` leaves no marker and an empty table. Visible — dashboard red, `status` exits 2 — and three lines of `panicMu` fix it |
+| ~~**Marker check to netlink write is not atomic**~~ | **Closed 2026-09-06.** The known state is now passed into the helper rather than re-read a third time; see `TestPanicLandedDuringWriteIsToldTheMarkerState` in [invariants](invariants.md) |
+| ~~**`Panic` and `Resume` share no lock**~~ | **Closed 2026-09-06.** `panicMu` serialises them; see `TestPanicAndResumeShareALock` in [invariants](invariants.md) |
 
 ## Wording and hygiene
 
 | | |
 |---|---|
-| **`CHANGELOG.md`'s count claim** | Says the assertion in `daemon_dispatch_test.go` "now says seventeen"; it says at least fifteen. The loosening is correct — the bidirectional source checks are the real guard — the sentence is not |
-| **`locales/de.json`'s `Fortsetzen`** | A hapax. Every other panic string uses `Notfallmodus`, and the same command is described as *beenden* elsewhere in the file |
-| **The Docker reconcile reuses `RestoreReasonBoot`** | So a restore minutes after boot logs the detail "daemon start". The reason reaches the detail, not the action, so a third constant costs nothing in locales |
-| **`CmdPanic`'s 35 s deadline** | On expiry `daemonAbsent` is false and the CLI reports the daemon is not answering — but the marker reached the disk in the first millisecond and the teardown lands moments later. A timeout should check the marker and say so |
-| **The reconciler polls under panic mode** | For ninety seconds, and on finding a bridge logs "putting the rules back" immediately before `RestoreCurrent` logs the refusal. One check at the top removes a misleading pair |
+| ~~**`CHANGELOG.md`'s count claim**~~ | **Closed 2026-09-06.** The entry now says the assertion in `daemon_dispatch_test.go` is deliberately loose — at least fifteen, not exactly seventeen — because the bidirectional source checks are the real guard |
+| ~~**`locales/de.json`'s `Fortsetzen`**~~ | **Closed 2026-09-06.** Replaced with `Notfallmodus`, matching every other panic string in the file |
+| ~~**The Docker reconcile reuses `RestoreReasonBoot`**~~ | **Closed 2026-09-06.** A third constant now distinguishes a Docker-triggered restore from a boot restore; neither locale gained a new string, since the reason reaches the detail and not the action |
+| **`CmdPanic`'s 35 s deadline** | On expiry `daemonAbsent` is false and the CLI reports the daemon is not answering — but the marker reached the disk in the first millisecond and the teardown lands moments later. A timeout should check the marker and say so. **Reviewed again in 2.15 and deliberately still carried:** what it wants is a timeout that checks the marker and reports what it finds, which is a change to the CLI's contract rather than a fix to an incorrect one. It belongs in a release that is looking at the console tool, not in one that is adding counters |
+| ~~**The reconciler polls under panic mode**~~ | **Closed 2026-09-06.** One check at the top skips the poll entirely while panic mode is engaged, so the misleading "putting the rules back" no longer logs immediately before `RestoreCurrent`'s own refusal |
 | **`.opencode/opencode.json` is in the history** | Added and removed on the 2.7 branch by a blanket `git add`, so it survives unless the branch is squashed. `.gitignore` records the accident |
 
 ## Not carried — decided

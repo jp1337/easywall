@@ -54,17 +54,29 @@ against without either: a throwaway netns is flushed when the container exits,
 not the host's.
 
 ```bash
-podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN \
+podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN --security-opt unmask=ALL \
   -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.25 \
-  sh -c 'apt-get update -qq && apt-get install -y -qq nftables >/dev/null && \
+  sh -c 'apt-get update -qq && apt-get install -y -qq nftables iproute2 iputils-ping >/dev/null && \
          go test -tags integration ./internal/core/... -v'
 ```
 
 `--cap-add=NET_ADMIN` alone is not enough: `TestMain` re-execs into a fresh
 network namespace via `CLONE_NEWNET`, which needs `CAP_SYS_ADMIN` too — without
 it the child re-exec fails before a single test runs, surfacing only as a bare
-`exit status 1`. Keep the host command beside this one: a container kernel is
-not the host kernel, and either may need running.
+`exit status 1`.
+
+The other two flags matter for a different reason: without them the
+router-based tests do not fail, they **skip** — "ip is not installed", "cannot
+create a network namespace" — which reads exactly like a pass in a scrollback
+nobody reads closely. `newRouter` shells out to `ip` and `ping`, so
+`iproute2 iputils-ping` has to be on the install line beside `nftables`; and
+`newRouter` also writes `/proc/sys/net/ipv4/ip_forward`, which podman's default
+masking makes read-only inside the container regardless of the network
+namespace owning it, so `--security-opt unmask=ALL` has to be on the command
+line, not the install list. Both are scoped to the container's own throwaway
+namespace and files; neither touches the host. Keep the host command beside
+this one: a container kernel is not the host kernel, and either may need
+running.
 
 ## The documentation site
 

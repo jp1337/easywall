@@ -96,11 +96,11 @@ is built from.
 |---|---|---|---|
 | `interval` | int | `300` | Seconds between counter reads — `0` stops the ticker |
 
-`0` stops the **ticker**, not the counting. An apply reads the counters immediately
-before it writes, because writing the rules resets every one of them — so **Last
-used** still advances at every apply on a host with the ticker switched off. What
-you lose is the resolution in between: a port used an hour after your last apply is
-dated at your next one.
+`0` stops the **ticker**, not the counting. An apply reads the counters
+immediately before it writes, because writing the rules resets every one of
+them. So **Last used** still advances at every apply, even on a host with the
+ticker switched off. What you lose is the resolution in between: a port used
+an hour after your last apply is dated at your next one.
 
 ### `[ipv6]`
 

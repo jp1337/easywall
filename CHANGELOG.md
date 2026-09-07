@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] — 2026-09-06
+
+**You can see it working.**
+
+An open port nobody uses is the most common avoidable exposure on a hobby
+server, and until now nothing in easywall could point at one. Every port rule
+carries a stable id and a kernel counter keyed to it, so the port pages can say
+when that port last carried a packet — and the dashboard can say how many have
+carried nothing in a month.
+
+### Added
+
+- **A *Last used* column on both port tabs.** `never`, `3 days ago`, `just now`,
+  or `—` when nothing is known. `never` and `—` are different claims: the first
+  is a measurement, and it is the finding worth acting on.
+- **A second line on the dashboard's TCP tile** when it applies: *2 unused for
+  30+ days*. No new tile, and no colour — `DESIGN.md` reserves colour for
+  firewall state.
+- **Every port rule has an id**, twelve hex characters, assigned once and never
+  rewritten. It survives editing the port, the sources and the description, and
+  it is what the counters are keyed by. 2.18's per-entry metadata will key by it
+  too.
+- **`GET_USAGE`**, the twenty-first protocol command. Read-only, answered out of
+  a file: collecting inside it would queue behind the nft mutex, which an apply
+  holds for six times as long as the client waits.
+- **`[usage] interval`**, seconds between counter reads, default 300. `0` stops
+  the ticker and not the counting — an apply still collects, because that call
+  exists to keep the flush from destroying a number.
+
+### Fixed
+
+Ten entries carried forward from earlier releases, closed in the same pass.
+
+- **`Panic` and `Resume` were racing on the marker.** A `Resume` landing between
+  `Panic`'s marker write and its teardown left no marker and an empty table: a
+  machine unfiltered, with nothing on it recording that anybody chose that.
+- **The rollback stat'd the panic marker three times** and could get three
+  different answers. The state its gate reads is now passed on rather than read
+  again.
+- **Four ways out of `apply` wrote nothing to the audit log.** The backup, the
+  promote, the re-read after it and a window that could not open all returned
+  into a journal nobody reads, on a machine whose interface said nothing about
+  why the firewall had not changed.
+- **A window that fails to open now rolls the rules file back.** `PromoteStaged`
+  has already run at that point, so `Current` held a set nobody confirmed — and
+  the next boot or `resume` installs `Current` with no window at all, because
+  `Current` is assumed to have survived one.
+- **The kernel-write guard could not see a third file.** It enumerated
+  `firewall.go` and `restore.go`; it globs the package now, so a fourth writer of
+  the table cannot be added invisibly.
+- **`setBootBridges` had no test.** Every reconciler test wrote the field
+  directly, so deleting the call from `RestoreCurrent` left the suite green.
+- **A restore caused by a Docker bridge appearing** no longer records the detail
+  "daemon start".
+- **The reconciler no longer polls under panic mode**, where it logged "putting
+  the rules back" immediately before the restore logged its refusal.
+- **`locales/de.json`'s `Fortsetzen`** was a hapax; every other panic string says
+  *Notfallmodus*.
+- **The changelog's claim about the command count** said all three places now say
+  seventeen. The test assertion says *at least fifteen*, deliberately, and the
+  entry now says why.
+
+### Known limits
+
+- A flush easywall did not perform — `nft flush ruleset` typed by hand — loses
+  the interval since the last collect. The counter restarting below its baseline
+  is detected and the new count is booked in full; what happened before it is
+  gone. The reconciler already owns that class of event.
+- Custom rules carry no counter. They are raw nftables statements and cannot be
+  tagged without changing what was written.
+- A connection the SSH brute-force limiter drops never reaches the port's accept
+  rule and is not counted. The column says *last used*, not *last attempted*.
+
 ## [2.14.0] — 2026-09-02
 
 **The window shows that it is running.**
@@ -1333,7 +1406,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.14.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/jp1337/easywall/compare/v2.14.0...v2.15.0
 [2.2.0]: https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0
