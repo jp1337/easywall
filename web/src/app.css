@@ -679,6 +679,20 @@ body {
     .page-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
+  /* /ports only. Every page with an aside shares .page-grid/.aside-stack and
+     collapses at the shared 1570px above — moving that breakpoint would
+     relayout the dashboard, blacklist, custom rules and everything else that
+     has never needed it, for a problem that is specific to this one table's
+     own six-column budget. .page-grid-ports carries the same "two classes
+     beat one" idiom .table-reflow already uses on .table: it always wins the
+     cascade over the shared rule (0,0,2,0 beats 0,0,1,0), at every width, so
+     it needs no media query of its own to track if 1570 ever moves. Ports'
+     own aside (port syntax, SSH protection, sources) is worth having, but not
+     worth this table's row width — it collapses under the table
+     unconditionally rather than only below 1570px, the same as every other
+     page still does. */
+  .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
+
   .page-grid > * { min-width: 0; }
 
   /* ── Section heading inside a card ───────────────────────────────────────
@@ -1596,7 +1610,16 @@ body {
      right edge of the table stays reachable. */
   .col-port    { width: 120px; }
   .col-flex    { width: auto; }
-  .col-toggle  { width: 150px; }
+  /* 150px used to be bought entirely by the header string ("SSH protection" /
+     "SSH-Schutz"), not by anything in the column's own cells — a single
+     16px checkbox. `.table th` sets white-space: nowrap as a blanket rule for
+     every header; overriding it back to normal here just for this one header
+     lets it wrap onto a second line ("SSH" / "protection"), and the column's
+     true floor drops to 94px — measured directly, the width where the
+     longest unbreakable word ("protection") still fits, not a guess. Every
+     pixel given back goes to .col-flex, the column actually holding the
+     page's longest free text. */
+  .col-toggle  { width: 94px; white-space: normal; }
   /* 25rem/400px so the catalogue's own default — "10.0.0.0/8, 172.16.0.0/12,
      192.168.0.0/16, fc00::/7", 307px of content — fits at 1600px without
      clipping fc00::/7, the range that exists so IPv6 does not lock anyone out.
