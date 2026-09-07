@@ -621,6 +621,10 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 		t.Fatalf("a fresh data directory already has a snapshot: %v", err)
 	}
 
+	// An upgrade is a configured host by definition, and RestoreCurrent only
+	// writes on one — see TestRestoreCurrent_DoesNotEnforceAnInstallationNobodyConfigured.
+	configureTestFirewall(t, fw)
+
 	// The restore path, which is what an upgrade to 2.10 runs at the first
 	// service start.
 	if err := fw.RestoreCurrent(RestoreReasonBoot); err != nil {

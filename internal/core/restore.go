@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Why the reason a restore happened is a constant and not free text: it reaches
@@ -70,6 +72,38 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",
 			fmt.Sprintf("%s: %s", reason, err.Error()), "core")
 		return fmt.Errorf("get rules: %w", err)
+	}
+
+	// Nothing has ever been applied here, so there is nothing to put back.
+	//
+	// RestoreCurrent's contract above rests on Current being "a rule set that has
+	// already survived an acceptance window". On a host that has never been
+	// configured that is not true: RulesStore initialises rules.json with
+	// emptyState(), and enforcing an empty set means an input chain at policy
+	// drop with no port open at all — SSH closed, and the web interface that
+	// would have opened it closed with it. The first-run wizard cannot be
+	// reached to fix it, because it is behind the door it exists to unlock.
+	//
+	// That is not theoretical. `docker compose up -d` and `dpkg -i` both start
+	// the core before the operator can open a single port, and a report of a VPS
+	// cut off "immediately after docker compose up -d" is what found it. It went
+	// unseen because the documented first step is to open https://localhost:12227,
+	// and loopback is accepted.
+	//
+	// So the machine is left exactly as it was one second before easywall was
+	// installed, and filtering starts at the first deliberate apply — which has
+	// the acceptance window to undo it. applyFirstRunChoices already reasons this
+	// way in as many words: rules are staged, never applied, because "the first
+	// run is the worst moment to make an exception".
+	if !f.everConfigured(state) {
+		WriteAuditLog(f.cfg.AuditLogPath(), "boot_not_configured", "all", reason, "core")
+		slog.Warn("nothing has ever been applied on this installation, so this machine "+
+			"is not filtering: the stored rule set is empty, and enforcing an empty set "+
+			"at policy drop would close SSH and the web interface with it. Open the web "+
+			"interface and finish the first run — the first apply is what starts "+
+			"filtering, and it has the acceptance window to undo it",
+			"reason", reason)
+		return nil
 	}
 
 	// What this apply is about to bake in, so reconcileDockerBridges can tell
@@ -165,6 +199,32 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforced", "all", reason, "core")
 	slog.Info("the stored rules are in force again", "reason", reason)
 	return nil
+}
+
+// everConfigured reports whether this installation has ever had a rule set put
+// into the kernel on purpose.
+//
+// Two signals, because neither alone covers every installation:
+//
+//   - A non-empty Current. Somebody wrote rules and applied them; only
+//     PromoteStaged puts anything there, and only an apply runs it.
+//   - A last-apply marker on disk. This is what keeps an operator who
+//     deliberately applied an *empty* rule set — which is their choice, made
+//     through an acceptance window that let them undo it — enforcing that empty
+//     set across a reboot. It also covers an installation upgrading from a
+//     release before this check existed, where Current may legitimately be empty
+//     and the machine has been filtering for months.
+//
+// The failure mode to avoid is the second one reading false on a configured
+// host: that would quietly stop enforcing rules somebody wrote. Both signals
+// therefore say "configured", and only their absence together says otherwise.
+func (f *Firewall) everConfigured(state shared.RulesState) bool {
+	if !state.Current.IsEmpty() {
+		return true
+	}
+	f.lastApplyMu.Lock()
+	defer f.lastApplyMu.Unlock()
+	return !f.lastApply.IsZero()
 }
 
 // panicLandedDuringWrite tears the table down again when panic mode was engaged

@@ -4,6 +4,7 @@ package core
 
 import (
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -488,9 +489,16 @@ func TestIntegration_SSHFlaggedPort_IsMeteredAndReachable(t *testing.T) {
 	}
 
 	rs := ruleset(t)
-	// 0x8000000 is NEW. nft prints the mask rather than the name because the
-	// match is built as a bitwise-and plus a not-equal-zero test.
-	mustContain(t, rs, "dport 2222 ct state 0x8000000 jump sshbrute",
+	// `ct state new`, spelled out. This assertion used to read
+	// "dport 2222 ct state 0x8000000 jump sshbrute", with a comment explaining
+	// that "nft prints the mask rather than the name" — and both halves were
+	// wrong. nft prints the name perfectly well for a bitwise-and plus a
+	// not-equal-zero test, because that is exactly how it compiles `ct state
+	// new` itself. It printed a raw hex value here because the mask was written
+	// byte-reversed and 0x8000000 is a bit no conntrack state sets, so the jump
+	// never once fired. The test was written from the observed output instead of
+	// from the intent, which is what let it ship for five releases.
+	mustContain(t, rs, "dport 2222 ct state new jump sshbrute",
 		"a new connection to the flagged port must go through the rate limiter")
 	mustAcceptPort(t, "dport 2222", "and the port still has to be open")
 	mustContain(t, rs, "chain sshbrute",
@@ -811,4 +819,60 @@ func TestIntegration_CustomRules_OrdinaryOnesStillApply(t *testing.T) {
 	mustContain(t, rs, "ip saddr 192.0.2.50 tcp dport 9100 accept", "a custom rule must reach the kernel")
 	mustContain(t, rs, "8080", "a set in a custom rule must survive")
 	mustNotContain(t, rs, "monitoring only", "a comment is not a rule")
+}
+
+// ---------------------------------------------------------------------------
+// Conntrack state
+// ---------------------------------------------------------------------------
+
+// The rule that lets a reply packet back in, asserted by the name the kernel
+// gives it rather than by whatever it happens to print.
+//
+// This is the assertion whose absence let a byte-reversed mask ship: the input
+// chain's stateful half matched nothing, so an installation with a live table
+// could not finish a single outbound connection — no DNS, no `apt update`, no
+// version check — and applying the table dropped whatever SSH session was
+// already open. Every count-based test in this package stayed green throughout,
+// because the rule was present; it simply never fired.
+func TestIntegration_EstablishedTrafficIsAcceptedByName(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{})
+
+	mustContain(t, ruleset(t), "ct state established,related accept",
+		"a reply packet has no other rule to match; without this the machine has no "+
+			"outbound connectivity at all and an open SSH session dies on the next packet")
+}
+
+// The invalid-packet module, same shape. It failed open rather than closed,
+// which is why nobody saw it: a protection module reporting itself on and
+// enforcing nothing looks exactly like a quiet network.
+func TestIntegration_InvalidPacketDropSaysInvalid(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{InvalidPackets: true})
+
+	mustContain(t, ruleset(t), "ct state invalid",
+		"the module is switched on, so the rule has to match the state it names")
+}
+
+// And the class, not just the three instances.
+//
+// nft renders a ct state it recognises by name — `established,related`, `new`,
+// `invalid`. It falls back to a raw hex value only when the mask holds bits no
+// conntrack state sets, which is the signature of a mask written in the wrong
+// byte order. So a hex ct state anywhere in the table is a defect whatever rule
+// carries it, including one added after this test was written.
+func TestIntegration_NoCtStateRendersAsARawMask(t *testing.T) {
+	m := newIntegrationManager(t)
+	applyEmpty(t, m, shared.FirewallOptions{
+		InvalidPackets: true,
+		SSHBruteForce:  true,
+	})
+
+	raw := regexp.MustCompile(`ct state 0x[0-9a-f]+`)
+	if found := raw.FindAllString(ruleset(t), -1); len(found) > 0 {
+		t.Errorf("the table holds %d ct state match(es) the kernel cannot name: %v\n"+
+			"  nft names every state it recognises, so a raw mask means bits no conntrack "+
+			"state sets — the rule is in the table and matches nothing\n--- ruleset ---\n%s",
+			len(found), found, ruleset(t))
+	}
 }
