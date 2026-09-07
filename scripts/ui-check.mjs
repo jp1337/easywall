@@ -1135,6 +1135,50 @@ async function checkFocusIsVisible(ctx, theme) {
   await page.close();
 }
 
+/**
+ * Nothing scrolls sideways inside its own container either.
+ *
+ * The page-level overflow check below cannot see this, and not by oversight: a
+ * container with `overflow-x: auto` absorbs its own overflow, so the document
+ * never widens. Every such container in the stylesheet was therefore unmeasured
+ * — .table-wrap, .scroll-wrapper, a <pre> — and .table-wrap has overflowed by
+ * 10px in card mode at every width its container query switches at, with this
+ * whole suite green throughout.
+ *
+ * What is measured is a container narrower than its own laid-out children, not
+ * a container whose content is genuinely wider. A table with more columns than
+ * fit is doing its job and scrolls on purpose; a row 10px wider than the box
+ * that holds it is nobody's intention.
+ *
+ * A tolerance of 1px, not 0: sub-pixel layout rounds, and a check that fires on
+ * half a pixel is a check somebody switches off.
+ */
+async function checkContainersDoNotOverflow(page, where, path) {
+  const overflowing = await page.evaluate(() => {
+    const out = [];
+    for (const el of document.querySelectorAll('*')) {
+      const style = getComputedStyle(el);
+      if (style.overflowX !== 'auto' && style.overflowX !== 'scroll') continue;
+      const widest = [...el.children].reduce((w, c) => Math.max(w, c.scrollWidth), 0);
+      const over = widest - el.clientWidth;
+      if (over > 1) {
+        out.push({
+          selector: (typeof el.className === 'string' && el.className.trim().split(/\s+/)[0])
+            || el.tagName,
+          clientWidth: el.clientWidth,
+          contentWidth: widest,
+          over,
+        });
+      }
+    }
+    return out;
+  });
+  for (const o of overflowing) {
+    fail(`container overflow [${where}]`, `${path} — .${o.selector} is ${o.clientWidth}px ` +
+      `and holds ${o.contentWidth}px, ${o.over}px over`);
+  }
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
@@ -1153,6 +1197,7 @@ async function checkPageHealth(ctx, theme, width) {
       fail(`horizontal overflow [${where}]`, `${path} scrolls ${overflow}px sideways`);
     }
     await checkNoInputClipsItsOwnValue(page, where, path);
+    await checkContainersDoNotOverflow(page, where, path);
     for (const problem of seen) {
       fail(`page problem [${where}]`, `${path} — ${problem}`);
     }
