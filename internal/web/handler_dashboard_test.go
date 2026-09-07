@@ -181,3 +181,69 @@ func TestDashboard_TheChipCarriesTheCount(t *testing.T) {
 		t.Errorf("the chip does not carry the count of pending changes:\n%s", rec.Body.String())
 	}
 }
+
+// The finding, on the front page: a port that has not carried a packet in a
+// month. Thirty days follows FortiGate's convention, which is where most
+// operators will have met this idea.
+func TestDashboard_CountsTheTCPPortsNobodyHasUsed(t *testing.T) {
+	s := newDemoTestServer(t) // demo-backed: 8443 is sixty days stale
+	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
+	assertStatus(t, rec, http.StatusOK)
+	// "30" rather than "30+": html/template HTML-escapes the literal "+" in
+	// the locale string to "&#43;" in a text node, which is real output, not a
+	// bug — the prefix is the part a plus sign cannot disturb.
+	if !strings.Contains(rec.Body.String(), "unused for 30") {
+		t.Error("the TCP tile does not report the ports nobody has used; the demo seeds one " +
+			"at sixty days, which is the whole reason it is seeded")
+	}
+}
+
+// A rule that has never been observed is not counted, and that is deliberate.
+// FirstSeen is the first *use*, not the moment the rule was written, so there is
+// nothing to date a never-used rule from — "unused for 30+ days" would be a
+// claim about a duration nobody measured. The table says "never" for it instead.
+func TestUnusedForThirtyDays_CountsOnlyWhatWasEverSeen(t *testing.T) {
+	now := time.Now()
+	rules := []shared.PortRule{
+		{ID: "old", Port: "8443"},
+		{ID: "fresh", Port: "443"},
+		{ID: "unseen", Port: "5432"},
+		{ID: "", Port: "22"},
+	}
+	usage := map[string]shared.RuleUsage{
+		"old":   {LastSeen: now.AddDate(0, 0, -60)},
+		"fresh": {LastSeen: now.Add(-2 * time.Hour)},
+	}
+	if got := unusedForThirtyDays(rules, usage); got != 1 {
+		t.Errorf("unusedForThirtyDays = %d, want 1 (only the sixty-day-old rule)", got)
+	}
+}
+
+// The threshold is thirty *days*, not some other unit that also happens to
+// leave a two-hour-old rule uncounted and a sixty-day-old one counted — a
+// mutation to `unusedThreshold = 30 * time.Hour` passes both of those and
+// would go undetected without a case on the actual boundary. Twenty-nine days
+// is not counted, thirty-one is.
+func TestUnusedForThirtyDays_ThresholdIsThirtyDaysNotThirtyHours(t *testing.T) {
+	now := time.Now()
+	rules := []shared.PortRule{
+		{ID: "almost", Port: "8080"},
+		{ID: "over", Port: "9090"},
+	}
+	usage := map[string]shared.RuleUsage{
+		"almost": {LastSeen: now.AddDate(0, 0, -29)},
+		"over":   {LastSeen: now.AddDate(0, 0, -31)},
+	}
+	if got := unusedForThirtyDays(rules, usage); got != 1 {
+		t.Errorf("unusedForThirtyDays = %d, want 1 (only the thirty-one-day-old rule; "+
+			"twenty-nine days is not yet unused for thirty)", got)
+	}
+}
+
+// And the count is zero when nothing is known, rather than "all of them".
+func TestUnusedForThirtyDays_KnowsNothingFromNothing(t *testing.T) {
+	rules := []shared.PortRule{{ID: "a", Port: "80"}, {ID: "b", Port: "443"}}
+	if got := unusedForThirtyDays(rules, nil); got != 0 {
+		t.Errorf("with no usage at all the count is %d, want 0", got)
+	}
+}

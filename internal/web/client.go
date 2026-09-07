@@ -293,6 +293,29 @@ func (c *CoreClient) GetAppliedConfig() (*shared.AppliedConfigResult, error) {
 	return &res, nil
 }
 
+// GetUsage returns what each port rule has carried, keyed by rule id.
+//
+// An id the map does not hold has not been observed carrying anything, which
+// the interface renders as "never". A rule with no id at all is a different
+// claim and renders an em dash — see the lastUsed view function.
+func (c *CoreClient) GetUsage() (*shared.UsageResult, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetUsage})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var res shared.UsageResult
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		return nil, fmt.Errorf("parse usage: %w", err)
+	}
+	if res.Usage == nil {
+		res.Usage = map[string]shared.RuleUsage{}
+	}
+	return &res, nil
+}
+
 // GetLog returns the most recent audit log entries (newest first).
 func (c *CoreClient) GetLog() ([]shared.AuditLogEntry, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdGetLog})

@@ -86,6 +86,22 @@ longer be changed through the interface. A value outside the range in an existin
 is brought to the nearest permitted one, with a warning, rather than keeping the daemon
 from starting. A value set through the interface is rejected outright.
 
+### `[usage]`
+
+How often the per-rule packet counters are read out of the kernel. It is what the
+**Last used** column on the [port pages]({{ '/docs/features/ports/' | relative_url }})
+is built from.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `interval` | int | `300` | Seconds between counter reads — `0` stops the ticker |
+
+`0` stops the **ticker**, not the counting. An apply reads the counters
+immediately before it writes, because writing the rules resets every one of
+them. So **Last used** still advances at every apply, even on a host with the
+ticker switched off. What you lose is the resolution in between: a port used
+an hour after your last apply is dated at your next one.
+
 ### `[ipv6]`
 
 | Key | Type | Default | Description |

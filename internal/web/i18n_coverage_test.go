@@ -65,6 +65,30 @@ func localeIDs(t *testing.T, lang string) map[string]bool {
 	return ids
 }
 
+// localeStrings reads a locale file into an id -> translation map. Lifted out
+// of TestTranslationsAreNotCopiedEnglish so other tests (lastused_test.go)
+// that need the translation text itself, not just whether an id exists, can
+// share it rather than growing a second copy of the same six lines.
+func localeStrings(t *testing.T, lang string) map[string]string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(localesDir(t), lang+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []struct {
+		ID          string `json:"id"`
+		Translation string `json:"translation"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		t.Fatal(err)
+	}
+	out := make(map[string]string, len(entries))
+	for _, e := range entries {
+		out[e.ID] = e.Translation
+	}
+	return out
+}
+
 var tCallRe = regexp.MustCompile(`\bT\s+"([a-z0-9_]+)"`)
 
 // Every message id a template asks for must exist in the strict languages: T
@@ -168,25 +192,6 @@ func TestTranslationsAreNotCopiedEnglish(t *testing.T) {
 		"system_title": true, "audit_title": true,
 	}
 
-	read := func(lang string) map[string]string {
-		raw, err := os.ReadFile(filepath.Join(localesDir(t), lang+".json"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var entries []struct {
-			ID          string `json:"id"`
-			Translation string `json:"translation"`
-		}
-		if err := json.Unmarshal(raw, &entries); err != nil {
-			t.Fatal(err)
-		}
-		out := make(map[string]string, len(entries))
-		for _, e := range entries {
-			out[e.ID] = e.Translation
-		}
-		return out
-	}
-
 	dir := localesDir(t)
 	codes, err := LocaleCodes(dir)
 	if err != nil {
@@ -196,7 +201,7 @@ func TestTranslationsAreNotCopiedEnglish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	en := read("en")
+	en := localeStrings(t, "en")
 
 	for _, lang := range codes {
 		if lang == "en" {
@@ -206,7 +211,7 @@ func TestTranslationsAreNotCopiedEnglish(t *testing.T) {
 			t.Logf("%s is not reviewed — skipping the copied-English check", lang)
 			continue
 		}
-		other := read(lang)
+		other := localeStrings(t, lang)
 		var suspects []string
 		for id, text := range en {
 			if len(text) < 12 || same[id] {

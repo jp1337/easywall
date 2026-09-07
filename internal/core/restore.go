@@ -15,6 +15,12 @@ const (
 	RestoreReasonBoot = "daemon start"
 	// RestoreReasonResume is an operator ending panic mode.
 	RestoreReasonResume = "panic mode ended"
+	// RestoreReasonDockerBridge is a Docker bridge appearing after the boot
+	// restore has already run. The reason reaches the audit entry's detail and
+	// not its action, so a third constant costs nothing to register, colour or
+	// translate — and reusing RestoreReasonBoot told an operator that a restore
+	// at 09:14 happened at "daemon start".
+	RestoreReasonDockerBridge = "a docker bridge appeared"
 )
 
 // PanicEngaged reports whether this installation is deliberately unfiltered.
@@ -79,6 +85,13 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// launched — but it is no longer the only caller.
 	f.setBootBridges(detectDockerBridges())
 
+	// The counters, before the write below flushes them. A restore is not only a
+	// boot: RESUME reaches here, and so does the Docker-bridge reconciler on a
+	// machine that has been up and filtering for weeks. At boot there is usually
+	// nothing to book — the table was not there — and on those other two paths
+	// there is everything since the last tick.
+	f.collectUsageBeforeWrite()
+
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 	if err := f.nft.Apply(state, opts, nets); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
@@ -94,6 +107,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		// teardown anywhere: exactly the defect the success path below was
 		// written to close.
 		f.panicLandedDuringWrite(
+			f.PanicEngaged(),
 			"boot_enforce_failed",
 			fmt.Sprintf("%s: panic mode was engaged while a failing restore was writing, "+
 				"and rules can reach the kernel before nft.Apply reports an error", reason),
@@ -102,12 +116,36 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		return fmt.Errorf("restore rules: %w", err)
 	}
 
+	// The table has been rebuilt, so every baseline in usage.json describes
+	// counters that are no longer in the kernel. Same call and placement as
+	// apply's — see resetUsageBaselines, and Amendment A4 in the 2.15 plan for
+	// why it is after the call rather than between the collect and the call —
+	// but not the same coverage. apply's error branch always has rollback to
+	// fall through to, and rollback resets the baselines as its own last step.
+	// This function's error branch above has no such fallback: it returns
+	// straight after panicLandedDuringWrite, so a post-commit nft.Apply failure
+	// here leaves a rebuilt table with every baseline still describing the
+	// counters that used to be in it.
+	//
+	// Left uncovered rather than mirrored, because there is nothing to fall
+	// back to: RestoreCurrent only ever writes what is already stored, so a
+	// failed write has no second state for a rollback to restore instead. What
+	// this costs is bounded — Collect's below-baseline branch (see usage.go)
+	// catches most of it on its own, and what slips past is a one-time
+	// mis-booking of Packets and Bytes on a rule whose kernel counter climbs
+	// past the stale baseline before the next collect. Accepted rather than
+	// fixed: RuleUsage's own doc comment and handler_dashboard.go's
+	// unusedForThirtyDays both read LastSeen and nothing else, so nothing wrong
+	// reaches a screen.
+	f.resetUsageBaselines()
+
 	// The marker again, now that the rules are actually in the kernel. The check
 	// at the top of this function was made before two file reads and a netlink
 	// write; `panic` can have landed in between, from the console, in the very
 	// window where this daemon has no socket for it to reach — see
 	// panicLandedDuringWrite.
 	if f.panicLandedDuringWrite(
+		f.PanicEngaged(),
 		"boot_enforce_failed",
 		fmt.Sprintf("%s: panic mode was engaged while the rules were being restored", reason),
 		"core",
@@ -129,9 +167,22 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	return nil
 }
 
-// panicLandedDuringWrite reports whether panic mode was engaged while a write to
-// the kernel was in flight, and tears the table down again if it was. Call it
-// immediately after nft.Apply returns; action and detail are what to record.
+// panicLandedDuringWrite tears the table down again when panic mode was engaged
+// while a write to the kernel was in flight, and reports whether it did. Call it
+// immediately after nft.Apply returns; requested and situation are what to
+// record.
+//
+// engaged is what the *caller* read, and the helper does not look again. Three
+// stats of one marker in a single rollback is three chances for them to
+// disagree: the gate reads PanicState — which distinguishes "not engaged" from
+// "cannot tell", because withdrawing the acceptance window's undo on a
+// permission fault is the worse failure — and the helper then used PanicEngaged,
+// which answers "cannot tell" with "engaged". A marker that became unreadable
+// between the two put the inversion straight back, one statement further on.
+//
+// Callers that have not already looked pass f.PanicEngaged() at the call site,
+// which keeps that fail-safe default exactly where it belongs: at a write that
+// is about to start filtering.
 //
 // Every other panic check in this package runs *before* a write and none ran
 // after one, under a comment in cmd/easywall-core/subcommands.go asserting that
@@ -176,14 +227,21 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 // restore path, where it is coloured crit. The alternative was one machine state
 // rendered in two colours depending on which code path reached it. No new action,
 // so nothing to register, translate or re-screenshot.
-func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) bool {
-	if !f.PanicEngaged() {
+func (f *Firewall) panicLandedDuringWrite(engaged bool, requested, situation, user string) bool {
+	if !engaged {
 		return false
 	}
-	// PanicEngaged, not PanicState: this is the direction its fail-safe default
-	// is built for. An unreadable marker here costs a teardown of a table that
-	// is about to be rebuilt by the next apply or restore; the other way round
-	// costs a machine that filters while the console believes it does not.
+	// The counters, before the teardown below deletes the table they live in.
+	//
+	// No matching baseline reset, and that is not an oversight: Reset deletes the
+	// table without rebuilding one, so there is nothing for a baseline to
+	// describe. RuleCounters answers a missing table with an empty map and a nil
+	// error, so every later collect books nothing and leaves the stored baselines
+	// exactly as this call left them — correct, because they describe the last
+	// table that existed. Whichever write brings a table back — an apply, or the
+	// RestoreCurrent a `resume` runs — resets them itself as its own last step.
+	f.collectUsageBeforeWrite()
+
 	action, detail := requested, situation
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode was engaged while the rules were being written and the "+
@@ -223,6 +281,9 @@ func (f *Firewall) panicLandedDuringWrite(requested, situation, user string) boo
 // EngagePanic and the audit entry that follows come first, and
 // CancelAcceptance comes after them, never before.
 func (f *Firewall) Panic(user string) error {
+	f.panicMu.Lock()
+	defer f.panicMu.Unlock()
+
 	if err := EngagePanic(f.cfg.PanicMarkerPath()); err != nil {
 		return fmt.Errorf("engage panic mode: %w", err)
 	}
@@ -236,6 +297,22 @@ func (f *Firewall) Panic(user string) error {
 	// the very rollback this ordering protects against would still run — just
 	// late.
 	f.CancelAcceptance()
+
+	// The counters, before the teardown deletes the table. An operator who
+	// panics, fixes the rule that locked them out and resumes should not find
+	// that the machine forgot which ports were in use in between — that history
+	// is part of what they need in order to decide.
+	//
+	// No baseline reset after it, for the reason spelled out in
+	// panicLandedDuringWrite: a deleted table is not a rebuilt one, and the write
+	// that brings a table back resets the baselines itself.
+	//
+	// Safe under panicMu, which this function holds. The collect takes the nft
+	// mutex (RuleCounters), the rules-store mutex and the usage mutex, in that
+	// order, and none of the three is ever held by anything that then waits for
+	// panicMu — nft.Apply releases its own mutex before returning, and no caller
+	// of RulesStore or UsageStore takes panicMu at all.
+	f.collectUsageBeforeWrite()
 
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode is recorded but the table could not be torn down; "+
@@ -253,6 +330,9 @@ func (f *Firewall) Panic(user string) error {
 // does not leave a machine that is unfiltered *and* claims to be in panic mode —
 // two different problems reported as one.
 func (f *Firewall) Resume(user string) error {
+	f.panicMu.Lock()
+	defer f.panicMu.Unlock()
+
 	if err := ClearPanic(f.cfg.PanicMarkerPath()); err != nil {
 		return fmt.Errorf("end panic mode: %w", err)
 	}

@@ -44,6 +44,7 @@ func newTestFirewall(t *testing.T, cfg *Config) *Firewall {
 		nft:        &NftablesManager{}, // nil conn — safe for dispatch tests that don't trigger Apply
 		rules:      store,
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
+		usage:      NewUsageStore(cfg.UsagePath()),
 	}
 }
 
@@ -95,6 +96,34 @@ func startTestSocket(t *testing.T, d *Daemon) {
 	t.Cleanup(func() { ln.Close() })
 }
 
+// startDaemonGoroutine runs the real Start in a goroutine and returns the
+// channel its error lands on. Every test that runs the real Start goes through
+// here, and TestDaemonTests_StartIsOnlySpawnedByTheHelper keeps it that way —
+// getting this right is two lines, seven tests needed them, and the two lines
+// went missing twice.
+//
+// It used to hold a slot in d.wg for as long as Start ran, so that no Add inside
+// the daemon was ever the transition from a counter of zero — because the accept
+// loop's d.wg.Add(1) was exactly that, concurrently with the d.wg.Wait() inside
+// the Stop the test calls from its own goroutine, which is the ordering
+// sync.WaitGroup.Add's own documentation forbids and which -race reports as a
+// read and a write of wg.sema. The slot made the tests quiet without making the
+// daemon right: the same pairing dropped a socket request in flight at
+// systemctl restart, and the web process reported the core unreachable for it.
+//
+// The daemon now refuses that Add instead of racing it — Daemon.track — so the
+// slot has gone. Deliberately: with it in place no test could ever see the
+// production hazard, which is why the fix went a release unmade.
+// TestDaemonStart_StopRefusesAConnectionItCannotWaitFor is the test that sees
+// it, and it only sees it because nothing here masks the counter any more.
+func startDaemonGoroutine(d *Daemon) <-chan error {
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- d.Start()
+	}()
+	return errCh
+}
+
 // startTestDaemon runs the real Start in the background, waits for its socket,
 // and registers a cleanup that stops the daemon *and waits for Start to return*.
 //
@@ -107,19 +136,15 @@ func startTestSocket(t *testing.T, d *Daemon) {
 // the frame down, which is what -race reported on main as
 // TestDaemonStart_RestoresAtStartup on 2026-08-30.
 //
-// The daemon itself is not the problem and is not changed: in production Stop is
-// followed by process exit, and the accept loop is outside d.wg for the reason
-// given on Start. It is the tests that must not outrun it.
+// Waiting was only half of it — the wait happens after Stop, and the other half
+// raced inside it. That half is now closed in the daemon rather than papered
+// over here; see startDaemonGoroutine above and Daemon.track.
 func startTestDaemon(t *testing.T, d *Daemon) {
 	t.Helper()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_ = d.Start()
-	}()
+	errCh := startDaemonGoroutine(d)
 	t.Cleanup(func() {
 		d.Stop()
-		<-done
+		<-errCh
 	})
 	waitForSocket(t, d.cfg.SocketPath)
 }
@@ -632,8 +657,7 @@ func TestDaemonStart_Stop(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	// Wait for the socket file to appear (Start → net.Listen → Accept loop).
 	deadline := time.Now().Add(2 * time.Second)
@@ -679,8 +703,7 @@ func TestDaemonStart_ChownPath(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	// Wait for the socket — once it appears, Start has already executed the chown path.
 	deadline := time.Now().Add(2 * time.Second)
@@ -710,8 +733,7 @@ func TestDaemonStart_AcceptErrorDefaultBranch(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- d.Start() }()
+	errCh := startDaemonGoroutine(d)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
@@ -739,6 +761,53 @@ func TestDaemonStart_AcceptErrorDefaultBranch(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Error("Start did not return within 3s")
+	}
+}
+
+// TestDaemonStart_StopRefusesAConnectionItCannotWaitFor arranges the window the
+// accept loop's registration in d.wg lives in, and dials into it.
+//
+// Two things have to be true for the accept loop's d.wg.Add(1) to be the
+// transition from zero — which is the ordering Add's own documentation forbids
+// while a Wait is running. The bridge reconciler has to have returned, which it
+// does at once with Docker coexistence off, and the counter ticker has to have
+// returned too, which it does only when usage.interval is 0. The default is 300
+// seconds, so the ticker normally holds a slot for the daemon's whole life and
+// the counter never reaches zero at all; the interval is therefore set here
+// explicitly rather than left to newTestConfig.
+//
+// Then Stop runs while a dial storm is in flight, so an accept lands in the
+// instant between Stop taking d.mu and Stop reaching d.wg.Wait(). Either the
+// connection is registered before Stop begins waiting, or it is refused and
+// closed — never counted into a WaitGroup nobody is waiting on any more.
+func TestDaemonStart_StopRefusesAConnectionItCannotWaitFor(t *testing.T) {
+	cfg := newTestConfig(t)
+	off := 0
+	cfg.Usage.Interval = &off
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	errCh := startDaemonGoroutine(d)
+	waitForSocket(t, cfg.SocketPath)
+
+	dialing := make(chan struct{})
+	go func() {
+		defer close(dialing)
+		payload, _ := json.Marshal(shared.Command{Type: shared.CmdGetStatus})
+		for {
+			conn, err := net.Dial("unix", cfg.SocketPath)
+			if err != nil {
+				return // the socket is gone: Stop got there
+			}
+			_, _ = conn.Write(payload)
+			_ = conn.Close()
+		}
+	}()
+
+	d.Stop()
+	<-dialing
+	if err := <-errCh; err != nil {
+		t.Errorf("Start returned %v after Stop", err)
 	}
 }
 

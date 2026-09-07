@@ -125,6 +125,17 @@ func (c *Config) Validate() error {
 		c.Acceptance.Duration = clamped
 	}
 
+	// A negative interval is a typo, not an instruction, and it is clamped
+	// rather than refused for the same reason the acceptance duration is: a
+	// daemon that will not start because of one number in one optional section
+	// is the worse failure. Zero — deliberately off — is left alone.
+	if c.Usage.Interval != nil && *c.Usage.Interval < 0 {
+		slog.Warn("usage.interval is negative; the counter ticker is switched off",
+			"configured", *c.Usage.Interval)
+		off := 0
+		c.Usage.Interval = &off
+	}
+
 	for _, l := range shared.FirewallLimits {
 		enabled, value := l.Enabled(&c.Firewall), l.Value(&c.Firewall)
 		if !*enabled || l.InRange(*value) {
@@ -230,7 +241,8 @@ func (c *Config) migrateIPv6Mode() {
 }
 
 // Reload re-reads the config file and adopts the sections that can change
-// while the daemon runs: [firewall], [acceptance], [ipv6], [docker], and [routing].
+// while the daemon runs: [firewall], [acceptance], [usage], [ipv6], [docker],
+// and [routing].
 //
 // features/system-settings.md has always told operators to edit easywall.toml
 // and send SIGHUP. Nothing handled that signal, and an unhandled SIGHUP
@@ -269,6 +281,7 @@ func (c *Config) Reload() error {
 
 	c.Firewall = fresh.Firewall
 	c.Acceptance = fresh.Acceptance
+	c.Usage = fresh.Usage
 	c.IPv6 = fresh.IPv6
 	c.Docker = fresh.Docker
 	c.Routing = fresh.Routing
@@ -280,6 +293,17 @@ func (c *Config) AcceptanceDuration() time.Duration {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return time.Duration(c.Acceptance.Duration) * time.Second
+}
+
+// UsageInterval returns how often the per-rule counters are read. Unset is the
+// shipped default; zero stops the ticker — see UsageConfig.
+func (c *Config) UsageInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.Usage.Interval == nil {
+		return shared.UsageIntervalDefault * time.Second
+	}
+	return time.Duration(*c.Usage.Interval) * time.Second
 }
 
 // RulesPath returns the absolute path to rules.json.
@@ -305,6 +329,12 @@ func (c *Config) LastApplyPath() string {
 // for why it exists and why a missing file claims nothing.
 func (c *Config) AppliedConfigPath() string {
 	return c.DataDir + "/applied-config.json"
+}
+
+// UsagePath returns the path of the per-rule usage counters. See usage.go for
+// why the baseline in it is persisted rather than held in memory.
+func (c *Config) UsagePath() string {
+	return c.DataDir + "/usage.json"
 }
 
 // PanicMarkerPath returns the path of the file that records panic mode.

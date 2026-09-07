@@ -45,6 +45,20 @@
         }
       }
     },
+    "usage": {
+      "type": "object",
+      "description": "How often the per-rule packet counters are read out of the kernel. This is what the \"Last used\" column is built from.",
+      "additionalProperties": false,
+      "properties": {
+        "interval": {
+          "type": "integer",
+          "description": "Seconds between counter reads. 0 stops the ticker; an apply still collects, because writing the rules resets every counter.",
+          "minimum": 0,
+          "default": 300,
+          "examples": [60, 300, 900]
+        }
+      }
+    },
     "ipv6": {
       "type": "object",
       "description": "What the firewall does with IPv6 traffic.",

@@ -2,6 +2,7 @@ package core
 
 import (
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -168,5 +169,59 @@ func TestReconcileDockerBridges_StopsOnQuit(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("closing quit must end the wait")
+	}
+}
+
+// A restore that happens because a Docker bridge turned up ten minutes after
+// boot should not tell the operator it happened at "daemon start".
+//
+// The reason reaches the audit entry's detail rather than its action, so a third
+// constant costs nothing anywhere else: no new label, no new colour, no
+// translation.
+func TestReconcileDockerBridges_UsesItsOwnRestoreReason(t *testing.T) {
+	if RestoreReasonDockerBridge == RestoreReasonBoot {
+		t.Fatal("RestoreReasonDockerBridge is the boot reason; the constant exists to " +
+			"distinguish the two")
+	}
+	src := coreSource(t, "dockerreconcile.go")
+	if strings.Contains(src, "RestoreReasonBoot") {
+		t.Error("the reconciler still restores with RestoreReasonBoot, so a restore minutes " +
+			"after boot is logged with the detail \"daemon start\"")
+	}
+	if !strings.Contains(src, "RestoreReasonDockerBridge") {
+		t.Error("the reconciler does not use RestoreReasonDockerBridge")
+	}
+}
+
+// Under panic mode the reconciler used to poll for ninety seconds and, on
+// finding a bridge, log "putting the rules back" immediately before
+// RestoreCurrent logged its refusal. Two adjacent lines, one of them false.
+//
+// This machine is deliberately unfiltered; there is nothing to reconcile, and
+// nothing to say about it.
+func TestReconcileDockerBridges_DoesNothingUnderPanicMode(t *testing.T) {
+	cfg := newTestConfig(t)
+	cfg.Docker.Enabled = true
+	cfg.Docker.AllowBridgeNetworks = true
+	f := newTestFirewall(t, cfg)
+	f.reconcilePoll = 5 * time.Millisecond
+	f.reconcileWait = 50 * time.Millisecond
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		f.reconcileDockerBridges(make(chan struct{}))
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(30 * time.Millisecond):
+		t.Fatal("the reconciler is still polling under panic mode; it should return at once, " +
+			"before it can log \"putting the rules back\" about a machine somebody " +
+			"deliberately unfiltered")
 	}
 }

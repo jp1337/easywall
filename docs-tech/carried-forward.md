@@ -4,8 +4,30 @@ What a piece of work found and deliberately did not fix, with enough context to 
 on. Every entry was reviewed, triaged and ruled on rather than forgotten; the
 reasoning for deferring is part of the entry. Newest first.
 
+**What may not go in here: anything the release caused, or anything belonging to
+the feature it shipped.** A release is complete or it is not finished, and this file
+is not a place to put the difference. An entry earns its place by being *found* by
+the work rather than *made* by it — and that has to be proven against the base the
+branch started from, not against the branch's own head, which already contains the
+release's mistakes. 2.15 carried a `check:prose` failure as pre-existing on exactly
+that error; comparing against `origin/main` showed its own earlier task had written
+the sentence.
+
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
+
+# From 2.15
+
+Two layout defects found while verifying the *Last used* column, both proven
+independent of it, both belonging to 2.16 — *The interface looks like a
+firewall* — where the tables are the subject rather than a passenger.
+
+## The ports table's widths don't add up
+
+| | |
+|---|---|
+| **`.col-port` is 120px and `8000:9000` needs 122px** | `web/src/app.css:1611`. The column is 2px short of the widest port value the field's own placeholder documents, so a range clips. Real user data, not a contrived string, and it predates this release: the *Last used* column did not cause it and removing that column does not fix it. Not widened here because the widths on that table are a set — `.col-port` gaining 8px has to come out of another column, and which one is a design decision `DESIGN.md` does not currently answer |
+| **`.table-wrap` overflows horizontally by 10px in card mode** | `web/src/app.css:1570`, at every width where the container query switches the table to cards. Measured identical with six, five and four columns, and unchanged with `white-space: nowrap` removed, so it is neither the new column nor a wrapping problem: something inside the card layout is 10px wider than the container it sits in. `npm run check:ui`'s overflow check does not fire on it, which is worth understanding before fixing it — a fix that only silences the symptom would leave the check still blind |
 
 # From the 2026-08-30 documentation-site polish
 
@@ -52,35 +74,36 @@ added mid-run. What follows is what was seen and left alone, and why.
 
 | | |
 |---|---|
-| **Four audit-silent paths in `apply`** | The second `GetState` (the re-read after promote), `BackupCurrent`, `PromoteStaged` and `acceptance.Start` all return without an audit entry. 2.7 fixed the first `GetState` and left its four neighbours; do them in one pass, because four invisible paths beside two visible ones is the actual shape |
-| **`acceptance.Start`'s error path** | Returns with the new rules live, no window, no rollback and no entry. Unreachable today and the comment says so; it should roll back rather than return |
+| ~~**Four audit-silent paths in `apply`**~~ | **Closed 2026-09-07.** The second `GetState` (the re-read after promote), `BackupCurrent`, `PromoteStaged` and `acceptance.Start` now all write an audit entry before returning; see `TestEveryFailurePathInApplyIsAudited` in [invariants](invariants.md) |
+| ~~**`acceptance.Start`'s error path**~~ | **Closed 2026-09-07.** This entry described 2.7's ordering. Since 2.14 the window opens before the kernel write, so what the error path left behind was not live rules but a stored `Current` holding an unconfirmed set — which the next boot or `resume` would install with no window at all. It now rolls back rather than return |
 
 ## Guards that do not see enough
 
 | | |
 |---|---|
-| **The kernel-write guard is scoped to two files** | `daemon_source_order_test.go` enumerates `firewall.go` and `restore.go`, so a fourth writer of the table added in a third file of the package is invisible — which is the guard's stated purpose. `filepath.Glob` over the package closes it. Nothing exploits it today: `f.nft.Apply(` occurs exactly three times repo-wide |
-| **…and cannot see reachability** | The same guard passes when the panic check is kept textually but wrapped in `if false`. Not closable without `go/parser` and constant folding; worth a comment saying so |
-| **…nor call order beyond "after the write"** | Moving `apply`'s check to after `f.rollback` does not fire it, though a comment says the order matters |
-| **`bootBridges` has no test** | All four reconciler tests write the field directly, so deleting `setBootBridges` from `RestoreCurrent` leaves the suite green — and that call was the whole subject of the commit that added it |
+| ~~**The kernel-write guard is scoped to two files**~~ | **Closed 2026-09-07.** `daemon_source_order_test.go` no longer enumerates `firewall.go` and `restore.go`; `coreSources` now globs every non-test source file in the package with `filepath.Glob`, so a fourth writer of the table added in a third file cannot be added invisibly |
+| **…and cannot see reachability** | The same guard passes when the panic check is kept textually but wrapped in `if false`. Not closable without `go/parser` and constant folding; now named directly in the guard's own comment in `daemon_source_order_test.go` |
+| **…nor call order beyond "after the write"** | Moving `apply`'s check to after `f.rollback` does not fire it, though a comment says the order matters — also now named in the guard's own comment |
+| ~~**`bootBridges` has no test**~~ | **Closed 2026-09-07.** `TestRestoreCurrent_RecordsTheBridgesItBakedIn` writes through `RestoreCurrent` rather than the field directly, so deleting `setBootBridges` from it fails the suite |
 | **The nft mutex is pinned only under `integration`** | `make test` cannot notice `mu sync.Mutex` being deleted. Self-documented in `nftables_mutex_test.go`, and CI's `test-integration` job does run it |
 
 ## Narrow races
 
 | | |
 |---|---|
-| **Marker check to netlink write is not atomic** | Closed in 2.7 by re-reading the marker after every write. What remains is a microsecond window at the third site, which stats the marker three times — twice in the gate, once inside the helper via `PanicEngaged`. A marker becoming unreadable between the second and third read reintroduces the inversion. Pass the known state into the helper |
-| **`Panic` and `Resume` share no lock** | `Resume`'s `ClearPanic` interleaving between `EngagePanic` and `nft.Reset` leaves no marker and an empty table. Visible — dashboard red, `status` exits 2 — and three lines of `panicMu` fix it |
+| ~~**Marker check to netlink write is not atomic**~~ | **Closed 2026-09-07.** The known state is now passed into the helper rather than re-read a third time; see `TestPanicLandedDuringWriteIsToldTheMarkerState` in [invariants](invariants.md) |
+| ~~**`Panic` and `Resume` share no lock**~~ | **Closed 2026-09-07.** `panicMu` serialises them; see `TestPanicAndResumeShareALock` in [invariants](invariants.md) |
+| ~~**The accept loop `Add`s to `d.wg` from a counter of zero**~~ | **Closed 2026-09-07.** Shipped in 2.14.0 — `git show 04a0e4f:internal/core/daemon.go` line 212 is the bare `d.wg.Add(1)`, and 2.14 had no usage ticker at all, so the counter reached zero more readily there than on a default 2.15 install. This release's 300-second ticker holds a slot for the daemon's whole life and *hides* the hazard; the test-race fix beside it found the production half and recorded it as open. `Daemon.track` now takes the slot under the `d.mu` that `Stop` holds before it waits, so an accept either registers before the wait or is refused and the connection closed. Reproduced at 76 process runs in 160, 0 in 256 after; see `TestDaemonStart_StopRefusesAConnectionItCannotWaitFor` in [invariants](invariants.md) |
 
 ## Wording and hygiene
 
 | | |
 |---|---|
-| **`CHANGELOG.md`'s count claim** | Says the assertion in `daemon_dispatch_test.go` "now says seventeen"; it says at least fifteen. The loosening is correct — the bidirectional source checks are the real guard — the sentence is not |
-| **`locales/de.json`'s `Fortsetzen`** | A hapax. Every other panic string uses `Notfallmodus`, and the same command is described as *beenden* elsewhere in the file |
-| **The Docker reconcile reuses `RestoreReasonBoot`** | So a restore minutes after boot logs the detail "daemon start". The reason reaches the detail, not the action, so a third constant costs nothing in locales |
-| **`CmdPanic`'s 35 s deadline** | On expiry `daemonAbsent` is false and the CLI reports the daemon is not answering — but the marker reached the disk in the first millisecond and the teardown lands moments later. A timeout should check the marker and say so |
-| **The reconciler polls under panic mode** | For ninety seconds, and on finding a bridge logs "putting the rules back" immediately before `RestoreCurrent` logs the refusal. One check at the top removes a misleading pair |
+| ~~**`CHANGELOG.md`'s count claim**~~ | **Closed 2026-09-07.** The entry now says the assertion in `daemon_dispatch_test.go` is deliberately loose — at least fifteen, not exactly seventeen — because the bidirectional source checks are the real guard |
+| ~~**`locales/de.json`'s `Fortsetzen`**~~ | **Closed 2026-09-07.** Replaced with `Notfallmodus`, matching every other panic string in the file |
+| ~~**The Docker reconcile reuses `RestoreReasonBoot`**~~ | **Closed 2026-09-07.** A third constant now distinguishes a Docker-triggered restore from a boot restore; neither locale gained a new string, since the reason reaches the detail and not the action |
+| **`CmdPanic`'s 35 s deadline** | On expiry `daemonAbsent` is false and the CLI reports the daemon is not answering — but the marker reached the disk in the first millisecond and the teardown lands moments later. A timeout should check the marker and say so. **Reviewed again in 2.15 and deliberately still carried:** what it wants is a timeout that checks the marker and reports what it finds, which is a change to the CLI's contract rather than a fix to an incorrect one. It belongs in a release that is looking at the console tool, not in one that is adding counters |
+| ~~**The reconciler polls under panic mode**~~ | **Closed 2026-09-07.** One check at the top skips the poll entirely while panic mode is engaged, so the misleading "putting the rules back" no longer logs immediately before `RestoreCurrent`'s own refusal |
 | **`.opencode/opencode.json` is in the history** | Added and removed on the 2.7 branch by a blanket `git add`, so it survives unless the branch is squashed. `.gitignore` records the accident |
 
 ## Not carried — decided

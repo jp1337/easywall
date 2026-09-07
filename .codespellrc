@@ -53,6 +53,15 @@ skip = ./docs/_site,./node_modules,./.git,./docs/Gemfile.lock,./docs/assets/css/
 #                codespell prefers "unparsable" but both are correct English
 ignore-words-list = rouge,iif,oder,unparseable
 
+# German relative-time strings, quoted in comments that explain what lastUsed
+# renders: "vor einer Minute", "vor 59 Minuten", "vor 3 Tagen". codespell reads
+# `vor` as a typo of `for`, which is exactly the near-miss this file refuses to
+# put in ignore-words-list — `for` is far too common to stop checking. Scoped
+# with a regex instead, as the note at the foot of this file advises: only the
+# German phrase is ignored, and a bare `vor` standing in for `for` is still
+# caught (verified: "this is vor the record" still fails).
+ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+
+
 # No entry for `nd` or `ba`. The brief that drafted this file believed they
 # were needed for "2nd" and a base32 TOTP example, but neither pattern
 # currently exists anywhere in the repo (searched: docs/, README.md,

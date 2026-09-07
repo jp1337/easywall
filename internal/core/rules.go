@@ -52,7 +52,49 @@ func NewRulesStore(path string) (*RulesStore, error) {
 	default:
 		return nil, fmt.Errorf("rules store at %s is unreachable: %w", path, err)
 	}
+
+	// Every rule gets an id here, once, and never on a read.
+	//
+	// This is not a migration step with a version marker and a one-way door: it
+	// is a repair that runs at every start and finds nothing to do on all but
+	// the first. Backup is included, because a rollback promotes it into
+	// Current — a backup of rules with no ids would orphan every counter at the
+	// moment a rollback happens, which is the worst moment available.
+	//
+	// Filling ids on the read path would be wrong and TestRuleIDsAreUniqueAndStable
+	// says so: a value generated per read is a different value every read, and
+	// every counter would be keyed to a rule that no longer exists by the time
+	// it is read back.
+	if err := s.backfillIDs(); err != nil {
+		return nil, err
+	}
 	return s, nil
+}
+
+// backfillIDs fills any empty rule id in all three sets and writes once, or not
+// at all when there was nothing to fill.
+func (s *RulesStore) backfillIDs() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	state, err := s.getState()
+	if err != nil {
+		return fmt.Errorf("read rules for id backfill: %w", err)
+	}
+	// Each call is added to the accumulator, never short-circuited by it — a
+	// `changed || EnsureRuleIDs(...)` here would skip the later sets the moment
+	// the first one changed, and Staged/Backup would keep every rule with no id.
+	changed := shared.EnsureRuleIDs(&state.Current)
+	changed = shared.EnsureRuleIDs(&state.Staged) || changed
+	changed = shared.EnsureRuleIDs(&state.Backup) || changed
+	if !changed {
+		return nil
+	}
+	if err := s.save(state); err != nil {
+		return fmt.Errorf("write back-filled rule ids: %w", err)
+	}
+	slog.Info("filled in rule ids for the usage counters", "path", s.path)
+	return nil
 }
 
 // GetState returns the full three-state rules document.
@@ -130,6 +172,12 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 	default:
 		return fmt.Errorf("unknown rule type: %s", ruleType)
 	}
+
+	// A rule created in the interface arrives with no id; this is where it gets
+	// one. Before the validation below, so the duplicate check there is a
+	// backstop for a hand-edited file rather than something the interface can
+	// trip over.
+	shared.EnsureRuleIDs(&state.Staged)
 
 	// Validate before persisting. ImportRules has always done this and
 	// SaveStaged never did, so the same malformed address was rejected when it
@@ -248,6 +296,12 @@ func (s *RulesStore) ImportRules(data []byte) error {
 	if err := json.Unmarshal(data, &rules); err != nil {
 		return fmt.Errorf("invalid import data: %w", err)
 	}
+
+	// Foreign ids are kept — on this host they have no history, which is the
+	// true answer. Duplicates inside the imported set are regenerated, first
+	// occurrence keeping its id.
+	shared.EnsureRuleIDs(&rules)
+
 	if err := shared.ValidateRules(rules); err != nil {
 		return fmt.Errorf("import validation failed: %w", err)
 	}

@@ -16,6 +16,22 @@ under `$EASYWALL_DEMO_ADDR` (default `127.0.0.1:12227`). Signs in as
 uses, so a session started by hand and one driven by the script are
 interchangeable.
 
+## Driving it in a browser
+
+```bash
+scripts/demo-server.sh &        # or in another terminal
+npm run check:ui
+```
+
+Nothing to set. The script finds the demo's `web.toml` under
+`$EASYWALL_DEMO_DIR` (default `~/.local/share/easywall-demo`) and falls back to
+`/etc/easywall/web.toml` for a run against a real installation; `EASYWALL_CONFIG`
+overrides both. That default used to be `/etc/easywall/web.toml` alone — a file
+`demo-server.sh` has never written — so a bare `npm run check:ui` reported
+"could not read the password hash" and every run needed the variable set by
+hand. It is the check that caught this release's worst defect, and friction on
+it is what gets it skipped.
+
 ## The certificate
 
 `mkcert -install` trusts a local CA in Chrome once. For years the demo server
@@ -54,17 +70,34 @@ against without either: a throwaway netns is flushed when the container exits,
 not the host's.
 
 ```bash
-podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN \
-  -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.25 \
-  sh -c 'apt-get update -qq && apt-get install -y -qq nftables >/dev/null && \
+podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN --security-opt unmask=ALL \
+  -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.27 \
+  sh -c 'apt-get update -qq && apt-get install -y -qq nftables iproute2 iputils-ping >/dev/null && \
          go test -tags integration ./internal/core/... -v'
 ```
+
+The image tag has to be at least the `go` directive in `go.mod`, or the run
+stops before a test with `go.mod requires go >= …` — the container sets
+`GOTOOLCHAIN=local`, so it will not fetch a newer toolchain the way the host
+does. This command said `golang:1.25` until 2.15 and by then did not run at all.
 
 `--cap-add=NET_ADMIN` alone is not enough: `TestMain` re-execs into a fresh
 network namespace via `CLONE_NEWNET`, which needs `CAP_SYS_ADMIN` too — without
 it the child re-exec fails before a single test runs, surfacing only as a bare
-`exit status 1`. Keep the host command beside this one: a container kernel is
-not the host kernel, and either may need running.
+`exit status 1`.
+
+The other two flags matter for a different reason: without them the
+router-based tests do not fail, they **skip** — "ip is not installed", "cannot
+create a network namespace" — which reads exactly like a pass in a scrollback
+nobody reads closely. `newRouter` shells out to `ip` and `ping`, so
+`iproute2 iputils-ping` has to be on the install line beside `nftables`; and
+`newRouter` also writes `/proc/sys/net/ipv4/ip_forward`, which podman's default
+masking makes read-only inside the container regardless of the network
+namespace owning it, so `--security-opt unmask=ALL` has to be on the command
+line, not the install list. Both are scoped to the container's own throwaway
+namespace and files; neither touches the host. Keep the host command beside
+this one: a container kernel is not the host kernel, and either may need
+running.
 
 ## The documentation site
 

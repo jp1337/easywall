@@ -130,14 +130,17 @@ func funcBody(t *testing.T, src, file, sigPrefix string) string {
 // apply and RestoreCurrent each need two, because nft.Apply can return an error
 // with the ruleset already committed, so the failure branch is as much a write as
 // the success path.
+//
+// Two things it still cannot see, both recorded in carried-forward.md. A check
+// kept textually and wrapped in `if false` satisfies it — closing that needs
+// go/parser and constant folding. And it asserts "after the write" and not the
+// call order beyond that, so moving apply's check below f.rollback does not fire
+// it, though the comment there says the order matters.
 func TestEveryKernelWriteIsFollowedByThePanicCheck(t *testing.T) {
 	const write = "f.nft.Apply("
 	const check = "f.panicLandedDuringWrite("
 
-	sources := map[string]string{
-		"firewall.go": coreSource(t, "firewall.go"),
-		"restore.go":  coreSource(t, "restore.go"),
-	}
+	sources := coreSources(t)
 
 	// The helper itself has to exist, or every assertion below is about a name
 	// nothing implements.
@@ -308,4 +311,86 @@ func coreSource(t *testing.T, name string) string {
 	}
 	t.Fatalf("could not locate %s", name)
 	return ""
+}
+
+// corePackageDir locates this package's own directory, walking upwards so the
+// test works from a module-root invocation as well as from the package.
+func corePackageDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		for _, candidate := range []string{dir, filepath.Join(dir, "internal", "core")} {
+			if _, err := os.Stat(filepath.Join(candidate, "firewall.go")); err == nil {
+				return candidate
+			}
+		}
+		dir = filepath.Dir(dir)
+	}
+	t.Fatal("could not locate internal/core")
+	return ""
+}
+
+// coreSources returns every non-test source file in this package.
+//
+// The guard below used to name firewall.go and restore.go, which made it blind
+// to precisely what it exists to catch: a fourth writer of table inet easywall
+// added in a third file. Nothing exploited it — f.nft.Apply( occurs exactly
+// three times repo-wide — and a guard whose scope is a literal list is one
+// commit away from being wrong about its own subject.
+//
+// *_test.go files are excluded deliberately, not merely by the easy glob
+// pattern, for two reasons that both have to hold or the exclusion is just
+// narrowing the guard again under a different name:
+//
+//   - This file is one of them. It contains the literal strings "f.nft.Apply("
+//     and "f.panicLandedDuringWrite(" in its own const declarations above, so a
+//     glob that read *_test.go would have the guard counting its own source
+//     code as kernel writes and checks — a guard tripping over the string it is
+//     searching for, not over the codebase.
+//   - Every build-tagged file in this package (`go build -constraint:list .`
+//     equivalent: `grep -l '^//go:build'`) is itself a _test.go file — there is
+//     no production file behind a build tag for this exclusion to hide. So
+//     excluding *_test.go does not reintroduce the blind spot of a guard that
+//     silently skips build-tagged production code; there isn't any here.
+//
+// What this does leave uncovered: restore_integration_test.go calls
+// fw.panicLandedDuringWrite directly (under a `fw` receiver, and outside apply,
+// rollback or RestoreCurrent), to exercise the post-write check against a real
+// kernel. That call site is exactly what Task 13's signature change on
+// panicLandedDuringWrite missed when its search covered only firewall.go and
+// restore.go — and this guard, even widened, still does not read it: it is a
+// test file, and this guard's subject is production kernel writes, not every
+// caller of a renamed function. What catches a stale caller in a build-tagged
+// test file is `go vet -tags integration ./internal/core/...`, which is why
+// that command is part of this task's own verification and not something this
+// test tries to reproduce.
+//
+// A glob that matches nothing must fail rather than pass, which is what the
+// floor below is for.
+func coreSources(t *testing.T) map[string]string {
+	t.Helper()
+	dir := corePackageDir(t)
+	paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	for _, p := range paths {
+		if strings.HasSuffix(p, "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(p) // #nosec G304 -- test-only, this package's own directory
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[filepath.Base(p)] = string(data)
+	}
+	if len(out) < 10 {
+		t.Fatalf("found %d source files in %s; the glob matched almost nothing and this "+
+			"guard would pass on an empty corpus", len(out), dir)
+	}
+	return out
 }

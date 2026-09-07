@@ -5,6 +5,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] — 2026-09-07
+
+**You can see it working.**
+
+An open port nobody uses is the most common avoidable exposure on a hobby
+server, and until now nothing in easywall could point at one. Every port rule
+carries a stable id and a kernel counter keyed to it, so the port pages can say
+when that port last carried a packet — and the dashboard can say how many have
+carried nothing in a month.
+
+### Added
+
+- **A *Last used* column on both port tabs.** `never`, `3 days ago`, `just now`,
+  or `—` when nothing is known. `never` and `—` are different claims: the first
+  is a measurement, and it is the finding worth acting on.
+- **A second line on the dashboard's TCP tile** when it applies: *2 unused for
+  30+ days*. No new tile, and no colour — `DESIGN.md` reserves colour for
+  firewall state.
+- **Every port rule has an id**, twelve hex characters, assigned once and never
+  rewritten, and it is what the counters are keyed by. Editing a rule's sources
+  or description keeps its history. Editing its *port number* keeps it too —
+  the counter follows the rule and not the port, so a row renumbered from `22`
+  to `9999` still shows the old port's dates. Delete the row and add the new
+  port to start clean. 2.18's per-entry metadata will key by the id as well.
+- **`GET_USAGE`**, the twenty-first protocol command. Read-only, answered out of
+  a file: collecting inside it would queue behind the nft mutex, which an apply
+  holds for six times as long as the client waits.
+- **`[usage] interval`**, seconds between counter reads, default 300. `0` stops
+  the ticker and not the counting — an apply still collects, because that call
+  exists to keep the flush from destroying a number.
+
+### Fixed
+
+Ten entries carried forward from earlier releases, closed in the same pass.
+
+- **`Panic` and `Resume` were racing on the marker.** A `Resume` landing between
+  `Panic`'s marker write and its teardown left no marker and an empty table: a
+  machine unfiltered, with nothing on it recording that anybody chose that.
+- **The rollback stat'd the panic marker three times** and could get three
+  different answers. The state its gate reads is now passed on rather than read
+  again.
+- **Four ways out of `apply` wrote nothing to the audit log.** The backup, the
+  promote, the re-read after it and a window that could not open all returned
+  into a journal nobody reads, on a machine whose interface said nothing about
+  why the firewall had not changed.
+- **A window that fails to open now rolls the rules file back.** `PromoteStaged`
+  has already run at that point, so `Current` held a set nobody confirmed — and
+  the next boot or `resume` installs `Current` with no window at all, because
+  `Current` is assumed to have survived one.
+- **The kernel-write guard could not see a third file.** It enumerated
+  `firewall.go` and `restore.go`; it globs the package now, so a fourth writer of
+  the table cannot be added invisibly.
+- **`setBootBridges` had no test.** Every reconciler test wrote the field
+  directly, so deleting the call from `RestoreCurrent` left the suite green.
+- **A restore caused by a Docker bridge appearing** no longer records the detail
+  "daemon start".
+- **The reconciler no longer polls under panic mode**, where it logged "putting
+  the rules back" immediately before the restore logged its refusal.
+- **`locales/de.json`'s `Fortsetzen`** was a hapax; every other panic string says
+  *Notfallmodus*.
+- **The changelog's claim about the command count** said all three places now say
+  seventeen. The test assertion says *at least fifteen*, deliberately, and the
+  entry now says why.
+
+And one more, shipped in 2.14 and found here:
+
+- **A request the core had already accepted could be abandoned when the daemon
+  stopped.** `systemctl restart easywall-core` could walk away from a command it
+  was in the middle of answering, rather than finishing it first. A request
+  accepted before the shutdown begins is now always answered; one that arrives
+  after it is closed straight away, which is what the interface already reported
+  as an unreachable core.
+
+### Known limits
+
+- A flush easywall did not perform — `nft flush ruleset` typed by hand — loses
+  the interval since the last collect. Every write easywall *does* perform books
+  the counters first: an apply, an acceptance-window rollback, a boot or
+  `resume` restore, and a `panic` teardown. The counter restarting below its
+  baseline is detected either way and the new count booked in full; what
+  happened before an unannounced flush is gone. The reconciler already owns that
+  class of event.
+- The stored packet and byte totals can run slightly high, once, if a scheduled
+  collection lands in the instant between an apply's kernel write and its
+  baseline reset. Nothing reaches the screen from it: the reply carries only the
+  last-used date, and that date is already correct. Closing it would put a new
+  lock across the apply path for a nicety counter.
+- Custom rules carry no counter. They are raw nftables statements and cannot be
+  tagged without changing what was written.
+- A connection the SSH brute-force limiter drops never reaches the port's accept
+  rule and is not counted. The column says *last used*, not *last attempted*.
+
 ## [2.14.0] — 2026-09-02
 
 **The window shows that it is running.**
@@ -583,7 +675,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 ### Added
 
 - **`easywall-core panic` / `resume` / `status`** — a console-only way back into a machine your own rules have shut you out of, now that a reboot no longer provides one by accident. `panic` flushes `table inet easywall` immediately; `resume` ends that and restores `Current`, the same restore the daemon runs at boot. Panic mode is recorded in `/var/lib/easywall/panic` — a marker with nothing to read inside it, named so it is recognisable sitting in a directory listing beside `rules.json`, root-owned and `0600` because the web process only ever learns about it over the socket, in the status reply, and never opens the path itself. The marker's presence deliberately survives a restart: otherwise the very next reboot would put back the rules panic mode exists to remove, turning the fix for one lockout into the next one. The interface shows a loud banner while it is engaged, and that banner has **no button** — ending panic mode is console-only, without exception, because a control reachable from the network would let that process re-arm a firewall a human just disarmed at the machine on purpose, using nothing more than a stolen session
-- `PANIC` and `RESUME` are the sixteenth and seventeenth commands the socket protocol declares. Three places said fifteen — `docs-tech/protocol.md`, `docs/architecture.md`, and the count assertion in `daemon_dispatch_test.go` — and all three now say seventeen, tied to one list rather than three independent numbers: `shared.AllCommandTypes` is the protocol's own declared roster, and four separate guards now hang off it rather than a hand-maintained mirror each — the dispatch table has a handler for every entry, the demo client answers every entry, both `docs/architecture.md` and `docs-tech/protocol.md` document every entry, and a fourth check reads `protocol.go`'s own source and fails if the list and the constants it is supposed to mirror ever disagree in either direction
+- `PANIC` and `RESUME` are the sixteenth and seventeenth commands the socket protocol declares. Three places said fifteen — `docs-tech/protocol.md`, `docs/architecture.md`, and the count assertion in `daemon_dispatch_test.go`. The two documents now say seventeen; the assertion says *at least fifteen*, deliberately, because the bidirectional source checks are the real guard and a hand-maintained number beside them is one more thing to keep in step. All three are tied to one list rather than to three independent counts: `shared.AllCommandTypes` is the protocol's own declared roster, and four separate guards now hang off it — the dispatch table has a handler for every entry, the demo client answers every entry, both `docs/architecture.md` and `docs-tech/protocol.md` document every entry, and a fourth check reads `protocol.go`'s own source and fails if the list and the constants it is supposed to mirror ever disagree in either direction
 - Seven new audit actions: `boot_enforced` and `boot_enforce_failed` for the startup restore, `panic_engaged` and `panic_resumed` for the two subcommands, and `apply_refused_panic`, `rollback_skipped` and `resume_restore_skipped` for the three ways an attempt can collide with panic mode and leave the running firewall as it found it. All seven are coloured, labelled and documented in `audit-log.md`
 - A man page, `easywall-core(1)` — the three subcommands with their exit codes, the files panic mode touches, `SIGHUP`'s reload scope, and the shutdown timing a restore or a rollback can now stretch to
 - `features/recovery.md`, documented before this release ships rather than after — the replacement for the escape route being removed has to exist in the reader's hands before the door closes, not afterwards
@@ -1333,7 +1425,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.14.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/jp1337/easywall/compare/v2.14.0...v2.15.0
 [2.2.0]: https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/jp1337/easywall/compare/v0.3.1...v2.0.0
