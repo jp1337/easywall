@@ -32,6 +32,12 @@ import (
 type UsageStore struct {
 	mu   sync.Mutex
 	path string
+
+	// lastParseErr is the last unparseable-file message reported, so a file that
+	// stays corrupt in the same way is one journal line rather than one per tick.
+	// Guarded by mu: every caller of read() holds it. The shape is
+	// Firewall.warnAppliedConfigErrOnce's, which exists for the same reason.
+	lastParseErr string
 }
 
 // NewUsageStore returns a store over path. Nothing is read or created until the
@@ -60,8 +66,37 @@ func (u *UsageStore) read() (shared.UsageResult, error) {
 	}
 	var res shared.UsageResult
 	if err := json.Unmarshal(data, &res); err != nil {
-		return shared.UsageResult{}, fmt.Errorf("parse usage: %w", err)
+		// Warned and treated as unrecorded, not returned as an error, and this is
+		// the difference between a file that heals and one that never does.
+		//
+		// Collect reads before it writes. A hard error here therefore made the bad
+		// file permanent: every tick read it, failed, logged, and returned before
+		// reaching the write that would have replaced it — one warning per
+		// interval for the life of the installation, and *Last used* rendering an
+		// em dash for every rule for ever, with no way out short of deleting the
+		// file by hand. A truncated write on a host that lost power is enough to
+		// get there.
+		//
+		// So the record is dropped and the next collect writes a fresh one. What
+		// that costs is the stored history: totals, first-seen and last-seen dates
+		// start again, which is what the file being unreadable already meant in
+		// practice. It is the answer both sibling state files give — readLastApply
+		// warns and returns the zero time, appliedConfig warns and reports
+		// "not recorded" — and the reason is the same: this is bookkeeping for a
+		// nicety, and it must never be the thing that stops working.
+		//
+		// An I/O error above stays an error deliberately. A file that cannot be
+		// read for want of permission is not corrupt, the write will fail too, and
+		// overwriting on that basis would throw away a perfectly good record.
+		if msg := err.Error(); msg != u.lastParseErr {
+			u.lastParseErr = msg
+			slog.Warn("the usage record could not be read and is being started again; "+
+				"Last used will report nothing until the next collect",
+				"path", u.path, "error", err)
+		}
+		return shared.UsageResult{Usage: map[string]shared.RuleUsage{}}, nil
 	}
+	u.lastParseErr = ""
 	if res.Usage == nil {
 		res.Usage = map[string]shared.RuleUsage{}
 	}

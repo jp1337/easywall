@@ -1,6 +1,7 @@
 package core
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -87,10 +88,15 @@ func TestUsageStore_CollectBooksTheDelta(t *testing.T) {
 // The bug this field exists to prevent, and the reason the baseline is in the
 // file rather than in a struct field.
 //
-// The kernel table outlives the daemon. A baseline held in memory starts at zero
-// on the next start, so the first collect after a restart books the whole
-// lifetime of every kernel rule a second time — on a machine that has been up for
-// a month, a port that saw one packet in the first hour reports as busy today.
+// A baseline held in memory starts at zero on the next start, so the first
+// collect after a restart books the whole lifetime of every kernel rule a second
+// time — on a machine that has been up for a month, a port that saw one packet
+// in the first hour reports as busy today.
+//
+// The case is a table that survived the daemon: a crash, or a stop and start
+// while the rules stayed live, or a boot restore that failed. Not the ordinary
+// restart — Daemon.Start restores unconditionally, so there the table is rebuilt
+// and Collect's below-baseline branch is what keeps the count honest.
 func TestUsageStore_ADaemonRestartDoesNotDoubleCount(t *testing.T) {
 	u, path := newTestUsageStore(t)
 	live := allLive("bbbbbbbbbbbb")
@@ -180,5 +186,64 @@ func TestUsageStore_ForgetsRulesThatAreGone(t *testing.T) {
 	if _, gone := res.Usage["eeeeeeeeeeee"]; !gone {
 		t.Error("a rule that is still configured lost its history because the kernel was empty — " +
 			"that is what happens under panic mode, and it must not")
+	}
+}
+
+// A corrupt usage.json heals itself on the next collect.
+//
+// It could not, and the failure had no exit. read() returned a hard error on
+// unparseable JSON and Collect reads before it writes, so the bad file could
+// never be overwritten: one warning per tick for the life of the installation,
+// and *Last used* rendering an em dash for every rule for ever. A truncated
+// write on a host that lost power is enough to get there.
+//
+// Both sibling state files already do this — readLastApply warns and returns the
+// zero time, appliedConfig warns and reports "not recorded". This is the same
+// answer for the same reason: the file is bookkeeping for a nicety, and it must
+// never be the thing that stops working.
+func TestUsageStore_ACorruptFileDoesNotWedgeTheCollector(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "usage.json")
+	if err := os.WriteFile(path, []byte(`{"usage":{"aaaaaaaaaaaa":{"packe`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	u := NewUsageStore(path)
+
+	// The read itself must not fail — a caller that gets an error here is the
+	// caller that never reaches the write below.
+	if _, err := u.Read(); err != nil {
+		t.Fatalf("reading a corrupt usage.json returned an error: %v; Collect reads before "+
+			"it writes, so this is what made the bad file permanent", err)
+	}
+
+	if err := u.Collect(
+		map[string]RuleCounter{"aaaaaaaaaaaa": {Packets: 7, Bytes: 700}},
+		map[string]bool{"aaaaaaaaaaaa": true},
+	); err != nil {
+		t.Fatalf("Collect over a corrupt usage.json: %v", err)
+	}
+
+	res, err := u.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, ok := res.Usage["aaaaaaaaaaaa"]
+	if !ok {
+		t.Fatal("the collect after the corrupt read booked nothing; the file has not healed")
+	}
+	if entry.Packets != 7 {
+		t.Errorf("booked %d packets, want 7", entry.Packets)
+	}
+	if entry.LastSeen.IsZero() {
+		t.Error("the healed record carries no last-seen date, so the column would still " +
+			"render an em dash")
+	}
+
+	// And the file on disk parses now.
+	if _, err := os.ReadFile(path); err != nil { // #nosec G304 -- test-owned temp path
+		t.Fatal(err)
+	}
+	if res2, err := NewUsageStore(path).Read(); err != nil || len(res2.Usage) != 1 {
+		t.Errorf("a fresh store over the rewritten file read %d entries (err %v), want 1",
+			len(res2.Usage), err)
 	}
 }
