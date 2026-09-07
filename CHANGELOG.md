@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.1] — 2026-09-07
+
+**Two ways a new installation could lock you out of its own host.**
+
+Reported from Discord: a VPS unreachable immediately after
+`docker compose up -d`, and still cutting SSH on every later `docker` start.
+The pasted ruleset carried the evidence for both causes —
+`tcp dport 22 ct state 0x8000000 jump sshbrute`, a conntrack state no packet
+ever has.
+
+### Fixed
+
+- **The conntrack state masks were byte-reversed, so three rules matched
+  nothing.** The kernel writes `ct state` into a register as a native `u32`;
+  all three masks in `internal/core/nftables.go` were written as
+  `[]byte{0x00, 0x00, 0x00, 0x06}` instead of `{0x06, 0x00, 0x00, 0x00}`, and
+  the kernel rendered them back as `ct state 0x2000000,0x4000000` — bits no
+  conntrack state sets. The worst of the three is
+  `ct state established,related accept`, the entire stateful half of the input
+  chain: without it a reply packet has no rule to match, so **an installation
+  with a live table had no working outbound connectivity at all** — no DNS, no
+  `apt update`, no version check — and applying the table dropped any SSH
+  session already open, because the only rules still matching were the
+  stateless `dport N accept` ones. The other two failed open: the
+  invalid-packet drop and the SSH brute-force meter both reported themselves
+  enabled and enforced nothing. Measured in a veth pair against an HTTP server:
+  `counter packets 0` and a failed request on the reversed rule, `packets 6`
+  and HTTP 200 on the corrected one, with a no-ruleset control returning 200.
+- **A test had written the defect down as the expected output.**
+  `nftables_semantics_test.go` asserted
+  `dport 2222 ct state 0x8000000 jump sshbrute` under a comment explaining that
+  "nft prints the mask rather than the name" — and both halves were wrong. `nft`
+  names every state it recognises, including for a bitwise-and plus a
+  not-equal-zero test, because that is how it compiles `ct state new` itself; it
+  printed raw hex here precisely because the mask was reversed. The assertion
+  was written from observed output rather than from intent, which is what let
+  this ship. It now asserts `ct state new`, and a new guard,
+  `TestIntegration_NoCtStateRendersAsARawMask`, fails on **any** hex-rendered ct
+  state in the table — the class, not the three instances.
+- **A host where nothing has ever been applied is no longer made to enforce an
+  empty rule set.** `RulesStore` initialises `rules.json` with `emptyState()`
+  and `Daemon.Start` restored it unconditionally, so the input chain came up at
+  `policy drop` with no port open: SSH closed, and the web interface whose
+  first-run wizard is the only thing that would have opened SSH closed with it.
+  `docker compose up -d` and `dpkg -i` both start the core before the operator
+  can open a single port. `RestoreCurrent`'s own contract rests on `Current`
+  being "a rule set that has already survived an acceptance window", which is
+  not true of one nobody has ever applied; `Firewall.everConfigured` now makes
+  that contract hold. A non-empty `Current` **or** a last-apply marker counts as
+  configured, so an operator who deliberately applied an empty set keeps it, and
+  an installation upgrading from an earlier release keeps filtering. Otherwise
+  the machine is left exactly as easywall found it and filtering starts at the
+  first deliberate apply — the one that has the acceptance window to undo it.
+  Recorded as a new audit action, `boot_not_configured`, amber.
+
+### Why it was not caught
+
+`docs/installation/docker.md` says to open `https://localhost:12227`, and
+loopback is accepted — so the documented first step works on the machine the
+software is developed on and fails on every remote host. Every count-based
+integration test stayed green throughout, because the rules were present in the
+table; they simply never fired.
+
 ## [2.15.0] — 2026-09-07
 
 **You can see it working.**
@@ -1425,7 +1488,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.15.0...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.15.1...HEAD
+[2.15.1]: https://github.com/jp1337/easywall/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/jp1337/easywall/compare/v2.14.0...v2.15.0
 [2.2.0]: https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/jp1337/easywall/compare/v2.0.0...v2.1.0

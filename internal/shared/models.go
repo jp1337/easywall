@@ -46,6 +46,27 @@ type Rules struct {
 	Custom     []string         `json:"custom"`     // raw nftables rule strings
 }
 
+// IsEmpty reports whether this rule set says nothing at all.
+//
+// The distinction it exists for: an empty rule set is not a firewall policy, it
+// is the absence of one. RulesStore initialises a host that has never been
+// configured with exactly this value, and enforcing it means an input chain at
+// policy drop with nothing open — SSH closed, and the web interface that would
+// have opened it closed with it. See Firewall.everConfigured.
+//
+// Every field of Rules is counted, and TestRulesIsEmptyCountsEveryField holds it
+// to that by reflection: a seventh rule set added here and forgotten below would
+// make a configured host look unconfigured, which is the one direction that
+// silently stops a firewall.
+func (r Rules) IsEmpty() bool {
+	return len(r.TCP) == 0 &&
+		len(r.UDP) == 0 &&
+		len(r.Blacklist) == 0 &&
+		len(r.Whitelist) == 0 &&
+		len(r.Forwarding) == 0 &&
+		len(r.Custom) == 0
+}
+
 // RulesState holds the three-state rules system preventing lockouts.
 // current = applied to kernel, staged = pending user apply, backup = rollback target.
 type RulesState struct {

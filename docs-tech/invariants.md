@@ -126,6 +126,25 @@ The background is in [dependencies](dependencies.md).
 | `TestScreenshotsAreTakenAboveTheTwoColumnBreakpoint` | `SHOT_VIEWPORT` in `scripts/ui-check.mjs` is wider than the `max-width` at which `.page-grid` drops its context column | the screenshots were taken at 1440px against a breakpoint of 1570px from 2.11 to 2.13, so every figure in `docs/` showed the narrow fallback — aside cards stacked under the table rather than beside it. The two numbers live in different files and neither is near the other: lowering the breakpoint and narrowing the viewport re-create it independently |
 | `TestScreenshotsGrowTheWindowInsteadOfCapturingBeyondIt` | `shoot()` resizes the viewport to the document instead of passing `fullPage`, for as long as `.sidebar` is `position: fixed` | a fixed element in a fullPage capture stays laid out against the window it was rendered in. The sidebar therefore stopped at 900px in every taller image, with the language switch, the theme toggle and *Logout* floating in the middle of a column that then went blank — 22 of the 34 files in `docs/assets/img/screens/` shipped that way |
 
+## The rules say what they mean
+
+A rule that is present in the table and matches nothing is invisible to every
+count-based test in the repository, and 2.15.1 shipped three of them for five
+releases.
+
+| Test | Protects | What it would have shipped |
+|---|---|---|
+| `TestCtStateMaskIsTheByteOrderTheKernelCompares` | the ct state mask is a native `u32`, so the kernel compares against the bits the name means | the mask was written `[]byte{0x00, 0x00, 0x00, 0x06}` and the kernel read `0x06000000`. The expected bytes in the test come from `nft --debug=netlink`, not from the implementation, so reversing `ctStateMask` turns it red rather than agreeing with itself |
+| `TestIntegration_EstablishedTrafficIsAcceptedByName` | `ct state established,related accept` renders under that name | it rendered as `ct state 0x2000000,0x4000000` and matched no packet ever sent — the whole stateful half of the input chain. An installation with a live table could complete no outbound connection at all, and applying the rules dropped the SSH session that was already open |
+| `TestIntegration_NoCtStateRendersAsARawMask` | **no** ct state anywhere in the table renders as hex | the class rather than the three instances. `nft` names every state it recognises, so a raw mask means bits no conntrack state sets — including on a rule added after this test was written |
+| `TestRulesIsEmptyCountsEveryField` | `shared.Rules.IsEmpty` counts every field of the struct, by reflection | a seventh rule set added and forgotten makes a configured host look unconfigured, and its stored rules quietly stop being enforced at boot |
+| `TestRestoreCurrent_DoesNotEnforceAnInstallationNobodyConfigured` | a host where nothing was ever applied is left alone at boot | `RulesStore` initialises `rules.json` with `emptyState()` and the boot restore installed it: `policy drop` with no port open, so SSH and the interface that would have opened SSH both closed. `docker compose up -d` and `dpkg -i` both reach it before the operator can open anything |
+| `TestRestoreCurrent_EnforcesAnEmptySetSomebodyApplied` | the guard above reads "never configured", not "empty" | an operator who deliberately applied an empty set, and an installation upgrading from before the guard existed, would both stop being restored at boot — the one direction that silently stops a firewall |
+
+The shape worth copying: **assert the kernel's own rendering, by name.** Every
+`ruleCount` assertion in this package was green throughout, because a rule that
+matches nothing is still a rule.
+
 Tailwind drops rules silently and the build stays green. A stylesheet test is a
 poor substitute for looking at the page — but it catches the class of failure
 where the page looks right on the machine that has the old file cached.

@@ -516,6 +516,8 @@ func TestDaemonDispatch_ApplyDoesNotRaceWithASettingsSave(t *testing.T) {
 func TestDispatch_PanicEngagesAndResumeClears(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
+	// RESUME restores, and a restore only reaches nftables on a configured host.
+	configureTestFirewall(t, fw)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 	defer d.Stop()
 

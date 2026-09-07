@@ -33,6 +33,27 @@ func newTestConfig(t *testing.T) *Config {
 }
 
 // newTestFirewall creates a Firewall with a stub NftablesManager for dispatch tests.
+// configureTestFirewall gives a test firewall the one thing RestoreCurrent now
+// requires before it will write anything: evidence that this installation has
+// ever been configured.
+//
+// Deliberately a separate call rather than something newTestFirewall does for
+// every caller. The distinction it draws — a host somebody has configured, and a
+// host where nothing has ever been applied — is the whole point of
+// Firewall.everConfigured, and a helper that quietly made every test look
+// configured would hide the case that produced it.
+func configureTestFirewall(t *testing.T, fw *Firewall) {
+	t.Helper()
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{
+		{Port: "22", Description: "SSH", SSH: true},
+	}); err != nil {
+		t.Fatalf("stage a rule: %v", err)
+	}
+	if err := fw.rules.PromoteStaged(); err != nil {
+		t.Fatalf("promote it into Current: %v", err)
+	}
+}
+
 func newTestFirewall(t *testing.T, cfg *Config) *Firewall {
 	t.Helper()
 	store, err := NewRulesStore(cfg.RulesPath())
@@ -878,6 +899,8 @@ func waitForSocket(t *testing.T, path string) {
 func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
+	// A restore only has something to put back on a host somebody configured.
+	configureTestFirewall(t, fw)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
 	startTestDaemon(t, d)
@@ -906,6 +929,7 @@ func TestDaemonStart_RestoresAtStartup(t *testing.T) {
 func TestDaemonStart_NoCommandIsServedBeforeTheRestoreHasRun(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
+	configureTestFirewall(t, fw)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
 	startTestDaemon(t, d)

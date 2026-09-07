@@ -226,6 +226,7 @@
   {"id": "audit_settings_saved", "translation": "Paramètres enregistrés"},
   {"id": "audit_system_saved", "translation": "Paramètres système enregistrés"},
   {"id": "audit_boot_enforced", "translation": "Règles restaurées au démarrage"},
+  {"id": "audit_boot_not_configured", "translation": "Aucun filtrage — rien n'est encore configuré"},
   {"id": "audit_boot_enforce_failed", "translation": "Les règles n'ont pas pu être restaurées au démarrage"},
   {"id": "audit_panic_engaged", "translation": "Mode panique activé"},
   {"id": "audit_panic_resumed", "translation": "Mode panique terminé"},

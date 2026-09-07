@@ -1,3 +1,20 @@
+easywall (2.15.1) unstable; urgency=high
+
+  * Fix: the conntrack state masks were written in the wrong byte order, so
+    the `established,related` accept rule in the input chain matched nothing.
+    An installation with a live table could not complete a single outbound
+    connection, and applying the rules dropped whatever SSH session was
+    already open. The invalid-packet drop and the SSH brute-force meter were
+    the same mistake failing open. Reported after a VPS was cut off
+    immediately following `docker compose up -d`.
+  * Fix: a host where nothing has ever been applied is no longer made to
+    enforce the empty rule set a new installation ships with. That closed
+    every port, including SSH and the web interface whose first-run wizard is
+    the only thing that opens them. Filtering now starts at the first
+    deliberate apply, which has the acceptance window to undo it.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Mon, 07 Sep 2026 22:54:41 +0200
+
 easywall (2.15.0) unstable; urgency=medium
 
   * Feat: every port rule carries a kernel packet counter and a stable id, so

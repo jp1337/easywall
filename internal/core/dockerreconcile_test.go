@@ -95,6 +95,7 @@ func TestReconcileDockerBridges_RestoresOnceWhenABridgeAppears(t *testing.T) {
 	cfg.Docker.Enabled = true
 	cfg.Docker.AllowBridgeNetworks = true
 	fw := newTestFirewall(t, cfg)
+	configureTestFirewall(t, fw)
 	fw.bootBridges = nil // boot saw nothing
 	fw.reconcilePoll = 10 * time.Millisecond
 	fw.reconcileWait = 2 * time.Second

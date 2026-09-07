@@ -787,6 +787,7 @@ var auditActionLabels = map[string]string{
 	// unknown identifier — but in whatever the raw snake_case says, in no
 	// language a translator chose.
 	"boot_enforced":          "audit_boot_enforced",
+	"boot_not_configured":    "audit_boot_not_configured",
 	"boot_enforce_failed":    "audit_boot_enforce_failed",
 	"panic_engaged":          "audit_panic_engaged",
 	"panic_resumed":          "audit_panic_resumed",
@@ -836,6 +837,16 @@ var auditActionTones = map[string]string{
 	// operator watching a page to notice.
 	"boot_enforced":       "ok",
 	"boot_enforce_failed": "crit",
+
+	// boot_not_configured: the daemon started on a host where nothing has ever
+	// been applied, and left it alone rather than enforcing the empty rule set
+	// RulesStore initialises. Amber, not neutral and not red — the machine is
+	// not filtering, which is a firewall state and not a staging step, but it is
+	// waiting on the operator rather than reporting a fault. Red here would put
+	// a fresh install's first audit line at the same weight as
+	// boot_enforce_failed, which is a machine that was supposed to be filtering
+	// and is not.
+	"boot_not_configured": "warn",
 
 	// panic_engaged / panic_resumed: deliberate does not make it neutral. The
 	// rule is what the firewall is doing, not whether a human meant it —

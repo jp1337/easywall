@@ -16,6 +16,16 @@ the sentence.
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
 
+# From 2.15.1
+
+Found while analysing the Discord lockout report, proven against `main` before
+the hotfix branch existed, and unrelated to the two defects it fixes.
+
+| | |
+|---|---|
+| **The landing page names three classes the stylesheet does not define** | `docs/index.md` carries `.docs-landstrip`, `.docs-cardgrid` and `.docs-card`; `web/src/docs.css` defines none of them, and Tailwind generates none. The section renders as unstyled prose. `TestTemplateClassesExistInStylesheet` covers `web/templates/` and `app.js` only, so nothing in the suite looks at markup under `docs/`. Belongs with 2.16, which is already rewriting `docs.css` |
+| **`docs/installation/docker.md` tells a remote operator to open `https://localhost:12227`** | The one instruction that only ever works on the machine easywall is developed on. It is why both defects in this release went unseen: loopback is accepted, so the documented first step succeeds locally and fails on every VPS. The fix is a documentation change to a page 2.16 is not otherwise touching, and it wants the first-run flow rewritten around a remote host rather than one sentence changed |
+
 # From 2.15
 
 Two layout defects found while verifying the *Last used* column, both proven
