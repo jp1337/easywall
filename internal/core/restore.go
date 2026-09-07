@@ -15,6 +15,12 @@ const (
 	RestoreReasonBoot = "daemon start"
 	// RestoreReasonResume is an operator ending panic mode.
 	RestoreReasonResume = "panic mode ended"
+	// RestoreReasonDockerBridge is a Docker bridge appearing after the boot
+	// restore has already run. The reason reaches the audit entry's detail and
+	// not its action, so a third constant costs nothing to register, colour or
+	// translate — and reusing RestoreReasonBoot told an operator that a restore
+	// at 09:14 happened at "daemon start".
+	RestoreReasonDockerBridge = "a docker bridge appeared"
 )
 
 // PanicEngaged reports whether this installation is deliberately unfiltered.
