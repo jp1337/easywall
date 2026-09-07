@@ -203,7 +203,7 @@ func TestUsageStore_ForgetsRulesThatAreGone(t *testing.T) {
 // never be the thing that stops working.
 func TestUsageStore_ACorruptFileDoesNotWedgeTheCollector(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "usage.json")
-	if err := os.WriteFile(path, []byte(`{"usage":{"aaaaaaaaaaaa":{"packe`), 0600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"usage":{"aaaaaaaaaaaa":{"pac`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	u := NewUsageStore(path)

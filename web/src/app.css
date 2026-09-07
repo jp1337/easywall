@@ -1629,8 +1629,8 @@ body {
   .col-sources { width: 25rem; }
   /* The longest string lastUsed can produce, in either language, is not
      "vor 59 Minuten" (14 characters) as an earlier version of this comment
-     claimed — it is the singular forms "vor einer Minute" and "vor einer
-     Stunde" (16 characters, tied), which render for any port used within the
+     claimed — it is the singular forms, "vor einer Minute" and
+     "vor einer Stunde", tied at 16 characters, which render for any port used within the
      last minute or hour. On a firewall that is actually carrying traffic that
      is the common case, not an edge one, and it is exactly what wrapped: a
      row 57px tall against 45px for its neighbours, at a width where the table
