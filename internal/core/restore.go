@@ -85,6 +85,13 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// launched — but it is no longer the only caller.
 	f.setBootBridges(detectDockerBridges())
 
+	// The counters, before the write below flushes them. A restore is not only a
+	// boot: RESUME reaches here, and so does the Docker-bridge reconciler on a
+	// machine that has been up and filtering for weeks. At boot there is usually
+	// nothing to book — the table was not there — and on those other two paths
+	// there is everything since the last tick.
+	f.collectUsageBeforeWrite()
+
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 	if err := f.nft.Apply(state, opts, nets); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
@@ -108,6 +115,13 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 		)
 		return fmt.Errorf("restore rules: %w", err)
 	}
+
+	// The table has been rebuilt, so every baseline in usage.json describes
+	// counters that are no longer in the kernel. Same call, same placement and
+	// same reasoning as apply's — see resetUsageBaselines, and Amendment A4 in
+	// the 2.15 plan for why it is after the call rather than between the collect
+	// and the call.
+	f.resetUsageBaselines()
 
 	// The marker again, now that the rules are actually in the kernel. The check
 	// at the top of this function was made before two file reads and a netlink
@@ -201,6 +215,17 @@ func (f *Firewall) panicLandedDuringWrite(engaged bool, requested, situation, us
 	if !engaged {
 		return false
 	}
+	// The counters, before the teardown below deletes the table they live in.
+	//
+	// No matching baseline reset, and that is not an oversight: Reset deletes the
+	// table without rebuilding one, so there is nothing for a baseline to
+	// describe. RuleCounters answers a missing table with an empty map and a nil
+	// error, so every later collect books nothing and leaves the stored baselines
+	// exactly as this call left them — correct, because they describe the last
+	// table that existed. Whichever write brings a table back — an apply, or the
+	// RestoreCurrent a `resume` runs — resets them itself as its own last step.
+	f.collectUsageBeforeWrite()
+
 	action, detail := requested, situation
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode was engaged while the rules were being written and the "+
@@ -256,6 +281,22 @@ func (f *Firewall) Panic(user string) error {
 	// the very rollback this ordering protects against would still run — just
 	// late.
 	f.CancelAcceptance()
+
+	// The counters, before the teardown deletes the table. An operator who
+	// panics, fixes the rule that locked them out and resumes should not find
+	// that the machine forgot which ports were in use in between — that history
+	// is part of what they need in order to decide.
+	//
+	// No baseline reset after it, for the reason spelled out in
+	// panicLandedDuringWrite: a deleted table is not a rebuilt one, and the write
+	// that brings a table back resets the baselines itself.
+	//
+	// Safe under panicMu, which this function holds. The collect takes the nft
+	// mutex (RuleCounters), the rules-store mutex and the usage mutex, in that
+	// order, and none of the three is ever held by anything that then waits for
+	// panicMu — nft.Apply releases its own mutex before returning, and no caller
+	// of RulesStore or UsageStore takes panicMu at all.
+	f.collectUsageBeforeWrite()
 
 	if err := f.nft.Reset(); err != nil {
 		slog.Error("panic mode is recorded but the table could not be torn down; "+

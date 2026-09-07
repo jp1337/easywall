@@ -418,6 +418,17 @@ func (f *Firewall) apply(user string) error {
 	// baseline zeroed there would re-book the whole lifetime of every live rule
 	// at the next collect.
 	//
+	// On this branch only, and Amendment A4's own wording — "after the call, both
+	// outcomes are a rebuilt table" — was wrong about why. nft.Apply's error is
+	// two different situations: a refusal before the table is touched, where a
+	// reset would re-book every rule's whole lifetime, and a failure after the
+	// ruleset is committed, where the table *has* been rebuilt. They want
+	// opposite things and the error does not distinguish them, so the reset stays
+	// on the success path. What covers the post-commit case is that the error
+	// branch above calls f.rollback, whose own write resets the baselines as its
+	// last step — and behind that, Collect's below-baseline branch, which books a
+	// counter that restarted under it in full.
+	//
 	// A ticker tick can be mid-collect right here, having queued on the nft
 	// mutex behind the write above — see resetUsageBaselines' own comment for
 	// what that costs and why it is accepted rather than locked away.
@@ -583,12 +594,28 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 				", and nothing was written to the kernel — the table is in whatever "+
 				"state panic mode left it", user)
 	} else {
+		// The counters, before the write below flushes them — and this is the
+		// case that matters most, because it is every unconfirmed apply. The
+		// sequence is: a tick books at T+0, an operator applies at T+2min
+		// (apply's own collect and baseline reset both run), the window expires
+		// at T+4min, and this rollback rebuilds the table. Without this call the
+		// traffic of those two minutes is gone, and on a port whose only use was
+		// in that window the interface then says "never" and the dashboard counts
+		// it unused for thirty days — advice to close a port that is in use, one
+		// missing call away from the collect written to prevent exactly that.
+		f.collectUsageBeforeWrite()
+
 		opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
 		applyErr := f.nft.Apply(previous, opts, nets)
 		if applyErr != nil {
 			slog.Error("rollback nftables failed", "error", applyErr)
 			failures = append(failures, "nftables: "+applyErr.Error())
 		}
+		// Whatever the write reported, the table it left is not the table the
+		// baselines describe: nft.Apply deletes and recreates it, and reports
+		// errors from two places that run after the ruleset is committed. Both
+		// outcomes want the baselines back at zero.
+		f.resetUsageBaselines()
 		// The third writer of table inet easywall, and it races `panic` exactly
 		// like the other two. The marker was read a few statements ago; a console
 		// teardown landing between that read and this write leaves the previous

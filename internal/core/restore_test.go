@@ -478,8 +478,14 @@ func lockedMarkerFirewall(t *testing.T) (*Firewall, *Config) {
 		t.Skip("this filesystem lets the marker be stat'ed anyway; nothing to test")
 	}
 	return &Firewall{
-		cfg:        cfg,
-		nft:        &NftablesManager{},
+		cfg: cfg,
+		nft: &NftablesManager{},
+		// rollback books the counters before its write and resets the baselines
+		// after it, so a Firewall reaching that path needs a store. It is pointed
+		// at the deliberately unreadable DataDir this helper builds, which is the
+		// truthful fixture: both calls fail, log and are swallowed, because a
+		// bookkeeping file that cannot be read is no reason to abandon a rollback.
+		usage:      NewUsageStore(cfg.UsagePath()),
 		rules:      store,
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
 	}, cfg
