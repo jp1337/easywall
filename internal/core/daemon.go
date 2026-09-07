@@ -228,9 +228,15 @@ func (d *Daemon) Start() error {
 				continue
 			}
 		}
-		// Registered, or refused and closed — see track. The refusal only
-		// happens once Stop has closed d.quit, so the very next Accept fails
-		// into the quit branch above and this loop returns; there is no spin.
+		// Registered, or refused and closed — see track.
+		//
+		// A refusal means Stop has closed d.quit, but not that the listener is
+		// shut: Stop closes it a few statements later, after releasing d.mu. So
+		// for that window Accept keeps succeeding and each connection is taken
+		// and closed again. That is bounded by whatever a client manages to dial
+		// in those few statements and ends the moment the close lands, after
+		// which Accept fails into the quit branch above and the loop returns —
+		// so it is not a spin, but it is not one connection either.
 		if !d.track() {
 			_ = conn.Close()
 			continue
@@ -243,8 +249,19 @@ func (d *Daemon) Start() error {
 }
 
 // track takes a slot in d.wg for a piece of work the daemon is about to start,
-// and reports whether it got one. Every Add the daemon makes outside a served
-// connection goes through here.
+// and reports whether it got one. Every Add in Start goes through here — the
+// four that can be the transition from a counter of zero.
+//
+// The two Adds outside Start do not, and must not. The apply goroutine in
+// dispatch and the login sweeper in loginEventLog are both reached from
+// handleConn, which is already holding the slot track gave it, so neither can
+// be an Add at zero by that route; and refusing either during shutdown would be
+// wrong rather than merely unnecessary. The apply's slot is what makes Stop wait
+// for an open acceptance window's rollback instead of abandoning it — see
+// TestAcceptance_ShutdownBeforeTheWindowOpensDoesNotOpenOne — and the sweeper's
+// is inside a sync.Once, so a refusal would leave the debouncer with no sweeper
+// for the rest of the process. Their zero-safety therefore rests on the
+// accept-loop slot being held above them, which is true and unguarded.
 //
 // It exists for the ordering, not the bookkeeping. sync.WaitGroup.Add's own
 // documentation forbids "calls with a positive delta that start when the counter

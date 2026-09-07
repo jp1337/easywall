@@ -9,7 +9,7 @@ import (
 )
 
 // Running the real Daemon.Start from a test takes something that is easy to
-// leave out, and it has been left out in two different releases. So the rule is
+// leave out, and four tests left it out at once on 2026-08-30. So the rule is
 // not "remember it" but "there is one place that has it": startDaemonGoroutine.
 // This guard says nothing else may spawn Start.
 //
@@ -35,8 +35,12 @@ import (
 // the refusal were removed — 76 process runs in 160 before the fix, 0 in 256
 // after.
 //
-// Eight tests spawn Start. Five take the helper's cleanup through
-// startTestDaemon; the rest take the channel it returns.
+// Eight tests in the default build spawn Start, four and four: four take the
+// helper's cleanup through startTestDaemon, and four hold the channel it returns
+// because they assert on Start's own return value. A ninth,
+// TestIntegration_NewDaemon_Start_Stop, sits behind the integration tag — the
+// guard reads sources rather than building them, so it is covered here whether
+// that tag is set or not.
 //
 // The guard reads the package's own test sources, the idiom
 // TestDaemonStart_SourceRestoresBeforeItListens already uses here. A pattern that
@@ -101,8 +105,8 @@ func TestDaemonTests_StartIsOnlySpawnedByTheHelper(t *testing.T) {
 	if len(offenders) > 0 {
 		t.Errorf("Daemon.Start is spawned outside %s in %d place(s):\n  %s\n\n"+
 			"Use it instead: it hands back the channel Start's error lands on, which "+
-			"is the only signal that goroutine ever gives, and it has gone missing "+
-			"once already — read the comment above this test.",
+			"is the only signal that goroutine ever gives, and four tests discarded "+
+			"it at once on 2026-08-30 — read the comment above this test.",
 			allowed, len(offenders), strings.Join(offenders, "\n  "))
 	}
 }

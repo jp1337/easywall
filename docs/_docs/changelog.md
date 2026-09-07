@@ -78,6 +78,15 @@ Ten entries carried forward from earlier releases, closed in the same pass.
   seventeen. The test assertion says *at least fifteen*, deliberately, and the
   entry now says why.
 
+And one more, shipped in 2.14 and found here:
+
+- **A request the core had already accepted could be abandoned when the daemon
+  stopped.** `systemctl restart easywall-core` could walk away from a command it
+  was in the middle of answering, rather than finishing it first. A request
+  accepted before the shutdown begins is now always answered; one that arrives
+  after it is closed straight away, which is what the interface already reported
+  as an unreachable core.
+
 ### Known limits
 
 - A flush easywall did not perform — `nft flush ruleset` typed by hand — loses
