@@ -40,6 +40,24 @@ func mustContain(t *testing.T, rs, want, why string) {
 	}
 }
 
+// mustAcceptPort fails unless some rule in the input chain both matches want
+// (e.g. "tcp dport 22") and ends in accept.
+//
+// Not a plain mustContain(rs, want+" accept", why): portAcceptRules places an
+// expr.Counter between the match and the verdict, so the kernel's own
+// rendering is "tcp dport 22 counter packets 0 bytes 0 accept" — want and
+// "accept" are no longer adjacent text. This checks the two fragments
+// independently against one rule, the way indexOfRule already does for every
+// count-based integration test elsewhere in this package, rather than
+// assuming a fixed layout for the expression list.
+func mustAcceptPort(t *testing.T, want, why string) {
+	t.Helper()
+	if indexOfRule(chainText(t, "input"), want, "accept") < 0 {
+		t.Errorf("no accepting rule for %q in the input chain\n  %s\n--- ruleset ---\n%s",
+			want, why, ruleset(t))
+	}
+}
+
 func mustNotContain(t *testing.T, rs, unwanted, why string) {
 	t.Helper()
 	if strings.Contains(rs, unwanted) {
@@ -474,8 +492,7 @@ func TestIntegration_SSHFlaggedPort_IsMeteredAndReachable(t *testing.T) {
 	// match is built as a bitwise-and plus a not-equal-zero test.
 	mustContain(t, rs, "dport 2222 ct state 0x8000000 jump sshbrute",
 		"a new connection to the flagged port must go through the rate limiter")
-	mustContain(t, rs, "dport 2222 accept",
-		"and the port still has to be open")
+	mustAcceptPort(t, "dport 2222", "and the port still has to be open")
 	mustContain(t, rs, "chain sshbrute",
 		"and that chain has to exist")
 }

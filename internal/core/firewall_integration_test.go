@@ -63,6 +63,7 @@ func newTestFirewallWithRealNft(t *testing.T) *Firewall {
 		cfg:        cfg,
 		nft:        m,
 		rules:      store,
+		usage:      NewUsageStore(cfg.UsagePath()),
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
 	}
 }
@@ -419,6 +420,7 @@ func TestIntegration_Apply_AcceptanceDisabled_ReturnsWithoutWaiting(t *testing.T
 		cfg:        cfg,
 		nft:        m,
 		rules:      store,
+		usage:      NewUsageStore(cfg.UsagePath()),
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
 	}
 	if err := store.SaveStaged("tcp", []shared.PortRule{{Port: "8080"}}); err != nil {
@@ -470,6 +472,7 @@ func TestIntegration_Apply_AcceptanceEnabled_OpensTheWindow(t *testing.T) {
 		cfg:        cfg,
 		nft:        m,
 		rules:      store,
+		usage:      NewUsageStore(cfg.UsagePath()),
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
 	}
 
@@ -600,7 +603,7 @@ func TestIntegration_RollbackKeepsTheStagedEdits(t *testing.T) {
 
 	// The kernel must be back on the previous set too.
 	rs := ruleset(t)
-	mustContain(t, rs, "tcp dport 22 accept", "the previous rule is enforced again")
+	mustAcceptPort(t, "tcp dport 22", "the previous rule is enforced again")
 	mustNotContain(t, rs, "tcp dport 8443", "the rolled-back rule must be gone from the kernel")
 }
 
