@@ -89,7 +89,7 @@ func TestIntegration_RulesAreBackAfterTheTableIsFlushed(t *testing.T) {
 	// what is matched, the same way the semantics tests elsewhere in this
 	// package assert "...accept" and "...drop" rather than the address alone.
 	dump := ruleset(t)
-	mustContain(t, dump, "tcp dport 9101 accept",
+	mustAcceptPort(t, "tcp dport 9101",
 		"port 9101 was staged and applied before the reboot, and RestoreCurrent must put back "+
 			"a rule that accepts it — not merely one that mentions the number 9101")
 	// Unqualified on purpose: 9102 was never staged, so no rule of any kind —
@@ -221,7 +221,7 @@ func TestIntegration_PanicLandingAfterAWriteLeavesNoRules(t *testing.T) {
 		t.Fatal("precondition failed: Enforcing() is false right after an accepted Apply, " +
 			"so the teardown below would prove nothing")
 	}
-	mustContain(t, ruleset(t), "tcp dport 9101 accept",
+	mustAcceptPort(t, "tcp dport 9101",
 		"the rules this test is about to see taken down have to be there first")
 
 	// The console: `easywall-core panic` with no daemon answering writes the
