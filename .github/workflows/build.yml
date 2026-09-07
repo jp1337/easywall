@@ -253,15 +253,31 @@ jobs:
       # PID 1 and running — not once the container is merely "up". Installing
       # the package before this is confirmed would silently skip the coverage
       # this job exists for.
+      # This wait covers three things, not one: pulling ubuntu:24.04 on a cold
+      # runner, the container's own `apt-get install systemd` — it cannot exec
+      # what it has not installed yet — and only then systemd reaching PID 1.
+      # It allowed sixty seconds for all three and stopped fitting: every poll
+      # read `systemctl: executable file not found`, which does not mean
+      # "systemd never came up" but "apt had not got to it yet", and the loop
+      # could not tell those apart. So both are named, the budget covers the
+      # install, and a container that has already exited is not waited out for
+      # three minutes to be told what its logs said immediately.
       - name: Assert systemd is actually running before installing anything
         run: |
           set -euo pipefail
           state=""
-          for i in $(seq 1 60); do
+          for i in $(seq 1 180); do
+            if [ "$(docker inspect -f '{{.State.Running}}' easywall-test 2>/dev/null || echo false)" != "true" ]; then
+              echo "::error::the container exited before systemd came up — the install inside it failed"
+              docker logs easywall-test --tail 100 || true
+              exit 1
+            fi
             state=$(docker exec easywall-test systemctl is-system-running 2>/dev/null || true)
-            echo "systemd state: ${state:-<not answering yet>}"
             case "$state" in
-              running|degraded) break ;;
+              running|degraded) echo "systemd state: $state"; break ;;
+              ''|*'exec failed'*|*'not found'*)
+                echo "waiting (${i}s): systemd is not installed in the container yet" ;;
+              *) echo "systemd state: $state" ;;
             esac
             sleep 1
           done
