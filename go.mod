@@ -3,7 +3,7 @@ module github.com/jp1337/easywall
 // The minimum this code needs: internal/web/server.go calls
 // http.NewCrossOriginProtection, which arrived in Go 1.25. It moves when the code
 // starts using a newer API, and not before — raising it costs every consumer.
-go 1.25.0
+go 1.26.0
 
 // What we build with. actions/setup-go reads this in preference to the directive
 // above, so every workflow, the release and the Debian package compile with
@@ -18,7 +18,7 @@ require (
 	github.com/google/nftables v0.3.0
 	github.com/gorilla/sessions v1.4.0
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/sys v0.47.0
 	golang.org/x/text v0.41.0
 	golang.org/x/time v0.15.0
