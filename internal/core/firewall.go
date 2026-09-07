@@ -289,6 +289,12 @@ func (f *Firewall) apply(user string) error {
 
 	// 1. Backup current rules (for rollback)
 	if err := f.rules.BackupCurrent(); err != nil {
+		// Audited, like the GetState above it. This is the step that makes the
+		// rollback possible at all: failing here means the apply below would have
+		// had nothing to go back to, and an operator reading the log has to be
+		// able to see that the cycle stopped before anything was risked.
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
+			"the current rules could not be backed up, so nothing was applied: "+err.Error(), user)
 		return fmt.Errorf("backup rules: %w", err)
 	}
 
@@ -302,11 +308,20 @@ func (f *Firewall) apply(user string) error {
 
 	// 3. Promote staged → current in state
 	if err := f.rules.PromoteStaged(); err != nil {
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
+			"the staged rules could not be promoted, so nothing was applied: "+err.Error(), user)
 		return fmt.Errorf("promote staged rules: %w", err)
 	}
 
 	updatedState, err := f.rules.GetState()
 	if err != nil {
+		// The promote above succeeded, so the stored Current is already the set
+		// this apply was trying out — and this return leaves it there. The entry
+		// says so, because "nothing was applied" would be false: nothing reached
+		// the kernel, and the file did change.
+		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
+			"the rules could not be re-read after promoting them; nothing reached the "+
+				"kernel, and the stored rules now hold the set this apply was trying: "+err.Error(), user)
 		return fmt.Errorf("re-read rules after promote: %w", err)
 	}
 
@@ -341,6 +356,20 @@ func (f *Firewall) apply(user string) error {
 	if acceptanceOn {
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_started", "all", "", user)
 		if err := f.acceptance.Start(f.cfg.AcceptanceDuration()); err != nil {
+			// Unreachable today — Start returns nil on every path — and it is
+			// guarded anyway, because what it would leave behind is the 2.7
+			// lockout chain reached by a different door. PromoteStaged has run,
+			// so the stored Current is a set nobody confirmed; the kernel has not
+			// been written, so the machine is still enforcing the old rules. Leave
+			// the file as it is and the next boot or `resume` installs the
+			// unconfirmed set with no acceptance window, because RestoreCurrent's
+			// whole justification is that Current already survived one.
+			//
+			// rollback puts Current back and, since nothing was written, its
+			// kernel half simply rewrites the rules already in force.
+			WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
+				"the acceptance window could not be opened, so nothing was applied: "+err.Error(), user)
+			f.rollback(state, user)
 			return err
 		}
 		// Registered where the window opens, not after Wait returns. Everything
