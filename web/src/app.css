@@ -364,6 +364,33 @@ body {
     margin-bottom: 5px;
   }
 
+  /* ── Group divider and indent ────────────────────────────────────────────
+     The device the documentation sidebar already has, for the reason DESIGN.md
+     already gives: `label` at ink-subtle and a nav link at ink-muted sit twelve
+     steps apart per channel — distinct on paper, the same grey once rendered,
+     and with the label the *lighter* of the two it read as the weaker element
+     rather than as the divider it is. Colour never carried the separation, and
+     after 2.16 there is even less of it to carry anything.
+
+     Sibling-scoped rather than class-scoped: the first labelled group follows
+     the ungrouped Dashboard link, not another group, and a rule there would
+     divide nothing. :has() means base.html needs no class of its own, so a
+     fourth group added later gets both devices without anyone remembering to.
+
+     carried-forward.md carried this across three design reviews as
+     "deliberately not touched". */
+  .nav-section:has(> .nav-section-label) ~ .nav-section:has(> .nav-section-label) {
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  /* Container, then contents. The active edge stays out in the gutter at the
+     list's own padding, so it marks the group's left edge rather than the text's
+     — which is what makes the indent read as containment rather than as a second
+     margin. */
+  .nav-section:has(> .nav-section-label) .nav-links li a { padding-left: 22px; }
+
   .nav-links { list-style: none; padding: 0 8px; margin: 0; }
   .nav-links li { list-style: none; }
 
@@ -511,6 +538,7 @@ body {
      the comment above {{define "langswitch"}} — and is hidden only once
      data-js confirms a script is running. */
   .lang-switch {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -519,18 +547,52 @@ body {
     color: var(--color-ink-subtle);
   }
 
+  /* The chevron appearance:none takes away. Two borders on an empty box rather
+     than an icon file or a data: URI — it takes currentColor, so it follows the
+     theme with no second asset to keep in step, and style-src 'self' has nothing
+     to object to. The same device the documentation sidebar's group markers use.
+
+     On the wrapper, not the select: a <select> carries no reliable
+     pseudo-element. It is pinned to the select's own right edge — with a script
+     running, [data-js="on"] hides .lang-submit and the select is the last thing
+     in the row. */
+  .lang-switch::after {
+    content: "";
+    position: absolute;
+    right: 22px;
+    top: 50%;
+    width: 0.4rem;
+    height: 0.4rem;
+    margin-top: -0.32rem;
+    border-right: 1.5px solid var(--color-ink-subtle);
+    border-bottom: 1.5px solid var(--color-ink-subtle);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* Without a script the submit button sits to the right of the select, so the
+     chevron has to clear it rather than land on it. */
+  html:not([data-js]) .lang-switch::after { right: calc(22px + 4.5rem); }
+
   .lang-switch svg {
     width: 15px;
     height: 15px;
     flex-shrink: 0;
   }
 
+  /* The one native control left in the interface, drawn like the rest of them.
+     Its fill moves off canvas for the reason DESIGN.md states about every field:
+     a canvas background sits 1.03–1.06:1 from the surface of the card it is on.
+     In the sidebar that was survivable; on the login card, where this control
+     also appears, it left the select recognisable only by its native arrow. */
   .lang-select {
     flex: 1;
     min-width: 0;
     height: var(--control-height-sm);
-    padding: 0 6px;
-    background: var(--color-canvas);
+    /* Room for the chevron above; the value must not run under it. */
+    padding: 0 26px 0 6px;
+    appearance: none;
+    background: var(--color-surface-raised);
     color: var(--color-ink);
     border: 1px solid var(--color-control-edge);
     border-radius: var(--radius-sm);
