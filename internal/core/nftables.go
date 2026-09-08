@@ -78,9 +78,38 @@ type NftablesManager struct {
 	mu   sync.Mutex
 	conn *nftables.Conn
 
-	// adder is where the builders write. It is m.conn in production and a
-	// recorder in tests. Never nil after NewNftablesManager.
+	// adder is where the builders write. In production it is a builtRecorder
+	// wrapping m.conn; in tests it is a recordingConn. Never nil after
+	// NewNftablesManager.
 	adder ruleAdder
+
+	// built is every rule this transaction added, kept so CheckRules can read
+	// them before the flush that sends them to the kernel. Cleared at the top of
+	// Apply — not in reset(), which Reset() also calls on its own to tear the
+	// table down and which adds no rules at all.
+	//
+	// Not a second source of truth: these are the same pointers the connection
+	// holds, appended by builtRecorder so no builder has to remember to.
+	built []*nftables.Rule
+
+	// lastFindings is what CheckRules said about the last transaction. Read
+	// through LastFindings, which the health status and the CI gate both use.
+	lastFindings []Finding
+}
+
+// builtRecorder is the production adder: it records the rule and forwards it to
+// the connection.
+//
+// It exists so the check in Apply reads what was actually built rather than a
+// second reconstruction of it. Thirty-one call sites add rules across
+// twenty-one builders, and asking each of them to also append to a slice is
+// thirty-one chances to forget — which is the shape of the omission that let
+// three byte-reversed masks ship: every individual place looked right.
+type builtRecorder struct{ m *NftablesManager }
+
+func (b builtRecorder) AddRule(r *nftables.Rule) *nftables.Rule {
+	b.m.built = append(b.m.built, r)
+	return b.m.conn.AddRule(r)
 }
 
 // ruleAdder is the one method every add* builder in this file uses. It exists so
@@ -104,7 +133,45 @@ func NewNftablesManager() (*NftablesManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open netlink connection: %w", err)
 	}
-	return &NftablesManager{conn: conn, adder: conn}, nil
+	m := &NftablesManager{conn: conn}
+	m.adder = builtRecorder{m}
+	return m, nil
+}
+
+// LastFindings is what the expression check said about the last table this
+// manager built. Empty is the healthy answer.
+//
+// A copy, under the lock: the caller is the health status, on another
+// goroutine, and handing out the slice would let it read a length while Apply
+// is appending to it.
+func (m *NftablesManager) LastFindings() []Finding {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]Finding(nil), m.lastFindings...)
+}
+
+// checkBuilt runs the expression check over everything built so far and records
+// what it found. The caller must hold m.mu.
+//
+// A finding never refuses the write. A check that read false on a configured
+// host would quietly stop enforcing rules somebody wrote, which is the failure
+// everConfigured exists to avoid (restore.go:218) — so this logs, it degrades
+// health through LastFindings, and CI is where it is fatal:
+// TestIntegration_TheBuiltTableHasNoFindings runs it over a table with every
+// protection module on and fails the build.
+//
+// Called before each of Apply's two flushes, over the whole accumulated slice.
+// Re-reading the first batch is idempotent and the rule count is in the
+// hundreds; the alternative — checking only what the second flush adds — would
+// need incremental bookkeeping to save nothing, and the final log rule reaching
+// the kernel unchecked is exactly the shape of defect this release is about.
+func (m *NftablesManager) checkBuilt() {
+	m.lastFindings = CheckRules(m.built, nil)
+	for _, f := range m.lastFindings {
+		slog.Error("a rule about to be written to the kernel cannot be right; "+
+			"the firewall is being applied anyway and health will report degraded",
+			"finding", f.String())
+	}
 }
 
 // Snapshot captures the current kernel nftables state as structured JSON.
@@ -463,6 +530,11 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Here rather than in reset(), which Reset() also calls on its own: this is
+	// the start of one transaction's worth of rules, and it is the only place
+	// that is true of.
+	m.built = nil
+
 	ipv6, docker, routing := netCfg.IPv6, netCfg.Docker, netCfg.Routing
 	// Check the rules before Reset, not after: Reset deletes the table, so a
 	// failure past this point costs the working ruleset. The builders below
@@ -654,6 +726,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addForwardingRules(table, state.Current.Forwarding)
 	}
 
+	m.checkBuilt()
 	if err := m.conn.Flush(); err != nil {
 		return err
 	}
@@ -674,6 +747,12 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	// "everything the final policy drops", and now it is.
 	if opts.LogBlocked {
 		m.addFinalLog(table, inputChain, opts)
+		// The second check, and it is not ceremony. This rule is added after
+		// the first flush has already gone out, so a check at that flush alone
+		// would let it reach the kernel unread — one builder's output exempt
+		// from the guard, which is precisely how three reversed masks lived for
+		// five releases.
+		m.checkBuilt()
 		if err := m.conn.Flush(); err != nil {
 			return fmt.Errorf("add final log rule: %w", err)
 		}
@@ -898,8 +977,8 @@ func IsReservedRuleID(id string) bool {
 // defect: a table that looks right in `nft list ruleset` and completes no
 // outbound connection.
 //
-// **Only the input chain's copy is tagged.** There are two callers: buildRules
-// adds this to the input chain, and addForwardExceptions adds it to the forward
+// **Only the input chain's copy is tagged.** There are two callers: Apply adds
+// this to the input chain, and addForwardExceptions adds it to the forward
 // chain so a reply is not re-tested against the routed networks. Tagging both
 // would put one id on two different rules, and a reader that summed them would
 // report input and forward traffic as one figure. RuleCounters filters to the
