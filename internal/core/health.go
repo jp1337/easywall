@@ -111,6 +111,44 @@ func computeHealth(in healthInputs) shared.HealthResult {
 	// have moved: a port accepted a SYN and no reply found a rule to match.
 	// TestHealthIsOkOnASilentHost is the guard on the second half.
 	//
+	// What the second half costs, because a comment that only argues for its own
+	// code is one a later reader stops trusting. `established == 0 && ports > 0`
+	// is not *only* the reversed-mask signature. It also describes a port that
+	// accepted packets whose flow never reached ESTABLISHED, and there are three
+	// real shapes of that:
+	//
+	//   - an open port with no listener being scanned. The SYN is accepted, the
+	//     kernel answers RST, the conntrack entry closes, and the next SYN is
+	//     NEW again — so the port counter climbs and the established one never
+	//     moves.
+	//   - a write-only UDP receiver: syslog, netflow, a metrics collector. It
+	//     is sent to and never replies, so nothing about it is ever a reply.
+	//   - the interval between an apply's first inbound SYN and its ACK. Small,
+	//     but a read landing inside it sees exactly the same two numbers.
+	//
+	// On a host with no other inbound TCP at all, any of the three reports
+	// `degraded/stateful_dead` and sends whoever reads it hunting a
+	// rule-building defect that is not there — the same harm the panic-before-
+	// counter ordering above was chosen to avoid, in a release whose whole
+	// subject is not making false statements about the firewall.
+	//
+	// The class is narrow, and this is the reason it is narrow rather than an
+	// assurance that it is: all three need a host with inbound traffic and *no
+	// completed inbound connection whatsoever*, and one completed inbound TCP
+	// connection defuses all three at once. Asking `/healthz` is itself a
+	// completed inbound TCP connection. So is an admin session. A host that
+	// nobody monitors and nobody administers can produce this; a host that
+	// anybody watches cannot, and the second kind is the kind that has somebody
+	// to mislead.
+	//
+	// The tightening, if it ever proves necessary: require the condition to hold
+	// across two consecutive reads, since all three shapes above are transient
+	// and the defect is permanent — a byte-reversed mask is identical on every
+	// start of the same binary. Deliberately not built. It needs state carried
+	// between calls, and Health() is a pure read by design; that is a real cost
+	// to pay against a class this narrow, and the day it is worth paying is the
+	// day somebody reports the false positive.
+	//
 	// A counter read that failed leaves both sums at zero, so it reads as a
 	// silent host and the state stays ok. That is the honest answer and not a
 	// swallowed error: the signal is *unavailable*, which is different from
