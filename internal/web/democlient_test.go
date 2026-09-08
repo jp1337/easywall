@@ -587,8 +587,8 @@ func TestDemo_CancelAcceptanceRollsBackNow(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 21 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 21 "+
+	if len(shared.AllCommandTypes) != 22 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 22 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 
@@ -603,6 +603,33 @@ func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
 	d := newDemoState()
 	if resp := d.Send(shared.Command{Type: "NOT_A_COMMAND"}); resp.Success {
 		t.Error("an unknown command must still be refused as one")
+	}
+}
+
+// The demo has no network namespace to run the self-test's proof in, so
+// claiming "passed" would be a false statement in the shipped public demo.
+// TestDemo_AnswersEveryDeclaredCommand only proves GET_HEALTH is not "unknown
+// command" — this proves the specific claim the demo is allowed to make:
+// healthy, with the self-test stamped unprovable rather than passed.
+func TestDemoAnswersGetHealth(t *testing.T) {
+	d := newDemoState()
+
+	resp := d.Send(shared.Command{Type: shared.CmdGetHealth})
+	if !resp.Success {
+		t.Fatalf("GET_HEALTH failed: %s", resp.Error)
+	}
+
+	var got shared.HealthResult
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthOK {
+		t.Errorf("demo health state = %q, want %q", got.State, shared.HealthOK)
+	}
+	if got.Selftest.Result != shared.SelftestUnprovable {
+		t.Errorf("demo self-test result = %q, want %q — the demo has no namespace to "+
+			"prove anything in, and claiming otherwise would be false in the public demo",
+			got.Selftest.Result, shared.SelftestUnprovable)
 	}
 }
 
