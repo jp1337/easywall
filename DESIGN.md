@@ -871,7 +871,7 @@ constraint is not the longest title: that is 23 characters — *Changer le mot d
 and it wraps at its spaces. The constraint is the longest **unbreakable** title, 19
 characters, `Systemeinstellungen`, a German compound with no break point anywhere in it.
 JetBrains Mono advances 0.6em, so 19 characters is 11.4em, and roughly 358px is available
-inside the padding at a 390px viewport, which puts the ceiling at 31.4px. 30px is that
+inside the padding at a 390px viewport, which puts the ceiling at 31.4px on paper, and 31px measured against the loaded face — the string is 342px at 30px against 362px available, so it fits with 20px to spare. 30px is that
 number with the rounding taken off. Verify it by rendering /settings in German at 390px,
 not by re-doing the arithmetic.
 

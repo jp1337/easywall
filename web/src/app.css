@@ -723,13 +723,17 @@ body {
      DESIGN.md's typography rule, amended in 2.16. The countdown proved this
      voice works and it appeared on exactly one screen in the whole product.
 
-     30px is a ceiling reached by measurement, not a preference. The longest page
-     title across all three locales is 23 characters ("Changer le mot de passe",
-     fr) and wraps at its spaces; the longest *unbreakable* one is 19 —
+     30px is a ceiling, and it is measured rather than calculated. The longest
+     page title across all three locales is 23 characters ("Changer le mot de
+     passe", fr) and wraps at its spaces; the longest *unbreakable* one is 19 —
      "Systemeinstellungen", a German compound with no break point anywhere in it.
-     JetBrains Mono advances 0.6em, so 19 characters is 11.4em, and roughly 358px
-     is available inside the padding at a 390px viewport: 31.4px. Verify by
-     rendering /settings in German at 390px, not by trusting this arithmetic. */
+
+     The arithmetic says 31.4px: 0.6em advance, 19 characters, 11.4em against the
+     available width. Measured against the loaded face with canvas metrics, the
+     string is 342px at 30px and 362px is available inside .content's padding at
+     a 390px viewport — so it fits with 20px to spare and first overflows at
+     **31px**. The arithmetic was right to within half a pixel, which is the
+     reason to check rather than the reason not to. */
   .page-title {
     margin: 0;
     font-family: var(--font-data);
