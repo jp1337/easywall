@@ -874,7 +874,53 @@ func ctStateMask(bits uint32) []byte {
 // repeated as a literal beside three masks where order is the whole point.
 var ctStateNoMatch = []byte{0x00, 0x00, 0x00, 0x00}
 
+// Reserved rule ids name a rule easywall builds for its own accounting rather
+// than one an operator wrote. They are the only ids RuleCounters reports that
+// no rules file contains, and the prefix is what keeps them out of usage.json:
+// UsageStore.Collect books only ids liveRuleIDs names, and liveRuleIDs reads
+// the rules file. The prefix makes that separation stateable rather than
+// emergent.
+const ReservedIDEstablished = "_established"
+
+// IsReservedRuleID reports whether id is one of easywall's own.
+func IsReservedRuleID(id string) bool {
+	return strings.HasPrefix(id, "_")
+}
+
+// addEstablishedAccept is the stateful half of a chain, and in the input chain
+// it is the one rule whose counter is worth reading on its own.
+//
+// It carried neither a counter nor a comment until 2.17, so RuleCounters — which
+// skips every rule without an id — never saw it, and the number that would have
+// caught the byte-reversed mask described above was the one number nothing in
+// this daemon could read. On a host with any traffic at all the counter can only
+// be zero if this rule matches nothing, which is exactly the signature of that
+// defect: a table that looks right in `nft list ruleset` and completes no
+// outbound connection.
+//
+// **Only the input chain's copy is tagged.** There are two callers: buildRules
+// adds this to the input chain, and addForwardExceptions adds it to the forward
+// chain so a reply is not re-tested against the routed networks. Tagging both
+// would put one id on two different rules, and a reader that summed them would
+// report input and forward traffic as one figure. RuleCounters filters to the
+// input chain and would not notice, but an id that is unique only because its
+// one reader happens to filter is unique by luck — a metrics endpoint or
+// outbound rules would each break it silently, which is the class of defect
+// this release exists to prevent.
+//
+// So do not add the tag to the forward copy for symmetry. Untagged puts it in
+// exactly the category it belongs to, beside the module rules, the blacklist,
+// the whitelist and the Docker exceptions: rules with a counter, no id, and
+// nothing reading them by name. The counter is on both, because it costs
+// nothing and `nft list ruleset` is where an operator looks.
+//
+// The id is a reserved one, so nothing books it as a port rule. See
+// ReservedIDEstablished.
 func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Chain) {
+	var tag []byte
+	if c != nil && c.Name == inputChainName {
+		tag = userdata.AppendString(nil, userdata.TypeComment, ReservedIDEstablished)
+	}
 	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
@@ -888,8 +934,15 @@ func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Ch
 				Xor:            ctStateNoMatch,
 			},
 			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
+			// After the match, before the verdict — the position portAcceptRules
+			// documents and for the same reason. Ahead of the match this counts
+			// every packet that reaches the rule rather than every packet it
+			// accepts, which rises steadily on a host whose stateful half matches
+			// nothing and is indistinguishable from a healthy figure.
+			&expr.Counter{},
 			&expr.Verdict{Kind: expr.VerdictAccept},
 		},
+		UserData: tag,
 	})
 }
 
