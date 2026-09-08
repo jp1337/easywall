@@ -455,6 +455,18 @@ type WebConfig struct {
 	// than the proxies it holds hands that choice to anything that can reach
 	// the port from inside it.
 	TrustedProxies []string `toml:"trusted_proxies"`
+
+	// HealthAllow lists the addresses and networks that may read /healthz —
+	// the one route on this process that answers without a session, because an
+	// orchestrator holds none. Absent means the loopback default; an explicitly
+	// empty list means nobody, which is how an operator turns the endpoint off.
+	//
+	// It is not TrustedProxies and shares nothing with it but the parser. This
+	// list decides whether an unauthenticated endpoint answers at all, and it is
+	// matched against the TCP peer only — never against a forwarding header, or
+	// anything behind a trusted proxy could claim to be loopback by writing one.
+	// See handleHealthz and docs-tech/threat-model.md.
+	HealthAllow []string `toml:"health_allow"`
 }
 
 // NetworkSettings groups the IPv6, Docker and routing configuration for IPC
@@ -605,10 +617,16 @@ var AllHealthReasons = []HealthReason{
 // is what keeps this type reduced — adding a field back to it turns that test
 // red.
 type HealthSelftest struct {
-	Version string         `json:"version"`
-	Kernel  string         `json:"kernel"`
-	Result  SelftestResult `json:"result"`
-	At      time.Time      `json:"at,omitzero"`
+	Version string `json:"version"`
+	// omitempty, because /healthz renders this to a machine and the demo has no
+	// kernel to name: internal/web cannot reach the privileged
+	// core.KernelRelease() — it imports internal/core nowhere, by design — so
+	// the demo's unprovable stamp carries the zero value where a real host's
+	// unprovable stamp carries a release. An empty field where a kernel belongs
+	// is a claim; absence is not.
+	Kernel string         `json:"kernel,omitempty"`
+	Result SelftestResult `json:"result"`
+	At     time.Time      `json:"at,omitzero"`
 }
 
 // HealthResult is what GET_HEALTH answers with: the state, a closed

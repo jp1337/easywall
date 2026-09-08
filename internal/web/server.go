@@ -386,6 +386,17 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Handle("/static/*", staticCacheHeaders(
 		http.StripPrefix("/static/", http.FileServer(http.Dir(cfg.StaticDir())))))
 
+	// Here, beside the static files, and deliberately not in either group
+	// below: an orchestrator asking whether this process is alive holds no
+	// session, so /healthz must not be behind RequireAuth and must not create
+	// one. What keeps it closed is health_allow — the peer address — and not a
+	// cookie. See handleHealthz for the incident that produced it.
+	//
+	// CrossOriginProtection exempts safe methods, so a GET has no interaction
+	// with it; that exemption is what made /logout a POST, and here it is what
+	// the route needs.
+	r.Get("/healthz", s.handleHealthz)
+
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)

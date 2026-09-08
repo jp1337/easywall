@@ -175,4 +175,5 @@ var keysWithoutAControl = map[string]string{
 	"update_check":    "no control exists yet; the switch is on the 2.x roadmap and the environment page is where it is documented meanwhile",
 	"language":        "the switch in the sidebar writes a cookie for this browser, not a stored value — so there is no stored-versus-environment conflict to draw",
 	"trusted_proxies": "a trust boundary set before the process starts, the same reason bind_addr and socket_path have none — a control that could widen it from inside the interface would let the interface decide who may impersonate its own caller",
+	"health_allow":    "who may read an unauthenticated endpoint, and the interface must not be able to widen that: a control for it would let whoever is already signed in open /healthz to the internet, and the deployment that set the list is the thing entitled to change it",
 }

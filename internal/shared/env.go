@@ -172,10 +172,20 @@ var WebEnvVars = []EnvVar[WebConfig]{
 		func(c *WebConfig) string { return strings.Join(c.TrustedProxies, ",") },
 		func(c *WebConfig, v string) error {
 			list := splitList(v)
-			if err := ValidateProxyList(list); err != nil {
+			if err := ValidateAddressList("trusted_proxies", list); err != nil {
 				return err
 			}
 			c.TrustedProxies = list
+			return nil
+		}},
+	{"EASYWALL_WEB_HEALTH_ALLOW", "health_allow", EnvList,
+		func(c *WebConfig) string { return strings.Join(c.HealthAllow, ",") },
+		func(c *WebConfig, v string) error {
+			list := splitList(v)
+			if err := ValidateAddressList("health_allow", list); err != nil {
+				return err
+			}
+			c.HealthAllow = list
 			return nil
 		}},
 }
@@ -231,6 +241,12 @@ func WebDefault() WebConfig {
 		d.Telemetry = &v
 	}
 	d.RecoveryCodes = append([]string(nil), d.RecoveryCodes...)
+	// Cloned for the same reason, and it is not decoration here: LoadConfig
+	// hands this list straight into a Config an operator's environment may then
+	// replace, and a plain struct copy would still alias the package-level
+	// default. TrustedProxies needs no clone — its default is empty, and
+	// cloning it would turn that empty list into a nil one.
+	d.HealthAllow = append([]string(nil), d.HealthAllow...)
 	return d
 }
 
