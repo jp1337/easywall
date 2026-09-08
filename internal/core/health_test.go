@@ -2,8 +2,11 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -99,24 +102,66 @@ func TestHealthIsOkOnASilentHost(t *testing.T) {
 	}
 }
 
-// The reply reaches an unauthenticated endpoint. It must carry no rule detail.
+// detailSentinel is planted in the stamp's Detail and must not appear anywhere
+// in the marshalled health reply.
 //
-// The forbidden substrings are checked against the marshalled reply and not
-// against a field, deliberately: a future field carrying Detail under another
-// name — or an embedded SelftestStamp — is what this has to catch, and neither
-// would be visible to an assertion that named HealthSelftest's fields.
+// A sentinel and not a realistic sentence, deliberately. The first version of
+// this test used the real thing — "an open port accepts a connection — port
+// 12227 was dropped" — and forbade the substrings "12227" and "port". "port" is
+// the problem: it is an ordinary English word in this domain, so a reason id
+// added later reading `port_unreachable`, or any field whose *name* contains it,
+// would turn this test red for something that is not a leak. Whoever hit that
+// would weaken the assertion to get past it, and the guard would stop covering
+// what it exists for. This release has already found three tests that passed for
+// the wrong reason; a test that *fails* for the wrong reason is the same defect
+// pointing the other way.
+const detailSentinel = "SELFTEST-DETAIL-MUST-NOT-LEAK-4e91c7"
+
+// The reply reaches an unauthenticated endpoint, so it must carry no free text
+// from the self-test. Two assertions, and the second is the durable one.
+//
+// SelftestStamp.Detail is the only free-text field in the system: it is written
+// by the proof, it names the claim that failed and the port it was proved
+// against, and /healthz is unauthenticated by necessity because an orchestrator
+// holds no session. Leaking it would publish which of an operator's ports the
+// firewall is currently getting wrong to anyone who can reach the endpoint.
+//
+// The sentinel catches the leak we thought of. The key-set assertion catches
+// every one we did not: a field added to SelftestStamp — or to HealthSelftest —
+// cannot ride along into the reply without turning it red, whatever the field is
+// called and whatever it holds. A substring check could never say that.
 func TestHealthResultCarriesNoRuleDetail(t *testing.T) {
 	got := computeHealth(healthInputs{enforcing: true, buildFindings: 3,
-		stamp: shared.SelftestStamp{Result: shared.SelftestFailed,
-			Detail: "an open port accepts a connection — port 12227 was dropped"}})
+		stamp: shared.SelftestStamp{
+			Version: "2.17.0",
+			Kernel:  "6.11.0-test",
+			Result:  shared.SelftestFailed,
+			// Non-zero, so `at` is actually present: HealthSelftest.At carries
+			// omitzero, and a zero time would drop the key and make the key-set
+			// assertion below agree with a reply that had lost the field.
+			At:     time.Date(2026, 9, 8, 21, 0, 0, 0, time.UTC),
+			Detail: detailSentinel,
+		}})
+
 	blob, err := json.Marshal(got)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, leak := range []string{"12227", "port"} {
-		if strings.Contains(string(blob), leak) {
-			t.Errorf("the health reply contains %q: %s", leak, blob)
-		}
+	if strings.Contains(string(blob), detailSentinel) {
+		t.Errorf("the health reply carries the stamp's Detail: %s", blob)
+	}
+
+	var reply struct {
+		Selftest map[string]json.RawMessage `json:"selftest"`
+	}
+	if err := json.Unmarshal(blob, &reply); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"at", "kernel", "result", "version"}
+	got4 := slices.Sorted(maps.Keys(reply.Selftest))
+	if !slices.Equal(got4, want) {
+		t.Errorf("the reply's selftest object has keys %v, want exactly %v: %s",
+			got4, want, blob)
 	}
 }
 
