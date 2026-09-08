@@ -951,6 +951,234 @@ async function checkNoInputClipsItsOwnValue(page, where, path) {
   }
 }
 
+/**
+ * Every focusable element shows where it is, at a contrast a person can see.
+ *
+ * WCAG 2.1 SC 1.4.11 Non-text Contrast (AA) wants 3:1 for a focus indicator
+ * against what is behind it. Measured rather than asserted against the
+ * stylesheet, and composited rather than read: the outline this suite was
+ * written beside is `rgba(143,211,251,0.13)`, which is 11.4:1 as a *colour* and
+ * 1.31:1 once composited over the card it sits on. No number in a CSS file says
+ * that. (2.4.13 Focus Appearance is AAA and is not the criterion; 2.4.11 is
+ * Focus Not Obscured and is a different question again.)
+ *
+ * The indicator is whichever of the two carries it — the outline, or the border
+ * change focus brings — so this takes the better of the two and requires that
+ * one to clear 3:1. A control answering focus with a border alone is fine; one
+ * answering with neither is not, and three of them do: .nav-links li a,
+ * .nav-footer .logout-btn and .tab have no :focus-visible rule at all, which is
+ * SC 2.4.7 Focus Visible at Level A rather than the 1.4.11 above.
+ */
+const focusLuminance = c => {
+  const s = c / 255;
+  return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+};
+
+/** Parses `rgb(…)` / `rgba(…)` as getComputedStyle returns it. */
+function parseRGBA(str) {
+  const m = str.match(/rgba?\(([^)]+)\)/);
+  if (!m) return null;
+  const p = m[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+  if (p.length < 3 || p.some(Number.isNaN)) return null;
+  return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+}
+
+/** Straight-alpha composite of fg onto an opaque bg. */
+function compositeOver(fg, bg) {
+  return {
+    r: fg.r * fg.a + bg.r * (1 - fg.a),
+    g: fg.g * fg.a + bg.g * (1 - fg.a),
+    b: fg.b * fg.a + bg.b * (1 - fg.a),
+  };
+}
+
+function contrastRatio(a, b) {
+  const L = c => 0.2126 * focusLuminance(c.r) + 0.7152 * focusLuminance(c.g)
+    + 0.0722 * focusLuminance(c.b);
+  const [hi, lo] = [L(a), L(b)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+async function checkFocusIsVisible(ctx, theme) {
+  const page = await ctx.newPage();
+  const worst = new Map();   // control -> its lowest measured ratio
+  const uaRing = new Set();  // controls falling back to the browser's own ring
+
+  for (const path of PAGES) {
+    await page.goto(BASE + path, { waitUntil: 'networkidle' });
+    // Start from the document, so the first Tab lands on the first tab stop.
+    await page.evaluate(() => (document.activeElement instanceof HTMLElement)
+      && document.activeElement.blur());
+
+    // The resting border of every focusable element, measured once, before
+    // anything is focused. It cannot be read during the walk: the element is
+    // focused at that moment, so its computed border is already the focused one
+    // and comparing it with itself always says "unchanged". Reading it off a
+    // clone appended beside the element works and mutates the DOM in the middle
+    // of a tab order, which is its own bug. An attribute changes no layout and
+    // no tab stop.
+    await page.evaluate(() => {
+      const focusable = document.querySelectorAll(
+        'a[href], button, input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"])');
+      focusable.forEach((el, i) => {
+        el.dataset.ewFocusProbe = String(i);
+        el.dataset.ewRestingBorder = getComputedStyle(el).borderTopColor;
+      });
+    });
+
+    const seenHere = new Set();
+    // A generous ceiling rather than a count: /ports has the most tab stops and
+    // the loop leaves as soon as focus wraps or stops moving.
+    for (let i = 0; i < 250; i++) {
+      await page.keyboard.press('Tab');
+
+      const m = await page.evaluate(async () => {
+        // Two frames, so the style recalculation the focus triggered has landed
+        // before anything is read. Even with transitions reduced to 0.01ms, a
+        // getComputedStyle in the same task as the key press returns the state
+        // from before the focus — which reported every border-carried focus at
+        // its outline value alone: 1.31:1 for a field that reaches 11.4:1 once
+        // the frame has been drawn.
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        const el = document.activeElement;
+        if (!el || el === document.body || !(el instanceof HTMLElement)) return null;
+
+        // The nearest ancestor that actually paints, which is what an indicator
+        // is seen against — not the element's own transparent background.
+        const backdrop = node => {
+          for (let n = node.parentElement; n; n = n.parentElement) {
+            const bg = getComputedStyle(n).backgroundColor;
+            const mm = bg.match(/rgba?\(([^)]+)\)/);
+            if (!mm) continue;
+            const p = mm[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+            if (p.length < 4 || p[3] > 0) return bg;
+          }
+          return getComputedStyle(document.body).backgroundColor;
+        };
+
+        const cs = getComputedStyle(el);
+        return {
+          key: (typeof el.className === 'string' && el.className.trim().split(/\s+/)[0])
+            || el.getAttribute('aria-label') || el.name || el.id || el.tagName,
+          tag: el.tagName,
+          outlineStyle: cs.outlineStyle,
+          outlineWidth: parseFloat(cs.outlineWidth) || 0,
+          outlineColor: cs.outlineColor,
+          borderBefore: el.dataset.ewRestingBorder,
+          borderAfter: cs.borderTopColor,
+          backdrop: backdrop(el),
+          // Where we are, so the loop can tell "focus wrapped" from "focus moved".
+          // The stamped index, so "focus wrapped" is decided by identity rather
+          // than by a text snippet two controls may share.
+          mark: el.dataset.ewFocusProbe ?? (el.tagName + '|' + (el.textContent || '').slice(0, 24)),
+        };
+      });
+
+      if (!m) break;                       // focus left the document (browser chrome)
+      if (seenHere.has(m.mark)) break;     // wrapped round
+      seenHere.add(m.mark);
+
+      // outline-style: auto is the browser's own focus ring. Chrome paints a
+      // high-contrast double ring for it and reports a colour that is not what
+      // it paints — measuring outlineColor here reported 1.02:1 for a ring that
+      // is perfectly visible. It is a real indicator, so it passes; it is also
+      // not the one DESIGN.md specifies, so it is reported separately.
+      if (m.outlineStyle === 'auto') {
+        uaRing.add(`${path} .${m.key}`);
+        continue;
+      }
+
+      const bg = parseRGBA(m.backdrop);
+      if (!bg) continue;
+
+      const ratios = [];
+      if (m.outlineWidth > 0 && m.outlineStyle !== 'none') {
+        const o = parseRGBA(m.outlineColor);
+        if (o) ratios.push(contrastRatio(compositeOver(o, bg), bg));
+      }
+      if (m.borderAfter !== m.borderBefore) {
+        const b = parseRGBA(m.borderAfter);
+        if (b) ratios.push(contrastRatio(compositeOver(b, bg), bg));
+      }
+      const best = ratios.length ? Math.max(...ratios) : 0;
+
+      const key = `${path} .${m.key}`;
+      if (!worst.has(key) || worst.get(key) > best) worst.set(key, best);
+    }
+
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll('[data-ew-focus-probe]')) {
+        delete el.dataset.ewFocusProbe;
+        delete el.dataset.ewRestingBorder;
+      }
+    });
+  }
+
+  const bad = [...worst].filter(([, r]) => r < 3).sort((a, b) => a[1] - b[1]);
+  for (const [where, ratio] of bad) {
+    fail(`focus contrast [${theme}]`, `${where} — the focus indicator composites to ` +
+      `${ratio.toFixed(2)}:1 against its backdrop; WCAG 1.4.11 wants 3:1` +
+      (ratio === 0 ? ' (and this control answers focus with nothing at all)' : ''));
+  }
+  if (!bad.length) {
+    console.log(`  ok   focus clears 3:1 on ${PAGES.length} pages in ${theme} ` +
+      `(${worst.size} controls measured)`);
+  }
+  // Not a failure: a UA ring is visible and accessible. It is reported because
+  // DESIGN.md specifies a border change plus an outline, and a control that
+  // silently falls back to the browser's ring is not following the system.
+  if (uaRing.size) {
+    console.log(`  note ${uaRing.size} control(s) fall back to the browser's own focus ring ` +
+      `in ${theme}: ${[...uaRing].slice(0, 4).join(', ')}${uaRing.size > 4 ? ', …' : ''}`);
+  }
+  await page.close();
+}
+
+/**
+ * Nothing scrolls sideways inside its own container either.
+ *
+ * The page-level overflow check below cannot see this, and not by oversight: a
+ * container with `overflow-x: auto` absorbs its own overflow, so the document
+ * never widens. Every such container in the stylesheet was therefore unmeasured
+ * — .table-wrap, .scroll-wrapper, a <pre> — and .table-wrap has overflowed by
+ * 10px in card mode at every width its container query switches at, with this
+ * whole suite green throughout.
+ *
+ * What is measured is a container narrower than its own laid-out children, not
+ * a container whose content is genuinely wider. A table with more columns than
+ * fit is doing its job and scrolls on purpose; a row 10px wider than the box
+ * that holds it is nobody's intention.
+ *
+ * A tolerance of 1px, not 0: sub-pixel layout rounds, and a check that fires on
+ * half a pixel is a check somebody switches off.
+ */
+async function checkContainersDoNotOverflow(page, where, path) {
+  const overflowing = await page.evaluate(() => {
+    const out = [];
+    for (const el of document.querySelectorAll('*')) {
+      const style = getComputedStyle(el);
+      if (style.overflowX !== 'auto' && style.overflowX !== 'scroll') continue;
+      const widest = [...el.children].reduce((w, c) => Math.max(w, c.scrollWidth), 0);
+      const over = widest - el.clientWidth;
+      if (over > 1) {
+        out.push({
+          selector: (typeof el.className === 'string' && el.className.trim().split(/\s+/)[0])
+            || el.tagName,
+          clientWidth: el.clientWidth,
+          contentWidth: widest,
+          over,
+        });
+      }
+    }
+    return out;
+  });
+  for (const o of overflowing) {
+    fail(`container overflow [${where}]`, `${path} — .${o.selector} is ${o.clientWidth}px ` +
+      `and holds ${o.contentWidth}px, ${o.over}px over`);
+  }
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
@@ -969,6 +1197,7 @@ async function checkPageHealth(ctx, theme, width) {
       fail(`horizontal overflow [${where}]`, `${path} scrolls ${overflow}px sideways`);
     }
     await checkNoInputClipsItsOwnValue(page, where, path);
+    await checkContainersDoNotOverflow(page, where, path);
     for (const problem of seen) {
       fail(`page problem [${where}]`, `${path} — ${problem}`);
     }
@@ -999,6 +1228,30 @@ async function runChecks(browser, session) {
   const langCtx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
   await checkLanguageSwitch(langCtx);
   await langCtx.close();
+
+  // Focus, at one width in both themes: focus colour does not vary with
+  // viewport, so this costs ~26 page passes rather than 130.
+  for (const theme of ['dark', 'light']) {
+    const focusCtx = await browser.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1600, height: 1000 },
+      storageState: session,
+      // Focus is measured in the same tick as the key press, and .input carries
+      // `transition: border-color 120ms`. Read mid-transition, its border is
+      // still essentially the resting colour, so every control whose focus is
+      // carried by a border change looked as though it had none — 1.31:1 for a
+      // field that actually reaches 11.4:1 once the transition lands.
+      //
+      // Reduced motion rather than an injected stylesheet or a sleep per tab
+      // stop: app.css already answers the media query by setting every
+      // transition-duration to 0.01ms, so this measures the end state through a
+      // rule the application ships, and exercises that rule at the same time.
+      reducedMotion: 'reduce',
+    });
+    await focusCtx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
+    await checkFocusIsVisible(focusCtx, theme);
+    await focusCtx.close();
+  }
 
   for (const theme of ['dark', 'light']) {
     for (const width of WIDTHS) {

@@ -57,10 +57,18 @@
   --color-ink: #f1f3f6;
   --color-ink-muted: #a2aab8;
   --color-ink-subtle: #7d8593;
-  --color-accent: #8fd3fb;
-  --color-accent-ink: #071219;
-  --color-accent-on-wash: #8fd3fb;
-  --color-accent-hover: #a8ddfc;
+  /* Focus, selection and the one primary action are carried by fill, edge and
+     weight — never by a hue of their own. An ice-blue accent put a fourth
+     colour beside the three firewall states, so "this is selected" and "this
+     is warning" competed for the same reading. Colour now means firewall
+     state only; every other emphasis is neutral. `action-fill` is `ink` and
+     `action-ink` is `canvas`, which is the strongest pairing the palette has
+     (16.4:1); `select-fill` is `surface-raised`, one step off the page. */
+  --color-action-fill: #f1f3f6;
+  --color-action-ink: #0a0b0f;
+  --color-select-fill: #181b22;
+  --color-select-edge: #f1f3f6;
+  --color-focus-ring: #f1f3f6;
   --color-state-ok: #3ecf8e;
   --color-state-warn: #e5a54b;
   --color-state-crit: #f2555a;
@@ -82,7 +90,6 @@
    scale entries), so they sit beside it on the same element. */
 :root,
 :root[data-theme="easywall-dark"] {
-  --accent-wash: rgba(143, 211, 251, 0.13);
   --wash-ok: rgba(62, 207, 142, 0.10);
   --wash-warn: rgba(229, 165, 75, 0.10);
   --wash-crit: rgba(242, 85, 90, 0.10);
@@ -129,10 +136,11 @@
      these pairings because they are set in CSS, not in a component entry.
      #666e7b clears 4.5:1 on all three (5.15 / 5.02 / 4.75). */
   --color-ink-subtle: #666e7b;
-  --color-accent: #0f7bab;
-  --color-accent-ink: #ffffff;
-  --color-accent-on-wash: #0d6b95;
-  --color-accent-hover: #0c6690;
+  --color-action-fill: #0f1116;
+  --color-action-ink: #ffffff;
+  --color-select-fill: #f4f6f9;
+  --color-select-edge: #0f1116;
+  --color-focus-ring: #0f1116;
   --color-state-ok: #12855c;
   --color-state-warn: #96620d;
   --color-state-crit: #cf2d38;
@@ -140,7 +148,6 @@
   --color-state-warn-on-wash: #88590c;
   --color-state-crit-on-wash: #ba2832;
 
-  --accent-wash: rgba(15, 123, 171, 0.09);
   --wash-ok: rgba(18, 133, 92, 0.10);
   --wash-warn: rgba(150, 98, 13, 0.10);
   --wash-crit: rgba(207, 45, 56, 0.10);
@@ -261,8 +268,8 @@ body {
     border-radius: 9999px;
     display: grid;
     place-items: center;
-    background: var(--accent-wash);
-    color: var(--color-accent-on-wash);
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
     border: 1px solid var(--color-rule);
     font-family: var(--font-data);
     font-size: 11px;
@@ -305,7 +312,7 @@ body {
   .brand-icon,
   .auth-logo-mark {
     flex-shrink: 0;
-    background-color: var(--color-accent);
+    background-color: var(--color-ink);
     -webkit-mask: url("/static/icon.svg") center / contain no-repeat;
     mask: url("/static/icon.svg") center / contain no-repeat;
   }
@@ -357,6 +364,33 @@ body {
     margin-bottom: 5px;
   }
 
+  /* ── Group divider and indent ────────────────────────────────────────────
+     The device the documentation sidebar already has, for the reason DESIGN.md
+     already gives: `label` at ink-subtle and a nav link at ink-muted sit twelve
+     steps apart per channel — distinct on paper, the same grey once rendered,
+     and with the label the *lighter* of the two it read as the weaker element
+     rather than as the divider it is. Colour never carried the separation, and
+     after 2.16 there is even less of it to carry anything.
+
+     Sibling-scoped rather than class-scoped: the first labelled group follows
+     the ungrouped Dashboard link, not another group, and a rule there would
+     divide nothing. :has() means base.html needs no class of its own, so a
+     fourth group added later gets both devices without anyone remembering to.
+
+     carried-forward.md carried this across three design reviews as
+     "deliberately not touched". */
+  .nav-section:has(> .nav-section-label) ~ .nav-section:has(> .nav-section-label) {
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  /* Container, then contents. The active edge stays out in the gutter at the
+     list's own padding, so it marks the group's left edge rather than the text's
+     — which is what makes the indent read as containment rather than as a second
+     margin. */
+  .nav-section:has(> .nav-section-label) .nav-links li a { padding-left: 22px; }
+
   .nav-links { list-style: none; padding: 0 8px; margin: 0; }
   .nav-links li { list-style: none; }
 
@@ -390,8 +424,8 @@ body {
   .nav-links li a:hover svg { opacity: 1; }
 
   .nav-links li.active a {
-    background: var(--accent-wash);
-    color: var(--color-accent-on-wash);
+    background: var(--color-select-fill);
+    color: var(--color-ink);
     font-weight: 550;
     position: relative;
   }
@@ -404,10 +438,20 @@ body {
     bottom: 5px;
     width: 2px;
     border-radius: 0 2px 2px 0;
-    background: var(--color-accent);
+    background: var(--color-select-edge);
   }
 
   .nav-links li.active a svg { opacity: 1; }
+
+  /* Both of these used to fall back to Chrome's own focus ring, which is
+     visible but is not the 2px ring DESIGN.md specifies — and it is drawn in
+     the browser's blue, the one hue this interface no longer uses. The offset
+     is negative because both sit flush against the sidebar's own edge, and an
+     outward ring would be clipped by it. Sign out carries the same rule. */
+  .nav-links li a:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
+  }
 
   .nav-footer {
     margin-top: auto;
@@ -449,6 +493,11 @@ body {
     text-decoration: none;
   }
 
+  .nav-footer .logout-btn:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
+  }
+
   /* ── Theme switch (sidebar) ────────────────────────────────────────────── */
   .theme-toggle {
     display: flex;
@@ -475,8 +524,8 @@ body {
   }
 
   .theme-toggle:focus-visible {
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
   }
 
   /* ── Language switch ───────────────────────────────────────────────────────
@@ -489,6 +538,7 @@ body {
      the comment above {{define "langswitch"}} — and is hidden only once
      data-js confirms a script is running. */
   .lang-switch {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -497,18 +547,52 @@ body {
     color: var(--color-ink-subtle);
   }
 
+  /* The chevron appearance:none takes away. Two borders on an empty box rather
+     than an icon file or a data: URI — it takes currentColor, so it follows the
+     theme with no second asset to keep in step, and style-src 'self' has nothing
+     to object to. The same device the documentation sidebar's group markers use.
+
+     On the wrapper, not the select: a <select> carries no reliable
+     pseudo-element. It is pinned to the select's own right edge — with a script
+     running, [data-js="on"] hides .lang-submit and the select is the last thing
+     in the row. */
+  .lang-switch::after {
+    content: "";
+    position: absolute;
+    right: 22px;
+    top: 50%;
+    width: 0.4rem;
+    height: 0.4rem;
+    margin-top: -0.32rem;
+    border-right: 1.5px solid var(--color-ink-subtle);
+    border-bottom: 1.5px solid var(--color-ink-subtle);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* Without a script the submit button sits to the right of the select, so the
+     chevron has to clear it rather than land on it. */
+  html:not([data-js]) .lang-switch::after { right: calc(22px + 4.5rem); }
+
   .lang-switch svg {
     width: 15px;
     height: 15px;
     flex-shrink: 0;
   }
 
+  /* The one native control left in the interface, drawn like the rest of them.
+     Its fill moves off canvas for the reason DESIGN.md states about every field:
+     a canvas background sits 1.03–1.06:1 from the surface of the card it is on.
+     In the sidebar that was survivable; on the login card, where this control
+     also appears, it left the select recognisable only by its native arrow. */
   .lang-select {
     flex: 1;
     min-width: 0;
     height: var(--control-height-sm);
-    padding: 0 6px;
-    background: var(--color-canvas);
+    /* Room for the chevron above; the value must not run under it. */
+    padding: 0 26px 0 6px;
+    appearance: none;
+    background: var(--color-surface-raised);
     color: var(--color-ink);
     border: 1px solid var(--color-control-edge);
     border-radius: var(--radius-sm);
@@ -522,9 +606,9 @@ body {
 
   .lang-select:focus,
   .lang-select:focus-visible {
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
-    border-color: var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   /* Real markup for the no-JS path, styled to match rather than to be noticed:
@@ -551,9 +635,9 @@ body {
   }
 
   .lang-submit:focus-visible {
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
-    border-color: var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   [data-js="on"] .lang-submit { display: none; }
@@ -587,10 +671,10 @@ body {
     transition: transform var(--motion-fast) var(--motion-ease);
   }
 
-  :root[data-theme="easywall-light"] .toggle-switch { background: var(--color-accent); }
+  :root[data-theme="easywall-light"] .toggle-switch { background: var(--color-action-fill); }
   :root[data-theme="easywall-light"] .toggle-switch::after {
     transform: translateX(15px);
-    background: var(--color-accent-ink);
+    background: var(--color-action-ink);
   }
 
   /* ── Mobile chrome ─────────────────────────────────────────────────────── */
@@ -617,12 +701,13 @@ body {
   }
 
   /* ── Page header ─────────────────────────────────────────────────────────
-     The title used to carry a 3px accent bar on its left. Repeated on all
+     The title used to carry a 3px coloured bar on its left. Repeated on all
      fourteen pages it stopped reading as emphasis and started reading as a
-     template artefact, and it competed with the accent's actual job — marking
-     focus, the active nav item and the one primary action. A page is already
-     identified by its title and by the highlighted nav entry; a subtitle that
-     says what the page *does* is worth more than a decoration. */
+     template artefact, and it competed with the two jobs a vertical edge does
+     have here — marking the active nav item and marking a live protection
+     module. A page is already identified by its title and by the highlighted
+     nav entry; a subtitle that says what the page *does* is worth more than a
+     decoration. */
   .page-header {
     display: flex;
     align-items: flex-end;
@@ -634,11 +719,34 @@ body {
 
   .page-header-text { min-width: 0; }
 
+  /* The name of the page you are standing on is *identified*, not read — see
+     DESIGN.md's typography rule, amended in 2.16. The countdown proved this
+     voice works and it appeared on exactly one screen in the whole product.
+
+     30px is a ceiling, and it is measured rather than calculated. The longest
+     page title across all three locales is the French one for changing a
+     password, 23 characters, and it wraps at its spaces; the longest
+     *unbreakable* one is 19 — "Systemeinstellungen", a German compound with no
+     break point anywhere in it.
+
+     The arithmetic says 31.4px: 0.6em advance, 19 characters, 11.4em against the
+     available width. Measured against the loaded face with canvas metrics, the
+     string is 342px at 30px and 362px is available inside .content's padding at
+     a 390px viewport — so it fits with 20px to spare and first overflows at
+     **31px**. The arithmetic was right to within half a pixel, which is the
+     reason to check rather than the reason not to. */
   .page-title {
     margin: 0;
-    font-size: 26px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-family: var(--font-data);
+    font-size: 30px;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+  }
+
+  /* Above the phone breakpoint there is room for the size the scale actually
+     wants; below it the ceiling above governs. */
+  @media (min-width: 900px) {
+    .page-title { font-size: 34px; }
   }
 
   .page-subtitle {
@@ -855,21 +963,25 @@ body {
   }
 
   .btn:focus-visible {
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
-    border-color: var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 
   .btn-primary {
-    background: var(--color-accent);
-    color: var(--color-accent-ink);
+    background: var(--color-action-fill);
+    color: var(--color-action-ink);
     border-color: transparent;
   }
 
+  /* Hover steps the fill down to ink-muted rather than up to a lighter tint:
+     there is nothing above `ink` to brighten towards. Measured, because a
+     hover state that drops below 4.5:1 is a hover state that hides its own
+     label — action-ink on ink-muted is 8.41:1 dark and 6.15:1 light. */
   .btn-primary:hover {
-    background: var(--color-accent-hover);
+    background: var(--color-ink-muted);
     border-color: transparent;
   }
 
@@ -909,9 +1021,9 @@ body {
   }
 
   .btn-icon:focus-visible {
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
-    border-color: var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   .btn-icon-danger:hover {
@@ -968,9 +1080,9 @@ body {
      alone. Keyboard navigation across a dense page of ports depends on it. */
   .input:focus,
   .input:focus-visible {
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
-    border-color: var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   .input.is-error { border-color: var(--color-state-crit); }
@@ -999,7 +1111,7 @@ body {
      carry no visible border until the operator reaches for them; the row rule
      and the column alignment do the structural work. The field is still
      obviously editable — it sits on canvas, gains an edge on hover, and takes
-     the full accent focus treatment. */
+     the full focus treatment. */
   .input-cell {
     width: 100%;
     height: var(--control-height-sm);
@@ -1024,9 +1136,9 @@ body {
   .input-cell:focus,
   .input-cell:focus-visible {
     background: var(--color-canvas);
-    outline: 2px solid var(--accent-wash);
-    outline-offset: 1px;
-    border-color: var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   .input-cell-data {
@@ -1150,13 +1262,13 @@ body {
     transition: transform var(--motion-fast) var(--motion-ease);
   }
 
-  .toggle:checked { background: var(--color-accent); }
+  .toggle:checked { background: var(--color-action-fill); }
   .toggle:checked::after {
     transform: translateX(15px);
-    background: var(--color-accent-ink);
+    background: var(--color-action-ink);
   }
 
-  .toggle:focus-visible { outline: 2px solid var(--accent-wash); outline-offset: 2px; }
+  .toggle:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
   /* ── Checkbox ──────────────────────────────────────────────────────────── */
   .checkbox {
@@ -1179,19 +1291,19 @@ body {
     content: "";
     width: 9px;
     height: 5px;
-    border-left: 2px solid var(--color-accent-ink);
-    border-bottom: 2px solid var(--color-accent-ink);
+    border-left: 2px solid var(--color-action-ink);
+    border-bottom: 2px solid var(--color-action-ink);
     transform: rotate(-45deg) translate(1px, -1px);
     opacity: 0;
   }
 
   .checkbox:checked {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
+    background: var(--color-action-fill);
+    border-color: var(--color-action-fill);
   }
 
   .checkbox:checked::after { opacity: 1; }
-  .checkbox:focus-visible { outline: 2px solid var(--accent-wash); outline-offset: 2px; }
+  .checkbox:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 
   /* ── Chips and badges ──────────────────────────────────────────────────────
      A chip carries state or a chosen qualifier. A badge is a neutral marker.
@@ -1217,22 +1329,25 @@ body {
      it the same affordance a.stat-tile sets, so hovering or focusing it reads
      as something you can act on rather than a static state marker. */
   a.chip:hover {
-    border-color: var(--color-accent);
+    border-color: var(--color-ink);
     box-shadow: var(--shadow-lift);
     transform: translateY(-1px);
     text-decoration: none;
   }
 
   a.chip:focus-visible {
-    outline: 2px solid var(--accent-wash);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
-    border-color: var(--color-accent);
+    border-color: var(--color-focus-ring);
   }
 
-  .chip-accent {
-    background: var(--accent-wash);
-    color: var(--color-accent-on-wash);
-    border-color: var(--color-accent);
+  /* Was .chip-accent. A chip that marks "this is the one you picked" is a
+     selection, not a colour, so it carries the same fill and edge the active
+     nav item does. */
+  .chip-select {
+    background: var(--color-select-fill);
+    color: var(--color-ink);
+    border-color: var(--color-select-edge);
   }
 
   .chip-ok {
@@ -1406,16 +1521,19 @@ body {
   }
 
   /* ── Link ──────────────────────────────────────────────────────────────────
-     accent-on-wash, not accent: in light mode the pale ice blue would not
-     carry enough contrast inside running text. */
+     A link used to be the accent's colour with no underline, which asked hue
+     alone to say "this is clickable" — the one thing WCAG 1.4.1 says colour
+     may not do on its own. It is now ink with a permanent underline, and
+     hover thickens the rule instead of drawing it. */
   .link {
-    color: var(--color-accent-on-wash);
-    text-decoration: none;
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
-  .link:hover { text-decoration: underline; }
+  .link:hover { text-decoration-thickness: 2px; }
   .link:focus-visible {
-    outline: 2px solid var(--accent-wash);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
     border-radius: 2px;
   }
@@ -1523,10 +1641,15 @@ body {
 
   .tab:hover { color: var(--color-ink); text-decoration: none; }
 
+  .tab:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: -2px;
+  }
+
   .tab.is-active {
     color: var(--color-ink);
     font-weight: 550;
-    border-bottom-color: var(--color-accent);
+    border-bottom-color: var(--color-select-edge);
   }
 
   /* ── Tooltip ───────────────────────────────────────────────────────────── */
@@ -1608,7 +1731,15 @@ body {
   /* Column sizing. Data columns take exactly what they need and the
      description absorbs the remaining width, so nothing truncates while the
      right edge of the table stays reachable. */
-  .col-port    { width: 120px; }
+  /* 128px, not 120. The widest value the field's own placeholder documents is a
+     range — "8000:9000" — which needs 122px and clipped by two. carried-forward
+     called it a decision DESIGN.md does not answer; it was already answered four
+     declarations below, in .col-toggle's own comment: every pixel given back
+     goes to .col-flex. .col-flex is width:auto and absorbs the remainder, so
+     there was never a zero-sum choice to make — only a rule nobody had written
+     down. DESIGN.md now carries it: a data column is sized by its widest
+     documented value, measured rendered rather than added up on paper. */
+  .col-port    { width: 128px; }
   .col-flex    { width: auto; }
   /* 150px used to be bought entirely by the header string ("SSH protection" /
      "SSH-Schutz"), not by anything in the column's own cells — a single
@@ -1828,18 +1959,19 @@ body {
   }
 
   /* ── Stat tiles ────────────────────────────────────────────────────────── */
-  /* The four rows come from the parent grid, so label, value, note and CTA line
-     up across every tile in a row instead of each tile stacking independently.
+  /* The three rows come from the parent grid, so label, value and note line up
+     across every tile in a row instead of each tile stacking independently.
      Without it a label that wraps pushes only its own number down: French says
      "Règles personnalisées" where English says "Custom rules", and two numbers
      of six sat 20px below the other four. Reserving a second label line would
      have cost every language 18px of empty tile; this costs none — the row is
      as tall as its tallest label, which in English and German is one line.
-     grid-row: span 4 is the row count, so a tile that gains or loses a child
-     needs it changed to match. */
+     grid-row: span 3 is the row count, so a tile that gains or loses a child
+     needs it changed to match — TestStatTileSpanMatchesItsChildren compares the
+     two and is what says so. */
   .stat-tile {
     display: grid;
-    grid-row: span 4;
+    grid-row: span 3;
     grid-template-rows: subgrid;
     gap: 3px;
     padding: 13px 15px;
@@ -1855,16 +1987,16 @@ body {
   }
 
   a.stat-tile:hover {
-    border-color: var(--color-accent);
+    border-color: var(--color-ink);
     box-shadow: var(--shadow-lift);
     transform: translateY(-1px);
     text-decoration: none;
   }
 
   a.stat-tile:focus-visible {
-    outline: 2px solid var(--accent-wash);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
-    border-color: var(--color-accent);
+    border-color: var(--color-focus-ring);
   }
 
   /* A metric tile earns its presence through structure and weight, not colour:
@@ -1885,7 +2017,7 @@ body {
     transition: color var(--motion-instant) var(--motion-ease);
   }
 
-  a.stat-tile:hover .stat-tile-icon { color: var(--color-accent-on-wash); }
+  a.stat-tile:hover .stat-tile-icon { color: var(--color-ink); }
 
   .stat-tile-label {
     font-size: 13px;
@@ -1908,40 +2040,99 @@ body {
     color: var(--color-ink-subtle);
   }
 
-  /* The second line of a tile's note. A block inside the note rather than a
-     fifth child of the tile: .stat-tile is a subgrid spanning a fixed number of
-     rows, and a conditional child would give six tiles two different heights.
-     No colour — DESIGN.md rule 1 reserves green, amber and red for firewall
-     state, and an unused open port is none of live, unconfirmed, rolled back or
-     failing. */
-  .tile-note-second { display: block; margin-block-start: 2px; }
+  /* The finding, under a hairline in the tile's own footer — promoted out of the
+     note's 12px, where it sat in the same type as "accepting connections". It is
+     the most useful sentence on the page and the reason 2.15 happened.
 
-  .stat-tile-value-primary { color: var(--color-accent-on-wash); }
+     Positioned rather than added as a fourth grid child: .stat-tile is a subgrid
+     spanning a fixed row count, so a conditional child gives the three tiles two
+     different heights. That is the defect .tile-note-second was written to avoid
+     and TestStatTileSpanMatchesItsChildren exists to catch. Still no colour — an
+     unused open port is none of live, unconfirmed, rolled back or failing. */
+  .stat-tile-finding {
+    display: block;
+    /* Negative side margins reach the tile's own edges so the hairline spans it,
+       and the negative bottom margin takes the tile's padding back so the band
+       closes the card rather than floating above its lower edge. */
+    margin: 9px -15px -13px;
+    padding: 8px 15px 9px;
+    border-top: 1px solid var(--color-rule);
+    color: var(--color-ink-muted);
+  }
+
   .stat-tile-value-success { color: var(--color-state-ok-on-wash); }
   .stat-tile-value-warning { color: var(--color-state-warn-on-wash); }
   .stat-tile-value-danger  { color: var(--color-state-crit-on-wash); }
 
-  /* margin-top:auto pins the call to action to the bottom of the tile. Without it,
-     a note that wraps to two lines in one tile pushed its own CTA down and left the
-     row of six ragged — visible in German, where "nehmen Verbindungen an" wraps. */
-  .stat-tile-cta {
-    margin-top: auto;
-    padding-top: 4px;
-    font-size: 12px;
-    color: var(--color-ink-subtle);
-    transition: color var(--motion-instant) var(--motion-ease);
-  }
-
-  a.stat-tile:hover .stat-tile-cta { color: var(--color-accent-on-wash); }
-
-  /* Tiles size themselves rather than being pinned to a column count, so the
-     grid stays even at every viewport instead of leaving one orphan per row. */
-  /* 168px, not 190: at 190 a 390px-wide phone fell to a single column and the
-     six tiles became 780px of scrolling before anything else on the page. */
+  /* Tiles size themselves rather than being pinned to a column count. The orphan
+     this used to worry about was a six-tile problem: with three in rank one there
+     is no row left to strand. */
+  /* 168px, not 190: at 190 a 390px-wide phone fell to a single column, and three
+     tiles stacked are still the first thing on the page. */
   .tile-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    /* auto-fit, not auto-fill. With six tiles the difference never showed: the
+       row was full either way. With three, auto-fill still lays down as many
+       168px tracks as the width allows — six at 1242px — and leaves half of them
+       empty, so the rank sat in the left 615px of the row looking like a row
+       that had lost something. auto-fit collapses the empty tracks and the three
+       share the width. Measured after the change rather than assumed. */
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
     gap: 12px;
+  }
+
+  /* ── Rank two ──────────────────────────────────────────────────────────────
+     The six tiles were never six of the same thing: three are ways into the host
+     and three change what the rules are. One grid claimed otherwise. These are a
+     list — no border, no radius, no icon — because three numbers are not three
+     states, and a card is what this system uses for something that has one. */
+  .rule-list { display: flex; flex-direction: column; margin-top: 4px; }
+
+  .rule-list-row {
+    display: grid;
+    grid-template-columns: minmax(0, 12rem) 3.5rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0 16px;
+    padding: 9px 4px;
+    border-bottom: 1px solid var(--color-rule);
+    color: inherit;
+    text-decoration: none;
+    font-size: 13px;
+    transition: background var(--motion-instant) var(--motion-ease);
+  }
+
+  .rule-list-row:last-child { border-bottom: 0; }
+
+  .rule-list-row:hover {
+    background: var(--color-surface-raised);
+    text-decoration: none;
+  }
+
+  .rule-list-row:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .rule-list-name { min-width: 0; }
+
+  .rule-list-count {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-weight: 550;
+    text-align: right;
+  }
+
+  .rule-list-note {
+    color: var(--color-ink-subtle);
+    font-size: 12.5px;
+  }
+
+  /* A phone has no room for three columns of unequal weight. The number keeps its
+     line beside the name; the note drops beneath both. */
+  @media (max-width: 560px) {
+    .rule-list-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .rule-list-note { grid-column: 1 / -1; }
   }
 
   /* ── Group heading between sibling grids ─────────────────────────────────── */
@@ -1972,7 +2163,7 @@ body {
      off and may carry its own parameters. As rows in one long list it took
      1700px of scroll and gave no answer to the page's actual question — which
      protections are active. As a grid of cards the answer is the shape of the
-     page: accent-edged cards are on, plain ones are off. */
+     page: edged cards are on, plain ones are off. */
   .module-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
@@ -1992,14 +2183,14 @@ body {
 
   .module:hover { border-color: var(--color-rule-strong); }
 
-  /* The same 2px accent edge that marks the active nav item, so "this one is
-     live" uses one vocabulary throughout the interface. */
+  /* The same 2px selection edge that marks the active nav item, so "this one
+     is live" uses one vocabulary throughout the interface. */
   .module:has(.toggle:checked) {
-    box-shadow: inset 2px 0 0 var(--color-accent);
+    box-shadow: inset 2px 0 0 var(--color-select-edge);
   }
 
   .module:focus-within {
-    border-color: var(--color-accent);
+    border-color: var(--color-focus-ring);
   }
 
   /* A <label> wrapping its own switch: the whole header is the hit area, so an
@@ -2119,14 +2310,14 @@ body {
   }
 
   .radio:checked {
-    border-color: var(--color-accent);
+    border-color: var(--color-select-edge);
     /* The dot is an inset ring rather than a background image: style-src has
        no 'unsafe-inline' and the CSP permits no external origin. */
-    box-shadow: inset 0 0 0 4px var(--color-accent);
+    box-shadow: inset 0 0 0 4px var(--color-select-edge);
   }
 
   .radio:focus-visible {
-    outline: 2px solid var(--color-accent);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -2436,7 +2627,7 @@ body {
 
   .editor textarea:focus,
   .editor textarea:focus-visible {
-    outline: 2px solid var(--accent-wash);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -2726,8 +2917,9 @@ body {
 
   /* ── Audit log ─────────────────────────────────────────────────────────────
      Informational actions are neutral. Earlier iterations tinted "settings
-     saved" sky blue and "rules imported" indigo — both sit inside the accent's
-     family, which made a coloured tag ambiguous: state, or just emphasis? */
+     saved" sky blue and "rules imported" indigo — both close enough to the
+     firewall states to make a coloured tag ambiguous: state, or just
+     emphasis? */
   .log-time {
     font-family: var(--font-data);
     font-size: 11px;
@@ -2808,7 +3000,7 @@ body {
     height: 6px;
     flex-shrink: 0;
     border-radius: 9999px;
-    background: var(--color-accent);
+    background: var(--color-ink-subtle);
   }
 
   .demo-chip-text {
@@ -2917,6 +3109,10 @@ body {
    Description values in the app): clean from 919px, one field clipped by 1px
    at 918. 940px leaves that a 21px margin. */
 @container (max-width: 940px) {
+  /* The inset the cards want, taken out of the container rather than added to
+     the rows — part of the box instead of added to it. */
+  .table-wrap { padding-inline: 10px; }
+
   .table-reflow thead { display: none; }
 
   .table-reflow,
@@ -2927,8 +3123,18 @@ body {
     width: 100%;
   }
 
+  /* Block margin only, and the inset moves to the container.
+     A horizontal margin on a `width: 100%` block asks its container for room it
+     does not have: the row resolves to the full container width, the left margin
+     displaces it by 10px, and its right edge lands 10px past the edge. That is
+     the ten pixels .table-wrap has scrolled since the card layout was written —
+     10 and not 20, because only one side displaces. Measured in the browser at a
+     714px container: row 714px wide, table scrollWidth 724px.
+     carried-forward.md measured it identical with six, five and four columns and
+     with white-space: nowrap removed, which is what said it was neither the new
+     column nor a wrapping problem. */
   .table-reflow tr {
-    margin: 10px;
+    margin: 10px 0;
     padding: 4px 0;
     background: var(--color-surface-raised);
     border: 1px solid var(--color-rule);

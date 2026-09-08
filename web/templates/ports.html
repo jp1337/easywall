@@ -150,7 +150,7 @@
               <span class="catalogue-ports">
                 {{- range $i, $p := .Rows}}{{if $i}}, {{end}}{{$p.Port}}{{end -}}
               </span>
-              <span class="chip {{if eq (printf "%s" .Suggest) "private"}}chip-accent{{else}}chip-warn{{end}}">
+              <span class="chip {{if eq (printf "%s" .Suggest) "private"}}chip-select{{else}}chip-warn{{end}}">
                 {{if eq (printf "%s" .Suggest) "private"}}{{T "ports_suggest_private"}}{{else}}{{T "ports_suggest_anywhere"}}{{end}}
               </span>
             </button>

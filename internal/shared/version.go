@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,7 +27,7 @@ import (
 // stylesheet URL never changed across an upgrade even though it is versioned
 // precisely so that it does. `easywall-core --version` prints this, so a build
 // can be checked rather than assumed.
-var CurrentVersion = "2.15.1"
+var CurrentVersion = "2.16.0"
 
 const (
 	// cacheMaxAge is how long a successful check is trusted.
@@ -39,6 +40,28 @@ const (
 	// every single dashboard load paid the full connection timeout again.
 	failureCacheMaxAge = time.Hour
 )
+
+// describeSuffix matches what `git describe --tags --always --dirty` appends to a
+// tag: the number of commits since it, the abbreviated object name, and an
+// optional dirty marker. Anchored at the end so a pre-release tag survives —
+// v2.16.0-rc1 carries a hyphen of its own and is not a suffix.
+var describeSuffix = regexp.MustCompile(`(-\d+-g[0-9a-f]{4,40})?(-dirty)?$`)
+
+// ReleaseVersion is the release a build belongs to, without the build detail.
+//
+// The Makefile hands the linker `git describe --tags --always --dirty`, so a
+// development build reports something like v2.14.0-44-g5abc123. That is the
+// right answer for `--version` and the wrong one for an 18ch chip in the topbar,
+// where it rendered as `v2.14.0-44-g5…` and read as broken data rather than as a
+// build detail. The chip shows this; the `title` attribute keeps the full
+// string, so a development build stays identifiable from the interface.
+//
+// Anything that is not a describe string comes back unchanged: an untagged
+// checkout answers `--always` with a bare object name, and the Makefile's own
+// fallback is the literal "dev".
+func ReleaseVersion(describe string) string {
+	return describeSuffix.ReplaceAllString(describe, "")
+}
 
 // githubReleasesURL is a var so tests can override it with an httptest server URL.
 var githubReleasesURL = "https://api.github.com/repos/jp1337/easywall/releases/latest"

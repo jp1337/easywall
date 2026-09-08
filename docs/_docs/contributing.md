@@ -43,8 +43,8 @@ are expected and explained inside the file.
 
 | | |
 |---|---|
-| **Colour means state** | Green, amber and red are the firewall's vocabulary — live, unconfirmed, rolled back. A count is not a state |
-| **The accent is rationed** | What is focused, what is active, the one primary action |
+| **Colour means state** | `state-ok`, `state-warn` and `state-crit` are the entire palette — live, unconfirmed, rolled back. A count is not a state, and a screen with no colour on it is a screen with nothing to report |
+| **Focus, selection and the primary action carry no hue** | Fill, edge and weight instead. A background alone never marks what is active: `select-fill` is 1.08:1 against the surface it sits on |
 | **Controls vs containers** | A control's outline is `control-edge` (3:1, WCAG 1.4.11); a container's is `rule` |
 | **Both themes, three widths** | Light and dark, at 1600 / 900 / 390 px |
 | **Sentence case, Inter** | The tracked uppercase mono `label` role survives only in the sidebar dividers |

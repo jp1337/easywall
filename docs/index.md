@@ -19,7 +19,7 @@ toc: false
   <h1 class="docs-hero-title">
     Your firewall.<br>
     Your rules.<br>
-    <span class="docs-hero-accent">No surprises.</span>
+    <span class="docs-hero-mark">No surprises.</span>
   </h1>
 
   <p class="docs-hero-desc">

@@ -58,7 +58,15 @@ type PageData struct {
 	// thinking about it, and displaying the version through it is the coupling
 	// that produces "easywall v3f9a1c" on the first build hash.
 	Version string
-	Data    interface{}
+
+	// ReleaseVersion is Version with the `git describe` suffix removed — the
+	// release a build belongs to, and what the topbar chip shows. The chip is
+	// capped at 18ch and rendered `v2.14.0-44-g5…` for every build off a tag,
+	// which reads as broken data rather than as a build detail. Version still
+	// reaches the chip's `title`, so nothing is lost.
+	ReleaseVersion string
+
+	Data interface{}
 
 	// FlashN is the one number a flash may carry: how many recovery codes are
 	// left. A flash is a message id, not a sentence, so the count travels beside
@@ -617,9 +625,13 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Strings: clientStrings(tFunc),
 		Asset:   shared.CurrentVersion,
 		Version: shared.CurrentVersion,
-		Data:    data,
-		Panic:   panicMode,
-		FlashN:  flashN,
+		// The release, without the `git describe` suffix the Makefile bakes in.
+		// The chip shows this and its title carries .Version — see
+		// shared.ReleaseVersion for what the chip used to render instead.
+		ReleaseVersion: shared.ReleaseVersion(shared.CurrentVersion),
+		Data:           data,
+		Panic:          panicMode,
+		FlashN:         flashN,
 
 		AcceptancePending:   acceptancePending,
 		AcceptanceRemaining: acceptanceRemaining,

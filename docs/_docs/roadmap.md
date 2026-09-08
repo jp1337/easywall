@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Fourteen releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
+description: Thirteen releases, ordered by exposure — comprehension first now the holes are closed, then maintenance, then reach.
 ---
 
 # Roadmap
@@ -19,7 +19,6 @@ understand what you are doing, then lets you maintain it, then reaches further:
 ```
 Understand what you do   2.14  The window shows that it is running
                           2.15  You can see it working
-                          2.16  The interface looks like a firewall
                           2.17  When something happens, you hear about it
 
 Be able to maintain it   2.18  Every entry has a why and an until
@@ -88,7 +87,6 @@ earlier as an end in itself and never twice.
 |---|---|---|
 | **2.14** | **The window shows that it is running** — a countdown that runs, at 40px, on the apply screen and as a chip on every other page, with *Roll back now* beside *Confirm* | For four releases the screen promised the same 120 seconds with a static clock glyph; two screenshots nine seconds apart were pixel-identical, and the rollback it named had no route to the daemon until this release gave it one |
 | **2.15** | **You can see it working** — every rule carries a kernel counter and a date, kept across applies | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
-| **2.16** | **The interface looks like a firewall** — the sidebar groups get the divider and indent the documentation sidebar was given, the six stat cards stop being six of the same card, and the type takes a position | Three design reviews deferred it and the last one wrote it down: the application sidebar still carries the exact weakness the docs sidebar was fixed for |
 | **2.17** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
 | **2.18** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
 | **2.19** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |

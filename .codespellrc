@@ -60,7 +60,20 @@ ignore-words-list = rouge,iif,oder,unparseable
 # with a regex instead, as the note at the foot of this file advises: only the
 # German phrase is ignored, and a bare `vor` standing in for `for` is still
 # caught (verified: "this is vor the record" still fails).
-ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+
+# And the French for "password", quoted where the typography section works out
+# how wide a page title can get: "Changer le mot de passe" is the longest title
+# any locale produces. codespell reads `mot` as a typo of `not`, which is the
+# same near-miss the note above refuses to put in ignore-words-list — `not` is
+# far too common to stop checking. Scoped the same way: only the phrase is
+# ignored, and a bare `mot` standing in for `not` is still caught.
+#
+# codespell matches line by line, so the phrase has to sit on ONE line to be
+# ignored. That is a coupling nothing enforces: re-wrapping the paragraph that
+# quotes it splits `mot de` from `passe` and the build goes red for a reason the
+# diff does not show. It happened once, between two commits of the same release,
+# because a comment was reflowed. Where the phrase is not load-bearing, say
+# "the French title for changing a password" instead of quoting it.
+ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe
 
 # No entry for `nd` or `ba`. The brief that drafted this file believed they
 # were needed for "2nd" and a base32 TOTP example, but neither pattern
