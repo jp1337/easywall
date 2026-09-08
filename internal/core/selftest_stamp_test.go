@@ -54,25 +54,46 @@ func TestStampIsStaleWhenAbsent(t *testing.T) {
 // usage.json's rule, for usage.json's reason: a truncated write on a host that
 // lost power must not make the file permanently unreadable. It heals and the
 // proof runs once more than it had to.
+//
+// Two fixtures, not one. "syntax error" is the genuinely unreadable file —
+// what a truncated write after power loss looks like — and json.Unmarshal
+// rejects it before touching any field, so it cannot exercise a guard against
+// a *partially filled* stamp. "type mismatch" can: Version parses before
+// Kernel's wrong type fails the unmarshal, so it is the only fixture that
+// would catch read() returning what it parsed so far instead of the zero
+// value. Both must still report the stamp as absent and stale — a
+// partially-filled stamp whose Version happened to match would otherwise let
+// a host skip the proof on the strength of a corrupt file.
 func TestStampHealsFromAnUnreadableFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "selftest.json")
-	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		name string
+		data string
+	}{
+		{"syntax error", `{not json`},
+		{"type mismatch", `{"version":"2.17.0","kernel":123,"result":"passed"}`},
 	}
-	s := NewStampStore(path)
-	if got := s.Read().Result; got != "" {
-		t.Errorf("Read on a corrupt stamp = %q, want the zero value", got)
-	}
-	if !s.Stale("2.17.0", "6.12.4-1") {
-		t.Error("a corrupt stamp is not stale; it must be")
-	}
-	if err := s.Write(shared.SelftestStamp{
-		Version: "2.17.0", Kernel: "6.12.4-1", Result: shared.SelftestPassed,
-	}); err != nil {
-		t.Fatalf("Write over a corrupt file: %v", err)
-	}
-	if got := s.Read().Result; got != shared.SelftestPassed {
-		t.Errorf("after the rewrite Result = %q, want passed", got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "selftest.json")
+			if err := os.WriteFile(path, []byte(tc.data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			s := NewStampStore(path)
+			if got := s.Read(); got != (shared.SelftestStamp{}) {
+				t.Errorf("Read on a corrupt stamp = %+v, want the zero value", got)
+			}
+			if !s.Stale("2.17.0", "6.12.4-1") {
+				t.Error("a corrupt stamp is not stale; it must be")
+			}
+			if err := s.Write(shared.SelftestStamp{
+				Version: "2.17.0", Kernel: "6.12.4-1", Result: shared.SelftestPassed,
+			}); err != nil {
+				t.Fatalf("Write over a corrupt file: %v", err)
+			}
+			if got := s.Read().Result; got != shared.SelftestPassed {
+				t.Errorf("after the rewrite Result = %q, want passed", got)
+			}
+		})
 	}
 }
 
