@@ -25,6 +25,19 @@ import (
 // Allowed: the reserved example domains (RFC 2606/6761), which is what test
 // fixtures and documentation use, and GitHub's noreply addresses, which are
 // public by construction.
+//
+// Also allowed: `noreply@anthropic.com`. It is a role address that reaches no
+// person, and `CONTRIBUTING.md`'s commit format requires it verbatim in a
+// co-author trailer — so it necessarily appears in the body of any document
+// that shows a commit-message template, which is how it first arrived here (the
+// 2.17 implementation plan, whose thirteen tasks each end in one). Commit
+// trailers themselves are never scanned, because this test reads files.
+//
+// This is a widening of the allowlist and not of the rule. The rule is that no
+// address in this repository belongs to a person; a role address at an
+// organisation belongs to none, exactly as GitHub's noreply addresses belong to
+// none. A person's address at that same domain would still fail, because the
+// match below is the whole address and not the domain.
 func TestNoPersonalEmailAddressesAreTracked(t *testing.T) {
 	root := repoRoot(t)
 
@@ -40,6 +53,10 @@ func TestNoPersonalEmailAddressesAreTracked(t *testing.T) {
 		case strings.HasSuffix(lower, "@users.noreply.github.com"),
 			strings.HasSuffix(lower, "@noreply.github.com"):
 			return true // public by construction
+		case lower == "noreply@anthropic.com":
+			// The whole address, never the domain: a person's address at the
+			// same domain must still fail. See the note above.
+			return true
 		}
 		// Reserved for documentation and tests; can never reach a person.
 		for _, suffix := range []string{".example", ".invalid", ".test", ".localhost",
