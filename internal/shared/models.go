@@ -591,14 +591,42 @@ const (
 	HealthReasonBuildFindings  HealthReason = "build_findings"
 	HealthReasonSelftestFailed HealthReason = "selftest_failed"
 	HealthReasonHealthy        HealthReason = "healthy"
+
+	// HealthReasonCoreUnreachable is the only reason the *web* process
+	// originates, and it exists because not_enforcing would have been a lie.
+	//
+	// The two are claims about different things. not_enforcing is a claim about
+	// the kernel — computeHealth read the ruleset and found the input chain not
+	// filtering. core_unreachable is a claim about the socket: the web process
+	// asked and got no answer, and it has no path to netlink to check for
+	// itself. That is the whole design — a bug in form parsing is not a firewall
+	// bug — and it cuts both ways: the unprivileged half is never entitled to
+	// report on the kernel, only on whether it could reach the half that is.
+	//
+	// The kernel may well still be filtering perfectly behind a core that
+	// crashed, and saying otherwise on an unauthenticated endpoint, in the
+	// release whose subject is not making false claims about the firewall, is
+	// the one thing this release cannot ship.
+	//
+	// It is still fail, and /healthz still answers 503: a live web process in
+	// front of a dead core is exactly the half-dead container
+	// docker/entrypoint.sh:12-18 records, and an orchestrator must restart it.
+	// What changes is what the operator is told, not what the orchestrator does.
+	HealthReasonCoreUnreachable HealthReason = "core_unreachable"
 )
 
 // AllHealthReasons is the complete list, and it is what the interface's guard
 // hangs off: both locale files must label every one of these. AllReachReasons
 // exists for the same reason and is checked the same way.
+//
+// Six of the seven come out of computeHealth in the core. core_unreachable is
+// the exception — handleHealthz produces it, because it is the one answer the
+// core cannot give about itself — and TestEveryHealthReasonIsListed names that
+// exception rather than dropping the reverse check for everything.
 var AllHealthReasons = []HealthReason{
 	HealthReasonNotEnforcing, HealthReasonPanic, HealthReasonStatefulDead,
 	HealthReasonBuildFindings, HealthReasonSelftestFailed, HealthReasonHealthy,
+	HealthReasonCoreUnreachable,
 }
 
 // HealthSelftest is the self-test stamp as the *health reply* carries it: what

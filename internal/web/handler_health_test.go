@@ -287,8 +287,52 @@ func TestHealthzAnswers503WhenTheCoreDoesNotAnswer(t *testing.T) {
 		t.Fatalf("the body does not parse as a HealthResult: %v\n%s", err, rec.Body.String())
 	}
 	if got.State != shared.HealthFail {
-		t.Errorf("state = %q, want fail: a core that cannot be reached cannot be shown to "+
-			"be enforcing anything", got.State)
+		t.Errorf("state = %q, want fail: a live web process in front of a dead core is the "+
+			"half-dead container the endpoint exists for", got.State)
+	}
+	// The reason is about the socket, not about the kernel.
+	//
+	// not_enforcing is a claim this process is not entitled to make: it has no
+	// path to netlink, so all it knows is that it asked and got no answer. The
+	// kernel may still be filtering perfectly behind a core that crashed, and
+	// publishing "not enforcing" to anyone who can reach an unauthenticated
+	// endpoint would be a false statement about the firewall.
+	if got.Reason == shared.HealthReasonNotEnforcing {
+		t.Errorf("reason = %q; the web process cannot see the kernel, so it may not claim "+
+			"the firewall is not enforcing — only that it could not ask", got.Reason)
+	}
+	if got.Reason != shared.HealthReasonCoreUnreachable {
+		t.Errorf("reason = %q, want %q", got.Reason, shared.HealthReasonCoreUnreachable)
+	}
+}
+
+// A cached health answer is a statement about the past presented as the
+// present, and this endpoint exists because a stale "Up" hid a dead web
+// process for an unknown length of time.
+func TestHealthzIsNeverCached(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetHealth, healthReply(t, shared.HealthResult{
+		State: shared.HealthOK, Reason: shared.HealthReasonHealthy,
+	}))
+	s := newTestServer(t, fc)
+
+	// Both a reachable core and an unreachable one: the two answers are written
+	// by the same helper today, and a refactor that split them would drop the
+	// header on one path with nothing saying so.
+	for _, tc := range []struct{ name, peer string }{
+		{"core answers", "127.0.0.1:44340"},
+		{"core gone", "127.0.0.1:44341"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.name == "core gone" {
+				s.client = NewCoreClient(t.TempDir() + "/there-is-no-core.sock")
+			}
+			rec := doRequestFrom(s, tc.peer, "/healthz", nil)
+			if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+				t.Errorf("Cache-Control = %q, want no-store — a cached answer would let a "+
+					"dead process keep reporting the state it had when it was alive", got)
+			}
+		})
 	}
 }
 

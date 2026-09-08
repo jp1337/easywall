@@ -35,16 +35,22 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 
 	res, err := s.client.GetHealth()
 	if err != nil {
-		// The core is unreachable, which is the half this endpoint's sibling
-		// check already covers — but a firewall nothing can ask about cannot be
-		// shown to be enforcing anything, so it is fail rather than degraded.
-		// not_enforcing because HealthReason is a closed enum both locale files
-		// label: an "unreachable" value would have to be added there too, and
-		// "we cannot show this is enforcing" is what it would say.
+		// core_unreachable and not not_enforcing, and the distinction is the
+		// point: not_enforcing is a claim about the kernel, which this process
+		// has no path to. All it knows is that it asked and got no answer. The
+		// kernel may still be filtering perfectly behind a core that crashed,
+		// and reporting it unfiltered would be a false statement — published to
+		// anyone who can reach the endpoint, in the release whose subject is not
+		// making false claims about the firewall.
+		//
+		// fail and 503 all the same: a live web process in front of a dead core
+		// is the half-dead container docker/entrypoint.sh:12-18 records, and an
+		// orchestrator must restart it. The reason changes what the operator is
+		// told, not what the orchestrator does.
 		slog.Warn("healthz: core unreachable", "error", err)
 		writeHealth(w, http.StatusServiceUnavailable, shared.HealthResult{
 			State:  shared.HealthFail,
-			Reason: shared.HealthReasonNotEnforcing,
+			Reason: shared.HealthReasonCoreUnreachable,
 		})
 		return
 	}
