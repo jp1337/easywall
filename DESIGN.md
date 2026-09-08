@@ -3,26 +3,28 @@ version: alpha
 name: easywall-graphite
 description: |
   A dark-first control surface for a Linux firewall. The ground is a cool near-black
-  (#0a0b0f) whose greys are bent toward blue so they harmonise with the single accent
-  rather than sitting under it as dead neutral. That accent is a pale ice blue
-  (#8fd3fb) and it appears in exactly three situations: what is focused, what is
-  active, and the one primary action on the page. Everything else is carried by
-  weight, hairline rules, and spacing.
+  (#0a0b0f) whose greys are bent a few degrees toward blue, so the chrome reads as one
+  considered surface rather than as dead neutral. There is no accent hue. What is
+  focused, what is selected and the one primary action on the page are carried by fill,
+  edge and weight — action-fill, select-edge and focus-ring, every one of them ink.
+  Everything else is carried by hairline rules and spacing.
 
-  The discipline that shapes the whole system: green, amber and red are not part of
-  the palette — they are the firewall's vocabulary. Green means a rule is live, amber
+  The discipline that shapes the whole system: green, amber and red are the entire
+  palette, and they are the firewall's vocabulary. Green means a rule is live, amber
   means a change is unconfirmed, red means something was rolled back or is failing.
-  Because the accent lives in the blue family, colour in this interface is never
-  decorative: if something is coloured, it is telling you the state of your firewall.
+  Nothing else on the screen is coloured, and that is what makes the rule readable in
+  both directions: if something is coloured, it is telling you the state of your
+  firewall, and a screen with no colour on it is a screen with nothing to report.
 
   Network data — ports, addresses, CIDRs, timestamps, counters — is set in a monospace
   face with tabular figures throughout, because column alignment is how an operator
-  scans a ruleset. Prose is set in a neutral grotesk. Panels are flat: borders do the
-  separating, and shadow is reserved for things that genuinely float above the page.
+  scans a ruleset, and so is the name of the page you are standing on. Prose is set in
+  a neutral grotesk. Panels are flat: borders do the separating, and shadow is reserved
+  for things that genuinely float above the page.
 
 colors:
-  primary: "#8fd3fb"
-  on-primary: "#071219"
+  primary: "#f1f3f6"
+  on-primary: "#0a0b0f"
   canvas: "#0a0b0f"
   surface: "#111318"
   surface-raised: "#181b22"
@@ -32,10 +34,11 @@ colors:
   ink: "#f1f3f6"
   ink-muted: "#a2aab8"
   ink-subtle: "#7d8593"
-  accent: "#8fd3fb"
-  accent-ink: "#071219"
-  accent-wash: "rgba(143,211,251,0.13)"
-  accent-on-wash: "#8fd3fb"
+  action-fill: "#f1f3f6"
+  action-ink: "#0a0b0f"
+  select-fill: "#181b22"
+  select-edge: "#f1f3f6"
+  focus-ring: "#f1f3f6"
   state-ok: "#3ecf8e"
   state-warn: "#e5a54b"
   state-crit: "#f2555a"
@@ -45,11 +48,11 @@ colors:
 
 typography:
   display:
-    fontFamily: Inter
-    fontSize: 26px
-    fontWeight: 600
+    fontFamily: JetBrains Mono
+    fontSize: 34px
+    fontWeight: 300
     lineHeight: 1.2
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.01em"
   title:
     fontFamily: Inter
     fontSize: 20px
@@ -174,15 +177,15 @@ motion:
 
 components:
   button-primary:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.action-fill}"
+    textColor: "{colors.action-ink}"
     typography: "{typography.body-strong}"
     rounded: "{rounded.md}"
     height: 32px
     padding: 0 12px
   button-primary-hover:
-    backgroundColor: "#a8ddfc"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.ink-muted}"
+    textColor: "{colors.action-ink}"
     typography: "{typography.body-strong}"
     rounded: "{rounded.md}"
   button-secondary:
@@ -217,7 +220,7 @@ components:
   input-focus:
     backgroundColor: "{colors.canvas}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.accent}"
+    borderColor: "{colors.focus-ring}"
     typography: "{typography.body}"
     rounded: "{rounded.md}"
   input-data:
@@ -279,10 +282,10 @@ components:
     typography: "{typography.data-sm}"
     rounded: "{rounded.sm}"
     padding: 1px 7px
-  chip-accent:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.accent-on-wash}"
-    borderColor: "{colors.accent}"
+  chip-select:
+    backgroundColor: "{colors.select-fill}"
+    textColor: "{colors.ink}"
+    borderColor: "{colors.select-edge}"
     typography: "{typography.data-sm}"
     rounded: "{rounded.sm}"
     padding: 1px 7px
@@ -324,8 +327,8 @@ components:
     typography: "{typography.body-sm}"
     rounded: "{rounded.md}"
   nav-item-active:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.accent-on-wash}"
+    backgroundColor: "{colors.select-fill}"
+    textColor: "{colors.ink}"
     typography: "{typography.body-strong}"
     rounded: "{rounded.md}"
   nav-section-label:
@@ -339,8 +342,8 @@ components:
     borderColor: "{colors.rule}"
     typography: "{typography.heading}"
   avatar:
-    backgroundColor: "{colors.accent-wash}"
-    textColor: "{colors.accent-on-wash}"
+    backgroundColor: "{colors.surface-raised}"
+    textColor: "{colors.ink}"
     borderColor: "{colors.rule}"
     typography: "{typography.data-sm}"
     rounded: "{rounded.full}"
@@ -448,8 +451,8 @@ components:
     width: 34px
     height: 19px
   toggle-on:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.action-fill}"
+    textColor: "{colors.action-ink}"
     rounded: "{rounded.full}"
     width: 34px
     height: 19px
@@ -460,8 +463,8 @@ components:
     rounded: "{rounded.sm}"
     size: 16px
   checkbox-checked:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.accent-ink}"
+    backgroundColor: "{colors.action-fill}"
+    textColor: "{colors.action-ink}"
     rounded: "{rounded.sm}"
     size: 16px
   fieldset:
@@ -477,7 +480,7 @@ components:
     typography: "{typography.field-label}"
   link:
     backgroundColor: "transparent"
-    textColor: "{colors.accent-on-wash}"
+    textColor: "{colors.ink}"
     typography: "{typography.body}"
   badge:
     backgroundColor: "{colors.surface-raised}"
@@ -532,7 +535,7 @@ components:
   module-active:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.accent}"
+    borderColor: "{colors.select-edge}"
     typography: "{typography.body}"
     rounded: "{rounded.xl}"
   module-params:
@@ -603,15 +606,20 @@ below serves reading speed and unambiguous state.
 is the default. Light mode binds different values to the same names; see the table in
 *Colors*. Nothing outside those two token tables should hard-code a colour.
 
-Two rules govern this system. They are not stylistic preferences — breaking either one
-makes the interface lie about the firewall:
+One rule governs this system. It is not a stylistic preference — breaking it makes the
+interface lie about the firewall:
 
-1. **Colour outside the blue family means state.** Green, amber and red belong to the
-   firewall: live, unconfirmed, rolled back or failing. They are never used to
-   decorate, brand, or draw attention to something that is merely new.
-2. **The accent is rationed.** Ice blue marks what is focused, what is active, and the
-   single primary action on a page. A page with ice blue in five places has no accent
-   at all.
+1. **Colour means state.** `state-ok`, `state-warn` and `state-crit` are the entire
+   palette. Focus, selection and the primary action are carried by fill, edge and
+   weight. A screen with no colour on it is a screen with nothing to report.
+
+**Amended 2026-09-08: rule 2 is deleted, and deliberately not renumbered into
+silence.** It read *"The accent is rationed — ice blue marks what is focused, what is
+active, and the single primary action on a page. A page with ice blue in five places
+has no accent at all."* 2.16 removed the accent, so there is no accent left to ration.
+The rationing rule existed to stop a second hue competing with the three states; rule 1
+now achieves that by there being no second hue. A reader who arrives remembering rule 2
+should find out here what became of it, not find a file that was always right.
 
 **A diff is structural, never chromatic.** The apply screen marks additions,
 removals and edits with `+`, `-` and `~` in the mono column and neutral chips, and
@@ -624,15 +632,17 @@ the same three roles before this release.
 
 A consequence worth stating explicitly: **there is no informational colour.** Earlier
 iterations tinted "settings saved" and "rules imported" log entries sky blue and
-indigo. Those hues sit inside the accent's family, so a coloured log tag became
+indigo. Neither hue was one of the three states, so a coloured log tag became
 ambiguous — was it a state, or just emphasis? Informational events are now neutral
 chips. Only the three states get colour.
 
 ## Colors
 
-The greys are bent toward blue. A pure neutral grey under an ice-blue accent reads as
-unconsidered — two unrelated systems in one frame. Bending the neutrals a few degrees
-toward the accent makes the chrome and the accent read as one decision.
+The greys are bent toward blue. The original reason was harmony with an ice-blue
+accent, and that accent is gone; the bend stays, because a pure neutral grey under
+green, amber and red reads as unconsidered in exactly the same way — two unrelated
+systems in one frame. With the three state hues now the only colour on the screen, what
+they sit on matters more than it did, not less.
 
 ### Dark (default)
 
@@ -647,9 +657,11 @@ toward the accent makes the chrome and the accent read as one decision.
 | `ink` | `#f1f3f6` | Primary text |
 | `ink-muted` | `#a2aab8` | Secondary text, inactive navigation |
 | `ink-subtle` | `#7d8593` | Labels, timestamps, captions |
-| `accent` | `#8fd3fb` | Focus, active, primary action |
-| `accent-ink` | `#071219` | Text and icons on an accent fill |
-| `accent-wash` | `rgba(143,211,251,0.13)` | Active navigation, accent chips, avatar |
+| `action-fill` | `#f1f3f6` | Fill of the one primary action on a page |
+| `action-ink` | `#0a0b0f` | Text and icons on an action fill |
+| `select-fill` | `#181b22` | The confirming fill under a selected item |
+| `select-edge` | `#f1f3f6` | The edge that marks a selected item |
+| `focus-ring` | `#f1f3f6` | Where the keyboard is |
 | `state-ok` | `#3ecf8e` | Rule live, daemon reachable, protection on |
 | `state-warn` | `#e5a54b` | Unconfirmed change, acceptance window running |
 | `state-crit` | `#f2555a` | Rolled back, unreachable, validation failed |
@@ -667,16 +679,42 @@ toward the accent makes the chrome and the accent read as one decision.
 | `ink` | `#0f1116` | Primary text |
 | `ink-muted` | `#5a6270` | Secondary text |
 | `ink-subtle` | `#666e7b` | Labels, timestamps, captions |
-| `accent` | `#0f7bab` | Focus, active, primary action |
-| `accent-ink` | `#ffffff` | Text and icons on an accent fill |
-| `accent-wash` | `rgba(15,123,171,0.09)` | Active navigation, accent chips, avatar |
-| `accent-on-wash` | `#0d6b95` | Text sitting **on** `accent-wash` |
+| `action-fill` | `#0f1116` | Fill of the one primary action on a page |
+| `action-ink` | `#ffffff` | Text and icons on an action fill |
+| `select-fill` | `#f4f6f9` | The confirming fill under a selected item |
+| `select-edge` | `#0f1116` | The edge that marks a selected item |
+| `focus-ring` | `#0f1116` | Where the keyboard is |
 | `state-ok` | `#12855c` | Rule live |
 | `state-warn` | `#96620d` | Unconfirmed change |
 | `state-crit` | `#cf2d38` | Rolled back or failing |
 | `state-ok-on-wash` | `#0f714e` | Text on a 10% `state-ok` wash |
 | `state-warn-on-wash` | `#88590c` | Text on a 10% `state-warn` wash |
 | `state-crit-on-wash` | `#ba2832` | Text on a 10% `state-crit` wash |
+
+### Why five tokens carry three values
+
+**Four of these carry the same value as `ink`, and the fifth the same as
+`surface-raised`.** That is not a duplication to tidy away. `action-fill`, `select-edge`
+and `focus-ring` answer three different questions — *what is the one action here*,
+*which one is selected*, *where am I* — and a system that answers them with one token
+cannot change one answer without changing the other two. The names are roles; the values
+happen to agree today.
+
+Measured against the surface each one lands on:
+
+| pair | Dark | Light |
+|---|---|---|
+| focus ring / `surface` | 16.72:1 | 18.88:1 |
+| action fill / `surface` | 16.72:1 | 18.88:1 |
+| *before 2.16:* accent fill / `surface` | 11.40:1 | 4.73:1 |
+| `select-fill` / `surface` | **1.08:1** | **1.08:1** |
+
+The last row is the reason `select-edge` exists at all. A fill at 1.08:1 is the same
+invisibility as the focus ring this release replaced, which measured 1.31:1 composited —
+a difference no operator can see, in either theme, on either ground. `select-edge`
+carries "this one is active"; `select-fill` only confirms it once the edge has been
+found. Any implementation that marks the active element with a background alone is
+wrong, and `TestTheActiveNavItemCarriesAnEdgeAndNotOnlyAFill` is what says so.
 
 ### Why the `-on-wash` tokens exist
 
@@ -732,6 +770,17 @@ states use `ink-subtle`. Containers (`card-interactive`, `module`) keep
 `button-disabled` and `input-disabled` stay at `rule` deliberately — see the note below on
 inactive components.
 
+**Amended 2026-09-08: removing the accent strengthens the options page rather than
+weakening it.** The objection this section raises against itself above — that a page
+where only the enabled toggles are visible reads as "everything is fine" — is the one
+2.16 had to answer, because the *on* toggle was an accent fill. Measured against the
+surface the track sits on, the accent-filled *on* state reached 11.40:1 in dark mode and
+**4.73:1** in light. Ink-filled it reaches 16.72:1 and 18.88:1. The *off* state is
+unchanged, still resting on `control-edge` at 3:1. Both halves of the page's question —
+which protections are on, which are off — are therefore answered at least as clearly as
+before, and in light mode the *on* state became roughly four times clearer. Verified by
+rendering /options in both themes, not computed from the token table.
+
 > **Deliberate schema extensions.** The official linter reports three groups of warnings
 > against this file, all expected:
 > - `borderColor` is not in the component schema. In a system where hairline borders — not
@@ -741,9 +790,10 @@ inactive components.
 >   control heights and transition durations are design decisions, not implementation
 >   details; component entries carry literal values so nothing depends on the extension
 >   resolving.
-> - The contrast rule cannot composite alpha: it reads `accent-wash` as opaque and compares
->   it against itself, reporting 1.00:1. Composited over its real surface the same pairs
->   measure 7.4:1 to 8.7:1. Verify contrast by compositing, not by trusting that rule.
+> - The contrast rule cannot composite alpha: it reads a state wash — `chip-ok`'s
+>   `rgba(62,207,142,0.10)`, and the two beside it — as opaque and compares it against
+>   itself, reporting 1.00:1. Composited over its real surface the same pairs measure
+>   7.4:1 to 8.7:1. Verify contrast by compositing, not by trusting that rule.
 
 > **Disabled controls** sit at 4.17:1 in light mode, below AA. This is intentional and
 > permitted — WCAG exempts inactive components, and reduced contrast is the affordance that
@@ -755,19 +805,37 @@ advances and the page recedes — the relationship is preserved even though the 
 flips. Do not "simplify" this by making light-mode canvas pure white; the panels would
 lose their edge.
 
-The accent shifts hue slightly between themes on purpose. A pale ice blue that sings on
-near-black turns illegible on white, so light mode uses a deeper, more saturated blue at
-the same role. Both clear 4.5:1 against their own surface.
+**The accent used to shift hue between themes on purpose**, because a pale ice blue that
+sings on near-black turns illegible on white, so light mode carried a deeper, more
+saturated blue in the same role. That tuning went with the accent. The tokens that
+replaced it do not shift — they invert: `action-fill`, `select-edge` and `focus-ring` are
+`ink` in both themes, which is near-white on the dark ground and near-black on the light
+one. A role defined as *the strongest thing the palette has* needs no per-theme
+correction; it follows the ink, and the ink is already inverted.
 
 ## Typography
 
 Two families, split by what the text *is*:
 
-- **Inter** for language — headings, labels in sentence case, descriptions, button text.
-  A neutral grotesk chosen for its small-size clarity and its genuinely tabular figures.
-- **JetBrains Mono** for network data and for uppercase micro-labels. Ports, IPv4/IPv6
-  addresses, CIDR prefixes, timestamps, counters and raw nftables rules are set in it,
-  always with tabular figures.
+**Inter for what is read. JetBrains Mono for what is identified.** Sentences,
+descriptions, button labels and form labels are read. Ports, addresses, counters,
+timestamps, the countdown and **the name of the page you are standing on** are
+identified. Nothing between the two extremes of the scale is mono.
+
+- **Inter** — headings within a page, labels in sentence case, descriptions, button
+  text. A neutral grotesk chosen for its small-size clarity and its genuinely tabular
+  figures.
+- **JetBrains Mono** — network data, the page title, and uppercase micro-labels. IPv4
+  and IPv6 addresses, CIDR prefixes, timestamps, counters and raw nftables rules are set
+  in it, always with tabular figures.
+
+**Amended 2026-09-08.** The rule used to read *Inter for language, JetBrains Mono for
+network data*, which put the page title in Inter alongside every sentence beneath it. A
+page title is not language an operator reads: it is the label of where they are
+standing, scanned the way a port number is scanned, and it is the one string on the
+screen that answers *which page is this*. The countdown had already proved the voice
+works — 40/300 mono, the largest type in the system — and it appeared on exactly one
+screen in the whole product. The title carries it to every page.
 
 Monospace here is not an aesthetic reference to terminals. It is functional: an operator
 comparing `10.0.1.0/24` against `10.0.11.0/24`, or scanning a port column for an outlier,
@@ -782,7 +850,7 @@ inappropriate on principle. Fonts must ship with the binary, not load from a CDN
 
 | Role | Size / Weight | Used for |
 |---|---|---|
-| `display` | 26 / 600 | Page titles |
+| `display` | 30–34 / 300, mono, `-0.01em` | Page titles |
 | `title` | 20 / 600 | Section titles, auth card heading |
 | `heading` | 14 / 600 | Panel headers, topbar title |
 | `body` | 14 / 400 | Default UI text |
@@ -796,6 +864,16 @@ inappropriate on principle. Fonts must ship with the binary, not load from a CDN
 | `data-sm` | 11 / 400, mono, tnum | Chips, timestamps, counters |
 | `data-display` | 26 / 600, mono, tnum | Tile values |
 | `countdown` | 40 / 300, mono, tnum | Acceptance-window timer |
+
+**`display` is a range because its lower bound is a ceiling reached by measurement.**
+Above 900px the scale gets the 34px it wants. Below that the phone governs, and the
+constraint is not the longest title: that is 23 characters — *Changer le mot de passe* —
+and it wraps at its spaces. The constraint is the longest **unbreakable** title, 19
+characters, `Systemeinstellungen`, a German compound with no break point anywhere in it.
+JetBrains Mono advances 0.6em, so 19 characters is 11.4em, and roughly 358px is available
+inside the padding at a 390px viewport, which puts the ceiling at 31.4px. 30px is that
+number with the rounding taken off. Verify it by rendering /settings in German at 390px,
+not by re-doing the arithmetic.
 
 Headings carry negative tracking (`-0.01em` to `-0.02em`); it tightens multi-word titles
 without making them look condensed. `label` runs the other way at `+0.1em` — uppercase at
@@ -953,18 +1031,27 @@ information must never live in the animation alone.
 
 ### Buttons
 
-One primary action per view, filled with `accent`. Everything else is `button-secondary`:
-surface fill and a 1px `control-edge` border — hairline in weight, but not in contrast, since
-that border is the only thing separating the button from the panel behind it. Destructive actions — *Roll back now*, *Delete rule* — use
-`button-danger`: a bordered button in `state-crit`, never a filled red block. A filled red
-button is the loudest object on the page and invites the misclick it is warning about.
+One primary action per view, filled with `action-fill` and lettered in `action-ink`: the
+strongest pairing the palette has, which is why it needs no hue to be the loudest object
+on the page. Hover moves the fill to `ink-muted` rather than reaching for a second tint —
+`action-ink` on it measures 8.41:1 in dark mode and 6.15:1 in light, so the hover state
+is a change of weight the button survives rather than a colour it borrows.
+
+Everything else is `button-secondary`: surface fill and a 1px `control-edge` border —
+hairline in weight, but not in contrast, since that border is the only thing separating
+the button from the panel behind it. Destructive actions — *Roll back now*, *Delete
+rule* — use `button-danger`: a bordered button in `state-crit`, never a filled red block.
+A filled red button is the loudest object on the page and invites the misclick it is
+warning about.
 
 ### Chips and tags
 
 Chips carry either state or emphasis, never both. `chip-ok` / `chip-warn` / `chip-crit`
-state the firewall's condition. `chip-accent` marks a qualifier the operator chose, such
-as a scope restriction. `chip-neutral` is everything else, including all informational
-audit-log actions.
+state the firewall's condition. `chip-select` marks a qualifier the operator chose, such
+as a scope restriction — `select-fill` behind it and a `select-edge` border, the same
+vocabulary the active navigation item speaks. It was `chip-accent` until 2.16, and the
+rename is the point: what the chip marks is a selection, and never was a hue.
+`chip-neutral` is everything else, including all informational audit-log actions.
 
 ### Tables
 
@@ -972,6 +1059,18 @@ The workhorse. Header cells use `column-label`; value cells carrying network dat
 with tabular figures. Rows separate with a single `rule` hairline and lift to
 `surface-raised` on hover. Right-align nothing except pure counts — port numbers read better
 left-aligned against a left-aligned description.
+
+**A data column is sized by its widest documented value, measured rendered rather than
+added up on paper.** `.col-flex` absorbs the remainder.
+
+That was never written down, and each instance therefore came back as a defect. `.col-toggle`
+sat at 150px bought entirely by its header string until the header was allowed to wrap and
+the true floor turned out to be 94px. `.col-sources` is 25rem because the catalogue's own
+default measures 307px rendered and clipping it drops `fc00::/7`, the range that exists so
+IPv6 does not lock anyone out. `.col-port` at 120px against a documented `8000:9000` needing
+122 was the third, and `carried-forward.md` called it a decision this file did not answer.
+It is answered here now, and it was never a zero-sum choice: `.col-flex` is `width: auto`,
+so every pixel a data column gives back goes to the description an operator is scanning.
 
 Every table sits under a `toolbar`: the count on the right, the add action beside it, and a
 filter field where a set can grow past a screenful. Filtering happens in the browser — the
@@ -982,6 +1081,25 @@ A destructive row action rests at 55% opacity and comes fully forward on row hov
 someone tabbing through, and on a touch screen there is no hover at all — below the reflow
 breakpoint it is always at full strength.
 
+### The dashboard's two ranks
+
+Six tiles were never six of the same thing. Three are ways into the host — its addresses,
+its interfaces, whether the daemon answers — and three change what the rules are. One
+grid claimed otherwise, and produced a page whose most consequential controls sat beside
+its least. Rank one keeps the tiles. **Rank two is a list** — no border, no radius, no
+icon — because three numbers are not three states, and a card is what this system uses
+for something that has one.
+
+A tile is an `<a>`. It carries no *Manage →* affordance of its own, and that link was
+added and removed six times across the design reviews for the same reason each time: the
+whole tile is already the control, so the arrow is a second copy of it sitting inside it.
+
+The unused-port finding used to live inside the tile's note, at 12px. It now takes its
+own line under a hairline in the tile's footer, because something an operator is meant to
+act on does not belong in the smallest type on the page. It is positioned rather than
+added as a fourth grid child: the tiles share a subgrid spanning a fixed row count, and a
+conditional child would give three tiles two different heights.
+
 ### Protection modules
 
 A firewall protection is either on or off and may carry its own parameters. As rows in one
@@ -991,8 +1109,8 @@ answered none of the page's actual question: *which protections are active right
 Each is a card in an `auto-fill` grid at `minmax(330px, 1fr)`. Name and switch in the header,
 one line saying what the module does, and parameters below a hairline **inside the card** —
 not on a darker band underneath it, which read as a detached second row. An active module
-carries a 2px `accent` inset on its left edge: the same device that marks the active nav
-item, so "this one is live" speaks one vocabulary throughout. The header is a `<label>`
+carries a 2px `select-edge` inset on its left edge: the same device that marks the active
+nav item, so "this one is live" speaks one vocabulary throughout. The header is a `<label>`
 wrapping its own switch, so the whole card top is the hit area.
 
 The state is never carried by that edge alone — the switch itself shows its position, which
@@ -1066,13 +1184,23 @@ default and focus will silently fail the moment a rule does not validate:
 |---|---|---|---|
 | Default | `control-edge` | `canvas` | 3:1 per SC 1.4.11 — the fill is 1.03:1 from the card |
 | Hover | `ink-subtle` | `canvas` | Must read stronger than default, so not `rule-strong` |
-| Focus | `accent` | `canvas` | Plus a 2px `accent-wash` outline at 1px offset |
+| Focus | `focus-ring` | `canvas` | Plus a 2px `focus-ring` outline at 2px offset |
 | Error | `state-crit` | `canvas` | Message below in `state-crit`, never colour alone |
 | Disabled | `rule` | `surface-raised` | Text drops to `ink-subtle`; inactive, so exempt |
 
 Focus is never removed. It is a **border change plus an outline** — not a glow, and never
 colour alone, because an operator navigating by keyboard has to see where they are on a
 dense page of ports.
+
+**Amended 2026-09-08.** Focus was measured across all 13 pages by tabbing to every
+focusable element and compositing the indicator against the backdrop it actually lands
+on, rather than against the token it nominally sits over. The failing set was one shape:
+a ring with no border change under it. `.toggle`, `.checkbox`, `.theme-toggle`, `.link`,
+the three editor textareas and `.f-ssh` — 66 elements per theme — drew a translucent ring
+that composited to 1.31–1.34:1. Every control whose border moved on focus already cleared
+3:1. That is the argument for the border change being part of the specification rather
+than a nicety layered on top of the outline: the outline is what the eye finds, and the
+border is what survives when the outline lands on a surface it cannot separate from.
 
 `fieldset` groups related settings and carries its legend in `label` type. This is the
 dominant structure on the options and settings pages; a flat list of forty controls with no
@@ -1081,14 +1209,40 @@ grouping is unusable, and the grouping is what makes the protection modules scan
 ### Toggles and checkboxes
 
 The protection modules are the largest cluster of controls in the product — eleven toggles
-on one page. A toggle means "this protection is on"; it is the only place besides the accent
-button where `accent` appears as a fill, and that is deliberate: an operator scanning the
-options page should be able to see at a glance how much protection is enabled.
+on one page. A toggle means "this protection is on"; it is the only place besides the
+primary button where `action-fill` appears as a fill, and that is deliberate: an operator
+scanning the options page should be able to see at a glance how much protection is
+enabled.
 
 Checkboxes are for selection, toggles are for state. Never use a toggle for something that
 only takes effect after pressing Save — the toggle's own animation promises immediacy.
 Where a toggle sits behind an explicit apply step, pair it with the unconfirmed-change
 indicator rather than letting it imply the rule is already live.
+
+### Navigation
+
+Sidebar groups open with a `rule`-weight hairline above their label, and their links are
+indented beneath it, so the eye reads container-then-contents instead of two rows of
+equal-weight text. The device is the documentation sidebar's, for the reason this file
+already gives about it under *Typography*: `label` at `ink-subtle` and a nav link at
+`ink-muted` sit twelve steps apart per channel — distinct on paper, the same grey once
+rendered, and with the label the *lighter* of the two it read as the weaker element
+rather than as the divider it is. Colour never carried that separation, and after 2.16
+there is less colour available to carry anything.
+
+**The first labelled group carries neither device.** It follows the ungrouped *Dashboard*
+link rather than another group, and a rule there divides nothing. The rule is therefore
+written between labelled siblings rather than on a class, so a fourth group added later
+gets both devices without anyone having to remember them.
+
+The active item takes a `select-fill` background, `ink` text at 550 weight, and a 2px
+`select-edge` inset on its left edge. The inset sits out in the list's own gutter, so it
+marks the group's left edge rather than the text's, which is what makes the indent read
+as containment rather than as a second margin. The fill on its own marks nothing — see
+the 1.08:1 measurement under *Colors*.
+
+`carried-forward.md` held this across three design reviews as deliberately not touched.
+2.16 closes it.
 
 ### Language and theme switches
 
@@ -1124,14 +1278,26 @@ reads as its language's endonym whatever the interface is currently set to — `
 `German`; `Français`, not `French` — and there is still no "Language:" label to precede it: the field would only be
 useful to someone who can already read the interface.
 
+**The select is drawn, not left native.** It takes `appearance: none`, a chevron built
+from two borders on a pseudo-element — which takes `currentColor`, so it follows the theme
+with no second asset to keep in step and nothing for `style-src 'self'` to object to — and
+a `surface-raised` fill. The fill is not decoration: this file already names the failure
+under *Why `control-edge` is separate from `rule-strong`*, that a field's `canvas`
+background sits 1.03–1.06:1 from the `surface` of the card it is on. In the sidebar that
+was survivable. On the login card, where this control also appears, it left the select
+recognisable only by its native arrow — which is exactly the arrow `appearance: none`
+takes away.
+
 Drawn only when more than one locale is installed. A single option that cannot change
 anything is a control that lies about having a choice.
 
 ### Links and badges
 
-`link` uses `accent-on-wash` — the deepened accent — because a link sits in running text
-where the pale ice blue would not carry enough contrast in light mode. Links underline on
-hover; they are never distinguished by colour alone.
+`link` is `ink` with a **permanent** underline; the underline carries the affordance and
+hover thickens it. The old reasoning here — `accent-on-wash`, the deepened accent, because
+a pale ice blue in running text lacks contrast in light mode — went with the accent, and
+with it went the last argument for a link being a colour at all. A link in running text
+that is only a hue fails the same way a state that is only a dot fails.
 
 A `badge` is a neutral count or marker. A `chip` carries state or a chosen qualifier. If you
 find yourself reaching for a coloured badge, you want a chip.
@@ -1160,14 +1326,23 @@ why it could never sit on a light surface and why it dissolved into grey below a
 
 | Context | Mechanism | Colour |
 |---|---|---|
-| App chrome (sidebar, auth cards) | CSS `mask` on a `<span>` | `accent` |
+| App chrome (sidebar, auth cards) | CSS `mask` on a `<span>` | `ink` |
 | Favicon (SVG) | Browser loads the file directly | Adapts via `prefers-color-scheme` inside the file |
 | Favicon (PNG fallback), docs, README | Raster or `<img>` | Baked: `#0f7bab`, the one tone legible on both light and dark tab bars |
 
 The mask matters. An SVG loaded through `<img>` is a separate document and **cannot inherit
-`currentColor`** — the previous `.brand-icon { color: var(--accent) }` rule was silently
-doing nothing. A mask ignores the file's own fill and takes its colour from
-`background-color`, so one file serves every theme without duplicating the geometry.
+`currentColor`** — an early `.brand-icon { color: var(--accent) }` rule was silently doing
+nothing. A mask ignores the file's own fill and takes its colour from `background-color`,
+so one file serves every theme without duplicating the geometry.
+
+**Amended 2026-09-08.** The app chrome's mark is `ink`, because there is no accent left
+to apply to it. The SVG favicon still adapts through `prefers-color-scheme` inside the
+file. **The baked raster favicon and the documentation's copy of the mark stay
+`#0f7bab`**, and this is stated rather than left to be discovered: they already differed
+from the app chrome in dark mode, where the chrome drew the mark in pale ice blue and the
+raster in a deeper one, so 2.16 did not open the divergence, only changed which colour
+sits on the other side of it. Re-rendering the raster set and the OG image was not in this
+release's scope; it is listed under *Known Gaps*.
 
 ### Rules
 
@@ -1191,17 +1366,34 @@ must be **converted to outlines** at export time. The OG image at
 `web/static/og-image.png` is generated from `og-image.svg`; regenerate it whenever the
 typeface changes.
 
+## The documentation site
+
+The site at easywall-project.org and the application share these tokens and both
+typefaces, and they arrive at pages that look deliberately unalike. The reason is stated
+here so the difference does not read as an accident: **the application reserves colour
+for state, and the documentation has no state.** Nothing on a page of prose is live,
+unconfirmed or rolled back. Having nothing to report, it reports nothing, and so it has
+no colour.
+
+Links there carry an underline and weight rather than a hue — the same affordance the
+application's `link` uses, for the same reason. `h1` takes the mono display voice, so a
+documentation page announces itself the way an application page does. `h2` and `h3`
+inside an article stay Inter, because a long-form page set in mono headings throughout
+stops reading as prose and starts reading as a table.
+
 ## Do's and Don'ts
 
 ### Do
 
 - Reserve green, amber and red for firewall state, always and only.
-- Set every port, address, CIDR, timestamp and counter in monospace with tabular figures.
+- Set every port, address, CIDR, timestamp, counter and page title in monospace with
+  tabular figures.
 - Give every state both a colour and a word.
 - Keep one primary action per view.
 - Let hairline borders do the separating; keep panels flat.
 - Self-host fonts; assume the machine has no internet access.
-- Pair focus states with a visible border change, not just a glow.
+- Pair focus states with a visible border change, not just a ring. The ring is what the
+  eye finds; the border is what survives a backdrop the ring cannot separate from.
 - Implement all five input states. The error state is the one that matters most and the one
   most often skipped.
 - Keep every interactive control on a shared height token.
@@ -1211,14 +1403,15 @@ typeface changes.
 ### Don't
 
 - Don't tint informational events. "Settings saved" is neutral, not blue.
-- Don't use the accent for branding moments, empty-state art, or section decoration.
+- Don't reintroduce a hue for branding moments, empty-state art, or section decoration.
+  Green, amber and red are the palette, and each of them already means something.
+- Don't mark the active element with a background alone. `select-fill` is 1.08:1 against
+  `surface` in both themes; `select-edge` is what an operator actually sees.
 - Don't add a fourth state colour. If a new condition needs expressing, map it onto ok /
   warn / crit or express it in words.
-- Don't reflow tables into stacked cards on mobile — a rule read as loose fields is no
-  longer a rule.
 - Don't fill destructive buttons. Border them.
-- Don't let content run full-bleed on wide displays; the 1100px cap is what keeps a row
-  scannable.
+- Don't cap the content width to keep a row scannable. The cap was tried and reverted;
+  see *Layout*. Width belongs to the tables.
 - Don't introduce gradients or glows. The one exception the previous system allowed — an
   atmospheric body gradient — was invisible at operating brightness and cost a repaint.
 - Don't animate anything past 200ms, and don't loop anything that isn't genuinely ongoing.
@@ -1243,6 +1436,13 @@ typeface changes.
   targets a single density.
 - **Empty and error illustration.** Empty states are currently type-only. Whether easywall
   wants illustration at all is undecided.
-- **Light-mode accent distinctiveness.** `#0f7bab` sits close to the previous system's
-  `#0891b2`. The light theme will therefore feel less changed than the dark one; revisit if
-  the continuity is unwanted.
+- **The mark is two colours across three surfaces.** The app chrome draws it in `ink`;
+  the baked raster favicon, the OG image and the documentation's copy stay `#0f7bab`.
+  They already differed before 2.16, and re-rendering the raster set and the OG image was
+  not in this release's scope.
+- **`.callout-info` on the documentation site still hard-codes a sky blue** —
+  `rgba(56,189,248,…)` in dark, `rgba(2,132,199,…)` in light. It is not a token and it
+  predates this release, so 2.16 neither introduced nor removed it. It is worth naming
+  because it is now the only blue left on the site: the closest surviving thing to the
+  accent that was just removed, sitting in the one place — an informational callout —
+  where this system says colour does not belong.
