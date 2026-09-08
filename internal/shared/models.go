@@ -455,6 +455,18 @@ type WebConfig struct {
 	// than the proxies it holds hands that choice to anything that can reach
 	// the port from inside it.
 	TrustedProxies []string `toml:"trusted_proxies"`
+
+	// HealthAllow lists the addresses and networks that may read /healthz —
+	// the one route on this process that answers without a session, because an
+	// orchestrator holds none. Absent means the loopback default; an explicitly
+	// empty list means nobody, which is how an operator turns the endpoint off.
+	//
+	// It is not TrustedProxies and shares nothing with it but the parser. This
+	// list decides whether an unauthenticated endpoint answers at all, and it is
+	// matched against the TCP peer only — never against a forwarding header, or
+	// anything behind a trusted proxy could claim to be loopback by writing one.
+	// See handleHealthz and docs-tech/threat-model.md.
+	HealthAllow []string `toml:"health_allow"`
 }
 
 // NetworkSettings groups the IPv6, Docker and routing configuration for IPC
@@ -579,14 +591,42 @@ const (
 	HealthReasonBuildFindings  HealthReason = "build_findings"
 	HealthReasonSelftestFailed HealthReason = "selftest_failed"
 	HealthReasonHealthy        HealthReason = "healthy"
+
+	// HealthReasonCoreUnreachable is the only reason the *web* process
+	// originates, and it exists because not_enforcing would have been a lie.
+	//
+	// The two are claims about different things. not_enforcing is a claim about
+	// the kernel — computeHealth read the ruleset and found the input chain not
+	// filtering. core_unreachable is a claim about the socket: the web process
+	// asked and got no answer, and it has no path to netlink to check for
+	// itself. That is the whole design — a bug in form parsing is not a firewall
+	// bug — and it cuts both ways: the unprivileged half is never entitled to
+	// report on the kernel, only on whether it could reach the half that is.
+	//
+	// The kernel may well still be filtering perfectly behind a core that
+	// crashed, and saying otherwise on an unauthenticated endpoint, in the
+	// release whose subject is not making false claims about the firewall, is
+	// the one thing this release cannot ship.
+	//
+	// It is still fail, and /healthz still answers 503: a live web process in
+	// front of a dead core is exactly the half-dead container
+	// docker/entrypoint.sh:12-18 records, and an orchestrator must restart it.
+	// What changes is what the operator is told, not what the orchestrator does.
+	HealthReasonCoreUnreachable HealthReason = "core_unreachable"
 )
 
 // AllHealthReasons is the complete list, and it is what the interface's guard
 // hangs off: both locale files must label every one of these. AllReachReasons
 // exists for the same reason and is checked the same way.
+//
+// Six of the seven come out of computeHealth in the core. core_unreachable is
+// the exception — handleHealthz produces it, because it is the one answer the
+// core cannot give about itself — and TestEveryHealthReasonIsListed names that
+// exception rather than dropping the reverse check for everything.
 var AllHealthReasons = []HealthReason{
 	HealthReasonNotEnforcing, HealthReasonPanic, HealthReasonStatefulDead,
 	HealthReasonBuildFindings, HealthReasonSelftestFailed, HealthReasonHealthy,
+	HealthReasonCoreUnreachable,
 }
 
 // HealthSelftest is the self-test stamp as the *health reply* carries it: what
@@ -600,15 +640,27 @@ var AllHealthReasons = []HealthReason{
 // embedding the stamp would publish which of an operator's ports the firewall
 // is currently getting wrong to anyone who can reach the endpoint.
 //
-// Detail is not lost: it goes to the audit log and to `easywall-core health`,
-// both of which are authenticated or local. TestHealthResultCarriesNoRuleDetail
-// is what keeps this type reduced — adding a field back to it turns that test
-// red.
+// Detail is not lost: it goes to the audit log and to `easywall-core selftest`,
+// both of which are local to the host. Not to `easywall-core health` — that
+// subcommand renders a HealthResult, which is this reduced type by definition,
+// so there is no detail there for it to print. The exclusion is the reason, not
+// an oversight in the console: a reader who takes this comment as naming
+// `health` will conclude the field ought to be reachable from HealthResult and
+// "fix" the very thing /healthz depends on.
+//
+// TestHealthResultCarriesNoRuleDetail is what keeps this type reduced — adding a
+// field back to it turns that test red.
 type HealthSelftest struct {
-	Version string         `json:"version"`
-	Kernel  string         `json:"kernel"`
-	Result  SelftestResult `json:"result"`
-	At      time.Time      `json:"at,omitzero"`
+	Version string `json:"version"`
+	// omitempty, because /healthz renders this to a machine and the demo has no
+	// kernel to name: internal/web cannot reach the privileged
+	// core.KernelRelease() — it imports internal/core nowhere, by design — so
+	// the demo's unprovable stamp carries the zero value where a real host's
+	// unprovable stamp carries a release. An empty field where a kernel belongs
+	// is a claim; absence is not.
+	Kernel string         `json:"kernel,omitempty"`
+	Result SelftestResult `json:"result"`
+	At     time.Time      `json:"at,omitzero"`
 }
 
 // HealthResult is what GET_HEALTH answers with: the state, a closed

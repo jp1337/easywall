@@ -252,6 +252,32 @@ Two logging switches belong to no module and are set here as well:
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 | `trusted_proxies` | array of strings | Addresses and networks whose `X-Forwarded-For` header is believed. Empty by default, which means the TCP peer is authoritative. See [Behind a reverse proxy](#behind-a-reverse-proxy) for what listing one costs |
+| `health_allow` | array of strings | Addresses and networks that may read `/healthz`. Loopback by default. See [Who may read /healthz](#who-may-read-healthz) |
+
+### Who may read `/healthz`
+
+```toml
+health_allow = ["127.0.0.1/8", "::1/128", "10.20.0.0/24"]
+```
+
+`/healthz` is the one route that answers without a session, because the
+orchestrator asking whether easywall-web is alive does not hold one. It returns
+`ok`, `degraded` or `fail` as JSON, and nothing about your rules.
+
+| Answer | HTTP | Meaning |
+|---|---|---|
+| `ok` | 200 | Filtering, and the self-test agrees |
+| `degraded` | 200 | Still filtering, with something to look at |
+| `fail` | 503 | Not filtering, or the core cannot be reached |
+
+`degraded` is deliberately 200: a container restarted for it would be a working
+firewall dropping every established connection through it. Alert on the `state`
+in the body instead.
+
+Loopback only unless you widen it. The list is matched against the TCP peer and
+never against `X-Forwarded-For`, so a proxy in front of easywall cannot pass a
+monitoring host through — list the proxy. An empty list turns the endpoint off;
+leaving the key out means the loopback default, so an upgrade keeps working.
 
 ### Behind a reverse proxy
 

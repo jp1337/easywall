@@ -29,6 +29,30 @@ demo_mode = false
 # EASYWALL_WEB_TRUSTED_PROXIES sets the same list, comma-separated.
 trusted_proxies = []
 
+# ─── Who may read /healthz ──────────────────────────────────────────────────
+# /healthz is the one page here that answers without a session, because the
+# orchestrator asking whether this process is alive does not hold one. It
+# returns the firewall's state as JSON — ok, degraded or fail — and nothing
+# about your rules.
+#
+# It exists because a container once stayed "Up" for hours with a live core and
+# a dead web process: the health check only looked at the core's socket, and a
+# check on the core cannot see this half.
+#
+# Loopback only by default, which is where the container's own check and a local
+# monitoring probe both come from. Widen it to reach the endpoint from your
+# monitoring host:
+#
+#   health_allow = ["127.0.0.1/8", "::1/128", "10.20.0.0/24"]
+#
+# The list is matched against the TCP peer and never against X-Forwarded-For,
+# so a proxy in front of easywall cannot pass a monitoring host through it —
+# list the proxy. An empty list turns the endpoint off entirely; leaving the key
+# out means the default above.
+#
+# EASYWALL_WEB_HEALTH_ALLOW sets the same list, comma-separated.
+health_allow = ["127.0.0.1/8", "::1/128"]
+
 # ─── Update check ───────────────────────────────────────────────────────────
 # The dashboard asks github.com once a day whether a newer release exists. It
 # never delays a page: the answer comes from a cache on disk. Set to false to

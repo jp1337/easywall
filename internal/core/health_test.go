@@ -219,14 +219,42 @@ func TestEveryHealthReasonIsListed(t *testing.T) {
 		produced[computeHealth(in).Reason] = true
 	}
 
+	// core_unreachable is the one reason the core does not originate, and it is
+	// the one reason it cannot: it means the web process asked this daemon and
+	// got no answer, which is a claim about the socket rather than about the
+	// kernel. handleHealthz produces it, and
+	// TestHealthzAnswers503WhenTheCoreDoesNotAnswer asserts it — including that
+	// the answer is not not_enforcing, which is the claim the unprivileged half
+	// is not entitled to make.
+	//
+	// Named rather than the reverse check being dropped: a bare exemption list
+	// would let the next reason added anywhere go untested, which is the whole
+	// thing this test protects.
+	notFromTheCore := map[shared.HealthReason]string{
+		shared.HealthReasonCoreUnreachable: "internal/web/handler_health.go, handleHealthz",
+	}
+
 	for r := range produced {
 		if !listed[r] {
 			t.Errorf("computeHealth returns %q, which AllHealthReasons does not list", r)
 		}
+		if where, ok := notFromTheCore[r]; ok {
+			t.Errorf("computeHealth returns %q, which is documented as coming from %s "+
+				"instead — the exemption below is now wrong", r, where)
+		}
 	}
 	for _, r := range shared.AllHealthReasons {
+		if _, ok := notFromTheCore[r]; ok {
+			continue
+		}
 		if !produced[r] {
 			t.Errorf("AllHealthReasons lists %q, which no input above produces", r)
+		}
+	}
+	for r := range notFromTheCore {
+		if !listed[r] {
+			t.Errorf("%q is exempted here and is not in AllHealthReasons, so nothing "+
+				"requires either locale file to label it", r)
 		}
 	}
 }
