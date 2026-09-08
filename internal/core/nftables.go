@@ -158,6 +158,36 @@ func NewNftablesManager() (*NftablesManager, error) {
 	return m, nil
 }
 
+// NewNftablesManagerInNamespace is NewNftablesManager against the network
+// namespace at nsFD. Only the self-test uses it.
+//
+// A separate constructor rather than an option on the existing one, because
+// every other caller in this repository must reach the host's namespace and a
+// defaulted parameter is how that stops being true — one caller forgetting to
+// pass it would be a manager that silently rewrote the host's table, which is
+// the one thing a health check may never do.
+//
+// nsFD is not dup'ed here, by the library or by us: nftables.New is
+// non-lasting, so every Flush dials a fresh netlink socket with this fd in
+// netlink.Config.NetNS. The caller must therefore keep the *Harness that owns
+// the descriptor alive for as long as it holds this manager. A cached copy of
+// Harness.NetNSFd() outliving its Close would hand setns a number the kernel
+// has since recycled onto an unrelated file.
+//
+// m.adder is set for the same reason NewNftablesManager sets it: without the
+// recording wrapper the expression check in Apply reads an empty slice, and a
+// check that inspects nothing is the defect this release exists to prevent
+// arriving through the guard built to prevent it.
+func NewNftablesManagerInNamespace(nsFD int) (*NftablesManager, error) {
+	conn, err := nftables.New(nftables.WithNetNSFd(nsFD))
+	if err != nil {
+		return nil, fmt.Errorf("reach nftables in the self-test namespace: %w", err)
+	}
+	m := &NftablesManager{conn: conn}
+	m.adder = builtRecorder{m}
+	return m, nil
+}
+
 // LastFindings is what the expression check said about the last table this
 // manager built. Empty is the healthy answer.
 //
