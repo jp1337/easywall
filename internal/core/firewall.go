@@ -98,6 +98,13 @@ type Firewall struct {
 	// persisted baseline the next delta is measured from. Written by the ticker
 	// Daemon.Start launches and by apply(), read by GET_USAGE.
 	usage *UsageStore
+
+	// stamp owns DataDir/selftest.json: what the self-test last proved, and
+	// against which version and kernel. Read by Health, written by the proof.
+	// Never nil — NewFirewall always builds one, and Read answers a missing
+	// file with the zero stamp, which is what an installation whose proof has
+	// not run looks like.
+	stamp *StampStore
 }
 
 // ErrApplyInProgress is returned when an apply is asked for while a cycle is
@@ -182,6 +189,7 @@ func NewFirewall(cfg *Config) (*Firewall, error) {
 		reconcilePoll: 2 * time.Second,
 		reconcileWait: 90 * time.Second,
 		usage:         NewUsageStore(cfg.UsagePath()),
+		stamp:         NewStampStore(cfg.SelftestStampPath()),
 	}
 	f.lastApply = readLastApply(cfg.LastApplyPath())
 	return f, nil

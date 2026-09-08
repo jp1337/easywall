@@ -550,6 +550,77 @@ type SelftestStamp struct {
 	Detail  string         `json:"detail"`
 }
 
+// HealthState is the answer GET_HEALTH gives, and the exit code
+// `easywall-core health` maps onto: ok → 0, degraded → 1, fail → 2.
+//
+// Three values, not a boolean, because "the firewall is up" and "the firewall
+// is doing what it says" are different claims and this release exists because
+// they were conflated. For five releases the input chain's
+// `ct state established,related accept` matched no packet — the conntrack masks
+// were byte-reversed — so the stateful half enforced nothing while every
+// surface reported the firewall active. A boolean has nowhere to put that.
+type HealthState string
+
+const (
+	HealthOK       HealthState = "ok"
+	HealthDegraded HealthState = "degraded"
+	HealthFail     HealthState = "fail"
+)
+
+// HealthReason names which fact decided the state. A closed enum, never free
+// text, for the same reason ReachReason is one: this ends up on a page and in
+// two locale files, and a sentence assembled in Go cannot be translated.
+type HealthReason string
+
+const (
+	HealthReasonNotEnforcing   HealthReason = "not_enforcing"
+	HealthReasonPanic          HealthReason = "panic"
+	HealthReasonStatefulDead   HealthReason = "stateful_dead"
+	HealthReasonBuildFindings  HealthReason = "build_findings"
+	HealthReasonSelftestFailed HealthReason = "selftest_failed"
+	HealthReasonHealthy        HealthReason = "healthy"
+)
+
+// AllHealthReasons is the complete list, and it is what the interface's guard
+// hangs off: both locale files must label every one of these. AllReachReasons
+// exists for the same reason and is checked the same way.
+var AllHealthReasons = []HealthReason{
+	HealthReasonNotEnforcing, HealthReasonPanic, HealthReasonStatefulDead,
+	HealthReasonBuildFindings, HealthReasonSelftestFailed, HealthReasonHealthy,
+}
+
+// HealthSelftest is the self-test stamp as the *health reply* carries it: what
+// was proven, against which version and kernel, and when.
+//
+// Deliberately not SelftestStamp itself, and this is the whole reason the type
+// exists. SelftestStamp.Detail is free text written by the proof — "an open
+// port accepts a connection — port 12227 was dropped" — and it names a port
+// number and the claim that failed. HealthResult is rendered by /healthz, which
+// is unauthenticated by necessity because an orchestrator holds no session, so
+// embedding the stamp would publish which of an operator's ports the firewall
+// is currently getting wrong to anyone who can reach the endpoint.
+//
+// Detail is not lost: it goes to the audit log and to `easywall-core health`,
+// both of which are authenticated or local. TestHealthResultCarriesNoRuleDetail
+// is what keeps this type reduced — adding a field back to it turns that test
+// red.
+type HealthSelftest struct {
+	Version string         `json:"version"`
+	Kernel  string         `json:"kernel"`
+	Result  SelftestResult `json:"result"`
+	At      time.Time      `json:"at,omitzero"`
+}
+
+// HealthResult is what GET_HEALTH answers with: the state, a closed
+// translatable reason, and the stamp's identity.
+//
+// No rule detail, no counter values, no finding text. See HealthSelftest.
+type HealthResult struct {
+	State    HealthState    `json:"state"`
+	Reason   HealthReason   `json:"reason"`
+	Selftest HealthSelftest `json:"selftest"`
+}
+
 // SystemSettings groups the acceptance window configuration for IPC transport.
 type SystemSettings struct {
 	Acceptance AcceptanceConfig `json:"acceptance"`
