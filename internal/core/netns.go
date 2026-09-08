@@ -24,7 +24,15 @@ package core
 //	child -> parent   "ready\n"                     once, after clone+exec
 //	parent -> child   "dial 10.77.9.1 12227 2000\n" address, port, milliseconds
 //	child -> parent   "open\n" | "blocked\n"        the verdict
+//	child -> parent   "unparsed\n"                  not a verdict; see below
 //	parent -> child   (pipe closed)                 child exits
+//
+// "unparsed" exists because "I could not read your line" and "the firewall
+// dropped it" must not be the same word. It is unreachable today — the parent
+// is the only writer and always formats a well-formed line — but a release
+// whose subject is not lying about the firewall's state cannot have a parse
+// failure spelling itself as a verdict. Dial's default branch turns it into an
+// error, which is what it is.
 
 import (
 	"bufio"
@@ -63,7 +71,9 @@ func RunPeer(stdin io.Reader, stdout io.Writer) int {
 		var addr string
 		var port, ms int
 		if n, _ := fmt.Sscanf(sc.Text(), "dial %s %d %d", &addr, &port, &ms); n != 3 {
-			_, _ = fmt.Fprintln(stdout, "blocked")
+			// Not "blocked": nothing was dialled, so there is no verdict to
+			// report and the parent must not read one.
+			_, _ = fmt.Fprintln(stdout, "unparsed")
 			continue
 		}
 		d := net.Dialer{Timeout: time.Duration(ms) * time.Millisecond}
@@ -215,8 +225,8 @@ func NewHarness() (*Harness, error) {
 	return h, nil
 }
 
-// wire builds the pair and configures both ends. Four kinds of netlink message,
-// each one a named function so it can be read against ip-link(8) and
+// wire builds the pair and configures both ends. Every netlink message is a
+// named function, so each one can be read against ip-link(8) and
 // ip-address(8) rather than against this sequence.
 func (h *Harness) wire() error {
 	pid := h.child.Process.Pid
@@ -232,6 +242,27 @@ func (h *Harness) wire() error {
 		return fmt.Errorf("rtnetlink in this namespace: %w", err)
 	}
 	defer func() { _ = local.Close() }()
+
+	// A leftover pair from an earlier harness goes first, because Close is not
+	// the end of it: Close returns long before the kernel's cleanup_net
+	// destroys the peer's namespace, so the previous router-side end is still
+	// registered here — about 110 ms on an idle container, and longer under
+	// load, since netns teardown is batched. Without this, a second NewHarness
+	// in the same process fails with EEXIST out of createVethPair, which does
+	// *not* satisfy errors.Is(err, ErrNamespaceUnavailable): the self-test
+	// would report a broken harness instead of "unprovable", on a release whose
+	// whole subject is not lying about the firewall's state.
+	//
+	// The side effect is worth knowing: this deletes any interface in this
+	// namespace literally named ewst-r, whoever made it. Deleting one end of a
+	// veth takes its peer with it, so one message covers the pair.
+	//
+	// Naming the links per-pid instead would not have been enough. The old
+	// router link still holds 10.77.9.1/24, and addAddress is Create|Excl too,
+	// so a uniquely named interface would simply collide one step later.
+	if err := deleteLink(local, harnessRouterIf); err != nil {
+		return fmt.Errorf("clearing a leftover %s: %w", harnessRouterIf, err)
+	}
 
 	if err := createVethPair(local, harnessRouterIf, harnessPeerIf, pid); err != nil {
 		return fmt.Errorf("creating the veth pair: %w", err)
@@ -426,6 +457,34 @@ func addAddress(c *netlink.Conn, ifName string, addr netip.Addr, prefix uint8) e
 	})
 	if err != nil {
 		return fmt.Errorf("RTM_NEWADDR %s on %s: %w", addr, ifName, err)
+	}
+	return nil
+}
+
+// deleteLink sends RTM_DELLINK for one interface, by name, and reports "there
+// was nothing to delete" as success — which is the ordinary case, the first
+// harness in a process.
+func deleteLink(c *netlink.Conn, ifName string) error {
+	ae := netlink.NewAttributeEncoder()
+	ae.String(unix.IFLA_IFNAME, ifName)
+	attrs, err := ae.Encode()
+	if err != nil {
+		return fmt.Errorf("encoding the delete for %s: %w", ifName, err)
+	}
+	_, err = c.Execute(netlink.Message{
+		Header: netlink.Header{
+			Type:  netlink.HeaderType(unix.RTM_DELLINK),
+			Flags: netlink.Request | netlink.Acknowledge,
+		},
+		Data: append(ifInfomsg(0, 0), attrs...),
+	})
+	// netlink.OpError unwraps to the raw unix.Errno, so errors.Is reaches it
+	// through the wrapping.
+	if errors.Is(err, unix.ENODEV) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("RTM_DELLINK %s: %w", ifName, err)
 	}
 	return nil
 }

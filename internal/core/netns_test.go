@@ -28,7 +28,24 @@ import (
 // leniency — if both files were ever renamed the walk would inspect nothing at
 // all and this test would pass by inspecting nothing, which is the one failure
 // mode a skip introduces.
+//
+// os/exec is not the only way to start a program, and a guard whose subject is
+// "no subprocess" cannot stop at the spelling that happens to be in use.
+// syscall.Exec, syscall.ForkExec, os.StartProcess and an exec.Cmd built as a
+// composite literal all run a program without ever naming exec.Command, and all
+// four passed this test until the review pointed at the gap between it and its
+// own comment.
 func TestSelftestUsesNoExternalBinary(t *testing.T) {
+	// Every other way to start a program. None of them takes the one argument
+	// shape below, so they are refused outright rather than inspected: if the
+	// harness ever needs one, that is a decision to make in review and not a
+	// call to slip past a guard.
+	otherWaysToStartAProgram := map[string]string{
+		"syscall.Exec":     "replaces this process with another program",
+		"syscall.ForkExec": "starts another program",
+		"os.StartProcess":  "starts another program",
+	}
+
 	parsed := 0
 	for _, file := range []string{"netns.go", "selftest.go"} {
 		fset := token.NewFileSet()
@@ -41,6 +58,20 @@ func TestSelftestUsesNoExternalBinary(t *testing.T) {
 		}
 		parsed++
 		ast.Inspect(f, func(n ast.Node) bool {
+			// exec.Cmd{Path: …} runs whatever Path names, and Start is then a
+			// method call on a value this walk would never have looked at.
+			if comp, ok := n.(*ast.CompositeLit); ok {
+				if sel, ok := comp.Type.(*ast.SelectorExpr); ok {
+					if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "exec" && sel.Sel.Name == "Cmd" {
+						t.Errorf("%s:%d: an exec.Cmd composite literal; build the command with "+
+							"exec.Command(\"/proc/self/exe\") so that the program this package "+
+							"execs stays visible to this guard",
+							file, fset.Position(comp.Pos()).Line)
+					}
+				}
+				return true
+			}
+
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -50,7 +81,16 @@ func TestSelftestUsesNoExternalBinary(t *testing.T) {
 				return true
 			}
 			pkg, ok := sel.X.(*ast.Ident)
-			if !ok || pkg.Name != "exec" {
+			if !ok {
+				return true
+			}
+			if why, forbidden := otherWaysToStartAProgram[pkg.Name+"."+sel.Sel.Name]; forbidden {
+				t.Errorf("%s:%d: %s.%s %s; the only program this package may exec is "+
+					"/proc/self/exe, through exec.Command",
+					file, fset.Position(call.Pos()).Line, pkg.Name, sel.Sel.Name, why)
+				return true
+			}
+			if pkg.Name != "exec" {
 				return true
 			}
 			if sel.Sel.Name != "Command" && sel.Sel.Name != "CommandContext" {
