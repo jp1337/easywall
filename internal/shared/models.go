@@ -612,10 +612,16 @@ var AllHealthReasons = []HealthReason{
 // embedding the stamp would publish which of an operator's ports the firewall
 // is currently getting wrong to anyone who can reach the endpoint.
 //
-// Detail is not lost: it goes to the audit log and to `easywall-core health`,
-// both of which are authenticated or local. TestHealthResultCarriesNoRuleDetail
-// is what keeps this type reduced — adding a field back to it turns that test
-// red.
+// Detail is not lost: it goes to the audit log and to `easywall-core selftest`,
+// both of which are local to the host. Not to `easywall-core health` — that
+// subcommand renders a HealthResult, which is this reduced type by definition,
+// so there is no detail there for it to print. The exclusion is the reason, not
+// an oversight in the console: a reader who takes this comment as naming
+// `health` will conclude the field ought to be reachable from HealthResult and
+// "fix" the very thing /healthz depends on.
+//
+// TestHealthResultCarriesNoRuleDetail is what keeps this type reduced — adding a
+// field back to it turns that test red.
 type HealthSelftest struct {
 	Version string `json:"version"`
 	// omitempty, because /healthz renders this to a machine and the demo has no
