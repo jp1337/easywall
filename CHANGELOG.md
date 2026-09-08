@@ -5,7 +5,107 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.15.1] — 2026-09-07
+## [2.16.0] — 2026-09-08
+
+**The interface looks like a firewall.**
+
+Colour stops decorating and starts meaning something. After this release the only
+hue anywhere in the application is `state-ok`, `state-warn` and `state-crit` — a
+screen with no colour on it is a screen with nothing to report. Everything the
+ice-blue accent used to mark is carried by fill, edge and weight instead.
+
+### Changed
+
+- **Five accent tokens out, five in, one for one.** `action-fill` / `action-ink`
+  for the one primary action on a page, `select-fill` / `select-edge` for what is
+  active, `focus-ring` for where you are. The declaration and every consumer
+  moved in one commit, because a removed custom property renders as
+  `transparent` rather than as an error — a half-done swap is an invisible one.
+- **The protection toggles get clearer, not dimmer.** This was the objection
+  `DESIGN.md` raises against itself: the options page carries eleven of them, and
+  *"a page where only the enabled toggles are visible is worse than no page at
+  all"*. An on-toggle was accent-filled at 11.40:1 in dark and **4.73:1** in
+  light; ink-filled it is 16.72:1 and 18.88:1. In light mode the *on* state
+  became four times clearer.
+- **The page title takes a display voice**: JetBrains Mono 300, 30px stepping to
+  34px above 900px. `DESIGN.md`'s rule was *Inter for language, mono for network
+  data*; it is amended openly rather than deviated from — Inter for what is read,
+  mono for what is identified, and the name of the page you are standing on is
+  identified. 30 is a ceiling reached by measurement: the longest unbreakable
+  title is 19 characters, `Systemeinstellungen`, which at 0.6em advance is 11.4em
+  against roughly 358px inside the padding at 390px.
+- **The dashboard has two ranks.** Three of the six tiles were ways into the host
+  and three changed what the rules are; one grid said they were the same thing.
+  Rank two is a list, because three numbers are not three states. `Manage →` is
+  gone six times — the tile is already an `<a>`, and an arrow announcing that a
+  link is a link is decoration. The unused-port finding moves out of the note's
+  12px onto its own line under a hairline; it is the most useful sentence on the
+  page and the reason 2.15 happened.
+- **The sidebar groups get a divider and an indent**, the device the
+  documentation sidebar was given and the application was not. `carried-forward`
+  held this across three design reviews. The first labelled group correctly gets
+  neither: it follows the ungrouped *Dashboard* link, not another group, and a
+  rule there divides nothing.
+- **The language select stops being the one native control in the interface** —
+  `appearance: none`, a chevron drawn from two borders so it takes `currentColor`
+  and needs no second asset, and a `surface-raised` fill. On the login card a
+  `canvas` fill sits 1.03–1.06:1 from the card behind it, which left the control
+  recognisable only by its native arrow.
+- **The documentation site follows**, with a parallel replacement of its own four
+  differently-named tokens. Links there carry underline and weight rather than
+  hue, and `h1` takes the mono voice while `h2` and `h3` inside an article stay
+  Inter — a long-form page set in mono headings throughout reads as a table. The
+  landing hero's tint becomes a neutral wash, which is the one place a reader who
+  never signs in sees this release.
+
+### Fixed
+
+- **The keyboard focus indicator failed WCAG 1.4.11 on 66 controls per theme.**
+  The outline was `rgba(143,211,251,0.13)` — 11.4:1 as a colour and **1.31:1**
+  once composited over the card it sits on. No number in a CSS file says that.
+  The failing set was one shape, a ring with no border change: `.toggle` and
+  `.checkbox`, which `DESIGN.md`'s own notes predicted and nobody had confirmed
+  rendered, plus `.theme-toggle` on all thirteen pages, `.link` on eleven, the
+  three editor textareas and `.f-ssh`. Every control whose border moved on focus
+  already cleared 3:1. Three more controls — the sidebar links, the sign-out
+  button and the tabs — had no author focus rule at all and fell back to the
+  browser's own ring; they now follow the system.
+- **`.table-wrap` scrolled 10px sideways in card mode**, at every width the
+  container query switches at, since the card layout was written. A horizontal
+  margin on a `width: 100%` block asks its container for room it does not have,
+  and only one side displaces — which is why it was 10 and not 20. The inset
+  moved to the container's own padding.
+- **`.col-port` was 120px against a documented `8000:9000` needing 122.** The
+  decision `carried-forward` said `DESIGN.md` did not answer was already answered
+  four declarations below: `.col-flex` is `width: auto` and absorbs the
+  remainder, so there was never a zero-sum choice — only a rule nobody had
+  written down. It is written down now.
+- **The topbar version chip rendered `v2.14.0-44-g5…`** for every build off a
+  tag, because the Makefile hands the linker `git describe` and the chip is
+  capped at 18ch. An ellipsis in the chrome reads as a fault in the software. The
+  chip shows the release; the full string moves to its `title`.
+- **The copy that described the accent went with it** — `options_subtitle` in all
+  three locales said an "accent edge" marks a module that is on, and three
+  published documentation pages stated design rules this release replaces.
+
+### The proof
+
+Three guards, each written before the fix and each verified by mutation rather
+than by reading:
+
+- **No accent token survives** in either source stylesheet or either committed
+  build output, and no retired literal hue either — a grep over token *names*
+  walks straight past a hard-coded `rgba()`. Verified the way a "must not exist"
+  guard has to be: by proving it goes green when the defect is absent, not only
+  red while it is present.
+- **Focus is tabbed to, composited and required to clear 3:1** on all thirteen
+  pages in both themes. 109 controls measured per theme.
+- **Overflow is measured per container**, not only per page. The page-level check
+  could not see `.table-wrap` by construction.
+
+`check:ui` passes at five widths in both themes. All 36 screenshots re-taken.
+
+## [2.15.1] —## [2.15.1] — 2026-09-07
 
 **Two ways a new installation could lock you out of its own host.**
 
@@ -1488,7 +1588,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[unreleased]: https://github.com/jp1337/easywall/compare/v2.15.1...HEAD
+[unreleased]: https://github.com/jp1337/easywall/compare/v2.16.0...HEAD
+[2.16.0]: https://github.com/jp1337/easywall/compare/v2.15.1...v2.16.0
 [2.15.1]: https://github.com/jp1337/easywall/compare/v2.15.0...v2.15.1
 [2.15.0]: https://github.com/jp1337/easywall/compare/v2.14.0...v2.15.0
 [2.2.0]: https://github.com/jp1337/easywall/compare/v2.1.0...v2.2.0

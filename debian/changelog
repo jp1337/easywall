@@ -1,3 +1,29 @@
+easywall (2.16.0) unstable; urgency=medium
+
+  * Feat: colour stops decorating and starts meaning something. The ice-blue
+    accent is removed from the application and the documentation site, and
+    state-ok, state-warn and state-crit are the entire remaining palette — a
+    screen with no colour on it is a screen with nothing to report. Focus,
+    selection and the one primary action are carried by fill, edge and weight
+    instead. The protection toggles get clearer rather than dimmer: an on-toggle
+    was 4.73:1 in light mode and is now 18.88:1.
+  * Fix: the keyboard focus indicator was rgba(143,211,251,0.13), which is
+    11.4:1 as a colour and 1.31:1 once composited over the card behind it. 66
+    controls per theme failed WCAG 1.4.11's 3:1; all of them pass now, and
+    check:ui tabs to every focusable element on all thirteen pages and measures
+    the composite rather than reading the stylesheet.
+  * Fix: .table-wrap scrolled 10px sideways in card mode at every width the
+    container query switches at, and the page-level overflow check could not see
+    it — a container with overflow-x: auto absorbs its own overflow. check:ui now
+    measures every such container against its own children.
+  * Fix: .col-port was 120px against a documented 8000:9000 needing 122.
+  * The sidebar groups get the divider and indent the documentation sidebar was
+    given three design reviews ago; the six dashboard tiles become three plus a
+    list; the page title takes a mono display voice; and the topbar version chip
+    shows the release instead of a truncated `git describe` string.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Tue, 08 Sep 2026 06:21:45 +0200
+
 easywall (2.15.1) unstable; urgency=high
 
   * Fix: the conntrack state masks were written in the wrong byte order, so
