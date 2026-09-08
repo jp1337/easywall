@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -201,6 +202,63 @@ func TestUsageNamesEverySubcommand(t *testing.T) {
 		if !strings.Contains(unknown, line) {
 			t.Errorf("the unknown-command error does not list %q:\n%s", c.name, unknown)
 		}
+	}
+}
+
+// The table is the only place a command is written down, so the compiler now
+// enforces most of what used to need a test: an entry carries its own run
+// function, and "listed but not dispatched" is no longer reachable by editing
+// one copy of the five names and not another. One hole is left that the
+// compiler cannot see — a nil `run` — and this is the walk that closes it, at
+// test time rather than at an operator's shell.
+//
+// Not a substitute for the runtime refusal in runSubcommand: this test is what
+// makes the mistake impossible to commit, and that refusal is what makes it
+// harmless if it ever reaches a binary anyway. The previous shape of "nothing
+// dispatches this" was `default: return runResume(...)`, which put the rules
+// back on a machine somebody had deliberately unfiltered.
+func TestEverySubcommandIsRunnable(t *testing.T) {
+	// A guard that inspects nothing passes: an empty table would make every
+	// loop in this file vacuous.
+	if len(subcommands) < 5 {
+		t.Fatalf("the command table has %d entries; status, health, selftest, panic and "+
+			"resume all exist, so a shorter table means this guard is inspecting nothing",
+			len(subcommands))
+	}
+	for i, c := range subcommands {
+		if c.name == "" {
+			t.Errorf("entry %d has no name", i)
+		}
+		if c.help == "" {
+			t.Errorf("%q has no description, so the help block cannot describe it", c.name)
+		}
+		if c.run == nil {
+			t.Errorf("%q has no function to run — the table is the dispatch, so an entry "+
+				"without one is a command that exists in the help and does nothing", c.name)
+		}
+	}
+}
+
+// And if one ever reaches a shipped binary, it is refused rather than ignored.
+// Loud beats plausible: this is the position the old `default: return
+// runResume(...)` occupied.
+func TestASubcommandWithNoFunctionIsRefused(t *testing.T) {
+	previous := subcommands
+	subcommands = append(slices.Clone(subcommands), subcommand{"frobnicate", "does nothing at all", nil})
+	t.Cleanup(func() { subcommands = previous })
+
+	var out, errOut bytes.Buffer
+	if code := runSubcommand("frobnicate", nil, &out, &errOut); code == exitOK {
+		t.Errorf("an entry with no function exited 0:\n%s%s", out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "no function to run") {
+		t.Errorf("it must say what is wrong, not merely fail:\n%s", errOut.String())
+	}
+	// And it must refuse before touching anything: no config was read, and the
+	// default config path does not exist on a test machine, so a message about
+	// /etc/easywall would mean the refusal came too late.
+	if strings.Contains(errOut.String(), "/etc/easywall") {
+		t.Errorf("it read the config before refusing:\n%s", errOut.String())
 	}
 }
 

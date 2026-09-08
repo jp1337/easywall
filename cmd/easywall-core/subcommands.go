@@ -28,25 +28,56 @@ import (
 // Everything here goes over the same socket the web process uses, so there is
 // never more than one writer to table inet easywall.
 
-// subcommand is one console command and the single line of help an operator
-// sees for it.
-type subcommand struct{ name, help string }
+// opts is what a subcommand needs beyond its config: the flags that belong to
+// one command rather than to all of them. One field today. It is a struct
+// rather than a bare bool so that the second such flag changes one type and
+// not five signatures.
+type opts struct {
+	// ifStale belongs to selftest and is false everywhere else, because that is
+	// what an unregistered flag means.
+	ifStale bool
+}
 
-// subcommands is every console command, in the order the help prints them.
+// subcommand is one console command: its name, the single line of help an
+// operator sees, and the function that runs it.
+type subcommand struct {
+	name string
+	help string
+	run  func(cfg *core.Config, o opts, stdout, stderr io.Writer) int
+}
+
+// subcommands is every console command, in the order the help prints them, and
+// it is the only place any of them is written down.
 //
-// One list, rather than a hand-written usage string standing beside a
-// membership switch. The help block is the only place an operator finds out
-// that a command exists at all — `health` is unreachable knowledge if it is
-// dispatched and not printed — and until 2.17 the two were maintained by hand
-// with nothing checking that they agreed. TestUsageNamesEverySubcommand hangs
-// off this list, so a sixth command cannot be added without becoming
-// discoverable.
+// It used to be three: a hand-written usage string, a `case "status", "panic",
+// "resume":` membership switch, and a dispatch switch. The dispatch switch
+// ended `default: return runResume(...)`, which with three commands was terse
+// and with five is a trap — a command added to the other two copies and
+// forgotten in the dispatch would have run `resume`, and resume on a machine
+// somebody deliberately unfiltered at the console puts the rules back. That is
+// the one action in this binary that must never happen by accident, and a
+// construct whose failure mode is re-arming a firewall a human disarmed does
+// not survive on the grounds that it was already there.
+//
+// So the three copies are one. The help renders from this table, membership is
+// a lookup in it, and dispatch is the entry's own function: "listed but not
+// dispatched" stops being a state that can be reached by editing one place and
+// not another. The only hole the compiler leaves is a nil `run`, and
+// TestEverySubcommandIsRunnable walks the table for exactly that.
 var subcommands = []subcommand{
-	{"status", "report whether the firewall is enforcing, and since when"},
-	{"health", "report whether the firewall is doing what it says"},
-	{"selftest", "prove the rule builder against this kernel"},
-	{"panic", "take the firewall down and record that it was deliberate"},
-	{"resume", "end panic mode and put the stored rules back"},
+	{"status", "report whether the firewall is enforcing, and since when", runStatus},
+	{"health", "report whether the firewall is doing what it says", runHealth},
+	{"selftest", "prove the rule builder against this kernel", runSelftest},
+	{"panic", "take the firewall down and record that it was deliberate", runPanic},
+	{"resume", "end panic mode and put the stored rules back", runResume},
+}
+
+// find returns the entry for name, or nil.
+func find(name string) *subcommand {
+	if i := slices.IndexFunc(subcommands, func(c subcommand) bool { return c.name == name }); i >= 0 {
+		return &subcommands[i]
+	}
+	return nil
 }
 
 // subcommandUsage is the operator-facing help. Built from the list above, and
@@ -87,8 +118,21 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 	// asked for. Rejecting the name first also means `easywall-core frobnicate
 	// -whatever` reports the unknown command rather than the unknown flag,
 	// which is the mistake that was actually made.
-	if !slices.ContainsFunc(subcommands, func(c subcommand) bool { return c.name == name }) {
+	cmd := find(name)
+	if cmd == nil {
 		_, _ = fmt.Fprintf(stderr, "easywall-core: unknown command %q\n\n%s", name, subcommandUsage)
+		return exitFailed
+	}
+	if cmd.run == nil {
+		// The one gap the table cannot close at compile time. Loud, and before
+		// anything is read or written: an entry with no function is a
+		// programming error, and the alternative shapes of "loud" are worse —
+		// a panic in an init() would take the daemon down for a mistake in a
+		// console command, and doing nothing at all is how the old dispatch
+		// switch came to run `resume` by default. TestEverySubcommandIsRunnable
+		// is what catches this before an operator's shell does.
+		_, _ = fmt.Fprintf(stderr,
+			"easywall-core: %q is in the command list with no function to run\n", name)
 		return exitFailed
 	}
 
@@ -96,12 +140,11 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 	flags.SetOutput(stderr)
 	configPath := flags.String("config", "/etc/easywall/easywall.toml", "path to core config file")
 
-	// A plain bool rather than the pointer flags.Bool returns, and registered
-	// only for the command it belongs to: every other command reads a usable
-	// false, where a nil *bool would be a panic one line of refactoring away.
-	var ifStale bool
+	// Registered only for the command it belongs to, so `status -if-stale` is
+	// still an error rather than a flag that quietly means nothing.
+	var o opts
 	if name == "selftest" {
-		flags.BoolVar(&ifStale, "if-stale", false,
+		flags.BoolVar(&o.ifStale, "if-stale", false,
 			"run only when the recorded version or kernel differs from this one")
 	}
 
@@ -115,29 +158,7 @@ func runSubcommand(name string, args []string, stdout, stderr io.Writer) int {
 		return exitFailed
 	}
 
-	switch name {
-	case "status":
-		return runStatus(cfg, stdout, stderr)
-	case "health":
-		return runHealth(cfg, stdout, stderr)
-	case "selftest":
-		return runSelftest(cfg, ifStale, stdout, stderr)
-	case "panic":
-		return runPanic(cfg, stdout, stderr)
-	case "resume":
-		return runResume(cfg, stdout, stderr)
-	default:
-		// Unreachable — the membership check above passed, so this name is in
-		// `subcommands`. Spelled out rather than left as `default: return
-		// runResume(...)`, which is how this switch ended when there were three
-		// commands. With five that shorthand is no longer merely terse: a sixth
-		// command added to the list and forgotten here would have silently run
-		// `resume`, and resume on a machine somebody deliberately unfiltered
-		// puts the rules back. A loud refusal beats a plausible wrong action.
-		_, _ = fmt.Fprintf(stderr,
-			"easywall-core: %q is in the command list but nothing dispatches it\n", name)
-		return exitFailed
-	}
+	return cmd.run(cfg, o, stdout, stderr)
 }
 
 // daemonAbsent reports whether err from shared.SendCommand means there is no
@@ -176,7 +197,7 @@ func printPanicEngaged(stdout io.Writer) {
 	_, _ = fmt.Fprintln(stdout, "across a restart until you run `easywall-core resume`.")
 }
 
-func runStatus(cfg *core.Config, stdout, stderr io.Writer) int {
+func runStatus(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdGetStatus})
 	if err != nil {
 		if !daemonAbsent(err) {
@@ -297,7 +318,7 @@ func printStamp(w io.Writer, stamp shared.SelftestStamp) {
 // "a forgotten panic mode is invisible to monitoring; a panic nobody remembers
 // never pages anyone". TestHealthAndStatusDisagreeUnderPanic pins the
 // divergence so it stays a decision instead of being rediscovered as a bug.
-func runHealth(cfg *core.Config, stdout, stderr io.Writer) int {
+func runHealth(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdGetHealth})
 	if err != nil {
 		if !daemonAbsent(err) {
@@ -379,10 +400,10 @@ var selftestRunner = core.RunSelftest
 // every hardened host — and it is the *ordinary* production state, since the
 // daemon holds CAP_NET_ADMIN and not CAP_SYS_ADMIN. A red that means nothing
 // gets ignored within a week, and takes the reds that mean something with it.
-func runSelftest(cfg *core.Config, ifStale bool, stdout, stderr io.Writer) int {
+func runSelftest(cfg *core.Config, o opts, stdout, stderr io.Writer) int {
 	store := core.NewStampStore(cfg.SelftestStampPath())
 
-	if ifStale && !store.Stale(shared.CurrentVersion, core.KernelRelease()) {
+	if o.ifStale && !store.Stale(shared.CurrentVersion, core.KernelRelease()) {
 		stamp := store.Read()
 		printStamp(stdout, stamp)
 		_, _ = fmt.Fprintln(stdout,
@@ -413,7 +434,7 @@ func proofExitCode(result shared.SelftestResult) int {
 	return exitOK
 }
 
-func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
+func runPanic(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdPanic})
 	if err != nil {
 		if !daemonAbsent(err) {
@@ -459,7 +480,7 @@ func runPanic(cfg *core.Config, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
-func runResume(cfg *core.Config, stdout, stderr io.Writer) int {
+func runResume(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdResume})
 	if err != nil {
 		if !daemonAbsent(err) {
