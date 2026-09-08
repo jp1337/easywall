@@ -113,6 +113,18 @@ const (
 	// reasoning CmdGetStatus already runs on.
 	CmdGetUsage CommandType = "GET_USAGE"
 
+	// CmdGetHealth returns whether this firewall is doing what it says: three
+	// facts, evaluated in order, plus the identity of the last self-test.
+	//
+	// Read-only — two netlink reads and one file read — so it keeps the short
+	// deadline. No audit entry: reading a counter is not an event, which is
+	// CmdGetStatus's and CmdGetUsage's reasoning already.
+	//
+	// The reply carries no rule detail and no counter values. It is rendered by
+	// /healthz, which is unauthenticated so that an orchestrator holding no
+	// session can ask.
+	CmdGetHealth CommandType = "GET_HEALTH"
+
 	// CmdLogEvent hands the core a login event to record.
 	//
 	// It exists because the audit log had no logins in it at all —
@@ -147,7 +159,7 @@ var AllCommandTypes = []CommandType{
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
 	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig, CmdGetUsage,
-	CmdPanic, CmdResume, CmdLogEvent,
+	CmdGetHealth, CmdPanic, CmdResume, CmdLogEvent,
 }
 
 // LoginEvent is one of the nine things that can happen at the door. The type is

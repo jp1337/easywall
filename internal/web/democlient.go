@@ -356,6 +356,23 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return demoOK(shared.AppliedConfigResult{Recorded: true, Config: d.appliedConfig})
 	case shared.CmdGetUsage:
 		return demoOK(d.usage)
+	case shared.CmdGetHealth:
+		// The demo has no network namespace to run the self-test's four claims
+		// in — see internal/core/netns.go — so answering "passed" would claim a
+		// proof this process never ran, and /healthz is unauthenticated: that
+		// claim would reach anyone who asks, in the shipped public demo.
+		// "unprovable" is the honest answer, and computeHealth treats it as ok
+		// rather than degraded — the same reasoning that keeps an ordinary
+		// installation without CAP_SYS_ADMIN from reporting itself broken.
+		return demoOK(shared.HealthResult{
+			State:  shared.HealthOK,
+			Reason: shared.HealthReasonHealthy,
+			Selftest: shared.HealthSelftest{
+				Version: shared.CurrentVersion,
+				Result:  shared.SelftestUnprovable,
+				At:      time.Now(),
+			},
+		})
 	case shared.CmdSaveSystem:
 		return d.handleSaveSystem(cmd.Payload)
 	case shared.CmdGetLog:

@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Twenty-one command types:
+Twenty-two command types:
 
 | | |
 |---|---|
@@ -22,6 +22,7 @@ Twenty-one command types:
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
 | `GET_USAGE` | what each port rule has carried, keyed by rule id, and when the figures were read |
+| `GET_HEALTH` | whether the firewall is doing what it says — three facts evaluated in order, plus the last self-test's identity, no rule detail or counter values |
 | `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
 | `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
 

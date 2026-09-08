@@ -589,6 +589,13 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		data, _ := json.Marshal(usage)
 		return shared.Response{Success: true, Data: data}
 
+	case shared.CmdGetHealth:
+		// No error path: Health() logs a counter read that failed rather than
+		// returning one, because an unreadable counter is a different signal
+		// from a broken firewall — see computeHealth's counter branch.
+		data, _ := json.Marshal(d.firewall.Health())
+		return shared.Response{Success: true, Data: data}
+
 	case shared.CmdPanic:
 		if err := d.firewall.Panic("console"); err != nil {
 			return errResp(err)
