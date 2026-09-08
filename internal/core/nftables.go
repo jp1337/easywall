@@ -77,6 +77,25 @@ type NftablesManager struct {
 	// that reports failure, because nothing afterwards ever looks again.
 	mu   sync.Mutex
 	conn *nftables.Conn
+
+	// adder is where the builders write. It is m.conn in production and a
+	// recorder in tests. Never nil after NewNftablesManager.
+	adder ruleAdder
+}
+
+// ruleAdder is the one method every add* builder in this file uses. It exists so
+// those builders can be tested without a kernel; NftablesManager.conn satisfies
+// it, and nothing else in this package takes it.
+//
+// Thirty-one builders called m.conn.AddRule directly, which meant an
+// expression-level assertion about what any of them builds could only run under
+// -tags integration, as root, against a namespace — so the two things that
+// matter most about a rule, the counter's position and the id in its comment,
+// were the two things no test under `make test` could see. portAcceptRules was
+// split out of addPortAccept for exactly that reason; this is the same seam,
+// applied once rather than per builder.
+type ruleAdder interface {
+	AddRule(*nftables.Rule) *nftables.Rule
 }
 
 // NewNftablesManager creates a new manager and verifies netlink connectivity.
@@ -85,7 +104,7 @@ func NewNftablesManager() (*NftablesManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open netlink connection: %w", err)
 	}
-	return &NftablesManager{conn: conn}, nil
+	return &NftablesManager{conn: conn, adder: conn}, nil
 }
 
 // Snapshot captures the current kernel nftables state as structured JSON.
@@ -772,12 +791,12 @@ func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, matc
 		logged := make([]expr.Any, 0, len(match)+2)
 		logged = append(logged, match...)
 		logged = append(logged, logExprs(lg.prefix, lg.perMinute)...)
-		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: logged})
+		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: logged})
 	}
 	acted := make([]expr.Any, 0, len(match)+1)
 	acted = append(acted, match...)
 	acted = append(acted, action)
-	m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted})
+	m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted})
 }
 
 // --- Helper builders ---
@@ -786,7 +805,7 @@ func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, matc
 // Used for the IPv6 passthrough and block modes, where the point is that no
 // later rule gets a say.
 func (m *NftablesManager) addFamilyVerdict(t *nftables.Table, c *nftables.Chain, family byte, kind expr.VerdictKind) {
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -798,7 +817,7 @@ func (m *NftablesManager) addFamilyVerdict(t *nftables.Table, c *nftables.Chain,
 }
 
 func (m *NftablesManager) addLoopbackAccept(t *nftables.Table, c *nftables.Chain) {
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -855,8 +874,54 @@ func ctStateMask(bits uint32) []byte {
 // repeated as a literal beside three masks where order is the whole point.
 var ctStateNoMatch = []byte{0x00, 0x00, 0x00, 0x00}
 
+// Reserved rule ids name a rule easywall builds for its own accounting rather
+// than one an operator wrote. They are the only ids RuleCounters reports that
+// no rules file contains, and the prefix is what keeps them out of usage.json:
+// UsageStore.Collect books only ids liveRuleIDs names, and liveRuleIDs reads
+// the rules file. The prefix makes that separation stateable rather than
+// emergent.
+const ReservedIDEstablished = "_established"
+
+// IsReservedRuleID reports whether id is one of easywall's own.
+func IsReservedRuleID(id string) bool {
+	return strings.HasPrefix(id, "_")
+}
+
+// addEstablishedAccept is the stateful half of a chain, and in the input chain
+// it is the one rule whose counter is worth reading on its own.
+//
+// It carried neither a counter nor a comment until 2.17, so RuleCounters — which
+// skips every rule without an id — never saw it, and the number that would have
+// caught the byte-reversed mask described above was the one number nothing in
+// this daemon could read. On a host with any traffic at all the counter can only
+// be zero if this rule matches nothing, which is exactly the signature of that
+// defect: a table that looks right in `nft list ruleset` and completes no
+// outbound connection.
+//
+// **Only the input chain's copy is tagged.** There are two callers: buildRules
+// adds this to the input chain, and addForwardExceptions adds it to the forward
+// chain so a reply is not re-tested against the routed networks. Tagging both
+// would put one id on two different rules, and a reader that summed them would
+// report input and forward traffic as one figure. RuleCounters filters to the
+// input chain and would not notice, but an id that is unique only because its
+// one reader happens to filter is unique by luck — a metrics endpoint or
+// outbound rules would each break it silently, which is the class of defect
+// this release exists to prevent.
+//
+// So do not add the tag to the forward copy for symmetry. Untagged puts it in
+// exactly the category it belongs to, beside the module rules, the blacklist,
+// the whitelist and the Docker exceptions: rules with a counter, no id, and
+// nothing reading them by name. The counter is on both, because it costs
+// nothing and `nft list ruleset` is where an operator looks.
+//
+// The id is a reserved one, so nothing books it as a port rule. See
+// ReservedIDEstablished.
 func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Chain) {
-	m.conn.AddRule(&nftables.Rule{
+	var tag []byte
+	if c != nil && c.Name == inputChainName {
+		tag = userdata.AppendString(nil, userdata.TypeComment, ReservedIDEstablished)
+	}
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -869,8 +934,15 @@ func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Ch
 				Xor:            ctStateNoMatch,
 			},
 			&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
+			// After the match, before the verdict — the position portAcceptRules
+			// documents and for the same reason. Ahead of the match this counts
+			// every packet that reaches the rule rather than every packet it
+			// accepts, which rises steadily on a host whose stateful half matches
+			// nothing and is indistinguishable from a healthy figure.
+			&expr.Counter{},
 			&expr.Verdict{Kind: expr.VerdictAccept},
 		},
+		UserData: tag,
 	})
 }
 
@@ -878,7 +950,7 @@ func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv
 	// ICMPv4 types to accept
 	icmpv4Types := []byte{0, 3, 11, 12}
 	for _, icmpType := range icmpv4Types {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
@@ -913,7 +985,7 @@ func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv
 	}
 
 	for _, icmpType := range icmpv6Types {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
@@ -1005,7 +1077,7 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 		if match == nil {
 			continue // a comment, an IPv6 address, or unparseable — not for this filter
 		}
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: bogonChain,
 			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictReturn}),
@@ -1027,7 +1099,7 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 	// The family and interface tests sit on the jump rather than on each of the
 	// eleven drops. They have to be somewhere: the source-address offset below
 	// is only correct for IPv4, and loopback legitimately carries 127.0.0.0/8.
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -1098,13 +1170,13 @@ func (m *NftablesManager) addPortScanPrevention(t *nftables.Table, c *nftables.C
 	// The log goes inside the chain, before its drop: everything that jumped
 	// here is a scan by definition, so one rule covers all seven flag combos.
 	if opts.PortScanLog {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: scanChain,
 			Exprs: logExprs(logPrefixPortScan, 0),
 		})
 	}
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: scanChain,
 		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictDrop}},
@@ -1126,7 +1198,7 @@ func (m *NftablesManager) addPortScanPrevention(t *nftables.Table, c *nftables.C
 
 	for _, combo := range scanCombos {
 		flags := combo
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
@@ -1291,7 +1363,7 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 	// Returning puts the packet back where it came from: blacklist, then
 	// whitelist, then the port rules. Over-rate still drops in sshbrute-over, so
 	// nothing about the metering changes.
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: sshChain,
 		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictReturn}},
@@ -1309,7 +1381,7 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_TCP}},
 		}
 		exprs = append(exprs, buildPortExprs(port)...)
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: append(exprs,
@@ -1381,7 +1453,7 @@ func (m *NftablesManager) addTCPRSTFlood(t *nftables.Table, c *nftables.Chain, o
 // the rule matches nothing, and on one that has, it will match traffic that may
 // well be wanted.
 func (m *NftablesManager) addAnycastDrop(t *nftables.Table, c *nftables.Chain) {
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -1441,13 +1513,13 @@ func srcAddrExprs(f addrFamily) []expr.Any {
 func (m *NftablesManager) addOverRateChain(t *nftables.Table, name string, lg logSpec) *nftables.Chain {
 	ch := m.conn.AddChain(&nftables.Chain{Name: name, Table: t})
 	if lg.enabled {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: ch,
 			Exprs: logExprs(lg.prefix, lg.perMinute),
 		})
 	}
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: ch,
 		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictDrop}},
@@ -1530,7 +1602,7 @@ func (m *NftablesManager) addPerSourceRateLimit(t *nftables.Table, c *nftables.C
 			&expr.Verdict{Kind: expr.VerdictJump, Chain: target.Name},
 		)
 
-		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: exprs})
+		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: exprs})
 	}
 }
 
@@ -1582,7 +1654,7 @@ func (m *NftablesManager) addConnectionLimit(t *nftables.Table, c *nftables.Chai
 			},
 			&expr.Verdict{Kind: expr.VerdictDrop},
 		)
-		m.conn.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: exprs})
+		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: exprs})
 	}
 }
 
@@ -1612,7 +1684,7 @@ const (
 // a rule matches, so the wrong packet type passed for as long as exactly one rule
 // was added. The test now reads the rule back and asks nft to name it.
 func (m *NftablesManager) addBroadcastDrop(t *nftables.Table, c *nftables.Chain) {
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -1624,7 +1696,7 @@ func (m *NftablesManager) addBroadcastDrop(t *nftables.Table, c *nftables.Chain)
 }
 
 func (m *NftablesManager) addMulticastDrop(t *nftables.Table, c *nftables.Chain) {
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -1755,7 +1827,7 @@ func (m *NftablesManager) addForwardExceptions(t *nftables.Table, c *nftables.Ch
 	// address inside the bridge range once Docker has un-NATed it.
 	m.addEstablishedAccept(t, c)
 	for _, match := range matches {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictAccept}),
@@ -1775,7 +1847,7 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 
 	ip4 := ipNet.IP.To4()
 	if ip4 != nil {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
@@ -1802,7 +1874,7 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 	}
 	// IPv6 CIDR
 	ip6 := ipNet.IP.To16()
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -1883,7 +1955,7 @@ func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr
 	}
 	ip4 := ipNet.IP.To4()
 	if ip4 != nil {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
@@ -1910,7 +1982,7 @@ func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr
 	}
 	// IPv6 CIDR
 	ip6 := ipNet.IP.To16()
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -1946,7 +2018,7 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 	}
 	ip4 := parsed.To4()
 	if ip4 != nil {
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: c,
 			Exprs: []expr.Any{
@@ -1966,7 +2038,7 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 	}
 	// IPv6 single address
 	ip6 := parsed.To16()
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: []expr.Any{
@@ -2011,7 +2083,7 @@ func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain,
 // what it builds had never been asserted on at all.
 func (m *NftablesManager) addPortAccept(t *nftables.Table, c *nftables.Chain, proto string, rule shared.PortRule) {
 	for _, r := range portAcceptRules(t, c, proto, rule) {
-		m.conn.AddRule(r)
+		m.adder.AddRule(r)
 	}
 }
 
@@ -2123,7 +2195,7 @@ func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.F
 		// example {source_port: 2222, dest_port: 22} produced
 		// `tcp dport 22 redirect to :2222` — it captured SSH on 22 and sent it
 		// somewhere nothing was listening, while 2222 did nothing at all.
-		m.conn.AddRule(&nftables.Rule{
+		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: preChain,
 			Exprs: []expr.Any{
@@ -2153,7 +2225,7 @@ func (m *NftablesManager) addFinalLog(t *nftables.Table, c *nftables.Chain, opts
 	if limit <= 0 {
 		limit = 60
 	}
-	m.conn.AddRule(&nftables.Rule{
+	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
 		Exprs: logExprs(logPrefixDrop, limit),

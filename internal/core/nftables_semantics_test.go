@@ -838,9 +838,33 @@ func TestIntegration_EstablishedTrafficIsAcceptedByName(t *testing.T) {
 	m := newIntegrationManager(t)
 	applyEmpty(t, m, shared.FirewallOptions{})
 
-	mustContain(t, ruleset(t), "ct state established,related accept",
-		"a reply packet has no other rule to match; without this the machine has no "+
-			"outbound connectivity at all and an open SSH session dies on the next packet")
+	// Three fragments of one rule, not three substrings of the ruleset. 2.17 put
+	// an expr.Counter and a rule-id comment into this rule, so the kernel renders
+	// it as `ct state established,related counter packets N bytes N accept
+	// comment "_established"` — the counts sit in the middle and are not fixed,
+	// so the single adjacent string this used to match cannot be written any
+	// more.
+	//
+	// indexOfRule is what mustAcceptPort's own comment recommends for exactly
+	// this situation: every fragment has to be in the *same* rule. Written as
+	// separate whole-ruleset mustContain calls, the byte-reversal mutation left
+	// the second one passing on its own — nothing tied it to this rule — and the
+	// whole catching duty fell on the first.
+	//
+	// Under that mutation the state renders as `ct state 0x2000000,0x4000000`, so
+	// the first fragment is missing and this fails, which is the assertion the
+	// incident above asks for. The third fragment is the verdict and the reserved
+	// id together, and being inside one rule is what makes it a statement about
+	// this rule rather than about the table: the id's uniqueness is
+	// TestIntegration_TheReservedEstablishedIDNamesExactlyOneRule's job.
+	if indexOfRule(chainText(t, "input"), "ct state established,related", "counter",
+		`accept comment "`+ReservedIDEstablished+`"`) < 0 {
+		t.Errorf("the input chain has no rule matching established,related that counts and "+
+			"accepts under the reserved id\n"+
+			"  a reply packet has no other rule to match; without this the machine has no "+
+			"outbound connectivity at all and an open SSH session dies on the next packet, "+
+			"and the health check has no counter to read\n--- ruleset ---\n%s", ruleset(t))
+	}
 }
 
 // The invalid-packet module, same shape. It failed open rather than closed,
