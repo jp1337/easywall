@@ -15,6 +15,17 @@ import (
 )
 
 func main() {
+	// The self-test's peer, re-executed into a fresh network namespace by
+	// internal/core's harness. It parses no flags and reads no config: it is
+	// this binary used as a process that can hold a namespace and open a
+	// socket. First, so that neither a subcommand nor a flag can be reached on
+	// the way — the peer is started with no arguments at all, and anything this
+	// branch let through would be a config read inside a namespace with no
+	// network. See internal/core/netns.go for the protocol.
+	if os.Getenv(core.PeerEnvVar) != "" {
+		os.Exit(core.RunPeer(os.Stdin, os.Stdout))
+	}
+
 	// A subcommand is a first argument that is not a flag. Checked before
 	// flag.Parse, which would otherwise reject it: the flags this binary has
 	// always taken — -config, -version, -write-config — keep working exactly as
