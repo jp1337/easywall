@@ -250,7 +250,6 @@
   {"id": "dashboard_hero_inactive", "translation": "Le service core n'applique aucune règle."},
   {"id": "dashboard_rulesets", "translation": "Jeux de règles"},
   {"id": "dashboard_rulesets_note", "translation": "Les compteurs proviennent des règles actuellement chargées"},
-  {"id": "tile_manage", "translation": "Gérer"},
   {"id": "tile_tcp_note", "translation": "acceptent les connexions"},
   {"id": "tile_udp_note", "translation": "acceptent les datagrammes"},
   {"id": "tile_blacklist_note", "translation": "rejetées avant toute règle"},

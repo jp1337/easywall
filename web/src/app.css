@@ -1884,18 +1884,19 @@ body {
   }
 
   /* ── Stat tiles ────────────────────────────────────────────────────────── */
-  /* The four rows come from the parent grid, so label, value, note and CTA line
-     up across every tile in a row instead of each tile stacking independently.
+  /* The three rows come from the parent grid, so label, value and note line up
+     across every tile in a row instead of each tile stacking independently.
      Without it a label that wraps pushes only its own number down: French says
      "Règles personnalisées" where English says "Custom rules", and two numbers
      of six sat 20px below the other four. Reserving a second label line would
      have cost every language 18px of empty tile; this costs none — the row is
      as tall as its tallest label, which in English and German is one line.
-     grid-row: span 4 is the row count, so a tile that gains or loses a child
-     needs it changed to match. */
+     grid-row: span 3 is the row count, so a tile that gains or loses a child
+     needs it changed to match — TestStatTileSpanMatchesItsChildren compares the
+     two and is what says so. */
   .stat-tile {
     display: grid;
-    grid-row: span 4;
+    grid-row: span 3;
     grid-template-rows: subgrid;
     gap: 3px;
     padding: 13px 15px;
@@ -1964,39 +1965,99 @@ body {
     color: var(--color-ink-subtle);
   }
 
-  /* The second line of a tile's note. A block inside the note rather than a
-     fifth child of the tile: .stat-tile is a subgrid spanning a fixed number of
-     rows, and a conditional child would give six tiles two different heights.
-     No colour — DESIGN.md rule 1 reserves green, amber and red for firewall
-     state, and an unused open port is none of live, unconfirmed, rolled back or
-     failing. */
-  .tile-note-second { display: block; margin-block-start: 2px; }
+  /* The finding, under a hairline in the tile's own footer — promoted out of the
+     note's 12px, where it sat in the same type as "accepting connections". It is
+     the most useful sentence on the page and the reason 2.15 happened.
+
+     Positioned rather than added as a fourth grid child: .stat-tile is a subgrid
+     spanning a fixed row count, so a conditional child gives the three tiles two
+     different heights. That is the defect .tile-note-second was written to avoid
+     and TestStatTileSpanMatchesItsChildren exists to catch. Still no colour — an
+     unused open port is none of live, unconfirmed, rolled back or failing. */
+  .stat-tile-finding {
+    display: block;
+    /* Negative side margins reach the tile's own edges so the hairline spans it,
+       and the negative bottom margin takes the tile's padding back so the band
+       closes the card rather than floating above its lower edge. */
+    margin: 9px -15px -13px;
+    padding: 8px 15px 9px;
+    border-top: 1px solid var(--color-rule);
+    color: var(--color-ink-muted);
+  }
 
   .stat-tile-value-success { color: var(--color-state-ok-on-wash); }
   .stat-tile-value-warning { color: var(--color-state-warn-on-wash); }
   .stat-tile-value-danger  { color: var(--color-state-crit-on-wash); }
 
-  /* margin-top:auto pins the call to action to the bottom of the tile. Without it,
-     a note that wraps to two lines in one tile pushed its own CTA down and left the
-     row of six ragged — visible in German, where "nehmen Verbindungen an" wraps. */
-  .stat-tile-cta {
-    margin-top: auto;
-    padding-top: 4px;
-    font-size: 12px;
-    color: var(--color-ink-subtle);
-    transition: color var(--motion-instant) var(--motion-ease);
-  }
-
-  a.stat-tile:hover .stat-tile-cta { color: var(--color-ink); }
-
-  /* Tiles size themselves rather than being pinned to a column count, so the
-     grid stays even at every viewport instead of leaving one orphan per row. */
-  /* 168px, not 190: at 190 a 390px-wide phone fell to a single column and the
-     six tiles became 780px of scrolling before anything else on the page. */
+  /* Tiles size themselves rather than being pinned to a column count. The orphan
+     this used to worry about was a six-tile problem: with three in rank one there
+     is no row left to strand. */
+  /* 168px, not 190: at 190 a 390px-wide phone fell to a single column, and three
+     tiles stacked are still the first thing on the page. */
   .tile-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    /* auto-fit, not auto-fill. With six tiles the difference never showed: the
+       row was full either way. With three, auto-fill still lays down as many
+       168px tracks as the width allows — six at 1242px — and leaves half of them
+       empty, so the rank sat in the left 615px of the row looking like a row
+       that had lost something. auto-fit collapses the empty tracks and the three
+       share the width. Measured after the change rather than assumed. */
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
     gap: 12px;
+  }
+
+  /* ── Rank two ──────────────────────────────────────────────────────────────
+     The six tiles were never six of the same thing: three are ways into the host
+     and three change what the rules are. One grid claimed otherwise. These are a
+     list — no border, no radius, no icon — because three numbers are not three
+     states, and a card is what this system uses for something that has one. */
+  .rule-list { display: flex; flex-direction: column; margin-top: 4px; }
+
+  .rule-list-row {
+    display: grid;
+    grid-template-columns: minmax(0, 12rem) 3.5rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0 16px;
+    padding: 9px 4px;
+    border-bottom: 1px solid var(--color-rule);
+    color: inherit;
+    text-decoration: none;
+    font-size: 13px;
+    transition: background var(--motion-instant) var(--motion-ease);
+  }
+
+  .rule-list-row:last-child { border-bottom: 0; }
+
+  .rule-list-row:hover {
+    background: var(--color-surface-raised);
+    text-decoration: none;
+  }
+
+  .rule-list-row:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .rule-list-name { min-width: 0; }
+
+  .rule-list-count {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-weight: 550;
+    text-align: right;
+  }
+
+  .rule-list-note {
+    color: var(--color-ink-subtle);
+    font-size: 12.5px;
+  }
+
+  /* A phone has no room for three columns of unequal weight. The number keeps its
+     line beside the name; the note drops beneath both. */
+  @media (max-width: 560px) {
+    .rule-list-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .rule-list-note { grid-column: 1 / -1; }
   }
 
   /* ── Group heading between sibling grids ─────────────────────────────────── */

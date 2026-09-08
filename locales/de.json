@@ -261,7 +261,6 @@
   {"id": "dashboard_hero_inactive", "translation": "Der Core-Dienst setzt derzeit keine Regeln durch."},
   {"id": "dashboard_rulesets", "translation": "Regelsätze"},
   {"id": "dashboard_rulesets_note", "translation": "Die Zahlen beziehen sich auf die aktuell geladenen Regeln"},
-  {"id": "tile_manage", "translation": "Verwalten"},
   {"id": "tile_tcp_note", "translation": "nehmen Verbindungen an"},
   {"id": "tile_tcp_unused", "translation": "{{.N}} seit 30+ Tagen ungenutzt"},
   {"id": "used_never", "translation": "nie"},

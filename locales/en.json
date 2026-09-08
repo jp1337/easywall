@@ -261,7 +261,6 @@
   {"id": "dashboard_hero_inactive", "translation": "The core daemon is not enforcing any rules."},
   {"id": "dashboard_rulesets", "translation": "Rule sets"},
   {"id": "dashboard_rulesets_note", "translation": "Counts are from the rules currently loaded"},
-  {"id": "tile_manage", "translation": "Manage"},
   {"id": "tile_tcp_note", "translation": "accepting connections"},
   {"id": "tile_tcp_unused", "translation": "{{.N}} unused for 30+ days"},
   {"id": "used_never", "translation": "never"},
