@@ -9,12 +9,20 @@ package core
 // why spec §9 excludes a self-test against the live table.
 //
 // A false claim is a `failed` stamp, never an error and never a refusal to
-// filter. Spec §7. The error return of a prover means one thing only — the
-// harness could not carry a packet — and every error becomes `unprovable`,
-// because a host that cannot be asked and a firewall that is wrong are
-// opposite findings and conflating them would make the ordinary container read
-// as a broken installation. That inversion is the exact defect this release
-// exists to remove.
+// filter. Spec §7. The error return of a prover means one thing only — this
+// claim could not be settled on this host — which covers a harness that could
+// not be built, a harness that could not route, and a control probe that was
+// refused through a harness which is working perfectly well. Every one of them
+// is `unprovable` and none is `failed`, because a host that cannot be asked and
+// a firewall that is wrong are opposite findings and conflating them would make
+// the ordinary container read as a broken installation. That inversion is the
+// exact defect this release exists to remove, and foldClaims is where the other
+// half of it is closed.
+//
+// The three situations read differently in the stamp on purpose. It is the
+// string an operator sees in `easywall-core selftest` and on the health page,
+// so "the harness is not carrying a packet" must not be printed when the
+// harness is fine and something else refused the control.
 //
 // # Which direction each claim is measured in, and why it has to differ
 //
@@ -86,49 +94,84 @@ const (
 	selftestProbeTimeout = 2 * time.Second
 )
 
+// selftestClaim is one claim and the prover that settles it.
+type selftestClaim struct {
+	name  string
+	prove func() (bool, string, error)
+}
+
 // RunSelftest proves the claims and returns what to record.
-//
-// It stops at the first claim it cannot settle. A stamp carries one outcome and
-// one detail, so continuing past a false claim would only decide which of two
-// failures to name — and the first one is the one that broke.
 func RunSelftest() shared.SelftestStamp {
 	stamp := shared.SelftestStamp{
 		Version: shared.CurrentVersion,
 		Kernel:  KernelRelease(),
 		At:      time.Now().UTC(),
 	}
-
-	claims := []struct {
-		name  string
-		prove func() (bool, string, error)
-	}{
+	stamp.Result, stamp.Detail = foldClaims([]selftestClaim{
 		{"a reply on an established connection passes", proveEstablishedPasses},
 		{"an open port accepts a connection", proveOpenPortAccepts},
 		{"a closed port does not", proveClosedPortRefuses},
 		{"a blacklisted address does not reach an open port", proveBlacklistWins},
-	}
+	})
+	return stamp
+}
 
+// foldClaims runs every claim and folds the answers into the one result and the
+// one detail a stamp carries.
+//
+// **A `failed` outranks an `unprovable`, and every claim runs.** Both halves of
+// that are load-bearing, and the first version of this file had neither: it
+// returned at the first claim it could not settle, which made the order of the
+// list decide the outcome.
+//
+// The provers are not independent. Claims 3 and 4 use the open port as their
+// control — a refusal there is what makes a silence elsewhere mean something —
+// so a genuinely broken port rule makes those two *unable to settle* and only
+// claim 2 reports it as false. With early return, listing claim 3 before claim
+// 2 turned a broken firewall into `unprovable`: a red finding rendered as "this
+// host cannot be asked", produced by moving two lines. The review found it by
+// swapping them and reading:
+//
+//	skipping: a closed port does not — control: the open port 12232 was not
+//	answered either, so a silence on 12233 says nothing about the policy
+//
+// That inversion is the exact defect this release exists to remove, so it is
+// removed structurally rather than warned about: whatever the order, a false
+// claim anywhere outranks every claim that could not be settled, and
+// `unprovable` is reported only when *nothing* settled. A comment plus a test
+// would have preserved the landmine and merely labelled it.
+//
+// The detail names the first claim of the winning kind, which is why the fold
+// keeps two strings rather than one. An error is never `failed` on its own: a
+// refused clone, a port already bound or a netlink write the kernel would not
+// take is not evidence about the firewall, and putting a red state on a host
+// whose rules were never measured is the same inversion from the other side.
+//
+// Cost of running all four when the first cannot settle: four instant refusals
+// when the namespace is unavailable, and about twelve seconds when the firewall
+// is broken — once per version and kernel, in a process that exits.
+func foldClaims(claims []selftestClaim) (shared.SelftestResult, string) {
+	var failed, unprovable string
 	for _, c := range claims {
 		ok, detail, err := c.prove()
-		if err != nil {
-			// Every error, not only ErrNamespaceUnavailable. A prover's error
-			// says the harness could not carry a packet, whatever stopped it —
-			// a refused clone, a port already bound, a netlink write the kernel
-			// would not take. None of those is evidence about the firewall, and
-			// reporting any of them as `failed` would put a red state on a host
-			// whose rules were never measured.
-			stamp.Result = shared.SelftestUnprovable
-			stamp.Detail = c.name + " — " + err.Error()
-			return stamp
-		}
-		if !ok {
-			stamp.Result = shared.SelftestFailed
-			stamp.Detail = c.name + " — " + detail
-			return stamp
+		switch {
+		case err != nil:
+			if unprovable == "" {
+				unprovable = c.name + " — " + err.Error()
+			}
+		case !ok:
+			if failed == "" {
+				failed = c.name + " — " + detail
+			}
 		}
 	}
-	stamp.Result = shared.SelftestPassed
-	return stamp
+	if failed != "" {
+		return shared.SelftestFailed, failed
+	}
+	if unprovable != "" {
+		return shared.SelftestUnprovable, unprovable
+	}
+	return shared.SelftestPassed, ""
 }
 
 // proof is the fixture the four provers share: a namespace with a peer in it, a
@@ -262,9 +305,13 @@ func proveEstablishedPasses() (bool, string, error) {
 			return false, "", err
 		}
 		if !open {
-			return false, "", fmt.Errorf("control: with no table in the namespace the peer could not "+
-				"reach the listener on %s:%d, so the harness is not carrying a packet and nothing "+
-				"below would mean anything", p.h.RouterAddr(), selftestListenPort)
+			return false, "", fmt.Errorf("control refused: the peer's connection to the listener on "+
+				"%s:%d was not answered even with no table in the namespace, so this claim cannot be "+
+				"settled on this host. The harness is built and the peer is running; what this one "+
+				"probe additionally needs is an inbound connection accepted on *this* side, which a "+
+				"live easywall table drops by policy. That is expected when the firewall is already "+
+				"up — easywall-selftest.service runs before easywall-core.service for this reason",
+				p.h.RouterAddr(), selftestListenPort)
 		}
 
 		if err := p.apply(shared.Rules{}, shared.FirewallOptions{}); err != nil {
@@ -304,8 +351,10 @@ func proveOpenPortAccepts() (bool, string, error) {
 			return false, "", err
 		}
 		if !crossed {
-			return false, "", fmt.Errorf("control: with no table in the namespace a connection to "+
-				"%s:%d was not answered at all, so the harness is not carrying an inbound packet",
+			return false, "", fmt.Errorf("control refused: with no table in the namespace at all, a "+
+				"connection to %s:%d went unanswered — either the harness is not carrying an inbound "+
+				"packet or this side's own table dropped the reply coming back. Either way this claim "+
+				"cannot be settled on this host, and nothing here is a finding about the rules",
 				p.h.PeerAddr(), selftestOpenPort)
 		}
 
@@ -365,8 +414,12 @@ func proveClosedPortRefuses() (bool, string, error) {
 			return false, "", err
 		}
 		if !crossed {
-			return false, "", fmt.Errorf("control: the open port %d was not answered either, so a "+
-				"silence on %d says nothing about the policy", selftestOpenPort, selftestClosedPort)
+			return false, "", fmt.Errorf("control refused: open port %d was not answered under the "+
+				"very table being measured, so a silence on %d says nothing about the policy and this "+
+				"claim cannot be settled. The harness is not implicated: if the rule that opens %d is "+
+				"the broken thing, \"an open port accepts a connection\" is the claim that reports it, "+
+				"and a false claim there outranks this one",
+				selftestOpenPort, selftestClosedPort, selftestOpenPort)
 		}
 
 		crossed, err = p.inboundCrosses(selftestClosedPort)
@@ -406,9 +459,12 @@ func proveBlacklistWins() (bool, string, error) {
 			return false, "", err
 		}
 		if !crossed {
-			return false, "", fmt.Errorf("control: with %s not blacklisted, a connection to open "+
-				"port %d was still not answered, so the drop below would not be the blacklist's doing",
-				p.h.RouterAddr(), selftestOpenPort)
+			return false, "", fmt.Errorf("control refused: with %s not blacklisted, open port %d was "+
+				"still not answered, so a drop with the entry added would not be the blacklist's doing "+
+				"and this claim cannot be settled. The harness is not implicated: if the rule that "+
+				"opens %d is the broken thing, \"an open port accepts a connection\" is the claim that "+
+				"reports it, and a false claim there outranks this one",
+				p.h.RouterAddr(), selftestOpenPort, selftestOpenPort)
 		}
 
 		blocked := open

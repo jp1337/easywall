@@ -56,7 +56,7 @@ func TestIntegration_SelftestProvesEstablishedPasses(t *testing.T) {
 		t.Skipf("skipping: %v", err)
 	}
 	if err != nil {
-		t.Fatalf("the harness could not carry a packet, so nothing was proven: %v", err)
+		t.Fatalf("this claim could not be settled here, so nothing was proven: %v", err)
 	}
 	if !ok {
 		t.Fatalf("a reply on an established connection did not pass: %s", detail)
@@ -81,7 +81,7 @@ func TestIntegration_SelftestProvesTheRemainingThreeClaims(t *testing.T) {
 				t.Skipf("skipping: %v", err)
 			}
 			if err != nil {
-				t.Fatalf("the harness could not carry a packet, so nothing was proven: %v", err)
+				t.Fatalf("this claim could not be settled here, so nothing was proven: %v", err)
 			}
 			if !ok {
 				t.Fatalf("%s: %s", c.name, detail)
