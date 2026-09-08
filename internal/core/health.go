@@ -38,7 +38,11 @@ type healthInputs struct {
 	// panicEngaged is Firewall.PanicEngaged, which answers an unreadable marker
 	// with "engaged". That is the safe direction here as well as at an apply: a
 	// health check that cannot tell whether the machine was deliberately
-	// unfiltered should say degraded, not ok.
+	// unfiltered should name the louder of the two causes, not the blander one.
+	//
+	// It selects the *reason* and never the state, since 2026-09-09. It used to
+	// select both — degraded, per spec §2 — and that could not happen: see
+	// computeHealth's first branch for why, and for the ruling that replaced it.
 	panicEngaged bool
 
 	// establishedPkts is the input chain's `ct state established,related accept`
@@ -75,29 +79,66 @@ func computeHealth(in healthInputs) shared.HealthResult {
 	// the rules. A counter of zero on a table that does not exist is not a
 	// signal about the stateful half, and a self-test that passed proves
 	// something about a binary rather than about this machine right now.
+	//
+	// The reason is chosen *inside* this branch, and that is a correction to
+	// this release's own spec rather than a deviation from it.
+	//
+	// §2 and §7 said panic mode reads `degraded`, and a `panicEngaged` check
+	// used to sit after this one to produce it. It could never fire on a real
+	// host. Firewall.Panic calls nft.Reset (restore.go:377), which recreates the
+	// table with an empty input chain, and Enforcing() reports an empty input
+	// chain as not enforcing — its own comment says so, because a chain with no
+	// rules under a drop policy is not "live rules" either. So every panicked
+	// machine returned here, at the first branch, and `panic` was unreachable
+	// while three comments, a flowchart and a failure table all promised it.
+	//
+	// The ruling, made against the spec on 2026-09-09: `fail` with reason
+	// `panic`. Not `degraded`. Under panic mode the machine is not filtering at
+	// all, and `degraded` means "still filtering, something is off" — it would
+	// understate, and understating the state of a firewall is the failure this
+	// release exists to remove whichever direction it points in. What was
+	// missing was never the state; it was the *cause*. `not_enforcing` says the
+	// kernel is not carrying rules and stops there. `panic` says somebody
+	// unfiltered this machine deliberately and it stays that way across a
+	// reboot until they run `easywall-core resume` — Daemon.Start declines to
+	// filter while the marker is on disk. Those are different things to whoever
+	// is reading an alert at three in the morning.
+	//
+	// The divergence from `easywall-core status`, which exits 0 under panic,
+	// gets wider rather than narrower: health now exits 2 where it exited 1.
+	// That exit code was ruled on and is not being reopened — a machine
+	// somebody chose to unfilter is in a state somebody chose, and a console
+	// asking after *intent* is right to be quiet. A monitoring system asking
+	// after *health* is asking a different question, and this is where the two
+	// are allowed to differ. It still closes carried-forward.md's entry open
+	// since 2.7 — "a forgotten panic mode is invisible to monitoring" — and it
+	// closes it louder.
+	//
+	// PanicEngaged answers an unreadable marker with "engaged", which is the
+	// safe direction here as it is at an apply: a health check that cannot tell
+	// whether the machine was deliberately unfiltered should not report the
+	// blander of the two reasons.
 	if !in.enforcing {
 		out.State, out.Reason = shared.HealthFail, shared.HealthReasonNotEnforcing
+		if in.panicEngaged {
+			out.Reason = shared.HealthReasonPanic
+		}
 		return out
 	}
 
-	// Panic mode reads degraded, and that deliberately diverges from
-	// `easywall-core status`, which exits 0 under panic. That exit code was
-	// ruled on and is not being reopened: a machine somebody chose to unfilter
-	// is in a state somebody chose. But a monitoring system asking after health
-	// is asking a different question from a console asking after intent, and
-	// this is where the two are allowed to differ.
+	// Panic mode with the table still filtering, which is the
+	// panicLandedDuringWrite race and nothing else: the marker is on disk and
+	// the teardown has not landed, or failed. Still `fail` — the machine is
+	// recorded as unfiltered and the next boot will not re-arm it, so an
+	// operator reading `degraded` here would be told the milder half of the
+	// truth. The reason is the same one, because it is the same cause.
 	//
-	// This closes the carried-forward.md entry open since 2.7 — "a forgotten
-	// panic mode is invisible to monitoring", the consequence being that a panic
-	// nobody remembers never pages anyone. It is answered here rather than by
-	// changing the exit code.
-	//
-	// Before the counter, because under panic the table is torn down and every
-	// counter is zero: reporting "the stateful half matches nothing" about a
+	// Before the counter, because in this window the counters are whatever the
+	// old table had: reporting "the stateful half matches nothing" about a
 	// machine that is deliberately unfiltered would send whoever reads it
 	// hunting a rule-building defect that is not there.
 	if in.panicEngaged {
-		out.State, out.Reason = shared.HealthDegraded, shared.HealthReasonPanic
+		out.State, out.Reason = shared.HealthFail, shared.HealthReasonPanic
 		return out
 	}
 

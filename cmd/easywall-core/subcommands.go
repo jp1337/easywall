@@ -310,14 +310,24 @@ func printStamp(w io.Writer, stamp shared.SelftestStamp) {
 //
 // The exit codes are the contract a monitoring check and a Docker HEALTHCHECK
 // depend on: ok → 0, degraded → 1, fail → 2. They deliberately diverge from
-// `status` under panic mode, where status exits 0 and health exits 1. That was
-// ruled on rather than overlooked: a machine somebody chose to unfilter is in a
-// state somebody chose, so a console asking after *intent* is right to be
+// `status` under panic mode, where status exits 0 and health exits **2**. That
+// was ruled on rather than overlooked: a machine somebody chose to unfilter is
+// in a state somebody chose, so a console asking after *intent* is right to be
 // quiet — but a monitoring system asking after *health* is asking a different
 // question, and answering it closes carried-forward's entry open since 2.7,
 // "a forgotten panic mode is invisible to monitoring; a panic nobody remembers
 // never pages anyone". TestHealthAndStatusDisagreeUnderPanic pins the
 // divergence so it stays a decision instead of being rediscovered as a bug.
+//
+// 2 and not 1, corrected on 2026-09-09 against this release's own spec: §2 said
+// panic reads `degraded`, and that reason was unreachable — Firewall.Panic
+// leaves an empty input chain, which Enforcing() reports as not enforcing, so
+// computeHealth returned at its first branch. The correction is `fail` with
+// reason `panic`, because a panicked machine is not filtering at all and
+// `degraded` would understate it. The state and the cause are printed on
+// separate lines here for exactly that reason: the code says how bad, the
+// reason says why, and `panic` is what stops whoever reads it hunting a kernel
+// that lost its rules.
 func runHealth(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdGetHealth})
 	if err != nil {

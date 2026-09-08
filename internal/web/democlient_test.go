@@ -644,10 +644,14 @@ func TestDemoAnswersGetHealth(t *testing.T) {
 // And under panic mode it says the thing the banner over every page already
 // says, rather than ok/healthy underneath it.
 //
-// This is the same answer computeHealth gives a real host in the same state:
-// the enforcing branch runs before the panic branch, and a torn-down table is
-// not enforcing. A demo that disagrees with the core about its own state is a
-// demo nothing can be reviewed against.
+// fail with reason panic — the same answer computeHealth gives a real host in
+// the same state, out of its first branch: Firewall.Panic leaves an empty input
+// chain, Enforcing() reports that as not enforcing, and the marker names the
+// cause. Both halves are asserted. fail rather than degraded, because a
+// panicked host is not filtering at all; panic rather than not_enforcing,
+// because a human took the rules away and a reboot will not bring them back. A
+// demo that disagrees with the core about its own state is a demo nothing can
+// be reviewed against.
 func TestDemoHealthFollowsPanicMode(t *testing.T) {
 	d := newDemoState()
 
@@ -667,9 +671,9 @@ func TestDemoHealthFollowsPanicMode(t *testing.T) {
 		t.Errorf("demo health state under panic = %q, want %q; the banner and the hero "+
 			"would contradict each other on the same page", got.State, shared.HealthFail)
 	}
-	if got.Reason != shared.HealthReasonNotEnforcing {
-		t.Errorf("demo health reason under panic = %q, want %q", got.Reason,
-			shared.HealthReasonNotEnforcing)
+	if got.Reason != shared.HealthReasonPanic {
+		t.Errorf("demo health reason under panic = %q, want %q; not_enforcing would send a "+
+			"reader hunting a kernel that lost its rules", got.Reason, shared.HealthReasonPanic)
 	}
 
 	// And back again, so this does not pass on a demo that answers fail always.

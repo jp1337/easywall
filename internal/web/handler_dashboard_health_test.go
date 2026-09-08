@@ -75,18 +75,58 @@ func TestTheDashboardGivesTheDegradedReasonInWords(t *testing.T) {
 	}
 }
 
-// fail is red and says the same thing about itself.
+// fail is red and says the same thing about itself, and the two causes read
+// differently on the page.
+//
+// Both rows are here because both reach a real operator, and the second one is
+// the correction made against spec §2 on 2026-09-09: a panicked host lands in
+// computeHealth's not-enforcing branch — Firewall.Panic leaves an empty input
+// chain and Enforcing() reports that as not enforcing — so it is fail, and the
+// marker names the cause. A page rendering the not_enforcing sentence there
+// would tell an operator the kernel had lost its rules, where the truth is that
+// a human took them away and a reboot will not bring them back.
 func TestTheDashboardRendersAFailingFirewallAsCritical(t *testing.T) {
-	body := dashboardWithHealth(t, shared.HealthResult{
-		State:  shared.HealthFail,
-		Reason: shared.HealthReasonNotEnforcing,
-	})
-
-	if !strings.Contains(body, `class="hero-dot crit"`) {
-		t.Error("a failing firewall is not red")
+	cases := []struct {
+		name     string
+		reason   shared.HealthReason
+		sentence string
+		notThere string
+	}{
+		{
+			name:     "not_enforcing",
+			reason:   shared.HealthReasonNotEnforcing,
+			sentence: "so nothing is being filtered",
+			notThere: "deliberately unfiltered",
+		},
+		{
+			name:     "panic",
+			reason:   shared.HealthReasonPanic,
+			sentence: "deliberately unfiltered",
+			notThere: "so nothing is being filtered",
+		},
 	}
-	if !strings.Contains(body, "so nothing is being filtered") {
-		t.Error("the dashboard does not say that nothing is being filtered")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := dashboardWithHealth(t, shared.HealthResult{
+				State:  shared.HealthFail,
+				Reason: tc.reason,
+			})
+
+			if !strings.Contains(body, `class="hero-dot crit"`) {
+				t.Error("a failing firewall is not red")
+			}
+			if !strings.Contains(body, ">Not enforcing<") {
+				t.Error("the hero does not carry the state word beside its dot")
+			}
+			if !strings.Contains(body, tc.sentence) {
+				t.Errorf("the page does not carry %q, the sentence for this cause", tc.sentence)
+			}
+			// And it carries the *other* cause's sentence nowhere, or one shared
+			// string would satisfy both rows and neither would prove anything.
+			if strings.Contains(body, tc.notThere) {
+				t.Errorf("the page carries %q, which belongs to the other cause", tc.notThere)
+			}
+		})
 	}
 }
 

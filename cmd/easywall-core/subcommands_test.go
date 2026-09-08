@@ -330,10 +330,34 @@ func TestHealthRefusesAStateItDoesNotKnow(t *testing.T) {
 	}
 }
 
-// Panic mode: status says 0, health says 1. The divergence closes
+// Panic mode: status says 0, health says 2. The divergence closes
 // carried-forward's 2.7 entry — "a forgotten panic mode is invisible to
 // monitoring" — and is pinned here so it stays a decision rather than being
 // rediscovered as a bug and "fixed" in either direction.
+//
+// **2 and not 1, corrected on 2026-09-09.** This test wanted 1, because spec §2
+// said panic reads `degraded`. It could not happen on a real host: Firewall.Panic
+// calls nft.Reset, which leaves the input chain empty, and Enforcing() reports an
+// empty input chain as not enforcing — so computeHealth returned in its first
+// branch and the `panic` reason was unreachable. The spec was corrected rather
+// than worked around: `fail` with reason `panic`. A panicked machine is not
+// filtering at all, and `degraded` — "still filtering, something is off" — would
+// understate it, which is the failure this release exists to remove whichever
+// direction it points in.
+//
+// So the divergence gets wider, not narrower. exitNotFiltered is the code
+// `status` uses when it cannot confirm a firewall is up and the code `health`
+// uses with no daemon at all, and it is the honest one here for the same
+// reason: nothing is being filtered. What still separates the two commands is
+// the question they answer — `status` asks after intent and a machine somebody
+// chose to unfilter is in a state somebody chose, so 0; `health` asks after
+// effect, and the effect is that this host is open.
+//
+// The reason is asserted as well as the code, and that is what makes the change
+// an improvement rather than a louder alarm: `not_enforcing` would have said the
+// kernel has lost its rules, where `panic` says a human took them away and a
+// reboot will not bring them back — Daemon.Start declines to filter while the
+// marker is on disk.
 func TestHealthAndStatusDisagreeUnderPanic(t *testing.T) {
 	status, err := json.Marshal(shared.FirewallStatus{Panic: true, Acceptance: shared.AcceptanceIdle})
 	if err != nil {
@@ -348,8 +372,12 @@ func TestHealthAndStatusDisagreeUnderPanic(t *testing.T) {
 			code, exitOK, statusErr.String())
 	}
 
+	// What computeHealth actually answers for a panicked host — asserted there
+	// by TestHealthStateMachine's "no table with the marker engaged names panic
+	// as the cause", so the reply this console is driven with is the reply the
+	// core produces rather than one written to suit the assertion below.
 	health, err := json.Marshal(shared.HealthResult{
-		State:  shared.HealthDegraded,
+		State:  shared.HealthFail,
 		Reason: shared.HealthReasonPanic,
 	})
 	if err != nil {
@@ -358,13 +386,20 @@ func TestHealthAndStatusDisagreeUnderPanic(t *testing.T) {
 	healthCfg := writeConfig(t, coreSocket(t, shared.Response{Success: true, Data: health}))
 
 	var healthOut, healthErr bytes.Buffer
-	if code := runSubcommand("health", []string{"-config", healthCfg}, &healthOut, &healthErr); code != exitFailed {
+	if code := runSubcommand("health", []string{"-config", healthCfg}, &healthOut, &healthErr); code != exitNotFiltered {
 		t.Errorf("health under panic = %d, want %d — a monitoring system asking after health "+
-			"asks a different question from a console asking after intent (stderr %s)",
-			code, exitFailed, healthErr.String())
+			"asks a different question from a console asking after intent, and nothing on this "+
+			"host is being filtered (stderr %s)",
+			code, exitNotFiltered, healthErr.String())
 	}
+	// The cause, not only the code. not_enforcing here would send whoever reads
+	// the alert hunting a kernel that lost its rules.
 	if !strings.Contains(healthOut.String(), string(shared.HealthReasonPanic)) {
-		t.Errorf("health must name panic as the reason, or the 1 is unexplained:\n%s",
+		t.Errorf("health must name panic as the reason, or the 2 is unexplained:\n%s",
+			healthOut.String())
+	}
+	if strings.Contains(healthOut.String(), string(shared.HealthReasonNotEnforcing)) {
+		t.Errorf("health named not_enforcing for a deliberately unfiltered machine:\n%s",
 			healthOut.String())
 	}
 }

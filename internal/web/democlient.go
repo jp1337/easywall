@@ -368,12 +368,17 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		// The state itself follows panicMode, because the alternative is the
 		// demo contradicting itself on one screen: statusLocked reports
 		// Active: !panicMode and the interface draws the panic banner over every
-		// page, and this answered ok/healthy underneath it. fail and
-		// not_enforcing is what computeHealth returns for the same machine — its
-		// enforcing branch is evaluated before its panic branch, and a torn-down
-		// table is not enforcing — so the demo says here exactly what a real
-		// host says, which is the only reason the demo is worth rendering
-		// against at all.
+		// page, and this answered ok/healthy underneath it.
+		//
+		// fail with reason panic is what computeHealth returns for the same
+		// machine, and both halves matter. fail rather than degraded because a
+		// panicked host is not filtering at all — Firewall.Panic leaves an empty
+		// input chain and Enforcing() reports that as not enforcing, so the
+		// answer comes out of computeHealth's first branch. panic rather than
+		// not_enforcing because that branch names the cause from the marker: a
+		// human took the rules away and a reboot will not bring them back. The
+		// demo has to say exactly what a real host says, or it is not worth
+		// rendering a review against.
 		res := shared.HealthResult{
 			State:  shared.HealthOK,
 			Reason: shared.HealthReasonHealthy,
@@ -384,7 +389,7 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 			},
 		}
 		if d.panicMode {
-			res.State, res.Reason = shared.HealthFail, shared.HealthReasonNotEnforcing
+			res.State, res.Reason = shared.HealthFail, shared.HealthReasonPanic
 		}
 		return demoOK(res)
 	case shared.CmdSaveSystem:
