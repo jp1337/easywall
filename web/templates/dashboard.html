@@ -48,6 +48,20 @@
          first of nine identical rectangles. */}}
     <div class="hero mb-4">
       <div class="hero-main">
+        {{/* The health reply when there is one, and the enforcing flag when
+             there is not. Those answer two different questions and the first
+             one is the reason this release exists; see dashboardData.Health for
+             why an absent reply falls back rather than reporting a fault. */}}
+        {{if $.Data.Health}}
+        <div class="hero-state">
+          <span class="hero-dot {{healthTone $.Data.Health.State}}" aria-hidden="true"></span>
+          <span>{{T (printf "health_state_%s" $.Data.Health.State)}}</span>
+        </div>
+        {{/* The reason as a sentence, never the dot on its own: a colour is
+             read by nobody who cannot tell amber from green, and by nobody
+             reading a screenshot pasted into a ticket. */}}
+        <p class="hero-note">{{T (printf "health_reason_%s" $.Data.Health.Reason)}}</p>
+        {{else}}
         <div class="hero-state">
           {{if .Status.Active}}
           <span class="hero-dot ok" aria-hidden="true"></span>
@@ -60,6 +74,7 @@
         <p class="hero-note">
           {{if .Status.Active}}{{T "dashboard_hero_active"}}{{else}}{{T "dashboard_hero_inactive"}}{{end}}
         </p>
+        {{end}}
       </div>
 
       <div class="hero-facts">
@@ -87,6 +102,25 @@
           <div class="hero-fact-label">{{T "dashboard_last_apply"}}</div>
           <div class="hero-fact-value">{{if .Status.LastApply}}<span title="{{.Status.LastApply}}">{{shortTime .Status.LastApply}}</span>{{else}}&mdash;{{end}}</div>
         </div>
+        {{/* What the proof last found, and the kernel it was proven against.
+             Absent entirely when no proof has been recorded — a fresh install
+             and an unreadable stamp both look like that, and "Self-test: —" is
+             a label about nothing.
+
+             The kernel line is conditional for its own reason. internal/web has
+             no path to the privileged core.KernelRelease() and imports
+             internal/core nowhere, by design, so the demo answers with a stamp
+             whose kernel is the zero value while a real host's answer carries a
+             release. An empty value under that label would be a claim; absence
+             is not. shared.HealthSelftest.Kernel is omitempty for the same
+             reason on the wire. */}}
+        {{with $.Data.Health}}{{if .Selftest.Result}}
+        <div>
+          <div class="hero-fact-label">{{T "dashboard_selftest"}}</div>
+          <div class="hero-fact-value">{{T (printf "health_proof_%s" .Selftest.Result)}}</div>
+          {{if .Selftest.Kernel}}<div class="hero-fact-sub">{{.Selftest.Kernel}}</div>{{end}}
+        </div>
+        {{end}}{{end}}
       </div>
 
       {{if or .Status.HasPending (eq (printf "%s" .Status.Acceptance) "pending")}}

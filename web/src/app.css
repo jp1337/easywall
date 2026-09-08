@@ -2481,6 +2481,18 @@ body {
     font-variant-numeric: tabular-nums;
   }
 
+  /* The kernel the self-test was proven against, under its result. Quieter than
+     the value it qualifies: a release string is an identifier an operator
+     compares, not a fact they read on arrival, and it is only ever rendered
+     when there is one — see the dashboard template. */
+  .hero-fact-sub {
+    margin-top: 1px;
+    font-family: var(--font-data);
+    font-size: 12px;
+    color: var(--color-ink-subtle);
+    overflow-wrap: anywhere;
+  }
+
   .hero-actions {
     display: flex;
     gap: 8px;
@@ -2499,6 +2511,17 @@ body {
   .hero-dot.ok { background: var(--color-state-ok); animation: ew-pulse-ok 2.2s infinite; }
   .hero-dot.warn { background: var(--color-state-warn); animation: ew-pulse-warn 1.6s infinite; }
   .hero-dot.crit { background: var(--color-state-crit); box-shadow: 0 0 0 4px var(--wash-crit); }
+
+  /* The health reason gets no colour of its own, and that is a decision rather
+     than an omission. Three .hero-note-ok/-warn/-crit rules were written for it
+     first, on the argument that a reason an operator must act on should not be
+     the quietest text on the page. They were dropped: .verdict-note on the
+     apply screen is the same thing — the sentence explaining a state whose dot
+     and word sit directly above it — and it is ink-muted for every verdict.
+     Colouring one and not the other would be two vocabularies for one idea,
+     and DESIGN.md's Status section asks for two forms simultaneously, a dot
+     and a word, which the 22px hero-state line already provides. If this ever
+     needs to change it changes on both screens, and in DESIGN.md first. */
 
   /* ── Numbered sequence (apply screen) ────────────────────────────────────
      Numbers here are not decoration: applying rules genuinely is a three-step

@@ -421,8 +421,53 @@ func runSelftest(cfg *core.Config, o opts, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr,
 			"easywall-core: the self-test ran, but its result could not be recorded: %v\n", err)
 	}
+	recordProof(cfg, stamp)
 	printStamp(stdout, stamp)
 	return proofExitCode(stamp.Result)
+}
+
+// auditUserSelftest is who wrote a selftest_passed or selftest_failed line.
+//
+// Not "core" and not "console": neither is true. The proof runs in this binary,
+// under easywall-selftest.service before the daemon exists or under a
+// maintainer's hand at a shell, and the daemon it precedes never sees it. The
+// same distinction auditUserNoDaemon exists for — the log has to say which
+// process wrote a line without an operator inferring it from the timestamp.
+const auditUserSelftest = "selftest"
+
+// recordProof puts what the proof found into the audit log, with its detail.
+//
+// This is the *only* place SelftestStamp.Detail is durably recorded. It is
+// deliberately absent from HealthResult, because /healthz is unauthenticated by
+// necessity and the detail names a port number and the claim that failed, and
+// printStamp above puts it on a terminal that scrolls away. Without this half,
+// a field RunSelftest writes is read by nothing that outlives the invocation,
+// and the next maintainer deletes it as dead weight having no way to tell it
+// from some.
+//
+// unprovable writes nothing, and that is not the same omission as a missing
+// case. It is the ordinary state on every container and every host whose daemon
+// holds CAP_NET_ADMIN and not CAP_SYS_ADMIN, which is the normal systemd
+// installation — one line per boot saying the proof could not be attempted
+// would be the whole audit log on a machine that reboots, and it would push out
+// the apply and panic entries an operator actually greps for. computeHealth
+// treats unprovable as ok for the same reason: being unable to prove something
+// is not the same as it being broken. The journal carries it, once.
+//
+// Called from both the ran-and-recorded path and the path whose stamp write
+// failed. The proof ran either way, and an unwritable data directory does not
+// change what it found.
+func recordProof(cfg *core.Config, stamp shared.SelftestStamp) {
+	var action string
+	switch stamp.Result {
+	case shared.SelftestPassed:
+		action = "selftest_passed"
+	case shared.SelftestFailed:
+		action = "selftest_failed"
+	default:
+		return
+	}
+	core.WriteAuditLog(cfg.AuditLogPath(), action, "all", stamp.Detail, auditUserSelftest)
 }
 
 // proofExitCode maps a recorded result onto an exit code. Only a false claim is

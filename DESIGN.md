@@ -1133,9 +1133,22 @@ CSS: the stylesheet once keyed on `rules_applied` and `rules_rolled_back`, names
 demo client produced, so in production no entry was ever tinted and a rolled-back apply —
 the most consequential line in the log — rendered neutral grey.
 
-Only the four `apply_*` actions carry colour, because only they describe what the firewall is
-doing: accepted is `ok`, started is `warn`, rolled back and failed are `crit`. Saving a rule
-set stages it and changes nothing that is live, so it stays neutral however important it feels.
+An action carries colour when, and only when, it says something about what the firewall is
+doing. Saving a rule set stages it and changes nothing that is live, so it stays neutral
+however important it feels. `internal/web/server.go`'s `auditActionTones` is the list, and
+`TestOnlyFirewallStatesCarryATone` holds a copy of it with the judgement written out, so an
+addition is a deliberate edit rather than a diff nobody reads.
+
+**Amended 2026-09-08.** This paragraph read *"Only the four `apply_*` actions carry colour"*
+and had been wrong for two releases: the code coloured eleven — the four applies,
+`rollback_failed`, three `boot_*`, two `panic_*` and `resume_restore_skipped` — and
+`features/audit-log.md` listed all eleven under a heading that counted them. 2.17 adds
+`health_degraded` as the twelfth. The rule was never a count of `apply_*`; it is the sentence
+above, and stating it as a list of four is what let the file go stale while remaining
+plausible. It also disagreed with the *Status* section below, which reserves nothing for
+`apply_*` in particular. `docs-tech/carried-forward.md` carries two more disagreements of
+this shape; this one is closed rather than joining them, because 2.17 is the release that
+changed the table.
 
 Timestamps display as clock time for today and `2 Jan 15:04` before that, with the full
 RFC 3339 value on the element's `title`. A log full of `2026-08-03T15:19:33+02:00` is a
