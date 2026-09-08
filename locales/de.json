@@ -352,7 +352,7 @@
   {"id": "custom_form_body", "translation": "Nur den Regelkörper schreiben. easywall stellt jeder Zeile `add rule inet easywall input` voran, sodass jede Anweisung in der Input-Chain landet."},
   {"id": "custom_form_example", "translation": "Also `tcp dport 8443 accept` — nicht den vollständigen `add rule`-Befehl."},
 
-  {"id": "options_subtitle", "translation": "Schutzmodule, die für jede Schnittstelle gelten. Eine farbige Kante markiert ein eingeschaltetes Modul."},
+  {"id": "options_subtitle", "translation": "Schutzmodule, die für jede Schnittstelle gelten. Ein eingeschaltetes Modul trägt links eine Kante."},
   {"id": "options_group_attack", "translation": "Angriffsschutz"},
   {"id": "options_group_attack_note", "translation": "Ratenbegrenzungen und Verwurfsregeln für feindlichen Verkehr"},
   {"id": "options_group_filter", "translation": "Verkehrsfilterung"},

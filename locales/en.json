@@ -352,7 +352,7 @@
   {"id": "custom_form_body", "translation": "Write the rule body only. easywall prefixes each line with `add rule inet easywall input`, so every statement lands in the input chain."},
   {"id": "custom_form_example", "translation": "Write `tcp dport 8443 accept` — not the full `add rule` command."},
 
-  {"id": "options_subtitle", "translation": "Protection modules that apply to every interface. An accent edge marks a module that is on."},
+  {"id": "options_subtitle", "translation": "Protection modules that apply to every interface. A module that is on carries an edge down its left side."},
   {"id": "options_group_attack", "translation": "Attack protection"},
   {"id": "options_group_attack_note", "translation": "Rate limits and drop rules for hostile traffic"},
   {"id": "options_group_filter", "translation": "Traffic filtering"},
