@@ -724,9 +724,10 @@ body {
      voice works and it appeared on exactly one screen in the whole product.
 
      30px is a ceiling, and it is measured rather than calculated. The longest
-     page title across all three locales is 23 characters ("Changer le mot de
-     passe", fr) and wraps at its spaces; the longest *unbreakable* one is 19 —
-     "Systemeinstellungen", a German compound with no break point anywhere in it.
+     page title across all three locales is the French one for changing a
+     password, 23 characters, and it wraps at its spaces; the longest
+     *unbreakable* one is 19 — "Systemeinstellungen", a German compound with no
+     break point anywhere in it.
 
      The arithmetic says 31.4px: 0.6em advance, 19 characters, 11.4em against the
      available width. Measured against the loaded face with canvas metrics, the
