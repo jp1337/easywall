@@ -73,10 +73,17 @@
   --text:         #f1f3f6;
   --text-muted:   #a2aab8;
   --text-subtle:  #7d8593;
-  --accent:       #8fd3fb;
-  --accent-on:    #8fd3fb;
-  --accent-dim:   rgba(143,211,251,0.13);
-  --accent-hover: rgba(143,211,251,0.20);
+  /* Colour means firewall state, and a documentation page has no state for it
+     to mean — nothing here is ok, warning or critical, so an ice-blue accent
+     was a fourth colour with nothing to say. Focus, selection and the one
+     primary action are carried by fill, edge and weight instead; a link takes
+     an underline and 500 weight rather than a hue. --select-fill is
+     --surface-2 and --select-edge is --text, which is the strongest pairing
+     the palette has (16.4:1 on the page ground). */
+  --focus-ring:   #f1f3f6;
+  --link-ink:     #f1f3f6;
+  --select-fill:  #181b22;
+  --select-edge:  #f1f3f6;
 
   --state-ok:     #3ecf8e;
   --state-warn:   #e5a54b;
@@ -102,10 +109,10 @@
   --text:         #0f1116;
   --text-muted:   #5a6270;
   --text-subtle:  #666e7b;  /* raised from #6f7784: 4.17:1 on --surface-2 failed AA */
-  --accent:       #0f7bab;
-  --accent-on:    #0d6b95;
-  --accent-dim:   rgba(15,123,171,0.09);
-  --accent-hover: rgba(15,123,171,0.16);
+  --focus-ring:   #0f1116;
+  --link-ink:     #0f1116;
+  --select-fill:  #f4f6f9;
+  --select-edge:  #0f1116;
 
   --state-ok:     #12855c;
   --state-warn:   #96620d;
@@ -140,7 +147,7 @@ html, body {
 [data-theme="easywall-light"] { color-scheme: light; }
 
 ::selection {
-  background: var(--accent-dim);
+  background: var(--select-fill);
   color: var(--text);
 }
 
@@ -191,7 +198,7 @@ html, body {
     gap: 8px;
   }
 
-  .topbar-logo:hover { color: var(--accent); }
+  .topbar-logo:hover { color: var(--text); }
 
   .topbar-github {
     font-size: 0.78rem;
@@ -200,7 +207,7 @@ html, body {
     font-weight: 500;
     white-space: nowrap;
   }
-  .topbar-github:hover { color: var(--accent); }
+  .topbar-github:hover { color: var(--text); }
 
   .sidebar-toggle {
     background: none;
@@ -258,7 +265,7 @@ html, body {
     text-decoration: none;
   }
 
-  .sidebar-logo:hover { color: var(--accent); }
+  .sidebar-logo:hover { color: var(--text); }
 
   .sidebar-github {
     color: var(--text-muted);
@@ -270,8 +277,8 @@ html, body {
     transition: background 0.15s, color 0.15s;
   }
   .sidebar-github:hover {
-    color: var(--accent);
-    background: var(--accent-dim);
+    color: var(--text);
+    background: var(--select-fill);
   }
 
   /* ── The documentation search ──────────────────────────────────────────────
@@ -308,13 +315,13 @@ html, body {
   .docs-search-trigger:hover {
     color: var(--text);
     background: var(--surface-3);
-    border-color: var(--accent);
+    border-color: var(--focus-ring);
   }
 
   .docs-search-trigger:focus-visible {
-    outline: 2px solid var(--accent-dim);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 1px;
-    border-color: var(--accent);
+    border-color: var(--focus-ring);
   }
 
   .docs-search-trigger svg { flex: none; }
@@ -421,7 +428,7 @@ html, body {
   .nav-group-label:hover { color: var(--text-muted); }
 
   .nav-group-label:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
     border-radius: 6px;
   }
@@ -468,9 +475,13 @@ html, body {
     color: var(--text);
   }
 
+  /* A fill on its own is not enough to mark what is active: --select-fill is
+     --surface-2, which is one step off the page and the same fill .nav-link
+     already takes on hover. The edge is the half that says "you are here". */
   .nav-link.active {
-    background: var(--accent-dim);
-    color: var(--accent);
+    background: var(--select-fill);
+    color: var(--text);
+    border-left: 2px solid var(--select-edge);
     font-weight: 500;
   }
 
@@ -505,7 +516,7 @@ html, body {
   .theme-toggle:hover {
     background: var(--surface-2);
     color: var(--text);
-    border-color: var(--accent);
+    border-color: var(--text-subtle);
   }
 
   .icon-sun, .icon-moon {
@@ -517,19 +528,19 @@ html, body {
   [data-theme="easywall-light"] .icon-moon { display: block; }
   .theme-label { font-weight: 500; }
 
+  /* The edge was a hard-coded Aurora cyan, retired two palettes ago, with a
+     light-mode override that existed only to restate it in the other palette.
+     A version number is not a state; it is quiet metadata, and takes --border
+     in both themes with no override at all. */
   .sidebar-version {
     font-size: 0.7rem;
     font-family: var(--font-mono);
-    color: var(--accent);
-    background: var(--accent-dim);
+    color: var(--text-muted);
+    background: var(--surface-2);
     padding: 2px 6px;
     border-radius: 3px;
-    border: 1px solid rgba(34,211,238,0.25);
+    border: 1px solid var(--border);
     letter-spacing: 0.5px;
-  }
-
-  [data-theme="easywall-light"] .sidebar-version {
-    border-color: rgba(8,145,178,0.25);
   }
 
   /* === Content === */
@@ -576,7 +587,7 @@ html, body {
     color: var(--text-muted);
     text-decoration: none;
   }
-  .page-footer a:hover { color: var(--accent); }
+  .page-footer a:hover { color: var(--text); }
 
   /* === Hero (homepage) — large, atmospheric, on-brand =================== */
   .docs-hero {
@@ -599,14 +610,13 @@ html, body {
      content — distinctive without being noisy. Sits behind via z-index.
      No opaque surface cap over the top edge: that rendered as a solid dark
      band across the hero wherever the mask is not applied, so the glow is
-     made of tinted accents only and can never paint a full-width bar. */
+     made of one tinted fill only and can never paint a full-width bar. */
   .docs-hero-glow {
     position: absolute;
     inset: 0;
     z-index: -1;
     background:
-      radial-gradient(900px 350px at 18% 0%, var(--accent-dim), transparent 70%),
-      radial-gradient(700px 280px at 85% 100%, rgba(45,212,191,0.08), transparent 70%);
+      radial-gradient(900px 350px at 18% 0%, var(--select-fill), transparent 70%);
     mask-image: radial-gradient(circle at center, black, black 70%, transparent 100%);
   }
 
@@ -629,25 +639,21 @@ html, body {
     gap: 0.5rem;
     padding: 0.3rem 0.85rem 0.3rem 0.7rem;
     margin-bottom: 1.75rem;
-    background: var(--accent-dim);
-    border: 1px solid rgba(34,211,238,0.30);
+    background: var(--select-fill);
+    border: 1px solid var(--border);
     border-radius: 999px;
     font-size: 0.75rem;
-    color: var(--accent);
+    color: var(--text-muted);
     font-weight: 500;
     letter-spacing: 0.2px;
-  }
-
-  [data-theme="easywall-light"] .docs-hero-pill {
-    border-color: rgba(8,145,178,0.30);
   }
 
   .docs-hero-pill-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-dim);
+    background: var(--text-subtle);
+    box-shadow: 0 0 0 3px var(--select-fill);
   }
 
   .docs-hero-title {
@@ -659,17 +665,11 @@ html, body {
     color: var(--text);
   }
 
-  .docs-hero-accent {
-    background: linear-gradient(135deg, var(--accent), var(--accent));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-    /* Fallback for browsers without background-clip:text — solid accent. */
-    @supports not (-webkit-background-clip: text) {
-      color: var(--accent);
-      -webkit-text-fill-color: var(--accent);
-    }
+  /* Was .docs-hero-accent, and was a linear-gradient clipped to the text with
+     a @supports fallback behind it — for a gradient whose two stops were the
+     same colour. A gradient made of one colour twice is a colour. */
+  .docs-hero-mark {
+    color: var(--text);
   }
 
   .docs-hero-desc {
@@ -775,8 +775,8 @@ html, body {
   }
 
   .docs-why-icon-solution {
-    background: var(--accent-dim);
-    color: var(--accent);
+    background: var(--select-fill);
+    color: var(--text-muted);
   }
 
   .docs-why-card h3 {
@@ -878,9 +878,9 @@ html, body {
     font-family: var(--font-mono);
     font-size: 1.25rem;
     font-weight: 500;
-    color: var(--accent);
-    background: var(--accent-dim);
-    border: 1px solid rgba(34,211,238,0.25);
+    color: var(--text-muted);
+    background: var(--select-fill);
+    border: 1px solid var(--border);
     border-radius: 8px;
     width: 48px;
     height: 48px;
@@ -891,9 +891,6 @@ html, body {
     letter-spacing: -1px;
   }
 
-  [data-theme="easywall-light"] .docs-design-row-num {
-    border-color: rgba(8,145,178,0.25);
-  }
 
   .docs-design-row-body h3 {
     font-size: 1.05rem;
@@ -974,8 +971,7 @@ html, body {
     inset: 0;
     z-index: -1;
     background:
-      radial-gradient(500px 240px at 50% 0%, var(--accent-dim), transparent 70%),
-      radial-gradient(400px 200px at 50% 100%, rgba(45,212,191,0.08), transparent 70%);
+      radial-gradient(500px 240px at 50% 0%, var(--select-fill), transparent 70%);
   }
 
   /* These four rules are scoped through .content-body on purpose. The generic
@@ -1030,10 +1026,10 @@ html, body {
   }
 
   .docs-cta-credentials code {
-    color: var(--accent);
-    background: var(--accent-dim);
-    /* Was a literal rgba(34,211,238,…) — the retired Aurora cyan, left behind
-       when the palette changed, and so no longer related to either theme. */
+    color: var(--text);
+    background: var(--surface-2);
+    /* Was a hard-coded Aurora cyan, retired with that palette and left behind
+       here, so it was no longer related to either theme. */
     border: 1px solid var(--border);
     padding: 1px 6px;
     border-radius: 4px;
@@ -1056,7 +1052,7 @@ html, body {
   }
 
   .feature-card:hover {
-    border-color: var(--accent);
+    border-color: var(--border);
     transform: translateY(-2px);
   }
 
@@ -1276,7 +1272,7 @@ html, body {
   flex-direction: column;
   min-height: 0;
   --pagefind-ui-scale: 1;
-  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-primary: var(--focus-ring);
   --pagefind-ui-text: var(--text);
   --pagefind-ui-background: var(--surface);
   --pagefind-ui-border: var(--border);
@@ -1430,7 +1426,7 @@ html, body {
 }
 
 #docs-search-panel .pagefind-ui__result-nested .pagefind-ui__result-link:hover {
-  color: var(--accent);
+  color: var(--text);
   text-decoration: underline;
 }
 
@@ -1442,7 +1438,7 @@ html, body {
 }
 
 #docs-search-panel a:focus-visible {
-  outline: 2px solid var(--accent-dim);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -1456,7 +1452,7 @@ html, body {
   padding: 0 2px;
   font-weight: 500;
   color: var(--text);
-  background: var(--accent-hover);
+  background: var(--select-fill);
   border-radius: 4px;
 }
 
@@ -1468,7 +1464,7 @@ article.content-body mark.pagefind-highlight {
   padding: 0 2px;
   font-weight: 500;
   color: var(--text);
-  background: var(--accent-hover);
+  background: var(--select-fill);
   border-radius: 4px;
 }
 
@@ -1482,10 +1478,14 @@ article.content-body mark.pagefind-highlight {
 
 /* ── Prose / Markdown rendering (outside @layer for higher specificity) ── */
 
+/* The mono display voice, on h1 alone. h2/h3/h4 stay in the sans face on
+   purpose: a long-form page set in mono headings throughout stops reading as
+   prose and starts reading as a table. */
 .content-body h1 {
+  font-family: var(--font-mono);
   font-size: 2rem;
-  font-weight: 600;
-  letter-spacing: -0.8px;
+  font-weight: 300;
+  letter-spacing: -0.01em;
   margin: 0 0 1.5rem;
   color: var(--text);
   line-height: 1.2;
@@ -1520,18 +1520,23 @@ article.content-body mark.pagefind-highlight {
   color: var(--text);
 }
 
-/* Apply prose link styling to all anchors EXCEPT the button classes —
-   otherwise the color: var(--accent) here clobbers the button's own
-   text color (set by the button rules below). */
+/* No hue: the documentation has no firewall state for colour to mean, so the
+   underline carries the affordance and the weight carries the emphasis. This is
+   the one place in 2.16 a reader who never signs in sees the change.
+
+   Still excluding the button classes — a colour set here clobbers the button's
+   own text colour, which is set by the button rules below. */
 .content-body a:not(.btn):not(.docs-hero-brand):not(.feature-card) {
-  color: var(--accent);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.15s;
+  color: var(--link-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: text-decoration-thickness 0.15s;
 }
 
 .content-body a:not(.btn):not(.docs-hero-brand):not(.feature-card):hover {
-  border-bottom-color: var(--accent);
+  text-decoration-thickness: 2px;
 }
 
 .content-body strong {
@@ -1584,8 +1589,8 @@ article.content-body mark.pagefind-highlight {
 .content-body blockquote {
   margin: 1.15rem 0;
   padding: 0.7rem 1.1rem;
-  border-left: 3px solid var(--accent);
-  background: var(--accent-dim);
+  border-left: 3px solid var(--select-edge);
+  background: var(--select-fill);
   border-radius: 0 6px 6px 0;
   color: var(--text);
 }
@@ -1646,11 +1651,11 @@ article.content-body mark.pagefind-highlight {
 }
 
 /* ── Inline code ───────────────────────────────────────────────────────
-   Deliberately NOT --accent: links are accent-coloured, and on a page like
-   configuration.md — where nearly every table cell holds a key or a value —
-   accent-coloured code made the whole page read as links and left the real
-   links with nothing to stand out against. The tinted chip carries the
-   distinction instead, so colour stays reserved for things you can click. */
+   Deliberately not a colour of its own: it never was, and after 2.16 there is
+   no accent left to reach for. On a page like configuration.md — where nearly
+   every table cell holds a key or a value — colouring the code made the whole
+   page read as links. The tinted chip carries the distinction, and a link is
+   now told apart by its underline rather than by a hue. */
 .content-body code {
   font-family: var(--font-mono);
   font-size: 0.85em;
@@ -1731,7 +1736,7 @@ article.content-body mark.pagefind-highlight {
 .highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: var(--code-keyword); font-weight: 500; }
 .highlight .s, .highlight .s1, .highlight .s2, .highlight .sb { color: var(--code-string); }
 .highlight .n, .highlight .nx, .highlight .nv { color: var(--text); }
-.highlight .nf, .highlight .nc { color: var(--accent); }
+.highlight .nf, .highlight .nc { color: var(--code-keyword); }
 .highlight .nb, .highlight .bp { color: var(--code-builtin); }
 .highlight .o, .highlight .ow { color: var(--text-muted); }
 .highlight .mi, .highlight .mf, .highlight .il { color: var(--code-number); }
@@ -1766,7 +1771,7 @@ article.content-body mark.pagefind-highlight {
 .content-body .docs-copy:focus-visible { opacity: 1; }
 
 .content-body .docs-copy:hover { color: var(--text); background: var(--surface-3); }
-.content-body .docs-copy[data-copied] { color: var(--accent); }
+.content-body .docs-copy[data-copied] { color: var(--text); }
 
 /* The <pre> scrolls horizontally but .highlighter-rouge, which the button is
    anchored to, does not — so at scroll position 0 a long first line runs
@@ -1918,7 +1923,7 @@ article.content-body mark.pagefind-highlight {
 /* The current section. Colour alone would not survive a reader who cannot
    distinguish it, so the weight changes too. */
 .docs-toc-item a[aria-current] {
-  color: var(--accent);
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -1979,21 +1984,25 @@ article.content-body mark.pagefind-highlight {
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--accent-dim);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
-  border-color: var(--accent);
+  border-color: var(--focus-ring);
 }
 
 .btn svg { width: 17px; height: 17px; flex-shrink: 0; }
 
 .btn-primary,
 .btn-primary:hover {
-  background: var(--accent);
+  background: var(--select-edge);
   border-color: transparent;
   color: var(--bg);
 }
 
-.btn-primary:hover { filter: brightness(1.08); }
+/* Was filter: brightness(1.08). On an ink fill that is #f1f3f6 in dark and
+   #0f1116 in light, brightening changes nothing a reader can see in either
+   theme — the light one is already near black and the dark one near white.
+   A step to the muted ink is a change in both. */
+.btn-primary:hover { background: var(--text-muted); }
 
 .btn-ghost {
   background: transparent;

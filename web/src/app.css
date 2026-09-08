@@ -657,11 +657,29 @@ body {
 
   .page-header-text { min-width: 0; }
 
+  /* The name of the page you are standing on is *identified*, not read — see
+     DESIGN.md's typography rule, amended in 2.16. The countdown proved this
+     voice works and it appeared on exactly one screen in the whole product.
+
+     30px is a ceiling reached by measurement, not a preference. The longest page
+     title across all three locales is 23 characters ("Changer le mot de passe",
+     fr) and wraps at its spaces; the longest *unbreakable* one is 19 —
+     "Systemeinstellungen", a German compound with no break point anywhere in it.
+     JetBrains Mono advances 0.6em, so 19 characters is 11.4em, and roughly 358px
+     is available inside the padding at a 390px viewport: 31.4px. Verify by
+     rendering /settings in German at 390px, not by trusting this arithmetic. */
   .page-title {
     margin: 0;
-    font-size: 26px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
+    font-family: var(--font-data);
+    font-size: 30px;
+    font-weight: 300;
+    letter-spacing: -0.01em;
+  }
+
+  /* Above the phone breakpoint there is room for the size the scale actually
+     wants; below it the ceiling above governs. */
+  @media (min-width: 900px) {
+    .page-title { font-size: 34px; }
   }
 
   .page-subtitle {
