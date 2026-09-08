@@ -1726,7 +1726,15 @@ body {
   /* Column sizing. Data columns take exactly what they need and the
      description absorbs the remaining width, so nothing truncates while the
      right edge of the table stays reachable. */
-  .col-port    { width: 120px; }
+  /* 128px, not 120. The widest value the field's own placeholder documents is a
+     range — "8000:9000" — which needs 122px and clipped by two. carried-forward
+     called it a decision DESIGN.md does not answer; it was already answered four
+     declarations below, in .col-toggle's own comment: every pixel given back
+     goes to .col-flex. .col-flex is width:auto and absorbs the remainder, so
+     there was never a zero-sum choice to make — only a rule nobody had written
+     down. DESIGN.md now carries it: a data column is sized by its widest
+     documented value, measured rendered rather than added up on paper. */
+  .col-port    { width: 128px; }
   .col-flex    { width: auto; }
   /* 150px used to be bought entirely by the header string ("SSH protection" /
      "SSH-Schutz"), not by anything in the column's own cells — a single
@@ -3096,6 +3104,10 @@ body {
    Description values in the app): clean from 919px, one field clipped by 1px
    at 918. 940px leaves that a 21px margin. */
 @container (max-width: 940px) {
+  /* The inset the cards want, taken out of the container rather than added to
+     the rows — part of the box instead of added to it. */
+  .table-wrap { padding-inline: 10px; }
+
   .table-reflow thead { display: none; }
 
   .table-reflow,
@@ -3106,8 +3118,18 @@ body {
     width: 100%;
   }
 
+  /* Block margin only, and the inset moves to the container.
+     A horizontal margin on a `width: 100%` block asks its container for room it
+     does not have: the row resolves to the full container width, the left margin
+     displaces it by 10px, and its right edge lands 10px past the edge. That is
+     the ten pixels .table-wrap has scrolled since the card layout was written —
+     10 and not 20, because only one side displaces. Measured in the browser at a
+     714px container: row 714px wide, table scrollWidth 724px.
+     carried-forward.md measured it identical with six, five and four columns and
+     with white-space: nowrap removed, which is what said it was neither the new
+     column nor a wrapping problem. */
   .table-reflow tr {
-    margin: 10px;
+    margin: 10px 0;
     padding: 4px 0;
     background: var(--color-surface-raised);
     border: 1px solid var(--color-rule);
