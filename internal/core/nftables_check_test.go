@@ -137,6 +137,79 @@ func TestCheckRejectsAJumpToAChainNobodyCreates(t *testing.T) {
 	}
 }
 
+// The position in a finding has to be the position of the rule it is about.
+// Both per-chain checks reported a plain zero, so a jump at rule 3 was written
+// into the audit log as "input rule 0" — a number that sends whoever reads it
+// to the wrong rule, which is worse than no number at all. The chain that
+// accepts genuinely has no one position, and prints none.
+func TestCheckReportsTheRulePositionItIsAbout(t *testing.T) {
+	filler := func() *nftables.Rule {
+		return &nftables.Rule{Chain: &nftables.Chain{Name: "input"}, Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictDrop}}}
+	}
+	rules := []*nftables.Rule{
+		filler(), filler(), filler(),
+		{Chain: &nftables.Chain{Name: "input"}, Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictJump, Chain: "gone"}}},
+	}
+	findings := CheckRules(rules, nil)
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want 1: %+v", len(findings), findings)
+	}
+	if findings[0].Index != 3 {
+		t.Errorf("Index = %d, want 3", findings[0].Index)
+	}
+	if want := "input rule 3: "; !strings.HasPrefix(findings[0].String(), want) {
+		t.Errorf("String() = %q, want it to start %q", findings[0].String(), want)
+	}
+
+	// And the chain-level finding names no position rather than a false zero.
+	accepting := []*nftables.Rule{
+		filler(),
+		{Chain: &nftables.Chain{Name: "input"}, Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictJump, Chain: "sshbrute"}}},
+		{Chain: &nftables.Chain{Name: "sshbrute"}, Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictAccept}}},
+	}
+	f := CheckRules(accepting, nil)
+	if len(f) != 1 {
+		t.Fatalf("findings = %d, want 1: %+v", len(f), f)
+	}
+	// On the prefix, not Contains: the Reason itself says "every rule after the
+	// jump", so a Contains test would pass whatever the position printed as.
+	if want := "sshbrute: a jumped-to chain"; !strings.HasPrefix(f[0].String(), want) {
+		t.Errorf("String() = %q, want it to start %q — no position on a "+
+			"chain-level finding", f[0].String(), want)
+	}
+	if f[0].Index != noIndex {
+		t.Errorf("Index = %d, want noIndex (%d)", f[0].Index, noIndex)
+	}
+}
+
+// Two chains jumping to the same missing target are two wrong rules in two
+// different builders. The jump sites were held in a map to a single chain name,
+// so one of them was reported and the other was not — and which one survived
+// depended on the order they were added in.
+func TestCheckNamesEveryJumperToAMissingChain(t *testing.T) {
+	rules := []*nftables.Rule{
+		{Chain: &nftables.Chain{Name: "input"}, Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictJump, Chain: "gone"}}},
+		{Chain: &nftables.Chain{Name: "forward"}, Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictGoto, Chain: "gone"}}},
+	}
+	findings := CheckRules(rules, nil)
+	if len(findings) != 2 {
+		t.Fatalf("findings = %d, want 2 — one per jumping rule: %+v", len(findings), findings)
+	}
+	named := map[string]bool{}
+	for _, f := range findings {
+		named[f.Chain] = true
+	}
+	if !named["input"] || !named["forward"] {
+		t.Errorf("findings named %v, want both input and forward", named)
+	}
+}
+
 // Every kind expr.VerdictKind defines must pass. The switch that classifies them
 // listed eight of the eleven while this release was being planned, which would
 // have reported `stolen`, `repeat` and `stop` as verdicts the kernel does not

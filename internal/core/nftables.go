@@ -95,6 +95,26 @@ type NftablesManager struct {
 	// lastFindings is what CheckRules said about the last transaction. Read
 	// through LastFindings, which the health status and the CI gate both use.
 	lastFindings []Finding
+
+	// checksRun counts every call to checkBuilt over this manager's life. It
+	// exists for one reason: without it the CI gate passes while inspecting
+	// nothing.
+	//
+	// Deleting both checkBuilt calls from Apply left the whole integration
+	// suite green — builtRecorder still filled m.built, so the recorder's own
+	// guard was satisfied, and m.lastFindings stayed nil so the gate's findings
+	// loop iterated zero times and reported success. A CI gate reporting
+	// success while reading nothing is the defect this release exists to
+	// prevent, arriving through the guard built to prevent it.
+	//
+	// A count rather than a "was it nil" test, because nil-means-unchecked only
+	// works while CheckRules returns a nil slice when it finds nothing — a
+	// distinction no reader would know was load-bearing. And a count pins the
+	// number, which is the other half: with LogBlocked on it must be exactly
+	// two, because the final log rule is added after the first flush and a
+	// later refactor collapsing the two checks into one would otherwise be
+	// silent.
+	checksRun int
 }
 
 // builtRecorder is the production adder: it records the rule and forwards it to
@@ -166,6 +186,7 @@ func (m *NftablesManager) LastFindings() []Finding {
 // need incremental bookkeeping to save nothing, and the final log rule reaching
 // the kernel unchecked is exactly the shape of defect this release is about.
 func (m *NftablesManager) checkBuilt() {
+	m.checksRun++
 	m.lastFindings = CheckRules(m.built, nil)
 	for _, f := range m.lastFindings {
 		slog.Error("a rule about to be written to the kernel cannot be right; "+
@@ -751,7 +772,8 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		// the first flush has already gone out, so a check at that flush alone
 		// would let it reach the kernel unread — one builder's output exempt
 		// from the guard, which is precisely how three reversed masks lived for
-		// five releases.
+		// five releases. TestIntegration_TheBuiltTableHasNoFindings asserts
+		// checksRun == 2 so that collapsing the two is not silent.
 		m.checkBuilt()
 		if err := m.conn.Flush(); err != nil {
 			return fmt.Errorf("add final log rule: %w", err)

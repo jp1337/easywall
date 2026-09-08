@@ -10,7 +10,9 @@ import (
 )
 
 // firewallOptionBools is how many boolean fields shared.FirewallOptions has:
-// twelve protection modules and ten per-module log toggles.
+// twelve protection modules, eight per-module log toggles, and the two
+// table-wide ones — LogBlocked, which logs whatever the final policy drops, and
+// LogBlacklist.
 //
 // It is counted from the struct, not from the documentation. DESIGN.md calls the
 // protection modules eleven in two places and fourteen in a third; resolving
@@ -84,9 +86,12 @@ func fullExampleRules() shared.Rules {
 // On a host a finding logs and degrades health and the table is written anyway
 // — see checkBuilt. Here is where it is fatal, which is the half that kills the
 // class rather than reporting it.
+// Once per network disposition, because the routing mode and the IPv6 mode each
+// select a different set of builders — the five combinations below produced
+// 95, 90, 99, 30 and 72 rules when they were measured, so a gate pinned to one
+// of them never reads the other four. Every subtest keeps all the protection
+// modules on; the matrix varies only what Apply does with the network.
 func TestIntegration_TheBuiltTableHasNoFindings(t *testing.T) {
-	m := newIntegrationManager(t)
-
 	opts := allProtectionModulesOn()
 	// A count rather than a spot check, and fatal rather than skipped: a gate
 	// that runs with the modules off proves nothing, and a skip is
@@ -98,23 +103,89 @@ func TestIntegration_TheBuiltTableHasNoFindings(t *testing.T) {
 			got, firewallOptionBools)
 	}
 
-	state := shared.RulesState{Current: fullExampleRules(), Staged: fullExampleRules()}
-	if err := m.Apply(state, opts, shared.NetworkSettings{
-		Routing: shared.RoutingConfig{Mode: shared.RoutingNetworks, Networks: []string{"10.9.0.0/24"}},
-		IPv6:    shared.IPv6Config{Mode: shared.IPv6Filter},
-	}); err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
+	// Two shapes are deliberately absent, and their absence is not an
+	// oversight: **all the modules off**, and **an empty rule set**.
+	//
+	// Both would need the two generic invariants below relaxed, for reasons
+	// that have nothing to do with what this gate is for. checksRun == 2 holds
+	// because LogBlocked is on and the final log rule is added after the first
+	// flush; with the modules off there is one flush and one check. The rule
+	// floor holds because a configured table is dozens of rules; an empty rule
+	// set with no modules is a handful. Per-case expectations for both guards
+	// would weaken the two assertions that caught the two worst defects found
+	// in this task — a gate inspecting nothing, and a recorder not in the path.
+	//
+	// The question those two shapes would answer — does the check report a
+	// false positive on a sparse table — was settled by a sweep during review
+	// rather than by this test: RoutingOpen, RoutingClosed, IPv6Block,
+	// IPv6Passthrough, Docker with bridge and custom networks, IPv6 sources
+	// and list entries, list comments, UDP ranges, all modules off, and an
+	// empty rule set, all with zero findings. A sweep answers "is it clean
+	// today"; a permanent gate answers "did somebody break it", and the two
+	// need not be the same set of inputs.
+	for _, tc := range []struct {
+		name string
+		net  shared.NetworkSettings
+	}{
+		{"routed networks, IPv6 filtered", shared.NetworkSettings{
+			Routing: shared.RoutingConfig{Mode: shared.RoutingNetworks, Networks: []string{"10.9.0.0/24"}},
+			IPv6:    shared.IPv6Config{Mode: shared.IPv6Filter},
+		}},
+		{"routing open, IPv6 blocked", shared.NetworkSettings{
+			Routing: shared.RoutingConfig{Mode: shared.RoutingOpen},
+			IPv6:    shared.IPv6Config{Mode: shared.IPv6Block},
+		}},
+		{"routing closed, IPv6 passthrough", shared.NetworkSettings{
+			Routing: shared.RoutingConfig{Mode: shared.RoutingClosed},
+			IPv6:    shared.IPv6Config{Mode: shared.IPv6Passthrough},
+		}},
+		{"Docker coexistence", shared.NetworkSettings{
+			Routing: shared.RoutingConfig{Mode: shared.RoutingClosed},
+			IPv6:    shared.IPv6Config{Mode: shared.IPv6Filter},
+			Docker: shared.DockerConfig{
+				Enabled:             true,
+				AllowBridgeNetworks: true,
+				CustomNetworks:      []string{"172.30.0.0/16"},
+			},
+		}},
+		// The zero value, which Apply fills in as filter and closed. It is what
+		// a struct built by hand reaches this method as, and the path those
+		// defaults take is a path no other case here exercises.
+		{"zero-valued network settings", shared.NetworkSettings{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newIntegrationManager(t)
+			state := shared.RulesState{Current: fullExampleRules(), Staged: fullExampleRules()}
+			if err := m.Apply(state, opts, tc.net); err != nil {
+				t.Fatalf("Apply: %v", err)
+			}
 
-	// Every module's rules have to have reached m.built, or an empty check
-	// would pass for the wrong reason. The exact number is not the point and
-	// would need updating for every new rule; that it is in the hundreds is.
-	if n := len(m.built); n < 50 {
-		t.Fatalf("only %d rules were recorded for the check; the recording "+
-			"adder is not in the path and the gate is proving nothing", n)
-	}
+			// The check has to have run, and it has to have run twice.
+			//
+			// Deleting both checkBuilt calls from Apply left this gate green:
+			// builtRecorder still filled m.built so the guard below passed, and
+			// m.lastFindings stayed nil so the findings loop found nothing to
+			// report. Two, not one, because LogBlocked is on and the final log
+			// rule is added after the first flush — a refactor that collapses
+			// the two checks into one would otherwise pass silently, and my own
+			// first reading of Apply saw only one flush.
+			if m.checksRun != 2 {
+				t.Fatalf("checkBuilt ran %d times, want 2 — once before each of "+
+					"Apply's flushes; the gate reports success while inspecting "+
+					"nothing when it runs 0 times", m.checksRun)
+			}
 
-	for _, f := range m.LastFindings() {
-		t.Errorf("finding: %s", f)
+			// And the recorder has to be in the path, or the check ran over an
+			// empty slice. The exact number is not the point and would need
+			// updating for every new rule; that it is dozens is.
+			if n := len(m.built); n < 25 {
+				t.Fatalf("only %d rules were recorded for the check; the recording "+
+					"adder is not in the path and the gate is proving nothing", n)
+			}
+
+			for _, f := range m.LastFindings() {
+				t.Errorf("finding: %s", f)
+			}
+		})
 	}
 }

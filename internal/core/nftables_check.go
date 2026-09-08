@@ -40,12 +40,29 @@ import (
 // text: an address or a port name arriving in a Reason would put attacker-chosen
 // bytes into the record an operator greps after an incident.
 type Finding struct {
-	Chain  string // the chain the rule was being added to
-	Index  int    // position within that chain, 0-based
+	Chain string // the chain the rule was being added to
+
+	// Index is the position within that chain, 0-based, or noIndex when the
+	// finding is about the chain rather than about one rule in it — a chain
+	// that accepts has no single position to blame.
+	//
+	// It was a plain zero for both per-chain checks, so a jump at input rule 3
+	// to a missing chain was reported as "input rule 0". A wrong number in an
+	// audit entry is worse than no number: it sends whoever reads it to the
+	// wrong builder.
+	Index  int
 	Reason string
 }
 
+// noIndex marks a finding that has no position within its chain. -1 rather than
+// a second bool field, because String is the only reader and a bool would have
+// to be kept in step with the number it qualifies.
+const noIndex = -1
+
 func (f Finding) String() string {
+	if f.Index == noIndex {
+		return fmt.Sprintf("%s: %s", f.Chain, f.Reason)
+	}
 	return fmt.Sprintf("%s rule %d: %s", f.Chain, f.Index, f.Reason)
 }
 
@@ -68,9 +85,16 @@ const ctStateAllBits = ctStateInvalid | ctStateEstablished | ctStateRelated | ct
 // in one list a reviewer reads, rather than by weakening the rule for all of
 // them.
 //
-// The returned slice is not ordered. Two of the four checks are per-chain
-// rather than per-rule and are collected in maps, so callers must not depend on
+// The returned slice is not ordered. Two of the checks are per-chain rather
+// than per-rule and are collected in maps, so callers must not depend on
 // position; the tests assert on counts and on substrings.
+//
+// **It reads top-level Exprs only.** A verdict or a bitwise nested inside an
+// expr.Dynset is invisible to it. No builder produces one today —
+// addPerSourceRateLimit is the only Dynset in the tree and it carries a single
+// expr.Limit — so recursing would be scaffolding for a case that does not
+// exist. Whoever puts a verdict or a mask inside a Dynset has to extend this,
+// and will not be told by a failing test that they need to.
 func CheckRules(rules []*nftables.Rule, acceptingChains map[string]bool) []Finding {
 	var findings []Finding
 
@@ -89,8 +113,14 @@ func CheckRules(rules []*nftables.Rule, acceptingChains map[string]bool) []Findi
 
 	// Which chains accept, and which are jumped to. Collected in one pass so
 	// the verdict is per-chain while the ct-state report stays per-rule.
+	//
+	// Every jump site, not the last one seen: this was a map to a single chain
+	// name, so two chains jumping to the same missing target produced one
+	// finding naming whichever of them was added last. Both jumps are wrong and
+	// both have to be named, or a maintainer is sent to one builder to fix a
+	// rule in another.
 	accepts := map[string]bool{}
-	jumped := map[string]string{} // target chain -> a chain that jumps to it
+	jumped := map[string][]jumpSite{}
 
 	perChain := map[string]int{}
 	for _, r := range rules {
@@ -129,7 +159,7 @@ func CheckRules(rules []*nftables.Rule, acceptingChains map[string]bool) []Findi
 			case *expr.Verdict:
 				switch v.Kind {
 				case expr.VerdictJump, expr.VerdictGoto:
-					jumped[v.Chain] = chain
+					jumped[v.Chain] = append(jumped[v.Chain], jumpSite{chain, idx})
 				case expr.VerdictAccept:
 					accepts[chain] = true
 				// The remaining eight kinds expr defines. All eleven are listed
@@ -149,22 +179,35 @@ func CheckRules(rules []*nftables.Rule, acceptingChains map[string]bool) []Findi
 		}
 	}
 
-	for target, from := range jumped {
+	for target, sites := range jumped {
 		if !created[target] {
-			findings = append(findings, Finding{
-				Chain:  from,
-				Reason: "the rule jumps to a chain this transaction does not create",
-			})
+			// One per jump site, each naming the rule that jumps.
+			for _, s := range sites {
+				findings = append(findings, Finding{
+					Chain:  s.from,
+					Index:  s.index,
+					Reason: "the rule jumps to a chain this transaction does not create",
+				})
+			}
 		}
+		// Once per target, not once per jump site: the fault is in the target
+		// chain, and it is the same fault however many rules reach it.
 		if accepts[target] && !acceptingChains[target] {
 			findings = append(findings, Finding{
 				Chain: target,
+				Index: noIndex,
 				Reason: "a jumped-to chain accepts, so it outranks every rule " +
 					"after the jump; it must drop or return",
 			})
 		}
 	}
 	return findings
+}
+
+// jumpSite is one rule that jumps, and where it is.
+type jumpSite struct {
+	from  string // the chain the jumping rule is in
+	index int    // its position in that chain
 }
 
 // precededByCtState reports whether bw, the expression at index i, masks a
