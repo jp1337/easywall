@@ -127,25 +127,29 @@ type Harness struct {
 	peerConn *netlink.Conn
 }
 
-// NewHarness starts a peer in a fresh network namespace and wires it to this one
-// with a veth pair.
+// startPeer clones and execs the peer, and hands back the parent's ends of its
+// two pipes. On any error it has already closed everything it opened.
 //
-// Both ends sit in one /24, so adding the addresses installs the connected route
-// on each side and no RTM_NEWROUTE is sent. A partially built harness is torn
-// down here, so a caller that gets an error never has to call Close.
-func NewHarness() (*Harness, error) {
-	// os.Pipe rather than cmd.StdinPipe, because the read end has to be an
-	// *os.File: Dial sets a read deadline on it so that a peer which died
-	// mid-handshake is an error instead of a goroutine parked forever on a pipe
-	// nobody will ever write to again.
+// A variable, so that a test can make the launch fail with no kernel, no
+// capability and no TestMain of its own. The refusal path is the common one in
+// production — easywall-core.service grants CAP_NET_ADMIN and bounds the set to
+// it, and CLONE_NEWNET needs CAP_SYS_ADMIN, so on most installations this is
+// the branch that runs. A branch that common, inside a privileged process,
+// cannot rest on somebody having tried it by hand once.
+//
+// os.Pipe rather than cmd.StdinPipe, and *os.File rather than io.ReadCloser,
+// because Dial sets a read deadline on the read end: a peer which died
+// mid-handshake has to be an error and not a goroutine parked forever on a pipe
+// nobody will ever write to again.
+var startPeer = func() (*exec.Cmd, *os.File, *os.File, error) {
 	childIn, parentIn, err := os.Pipe()
 	if err != nil {
-		return nil, fmt.Errorf("harness stdin pipe: %w", err)
+		return nil, nil, nil, fmt.Errorf("harness stdin pipe: %w", err)
 	}
 	parentOut, childOut, err := os.Pipe()
 	if err != nil {
 		_, _ = childIn.Close(), parentIn.Close()
-		return nil, fmt.Errorf("harness stdout pipe: %w", err)
+		return nil, nil, nil, fmt.Errorf("harness stdout pipe: %w", err)
 	}
 
 	cmd := exec.Command("/proc/self/exe")
@@ -161,10 +165,26 @@ func NewHarness() (*Harness, error) {
 	_, _ = childIn.Close(), childOut.Close()
 	if startErr != nil {
 		_, _ = parentIn.Close(), parentOut.Close()
-		if errors.Is(startErr, syscall.EPERM) || errors.Is(startErr, syscall.EINVAL) {
-			return nil, fmt.Errorf("%w: %v", ErrNamespaceUnavailable, startErr)
+		return nil, nil, nil, startErr
+	}
+	return cmd, parentIn, parentOut, nil
+}
+
+// NewHarness starts a peer in a fresh network namespace and wires it to this one
+// with a veth pair.
+//
+// Both ends sit in one /24, so adding the addresses installs the connected route
+// on each side and no RTM_NEWROUTE is sent. A partially built harness is torn
+// down here, so a caller that gets an error never has to call Close — and it
+// gets a nil *Harness with that error, so there is nothing half-built to use by
+// mistake.
+func NewHarness() (*Harness, error) {
+	cmd, parentIn, parentOut, err := startPeer()
+	if err != nil {
+		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
+			return nil, fmt.Errorf("%w: %v", ErrNamespaceUnavailable, err)
 		}
-		return nil, fmt.Errorf("starting the harness peer: %w", startErr)
+		return nil, fmt.Errorf("starting the harness peer: %w", err)
 	}
 
 	h := &Harness{

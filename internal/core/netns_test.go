@@ -6,7 +6,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
+	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -78,4 +81,101 @@ func TestSelftestUsesNoExternalBinary(t *testing.T) {
 		t.Fatal("this guard inspected no file at all: netns.go and selftest.go are both " +
 			"missing, so nothing pins the harness to a single exec target")
 	}
+}
+
+// openFds counts this process's file descriptors, which is how a leak is
+// visible without waiting for one to matter.
+func openFds(t *testing.T) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatalf("counting open descriptors: %v", err)
+	}
+	return len(entries)
+}
+
+// The refusal path, which is the *usual* path in production and therefore the
+// one most worth a test that runs everywhere.
+//
+// easywall-core.service grants CAP_NET_ADMIN and bounds the set to it;
+// CLONE_NEWNET needs CAP_SYS_ADMIN. So on an ordinary systemd installation, and
+// in almost any container, NewHarness cannot build anything and the self-test
+// has to report "unprovable" rather than "broken". This substitutes startPeer
+// so that both refusals can be driven with no kernel, no capability and no
+// TestMain — end-to-end is impossible here, because internal/core's TestMain
+// belongs to the integration build.
+//
+// The descriptor count is the assertion worth the most. NewHarness owns
+// /proc/<pid>/ns/net for the harness's whole life, and a refusal that leaked
+// one fd per daemon start would stay invisible until a long-lived process ran
+// out of them.
+func TestHarnessRefusalIsACleanSentinel(t *testing.T) {
+	original := startPeer
+	t.Cleanup(func() { startPeer = original })
+
+	t.Run("the clone is refused", func(t *testing.T) {
+		before := openFds(t)
+		startPeer = func() (*exec.Cmd, *os.File, *os.File, error) {
+			// What clone(CLONE_NEWNET) returns without CAP_SYS_ADMIN. The real
+			// startPeer has already closed its pipes by the time it returns an
+			// error, so the fake opens none either.
+			return nil, nil, nil, syscall.EPERM
+		}
+
+		h, err := NewHarness()
+		if !errors.Is(err, ErrNamespaceUnavailable) {
+			t.Errorf("err = %v; a refused clone must satisfy errors.Is(err, "+
+				"ErrNamespaceUnavailable), because that is what tells the self-test "+
+				"to say \"unprovable\" instead of \"the firewall is wrong\"", err)
+		}
+		if h != nil {
+			t.Error("NewHarness returned a non-nil *Harness alongside an error; " +
+				"a half-built harness must not be reachable")
+			h.Close()
+		}
+		if after := openFds(t); after != before {
+			t.Errorf("open descriptors went from %d to %d across a refused start", before, after)
+		}
+	})
+
+	t.Run("the peer never says ready", func(t *testing.T) {
+		before := openFds(t)
+
+		// A live-looking launch: two real pipes, and a command that was never
+		// started, so Close finds Process == nil and reaps nothing.
+		peerOut, weWrite, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("pipe: %v", err)
+		}
+		weRead, peerIn, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("pipe: %v", err)
+		}
+		defer func() { _, _ = weWrite.Close(), weRead.Close() }()
+
+		// Written before the call, so the ready read finds a line waiting and
+		// the test does not spend harnessReadyTimeout getting there.
+		if _, err := weWrite.WriteString("i am not ready\n"); err != nil {
+			t.Fatalf("priming the peer's pipe: %v", err)
+		}
+		startPeer = func() (*exec.Cmd, *os.File, *os.File, error) {
+			return exec.Command("/proc/self/exe"), peerIn, peerOut, nil
+		}
+
+		h, err := NewHarness()
+		if !errors.Is(err, ErrNamespaceUnavailable) {
+			t.Errorf("err = %v; a peer that never reports ready is the same refusal "+
+				"as a refused clone and must carry the same sentinel", err)
+		}
+		if h != nil {
+			t.Error("NewHarness returned a non-nil *Harness alongside an error")
+			h.Close()
+		}
+		// peerIn and peerOut were handed to the harness; the two ends this test
+		// kept are closed by the defer above, after this count.
+		if after := openFds(t); after != before+2 {
+			t.Errorf("open descriptors went from %d to %d; NewHarness was handed two "+
+				"descriptors and must close both when it gives up", before, after)
+		}
+	})
 }
