@@ -529,6 +529,27 @@ type UsageResult struct {
 	CollectedAt time.Time            `json:"collected_at,omitzero"`
 }
 
+// SelftestResult is the outcome the self-test recorded: whether it ran and what
+// it found, or that it could not run at all. See spec §4.
+type SelftestResult string
+
+const (
+	SelftestPassed     SelftestResult = "passed"
+	SelftestFailed     SelftestResult = "failed"
+	SelftestUnprovable SelftestResult = "unprovable"
+)
+
+// SelftestStamp is what the self-test proved, and against what. Version and
+// Kernel are the pair a rerun is skipped on — see StampStore.Stale for why
+// both must match. See spec §4.
+type SelftestStamp struct {
+	Version string         `json:"version"`
+	Kernel  string         `json:"kernel"`
+	Result  SelftestResult `json:"result"`
+	At      time.Time      `json:"at"`
+	Detail  string         `json:"detail"`
+}
+
 // SystemSettings groups the acceptance window configuration for IPC transport.
 type SystemSettings struct {
 	Acceptance AcceptanceConfig `json:"acceptance"`
