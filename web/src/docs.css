@@ -478,10 +478,16 @@ html, body {
   /* A fill on its own is not enough to mark what is active: --select-fill is
      --surface-2, which is one step off the page and the same fill .nav-link
      already takes on hover. The edge is the half that says "you are here". */
+  /* The edge marks it, the fill only confirms it: --select-fill is 1.08:1 against
+     the surface behind it, which is not a marker on its own.
+
+     padding-left gives back the 2px the border takes, or the active item's label
+     sits 2px right of every inactive one and the whole column reads as a jog. */
   .nav-link.active {
     background: var(--select-fill);
     color: var(--text);
     border-left: 2px solid var(--select-edge);
+    padding-left: calc(0.75rem - 2px);
     font-weight: 500;
   }
 
