@@ -334,6 +334,15 @@ jobs:
           # the web user writes its caches. Owned by root with group write, so
           # the core does not need CAP_DAC_OVERRIDE to reach it.
           check /var/lib/easywall        root:easywall     770
+          # The three units, by installed path. A unit file that nothing
+          # installs is a unit that does not exist on the machine, which is the
+          # class of mistake that shipped this package with no binaries at all
+          # — and easywall-selftest.service is new in 2.17 and is the one place
+          # CAP_SYS_ADMIN is granted, so a package missing it boots a core that
+          # records "unprovable" for ever.
+          check /lib/systemd/system/easywall-core.service     root:root 644
+          check /lib/systemd/system/easywall-web.service      root:root 644
+          check /lib/systemd/system/easywall-selftest.service root:root 644
           exit $fail
           EOF
 
@@ -358,6 +367,37 @@ jobs:
             }
             echo "ok  $unit is active"
           done
+          EOF
+
+      # easywall-selftest.service is Type=oneshot with Before=easywall-core, so
+      # it is never "active" — is-active reports the wrong thing about it. What
+      # has to hold is that postinst enabled it, because an installed-but-
+      # disabled unit is a proof that never runs, and that is precisely the
+      # silence this release exists to remove.
+      #
+      # Its result is deliberately not asserted. The container has no
+      # CAP_SYS_ADMIN, so the proof records "unprovable" here, and
+      # SuccessExitStatus=0 1 2 means that is a success as far as ordering is
+      # concerned — the core came up regardless, which the step above just
+      # checked. What CI proves about the four claims is proven in test.yml's
+      # integration job, under sudo, with EASYWALL_REQUIRE_SELFTEST set.
+      - name: The self-test unit is installed and enabled
+        run: |
+          docker exec -i easywall-test bash -s <<'EOF'
+          set -euo pipefail
+          state=$(systemctl is-enabled easywall-selftest.service || true)
+          [ "$state" = "enabled" ] || {
+            echo "::error::easywall-selftest.service is '$state', not enabled — the proof would never run on a packaged installation"
+            exit 1
+          }
+          echo "ok  easywall-selftest.service is enabled"
+          systemctl show -p AmbientCapabilities easywall-selftest.service
+          systemctl show -p AmbientCapabilities easywall-selftest.service |
+            grep -q CAP_SYS_ADMIN || {
+            echo "::error::easywall-selftest.service holds no CAP_SYS_ADMIN, so CLONE_NEWNET will always fail and the self-test can only ever report 'unprovable'"
+            exit 1
+          }
+          echo "ok  easywall-selftest.service holds CAP_SYS_ADMIN"
           EOF
 
       # The regression that made a fresh install useless: the unit reduces the

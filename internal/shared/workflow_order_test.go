@@ -301,15 +301,23 @@ func TestPackageInstallsNativelyInsideAContainer(t *testing.T) {
 func TestTheIntegrationJobCoversEveryTaggedPackage(t *testing.T) {
 	block := jobBlock(t, repoFile(t, ".github", "workflows", "test.yml"), "test-integration")
 
+	// "run: sudo" then "go test -tags integration" somewhere after it, rather
+	// than the literal "run: sudo go test" this used to require. 2.17 puts
+	// EASYWALL_REQUIRE_SELFTEST=1 between sudo and go — sudo's env_reset drops an
+	// exported variable, so an assignment on the command line is the only way the
+	// suite sees it — and the old prefix made that a t.Fatal saying the job did
+	// not run go test at all. The check that matters is the package list below;
+	// pinning the exact words between `sudo` and `go` was never part of it.
 	var cmd string
 	for _, line := range strings.Split(block, "\n") {
-		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "run: sudo go test") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "run: sudo") && strings.Contains(trimmed, "go test -tags integration") {
 			cmd = trimmed
 			break
 		}
 	}
 	if cmd == "" {
-		t.Fatal("the integration job does not run go test")
+		t.Fatal("the integration job does not run `go test -tags integration` under sudo")
 	}
 
 	root := repoRootDir(t)

@@ -21,7 +21,7 @@ import (
 func TestIntegration_HarnessCarriesAPacket(t *testing.T) {
 	h, err := NewHarness()
 	if errors.Is(err, ErrNamespaceUnavailable) {
-		t.Skipf("skipping: %v", err)
+		skipOrFailUnprovable(t, err.Error())
 	}
 	if err != nil {
 		t.Fatalf("NewHarness: %v", err)
@@ -91,7 +91,7 @@ func TestIntegration_HarnessCanBeBuiltTwice(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		h, err := NewHarness()
 		if errors.Is(err, ErrNamespaceUnavailable) {
-			t.Skipf("skipping: %v", err)
+			skipOrFailUnprovable(t, err.Error())
 		}
 		if err != nil {
 			t.Fatalf("harness %d of 3: %v", i, err)
