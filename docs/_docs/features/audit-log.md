@@ -17,9 +17,9 @@ on disk keeps everything.
 
 ## Only 11 entries carry colour
 
-Colour outside the accent family always means firewall state — green live, amber
-unconfirmed, red rolled back. If a merely informational event were tinted too, a
-coloured tag would stop meaning anything.
+Colour always means firewall state — green live, amber unconfirmed, red rolled
+back. It is the only thing colour means anywhere in the interface, so a merely
+informational event is never tinted: a coloured tag would stop meaning anything.
 
 | | Action | Reads as | Meaning |
 |---|---|---|---|

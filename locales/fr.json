@@ -244,14 +244,12 @@
   {"id": "audit_recovery_codes_regenerated", "translation": "Nouveaux codes de récupération émis"},
 
   {"id": "dashboard_subtitle", "translation": "Ce que ce pare-feu applique en ce moment."},
-  {"id": "dashboard_running", "translation": "Version en cours"},
   {"id": "dashboard_update_available", "translation": "Mise à jour disponible :"},
   {"id": "dashboard_view_release", "translation": "Voir la version"},
   {"id": "dashboard_hero_active", "translation": "Le service core fonctionne et les règles sont actives."},
   {"id": "dashboard_hero_inactive", "translation": "Le service core n'applique aucune règle."},
   {"id": "dashboard_rulesets", "translation": "Jeux de règles"},
   {"id": "dashboard_rulesets_note", "translation": "Les compteurs proviennent des règles actuellement chargées"},
-  {"id": "tile_manage", "translation": "Gérer"},
   {"id": "tile_tcp_note", "translation": "acceptent les connexions"},
   {"id": "tile_udp_note", "translation": "acceptent les datagrammes"},
   {"id": "tile_blacklist_note", "translation": "rejetées avant toute règle"},
@@ -322,7 +320,7 @@
   {"id": "custom_form_body", "translation": "N'écrivez que le corps de la règle. easywall préfixe chaque ligne par `add rule inet easywall input`, si bien que chaque instruction atterrit dans la chaîne input."},
   {"id": "custom_form_example", "translation": "Écrivez `tcp dport 8443 accept` — pas la commande `add rule` complète."},
 
-  {"id": "options_subtitle", "translation": "Modules de protection qui s'appliquent à toutes les interfaces. Une bordure d'accentuation signale un module actif."},
+  {"id": "options_subtitle", "translation": "Modules de protection qui s'appliquent à toutes les interfaces. Un module actif porte une bordure sur son côté gauche."},
   {"id": "options_group_attack", "translation": "Protection contre les attaques"},
   {"id": "options_group_attack_note", "translation": "Limitations de débit et règles de rejet pour le trafic hostile"},
   {"id": "options_group_filter", "translation": "Filtrage du trafic"},

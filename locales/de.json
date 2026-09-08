@@ -255,14 +255,12 @@
   {"id": "audit_recovery_codes_regenerated", "translation": "Neue Wiederherstellungscodes ausgestellt"},
 
   {"id": "dashboard_subtitle", "translation": "Was diese Firewall gerade durchsetzt."},
-  {"id": "dashboard_running", "translation": "Laufende Version"},
   {"id": "dashboard_update_available", "translation": "Update verfügbar:"},
   {"id": "dashboard_view_release", "translation": "Release ansehen"},
   {"id": "dashboard_hero_active", "translation": "Der Core-Dienst läuft, die Regeln sind aktiv."},
   {"id": "dashboard_hero_inactive", "translation": "Der Core-Dienst setzt derzeit keine Regeln durch."},
   {"id": "dashboard_rulesets", "translation": "Regelsätze"},
   {"id": "dashboard_rulesets_note", "translation": "Die Zahlen beziehen sich auf die aktuell geladenen Regeln"},
-  {"id": "tile_manage", "translation": "Verwalten"},
   {"id": "tile_tcp_note", "translation": "nehmen Verbindungen an"},
   {"id": "tile_tcp_unused", "translation": "{{.N}} seit 30+ Tagen ungenutzt"},
   {"id": "used_never", "translation": "nie"},
@@ -352,7 +350,7 @@
   {"id": "custom_form_body", "translation": "Nur den Regelkörper schreiben. easywall stellt jeder Zeile `add rule inet easywall input` voran, sodass jede Anweisung in der Input-Chain landet."},
   {"id": "custom_form_example", "translation": "Also `tcp dport 8443 accept` — nicht den vollständigen `add rule`-Befehl."},
 
-  {"id": "options_subtitle", "translation": "Schutzmodule, die für jede Schnittstelle gelten. Eine farbige Kante markiert ein eingeschaltetes Modul."},
+  {"id": "options_subtitle", "translation": "Schutzmodule, die für jede Schnittstelle gelten. Ein eingeschaltetes Modul trägt links eine Kante."},
   {"id": "options_group_attack", "translation": "Angriffsschutz"},
   {"id": "options_group_attack_note", "translation": "Ratenbegrenzungen und Verwurfsregeln für feindlichen Verkehr"},
   {"id": "options_group_filter", "translation": "Verkehrsfilterung"},
