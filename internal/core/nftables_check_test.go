@@ -81,6 +81,60 @@ func TestCheckRejectsACtStateBitTheKernelDoesNotDefine(t *testing.T) {
 	}
 }
 
+// A second conntrack load must not carry the mask out of the check's scope.
+//
+// precededByCtState walks back rather than reading i-1 precisely so that a
+// counter or a payload test growing between the load and the mask does not
+// silently drop the rule out of scope. Returning at the first expr.Ct of *any*
+// key defeated that: this rule's Ct{COUNT} came between, and the byte-reversed
+// mask behind it was reported clean.
+//
+// The second case is the price of the fix, and is why the loop stops at the
+// nearest load into the register the mask reads rather than at the nearest
+// state load anywhere. A count written into the register the mask goes on to
+// read is not a ct-state comparison at all, and reporting it as a broken one
+// would be a false alarm in a gate that fails the build.
+func TestCheckSeesPastASecondConntrackLoad(t *testing.T) {
+	rule := func(second *expr.Ct, mask []byte) *nftables.Rule {
+		return &nftables.Rule{
+			Chain: &nftables.Chain{Name: "input"},
+			Exprs: []expr.Any{
+				&expr.Ct{Register: 1, Key: expr.CtKeySTATE},
+				second,
+				&expr.Counter{},
+				&expr.Bitwise{
+					SourceRegister: 1, DestRegister: 1, Len: 4,
+					Mask: mask,
+					Xor:  ctStateNoMatch,
+				},
+				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+		}
+	}
+
+	reversed := binaryutil.BigEndian.PutUint32(ctStateEstablished | ctStateRelated)
+	native := binaryutil.NativeEndian.PutUint32(ctStateEstablished | ctStateRelated)
+
+	// A count loaded into another register leaves register 1 holding the state,
+	// so the reversed mask is still this check's business.
+	if findings := CheckRules([]*nftables.Rule{
+		rule(&expr.Ct{Register: 2, Key: expr.CtKeyPKTS}, reversed)}, nil); len(findings) != 1 {
+		t.Errorf("findings = %d, want 1: a conntrack load into another register left a "+
+			"byte-reversed ct-state mask unchecked — the walk-back is defeated by the "+
+			"very expression it was written to see past", len(findings))
+	}
+
+	// The same load into register 1 overwrites the state, so the mask is not a
+	// ct-state comparison and must not be judged as one.
+	if findings := CheckRules([]*nftables.Rule{
+		rule(&expr.Ct{Register: 1, Key: expr.CtKeyPKTS}, native)}, nil); len(findings) != 0 {
+		t.Errorf("findings = %+v, want none: the mask reads a packet count, not a "+
+			"conntrack state, and a false alarm in a gate that fails the build is how "+
+			"the gate gets switched off", findings)
+	}
+}
+
 // A bitwise that does not follow a conntrack load is an address mask or a TCP
 // flags mask, and this check has nothing to say about it. Without the
 // precedence test every whitelisted network in the table would be reported: an

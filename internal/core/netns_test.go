@@ -35,15 +35,30 @@ import (
 // composite literal all run a program without ever naming exec.Command, and all
 // four passed this test until the review pointed at the gap between it and its
 // own comment.
+//
+// The second round of that same gap: unix.Exec and unix.ForkExec, in a package
+// netns.go already imports — so no new import made the evasion visible — and
+// any of the five under an import alias, because the map was keyed on the
+// identifier at the call site. Both are closed by keying on the import path,
+// which is the one part of a spelling a file cannot rename.
 func TestSelftestUsesNoExternalBinary(t *testing.T) {
 	// Every other way to start a program. None of them takes the one argument
 	// shape below, so they are refused outright rather than inspected: if the
 	// harness ever needs one, that is a decision to make in review and not a
 	// call to slip past a guard.
+	//
+	// Keyed by import *path* and not by the identifier at the call site, which
+	// closes two holes at once. golang.org/x/sys/unix has its own Exec and
+	// ForkExec and is already imported by netns.go, so that evasion needed no
+	// new import for a reviewer to notice — and `import sys "syscall"` renamed
+	// its way past a map keyed on the identifier. The path is what the alias
+	// cannot change.
 	otherWaysToStartAProgram := map[string]string{
-		"syscall.Exec":     "replaces this process with another program",
-		"syscall.ForkExec": "starts another program",
-		"os.StartProcess":  "starts another program",
+		"syscall.Exec":                   "replaces this process with another program",
+		"syscall.ForkExec":               "starts another program",
+		"golang.org/x/sys/unix.Exec":     "replaces this process with another program",
+		"golang.org/x/sys/unix.ForkExec": "starts another program",
+		"os.StartProcess":                "starts another program",
 	}
 
 	parsed := 0
@@ -57,12 +72,24 @@ func TestSelftestUsesNoExternalBinary(t *testing.T) {
 			t.Fatalf("parse %s: %v", file, err)
 		}
 		parsed++
+		// The identifier a package is reached by in this file, resolved to its
+		// import path. `exec`, `sys` and `unix` are all just names a file
+		// chose; the path is the thing being forbidden.
+		pkgPath := map[string]string{}
+		for _, imp := range f.Imports {
+			path := strings.Trim(imp.Path.Value, `"`)
+			name := path[strings.LastIndex(path, "/")+1:]
+			if imp.Name != nil {
+				name = imp.Name.Name
+			}
+			pkgPath[name] = path
+		}
 		ast.Inspect(f, func(n ast.Node) bool {
 			// exec.Cmd{Path: …} runs whatever Path names, and Start is then a
 			// method call on a value this walk would never have looked at.
 			if comp, ok := n.(*ast.CompositeLit); ok {
 				if sel, ok := comp.Type.(*ast.SelectorExpr); ok {
-					if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == "exec" && sel.Sel.Name == "Cmd" {
+					if pkg, ok := sel.X.(*ast.Ident); ok && pkgPath[pkg.Name] == "os/exec" && sel.Sel.Name == "Cmd" {
 						t.Errorf("%s:%d: an exec.Cmd composite literal; build the command with "+
 							"exec.Command(\"/proc/self/exe\") so that the program this package "+
 							"execs stays visible to this guard",
@@ -84,13 +111,13 @@ func TestSelftestUsesNoExternalBinary(t *testing.T) {
 			if !ok {
 				return true
 			}
-			if why, forbidden := otherWaysToStartAProgram[pkg.Name+"."+sel.Sel.Name]; forbidden {
+			if why, forbidden := otherWaysToStartAProgram[pkgPath[pkg.Name]+"."+sel.Sel.Name]; forbidden {
 				t.Errorf("%s:%d: %s.%s %s; the only program this package may exec is "+
 					"/proc/self/exe, through exec.Command",
 					file, fset.Position(call.Pos()).Line, pkg.Name, sel.Sel.Name, why)
 				return true
 			}
-			if pkg.Name != "exec" {
+			if pkgPath[pkg.Name] != "os/exec" {
 				return true
 			}
 			if sel.Sel.Name != "Command" && sel.Sel.Name != "CommandContext" {

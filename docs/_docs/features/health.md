@@ -157,18 +157,34 @@ Proving anything needs a network namespace of easywall's own, which needs
 build one — and neither can an ordinary container. Being unable to prove
 something is not the same as it being broken.
 
-Two places you will meet it:
+Where you will meet it: **running `easywall-core selftest` by hand on a live
+host.** Expected — one claim needs an inbound connection accepted host-side as
+its control, and the table already in place refuses it. That is why the shipped
+proof runs from a `oneshot` unit ordered *before* the daemon.
 
-- **In a container.** Expected. Nothing to do.
-- **Running `easywall-core selftest` by hand on a live host.** Also expected: one
-  claim needs an inbound connection accepted host-side as its control, and the
-  table already in place refuses it. That is why the shipped proof runs from a
-  `oneshot` unit ordered *before* the daemon.
+In a container you meet something else. Nothing there runs the proof at all, so
+the state is *never recorded* rather than `unprovable`, `/healthz` renders
+`"selftest": {}`, and the dashboard omits the fact. Also expected, also nothing
+to do.
 
 ## The self-test
 
 Four claims, each measured with a real packet over a veth pair rather than read
-off the rules:
+off the rules.
+
+**What it creates on your host, at every boot after an upgrade.** A veth pair
+named `ewst-r` and `ewst-p`, addressed `10.77.9.1` and `10.77.9.2` in
+`10.77.9.0/24`, with `ewst-p` moved into a throwaway network namespace. The
+pair is removed when the proof finishes. Two things worth knowing before it
+runs:
+
+- **The range is fixed.** If your own LAN is `10.77.9.0/24`, the proof adds a
+  route that collides with it for the seconds it runs.
+- **The names are fixed, and setup clears them by name.** Any host interface
+  literally called `ewst-r` is deleted before the pair is built — whoever made
+  it — and deleting one end of a veth takes its peer with it.
+
+The claims:
 
 1. a reply on an established connection passes
 2. an open port accepts a connection
