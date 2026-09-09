@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -245,4 +246,46 @@ func TestHarnessRefusalIsACleanSentinel(t *testing.T) {
 				"descriptors and must close both when it gives up", before, after)
 		}
 	})
+}
+
+// IFLA_NET_NS_PID names the namespace one end of the veth pair is moved into,
+// and createVethPair narrows an int pid to the uint32 the attribute carries.
+// gosec called that out as G115 on netns.go:382 and it was right for once: the
+// two values cmd.Process.Pid actually produces when the peer is not alive — 0
+// for a Cmd that was never started, -1 once it has been waited for — convert to
+// 0 and 4294967295, and the second is a namespace nobody asked for, requested
+// by a process holding CAP_NET_ADMIN.
+//
+// The nil *netlink.Conn is the assertion, not laziness: it is the only way to
+// prove nothing was sent. A real connection would answer EPERM without
+// CAP_NET_ADMIN and this test would pass on the error the kernel returned
+// rather than the one the guard raises — green for the wrong reason, which is
+// the failure this release spent a review round finding eleven times. With the
+// guard deleted the run dies in c.Execute on the nil connection instead of
+// returning an error with a pid in it, so the message check is what holds.
+//
+// Nothing here proves a *valid* pid is accepted; a bound that refused one would
+// turn every proof into "unprovable". The self-test's integration run does that,
+// against a real kernel, because createVethPair is on its only path.
+func TestCreateVethPairRefusesAPidItCannotAddress(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		pid  int
+	}{
+		{"a Cmd that was never started", 0},
+		{"a process already waited for", -1},
+		{"past PID_MAX_LIMIT", 1<<22 + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := createVethPair(nil, harnessRouterIf, harnessPeerIf, tc.pid)
+			if err == nil {
+				t.Fatalf("createVethPair(pid=%d) returned nil; a pid that cannot name "+
+					"a namespace must be refused, not truncated into one", tc.pid)
+			}
+			if !strings.Contains(err.Error(), strconv.Itoa(tc.pid)) {
+				t.Errorf("err = %v; the refusal must name the pid it refused, or the "+
+					"next reader cannot tell it from a netlink failure", err)
+			}
+		})
+	}
 }
