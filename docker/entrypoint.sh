@@ -72,4 +72,21 @@ for path in "$CONF/web.toml" "$CONF/ssl"; do
     fi
 done
 
+# Said once, here, so an operator reading `docker logs` is not left to wonder
+# why `easywall-core health` reports the self-test as never recorded on a
+# container that is otherwise ok. RunSelftest builds a private network namespace
+# and sends real packets through a real table to prove that the rules easywall
+# writes filter what they claim to — that needs CAP_SYS_ADMIN, and this image
+# asks for NET_ADMIN and nothing else, deliberately: a container that already
+# shares the host's network and can create namespaces is root on the host by
+# another name. Health treats the missing proof as `unprovable` rather than
+# `degraded`, so this costs the container nothing — being unable to prove
+# something is not the same as it being broken.
+# "unless you granted it" and not a check of the capability set, because there
+# is nothing in this image to check it with — no capsh, and /proc/self/status
+# reports the entrypoint's own bounding set rather than what easywall-core will
+# hold. An operator who adds SYS_ADMIN and runs `easywall-core selftest` by hand
+# gets a real proof, and this line would otherwise be stale the moment they do.
+warn "the rule self-test needs CAP_SYS_ADMIN, which this image does not ask for: unless you granted it, health reports the proof as never recorded, which is not a failure."
+
 exec "$@"

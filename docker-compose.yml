@@ -49,18 +49,42 @@ services:
       # Audit and application logs
       - easywall_logs:/var/log/easywall
 
-    # Both processes, not just the core. This tested the core's socket alone,
-    # so the container reported healthy while easywall-web was in a restart
-    # loop and the interface answered nothing at all — which is the state a
-    # bind-mounted ./config used to leave it in. The socket says the core is
-    # up; the request says the thing you came for is up. The address follows
-    # bind_addr in config/web.toml — change one and change the other.
-    healthcheck:
-      test: ["CMD", "sh", "-c", "test -S /run/easywall/core.sock && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/login"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
+    # There is deliberately no `healthcheck:` here. Compose uses the image's
+    # HEALTHCHECK when this file declares none, and the Dockerfile has one — the
+    # command, the interval, the timeout, the retries and the 15s start period
+    # all come from there and govern this path too.
+    #
+    # Do not add one back for symmetry. A block here would be the *only* thing
+    # that can drift: the image's check and a copy in this file are two
+    # definitions of one artefact, and this repository already knows where that
+    # ends — release.yml refuses a second packaging definition because two
+    # definitions of one artefact is how a package comes to contain no binaries.
+    # Deleting the copy makes the drift impossible instead of guarded.
+    #
+    # Two exceptions, and they are what keeps that prohibition credible rather
+    # than absolute:
+    #
+    #   - **You changed bind_addr.** The image's check asks 127.0.0.1:12227
+    #     because a HEALTHCHECK is baked at build time and cannot read web.toml.
+    #     Move the interface and the container reads `unhealthy` for ever, with
+    #     nothing wrong with it. A `healthcheck:` here naming your port is the
+    #     right answer, and it is the only definition either way.
+    #   - **You build the image locally on podman.** `build:` above plus
+    #     `podman compose up -d` produces an OCI image, and the OCI spec has no
+    #     healthcheck field — so podman drops the check with one warning and
+    #     exits 0, leaving a container checked by nothing. Build it with
+    #     `podman build --format docker -t … .` first and let compose use that
+    #     image, or accept that a locally built OCI image carries no check. This
+    #     is in carried-forward.md; a comment is not a fix for it.
+    #
+    # This block existed *because* the image had no check, and for a year it was
+    # the whole story: it tested `test -S /run/easywall/core.sock` and fetched
+    # /login, while a plain `docker run` was checked by nothing at all. A socket
+    # that exists says a core bound it, not that the kernel is holding any rules
+    # — which is the whole subject of 2.17 — and /login renders whether or not
+    # the firewall behind it is filtering. The Dockerfile's HEALTHCHECK carries
+    # what replaced it and why one request is enough, including the address,
+    # which follows bind_addr in config/web.toml.
 
 volumes:
   easywall_data:

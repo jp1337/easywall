@@ -88,6 +88,74 @@ RUN chmod 0755 /usr/local/bin/easywall-entrypoint
 
 EXPOSE 12227
 
+# One request, and it covers both halves of the recorded incident.
+#
+# docker/entrypoint.sh's header describes a container that stayed "Up" with a
+# live core and a dead web process: easywall-web could not write its own config,
+# exited 1, supervisord restarted it for ever, and the check of the day looked
+# only at the core's socket. A check on the core cannot see that half, and until
+# this line a plain `docker run` had no check at all — only docker-compose.yml
+# did, so anybody not using compose got the container's status from nothing but
+# whether PID 1 was alive.
+#
+# Do not "restore" a second command asking easywall-core. It was here, and it
+# was wrong twice over. /healthz already sees everything it saw:
+#
+#   - the endpoint is *served by the web process*, so an answer at all proves
+#     that process is alive. That is the incident above, and the only half a
+#     core-side check could never see.
+#   - the handler *asks the core over the socket*, so a dead core is
+#     fail/core_unreachable → 503, and a kernel that is not carrying the rules
+#     is fail/not_enforcing → 503.
+#
+# One wget therefore sees a dead web process, a dead core, and a firewall that
+# has stopped filtering. The second command added no coverage — and it broke the
+# one state that must not restart anything. handler_health.go answers 200 for
+# `degraded` deliberately, because every cause of `degraded` is immune to a
+# restart: a failed proof is the same binary, a build finding is the same binary,
+# a dead stateful counter is the same rules. Restarting buys nothing and costs a
+# window in which the machine is not filtering at all. `easywall-core health`
+# exits 1 on `degraded`, so a composite `health && wget` marked the container
+# unhealthy anyway and made the handler's argument unreachable.
+#
+# start-period is 15s and not docker-compose.yml's old 5s: the entrypoint does
+# its ownership work over a bind-mounted /etc/easywall before supervisord starts
+# anything, and a first-run container generates its certificate after that.
+#
+# Podman needs `--format docker`, and so does `podman compose build`. Its
+# default image format is OCI, and the OCI spec has no healthcheck field, so a
+# podman build prints one warning — "not supported for OCI image format and will
+# be ignored" — and produces an image with no check in it, from a build that
+# exits 0. Building this file with podman and no flag gives you back exactly the
+# state this line exists to remove, which is why it is written here next to the
+# check rather than only in the installation guide.
+#
+# `podman compose build` is the sharper edge of the two, because
+# docker-compose.yml has a `build:` section and `podman compose up -d` is the
+# documented path: an operator who follows the documentation on a podman host
+# builds an OCI image locally and gets no health check and no error. That is
+# named again in docker-compose.yml and is carried in carried-forward.md,
+# because a comment is not a fix — the real answers are making the documented
+# path pull a published image or accepting a compose-level check, and both are
+# decisions past this release.
+#
+# The port is the other thing this line cannot adapt to. 12227 is written here
+# while bind_addr in web.toml is the operator's to change, and a container whose
+# interface moved reads `unhealthy` for ever — the check would be asking a port
+# nothing listens on. That is the one case where the compose `healthcheck:` this
+# repository otherwise refuses is the right answer, and docker-compose.yml says
+# so where the block used to be. It is not read from the config here because
+# this line is baked at build time and the port is not known until the container
+# starts.
+#
+# The self-test needs CAP_SYS_ADMIN to build the namespace it proves rules in,
+# and this image asks for NET_ADMIN and nothing else — so health reports the
+# self-test as never recorded. That is not `degraded` and must not make the
+# container unhealthy: being unable to prove something is not the same as it
+# being broken. computeHealth's last branch is where that is decided.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz
+
 VOLUME ["/etc/easywall", "/var/lib/easywall", "/var/log/easywall"]
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/easywall-entrypoint"]
