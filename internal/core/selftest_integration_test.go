@@ -22,7 +22,7 @@ import (
 func TestIntegration_SelftestProvesTheFourClaims(t *testing.T) {
 	stamp := RunSelftest()
 	if stamp.Result == shared.SelftestUnprovable {
-		t.Skipf("skipping: %s", stamp.Detail)
+		skipOrFailUnprovable(t, stamp.Detail)
 	}
 	if stamp.Result != shared.SelftestPassed {
 		t.Fatalf("RunSelftest = %s: %s", stamp.Result, stamp.Detail)
@@ -53,7 +53,7 @@ func TestIntegration_SelftestProvesTheFourClaims(t *testing.T) {
 func TestIntegration_SelftestProvesEstablishedPasses(t *testing.T) {
 	ok, detail, err := proveEstablishedPasses()
 	if errors.Is(err, ErrNamespaceUnavailable) {
-		t.Skipf("skipping: %v", err)
+		skipOrFailUnprovable(t, err.Error())
 	}
 	if err != nil {
 		t.Fatalf("this claim could not be settled here, so nothing was proven: %v", err)
@@ -78,7 +78,7 @@ func TestIntegration_SelftestProvesTheRemainingThreeClaims(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ok, detail, err := c.prove()
 			if errors.Is(err, ErrNamespaceUnavailable) {
-				t.Skipf("skipping: %v", err)
+				skipOrFailUnprovable(t, err.Error())
 			}
 			if err != nil {
 				t.Fatalf("this claim could not be settled here, so nothing was proven: %v", err)

@@ -59,8 +59,9 @@ install: build
 	install -m 0755 bin/easywall-core /usr/sbin/
 	install -m 0755 bin/easywall-web  /usr/sbin/
 	cp -r web locales /usr/share/easywall/
-	install -m 0644 systemd/easywall-core.service /lib/systemd/system/
-	install -m 0644 systemd/easywall-web.service  /lib/systemd/system/
+	install -m 0644 systemd/easywall-core.service     /lib/systemd/system/
+	install -m 0644 systemd/easywall-web.service      /lib/systemd/system/
+	install -m 0644 systemd/easywall-selftest.service /lib/systemd/system/
 	systemctl daemon-reload
 
 ## Docker image
