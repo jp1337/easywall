@@ -149,6 +149,8 @@ nav:
         path: /docs/features/audit-log/
       - title: Export & Import
         path: /docs/features/export-import/
+      - title: Health Check
+        path: /docs/features/health/
       - title: Recovery & Panic Mode
         path: /docs/features/recovery/
 

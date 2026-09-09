@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -183,6 +186,52 @@ func repoFile2(t *testing.T, parts ...string) string {
 // than a bare message id.
 func repoLocales(t *testing.T) string { return repoDir(t, "locales") }
 
+// One bundle and one template set for the whole test binary.
+//
+// What this fixed: Test (ubuntu-24.04) died with exit 143 — a SIGTERM from the
+// runner's OOM killer — after internal/core and internal/shared had passed.
+// newTestServer is called 251 times, and every call used to build its own
+// NewBundle (en, de, fr and status, ~1500 messages parsed from disk) and its
+// own loadTemplates (a ParseGlob over all 17 templates). Under -race, which
+// shadows every allocation, 251 re-parses accumulated in one process: 11.7 GB
+// peak RSS on main, 15.6 GB on this branch, against a runner with 16 GB.
+// -parallel is not the lever and makes it worse; there is no t.Parallel()
+// anywhere in this package.
+//
+// Sharing is safe because production shares both the same way. *i18n.Bundle is
+// read-only once loaded and NewLocalizer builds a localizer per request;
+// render() and renderPartial() Clone s.tmpl before injecting the per-request T,
+// so the parsed set is never executed or mutated in place. The two tests that
+// assign s.tmpl (server_test.go's nil-template and testdata cases) replace the
+// pointer on one Server, not the shared value.
+var (
+	sharedBundleOnce sync.Once
+	sharedBundle     *i18n.Bundle
+
+	sharedTmplOnce sync.Once
+	sharedTmpl     *template.Template
+	sharedTmplErr  error
+)
+
+// testBundle returns the shared bundle, loading it on first use.
+func testBundle(t *testing.T) *i18n.Bundle {
+	t.Helper()
+	dir := repoLocales(t)
+	sharedBundleOnce.Do(func() { sharedBundle = NewBundle(dir) })
+	return sharedBundle
+}
+
+// testTemplates returns the shared template set, parsing it on first use.
+func testTemplates(t *testing.T) *template.Template {
+	t.Helper()
+	dir := repoTemplates(t)
+	sharedTmplOnce.Do(func() { sharedTmpl, sharedTmplErr = loadTemplates(dir) })
+	if sharedTmplErr != nil {
+		t.Fatalf("loadTemplates: %v", sharedTmplErr)
+	}
+	return sharedTmpl
+}
+
 // newTestServer creates a Server backed by a fake core for handler testing.
 func newTestServer(t *testing.T, fc *fakeCore) *Server {
 	t.Helper()
@@ -234,12 +283,8 @@ key  = ""
 	pendingStore := newPendingStore("test-session-key-32bytes-padding!")
 	pendingStore.Options.Secure = false
 
-	bundle := NewBundle(repoLocales(t))
-
-	tmpl, err := loadTemplates(repoTemplates(t))
-	if err != nil {
-		t.Fatalf("loadTemplates: %v", err)
-	}
+	bundle := testBundle(t)
+	tmpl := testTemplates(t)
 
 	s := &Server{
 		cfg:     cfg,
@@ -301,11 +346,8 @@ key  = ""
 	pendingStore := newPendingStore("test-session-key-32bytes-padding!")
 	pendingStore.Options.Secure = false
 
-	bundle := NewBundle(repoLocales(t))
-	tmpl, err := loadTemplates(repoTemplates(t))
-	if err != nil {
-		t.Fatalf("loadTemplates: %v", err)
-	}
+	bundle := testBundle(t)
+	tmpl := testTemplates(t)
 
 	s := &Server{
 		cfg:     cfg,

@@ -35,9 +35,14 @@ import (
 // the refusal were removed — 76 process runs in 160 before the fix, 0 in 256
 // after.
 //
-// Eight tests in the default build spawn Start, four and four: four take the
-// helper's cleanup through startTestDaemon, and four hold the channel it returns
-// because they assert on Start's own return value. A ninth,
+// Twelve tests in the default build spawn Start, four and eight: four take the
+// helper's cleanup through startTestDaemon, and eight hold the channel it
+// returns. Four of those eight assert on Start's own return value; the other
+// four are 2.17's sd_notify tests, which hold it for a different reason —
+// startTestDaemon waits for the socket, and the whole claim
+// TestDaemonStart_NotifiesReadyOnlyOnceTheSocketExists makes is that the socket
+// is already there when READY=1 lands, which a helper that waited for it first
+// would have proven for the daemon. A thirteenth,
 // TestIntegration_NewDaemon_Start_Stop, sits behind the integration tag — the
 // guard reads sources rather than building them, so it is covered here whether
 // that tag is set or not.

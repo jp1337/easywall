@@ -455,6 +455,18 @@ type WebConfig struct {
 	// than the proxies it holds hands that choice to anything that can reach
 	// the port from inside it.
 	TrustedProxies []string `toml:"trusted_proxies"`
+
+	// HealthAllow lists the addresses and networks that may read /healthz —
+	// the one route on this process that answers without a session, because an
+	// orchestrator holds none. Absent means the loopback default; an explicitly
+	// empty list means nobody, which is how an operator turns the endpoint off.
+	//
+	// It is not TrustedProxies and shares nothing with it but the parser. This
+	// list decides whether an unauthenticated endpoint answers at all, and it is
+	// matched against the TCP peer only — never against a forwarding header, or
+	// anything behind a trusted proxy could claim to be loopback by writing one.
+	// See handleHealthz and docs-tech/threat-model.md.
+	HealthAllow []string `toml:"health_allow"`
 }
 
 // NetworkSettings groups the IPv6, Docker and routing configuration for IPC
@@ -527,6 +539,150 @@ type RuleUsage struct {
 type UsageResult struct {
 	Usage       map[string]RuleUsage `json:"usage"`
 	CollectedAt time.Time            `json:"collected_at,omitzero"`
+}
+
+// SelftestResult is the outcome the self-test recorded: whether it ran and what
+// it found, or that it could not run at all. See spec §4.
+type SelftestResult string
+
+const (
+	SelftestPassed     SelftestResult = "passed"
+	SelftestFailed     SelftestResult = "failed"
+	SelftestUnprovable SelftestResult = "unprovable"
+)
+
+// SelftestStamp is what the self-test proved, and against what. Version and
+// Kernel are the pair a rerun is skipped on — see StampStore.Stale for why
+// both must match. See spec §4.
+type SelftestStamp struct {
+	Version string         `json:"version"`
+	Kernel  string         `json:"kernel"`
+	Result  SelftestResult `json:"result"`
+	At      time.Time      `json:"at"`
+	Detail  string         `json:"detail"`
+}
+
+// HealthState is the answer GET_HEALTH gives, and the exit code
+// `easywall-core health` maps onto: ok → 0, degraded → 1, fail → 2.
+//
+// Three values, not a boolean, because "the firewall is up" and "the firewall
+// is doing what it says" are different claims and this release exists because
+// they were conflated. For five releases the input chain's
+// `ct state established,related accept` matched no packet — the conntrack masks
+// were byte-reversed — so the stateful half enforced nothing while every
+// surface reported the firewall active. A boolean has nowhere to put that.
+type HealthState string
+
+const (
+	HealthOK       HealthState = "ok"
+	HealthDegraded HealthState = "degraded"
+	HealthFail     HealthState = "fail"
+)
+
+// HealthReason names which fact decided the state. A closed enum, never free
+// text, for the same reason ReachReason is one: this ends up on a page and in
+// two locale files, and a sentence assembled in Go cannot be translated.
+type HealthReason string
+
+const (
+	HealthReasonNotEnforcing   HealthReason = "not_enforcing"
+	HealthReasonPanic          HealthReason = "panic"
+	HealthReasonStatefulDead   HealthReason = "stateful_dead"
+	HealthReasonBuildFindings  HealthReason = "build_findings"
+	HealthReasonSelftestFailed HealthReason = "selftest_failed"
+	HealthReasonHealthy        HealthReason = "healthy"
+
+	// HealthReasonCoreUnreachable is the only reason the *web* process
+	// originates, and it exists because not_enforcing would have been a lie.
+	//
+	// The two are claims about different things. not_enforcing is a claim about
+	// the kernel — computeHealth read the ruleset and found the input chain not
+	// filtering. core_unreachable is a claim about the socket: the web process
+	// asked and got no answer, and it has no path to netlink to check for
+	// itself. That is the whole design — a bug in form parsing is not a firewall
+	// bug — and it cuts both ways: the unprivileged half is never entitled to
+	// report on the kernel, only on whether it could reach the half that is.
+	//
+	// The kernel may well still be filtering perfectly behind a core that
+	// crashed, and saying otherwise on an unauthenticated endpoint, in the
+	// release whose subject is not making false claims about the firewall, is
+	// the one thing this release cannot ship.
+	//
+	// It is still fail, and /healthz still answers 503: a live web process in
+	// front of a dead core is exactly the half-dead container
+	// docker/entrypoint.sh:12-18 records, and an orchestrator must restart it.
+	// What changes is what the operator is told, not what the orchestrator does.
+	HealthReasonCoreUnreachable HealthReason = "core_unreachable"
+)
+
+// AllHealthReasons is the complete list, and it is what the interface's guard
+// hangs off: both locale files must label every one of these. AllReachReasons
+// exists for the same reason and is checked the same way.
+//
+// Six of the seven come out of computeHealth in the core. core_unreachable is
+// the exception — handleHealthz produces it, because it is the one answer the
+// core cannot give about itself — and TestEveryHealthReasonIsListed names that
+// exception rather than dropping the reverse check for everything.
+var AllHealthReasons = []HealthReason{
+	HealthReasonNotEnforcing, HealthReasonPanic, HealthReasonStatefulDead,
+	HealthReasonBuildFindings, HealthReasonSelftestFailed, HealthReasonHealthy,
+	HealthReasonCoreUnreachable,
+}
+
+// HealthSelftest is the self-test stamp as the *health reply* carries it: what
+// was proven, against which version and kernel, and when.
+//
+// Deliberately not SelftestStamp itself, and this is the whole reason the type
+// exists. SelftestStamp.Detail is free text written by the proof — "an open
+// port accepts a connection — port 12227 was dropped" — and it names a port
+// number and the claim that failed. HealthResult is rendered by /healthz, which
+// is unauthenticated by necessity because an orchestrator holds no session, so
+// embedding the stamp would publish which of an operator's ports the firewall
+// is currently getting wrong to anyone who can reach the endpoint.
+//
+// Detail is not lost: it goes to the audit log and to `easywall-core selftest`,
+// both of which are local to the host. Not to `easywall-core health` — that
+// subcommand renders a HealthResult, which is this reduced type by definition,
+// so there is no detail there for it to print. The exclusion is the reason, not
+// an oversight in the console: a reader who takes this comment as naming
+// `health` will conclude the field ought to be reachable from HealthResult and
+// "fix" the very thing /healthz depends on.
+//
+// TestHealthResultCarriesNoRuleDetail is what keeps this type reduced — adding a
+// field back to it turns that test red.
+//
+// Every field is omitempty or omitzero, on one principle: an empty field where
+// a value belongs is a claim, and absence is not.
+//
+// Version and Result carried neither until the review. A fresh container — the
+// normal state of every Docker deployment, where nothing runs the proof —
+// rendered {"version":"","result":""}: two empty enum values invented by the
+// JSON alone, where `easywall-core health` words that state as "never recorded"
+// and the dashboard omits the fact entirely. A monitoring script written from
+// features/health.md's documented example switches on selftest.result and meets
+// an undocumented fourth value.
+//
+// The kernel is separately not rendered by /healthz at all — writeHealth drops
+// it — and stays here because the authenticated dashboard reads the same reply.
+type HealthSelftest struct {
+	Version string `json:"version,omitempty"`
+	// The demo has no kernel to name: internal/web cannot reach the privileged
+	// core.KernelRelease() — it imports internal/core nowhere, by design — so
+	// the demo's unprovable stamp carries the zero value where a real host's
+	// unprovable stamp carries a release.
+	Kernel string         `json:"kernel,omitempty"`
+	Result SelftestResult `json:"result,omitempty"`
+	At     time.Time      `json:"at,omitzero"`
+}
+
+// HealthResult is what GET_HEALTH answers with: the state, a closed
+// translatable reason, and the stamp's identity.
+//
+// No rule detail, no counter values, no finding text. See HealthSelftest.
+type HealthResult struct {
+	State    HealthState    `json:"state"`
+	Reason   HealthReason   `json:"reason"`
+	Selftest HealthSelftest `json:"selftest"`
 }
 
 // SystemSettings groups the acceptance window configuration for IPC transport.

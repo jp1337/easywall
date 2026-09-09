@@ -16,6 +16,135 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <details open markdown="1">
+<summary><strong>2.17.0</strong> · 2026-09-09 — It proves what it says</summary>
+
+For five releases `ct state established,related accept` matched no packet. All
+three conntrack masks were written big-endian while the kernel compares a native
+`u32`, so the mask it saw was `0x02000000` where `0x00000002` was meant. The
+stateful half of the input chain enforced nothing. Neither did the
+invalid-packet drop or the SSH brute-force meter, both of which reported
+themselves enabled. Every surface easywall has said the firewall was active.
+
+Nothing in this repository could see it — the unit test covering the rule had
+written the defect down as expected output. It was found because an operator's
+VPS went unreachable after `docker compose up -d`, and they pasted the ruleset
+into Discord.
+
+This release is the machinery that would have caught it, at three depths, plus
+the health check the project never had. After it easywall does not assert that
+it is working. It measures it, and says so in a form Docker, systemd and a
+monitoring system can each read.
+
+### Fixed
+
+- **All three conntrack masks are native-endian.** The table read correctly in
+  `nft list ruleset` the whole time, because byte order is invisible in the
+  rendered form. That is why five releases of reading the rules found nothing.
+- **The established-accept rule was invisible to every counter easywall reads.**
+  It carried no `expr.Counter` and no id comment, and `RuleCounters` skips any
+  rule without one. It now carries both under the reserved id `_established`,
+  whose counter is the one signal that can catch this defect class again.
+- **A finding named the wrong rule.** `Finding.Index` was a plain zero for both
+  per-chain checks, so a jump at input rule 3 was written into the audit log as
+  "input rule 0" — sending whoever read it to the wrong builder. Two chains
+  jumping to one missing target also produced a single finding, naming whichever
+  was added last.
+
+### Added
+
+- **`easywall-core health`.** Three lines and an exit code: `0` for `ok`, `1` for
+  `degraded`, `2` for `fail`. Seven reasons, because a state with no cause is
+  not actionable at three in the morning. It exits `2` under panic mode where
+  `easywall-core status` exits `0`, and the divergence is deliberate — a console
+  asking after *intent* is right to be quiet, and a monitoring system is asking
+  something else. That closes an entry `carried-forward` has held since 2.7.
+- **`GET /healthz`**, the one route on the web process that answers without a
+  session, because an orchestrator holds none. `200` for `ok` and `degraded`,
+  `503` for `fail` and for a core that does not answer, `404` for a caller not
+  on `health_allow`. Loopback only until an operator widens it, matched against
+  the TCP peer and never against a forwarding header. The body is deliberately
+  thin: the state, the reason and the proof's identity. No rule detail, no
+  counters, and **no kernel release** — the dashboard names the host's kernel
+  over the authenticated path and this route never does. A proof nothing has
+  recorded renders `"selftest": {}` rather than empty strings, because an empty
+  field where a value belongs is a claim and absence is not.
+- **Layer B: every expression is checked before it reaches netlink.** A
+  byte-reversed conntrack mask, a bit the kernel does not define, a jump to a
+  chain nobody creates, an accepting chain where a `return` was meant. It needs
+  no kernel, so it runs under `make test` — and it never refuses to write,
+  because a check reading false on a configured host would quietly stop
+  enforcing rules somebody wrote. Findings surface as `degraded` instead.
+- **Layer C: four claims, proven with a real packet.** A reply on an established
+  connection passes, an open port accepts, a closed port does not, and a
+  blacklist outranks an open port. Measured over a veth pair in a throwaway
+  network namespace built with netlink alone — no `unshare`, no `ip`, no
+  subprocess anywhere in the privileged path. The pair is `ewst-r` and
+  `ewst-p` in `10.77.9.0/24`, both fixed, and the range and the names are now
+  written where an operator reads them rather than only in the source.
+- **`easywall-selftest.service`**, which runs that proof once per version and
+  kernel. It is the only place `CAP_SYS_ADMIN` appears in this repository:
+  `CLONE_NEWNET` needs it, and widening the long-lived root daemon to buy a
+  check that runs once per upgrade was the trade this release declined.
+- **The image gets its first `HEALTHCHECK`**, a year after `docker-compose.yml`
+  got one. A plain `docker run` was checked by nothing at all.
+- **`Type=notify` and `WatchdogSec=60s`** on `easywall-core.service`. Under
+  `Type=simple` the unit was `active (running)` the instant `exec` returned —
+  before the socket existed that the web unit's `After=` waits for.
+- **The dashboard says whether the firewall is doing what it says**, with the
+  reason in words rather than a state id, and a self-test line beside it.
+
+### Changed
+
+- **`docker-compose.yml` no longer defines its own health check.** Compose
+  inherits the image's when the file declares none, so the copy was not merely
+  redundant — it was the only thing left that could drift. Two definitions of
+  one artefact is how a package came to contain no binaries.
+- **The Docker page is written for a remote host.** Its first instruction was
+  `https://localhost:12227`, which only ever works on the machine easywall is
+  developed on, and it is why both of 2.15.1's defects went unseen.
+- **A fresh container reads `unhealthy` until the first apply**, because it
+  genuinely is not filtering. Honest, and new: the old check looked at the
+  core's socket. One consequence — a `depends_on: condition: service_healthy`
+  on easywall will wait for ever until something has been applied.
+- **`supervisorctl` works inside the image.** It answered *".ini file does not
+  include supervisorctl section"* and exited 2, so every documented way of
+  stopping one of the two processes printed an error and did nothing.
+- **`DESIGN.md` gains a measure rule** — a per-element cap stated in `ch`, with
+  52 / 60 / 68 as the range. Measured in three locales rather than derived from
+  a font metric.
+
+### The proof
+
+- **Nine guards in this release were green for the wrong reason, and six had one
+  cause:** a comment named the string a `strings.Contains` searched for. The
+  seventh was inside the helper written to close the sixth, and survived a
+  suffix rename because the helper was itself a substring search.
+  `invariants.md` carries it as a rule now: in a repository whose comments name
+  everything they protect, a substring guard over a file that contains comments
+  is unreliable by construction.
+- **A mutation that hangs is worse than one that fails.** Twice, a deleted
+  branch made a test block until the timeout with no output — a hang in CI reads
+  as nothing at all. `t.Cleanup` runs LIFO, and `t.Fatalf` calls
+  `runtime.Goexit`.
+- **A parent test reported `PASS` over three skipped children.**
+  `EASYWALL_REQUIRE_SELFTEST` turns an absent precondition into a `t.Fatal` in
+  CI, because a polite skip and a pass look identical in a log.
+- **Three things in the tooling reported success while doing nothing**, which is
+  the release's own subject one layer down: `supervisorctl` did not work in the
+  image, `podman build` exits `0` while producing `HealthCheck: null`, and
+  `make docker` built nothing because the target shared its name with the
+  `docker/` directory and was missing from `.PHONY`. All three were found by
+  trying to measure rather than to assert.
+- **The container's health check is measured, not read.** CI runs it, stops the
+  web process, deletes the nftables table and seeds a failed self-test stamp,
+  then reads the status Docker itself computed. A `grep` over the `Dockerfile`
+  would have caught none of it.
+
+[See the code changes between 2.16.0 and 2.17.0](https://github.com/jp1337/easywall/compare/v2.16.0...v2.17.0)
+
+</details>
+
+<details markdown="1">
 <summary><strong>2.16.0</strong> · 2026-09-08 — The interface looks like a firewall</summary>
 
 Colour stops decorating and starts meaning something. After this release the only
@@ -114,9 +243,12 @@ than by reading:
 
 `check:ui` passes at five widths in both themes. All 36 screenshots re-taken.
 
-## [2.15.1] —## [2.15.1] — 2026-09-07
+[See the code changes between 2.15.1 and 2.16.0](https://github.com/jp1337/easywall/compare/v2.15.1...v2.16.0)
 
-**Two ways a new installation could lock you out of its own host.**
+</details>
+
+<details markdown="1">
+<summary><strong>2.15.1</strong> · 2026-09-07 — Two ways a new installation could lock you out of its own host</summary>
 
 Reported from Discord: a VPS unreachable immediately after
 `docker compose up -d`, and still cutting SSH on every later `docker` start.
@@ -177,7 +309,7 @@ software is developed on and fails on every remote host. Every count-based
 integration test stayed green throughout, because the rules were present in the
 table; they simply never fired.
 
-[See the code changes between 2.15.1 and 2.16.0](https://github.com/jp1337/easywall/compare/v2.15.1...v2.16.0)
+[See the code changes between 2.15.0 and 2.15.1](https://github.com/jp1337/easywall/compare/v2.15.0...v2.15.1)
 
 </details>
 

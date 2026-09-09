@@ -4,7 +4,7 @@ What a piece of work found and deliberately did not fix, with enough context to 
 on. Every entry was reviewed, triaged and ruled on rather than forgotten; the
 reasoning for deferring is part of the entry. Newest first.
 
-**What may not go in here: anything the release caused, or anything belonging to
+**What may not go in here: any defect the release caused, or anything belonging to
 the feature it shipped.** A release is complete or it is not finished, and this file
 is not a place to put the difference. An entry earns its place by being *found* by
 the work rather than *made* by it — and that has to be proven against the base the
@@ -13,8 +13,79 @@ release's mistakes. 2.15 carried a `check:prose` failure as pre-existing on exac
 that error; comparing against `origin/main` showed its own earlier task had written
 the sentence.
 
+## The one exception, added in 2.17
+
+A **contract hole** the release introduced and deliberately did not close is not a
+defect it caused, and may be carried. The distinction is what the entry would take
+to close:
+
+| | Where it goes |
+|---|---|
+| **Defect** — the thing is wrong, and a diff makes it right | fixed in the release, never here |
+| **Contract hole** — the thing works and its contract is narrower than a reader would assume; closing it is a decision about what the contract *is* | here, under the conditions below |
+
+Three conditions, all of them, or it is a defect being renamed:
+
+1. **A measurement**, showing what the ordinary path actually does today — and
+   saying so when the ordinary path is honest by accident rather than by design.
+2. **A stated reason** naming the decision closing it would require: a protocol
+   change, a new lock, a second independent source of truth. "No time" is not one.
+3. **The honest scope written where a reader meets it** — in the code's own
+   comment, in `invariants.md`, or in the published documentation, as the case
+   needs. A hole nothing outside this file admits to is a hole being hidden.
+
+2.17 wrote this rule because it needed it, and needed it for three entries: it had
+`RunPeer` collapsing every dial error into one word, `GET_HEALTH` taking the nft
+mutex behind a comment that says it does not block, and a self-test that creates a
+fixed range on the host with no collision check. Each works; each has a contract
+narrower than its own comment implies. The rule above had no room for that
+category, so rather than claim an exception it did not grant — in the file whose
+whole subject is not doing that — the rule is amended here, in the open.
+
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
+
+# From 2.17
+
+Found while building the health check and the three proof layers, each proven
+against `b723422` — the commit the branch was cut from — and not against the
+branch head.
+
+## Tests that pass for a reason outside themselves
+
+| | |
+|---|---|
+| **`TestIntegration_TheWindowIsOpenWhileTheRulesAreLive` is load-sensitive by construction** | `firewall_integration_test.go` is **byte-identical** to `b723422`. It polls `Status()` with `runtime.Gosched()` and no sleep, watching for a gap its own comment calls "a handful of instructions" wide. Under container CPU contention the scheduler widens it, and the test then truly observes a real but unavoidable transient state. Seen once in roughly 15 runs |
+| **Four `TestIntegration_Forward_*` tests skip in a container** | `nftables_forward_test.go` byte-identical to `b723422`; the message is *"the two sides cannot reach each other before any firewall exists"*. A skip whose precondition is absent reads exactly like a pass, which is the class `EASYWALL_REQUIRE_SELFTEST` was added to close for layer C |
+| **`CoreClient.GetHealth`, `GetUsage` and `GetAppliedConfig` have no test for a *malformed* reply** | Narrowed from a wider claim after review. `fakeCore` is a real Unix socket listener (`internal/web/testhelpers_test.go:32-51`), so `TestTheDashboardFallsBackWhenTheCoreCannotAnswerAboutHealth` already exercises `GetHealth`'s `!resp.Success` path at wire level. What is uncovered is the reply that parses as a frame and not as the payload. `GetUsage` and `GetAppliedConfig` predate the branch with the same gap; `GetHealth` is new here, so only two of the three are pre-existing |
+| **The `auditBuildFindings` call site in `Firewall.apply` is covered by no test** | `Firewall.nft` is a concrete `*NftablesManager`, so `Apply` cannot reach the line without a kernel. Covering it needs a finding to exist during a real apply, which needs a deliberately broken builder — a mutation, not a test. The function itself is fully covered |
+
+## Contract holes this release introduced, carried with a stated reason
+
+Four entries this release is responsible for, kept here under *The one
+exception* above — which 2.17 added to the top rule for them, rather than
+claiming an allowance the rule did not contain. Each carries its measurement,
+its stated reason, and the place a reader meets the honest scope. In every case
+the ordinary path measured honest; in the first, honest by accident.
+
+| | |
+|---|---|
+| **`RunPeer` collapses every dial error into `blocked`** | `netns.go:81-83`. `inboundCrosses` separates ECONNREFUSED from a timeout from anything else, precisely so a harness fault is never reported as a verdict. The peer side does not, so a harness that breaks between claim 1's control and its measurement records `failed` — the one inversion `foldClaims`'s own doc comment forbids. The reachable trigger is a second concurrent `selftest`: `wire()` takes no lock and `deleteLink` is unconditional. **Measured: three runs of two concurrent `RunSelftest()` gave all six `unprovable`** — the setup collision wins the race every time, so today the inversion is prevented by accident and not by design. Closing it means the peer reporting *why* it could not connect, which is a change to the pipe protocol in `netns.go`'s header comment |
+| **`GET_HEALTH` is documented as short-deadline because it is read-only, and both its netlink reads take the nft mutex** | `protocol.go:99-110` puts it in `CommandTimeout`'s default branch on the grounds that it queues behind nothing. `RuleCounters` (`nftables.go:416`) and `Enforcing` both take that lock, and `Apply` holds it across `applyCustomRules`' nft subprocess for up to 30 s — which is the reasoning `CmdGetUsage`'s own comment gives for *not* reading netlink. Pre-existing at the core level: `GET_STATUS` already does it at `b723422`. What 2.17 adds is a new consumer — during a slow custom-rules apply `/healthz` answers 503, and the image's `--interval=10s --retries=3` reaches its third failure inside that window. **The cost is a wrong word in `docker ps`**: nothing restarts on unhealthy. Note for whoever picks it up that the health check's own comment claims read-only implies non-blocking |
+| **`TestEveryRuleIsAddedThroughTheRecordingAdder` matches a selector, so a local copy of the connection evades it** | The guard walks every non-test source in `internal/core` for a `.conn.AddRule` selector outside `builtRecorder.AddRule`. **Measured: `cn := m.conn` followed by `cn.AddRule(…)` passes it** — there is no `.conn.AddRule` selector left to match, and refusing it needs type resolution rather than syntax, which is a different kind of guard. It is not the shape the finding measured: a copy-paste from pre-`c4dab40` history writes `m.conn.AddRule` and is caught, in any file of the package. `invariants.md` states the scope as the selector rather than as the intent, so nothing claims more than this |
+| **`10.77.9.0/24`, `ewst-r` and `ewst-p` are created in the host namespace with no collision check** | The names and the range are fixed constants, and setup deletes any host interface called `ewst-r` — whoever made it — because a per-pid name would collide one step later on `10.77.9.1/24` anyway (`netns.go:256-262`). Nothing checks whether the host already uses either. Documented for operators in `features/health.md` in this release; the absence of a check is carried. **Measured: `easywall-core selftest` against a live host table reports `unprovable` with an accurate detail, never `failed`, 2 of 2 runs** — the ordinary case is honest |
+
+## Measured, and left alone
+
+| | |
+|---|---|
+| **Two gosec runs, one rule, different answers — and only the one nobody runs locally reaches a human** | `.golangci.yml:38` excludes **G115** (*"int→uint conversions safe for rate-limit and length values"*), so the `Lint` check is green on every integer narrowing in the tree. `security.yml:101` runs **standalone** gosec and uploads SARIF, applying none of golangci-lint's exclusions — so code scanning is the only path on which a G115 ever reaches anybody, on a check-run named `gosec`, after the branch is already pushed. **Measured on this release: `netns.go:382` converted `cmd.Process.Pid` to the `uint32` of `IFLA_NET_NS_PID` with no bound — `-1` becomes `4294967295`, a namespace named by root — and passed `Lint` from the line being written, through a task review, a scoped re-review, a whole-branch review and a push.** Nothing in the repository said the ordinary local path cannot see this class. The line is fixed in this release; the divergence is what is carried. **And the premise three agents were given is wrong: standalone `gosec` runs fine on this host** — `~/go/bin/gosec -include=G115 ./internal/core/...` — even though `golangci-lint` refuses the target outright (*"the Go language version (go1.26) used to build golangci-lint is lower than the targeted Go version (1.27.1)"*), so this class **is** locally checkable and always was. Two more measurements for whoever picks it up: under CI's exact flags (`-tests -tags integration ./...`) gosec reports each line **twice**, which is why one conversion arrived as *"2 new alerts including 2 errors"*; and the 10 G115s now left in the tree are **all** in `_test.go` files, which `security.yml`'s filter step already keeps out of the alert list. *Recommendation, not a decision:* narrow the exclusion to the paths its own comment names, since the tree's other G115s already sit behind explicit bounds with their reasoning beside them (`nftables.go:2389`, `2440`, `totp.go:75`, `118`). That is a lint-config change with a blast radius across every package, so it belongs to whoever takes it up and not to a red-CI fix |
+| **`render-changelog.mjs` is both the renderer and the checker, so `check:changelog` cannot see a heading neither of them parses** | `check:changelog` is that script with `--check`, and one version regex decides both what gets written and whether what was written is right. **Measured at `b723422`: `CHANGELOG.md:108` read `## [2.15.1] —## [2.15.1] — 2026-09-07`, the generated page carried 32 `<details>` sections rather than 34, and `check:changelog` reported it current** — so 2.15.1 had no section of its own and no compare link on the site, and its entry read as part of 2.16.0's. The heading is fixed in this release; the sharing is not. Closing it means a checker that does not derive its expectations from the renderer — a second, independent list of versions to compare against — and that is a decision about what `check:changelog` *is*, not a fix to a broken line. `invariants.md` carries the class it belongs to |
+| **`podman build` silently drops `HEALTHCHECK`, and the documented compose path builds locally** | OCI is podman's default image format and has no healthcheck field, so a build **exits 0** while producing `HealthCheck: null`. `docker-compose.yml` carries a `build:` section and the documented path is `docker compose up -d`, so a podman operator following the documentation gets no health check and no error. `docker.md` now names `--format docker`, which is a workaround rather than a fix. The two real fixes: publish an image as the documented path, or accept a compose-level `healthcheck:` and give up the single-definition rule. Ready-to-lift text is in `task-11-report.md`, fix round 3 §1 |
+| **`ui-check.mjs` does not derive its URL from the config it already reads** | `ui-check.mjs:48` is `process.env.EASYWALL_URL \|\| 'https://127.0.0.1:12227'`. It has an override; what it lacks is deriving the URL from the `web.toml` it already parses for the password hash — so `EASYWALL_DEMO_ADDR` moves the server and `check:ui` keeps driving 12227. **The incident:** Task 14's first run reported *"UI checks passed"* against a pre-existing `easywall-web` on that port, having never loaded the stylesheet it was checking, in the check this repository trusts most. Byte-identical to `b723422` |
+| **`check:ui` is not re-runnable against a live demo server** | The ports-catalogue check fails on a second run because run 1's rows are still there. Already carried from the `check:ui` race fix and independently rediscovered here, which is the argument for naming it in `local-review.md`'s traps table beside the rate limiter |
+| **All 34 remaining screenshots read `v2.15.1`** | `docs/assets/img/screens/` holds 36 PNGs. 2.16 re-took every one of them — `c496769` touches 36 files — against a demo server built from an older tag, so the version chip reads a release two behind. The two dashboard shots are re-taken in this release against a binary built from this branch; a full re-take moves 34 files for one chip and belongs in its own change |
+| **`/ports` collapses its aside at every width, and the reasoning is width-blind** | `app.css:790-802` records the decision — the aside is *"worth having, but not worth this table's row width"* — so it collapses unconditionally rather than below 1570px like every other page. From **2.15**, when *Last used* made it a six-column table; `ports.html` is byte-identical to `b723422`. **Measured at 1920px: the five fixed columns need 796px and `Description` absorbs 830px of slack.** A 320px rail would leave `Description` 510px, against a longest real value of *"PostgreSQL — replication peer"*. The budget was genuinely tight at 1570 and is not tight at 1920. Not a bug and not this release's; the measurement is the part worth keeping |
 
 # From 2.16
 
@@ -44,7 +115,7 @@ the hotfix branch existed, and unrelated to the two defects it fixes.
 | | |
 |---|---|
 | **The landing page names three classes the stylesheet does not define** | `docs/index.md` carries `.docs-landstrip`, `.docs-cardgrid` and `.docs-card`; `web/src/docs.css` defines none of them, and Tailwind generates none. The section renders as unstyled prose. `TestTemplateClassesExistInStylesheet` covers `web/templates/` and `app.js` only, so nothing in the suite looks at markup under `docs/`. Belongs with 2.16, which is already rewriting `docs.css` |
-| **`docs/installation/docker.md` tells a remote operator to open `https://localhost:12227`** | The one instruction that only ever works on the machine easywall is developed on. It is why both defects in this release went unseen: loopback is accepted, so the documented first step succeeds locally and fails on every VPS. The fix is a documentation change to a page 2.16 is not otherwise touching, and it wants the first-run flow rewritten around a remote host rather than one sentence changed |
+| ~~**`docs/installation/docker.md` tells a remote operator to open `https://localhost:12227`**~~ | **Closed 2026-09-09.** The first-run flow is rewritten around a remote host rather than corrected in one sentence: commands on the server, browser on your own machine, `https://<server>:12227`, and the three things to expect on that first page — the certificate warning, nothing filtered yet, and a container that reads `unhealthy` until the first apply. The page also names what is *not* easywall when the page will not load, which is the question a loopback instruction was hiding |
 
 # From 2.15
 
@@ -78,7 +149,7 @@ added mid-run. What follows is what was seen and left alone, and why.
 | | |
 |---|---|
 | ~~**`main` has no required status checks**~~ | **Closed 2026-09-01.** Thirteen checks are now required and enforced for administrators; see *What protects `main`* in [ci-and-release](ci-and-release.md). Two things are worth recording. It did **not** close the case that prompted it — the pull request run was green and the `main` run of the same tree was red, so no merge gate would have seen it. And the release commit now needs a pull request, because a direct push carries no passing checks. `check:docs` stays duplicated in the docs deploy job: `docs.yml` is path-filtered, so its checks cannot be required without blocking every pull request that touches no `docs/**` file |
-| **The spelling gate's scope does not match its configuration** | `.codespellrc` is written repo-wide and `codespell` runs repo-wide, but the only job that runs it triggers on `docs/**`, `.github/workflows/docs.yml`, `.github/actions/**`, `CHANGELOG.md` and `.codespellrc`. A typo in `README.md`, `CONTRIBUTING.md`, `DESIGN.md`, `locales/en.json`, `internal/**/*.go`, `config/`, `debian/`, `docker/` or `systemd/` is never checked. Moving the step to `test.yml` closes it |
+| **The spelling gate's scope does not match its configuration** | `.codespellrc` is written repo-wide and `codespell` runs repo-wide, but the only job that runs it triggers on `docs/**`, `.github/workflows/docs.yml`, `.github/actions/**`, `CHANGELOG.md` and `.codespellrc`. A typo in `README.md`, `CONTRIBUTING.md`, `DESIGN.md`, `locales/en.json`, `internal/**/*.go`, `config/`, `debian/`, `docker/` or `systemd/` is never checked. Moving the step to `test.yml` closes it. **Measured 2026-09-09, so the move is safe rather than merely plausible:** `codespell` run from the repository root with no paths — the whole tree, config honoured — produces **zero** findings and exits 0. Trap: passing explicit paths on the command line bypasses the skip list's `./`-prefixed entries, which is what makes the repo-wide run the cheaper one as well as the correct one |
 | **The mark has two homes** | `web/static/icon.svg` and `docs/assets/img/icon.svg` are byte-identical copies. `DESIGN.md` calls the first "the single source of geometry", which the second quietly contradicts. Nothing has drifted yet |
 | **Prose in a template leaks into the stylesheet** | Tailwind scans templates for class-like tokens and does not understand HTML comments, so an ordinary English word inside one is emitted as a utility rule. `.absolute` ships because `password.html` explains something about an absolute position; `.rounded` ships because `ports.html` describes a *rounded rectangle*. Harmless bytes, but each one is a diff against the committed stylesheet, and *Generated assets are current* fails on it — so a comment written in one pull request turns CI red in the next. Rebuild and commit the stylesheet whenever a template comment changes, or keep such words out of comments |
 | **`npm run build:diagrams` is not byte-reproducible** | Mermaid jitters the bezier control points in `label-container outer-path`, so two runs over unchanged sources differ. Rebuild-and-diff is therefore **not** a staleness test for diagrams; `npm run check:diagrams`, which compares a `data-source-digest`, is. `docs/_docs/contributing.md` said otherwise and was corrected. **`CLAUDE.md` still carries the same over-broad rule** — "a generated file is rebuilt and diffed, never assumed" — which holds for the two stylesheets and the changelog page but not for the diagrams |
@@ -97,7 +168,7 @@ added mid-run. What follows is what was seen and left alone, and why.
 |---|---|
 | **`boot_enforce_failed` reads "at startup"** | 2.7 also writes it when a mid-apply panic teardown fails. The colour is right, the label is not, and `actionLabel` is what the audit filter searches — so somebody hunting a 15:00 teardown failure must search for "startup". Fixing it means rewording both locales and the *Reads as* column in `features/audit-log.md` |
 | **`rollback_skipped`'s label** | Same shape, same fix: it now also covers a rollback that *was* written and then torn down. The detail says so; the label says "Rollback skipped" |
-| **A forgotten panic mode is invisible to monitoring** | `easywall-core status` exits 0 under panic, deliberately — it is a state somebody chose. So a panic nobody remembers never pages anyone. Documented in the man page. A product decision, not a defect |
+| ~~**A forgotten panic mode is invisible to monitoring**~~ | **Closed 2026-09-09.** `easywall-core health` exits **2** under panic where `status` still exits 0, and `/healthz` answers 503. The two commands are allowed to disagree: a console asking after *intent* is right to be quiet, a monitoring system asking after *health* is asking something else, and `TestHealthAndStatusDisagreeUnderPanic` pins it so the divergence stays a decision. One correction to the release's own spec: health reads `fail` with reason `panic`, **not** `degraded`. `Panic` calls `nft.Reset()`, which leaves the input chain empty, so `Enforcing()` is false and `degraded` would have understated a machine that is not filtering at all |
 | **Every page pays a `GET_STATUS`** | **Shipped in 2.14** as `Server.statusForRender`, a ~2 s TTL cache read only by `render`. Not a passenger: the topbar countdown put a clock on every page, and a stall that used to cost the panic banner would have cost the countdown as well. Handlers that act on the status still ask the core directly |
 
 ## Invisible failures

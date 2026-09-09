@@ -316,6 +316,25 @@ func (c *CoreClient) GetUsage() (*shared.UsageResult, error) {
 	return &res, nil
 }
 
+// GetHealth returns whether this firewall is doing what it says: three facts,
+// evaluated in order, plus the identity of the last self-test. See
+// shared.CmdGetHealth for why the reply carries no rule detail or counter
+// values.
+func (c *CoreClient) GetHealth() (*shared.HealthResult, error) {
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetHealth})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var res shared.HealthResult
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		return nil, fmt.Errorf("parse health: %w", err)
+	}
+	return &res, nil
+}
+
 // GetLog returns the most recent audit log entries (newest first).
 func (c *CoreClient) GetLog() ([]shared.AuditLogEntry, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdGetLog})

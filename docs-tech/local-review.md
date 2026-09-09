@@ -52,13 +52,15 @@ self-signed certificate and says so. Trusting a CA is a change to your trust
 store, so `mkcert -install` is something you run yourself, once — the script
 never runs it for you.
 
-## Three traps
+## Five traps
 
 | Trap | What happens |
 |---|---|
 | Templates are parsed at startup | Editing a template needs a restart; a CSS rebuild alone will not show the change. |
 | The login rate limiter | 5 attempts per 10 minutes per IP. A sweep that signs in once per viewport trips it and silently screenshots the login page instead. Restarting the server is the only reset — it is an in-memory package var. |
 | The self-signed interstitial can't be automated | The Chrome extension cannot click through it. On the fallback path a human has to, once per browser per origin. |
+| `check:ui` is not re-runnable against a live demo server | The ports-catalogue check adds Pi-hole's rows to a set that already holds them and fails with *"picking Pi-hole added 4 TCP rows, expected 2"*. It reads as a regression and costs a bisect. Restart the demo server between runs. |
+| `check:ui` drives 12227 whatever `EASYWALL_DEMO_ADDR` says | `ui-check.mjs:48` reads `EASYWALL_URL` and otherwise hardcodes the port; it does not derive it from the `web.toml` it already parses. A stray `easywall-web` on that port gets checked instead of yours, and the run reports *"UI checks passed"*. `pgrep -x easywall-web` first — note `pkill -f easywall-web` kills your own shell, because `-f` matches pkill's own command line. |
 
 ## The integration suite, without host root
 

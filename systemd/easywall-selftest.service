@@ -1,0 +1,84 @@
+[Unit]
+Description=easywall self-test (proves the rule builder against this kernel)
+Documentation=https://easywall-project.org
+Before=easywall-core.service
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+# Group easywall for the same reason easywall-core.service uses it, and it is
+# load-bearing here too: the stamp this unit writes lands in
+# /var/lib/easywall/selftest.json, which is root:easywall 0770 because the web
+# user writes its caches in the same directory. With CapabilityBoundingSet=
+# below a root process has no CAP_DAC_OVERRIDE, so it reaches that directory on
+# the group membership or not at all — the exact fault that left rules.json
+# uncreated on a freshly installed package. See docs-tech/packaging.md.
+Group=easywall
+
+# --if-stale, so this is a once-per-upgrade cost and not a once-per-boot one:
+# the stamp records the version and the kernel release it was proven against,
+# and a stamp that still matches both is not re-proven.
+ExecStart=/usr/sbin/easywall-core selftest --if-stale
+
+# **The only place CAP_SYS_ADMIN appears in this repository**, and the reason
+# this unit exists at all.
+#
+# The self-test measures the table easywall builds against a real packet, which
+# needs a network namespace of its own: local delivery to any of the host's own
+# addresses goes out lo and the input chain accepts "iif lo" before it reaches
+# anything the test is asking about, so a probe against the host proves nothing.
+# Building that namespace is CLONE_NEWNET, and CLONE_NEWNET requires
+# CAP_SYS_ADMIN.
+#
+# easywall-core.service bounds the daemon to CAP_NET_ADMIN and says "nothing
+# else is needed", which is true of nftables and is why that unit is not
+# widened. Under it the proof would fail to unshare and record "unprovable" on
+# every Debian-package installation — the primary install target — so the proof
+# this release is named after would never run where it matters.
+#
+# Everything about this unit is chosen so that the capability is as small a
+# thing to hold as possible: Type=oneshot, so the process is alive for
+# milliseconds rather than for the uptime of the machine; no socket, no
+# listener, nothing a stranger can reach; and it exits before the daemon that
+# answers the network-facing process has started.
+AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN
+
+# A failed proof must not stop the firewall from coming up. The outcome is
+# recorded in the stamp and read by the health check; it is not a start
+# condition.
+#
+# What `easywall-core selftest` really exits with, per proofExitCode in
+# cmd/easywall-core/subcommands.go: **1 for a disproved claim, 0 for everything
+# else — passed and unprovable alike. It never returns 2.** This comment said
+# 0 / 1 / 2 for passed / failed / unprovable, which is `easywall-core health`'s
+# code set, not this one's; they were conflated. The 2 is left in the list below
+# as a harmless superset rather than removed, because a code the binary does not
+# produce costs nothing and a list that has to be edited in step with an exit
+# path is one more thing to keep aligned. But an operator reading this to
+# understand why a failed proof does not stop a boot deserves the real numbers.
+#
+# This is why the [Unit] section says Before= and not Requires=. Before= orders
+# the two and nothing more, so a self-test that cannot run — or that disproves
+# one of its four claims — leaves easywall-core.service to start and the rules
+# to be written anyway. No layer of this release refuses to filter, and that
+# rule is expressed here in unit ordering rather than trusted to a comment.
+SuccessExitStatus=0 1 2
+
+# The stamp lives in /var/lib/easywall; the audit entry goes to
+# /var/log/easywall. ProtectSystem=full is what gives this list anything to do —
+# without it every path is already writable and the line states a restriction
+# that is not in force.
+ReadWritePaths=/var/lib/easywall /var/log/easywall
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=easywall-selftest
+
+[Install]
+WantedBy=multi-user.target

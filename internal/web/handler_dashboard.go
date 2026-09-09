@@ -24,6 +24,18 @@ type dashboardData struct {
 	Recent  []shared.AuditLogEntry
 	CoreErr string
 
+	// Health is whether the firewall is doing what the rest of this page says it
+	// is doing, or nil when the core did not answer that question.
+	//
+	// Nil is not an error state here and is not shown as one. Status.Active is
+	// NftablesManager.Enforcing — the table exists and its input chain has rules
+	// — which is a true claim and the one the hero made before this release. It
+	// is simply a claim about intent, and a core one version behind this web
+	// process does not know CmdGetHealth at all: rendering "unknown" over a
+	// working dashboard because the two binaries were upgraded a minute apart
+	// would be the same false alarm in the other direction.
+	Health *shared.HealthResult
+
 	// PendingCount is how many changes the Unapplied changes chip is about. Zero
 	// when nothing is pending, and the chip is not shown then either.
 	PendingCount int
@@ -97,6 +109,17 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		data.CoreErr = err.Error()
 	} else {
 		data.Status = status
+	}
+
+	// The question the five releases before this one could not answer. Two
+	// netlink reads and a file read in the core, uncached: nothing else on this
+	// page polls it, and a cached "ok" is the one answer a health check must
+	// never be handed — the reason handleHealthz sets no-store on the same
+	// result. A failure is logged and left nil; see dashboardData.Health.
+	if health, err := s.client.GetHealth(); err != nil {
+		slog.Debug("could not read the health state for the dashboard", "error", err)
+	} else {
+		data.Health = health
 	}
 
 	if rules, err := s.client.GetRules(); err == nil {

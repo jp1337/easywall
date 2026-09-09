@@ -15,7 +15,7 @@ on disk keeps everything.
   <figcaption>The filter matches the wording on screen as well as the identifier stored on disk.</figcaption>
 </figure>
 
-## Only 11 entries carry colour
+## Only 12 entries carry colour
 
 Colour always means firewall state — green live, amber unconfirmed, red rolled
 back. It is the only thing colour means anywhere in the interface, so a merely
@@ -34,6 +34,7 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 | 🔴 | `panic_engaged` | Panic mode engaged | A human at the console took the firewall down on purpose. Deliberate does not make it neutral: the machine is unfiltered either way |
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
 | 🔴 | `resume_restore_skipped` | Resume could not restore the rules | Resume cleared the panic marker but an apply held the slot, so the stored rules never made it back — the machine is left exactly as unfiltered as `boot_enforce_failed` describes |
+| 🟠 | `health_degraded` | Health degraded | An apply wrote a rule that easywall's own expression check cannot believe. The table went in anyway, and the rest of the chain is filtering — but one rule may match nothing, which is the class that let the established/related accept enforce nothing for five releases. The detail names the chain and the position; `easywall-core health` and the dashboard both report degraded until the next clean apply |
 | ⚪ | everything else | Rules saved, Options saved, Apply refused — panic mode is engaged, Rollback skipped — panic mode is engaged, … | Something was staged, or an attempt changed nothing live |
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
@@ -45,8 +46,17 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 > the stored rules to the set that was live before the apply; what it skips is
 > the write into a table
 > nobody wants filled. The news in both cases is `panic_engaged`, which is red a
-> few lines away. Only the 10 actions above describe what the firewall is
-> actually doing, however consequential an event feels.
+> few lines away. Only the 12 actions above describe what the firewall is
+> actually doing, however consequential an event feels. The count here read
+> 10 against a table of 11 until 2.17 corrected it.
+
+> **`selftest_passed` and `selftest_failed` are neutral too.** The self-test
+> proves easywall's rule builder against this kernel inside a network namespace
+> of its own. A failed proof is serious and it is not a firewall state: the
+> firewall on this machine goes on filtering exactly as it did a second
+> earlier. Their detail is the one place the proof's own text is kept.
+> `/healthz` deliberately carries none of it: the endpoint is
+> unauthenticated, and the text names which claim failed and on which port.
 
 ## The nine login events
 

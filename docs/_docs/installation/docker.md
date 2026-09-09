@@ -6,18 +6,40 @@ description: One multi-arch image, three registries, four tags — and why it ne
 
 # Docker
 
+easywall filters the **host's** firewall, so it runs on the machine you want
+protected — which is usually not the machine you are browsing from. Everything
+below assumes that: commands on the server, browser on your own machine.
+
+## First run
+
+On the server, over SSH:
+
 ```bash
 git clone https://github.com/jp1337/easywall.git
 cd easywall
 docker compose up -d
 ```
 
-Open `https://localhost:12227` and complete the setup wizard.
+Then, from your own machine, open `https://<server>:12227` — the address you
+already reach that host on. **`localhost` only works when easywall is on the
+machine in front of you**, and it is the one instruction this page used to give.
 
-Then complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}). Before
-you do, see [Environment Variables]({{ '/docs/environment/' | relative_url }}) for what
-`docker-compose.yml` can set without editing `./config` at all — and what it deliberately
-cannot.
+Three things to expect on that first page:
+
+| | |
+|---|---|
+| A certificate warning | easywall generates its own on first start. Accept it, or [supply your own](#your-own-certificate) |
+| Nothing filtered yet | a fresh container carries no rules, so nothing easywall did is between you and port 12227 |
+| The container reads `unhealthy` | correct, and it clears at your first apply — see [Health check](#the-health-check) |
+
+If the page does not load at all, easywall is not what is blocking it. Check the
+host's existing firewall and any provider-level security group for port 12227.
+
+Now complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}) — it
+covers the SSH port, which is the one answer that can shut you out. Before you do,
+see [Environment Variables]({{ '/docs/environment/' | relative_url }}) for what
+`docker-compose.yml` can set without editing `./config` at all — and what it
+deliberately cannot.
 
 > **`./config` changes owner on first start, and needs to.** The mount replaces the
 > ownership the image sets, so the files arrive belonging to whoever cloned the
@@ -26,6 +48,55 @@ cannot.
 > because the healthcheck only looked at the core's socket. The entrypoint now puts
 > the directory into the shape the Debian package installs. **Editing those files on
 > the host afterwards needs `sudo`.**
+
+## The health check
+
+The image carries a `HEALTHCHECK` that fetches `/healthz` every ten seconds.
+`docker-compose.yml` declares no block of its own and inherits it, so there is
+one definition and nothing to keep in step.
+
+```bash
+docker compose ps                     # healthy / unhealthy
+docker exec easywall easywall-core health
+```
+
+It reports **unhealthy while the firewall is not filtering** — a fresh container,
+a deleted table, a dead web process, or a core that stopped answering. That is
+new: for a year the check looked at the core's socket, so a container whose
+interface had died stayed *Up*.
+
+Two consequences worth knowing before you meet them:
+
+- **`depends_on: condition: service_healthy` on easywall waits for ever** on a
+  container that has never applied rules. Apply once, or drop the condition.
+- **A `degraded` firewall stays healthy.** It is still filtering, and a restart
+  fixes no cause of it. [Health Check]({{ '/docs/features/health/' | relative_url }})
+  has the states, the exit codes, and how to let a monitoring host read
+  `/healthz`.
+
+## Podman
+
+Two flags and nothing else, but the first one is not optional:
+
+```bash
+podman build --format docker -t easywall .
+```
+
+**Without `--format docker` the image carries no health check and the build still
+succeeds.** OCI is podman's default image format and has no healthcheck field, so
+`podman build` exits `0` and leaves `HealthCheck: null`. `podman compose build`
+takes the same flag. Check what you got:
+
+```bash
+podman image inspect --format '{% raw %}{{ .HealthCheck }}{% endraw %}' easywall
+```
+
+`supervisorctl` works inside the container, over a root-only socket, if you need
+to stop or start one process without restarting both:
+
+```bash
+docker exec easywall supervisorctl status
+```
 
 ## Where to pull from
 

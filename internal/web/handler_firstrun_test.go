@@ -371,16 +371,26 @@ func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
 	s := newFirstRunTestServer(t, fc)
 	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
 
+	// The hash is computed once, outside the goroutines, and that is not a
+	// tidy-up: this is what killed Test (ubuntu-24.04) with exit 143. argon2id
+	// is configured at m=64 MiB (defaultArgon2Params), so 50 concurrent
+	// HashPassword calls hold 3.2 GB of live heap at the same instant, and the
+	// race detector shadows every byte of it — measured, this one test took the
+	// binary's peak RSS from 0.6 GB to 9.7 GB and the run peaked at 16.6 GB
+	// against a runner with 16 GB. Nothing here is testing the KDF. Hoisting it
+	// also makes the probe sharper, because the goroutines now converge on
+	// SaveFirstRun instead of arriving whenever their own hash finished.
+	hash, err := HashPassword("averysecurepass1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	const attempts = 50
 	var wg sync.WaitGroup
 	for i := 0; i < attempts; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			hash, err := HashPassword("averysecurepass1")
-			if err != nil {
-				return
-			}
 			_ = s.cfg.SaveFirstRun(FirstRunAccount{
 				Username:     fmt.Sprintf("operator%d", i),
 				PasswordHash: hash,
@@ -396,10 +406,6 @@ func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
 	}
 
 	// Whoever won, nobody may replace them afterwards.
-	hash, err := HashPassword("averysecurepass1")
-	if err != nil {
-		t.Fatal(err)
-	}
 	if err := s.cfg.SaveFirstRun(FirstRunAccount{
 		Username:     "intruder",
 		PasswordHash: hash,

@@ -241,21 +241,26 @@ func ValidateIPOrCIDR(s string) error {
 	return fmt.Errorf("invalid IP or CIDR: %s", s)
 }
 
-// ValidateProxyList checks a trusted-proxy list: bare addresses and CIDR
-// networks, the two shapes every other address list in the product accepts,
-// with comments and blanks skipped the same way.
+// ValidateAddressList checks one of the configuration's address lists: bare
+// addresses and CIDR networks, the two shapes every other address list in the
+// product accepts, with comments and blanks skipped the same way.
 //
 // A malformed entry stops startup. Dropping it instead would leave a list one
 // entry short, which stops trusting a proxy that is really there — and the
 // operator meets that as a login limiter that suddenly counts everyone
 // together, six weeks later, with nothing anywhere naming the typo.
-func ValidateProxyList(entries []string) error {
+//
+// key names the setting in the error, and that is the whole reason this takes a
+// parameter rather than being copied per list: 2.17's health_allow has the same
+// grammar and a different meaning, and a message naming trusted_proxies for a
+// health_allow entry sends an operator to the wrong line of their web.toml.
+func ValidateAddressList(key string, entries []string) error {
 	for _, entry := range entries {
 		if IsListComment(entry) {
 			continue
 		}
 		if err := ValidateIPOrCIDR(strings.TrimSpace(entry)); err != nil {
-			return fmt.Errorf("trusted_proxies %q: %w", entry, err)
+			return fmt.Errorf("%s %q: %w", key, entry, err)
 		}
 	}
 	return nil

@@ -160,8 +160,20 @@ func (u *UsageStore) Collect(counters map[string]RuleCounter, live map[string]bo
 	// life of the installation. A rule that is live but absent from counters —
 	// panic mode, or a source list that produced no kernel rule — keeps
 	// everything it had.
+	//
+	// A reserved id is easywall's own accounting and is not a port rule, so it is
+	// dropped here whatever liveness says about it. This loop is the only place
+	// the prefix is checked, and it is the right one: it both keeps a reserved id
+	// out of the file this call writes and clears one a version without the
+	// prefix already put there. A guard in the booking loop above would do the
+	// first and not the second, and no test could tell it from a comment — the
+	// booked entry is deleted here before anything can read it.
+	//
+	// It is not filtered out of RuleCounters instead, because the health check
+	// reads that map and the established rule's counter is the whole signal it
+	// looks at.
 	for id := range res.Usage {
-		if !live[id] {
+		if IsReservedRuleID(id) || !live[id] {
 			delete(res.Usage, id)
 		}
 	}

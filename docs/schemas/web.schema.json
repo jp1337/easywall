@@ -81,6 +81,12 @@
       "description": "Addresses and CIDR networks whose X-Forwarded-For header may be believed. Empty means the TCP peer is always authoritative. Being on this list is total trust in that peer.",
       "default": []
     },
+    "health_allow": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Addresses and CIDR networks that may read /healthz, the one route that answers without a session. Matched against the TCP peer only, never against a forwarding header. Leaving the key out means the loopback default; an empty list turns the endpoint off.",
+      "default": ["127.0.0.1/8", "::1/128"]
+    },
     "update_check": {
       "type": "boolean",
       "description": "Check github.com once a day for a newer release and show a banner on the dashboard. One of the two requests easywall can make \u2014 the other is the installation count, which is off unless switched on. Set to false to remove this one. The dashboard never waits for it either way.",

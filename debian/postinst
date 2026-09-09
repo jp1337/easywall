@@ -76,8 +76,19 @@ case "$1" in
     chmod 0600 /etc/easywall/easywall.toml
 
     # ── Enable and start services ─────────────────────────────────────────
+    #
+    # easywall-selftest.service is enabled with the other two but deliberately
+    # not started here. It is Type=oneshot with Before=easywall-core.service, so
+    # systemd runs it ahead of the core on every boot; starting it in postinst
+    # would hold the install for the length of the proof — a namespace, a veth
+    # pair and four probes — on an upgrade path that is often unattended, and
+    # `easywall-core selftest --if-stale` would then skip it at the next boot
+    # anyway. The core is started immediately below regardless: Before= orders
+    # the two and never gates them, which is this release's rule that no layer
+    # refuses to filter, expressed in unit ordering.
     if [ -d /run/systemd/system ]; then
       systemctl daemon-reload || true
+      systemctl enable easywall-selftest.service || true
       systemctl enable easywall-core.service easywall-web.service || true
       systemctl start  easywall-core.service easywall-web.service || true
     fi

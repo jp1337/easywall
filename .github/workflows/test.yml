@@ -99,8 +99,25 @@ jobs:
       # packages now run under it, namespace setup included, and a limit that
       # trips intermittently costs far more to diagnose than a generous one
       # costs to wait for.
+      #
+      # EASYWALL_REQUIRE_SELFTEST is what stops this step being green for a run
+      # that measured nothing. 2.17's layer C proves four claims inside a network
+      # namespace of its own, and every prover skips politely when it cannot
+      # build one — right on a developer's machine, silent here. Measured: with
+      # all of them skipping, one of the three parent tests still reports PASS.
+      #
+      # Not for the case of this whole job losing CAP_SYS_ADMIN — TestMain
+      # re-execs into CLONE_NEWNET and exits 1 when it cannot, so that day is
+      # already loud. It is for the quiet one: the clone succeeded, the suite ran,
+      # and a prover returned "unprovable" anyway. With the variable set,
+      # skipOrFailUnprovable turns that into a t.Fatal.
+      # See internal/core/selftest_required_test.go.
+      #
+      # Passed to sudo as an assignment rather than relying on -E: sudo's default
+      # env_reset drops it, and a variable the suite never sees is a gate that
+      # does nothing while looking exactly like a gate that works.
       - name: Integration tests (kernel nftables)
-        run: sudo go test -tags integration -v -count=1 -timeout 300s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/... ./internal/web/...
+        run: sudo EASYWALL_REQUIRE_SELFTEST=1 go test -tags integration -v -count=1 -timeout 300s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/... ./internal/web/...
 
       # Counted, not just run. Without this the rule builders in nftables.go
       # measured 0% — every one of them is exercised here and nowhere else, so

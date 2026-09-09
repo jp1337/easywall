@@ -337,6 +337,12 @@ func (c *Config) UsagePath() string {
 	return c.DataDir + "/usage.json"
 }
 
+// SelftestStampPath returns the path of the file recording what the self-test
+// last proved and against what version and kernel. See selftest_stamp.go.
+func (c *Config) SelftestStampPath() string {
+	return c.DataDir + "/selftest.json"
+}
+
 // PanicMarkerPath returns the path of the file that records panic mode.
 //
 // In the data directory rather than in this config file for two reasons, neither

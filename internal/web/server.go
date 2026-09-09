@@ -386,6 +386,17 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Handle("/static/*", staticCacheHeaders(
 		http.StripPrefix("/static/", http.FileServer(http.Dir(cfg.StaticDir())))))
 
+	// Here, beside the static files, and deliberately not in either group
+	// below: an orchestrator asking whether this process is alive holds no
+	// session, so /healthz must not be behind RequireAuth and must not create
+	// one. What keeps it closed is health_allow — the peer address — and not a
+	// cookie. See handleHealthz for the incident that produced it.
+	//
+	// CrossOriginProtection exempts safe methods, so a GET has no interaction
+	// with it; that exemption is what made /logout a POST, and here it is what
+	// the route needs.
+	r.Get("/healthz", s.handleHealthz)
+
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
@@ -821,6 +832,23 @@ var auditActionLabels = map[string]string{
 	"totp_enabled":               "audit_totp_enabled",
 	"totp_disabled":              "audit_totp_disabled",
 	"recovery_codes_regenerated": "audit_recovery_codes_regenerated",
+
+	// The three 2.17 actions. selftest_passed and selftest_failed are written by
+	// `easywall-core selftest` — the console and the oneshot unit in front of the
+	// daemon — and carry the stamp's Detail, which is the only place that field
+	// reaches an operator besides the console it was printed on: HealthResult
+	// deliberately drops it, because /healthz is unauthenticated and the detail
+	// names a port number and the claim that failed. A field written by
+	// RunSelftest and read by nothing is a field the next maintainer deletes as
+	// dead weight.
+	//
+	// health_degraded is written by an apply whose expression check found
+	// something it cannot believe. checkBuilt never refuses the write, so
+	// without this entry the finding existed only in the journal and in a
+	// health reply nobody had asked for.
+	"selftest_passed": "audit_selftest_passed",
+	"selftest_failed": "audit_selftest_failed",
+	"health_degraded": "audit_health_degraded",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall
@@ -899,6 +927,32 @@ var auditActionTones = map[string]string{
 	// what the firewall is doing. It is read, not signalled. That 2.13 will push
 	// a notification on repeated login_failed is not a contradiction — a
 	// notification is not a colour.
+
+	// health_degraded: an apply wrote a rule the expression check cannot
+	// believe. That is a statement about what the firewall is doing — a rule is
+	// in the kernel and one of the four bytes in it may match nothing, which is
+	// the class that let `ct state established,related accept` enforce nothing
+	// for five releases. Amber and not red: the table was written and the rest
+	// of the chain is filtering, so this is the boot_not_configured weight — the
+	// machine is not doing everything it says, and somebody has to look — rather
+	// than boot_enforce_failed's, which is a machine not filtering at all.
+	"health_degraded": "warn",
+
+	// selftest_passed and selftest_failed are deliberately absent, and the
+	// second one is the entry a later reader will want to colour. A failed
+	// self-test is not a firewall state: the proof builds its own network
+	// namespace, disproves a claim about the *rule builder*, and the firewall on
+	// this machine goes on filtering exactly as it did a second earlier. Nothing
+	// live changed, which is the same test rules_saved and the login events fail.
+	// The news that something is wrong reaches an operator as health_degraded,
+	// which is amber a few lines above, and as a degraded state on the
+	// dashboard; colouring the proof itself would put a red line in the log for
+	// an event that changed nothing in the kernel, and rule 1 in DESIGN.md is
+	// that colour means what the firewall is doing.
+	//
+	// TestOnlyFirewallStatesCarryATone holds the whole list, so adding one here
+	// is a deliberate edit against a named expectation rather than a diff nobody
+	// reads.
 }
 
 // actionLabel resolves an action to its translated label. tFunc is the
@@ -1326,6 +1380,26 @@ func templateFuncs() template.FuncMap {
 				return "-"
 			default:
 				return "~"
+			}
+		},
+		// The health state onto the three colours DESIGN.md allows, and nothing
+		// else. It names the tone rather than a class so one call can drive both
+		// the dot and the sentence under it: hero-dot-<tone> would have been a
+		// fourth spelling of ok/warn/crit in a system that already has three.
+		//
+		// A state this build has no case for is warn, not ok. The reply comes
+		// from a core that may be newer than this web process — the two are
+		// separate binaries and a package upgrade can leave them a version apart
+		// — and an unrecognised state rendering green is the same false green
+		// this whole release exists to remove.
+		"healthTone": func(s shared.HealthState) string {
+			switch s {
+			case shared.HealthOK:
+				return "ok"
+			case shared.HealthFail:
+				return "crit"
+			default:
+				return "warn"
 			}
 		},
 		// The verdict is a state, so it takes a state colour and the dot that goes

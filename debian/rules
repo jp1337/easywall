@@ -59,10 +59,17 @@ override_dh_auto_install:
 	install -d debian/easywall/etc/easywall
 	install -m 0640 config/easywall.toml debian/easywall/etc/easywall/easywall.toml.template
 	install -m 0640 config/web.toml      debian/easywall/etc/easywall/web.toml.template
-	# systemd units
+	# systemd units. All three of them: easywall-selftest.service is new in 2.17
+	# and is the one place CAP_SYS_ADMIN is granted, so a package that ships the
+	# other two and not this one boots a core that records "unprovable" for ever
+	# and reads as a firewall whose proof simply never runs.
+	# TestEveryUnitIsInstalledAndManaged walks systemd/*.service against this
+	# file, debian/postinst, debian/prerm and the Makefile, because a unit
+	# missing from any one of the four is silent.
 	install -d debian/easywall/lib/systemd/system
-	install -m 0644 systemd/easywall-core.service debian/easywall/lib/systemd/system/
-	install -m 0644 systemd/easywall-web.service  debian/easywall/lib/systemd/system/
+	install -m 0644 systemd/easywall-core.service     debian/easywall/lib/systemd/system/
+	install -m 0644 systemd/easywall-web.service      debian/easywall/lib/systemd/system/
+	install -m 0644 systemd/easywall-selftest.service debian/easywall/lib/systemd/system/
 	# logrotate
 	install -d debian/easywall/etc/logrotate.d
 	install -m 0644 debian/easywall.logrotate debian/easywall/etc/logrotate.d/easywall

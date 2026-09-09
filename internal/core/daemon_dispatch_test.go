@@ -440,6 +440,33 @@ func TestDaemonDispatch_HandlesEveryDeclaredCommand(t *testing.T) {
 	}
 }
 
+// TestDaemonDispatch_HandlesEveryDeclaredCommand only proves GET_HEALTH is not
+// "unknown command" — it would pass just as well against a handler that always
+// answered {}. This test proves the reply is actually Firewall.Health()'s
+// answer: a test firewall's NftablesManager has a nil conn, so Enforcing()
+// reads false and computeHealth must report fail/not_enforcing, not whatever a
+// stub might return instead.
+func TestGetHealthIsDispatchedAndAnswered(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	resp := d.dispatch(shared.Command{Type: shared.CmdGetHealth})
+	if !resp.Success {
+		t.Fatalf("GET_HEALTH failed: %s", resp.Error)
+	}
+
+	var got shared.HealthResult
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthFail || got.Reason != shared.HealthReasonNotEnforcing {
+		t.Errorf("dispatch answered %+v; a test firewall with no nftables connection "+
+			"must read as fail/not_enforcing, or this is not really calling Firewall.Health()",
+			got)
+	}
+}
+
 // An apply runs asynchronously so the socket stays responsive, and its
 // acceptance window stays open for up to an hour. During that time the operator
 // can save a setting on another page — and Apply reads exactly the sections

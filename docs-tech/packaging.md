@@ -38,6 +38,7 @@ freshly installed package.
 | `/var/lib/easywall` | `root:easywall` | 0770 | **shared**: the core writes `rules.json`, the web user writes its caches |
 | `/var/log/easywall` | `root:easywall` | 0750 | audit log, rotated by logrotate |
 | `/run/easywall` | `root:easywall` | 0750 | created by systemd from the unit's `User=`/`Group=` |
+| `/lib/systemd/system/easywall-{core,web,selftest}.service` | `root:root` | 0644 | checked by installed path. A unit file nothing installs does not exist on the machine |
 
 ## Neither config is shipped under its own name
 
@@ -111,6 +112,41 @@ is load-bearing, and deleting it looks harmless.
 `ProtectSystem=full` is what gives `ReadWritePaths=` anything to do. Without it
 everything is writable and the list below it states a restriction that is not in
 force.
+
+## The third unit, and the only `CAP_SYS_ADMIN` in the repository
+
+`easywall-selftest.service` is new in 2.17. It exists for one reason: the
+self-test measures the table easywall builds against a real packet, which needs a
+network namespace of its own, and `CLONE_NEWNET` requires `CAP_SYS_ADMIN`.
+
+`easywall-core.service` bounds the daemon to `CAP_NET_ADMIN` and says nothing
+else is needed. That is true of nftables, and widening it would hand the extra
+capability to the long-lived root process that holds the control socket and
+answers a network-facing one — to buy a check that runs once per upgrade. So the
+proof got a unit instead.
+
+| | |
+|---|---|
+| `Type=oneshot` | alive for milliseconds, not for the uptime of the machine |
+| `Before=easywall-core.service` | ordering only. `Requires=` would let a failed proof stop the firewall |
+| `SuccessExitStatus=0 1 2` | a disproved claim exits 1 and cannot fail a boot |
+| `Group=easywall` | it writes `/var/lib/easywall/selftest.json`, and a bounded root has no `CAP_DAC_OVERRIDE` — the same fault that left `rules.json` uncreated |
+| no socket, no listener | nothing a stranger can reach, and it exits before the daemon starts |
+
+**Without this unit the proof would never run where it matters.** Under
+`easywall-core.service`'s bounding set the daemon cannot `unshare`, so it would
+record `unprovable` on every Debian install — the primary target.
+
+`postinst` enables it with the other two and deliberately does not start it.
+Starting it there would hold an often-unattended upgrade for the length of a
+proof, and `selftest --if-stale` would then skip it at the next boot.
+`TestCapSysAdminIsGrantedByExactlyOneUnit` is what says no to the one-line diff
+that widens the daemon instead.
+
+**The install-verify job did not catch a unit removed from `debian/`** until this
+release widened it. It now asserts all three by installed path, and that
+`easywall-selftest.service` is *enabled* — `is-active` reports the wrong thing
+about a `oneshot`, and an installed-but-disabled unit is a proof that never runs.
 
 ## Architecture
 

@@ -16,7 +16,39 @@ StartLimitIntervalSec=60s
 StartLimitBurst=3
 
 [Service]
-Type=simple
+# Type=notify, not simple, and the difference is an ordering bug.
+#
+# Under Type=simple the unit was "active (running)" the instant exec() returned.
+# easywall-web.service has After=easywall-core.service, and what it is actually
+# waiting for is /run/easywall/core.sock — which does not exist until the core
+# has run its boot rule restore and called net.Listen, hundreds of milliseconds
+# later. So systemd was free to start the web process into a socket that was not
+# there, and the web process reports that as "the core is unreachable" on every
+# page until something retries late enough.
+#
+# With Type=notify the unit is not active until the daemon sends READY=1, and
+# Daemon.Start sends it after net.Listen *and* after the socket has its final
+# ownership — see internal/core/sdnotify.go. NotifyAccess=main because only the
+# main process ever sends it; anything else would be a datagram this unit should
+# not accept.
+Type=notify
+NotifyAccess=main
+
+# The watchdog. systemd sets $WATCHDOG_USEC from this, the daemon pings at half
+# of it, and it stops pinging when it cannot establish that it is still
+# answering — Daemon.pingWatchdog says exactly what that means and what was
+# rejected. It stops on the *second* consecutive failure rather than the first:
+# a single missed sample would land the next attempt on this deadline rather
+# than inside it, because half of sixty is thirty and a Go ticker drifts late.
+# So a contended daemon keeps its last ping at most one interval old, and a
+# wedged one is killed at ninety seconds instead of sixty.
+#
+# It is deliberately not tight enough to fire on a slow apply. An nft call is
+# bounded at thirty seconds and does not touch the lock the ping reads, so a
+# core in the middle of `nft -f` still pings — which is the point. Killing the
+# firewall daemon mid-apply is worse than anything a watchdog would be catching.
+WatchdogSec=60s
+
 User=root
 # Group easywall, not root, and this is load-bearing.
 #
@@ -67,6 +99,22 @@ ProtectSystem=full
 ReadWritePaths=/etc/easywall /var/lib/easywall /var/log/easywall /run/easywall
 # nftables requires CAP_NET_ADMIN + direct kernel access. Nothing else is needed
 # — see Group= above for why that is only true with the group membership.
+#
+# These two lines are not widened, and easywall-selftest.service exists because
+# of that. 2.17's self-test builds a throwaway network namespace to measure the
+# rules it wrote against a real packet, and CLONE_NEWNET needs CAP_SYS_ADMIN —
+# which the bounding set above removes from this root process, so the unshare
+# fails before the first probe. Under this unit the daemon would have recorded
+# "unprovable" on every Debian installation, which is the primary install
+# target.
+#
+# The answer is not CAP_SYS_ADMIN here. This is the long-lived root daemon that
+# holds the control socket and answers a network-facing process; widening it to
+# buy a check that runs once per upgrade is the wrong trade, and it would
+# contradict the sentence directly above. The proof gets its own oneshot unit
+# instead — alive for milliseconds, holding no socket, listening on nothing —
+# and that unit is the only place CAP_SYS_ADMIN appears in this repository.
+# TestCapSysAdminIsGrantedByExactlyOneUnit is what keeps it there.
 AmbientCapabilities=CAP_NET_ADMIN
 CapabilityBoundingSet=CAP_NET_ADMIN
 

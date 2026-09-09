@@ -1,0 +1,11 @@
+flowchart TD
+  P{"Panic mode<br/>engaged?"} -->|"yes"| F1["fail<br/>panic"]
+  P -->|"no"| E{"Rules live<br/>in the kernel?"}
+  E -->|"no"| F2["fail<br/>not_enforcing"]
+  E -->|"yes"| C{"Ports counted packets,<br/>established counted none?"}
+  C -->|"yes"| D1["degraded<br/>stateful_dead"]
+  C -->|"no"| B{"Expression check<br/>found something?"}
+  B -->|"yes"| D2["degraded<br/>build_findings"]
+  B -->|"no"| S{"Self-test<br/>stamp"}
+  S -->|"failed"| D3["degraded<br/>selftest_failed"]
+  S -->|"passed or<br/>unprovable"| OK["ok<br/>healthy"]

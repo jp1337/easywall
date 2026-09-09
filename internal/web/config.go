@@ -105,6 +105,21 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
 	cfg.provenance = prov
+
+	// health_allow absent is not health_allow empty.
+	//
+	// An operator upgrading from 2.16 has a web.toml written before this key
+	// existed, and the container's HEALTHCHECK asks /healthz. Treating the
+	// absent key as "nobody" would report every upgraded container unhealthy —
+	// the failure docker/entrypoint.sh:12-18 records, arriving from the other
+	// direction. An explicitly empty list still means nobody, which is the only
+	// way an operator has of turning the endpoint off, and TOML keeps the two
+	// apart: an absent key leaves the field nil, `health_allow = []` does not.
+	//
+	// After the overlay, so EASYWALL_WEB_HEALTH_ALLOW is not overwritten by it.
+	if cfg.HealthAllow == nil {
+		cfg.HealthAllow = shared.WebDefault().HealthAllow
+	}
 	return &cfg, nil
 }
 
@@ -120,7 +135,13 @@ func (c *Config) Validate() error {
 	// The environment's copy was checked when it was parsed; this covers the
 	// other half — a malformed entry written into web.toml by hand, which the
 	// overlay never touches because a stored value wins.
-	if err := shared.ValidateProxyList(c.TrustedProxies); err != nil {
+	if err := shared.ValidateAddressList("trusted_proxies", c.TrustedProxies); err != nil {
+		return err
+	}
+	// Same reason, and it matters more here: a typo in this list is silently one
+	// entry short, and the operator meets it as a monitoring check that has been
+	// getting 404 since the upgrade.
+	if err := shared.ValidateAddressList("health_allow", c.HealthAllow); err != nil {
 		return err
 	}
 	if c.SSLDir == "" {
