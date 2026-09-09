@@ -1,3 +1,40 @@
+easywall (2.17.0) unstable; urgency=medium
+
+  * Fix: all three conntrack masks are native-endian. For five releases the
+    established/related accept, the invalid-packet drop and the SSH
+    brute-force meter matched no packet while every surface reported them
+    enabled. `nft list ruleset` renders byte order invisibly, which is why
+    reading the rules found nothing.
+  * Fix: the established-accept rule carried no counter and no id comment, so
+    `RuleCounters` skipped it. It now carries both under the reserved id
+    `_established` — the one counter that catches this defect class again.
+  * Fix: a finding named the wrong rule. `Finding.Index` was a plain zero for
+    both per-chain checks, so a jump at input rule 3 was audited as
+    "input rule 0".
+  * Feat: `easywall-core health` — three lines and an exit code, 0 ok,
+    1 degraded, 2 fail, with seven reasons because a state with no cause is
+    not actionable at three in the morning.
+  * Feat: `GET /healthz` on the web process, the one route that answers
+    without a session. Loopback only until an operator widens it, matched
+    against the TCP peer and never a forwarding header.
+  * Feat: every nftables expression is checked before it reaches netlink — a
+    byte-reversed mask, an undefined bit, a jump to a chain nobody creates.
+    Findings surface as degraded; the check never refuses to write.
+  * Feat: four behavioural claims proven with real packets over a veth pair in
+    a throwaway network namespace, built with netlink alone.
+    `easywall-selftest.service` runs it once per version and kernel, and is
+    the only place CAP_SYS_ADMIN appears in this repository.
+  * Feat: the image gets its first HEALTHCHECK, a year after the compose file
+    got one. A plain `docker run` was checked by nothing at all.
+  * Feat: `Type=notify` and `WatchdogSec=60s` on easywall-core.service.
+    Under `Type=simple` the unit was active the instant exec returned, before
+    the socket the web unit waits for existed.
+  * Fix: `supervisorctl` works inside the image. It answered ".ini file does
+    not include supervisorctl section" and exited 2, so every documented way
+    of stopping one of the two processes printed an error and did nothing.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Wed, 09 Sep 2026 23:28:51 +0200
+
 easywall (2.16.0) unstable; urgency=medium
 
   * Feat: colour stops decorating and starts meaning something. The ice-blue
