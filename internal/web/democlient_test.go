@@ -587,8 +587,8 @@ func TestDemo_CancelAcceptanceRollsBackNow(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 21 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 21 "+
+	if len(shared.AllCommandTypes) != 22 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 22 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 
@@ -603,6 +603,89 @@ func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
 	d := newDemoState()
 	if resp := d.Send(shared.Command{Type: "NOT_A_COMMAND"}); resp.Success {
 		t.Error("an unknown command must still be refused as one")
+	}
+}
+
+// The demo has no network namespace to run the self-test's proof in, so
+// claiming "passed" would be a false statement in the shipped public demo.
+// TestDemo_AnswersEveryDeclaredCommand only proves GET_HEALTH is not "unknown
+// command" — this proves the specific claim the demo is allowed to make:
+// healthy, with the self-test stamped unprovable rather than passed.
+func TestDemoAnswersGetHealth(t *testing.T) {
+	d := newDemoState()
+
+	resp := d.Send(shared.Command{Type: shared.CmdGetHealth})
+	if !resp.Success {
+		t.Fatalf("GET_HEALTH failed: %s", resp.Error)
+	}
+
+	var got shared.HealthResult
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthOK {
+		t.Errorf("demo health state = %q, want %q", got.State, shared.HealthOK)
+	}
+	if got.Selftest.Result != shared.SelftestUnprovable {
+		t.Errorf("demo self-test result = %q, want %q — the demo has no namespace to "+
+			"prove anything in, and claiming otherwise would be false in the public demo",
+			got.Selftest.Result, shared.SelftestUnprovable)
+	}
+	// The stamp names no kernel, and that absence is load-bearing: internal/web
+	// imports internal/core nowhere by design, so it cannot reach the
+	// privileged KernelRelease(). The dashboard renders nothing where the kernel
+	// would go rather than an empty value under the label.
+	if got.Selftest.Kernel != "" {
+		t.Errorf("demo self-test kernel = %q; the web process has no path to "+
+			"core.KernelRelease() and must not invent one", got.Selftest.Kernel)
+	}
+}
+
+// And under panic mode it says the thing the banner over every page already
+// says, rather than ok/healthy underneath it.
+//
+// fail with reason panic — the same answer computeHealth gives a real host in
+// the same state, out of its first branch: Firewall.Panic leaves an empty input
+// chain, Enforcing() reports that as not enforcing, and the marker names the
+// cause. Both halves are asserted. fail rather than degraded, because a
+// panicked host is not filtering at all; panic rather than not_enforcing,
+// because a human took the rules away and a reboot will not bring them back. A
+// demo that disagrees with the core about its own state is a demo nothing can
+// be reviewed against.
+func TestDemoHealthFollowsPanicMode(t *testing.T) {
+	d := newDemoState()
+
+	if resp := d.Send(shared.Command{Type: shared.CmdPanic}); !resp.Success {
+		t.Fatalf("PANIC failed: %s", resp.Error)
+	}
+
+	resp := d.Send(shared.Command{Type: shared.CmdGetHealth})
+	if !resp.Success {
+		t.Fatalf("GET_HEALTH failed: %s", resp.Error)
+	}
+	var got shared.HealthResult
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthFail {
+		t.Errorf("demo health state under panic = %q, want %q; the banner and the hero "+
+			"would contradict each other on the same page", got.State, shared.HealthFail)
+	}
+	if got.Reason != shared.HealthReasonPanic {
+		t.Errorf("demo health reason under panic = %q, want %q; not_enforcing would send a "+
+			"reader hunting a kernel that lost its rules", got.Reason, shared.HealthReasonPanic)
+	}
+
+	// And back again, so this does not pass on a demo that answers fail always.
+	if resp := d.Send(shared.Command{Type: shared.CmdResume}); !resp.Success {
+		t.Fatalf("RESUME failed: %s", resp.Error)
+	}
+	resp = d.Send(shared.Command{Type: shared.CmdGetHealth})
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthOK {
+		t.Errorf("demo health state after resume = %q, want %q", got.State, shared.HealthOK)
 	}
 }
 

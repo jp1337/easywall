@@ -98,6 +98,13 @@ type Firewall struct {
 	// persisted baseline the next delta is measured from. Written by the ticker
 	// Daemon.Start launches and by apply(), read by GET_USAGE.
 	usage *UsageStore
+
+	// stamp owns DataDir/selftest.json: what the self-test last proved, and
+	// against which version and kernel. Read by Health, written by the proof.
+	// Never nil — NewFirewall always builds one, and Read answers a missing
+	// file with the zero stamp, which is what an installation whose proof has
+	// not run looks like.
+	stamp *StampStore
 }
 
 // ErrApplyInProgress is returned when an apply is asked for while a cycle is
@@ -182,6 +189,7 @@ func NewFirewall(cfg *Config) (*Firewall, error) {
 		reconcilePoll: 2 * time.Second,
 		reconcileWait: 90 * time.Second,
 		usage:         NewUsageStore(cfg.UsagePath()),
+		stamp:         NewStampStore(cfg.SelftestStampPath()),
 	}
 	f.lastApply = readLastApply(cfg.LastApplyPath())
 	return f, nil
@@ -457,6 +465,25 @@ func (f *Firewall) apply(user string) error {
 		f.rollback(state, user)
 		return ErrPanicEngaged
 	}
+
+	// What the expression check found about the rules that just went in, if it
+	// found anything. checkBuilt never refuses a write — a layer that stops
+	// filtering when it is unsure is the failure everConfigured exists to avoid
+	// — so it logs to the journal and degrades the health state, and until this
+	// entry the audit log, which is the record an operator greps after an
+	// incident, said the apply had simply succeeded.
+	//
+	// After the panic check, for the same reason recordAppliedConfig is: a
+	// teardown means nothing went in, so there is nothing in the kernel for a
+	// finding to be about.
+	//
+	// Not covered by a test at this call site, and stated rather than left to be
+	// discovered: f.nft is a concrete *NftablesManager, and Apply cannot reach
+	// this line without a kernel to flush to, so deleting the call below turns
+	// nothing red under `go test ./internal/...`. What is covered is the
+	// function — TestAuditBuildFindings pins the entry, its detail and the
+	// omission when there is nothing to report.
+	auditBuildFindings(f.cfg.AuditLogPath(), f.nft.LastFindings(), user)
 
 	// The kernel has the rules; record the configuration that went in with them.
 	// After the panic check above, because a teardown means nothing went in.

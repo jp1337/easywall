@@ -904,6 +904,54 @@ indented, so the eye reads container-then-contents instead of two rows of equal-
 The first group carries no border — it follows the ungrouped Home and Overview links, not
 another group, and a rule there divided nothing.
 
+### Measure
+
+**Explanatory body text is capped, in `ch`, and the cap is never `none`.** A sentence an
+operator reads gets a ceiling on its measure, stated in `ch` so it follows the loaded face
+rather than a viewport. Tables and data are not text and take no cap — that is the Layout
+section's rule and it stands. The ceiling is per element, and every one of them is between
+52 and 68:
+
+| Element | Cap | What it carries |
+|---|---|---|
+| `.hero-note`, `.verdict-note` | 60ch | The sentence explaining a state, on the dashboard and on the apply screen. Translated, and unbounded in length |
+| `.apply-lead` | 52ch | The lead-in above the three-step sequence, one authored paragraph per verdict |
+| `.page-subtitle` | 68ch | One authored line of orientation under the page title. It binds: German `apply_subtitle` is 107 characters and wraps |
+
+**Added 2026-09-09, from a measurement rather than a reading.** `.hero-note` and
+`.verdict-note` had no cap at all, and this document had no rule for them to violate — the
+gap was here, not in the stylesheet. `.hero-note` used to carry `dashboard_hero_active`, 46
+characters, and a measure nobody had to think about. 2.17 put the health reason in it.
+Rendered on `/dashboard` at a 1920px viewport the note measured **927px, carrying 151
+characters on one line** — roughly 143 characters of prose. The guidance is under 80.
+German is worse: `health_reason_stateful_dead` is 177 characters.
+
+**60ch is the largest cap whose longest rendered line stays under 80 characters.** Measured
+in Chromium over every string those two selectors can carry, in every locale that ships,
+counting the characters in each line box the browser actually produced. Both selectors set
+at 13px, so the pixel column is that size:
+
+| Cap | Renders at | Longest line |
+|---:|---:|---:|
+| 52ch | 416px | 69 chars |
+| 56ch | 448px | 74 chars |
+| 58ch | 464px | 75 chars |
+| **60ch** | **480px** | **79 chars** |
+| 62ch | 496px | 82 chars |
+| 64ch | 512px | 83 chars |
+| 68ch | 544px | 85 chars |
+
+**Do not re-derive a cap from the `ch` metric.** One `ch` is the advance of `0`, and Inter
+resolves that to 8px at 13px, but prose averages nearer 6px per character. A `ch` cap is
+therefore always looser than its number reads, and the arithmetic misses by two or three
+characters — which is the whole margin here. The number to trust is the rendered one.
+
+A cap is not a width. `dashboard_hero_active` still sets at its own 285px, and the healthy
+reason still fits on one line. Nor does a cap fight the phone: 480px is wider than a whole
+390px viewport, so it never binds there. German wrapping to three lines is the cap working,
+because three short lines read better than one line of 143 characters. Verify it by
+rendering `/dashboard` and `/apply` in German, not by re-doing the arithmetic.
+
 ## Layout
 
 The frame is fixed by the `layout` tokens: a `sidebar-width` of 240px, a `topbar-height` of
@@ -1133,9 +1181,22 @@ CSS: the stylesheet once keyed on `rules_applied` and `rules_rolled_back`, names
 demo client produced, so in production no entry was ever tinted and a rolled-back apply —
 the most consequential line in the log — rendered neutral grey.
 
-Only the four `apply_*` actions carry colour, because only they describe what the firewall is
-doing: accepted is `ok`, started is `warn`, rolled back and failed are `crit`. Saving a rule
-set stages it and changes nothing that is live, so it stays neutral however important it feels.
+An action carries colour when, and only when, it says something about what the firewall is
+doing. Saving a rule set stages it and changes nothing that is live, so it stays neutral
+however important it feels. `internal/web/server.go`'s `auditActionTones` is the list, and
+`TestOnlyFirewallStatesCarryATone` holds a copy of it with the judgement written out, so an
+addition is a deliberate edit rather than a diff nobody reads.
+
+**Amended 2026-09-08.** This paragraph read *"Only the four `apply_*` actions carry colour"*
+and had been wrong for two releases: the code coloured eleven — the four applies,
+`rollback_failed`, three `boot_*`, two `panic_*` and `resume_restore_skipped` — and
+`features/audit-log.md` listed all eleven under a heading that counted them. 2.17 adds
+`health_degraded` as the twelfth. The rule was never a count of `apply_*`; it is the sentence
+above, and stating it as a list of four is what let the file go stale while remaining
+plausible. It also disagreed with the *Status* section below, which reserves nothing for
+`apply_*` in particular. `docs-tech/carried-forward.md` carries two more disagreements of
+this shape; this one is closed rather than joining them, because 2.17 is the release that
+changed the table.
 
 Timestamps display as clock time for today and `2 Jan 15:04` before that, with the full
 RFC 3339 value on the element's `title`. A log full of `2026-08-03T15:19:33+02:00` is a

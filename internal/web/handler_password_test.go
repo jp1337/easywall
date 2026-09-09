@@ -145,6 +145,16 @@ func TestConfig_PasswordChangeDoesNotRaceWithRequests(t *testing.T) {
 	s.cfg.Password = hash
 	cookie := makeAuthCookie(t, s)
 
+	// Hashed once, for the reason written out in
+	// TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount: argon2id at
+	// m=64 MiB inside a goroutine, times fifteen, is a gigabyte of live heap
+	// for the race detector to shadow, and what this test is about is
+	// SaveCredentials writing a torn pair, not the KDF.
+	newHash, err := HashPassword("anotherpassword123")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	var wg sync.WaitGroup
 	for i := 0; i < 15; i++ {
 		wg.Add(3)
@@ -159,11 +169,7 @@ func TestConfig_PasswordChangeDoesNotRaceWithRequests(t *testing.T) {
 		}()
 		go func() {
 			defer wg.Done()
-			h, err := HashPassword("anotherpassword123")
-			if err != nil {
-				return
-			}
-			_ = s.cfg.SaveCredentials("admin", h)
+			_ = s.cfg.SaveCredentials("admin", newHash)
 		}()
 	}
 	wg.Wait()

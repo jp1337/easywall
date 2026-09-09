@@ -61,7 +61,7 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/log/filter":    "an htmx fragment of the audit log page",
 		"/static/*":      "the asset handler",
 		"/schemas/*":     "the JSON schemas, served as files",
-		"/healthz":       "a probe endpoint, deliberately not in the operator docs",
+		"/healthz":       "JSON for an orchestrator, not a page — it is documented in features/health.md",
 		"/favicon.ico":   "an asset",
 		"/robots.txt":    "an asset",
 		"/.well-known/*": "an asset",

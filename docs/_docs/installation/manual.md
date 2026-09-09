@@ -34,8 +34,8 @@ GOOS=linux GOARCH=arm64 CGO_ENABLED=0 make build
 sudo make install
 ```
 
-That places the binaries in `/usr/sbin`, the assets in `/usr/share/easywall`, and both
-systemd units in `/lib/systemd/system`. It does **not** create the service user, the
+That places the binaries in `/usr/sbin`, the assets in `/usr/share/easywall`, and all
+three systemd units in `/lib/systemd/system`. It does **not** create the service user, the
 directories or the config — do that once:
 
 ```bash
@@ -102,9 +102,20 @@ sudo sed -i "s|CHANGE_ME[A-Z0-9_]*|$(openssl rand -hex 32)|" /etc/easywall/web.t
 ## Start
 
 ```bash
+sudo systemctl enable      easywall-selftest
 sudo systemctl enable --now easywall-core easywall-web
 systemctl status easywall-core easywall-web     # both should be active (running)
 ```
+
+`easywall-selftest` is enabled, never started by hand:
+
+| | |
+|---|---|
+| What it is | a `oneshot` unit ordered `Before=easywall-core` |
+| What it does | proves the rule builder against the running kernel |
+| How often | only when the version or the kernel has changed |
+| Why it is separate | it is the only unit holding `CAP_SYS_ADMIN`, which building its throwaway network namespace needs |
+| If it fails | nothing. The core starts anyway; `easywall-core health` says what it found |
 
 Open `https://<server>:12227`, accept the self-signed certificate, and complete the
 setup wizard.
@@ -113,8 +124,10 @@ setup wizard.
 
 ```bash
 sudo systemctl disable --now easywall-core easywall-web
+sudo systemctl disable easywall-selftest
 sudo rm -f /lib/systemd/system/easywall-core.service \
-           /lib/systemd/system/easywall-web.service
+           /lib/systemd/system/easywall-web.service \
+           /lib/systemd/system/easywall-selftest.service
 sudo systemctl daemon-reload
 
 sudo rm -f  /usr/sbin/easywall-core /usr/sbin/easywall-web

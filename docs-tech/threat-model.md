@@ -194,6 +194,38 @@ cannot insert an address, cannot change what `peerIP` recorded, and can move
 verdict, not anyone else's login line. That asymmetry is the whole argument for
 reading an untrusted header here, and it is why nothing else in the process does.
 
+### `/healthz` reads the peer, and `resolveClient` is not what it calls
+
+2.17 adds `GET /healthz`, the one route that answers without a session — an
+orchestrator holds none. What keeps it closed is `health_allow`, loopback by
+default, and it is matched against `peerIP` alone.
+
+`resolveClient` must not be used there, and the reason is the asymmetry above
+read in reverse. Everything that walk feeds is a *record* — the audit log's
+address, the lockout verdict, the rate-limit bucket — where believing a trusted
+proxy's header is the point. `health_allow` is a *decision about access*, and
+run through the walk, `X-Forwarded-For: 127.0.0.1` from anything behind a listed
+proxy would resolve to loopback and open the endpoint. The helper is one call
+away from `handleHealthz` and looks like the obvious thing to reuse, so the
+guard is a test rather than a comment: `TestHealthzIgnoresForwardingHeaders`
+asserts both directions — a forged loopback header from a remote peer stays 404,
+and a real loopback peer is not talked out of it by a header naming someone else.
+
+404 and not 403, because not confirming the endpoint exists costs nothing when
+whoever is allowed gets the real answer. `degraded` answers 200: a `HEALTHCHECK`
+that restarted the container for it would restart a working firewall.
+
+**What the body carries is part of the gate.** `HealthResult` is a reduced type
+because this route is unauthenticated: no rule detail, no counter values, no
+finding text. The reduction was one field short until the 2.17 review — a live
+container answered `"kernel":"7.2.3-ogc3.1.fc44.x86_64"`, the host's exact
+release, to anyone on `health_allow`. `writeHealth` now drops it at the
+endpoint, so the field survives for the authenticated dashboard and leaves the
+unauthenticated reply. That matters because the documented `health_allow`
+examples widen the list to a monitoring subnet: an operator following them
+would otherwise publish the release a hardening guide exists to hide, to a
+whole /24, with no credential.
+
 ## Rate limiting
 
 `LoginRateLimit`: a token bucket per resolved client, 5 tokens refilling one every

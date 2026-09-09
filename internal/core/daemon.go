@@ -217,6 +217,36 @@ func (d *Daemon) Start() error {
 
 	slog.Info("daemon listening", "socket", d.cfg.SocketPath)
 
+	// Type=notify. Under Type=simple the unit was active (running) the instant
+	// exec succeeded, which is before every line above this one — so
+	// easywall-web.service's After=easywall-core.service was satisfied by a core
+	// whose socket did not exist yet, and the web process reported an
+	// unreachable core on every page until it happened to retry late enough.
+	//
+	// This is the last statement before the accept loop for a reason: what
+	// Type=notify asserts is not "the process started" but "the socket is there
+	// and has the ownership the easywall group needs", which is only true after
+	// the chmod and the chown above. Moving it earlier would put back the exact
+	// race it was added to close, and the failure would look like an
+	// intermittently unreachable core on slow hosts.
+	NotifyReady()
+
+	// The watchdog, and deliberately not a bare ticker — see pingWatchdog for
+	// what "answering" is taken to mean and what was rejected. It returns
+	// immediately when the unit has no WatchdogSec=, which is every install
+	// before this release and every non-systemd host, so the goroutine is not
+	// even started in that case.
+	//
+	// track rather than a bare Add, for the reason given on track: this Add can
+	// be the transition from zero on a daemon whose Docker coexistence is off
+	// and whose usage.interval is 0, and Stop's Wait runs on another goroutine.
+	if every := WatchdogInterval(); every > 0 && d.track() {
+		go func() {
+			defer d.wg.Done()
+			d.pingWatchdog(every)
+		}()
+	}
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -298,6 +328,75 @@ func (d *Daemon) track() bool {
 	default:
 		d.wg.Add(1)
 		return true
+	}
+}
+
+// pingWatchdog resets systemd's watchdog timer for as long as the daemon can be
+// shown to be answering, and stops the moment it cannot. Returns when Stop
+// closes d.quit.
+//
+// **What "answering" means here, exactly**: this goroutine is still being
+// scheduled, and d.mu can be acquired — the mutex Start takes to install the
+// listener, Stop takes to take it away, and track takes for every piece of work
+// the daemon starts. That is a narrower claim than "a client would get a reply",
+// and it is narrower on purpose.
+//
+// Rejected: dialling d.cfg.SocketPath and sending a real command. It is the only
+// thing that would prove a reply end to end, and it buys that with two costs a
+// firewall daemon cannot pay. A command can queue behind an apply's nft
+// subprocess for up to NftTimeout — thirty seconds, per NftablesManager's own
+// comment — so a perfectly healthy core in the middle of `nft -f` would miss its
+// pings and be killed and restarted mid-apply, by the watchdog, on the one
+// process on the machine that must not be interrupted there. And a probe
+// connection that cannot be answered goes through handleConn, which logs: one
+// line per interval for the life of a misconfigured install, which is the
+// failure mode notify() refuses.
+//
+// What is left is still not a bare ticker, which is the thing that would be
+// dishonest: a ticker alone satisfies systemd for ever regardless of the
+// process's state, and that is the one failure a watchdog exists to catch. This
+// stops pinging on a runtime that has stopped scheduling this goroutine at all —
+// a total deadlock, thread exhaustion, an unbounded GC — and on a Stop or a
+// track wedged holding d.mu. It does **not** catch a hung nft subprocess; the
+// health check added in this release is what reports that, and it reports it to
+// an operator rather than to a killer.
+func (d *Daemon) pingWatchdog(every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+
+	// Two consecutive failures, not one, and the counter is here rather than a
+	// wider TryLock timeout.
+	//
+	// A critical section on d.mu is a few field reads, so a single failed
+	// TryLock is far more likely to be an unlucky sample than a wedge — and
+	// skipping on it would put the daemon's life on a boundary it cannot win.
+	// The interval is WatchdogSec/2, so a ping at t=0 and one skipped at t=30
+	// puts the next attempt at t=60+ε against a deadline of exactly t=60, and Go
+	// tickers drift late rather than early. This comment used to claim "one
+	// missed ping costs nothing at all", which was a margin that did not exist.
+	//
+	// Stopping on the second consecutive failure says what was meant: a wedge,
+	// not one sample. It keeps the last ping at most one interval old whenever
+	// the daemon is merely contended, and a real wedge still loses every ping
+	// from the second one on — so systemd kills it one interval later than it
+	// otherwise would, which on a 60s watchdog is 90s instead of 60s.
+	missed := 0
+
+	for {
+		select {
+		case <-d.quit:
+			return
+		case <-t.C:
+			if d.mu.TryLock() {
+				d.mu.Unlock()
+				missed = 0
+			} else {
+				missed++
+			}
+			if missed < 2 {
+				NotifyWatchdog()
+			}
+		}
 	}
 }
 
@@ -587,6 +686,13 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 			return errResp(err)
 		}
 		data, _ := json.Marshal(usage)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdGetHealth:
+		// No error path: Health() logs a counter read that failed rather than
+		// returning one, because an unreadable counter is a different signal
+		// from a broken firewall — see computeHealth's counter branch.
+		data, _ := json.Marshal(d.firewall.Health())
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdPanic:

@@ -356,6 +356,42 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return demoOK(shared.AppliedConfigResult{Recorded: true, Config: d.appliedConfig})
 	case shared.CmdGetUsage:
 		return demoOK(d.usage)
+	case shared.CmdGetHealth:
+		// The demo has no network namespace to run the self-test's four claims
+		// in — see internal/core/netns.go — so answering "passed" would claim a
+		// proof this process never ran, and /healthz is unauthenticated: that
+		// claim would reach anyone who asks, in the shipped public demo.
+		// "unprovable" is the honest answer, and computeHealth treats it as ok
+		// rather than degraded — the same reasoning that keeps an ordinary
+		// installation without CAP_SYS_ADMIN from reporting itself broken.
+		//
+		// The state itself follows panicMode, because the alternative is the
+		// demo contradicting itself on one screen: statusLocked reports
+		// Active: !panicMode and the interface draws the panic banner over every
+		// page, and this answered ok/healthy underneath it.
+		//
+		// fail with reason panic is what computeHealth returns for the same
+		// machine, and both halves matter. fail rather than degraded because a
+		// panicked host is not filtering at all — Firewall.Panic leaves an empty
+		// input chain and Enforcing() reports that as not enforcing, so the
+		// answer comes out of computeHealth's first branch. panic rather than
+		// not_enforcing because that branch names the cause from the marker: a
+		// human took the rules away and a reboot will not bring them back. The
+		// demo has to say exactly what a real host says, or it is not worth
+		// rendering a review against.
+		res := shared.HealthResult{
+			State:  shared.HealthOK,
+			Reason: shared.HealthReasonHealthy,
+			Selftest: shared.HealthSelftest{
+				Version: shared.CurrentVersion,
+				Result:  shared.SelftestUnprovable,
+				At:      time.Now(),
+			},
+		}
+		if d.panicMode {
+			res.State, res.Reason = shared.HealthFail, shared.HealthReasonPanic
+		}
+		return demoOK(res)
 	case shared.CmdSaveSystem:
 		return d.handleSaveSystem(cmd.Payload)
 	case shared.CmdGetLog:
