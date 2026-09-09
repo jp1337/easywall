@@ -377,6 +377,25 @@ func (h *Harness) readLine(timeout time.Duration) (string, error) {
 // that can fail with the peer already visible in this namespace, and the kernel
 // has accepted IFLA_NET_NS_PID inside VETH_INFO_PEER since veth existed.
 func createVethPair(c *netlink.Conn, routerIf, peerIf string, peerPID int) error {
+	// The bound is not defensive noise. IFLA_NET_NS_PID names the namespace one
+	// end of this pair is moved into, this runs inside the process holding
+	// CAP_NET_ADMIN, and peerPID is an int that arrives from
+	// cmd.Process.Pid — which is -1 once the process has been waited for, and 0
+	// on a Cmd that was never started. A plain uint32(peerPID) turns -1 into
+	// 4294967295 and hands the kernel a namespace nobody asked for, silently.
+	// gosec reported that as G115 on the conversion below, and it is the rare
+	// G115 that names a real bug rather than a width complaint: .golangci.yml
+	// excludes the rule, so only the standalone gosec in security.yml ever said
+	// so, and only through code scanning.
+	//
+	// 1<<22 is Linux's PID_MAX_LIMIT on 64-bit: pid_max cannot be raised past
+	// it, so no live process can carry a larger pid and this ceiling cannot
+	// refuse a valid peer. That matters more than the width: a check that
+	// rejected a good pid would make every self-test report "unprovable", which
+	// is the failure mode this release exists to remove.
+	if peerPID <= 0 || peerPID > 1<<22 {
+		return fmt.Errorf("the peer's pid is %d, which cannot name a namespace", peerPID)
+	}
 	peer := netlink.NewAttributeEncoder()
 	peer.String(unix.IFLA_IFNAME, peerIf)
 	peer.Uint32(unix.IFLA_NET_NS_PID, uint32(peerPID))
