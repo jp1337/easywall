@@ -94,6 +94,19 @@ func TestCheckRejectsACtStateBitTheKernelDoesNotDefine(t *testing.T) {
 // state load anywhere. A count written into the register the mask goes on to
 // read is not a ct-state comparison at all, and reporting it as a broken one
 // would be a false alarm in a gate that fails the build.
+//
+// Both fixtures carry the *byte-reversed* mask, and the second one has to.
+// Written with a native mask it produced no finding under either
+// implementation — the mask is correct, so there is nothing to report whatever
+// precededByCtState answers — and the assertion could not see the false
+// positive it exists to prevent: the whole test passed against the bare
+// `continue`. That made this the eleventh guard in this release green for the
+// wrong reason, and the third turn of the same screw: the original defect was
+// a unit test recording the reversed mask as expected output, Task 10's
+// substring-guard helper was itself a substring guard, and this was the test
+// written to pin a fix for a guard green for the wrong reason, blind to the
+// thing it was written for. Reversing the mask is the whole difference: the
+// register scoping is now the only reason the second case reports nothing.
 func TestCheckSeesPastASecondConntrackLoad(t *testing.T) {
 	rule := func(second *expr.Ct, mask []byte) *nftables.Rule {
 		return &nftables.Rule{
@@ -114,7 +127,6 @@ func TestCheckSeesPastASecondConntrackLoad(t *testing.T) {
 	}
 
 	reversed := binaryutil.BigEndian.PutUint32(ctStateEstablished | ctStateRelated)
-	native := binaryutil.NativeEndian.PutUint32(ctStateEstablished | ctStateRelated)
 
 	// A count loaded into another register leaves register 1 holding the state,
 	// so the reversed mask is still this check's business.
@@ -126,9 +138,10 @@ func TestCheckSeesPastASecondConntrackLoad(t *testing.T) {
 	}
 
 	// The same load into register 1 overwrites the state, so the mask is not a
-	// ct-state comparison and must not be judged as one.
+	// ct-state comparison and must not be judged as one — even though those four
+	// bytes would be a defect if it were.
 	if findings := CheckRules([]*nftables.Rule{
-		rule(&expr.Ct{Register: 1, Key: expr.CtKeyPKTS}, native)}, nil); len(findings) != 0 {
+		rule(&expr.Ct{Register: 1, Key: expr.CtKeyPKTS}, reversed)}, nil); len(findings) != 0 {
 		t.Errorf("findings = %+v, want none: the mask reads a packet count, not a "+
 			"conntrack state, and a false alarm in a gate that fails the build is how "+
 			"the gate gets switched off", findings)
@@ -394,54 +407,65 @@ func TestAuditBuildFindings(t *testing.T) {
 // directly", so a strings.Contains guard would match the sentence describing
 // the thing it is checking and pass. Six of the nine guards this release found
 // green for the wrong reason failed exactly that way.
+//
+// Every non-test source in the package, not nftables.go alone. A guard whose
+// scope is one filename is one commit away from being wrong about its own
+// subject — the same reasoning coreSources carries, which was widened after
+// naming firewall.go and restore.go made it blind to a third writer of the
+// table. A builder in a sibling file is exactly as invisible to layer B.
+//
+// What it still does not see is carried in carried-forward.md: `cn := m.conn`
+// followed by `cn.AddRule(…)` has no `.conn.AddRule` selector left to match,
+// and refusing it needs type resolution rather than syntax.
 func TestEveryRuleIsAddedThroughTheRecordingAdder(t *testing.T) {
-	const file = "nftables.go"
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, file, nil, 0)
-	if err != nil {
-		t.Fatalf("parse %s: %v", file, err)
-	}
-
 	recorders := 0
-	for _, decl := range f.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok {
-			continue
+	for file, src := range coreSources(t) {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, file, src, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", file, err)
 		}
-		// builtRecorder.AddRule is the one place that may reach the connection:
-		// it is the forwarding half of the recorder, and it has already
-		// appended to m.built by the time it gets there.
-		if fn.Name.Name == "AddRule" && receiverTypeName(fn) == "builtRecorder" {
-			recorders++
-			continue
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			// builtRecorder.AddRule is the one place that may reach the
+			// connection: it is the forwarding half of the recorder, and it has
+			// already appended to m.built by the time it gets there.
+			if fn.Name.Name == "AddRule" && receiverTypeName(fn) == "builtRecorder" {
+				recorders++
+				continue
+			}
+			ast.Inspect(fn, func(n ast.Node) bool {
+				// A selector rather than a call, so a method value —
+				// `add := m.conn.AddRule` — is refused as well as a call.
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "AddRule" {
+					return true
+				}
+				inner, ok := sel.X.(*ast.SelectorExpr)
+				if !ok || inner.Sel.Name != "conn" {
+					return true
+				}
+				t.Errorf("%s:%d: .conn.AddRule in %s; every rule must be added through "+
+					"m.adder, because CheckRules reads m.built and only "+
+					"builtRecorder.AddRule fills it — a rule added straight to the "+
+					"connection reaches the kernel unchecked by layer B, and invisible "+
+					"to the integration gate and to LastFindings",
+					file, fset.Position(sel.Pos()).Line, fn.Name.Name)
+				return true
+			})
 		}
-		ast.Inspect(fn, func(n ast.Node) bool {
-			// A selector rather than a call, so a method value —
-			// `add := m.conn.AddRule` — is refused as well as a call.
-			sel, ok := n.(*ast.SelectorExpr)
-			if !ok || sel.Sel.Name != "AddRule" {
-				return true
-			}
-			inner, ok := sel.X.(*ast.SelectorExpr)
-			if !ok || inner.Sel.Name != "conn" {
-				return true
-			}
-			t.Errorf("%s:%d: .conn.AddRule in %s; every rule must be added through "+
-				"m.adder, because CheckRules reads m.built and only "+
-				"builtRecorder.AddRule fills it — a rule added straight to the "+
-				"connection reaches the kernel unchecked by layer B, and invisible "+
-				"to the integration gate and to LastFindings",
-				file, fset.Position(sel.Pos()).Line, fn.Name.Name)
-			return true
-		})
 	}
 
-	// Not finding builtRecorder.AddRule means this walk skipped nothing, which
-	// means it is reading a file that no longer has the recorder in it — the
-	// one way a guard built around an exemption passes by inspecting nothing.
+	// Not finding builtRecorder.AddRule means this walk skipped nothing across
+	// the whole package, which means it is reading a corpus that no longer has
+	// the recorder in it — the one way a guard built around an exemption passes
+	// by inspecting nothing. coreSources has its own floor on the file count.
 	if recorders != 1 {
-		t.Fatalf("found %d builtRecorder.AddRule declarations in %s, want 1: this guard "+
-			"is inspecting the wrong thing", recorders, file)
+		t.Fatalf("found %d builtRecorder.AddRule declarations in internal/core, want 1: "+
+			"this guard is inspecting the wrong thing", recorders)
 	}
 }
 

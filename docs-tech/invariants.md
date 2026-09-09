@@ -275,7 +275,7 @@ firewall active.
 | `TestCheckRejectsAByteReversedCtStateMask`, `TestCheckAcceptsTheNativeCtStateMask`, `TestCheckRejectsACtStateBitTheKernelDoesNotDefine` | a conntrack mask is compared against the kernel's native-endian value before it reaches netlink | the defect itself, for five releases. `nft list ruleset` printed the rule correctly, because the byte order is invisible in the rendered form |
 | `TestCheckKnowsEveryVerdictKindTheLibraryDefines` | every `expr.VerdictKind` the library defines is classified | the switch listed eight of eleven while this release was being planned, which would have reported `stolen`, `repeat` and `stop` as verdicts the kernel does not define — a false positive in a gate that fails the build, and a gate that cries wolf gets switched off |
 | `TestCheckNamesEveryJumperToAMissingChain`, `TestCheckReportsTheRulePositionItIsAbout` | a finding names every jump site and the rule index it is about | two chains jumping to one missing target produced a single finding naming whichever was added last, and `Finding.Index` was a plain zero — so a jump at input rule 3 was audited as "input rule 0" and sent the reader to the wrong builder |
-| `TestEveryRuleIsAddedThroughTheRecordingAdder` | no function in `nftables.go` reaches `.conn.AddRule` except `builtRecorder.AddRule` | `CheckRules` reads `m.built`, and only the recorder fills it. The review wrote a 2.18-shaped builder the pre-`c4dab40` way — `m.conn.AddRule` with a big-endian `ctStateNew` — and got `ct state 0x8000000` into a live kernel table with `make test` green, the integration gate green and `LastFindings()` empty. The gate's three defences all survive it: `checksRun` is still 2, the `len(m.built)` floor is met by the other rules, and the findings loop never sees the rule. An AST walk, because `nftables.go`'s own comment names `m.conn.AddRule` and a substring guard would match it |
+| `TestEveryRuleIsAddedThroughTheRecordingAdder` | no function in any non-test source of `internal/core` carries a `.conn.AddRule` selector, except `builtRecorder.AddRule`. **The selector, not the intent** — a local copy of the connection is carried in `carried-forward.md` | `CheckRules` reads `m.built`, and only the recorder fills it. The review wrote a 2.18-shaped builder the pre-`c4dab40` way — `m.conn.AddRule` with a big-endian `ctStateNew` — and got `ct state 0x8000000` into a live kernel table with `make test` green, the integration gate green and `LastFindings()` empty. The gate's three defences all survive it: `checksRun` is still 2, the `len(m.built)` floor is met by the other rules, and the findings loop never sees the rule. An AST walk, because `nftables.go`'s own comment names `m.conn.AddRule` and a substring guard would match it |
 | `TestEstablishedRuleIsTaggedAndCounted` | the established-accept rule carries an `expr.Counter` and a reserved id comment | it carried neither, and `RuleCounters` skips every rule without an id — so the one counter that is a health signal was invisible to every counter easywall reads |
 | `TestReservedRuleIDsNeverReachUsage`, `TestReservedRuleIDsWrittenByAnOlderVersionArePruned` | a reserved id is easywall's own accounting and never books as a port rule | dropping `IsReservedRuleID` from `Collect`'s prune loop books `_established` as a port: *Last used* gains a phantom entry that no rules file can ever delete |
 | `TestSelftestFailedOutranksUnprovableInEveryOrder`, `TestSelftestUnprovableOnlyWhenNothingSettled` | a disproved claim outranks every claim that could not be settled, whatever the list order | `RunSelftest` returned at the first unsettled claim. Claims 3 and 4 use the open port as their control, so a genuinely broken port rule left them unable to settle — and listing claim 3 first turned a broken firewall into *"this host cannot be asked"*. Two lines away, and the exact inversion this release exists to remove |
@@ -294,10 +294,10 @@ firewall active.
 | `TestWatchdogIntervalIsHalfOfWhatSystemdAsksFor`, `TestPingWatchdog_TheFirstFailedTryLockStillPingsAndOnlyTheFirst`, `TestDaemonStart_TheWatchdogStopsOnAWedgeAndResumesAfterIt` | the ping interval is `WatchdogSec/2`, and one contended tick is forgiven rather than latching | the interval is the margin: a ping at t=0 and a skip at t=30 puts the next attempt at t=60+ε against a deadline of exactly t=60, which a Go ticker drifting late loses. Systemd then kills a daemon that answers perfectly well |
 | `TestTheCIProofGateIsStillWiredUp` | `EASYWALL_REQUIRE_SELFTEST` is spelled the same in `selftest_required_test.go` and `test.yml` | renaming it in one place disables the gate entirely and nothing notices: the suite goes back to skipping politely and the tick stays green — the exact failure the gate exists to catch, one level further out. Checked from `internal/shared` because a guard behind the `integration` tag is not run by `make test` |
 
-## Four ways a guard is green for the wrong reason
+## Five ways a guard is green for the wrong reason
 
-Nine guards in this release were green for the wrong reason. Six had one cause,
-and it is a cause this repository manufactures for itself:
+Eleven guards in this release were green for the wrong reason. Six had one
+cause, and it is a cause this repository manufactures for itself:
 
 > In a repository whose comments name everything they protect, a substring guard
 > over a file that contains comments is unreliable by construction. Skip
@@ -357,6 +357,36 @@ unset, `TestIntegration_SelftestProvesTheRemainingThreeClaims` printed
 `--- PASS` above three `--- SKIP` lines and the package reported `ok`. Reading
 the tail of a CI log is not enough; that is what `EASYWALL_REQUIRE_SELFTEST`
 turns into a `t.Fatal`.
+
+**A fixture both implementations agree on.** The assertion is written, reads
+correctly, and cannot see the thing it was written for — because the input
+produces the same answer either way.
+
+> A test pins a decision only if some reachable implementation of it is red.
+> Mutate, and read *which* assertion fired.
+
+`TestCheckSeesPastASecondConntrackLoad`'s second case is the eleventh, and it
+was written in this release's own fix wave to pin the fix for one of the other
+ten. It asserts that `Ct{r1,STATE}, Ct{r1,PKTS}, Bitwise` produces no finding —
+the false positive that a bare `continue` past a non-matching `Ct` would
+introduce. Its fixture carried a *native* mask, which produces no finding under
+either implementation, so the whole test passed against the very code it
+claimed to forbid. One identifier — the mask reversed — and the register
+scoping became the only reason it reports nothing.
+
+| fixture | shipped | bare `continue` |
+|---|---|---|
+| `Ct{r2,PKTS}` + reversed mask | 1 finding | 1 finding |
+| `Ct{r1,PKTS}` + **reversed** mask | 0 findings | **1 — the false positive** |
+| `Ct{r1,PKTS}` + native mask | 0 findings | 0 findings |
+
+Three deep, in one release, and worth stating as the pattern rather than the
+anecdote: the original defect was a unit test recording the reversed mask as
+expected output; the helper written to close the substring guards was itself a
+substring guard; and this was the test written to pin a fix for a guard green
+for the wrong reason, blind to what it existed for. **The failure reproduces
+inside its own correction each time.** Which is why a mutation report names the
+assertion that fired, not the package that failed.
 
 Three things in the tooling around this release reported success while doing
 nothing, which is the same shape as the defect one layer down: `supervisorctl`
