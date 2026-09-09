@@ -2,6 +2,9 @@ package core
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -313,4 +316,93 @@ func TestAuditBuildFindings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The recording adder is the only door to the connection.
+//
+// CheckRules reads m.built, and only builtRecorder.AddRule fills it. All
+// thirty-one existing builders go through m.adder — and nothing stopped a
+// thirty-second from calling m.conn.AddRule directly, which is what every
+// builder in this file looked like before c4dab40, so it is the shape a
+// copy-paste out of git history produces.
+//
+// The review measured what that costs. A 2.18-shaped builder written the
+// pre-2.17 way, carrying binaryutil.BigEndian.PutUint32(ctStateNew) — the mask
+// class of the original defect — left `go test ./internal/...` green, the
+// integration gate green, m.LastFindings() empty, and `ct state 0x8000000` in
+// the live kernel table. All three layers reported success, and the gate's own
+// three defences survived it intact: checksRun was still 2, the len(m.built)
+// floor was met by the other rules, and the findings loop never saw the rule.
+// A rule that leaves m.built leaves every layer of this release.
+//
+// The AST and not a substring, and this file's own subject is why:
+// nftables.go carries the comment "Thirty-one builders called m.conn.AddRule
+// directly", so a strings.Contains guard would match the sentence describing
+// the thing it is checking and pass. Six of the nine guards this release found
+// green for the wrong reason failed exactly that way.
+func TestEveryRuleIsAddedThroughTheRecordingAdder(t *testing.T) {
+	const file = "nftables.go"
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", file, err)
+	}
+
+	recorders := 0
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		// builtRecorder.AddRule is the one place that may reach the connection:
+		// it is the forwarding half of the recorder, and it has already
+		// appended to m.built by the time it gets there.
+		if fn.Name.Name == "AddRule" && receiverTypeName(fn) == "builtRecorder" {
+			recorders++
+			continue
+		}
+		ast.Inspect(fn, func(n ast.Node) bool {
+			// A selector rather than a call, so a method value —
+			// `add := m.conn.AddRule` — is refused as well as a call.
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "AddRule" {
+				return true
+			}
+			inner, ok := sel.X.(*ast.SelectorExpr)
+			if !ok || inner.Sel.Name != "conn" {
+				return true
+			}
+			t.Errorf("%s:%d: .conn.AddRule in %s; every rule must be added through "+
+				"m.adder, because CheckRules reads m.built and only "+
+				"builtRecorder.AddRule fills it — a rule added straight to the "+
+				"connection reaches the kernel unchecked by layer B, and invisible "+
+				"to the integration gate and to LastFindings",
+				file, fset.Position(sel.Pos()).Line, fn.Name.Name)
+			return true
+		})
+	}
+
+	// Not finding builtRecorder.AddRule means this walk skipped nothing, which
+	// means it is reading a file that no longer has the recorder in it — the
+	// one way a guard built around an exemption passes by inspecting nothing.
+	if recorders != 1 {
+		t.Fatalf("found %d builtRecorder.AddRule declarations in %s, want 1: this guard "+
+			"is inspecting the wrong thing", recorders, file)
+	}
+}
+
+// receiverTypeName is the receiver's type name, pointer or not, and "" for a
+// function that has no receiver.
+func receiverTypeName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return ""
+	}
+	t := fn.Recv.List[0].Type
+	if star, ok := t.(*ast.StarExpr); ok {
+		t = star.X
+	}
+	if id, ok := t.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
 }
