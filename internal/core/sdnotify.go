@@ -71,6 +71,14 @@ func notify(state string) {
 	// this daemon can reach, since CLONE_NEWNET and netlink make it Linux-only by
 	// construction, and speculative code is what this repository's own rules
 	// reject. The knowledge is worth keeping; the branch was not.
+	//
+	// #nosec G704 -- gosec's taint analysis reads any dial target that came from
+	// the environment as attacker-controlled. Three things make it not one here:
+	// $NOTIFY_SOCKET is set by systemd in the service's own environment and no
+	// request can reach it; "unixgram" is a filesystem socket, so there is no
+	// host, no port and no route for a request to be smuggled out over; and this
+	// process is already root, so anyone able to set that variable in it could
+	// do anything the daemon can do without needing this line at all.
 	conn, err := net.Dial("unixgram", addr)
 	if err != nil {
 		return
