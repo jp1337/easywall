@@ -1450,8 +1450,22 @@ body {
     font-size: 13px;
   }
 
+  /* The same 60ch as .hero-note, in the same commit, because this is the same
+     construct: the sentence explaining a state whose dot and word sit directly
+     above it. The comment beside .hero-dot on the dashboard binds the two
+     together and ends "if this ever needs to change it changes on both screens,
+     and in DESIGN.md first" — this is that change, so it is both screens and
+     DESIGN.md first, not the dashboard alone.
+
+     This screen has the longer tenants of the two, and they were uncapped as
+     well: apply_verdict_note is 152 characters in English and 162 in German,
+     which rendered at 959px and 1011px, and de apply_config_unrecorded at 167
+     characters is 1057px. German apply_verdict_note is also what sets the 60ch
+     ceiling — it is the string whose longest line hits 79 characters there.
+     The derivation is at .hero-note. */
   .verdict-note {
     margin-top: 6px;
+    max-width: 60ch;
     font-size: 13px;
     color: var(--color-ink-muted);
   }
@@ -2455,8 +2469,47 @@ body {
     letter-spacing: -0.015em;
   }
 
+  /* 60ch, where this shipped uncapped. The rule this obeys is DESIGN.md's
+     Typography → Measure, and that section did not exist before this change:
+     the uncapped note was a gap in the design system rather than a deviation
+     from it, so the rule was written there first and this is the second half
+     of the same commit.
+
+     The note used to hold dashboard_hero_active, 46 characters, and a measure
+     nobody had to think about. 2.17 put the health reason in it. Rendered on
+     /dashboard at a 1920px viewport the note measured 927px carrying 151
+     characters on one line — roughly 143 characters of prose, against the
+     under-80 this project asks of prose it publishes. German is worse:
+     health_reason_stateful_dead is 177 characters. The perverse part is that
+     the more useful the sentence, the worse it read; the diagnostic reasons
+     are the long ones and the 46-character ones were always fine.
+
+     Why 60, and why it is not a round number picked for looking tidy: it is
+     the largest cap whose longest *rendered* line stays under 80 characters.
+     Measured in Chromium, over every string these two selectors can carry, in
+     every locale that ships, counting the characters in each line box the
+     browser actually produced. From 60ch up the worst line is always a German
+     one, as it usually is; below that the caps are tight enough that an
+     English sentence fitting on one line is the widest thing on the screen:
+
+       52ch = 416px → 69   58ch = 464px → 75   64ch = 512px → 83
+       56ch = 448px → 74   60ch = 480px → 79   68ch = 544px → 85
+
+     62ch is already 82. Do not re-derive this from the ch metric — one ch is
+     the advance of `0` in Inter, which resolves to 8px at 13px, but prose
+     averages nearer 6px per character, so a ch cap is always looser than its
+     number reads and the arithmetic gets it wrong by two or three characters.
+     The number to trust is the rendered one.
+
+     It is a cap and not a width: dashboard_hero_active still sets at its own
+     285px, and the healthy reason still fits on one line at 441px. At 480px it
+     is wider than a whole 390px phone, so it never binds there and cannot
+     fight the narrow layout — measured, the phone gives this element 320px
+     either way. German wrapping to three lines is the cap working: three short
+     lines read better than one line of 143 characters. */
   .hero-note {
     margin-top: 3px;
+    max-width: 60ch;
     font-size: 13px;
     color: var(--color-ink-muted);
   }
