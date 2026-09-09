@@ -261,6 +261,81 @@ is the path's designed behaviour rather than a bug the round-trip test missed.
 | `TestTheMarkedTemplatesCallTheMarker` | a template the code claims marks a key actually calls the shared provenance block | the claim and the template can drift independently — `TestEveryEnvKeyIsMarkedOrExplicitlyHasNoControl` only checks that some template is named, not that the named template still renders the marker it is credited with |
 | `TestSettingFormsSaveOnSubmitAndCanBeSubmittedWithoutAScript` | a settings form saves on submit, and has a button to submit it with | three pages posted on every `change` *and* carried a Save button that reported a write already done; the fourth, the telemetry toggle, had no button at all, so a script-free operator could move a consent switch and never store it |
 
+## The firewall proves what it says
+
+One incident produced this whole section: an operator's VPS went unreachable after
+`docker compose up -d`, and they pasted the ruleset into Discord. For five
+releases `ct state established,related accept` carried byte-reversed conntrack
+masks, so it matched no packet. The unit test covering that rule had written the
+defect down as expected output, and every surface easywall had reported the
+firewall active.
+
+| Test | Protects | What happened without it |
+|---|---|---|
+| `TestCheckRejectsAByteReversedCtStateMask`, `TestCheckAcceptsTheNativeCtStateMask`, `TestCheckRejectsACtStateBitTheKernelDoesNotDefine` | a conntrack mask is compared against the kernel's native-endian value before it reaches netlink | the defect itself, for five releases. `nft list ruleset` printed the rule correctly, because the byte order is invisible in the rendered form |
+| `TestCheckKnowsEveryVerdictKindTheLibraryDefines` | every `expr.VerdictKind` the library defines is classified | the switch listed eight of eleven while this release was being planned, which would have reported `stolen`, `repeat` and `stop` as verdicts the kernel does not define — a false positive in a gate that fails the build, and a gate that cries wolf gets switched off |
+| `TestCheckNamesEveryJumperToAMissingChain`, `TestCheckReportsTheRulePositionItIsAbout` | a finding names every jump site and the rule index it is about | two chains jumping to one missing target produced a single finding naming whichever was added last, and `Finding.Index` was a plain zero — so a jump at input rule 3 was audited as "input rule 0" and sent the reader to the wrong builder |
+| `TestEstablishedRuleIsTaggedAndCounted` | the established-accept rule carries an `expr.Counter` and a reserved id comment | it carried neither, and `RuleCounters` skips every rule without an id — so the one counter that is a health signal was invisible to every counter easywall reads |
+| `TestReservedRuleIDsNeverReachUsage`, `TestReservedRuleIDsWrittenByAnOlderVersionArePruned` | a reserved id is easywall's own accounting and never books as a port rule | dropping `IsReservedRuleID` from `Collect`'s prune loop books `_established` as a port: *Last used* gains a phantom entry that no rules file can ever delete |
+| `TestSelftestFailedOutranksUnprovableInEveryOrder`, `TestSelftestUnprovableOnlyWhenNothingSettled` | a disproved claim outranks every claim that could not be settled, whatever the list order | `RunSelftest` returned at the first unsettled claim. Claims 3 and 4 use the open port as their control, so a genuinely broken port rule left them unable to settle — and listing claim 3 first turned a broken firewall into *"this host cannot be asked"*. Two lines away, and the exact inversion this release exists to remove |
+| `TestSelftestUsesNoExternalBinary` | no subprocess in the privileged path, in **any** spelling | the guard inspected `exec.Command` and `exec.CommandContext` only. `syscall.Exec`, `syscall.ForkExec`, `os.StartProcess` and an `exec.Cmd` composite literal all start a program without naming either, and all four passed a test whose own comment forbade them |
+| `TestHealthAndStatusDisagreeUnderPanic` | `health` exits 2 under panic mode where `status` exits 0 | the divergence is a ruling, not an oversight — a console asking after *intent* is right to be quiet, a monitoring system asking after *health* is not. Unpinned it reads as a bug and gets "fixed" |
+| `TestHealthResultCarriesNoRuleDetail` | a sentinel planted in `SelftestStamp.Detail` appears nowhere in the marshalled reply, and `selftest` has exactly four keys | `/healthz` is unauthenticated by necessity and the detail names a port number. The first version forbade the substrings `12227` and `port` — see below |
+| `TestEveryHealthStateHasBothLocales`, `TestEveryHealthReasonIsListed`, `TestEveryHealthReasonHasBothLocales`, `TestEverySelftestResultHasBothLocales` | every state, reason and proof result the code can produce is listed and translated in both locales | a reason added to `computeHealth` and not to `AllHealthReasons` reaches a page with no translation, and nothing says so. The reverse direction is a dead locale key |
+| `TestTheHealthClassesAreInTheStylesheet` | every class the health rendering asks for is in the **built** stylesheet | `TestEveryTemplateClassIsInTheStylesheet` cannot see the status dot: its regex skips any `class` attribute holding a template action, and the dot is `class="hero-dot {{healthTone …}}"`. A green `npm run build:css` is not proof a rule shipped, and that has cost this repository a release already |
+| `TestEverySubcommandIsRunnable`, `TestUsageNamesEverySubcommand`, `TestASubcommandWithNoFunctionIsRefused` | the subcommand table, its usage text and its dispatch are one list | dispatch ended in `default: return runResume(...)`. With three commands that was terse; with five it means a command added to the list and forgotten in the switch silently runs `resume` — which puts the rules back on a machine somebody deliberately unfiltered |
+| `TestCommandTimeoutKeepsGetHealthShort` | `GET_HEALTH` stays in `CommandTimeout`'s default branch | it is two netlink reads and one file read, so it queues behind nothing. Moved into the long branch beside `PANIC` it becomes a thirty-five-second poll, invisible to every caller |
+| `TestHealthzIgnoresForwardingHeaders`, `TestHealthzIsLoopbackOnlyByDefault`, `TestHealthzAnEmptyListClosesItEvenToLoopback` | `health_allow` is matched against the TCP peer and never a forwarding header | 2.13's `resolveClient` walk exists so the audit log can record who signed in. Reused here, anything behind a trusted proxy reads the endpoint by writing `X-Forwarded-For: 127.0.0.1` |
+| `TestCapSysAdminIsGrantedByExactlyOneUnit` | `CAP_SYS_ADMIN` appears in `easywall-selftest.service` and nowhere else | adding it to `easywall-core.service` is a one-line diff that makes the self-test work everywhere and looks like a fix. It would widen the long-lived root daemon that holds the control socket, to buy a check that runs once per upgrade |
+| `TestEveryUnitIsInstalledAndManaged` | every `systemd/*.service` is installed by `debian/rules` **and** the Makefile, and enabled, started, stopped and disabled by the maintainer scripts | driven by the directory listing, not a hand-kept list. A unit nothing installs does not exist on a real machine — the same class as the package that shipped with no binaries. The install-verify job did not catch removing a unit from `debian/` either, and now does |
+| `TestWatchdogIntervalIsHalfOfWhatSystemdAsksFor`, `TestPingWatchdog_TheFirstFailedTryLockStillPingsAndOnlyTheFirst`, `TestDaemonStart_TheWatchdogStopsOnAWedgeAndResumesAfterIt` | the ping interval is `WatchdogSec/2`, and one contended tick is forgiven rather than latching | the interval is the margin: a ping at t=0 and a skip at t=30 puts the next attempt at t=60+ε against a deadline of exactly t=60, which a Go ticker drifting late loses. Systemd then kills a daemon that answers perfectly well |
+| `TestTheCIProofGateIsStillWiredUp` | `EASYWALL_REQUIRE_SELFTEST` is spelled the same in `selftest_required_test.go` and `test.yml` | renaming it in one place disables the gate entirely and nothing notices: the suite goes back to skipping politely and the tick stays green — the exact failure the gate exists to catch, one level further out. Checked from `internal/shared` because a guard behind the `integration` tag is not run by `make test` |
+
+## Three ways a guard is green for the wrong reason
+
+Nine guards in this release were green for the wrong reason. Six had one cause,
+and it is a cause this repository manufactures for itself:
+
+> In a repository whose comments name everything they protect, a substring guard
+> over a file that contains comments is unreliable by construction. Skip
+> comments, and anchor the needle — a quoted literal in Go, `name=` in YAML — or
+> the guard passes while the thing it guards is renamed or deleted.
+
+The seventh is the one to remember, because it was inside the helper written to
+close the sixth: the helper was itself a substring search, so it survived a
+*suffix* rename of the thing it guarded. Two characters fixed it. The generated
+usage text is the same shape from the other side — a plain search for `panic` is
+satisfied by `resume`'s own description, so deleting the panic line would have
+left the guard green.
+
+`TestHealthResultCarriesNoRuleDetail` shows the failure pointing the other way.
+It forbade the substrings `12227` and `port`, and `port` is an ordinary word
+here: a reason id reading `port_unreachable` would have turned it red for
+something that is not a leak, and whoever hit that would have weakened the
+assertion to get past it. It asserts the thing itself now — a planted sentinel,
+and an exact key set.
+
+**A mutation that hangs instead of failing.** Twice this release, and a hang in
+CI reads as nothing at all — worse than a skip, which at least prints.
+
+| | |
+|---|---|
+| `t.Cleanup` runs LIFO | `coreSocket` registered `ln.Close` before the accept-goroutine wait, so the wait ran first and blocked on an `Accept` nothing would return from. Deleting `case "health"` from the dispatch switch made every health test hang instead of fail |
+| `t.Fatalf` calls `runtime.Goexit` | a test holding a mutex whose cleanup reached `Stop` deadlocked on any failure. Fixed by moving the locked section into a closure, so `defer` covers the exit |
+
+**A parent test that reports `PASS` over skipped children.** With the CI gate
+unset, `TestIntegration_SelftestProvesTheRemainingThreeClaims` printed
+`--- PASS` above three `--- SKIP` lines and the package reported `ok`. Reading
+the tail of a CI log is not enough; that is what `EASYWALL_REQUIRE_SELFTEST`
+turns into a `t.Fatal`.
+
+Three things in the tooling around this release reported success while doing
+nothing, which is the same shape as the defect one layer down: `supervisorctl`
+did not work in the image at all, `podman build` exits 0 while producing
+`HealthCheck: null`, and `make docker` built nothing because the target shared
+its name with the `docker/` directory and was missing from `.PHONY`. All three
+were found by trying to measure rather than to assert.
+
 ## The technical documentation stays unpublished
 
 `TestTheTechnicalDocsAreNotPublished` asserts that `docs-tech/` is outside `docs/`
