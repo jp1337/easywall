@@ -223,8 +223,13 @@ func TestHealthzAnswers200AndOkFromLoopback(t *testing.T) {
 	if got.State != shared.HealthOK || got.Reason != shared.HealthReasonHealthy {
 		t.Errorf("body = %+v, want state ok and reason healthy", got)
 	}
-	if got.Selftest.Kernel != "6.1.0-test" || got.Selftest.Result != shared.SelftestPassed {
+	if got.Selftest.Version != "2.17.0" || got.Selftest.Result != shared.SelftestPassed {
 		t.Errorf("the self-test stamp did not survive: %+v", got.Selftest)
+	}
+	// The kernel release is the one field of the stamp this route drops. See
+	// TestHealthzNeverPublishesTheKernelRelease.
+	if got.Selftest.Kernel != "" {
+		t.Errorf("the body names the host's kernel release %q", got.Selftest.Kernel)
 	}
 	// The command really went to the core, rather than the handler inventing an
 	// answer that happens to match.
@@ -361,20 +366,29 @@ func TestHealthzNeedsNoSessionAndSetsNoCookie(t *testing.T) {
 	}
 }
 
-// An empty kernel is rendered as nothing rather than as an empty label.
+// The host's kernel release stays off this route, whatever the core answered.
 //
-// The demo answers with an unprovable stamp whose Kernel is the zero value:
-// internal/web has no path to the privileged core.KernelRelease(), by design.
-// On a real host an unprovable stamp does carry a kernel, so the demo differs
-// from production, and the JSON must not offer an empty field where a kernel
-// belongs — a dashboard reading it would print "Kernel:" followed by nothing.
-func TestHealthzOmitsAnEmptyKernel(t *testing.T) {
+// HealthSelftest exists because /healthz is unauthenticated by necessity, and
+// the argument in its own comment — the reply may not name what an operator's
+// firewall is getting wrong — reaches the kernel release too. A live container
+// published "kernel":"7.2.3-ogc3.1.fc44.x86_64", and both documented
+// health_allow examples widen the list to a /24, so the documented setup hands
+// a whole subnet the exact release with no credential.
+//
+// A stamp that *carries* a kernel is the fixture, not one that lacks it: the
+// empty-kernel case passed before the fix. The dashboard reads the same reply
+// over the authenticated path and keeps the field — see
+// TestTheSelftestFactOmitsAnAbsentKernel — so the reduction is here and not in
+// the type.
+func TestHealthzNeverPublishesTheKernelRelease(t *testing.T) {
 	fc := newFakeCore(t)
 	fc.SetResponse(shared.CmdGetHealth, healthReply(t, shared.HealthResult{
 		State:  shared.HealthOK,
 		Reason: shared.HealthReasonHealthy,
 		Selftest: shared.HealthSelftest{
-			Version: shared.CurrentVersion, Result: shared.SelftestUnprovable,
+			Version: shared.CurrentVersion,
+			Kernel:  "7.2.3-ogc3.1.fc44.x86_64",
+			Result:  shared.SelftestUnprovable,
 		},
 	}))
 	s := newTestServer(t, fc)
@@ -383,13 +397,52 @@ func TestHealthzOmitsAnEmptyKernel(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("answered %d, want 200: %s", rec.Code, rec.Body.String())
 	}
-	if body := rec.Body.String(); strings.Contains(body, `"kernel"`) {
-		t.Errorf("the body carries an empty kernel field:\n%s", body)
+	body := rec.Body.String()
+	// Both: the key, because an empty one is still a field a reader renders,
+	// and the value, because a field renamed rather than dropped is the same
+	// exposure under another name.
+	if strings.Contains(body, `"kernel"`) || strings.Contains(body, "7.2.3-ogc3.1") {
+		t.Errorf("/healthz publishes the host's kernel release:\n%s", body)
 	}
 	// And the fields that do have a value are still there, so the assertion
 	// above is not passing because the stamp went missing altogether.
-	if body := rec.Body.String(); !strings.Contains(body, `"result":"unprovable"`) {
+	if !strings.Contains(body, `"result":"unprovable"`) {
 		t.Errorf("the stamp itself is gone, so the kernel check above proves nothing:\n%s", body)
+	}
+}
+
+// A stamp that was never recorded has no wire representation at all.
+//
+// A fresh container is the normal state of every Docker deployment — nothing
+// there runs the proof — and it rendered {"version":"","result":""}: two empty
+// enum values that exist only in the JSON. `easywall-core health` words that
+// state as "never recorded" and the dashboard omits the fact entirely, so a
+// monitoring script switching on selftest.result met an undocumented fourth
+// value invented by this encoder.
+func TestHealthzOmitsAStampThatWasNeverRecorded(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetHealth, healthReply(t, shared.HealthResult{
+		State:  shared.HealthOK,
+		Reason: shared.HealthReasonHealthy,
+	}))
+	s := newTestServer(t, fc)
+
+	rec := doRequestFrom(s, "127.0.0.1:44338", "/healthz", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("answered %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var generic map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &generic); err != nil {
+		t.Fatalf("the body does not parse: %v\n%s", err, rec.Body.String())
+	}
+	st, _ := generic["selftest"].(map[string]any)
+	if len(st) != 0 {
+		t.Errorf("a never-recorded stamp renders %v; every field of HealthSelftest is "+
+			"omitempty or omitzero, so it must render as {}:\n%s", st, rec.Body.String())
+	}
+	// The reply is still a health reply — the state is what a check reads.
+	if generic["state"] != string(shared.HealthOK) {
+		t.Errorf("state = %v, want ok: %s", generic["state"], rec.Body.String())
 	}
 }
 

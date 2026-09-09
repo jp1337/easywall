@@ -33,7 +33,7 @@ trusted_proxies = []
 # /healthz is the one page here that answers without a session, because the
 # orchestrator asking whether this process is alive does not hold one. It
 # returns the firewall's state as JSON — ok, degraded or fail — and nothing
-# about your rules.
+# about your rules or your host: no rule detail, no counters, no kernel release.
 #
 # It exists because a container once stayed "Up" for hours with a live core and
 # a dead web process: the health check only looked at the core's socket, and a

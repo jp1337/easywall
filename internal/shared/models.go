@@ -650,16 +650,28 @@ var AllHealthReasons = []HealthReason{
 //
 // TestHealthResultCarriesNoRuleDetail is what keeps this type reduced — adding a
 // field back to it turns that test red.
+//
+// Every field is omitempty or omitzero, on one principle: an empty field where
+// a value belongs is a claim, and absence is not.
+//
+// Version and Result carried neither until the review. A fresh container — the
+// normal state of every Docker deployment, where nothing runs the proof —
+// rendered {"version":"","result":""}: two empty enum values invented by the
+// JSON alone, where `easywall-core health` words that state as "never recorded"
+// and the dashboard omits the fact entirely. A monitoring script written from
+// features/health.md's documented example switches on selftest.result and meets
+// an undocumented fourth value.
+//
+// The kernel is separately not rendered by /healthz at all — writeHealth drops
+// it — and stays here because the authenticated dashboard reads the same reply.
 type HealthSelftest struct {
-	Version string `json:"version"`
-	// omitempty, because /healthz renders this to a machine and the demo has no
-	// kernel to name: internal/web cannot reach the privileged
+	Version string `json:"version,omitempty"`
+	// The demo has no kernel to name: internal/web cannot reach the privileged
 	// core.KernelRelease() — it imports internal/core nowhere, by design — so
 	// the demo's unprovable stamp carries the zero value where a real host's
-	// unprovable stamp carries a release. An empty field where a kernel belongs
-	// is a claim; absence is not.
+	// unprovable stamp carries a release.
 	Kernel string         `json:"kernel,omitempty"`
-	Result SelftestResult `json:"result"`
+	Result SelftestResult `json:"result,omitempty"`
 	At     time.Time      `json:"at,omitzero"`
 }
 

@@ -59,12 +59,19 @@ curl -sk https://127.0.0.1:12227/healthz
   "reason": "healthy",
   "selftest": {
     "version": "2.17.0",
-    "kernel": "6.12.48-1-lts",
     "result": "unprovable",
     "at": "2026-09-09T07:41:02Z"
   }
 }
 ```
+
+**The body is deliberately thin.** No rule detail, no counters, and no kernel
+release — this route is unauthenticated, so it says the least that a monitoring
+system can act on. The dashboard names the kernel; `/healthz` never does.
+
+A stamp nothing has recorded — a container, where the proof does not run —
+renders `"selftest": {}` rather than empty strings. Absence is the answer;
+`result` is only ever one of `passed`, `failed` or `unprovable`.
 
 | Code | When |
 |---|---|
