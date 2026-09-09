@@ -105,7 +105,7 @@ than by reading:
 
 `check:ui` passes at five widths in both themes. All 36 screenshots re-taken.
 
-## [2.15.1] —## [2.15.1] — 2026-09-07
+## [2.15.1] — 2026-09-07
 
 **Two ways a new installation could lock you out of its own host.**
 

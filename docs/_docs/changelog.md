@@ -114,9 +114,12 @@ than by reading:
 
 `check:ui` passes at five widths in both themes. All 36 screenshots re-taken.
 
-## [2.15.1] —## [2.15.1] — 2026-09-07
+[See the code changes between 2.15.1 and 2.16.0](https://github.com/jp1337/easywall/compare/v2.15.1...v2.16.0)
 
-**Two ways a new installation could lock you out of its own host.**
+</details>
+
+<details markdown="1">
+<summary><strong>2.15.1</strong> · 2026-09-07 — Two ways a new installation could lock you out of its own host</summary>
 
 Reported from Discord: a VPS unreachable immediately after
 `docker compose up -d`, and still cutting SSH on every later `docker` start.
@@ -177,7 +180,7 @@ software is developed on and fails on every remote host. Every count-based
 integration test stayed green throughout, because the rules were present in the
 table; they simply never fired.
 
-[See the code changes between 2.15.1 and 2.16.0](https://github.com/jp1337/easywall/compare/v2.15.1...v2.16.0)
+[See the code changes between 2.15.0 and 2.15.1](https://github.com/jp1337/easywall/compare/v2.15.0...v2.15.1)
 
 </details>
 
