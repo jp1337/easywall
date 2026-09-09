@@ -525,9 +525,18 @@ jobs:
             exit 1
           }
           echo "ok  easywall-selftest.service is enabled"
+          # The unit file says AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_ADMIN;
+          # systemctl show prints the *lowercase* kernel spelling back —
+          # "AmbientCapabilities=cap_net_admin cap_sys_admin". The case is
+          # load-bearing: this grep asked for CAP_SYS_ADMIN and so failed on a
+          # correctly-built package for the whole of 2.17's first CI run, while
+          # the implementer's own report quoted the lowercase form a few lines
+          # from the uppercase needle. Match the spelling systemctl emits, and
+          # not with -i: a guard that passes because it stopped looking closely
+          # is the defect this release is named after.
           systemctl show -p AmbientCapabilities easywall-selftest.service
           systemctl show -p AmbientCapabilities easywall-selftest.service |
-            grep -q CAP_SYS_ADMIN || {
+            grep -q 'AmbientCapabilities=.*cap_sys_admin' || {
             echo "::error::easywall-selftest.service holds no CAP_SYS_ADMIN, so CLONE_NEWNET will always fail and the self-test can only ever report 'unprovable'"
             exit 1
           }
