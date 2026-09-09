@@ -181,9 +181,41 @@ jobs:
           docker exec easywall-hc supervisorctl start easywall-web
           expect healthy "the web process back"
 
+          # degraded must read healthy, and this is the measurement that keeps
+          # it that way. handler_health.go answers 200 for degraded because
+          # every cause of it is immune to a restart — a failed proof and a
+          # build finding are the same binary, a dead stateful counter is the
+          # same rules — so restarting buys nothing and costs a window in which
+          # the machine is not filtering. A `failed` self-test stamp is the
+          # cheapest degraded state to reach: `unprovable` is the container's
+          # normal state and deliberately does not degrade.
+          # Asserted in three parts, because `expect healthy` alone would pass
+          # on a container that was healthy already and never prove the
+          # degraded state was reached at all.
+          docker exec -i easywall-hc sh -c 'cat > /var/lib/easywall/selftest.json' <<'JSON'
+          {"version":"dev","kernel":"ci","result":"failed","at":"2026-01-01T00:00:00Z","detail":"written by the workflow to reach degraded"}
+          JSON
+          # `|| true` and a case, not a pipe into grep: `easywall-core health`
+          # exits 1 on degraded, and under `set -o pipefail` a pipeline whose
+          # left side exits non-zero fails however well grep matched — which
+          # would report "not degraded" about a container that is.
+          reported=$(docker exec easywall-hc easywall-core health --config /etc/easywall/easywall.toml || true)
+          case "$reported" in
+            *"health:     degraded"*) echo "ok  the seeded stamp produced a degraded state" ;;
+            *) echo "::error::the seeded stamp did not produce a degraded state, so nothing below measures one: $reported"; exit 1 ;;
+          esac
+          docker exec easywall-hc wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz \
+            || { echo "::error::/healthz refused a degraded firewall — a restart cannot fix any cause of degraded and costs a window with no filtering"; exit 1; }
+          for _ in 1 2 3 4 5; do
+            [ "$(state)" = healthy ] || { echo "::error::a degraded firewall read '$(state)'"; exit 1; }
+            sleep 10
+          done
+          echo "ok  a degraded firewall, over 5 probes: healthy"
+          docker exec easywall-hc rm -f /var/lib/easywall/selftest.json
+
           # The other half, and the case Enforcing()'s own comment describes as
           # having shown green on the dashboard: the table is gone, so the
-          # machine is not filtering, and both commands must say so.
+          # machine is not filtering, and /healthz answers 503.
           docker exec easywall-hc nft delete table inet easywall
           expect unhealthy "the nftables table deleted"
 

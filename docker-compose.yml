@@ -55,9 +55,12 @@ services:
     # fetch of /login. A socket that exists says a core bound it, not that the
     # kernel is holding any rules — which is the whole subject of 2.17 — and
     # /login is a page that renders whether or not the firewall behind it is
-    # filtering. `easywall-core health` asks what the kernel actually has, and
-    # /healthz asks the process that serves the interface; the Dockerfile's
-    # HEALTHCHECK carries the argument for both.
+    # filtering. /healthz is the one request that sees all of it: it is served
+    # by the web process, so an answer proves that process is alive, and its
+    # handler asks the core over the socket, so a dead core and an unenforced
+    # kernel are both 503. The Dockerfile's HEALTHCHECK carries the argument,
+    # including why adding `easywall-core health` beside it is a mistake and not
+    # an improvement.
     #
     # Repeated here rather than dropped, because compose overriding the image's
     # check is what an operator expects to be able to edit — and because the
@@ -67,7 +70,7 @@ services:
     # somebody ran `docker run`. The address follows bind_addr in
     # config/web.toml — change one and change the other.
     healthcheck:
-      test: ["CMD-SHELL", "easywall-core health --config /etc/easywall/easywall.toml && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz"]
+      test: ["CMD-SHELL", "wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3

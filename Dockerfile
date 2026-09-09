@@ -88,7 +88,7 @@ RUN chmod 0755 /usr/local/bin/easywall-entrypoint
 
 EXPOSE 12227
 
-# Both halves, because the recorded incident was one of them.
+# One request, and it covers both halves of the recorded incident.
 #
 # docker/entrypoint.sh's header describes a container that stayed "Up" with a
 # live core and a dead web process: easywall-web could not write its own config,
@@ -98,11 +98,25 @@ EXPOSE 12227
 # did, so anybody not using compose got the container's status from nothing but
 # whether PID 1 was alive.
 #
-# `easywall-core health` asks the core what the kernel is actually holding;
-# /healthz asks the process that serves the interface. A container passing one
-# and failing the other is exactly the state that went unseen. Two commands
-# joined by && rather than one script, so which half failed is legible in
-# `docker inspect`'s health log.
+# Do not "restore" a second command asking easywall-core. It was here, and it
+# was wrong twice over. /healthz already sees everything it saw:
+#
+#   - the endpoint is *served by the web process*, so an answer at all proves
+#     that process is alive. That is the incident above, and the only half a
+#     core-side check could never see.
+#   - the handler *asks the core over the socket*, so a dead core is
+#     fail/core_unreachable → 503, and a kernel that is not carrying the rules
+#     is fail/not_enforcing → 503.
+#
+# One wget therefore sees a dead web process, a dead core, and a firewall that
+# has stopped filtering. The second command added no coverage — and it broke the
+# one state that must not restart anything. handler_health.go answers 200 for
+# `degraded` deliberately, because every cause of `degraded` is immune to a
+# restart: a failed proof is the same binary, a build finding is the same binary,
+# a dead stateful counter is the same rules. Restarting buys nothing and costs a
+# window in which the machine is not filtering at all. `easywall-core health`
+# exits 1 on `degraded`, so a composite `health && wget` marked the container
+# unhealthy anyway and made the handler's argument unreachable.
 #
 # start-period is 15s and not docker-compose.yml's old 5s: the entrypoint does
 # its ownership work over a bind-mounted /etc/easywall before supervisord starts
@@ -121,8 +135,7 @@ EXPOSE 12227
 # container unhealthy: being unable to prove something is not the same as it
 # being broken. computeHealth's last branch is where that is decided.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
-  CMD easywall-core health --config /etc/easywall/easywall.toml \
-   && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz
+  CMD wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz
 
 VOLUME ["/etc/easywall", "/var/lib/easywall", "/var/log/easywall"]
 
