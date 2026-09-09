@@ -291,7 +291,7 @@ firewall active.
 | `TestWatchdogIntervalIsHalfOfWhatSystemdAsksFor`, `TestPingWatchdog_TheFirstFailedTryLockStillPingsAndOnlyTheFirst`, `TestDaemonStart_TheWatchdogStopsOnAWedgeAndResumesAfterIt` | the ping interval is `WatchdogSec/2`, and one contended tick is forgiven rather than latching | the interval is the margin: a ping at t=0 and a skip at t=30 puts the next attempt at t=60+ε against a deadline of exactly t=60, which a Go ticker drifting late loses. Systemd then kills a daemon that answers perfectly well |
 | `TestTheCIProofGateIsStillWiredUp` | `EASYWALL_REQUIRE_SELFTEST` is spelled the same in `selftest_required_test.go` and `test.yml` | renaming it in one place disables the gate entirely and nothing notices: the suite goes back to skipping politely and the tick stays green — the exact failure the gate exists to catch, one level further out. Checked from `internal/shared` because a guard behind the `integration` tag is not run by `make test` |
 
-## Three ways a guard is green for the wrong reason
+## Four ways a guard is green for the wrong reason
 
 Nine guards in this release were green for the wrong reason. Six had one cause,
 and it is a cause this repository manufactures for itself:
@@ -314,6 +314,32 @@ here: a reason id reading `port_unreachable` would have turned it red for
 something that is not a leak, and whoever hit that would have weakened the
 assertion to get past it. It asserts the thing itself now — a planted sentinel,
 and an exact key set.
+
+**A checker that shares an assumption with the thing it checks.** A substring
+guard goes green because the needle is too loose, so it cannot see a *change*.
+This one goes green because the checker and the artefact agree, so it cannot see
+a *defect*. Different mechanisms, one class: a guard that cannot see what it
+exists to see.
+
+> When one function both produces an artefact and verifies it, the verification
+> is a tautology.
+
+`scripts/render-changelog.mjs` writes `docs/_docs/changelog.md`, and
+`check:changelog` is the same file with `--check`. One version regex therefore
+decides both what gets written and whether what was written is right.
+`CHANGELOG.md:108` read `## [2.15.1] —## [2.15.1] — 2026-09-07`; the renderer
+found no version on that line, the checker found none either, and both agreed
+the page was current.
+
+**32 `<details>` sections where there should have been 34.** 2.15.1 had none of
+its own and no compare link, and its entry read as part of 2.16.0's — a whole
+release that was never on easywall-project.org, with every check green the whole
+way. Fixed in 2.17 (`e737dcb`); the sharing is carried, because closing it is a
+design decision about that script rather than a broken line.
+
+The sibling is this release's own subject stated about Go: the unit test that
+recorded the byte-reversed conntrack mask as expected output. Two sides agreeing
+on something wrong is what made both blind.
 
 **A mutation that hangs instead of failing.** Twice this release, and a hang in
 CI reads as nothing at all — worse than a skip, which at least prints.
