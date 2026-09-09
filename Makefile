@@ -4,7 +4,14 @@ BUILD_FLAGS := -ldflags "$(LDFLAGS)"
 
 BINARIES := easywall-core easywall-web
 
-.PHONY: all build css docs-css test lint vuln clean install release
+# `docker` is in here because it shares its name with the docker/ directory, and
+# make answers a target with a file of that name by declaring it up to date.
+# It did: `make docker` printed "'docker' is up to date", built nothing and
+# exited 0 — the same shape as the defect the target's own comment warns about,
+# a build that produces nothing and reports success. `deb` collides with no path
+# today (the directory is debian/) and is listed with it because a target that
+# only works by the absence of a file is one rename away from not working.
+.PHONY: all build css docs-css test lint vuln clean install release docker deb
 
 ## Build both binaries
 all: build
@@ -64,6 +71,12 @@ install: build
 	systemctl daemon-reload
 
 ## Docker image
+# `docker` here may not be docker. On Fedora and the RHEL family, podman-docker
+# installs /usr/bin/docker as a shim over podman — and podman's default image
+# format is OCI, which has no healthcheck field, so the Dockerfile's HEALTHCHECK
+# is dropped with one warning and this target still exits 0. Add
+# `--format docker` if that is your machine; the Dockerfile's HEALTHCHECK
+# comment carries the argument.
 docker:
 	docker build --build-arg VERSION=$(VERSION) -t easywall:$(VERSION) .
 

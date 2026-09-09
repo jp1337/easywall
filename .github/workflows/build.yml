@@ -211,13 +211,31 @@ jobs:
             *"health:     degraded"*) echo "ok  the seeded stamp produced a degraded state" ;;
             *) echo "::error::the seeded stamp did not produce a degraded state, so nothing below measures one: $reported"; exit 1 ;;
           esac
-          docker exec easywall-hc wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz \
-            || { echo "::error::/healthz refused a degraded firewall — a restart cannot fix any cause of degraded and costs a window with no filtering"; exit 1; }
-          for _ in 1 2 3 4 5; do
+          # Read out of the image, never hand-copied. A second spelling of the
+          # healthcheck command in the step that measures the healthcheck is the
+          # same drift the compose block was deleted over, reappearing here —
+          # and it would have mattered: with a composite `easywall-core health
+          # && wget` restored to the Dockerfile, a copy of the plain wget here
+          # would still exit 0 and the only assertion left to catch it would be
+          # the probe loop below.
+          # `|| true`, because an image with no HEALTHCHECK has a nil
+          # .Config.Healthcheck and the template errors — under `set -e` that
+          # would kill the step with a Go template message instead of the line
+          # below, which is the one that says what actually went wrong.
+          probe=$(docker inspect -f '{{index .Config.Healthcheck.Test 1}}' easywall-hc 2>/dev/null || true)
+          [ -n "$probe" ] || { echo "::error::the image carries no HEALTHCHECK — a podman build on the default OCI format drops it silently, and there is nothing here to measure"; exit 1; }
+          docker exec easywall-hc sh -c "$probe" \
+            || { echo "::error::the image's own check refused a degraded firewall — a restart cannot fix any cause of degraded and costs a window with no filtering"; exit 1; }
+          # Seven, not five. The status flips 37-40s after a failure starts
+          # (three consecutive failures at a 10s interval, plus up to 10s to the
+          # first one), and five iterations end ~43s in — five seconds of margin
+          # on the one assertion that catches a restored composite check. Seven
+          # is ~63s, comfortably past the flip that must not happen.
+          for _ in 1 2 3 4 5 6 7; do
             [ "$(state)" = healthy ] || { echo "::error::a degraded firewall read '$(state)'"; exit 1; }
             sleep 10
           done
-          echo "ok  a degraded firewall, over 5 probes: healthy"
+          echo "ok  a degraded firewall, over 7 probes: healthy"
           docker exec easywall-hc rm -f /var/lib/easywall/selftest.json
 
           # The other half, and the case Enforcing()'s own comment describes as

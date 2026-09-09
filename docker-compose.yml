@@ -61,6 +61,22 @@ services:
     # definitions of one artefact is how a package comes to contain no binaries.
     # Deleting the copy makes the drift impossible instead of guarded.
     #
+    # Two exceptions, and they are what keeps that prohibition credible rather
+    # than absolute:
+    #
+    #   - **You changed bind_addr.** The image's check asks 127.0.0.1:12227
+    #     because a HEALTHCHECK is baked at build time and cannot read web.toml.
+    #     Move the interface and the container reads `unhealthy` for ever, with
+    #     nothing wrong with it. A `healthcheck:` here naming your port is the
+    #     right answer, and it is the only definition either way.
+    #   - **You build the image locally on podman.** `build:` above plus
+    #     `podman compose up -d` produces an OCI image, and the OCI spec has no
+    #     healthcheck field — so podman drops the check with one warning and
+    #     exits 0, leaving a container checked by nothing. Build it with
+    #     `podman build --format docker -t … .` first and let compose use that
+    #     image, or accept that a locally built OCI image carries no check. This
+    #     is in carried-forward.md; a comment is not a fix for it.
+    #
     # This block existed *because* the image had no check, and for a year it was
     # the whole story: it tested `test -S /run/easywall/core.sock` and fetched
     # /login, while a plain `docker run` was checked by nothing at all. A socket

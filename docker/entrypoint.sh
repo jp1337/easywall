@@ -82,6 +82,11 @@ done
 # another name. Health treats the missing proof as `unprovable` rather than
 # `degraded`, so this costs the container nothing — being unable to prove
 # something is not the same as it being broken.
-warn "the rule self-test needs CAP_SYS_ADMIN, which this image does not ask for: health reports it as never recorded, which is not a failure."
+# "unless you granted it" and not a check of the capability set, because there
+# is nothing in this image to check it with — no capsh, and /proc/self/status
+# reports the entrypoint's own bounding set rather than what easywall-core will
+# hold. An operator who adds SYS_ADMIN and runs `easywall-core selftest` by hand
+# gets a real proof, and this line would otherwise be stale the moment they do.
+warn "the rule self-test needs CAP_SYS_ADMIN, which this image does not ask for: unless you granted it, health reports the proof as never recorded, which is not a failure."
 
 exec "$@"

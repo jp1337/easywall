@@ -122,12 +122,31 @@ EXPOSE 12227
 # its ownership work over a bind-mounted /etc/easywall before supervisord starts
 # anything, and a first-run container generates its certificate after that.
 #
-# Podman needs `--format docker`. Its default image format is OCI, and the OCI
-# spec has no healthcheck field, so `podman build` prints one warning — "not
-# supported for OCI image format and will be ignored" — and produces an image
-# with no check in it. Building this file with podman and no flag gives you back
-# exactly the state this line exists to remove, which is why it is written here
-# next to the check rather than only in the installation guide.
+# Podman needs `--format docker`, and so does `podman compose build`. Its
+# default image format is OCI, and the OCI spec has no healthcheck field, so a
+# podman build prints one warning — "not supported for OCI image format and will
+# be ignored" — and produces an image with no check in it, from a build that
+# exits 0. Building this file with podman and no flag gives you back exactly the
+# state this line exists to remove, which is why it is written here next to the
+# check rather than only in the installation guide.
+#
+# `podman compose build` is the sharper edge of the two, because
+# docker-compose.yml has a `build:` section and `podman compose up -d` is the
+# documented path: an operator who follows the documentation on a podman host
+# builds an OCI image locally and gets no health check and no error. That is
+# named again in docker-compose.yml and is carried in carried-forward.md,
+# because a comment is not a fix — the real answers are making the documented
+# path pull a published image or accepting a compose-level check, and both are
+# decisions past this release.
+#
+# The port is the other thing this line cannot adapt to. 12227 is written here
+# while bind_addr in web.toml is the operator's to change, and a container whose
+# interface moved reads `unhealthy` for ever — the check would be asking a port
+# nothing listens on. That is the one case where the compose `healthcheck:` this
+# repository otherwise refuses is the right answer, and docker-compose.yml says
+# so where the block used to be. It is not read from the config here because
+# this line is baked at build time and the port is not known until the container
+# starts.
 #
 # The self-test needs CAP_SYS_ADMIN to build the namespace it proves rules in,
 # and this image asks for NET_ADMIN and nothing else — so health reports the
