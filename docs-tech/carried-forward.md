@@ -31,6 +31,20 @@ branch head.
 | **`CoreClient.GetHealth`, `GetUsage` and `GetAppliedConfig` have no test for a *malformed* reply** | Narrowed from a wider claim after review. `fakeCore` is a real Unix socket listener (`internal/web/testhelpers_test.go:32-51`), so `TestTheDashboardFallsBackWhenTheCoreCannotAnswerAboutHealth` already exercises `GetHealth`'s `!resp.Success` path at wire level. What is uncovered is the reply that parses as a frame and not as the payload. `GetUsage` and `GetAppliedConfig` predate the branch with the same gap; `GetHealth` is new here, so only two of the three are pre-existing |
 | **The `auditBuildFindings` call site in `Firewall.apply` is covered by no test** | `Firewall.nft` is a concrete `*NftablesManager`, so `Apply` cannot reach the line without a kernel. Covering it needs a finding to exist during a real apply, which needs a deliberately broken builder — a mutation, not a test. The function itself is fully covered |
 
+## Contract holes this release introduced, carried with a stated reason
+
+Three entries this release is responsible for, kept here rather than fixed
+because each is a decision about a contract and not a line to change — the
+exception the rule at the top of this file allows, taken openly. Each carries
+its measurement, and in every case the ordinary path measured honest. In the
+first, honest by accident.
+
+| | |
+|---|---|
+| **`RunPeer` collapses every dial error into `blocked`** | `netns.go:81-83`. `inboundCrosses` separates ECONNREFUSED from a timeout from anything else, precisely so a harness fault is never reported as a verdict. The peer side does not, so a harness that breaks between claim 1's control and its measurement records `failed` — the one inversion `foldClaims`'s own doc comment forbids. The reachable trigger is a second concurrent `selftest`: `wire()` takes no lock and `deleteLink` is unconditional. **Measured: three runs of two concurrent `RunSelftest()` gave all six `unprovable`** — the setup collision wins the race every time, so today the inversion is prevented by accident and not by design. Closing it means the peer reporting *why* it could not connect, which is a change to the pipe protocol in `netns.go`'s header comment |
+| **`GET_HEALTH` is documented as short-deadline because it is read-only, and both its netlink reads take the nft mutex** | `protocol.go:99-110` puts it in `CommandTimeout`'s default branch on the grounds that it queues behind nothing. `RuleCounters` (`nftables.go:416`) and `Enforcing` both take that lock, and `Apply` holds it across `applyCustomRules`' nft subprocess for up to 30 s — which is the reasoning `CmdGetUsage`'s own comment gives for *not* reading netlink. Pre-existing at the core level: `GET_STATUS` already does it at `b723422`. What 2.17 adds is a new consumer — during a slow custom-rules apply `/healthz` answers 503, and the image's `--interval=10s --retries=3` reaches its third failure inside that window. **The cost is a wrong word in `docker ps`**: nothing restarts on unhealthy. Note for whoever picks it up that the health check's own comment claims read-only implies non-blocking |
+| **`10.77.9.0/24`, `ewst-r` and `ewst-p` are created in the host namespace with no collision check** | The names and the range are fixed constants, and setup deletes any host interface called `ewst-r` — whoever made it — because a per-pid name would collide one step later on `10.77.9.1/24` anyway (`netns.go:256-262`). Nothing checks whether the host already uses either. Documented for operators in `features/health.md` in this release; the absence of a check is carried. **Measured: `easywall-core selftest` against a live host table reports `unprovable` with an accurate detail, never `failed`, 2 of 2 runs** — the ordinary case is honest |
+
 ## Measured, and left alone
 
 | | |
