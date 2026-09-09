@@ -88,6 +88,42 @@ RUN chmod 0755 /usr/local/bin/easywall-entrypoint
 
 EXPOSE 12227
 
+# Both halves, because the recorded incident was one of them.
+#
+# docker/entrypoint.sh's header describes a container that stayed "Up" with a
+# live core and a dead web process: easywall-web could not write its own config,
+# exited 1, supervisord restarted it for ever, and the check of the day looked
+# only at the core's socket. A check on the core cannot see that half, and until
+# this line a plain `docker run` had no check at all — only docker-compose.yml
+# did, so anybody not using compose got the container's status from nothing but
+# whether PID 1 was alive.
+#
+# `easywall-core health` asks the core what the kernel is actually holding;
+# /healthz asks the process that serves the interface. A container passing one
+# and failing the other is exactly the state that went unseen. Two commands
+# joined by && rather than one script, so which half failed is legible in
+# `docker inspect`'s health log.
+#
+# start-period is 15s and not docker-compose.yml's old 5s: the entrypoint does
+# its ownership work over a bind-mounted /etc/easywall before supervisord starts
+# anything, and a first-run container generates its certificate after that.
+#
+# Podman needs `--format docker`. Its default image format is OCI, and the OCI
+# spec has no healthcheck field, so `podman build` prints one warning — "not
+# supported for OCI image format and will be ignored" — and produces an image
+# with no check in it. Building this file with podman and no flag gives you back
+# exactly the state this line exists to remove, which is why it is written here
+# next to the check rather than only in the installation guide.
+#
+# The self-test needs CAP_SYS_ADMIN to build the namespace it proves rules in,
+# and this image asks for NET_ADMIN and nothing else — so health reports the
+# self-test as never recorded. That is not `degraded` and must not make the
+# container unhealthy: being unable to prove something is not the same as it
+# being broken. computeHealth's last branch is where that is decided.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+  CMD easywall-core health --config /etc/easywall/easywall.toml \
+   && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz
+
 VOLUME ["/etc/easywall", "/var/lib/easywall", "/var/log/easywall"]
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/easywall-entrypoint"]

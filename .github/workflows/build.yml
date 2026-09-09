@@ -108,11 +108,88 @@ jobs:
         with:
           context: .
           push: false
+          # load, so the steps below can run what was just built. Without it
+          # buildx keeps the result in its own cache and `docker run easywall:dev`
+          # finds no such image — the build was all this job ever did.
+          load: true
           platforms: linux/amd64
           build-args: VERSION=dev
           tags: easywall:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # ── The HEALTHCHECK, measured rather than read ────────────────────────
+      #
+      # This job built the image and stopped. That is how the container came to
+      # ship for a year with no HEALTHCHECK in it at all while docker-compose.yml
+      # had one, and how docker/entrypoint.sh's incident stayed invisible: the
+      # web process exited 1, supervisord restarted it for ever, the check of the
+      # day looked only at the core's socket, and the container stayed "Up".
+      #
+      # A grep over the Dockerfile would not have caught any of that. So this
+      # runs the check, kills each half in turn, and reads the status Docker
+      # itself computed. Three states, and the middle one is the recorded
+      # incident.
+      #
+      # Its own network namespace, not the host's. docker-compose.yml shares the
+      # host's because nftables must reach host tables, and doing that here would
+      # apply a firewall to the machine running the job — at policy drop, to the
+      # network the job needs. The check under measurement does not care which
+      # namespace the table is in.
+      #
+      # The seeded rules.json is not decoration either. A container that has
+      # never applied anything is honestly `fail/not_enforcing` — RulesStore
+      # starts empty and enforcing an empty set at policy drop would close SSH —
+      # so `healthy` is not reachable until something has been applied, and the
+      # first measurement would otherwise be measuring the wrong thing.
+      - name: The HEALTHCHECK notices either half dying
+        run: |
+          set -euo pipefail
+
+          state() { docker inspect -f '{{.State.Health.Status}}' easywall-hc 2>/dev/null || echo missing; }
+
+          # Docker recomputes on its own interval (10s, retries 3), so a
+          # transition takes up to ~40s. Polled rather than slept, and the
+          # health log is printed on a timeout — "expected unhealthy, got
+          # healthy" with nothing else is the one failure that costs an hour.
+          expect() {
+            want=$1; what=$2
+            for _ in $(seq 1 30); do
+              [ "$(state)" = "$want" ] && { echo "ok  $what: $want"; return 0; }
+              sleep 3
+            done
+            echo "::error::$what: expected '$want', the container reads '$(state)'"
+            docker inspect -f '{{json .State.Health}}' easywall-hc || true
+            docker logs easywall-hc --tail 50 || true
+            exit 1
+          }
+
+          docker run -d --name easywall-hc --cap-add NET_ADMIN easywall:dev
+          docker exec -i easywall-hc sh -c 'cat > /var/lib/easywall/rules.json' <<'JSON'
+          {"current":{"tcp":[{"port":"12227","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
+           "staged":{"tcp":[{"port":"12227","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
+           "backup":{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}}
+          JSON
+          docker restart easywall-hc
+          expect healthy "a container with rules in the kernel and both processes up"
+
+          # The recorded incident. If this reads healthy, the check is the old
+          # defect in a new spelling: a live core with a dead interface.
+          docker exec easywall-hc supervisorctl stop easywall-web
+          expect unhealthy "the web process stopped"
+
+          docker exec easywall-hc supervisorctl start easywall-web
+          expect healthy "the web process back"
+
+          # The other half, and the case Enforcing()'s own comment describes as
+          # having shown green on the dashboard: the table is gone, so the
+          # machine is not filtering, and both commands must say so.
+          docker exec easywall-hc nft delete table inet easywall
+          expect unhealthy "the nftables table deleted"
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f easywall-hc || true
 
   # ── Validate Debian package can be built, installed and started ──────────
   #

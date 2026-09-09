@@ -49,18 +49,33 @@ services:
       # Audit and application logs
       - easywall_logs:/var/log/easywall
 
-    # Both processes, not just the core. This tested the core's socket alone,
-    # so the container reported healthy while easywall-web was in a restart
-    # loop and the interface answered nothing at all — which is the state a
-    # bind-mounted ./config used to leave it in. The socket says the core is
-    # up; the request says the thing you came for is up. The address follows
-    # bind_addr in config/web.toml — change one and change the other.
+    # The same check the image now carries, spelled the same way.
+    #
+    # This used to be its own thing: `test -S /run/easywall/core.sock` and a
+    # fetch of /login. A socket that exists says a core bound it, not that the
+    # kernel is holding any rules — which is the whole subject of 2.17 — and
+    # /login is a page that renders whether or not the firewall behind it is
+    # filtering. `easywall-core health` asks what the kernel actually has, and
+    # /healthz asks the process that serves the interface; the Dockerfile's
+    # HEALTHCHECK carries the argument for both.
+    #
+    # Repeated here rather than dropped, because compose overriding the image's
+    # check is what an operator expects to be able to edit — and because the
+    # interval keys below are this file's to set. What must not happen again is
+    # the two disagreeing about what they *run*: for a year this file tested one
+    # thing and the image tested nothing, and the difference was invisible until
+    # somebody ran `docker run`. The address follows bind_addr in
+    # config/web.toml — change one and change the other.
     healthcheck:
-      test: ["CMD", "sh", "-c", "test -S /run/easywall/core.sock && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/login"]
+      test: ["CMD-SHELL", "easywall-core health --config /etc/easywall/easywall.toml && wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      # 15s, matching the image: the entrypoint chowns a bind-mounted
+      # /etc/easywall before supervisord starts anything, and a first-run
+      # container generates its certificate after that. At 5s the first two
+      # probes measured a container that had not finished starting.
+      start_period: 15s
 
 volumes:
   easywall_data:
