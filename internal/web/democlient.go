@@ -364,7 +364,22 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		// "unprovable" is the honest answer, and computeHealth treats it as ok
 		// rather than degraded — the same reasoning that keeps an ordinary
 		// installation without CAP_SYS_ADMIN from reporting itself broken.
-		return demoOK(shared.HealthResult{
+		//
+		// The state itself follows panicMode, because the alternative is the
+		// demo contradicting itself on one screen: statusLocked reports
+		// Active: !panicMode and the interface draws the panic banner over every
+		// page, and this answered ok/healthy underneath it.
+		//
+		// fail with reason panic is what computeHealth returns for the same
+		// machine, and both halves matter. fail rather than degraded because a
+		// panicked host is not filtering at all — Firewall.Panic leaves an empty
+		// input chain and Enforcing() reports that as not enforcing, so the
+		// answer comes out of computeHealth's first branch. panic rather than
+		// not_enforcing because that branch names the cause from the marker: a
+		// human took the rules away and a reboot will not bring them back. The
+		// demo has to say exactly what a real host says, or it is not worth
+		// rendering a review against.
+		res := shared.HealthResult{
 			State:  shared.HealthOK,
 			Reason: shared.HealthReasonHealthy,
 			Selftest: shared.HealthSelftest{
@@ -372,7 +387,11 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 				Result:  shared.SelftestUnprovable,
 				At:      time.Now(),
 			},
-		})
+		}
+		if d.panicMode {
+			res.State, res.Reason = shared.HealthFail, shared.HealthReasonPanic
+		}
+		return demoOK(res)
 	case shared.CmdSaveSystem:
 		return d.handleSaveSystem(cmd.Payload)
 	case shared.CmdGetLog:

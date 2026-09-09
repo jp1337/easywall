@@ -66,6 +66,39 @@ func (f Finding) String() string {
 	return fmt.Sprintf("%s rule %d: %s", f.Chain, f.Index, f.Reason)
 }
 
+// auditBuildFindings records what the expression check found about the rules an
+// apply just wrote, or writes nothing when it found nothing.
+//
+// checkBuilt never refuses a write — a layer that stops filtering when it is
+// unsure is the failure everConfigured exists to avoid (restore.go:218) — so it
+// logs to the journal and degrades the health state. Until this entry the audit
+// log, which is the record an operator greps after an incident, said the apply
+// had simply succeeded. `health_degraded` carries a tone in the interface
+// because it is a statement about what the firewall is doing: a rule is in the
+// kernel and may match nothing, which is the class that let `ct state
+// established,related accept` enforce nothing for five releases.
+//
+// The first finding and a count, not all of them. Every Reason is a fixed
+// sentence with nothing an operator typed interpolated into it, so the text is
+// safe to record verbatim — but a malformed ruleset can produce one finding per
+// rule, and a 30 kB line in a log rendered on a web page is a page nobody can
+// read. checkBuilt has already written every one of them to the journal.
+//
+// A function rather than four lines at the call site, and the reason is
+// testability: Firewall.nft is a concrete *NftablesManager, and Apply cannot
+// reach its success path without a kernel to flush to, so the formatting here
+// would otherwise be provable only under `-tags integration`.
+func auditBuildFindings(logPath string, findings []Finding, user string) {
+	if len(findings) == 0 {
+		return
+	}
+	detail := findings[0].String()
+	if len(findings) > 1 {
+		detail += fmt.Sprintf(" (and %d more; see the journal)", len(findings)-1)
+	}
+	WriteAuditLog(logPath, "health_degraded", "all", detail, user)
+}
+
 // ctStateAllBits is every bit a conntrack state can carry, as the four
 // constants in nftables.go name them. A mask with a bit outside this set
 // matches nothing at all — `ct state 0x8000000` is what the ruleset pasted into

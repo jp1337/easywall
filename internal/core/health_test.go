@@ -12,7 +12,15 @@ import (
 )
 
 // The state machine of spec §2, as a table. Order matters: not-enforcing beats
-// everything, panic beats the counter, and the stamp is read last.
+// everything, panic names the cause inside that branch, and the stamp is read
+// last.
+//
+// §2 said panic reads `degraded`, and the branch producing it sat *after* the
+// not-enforcing check, where it could never fire: Firewall.Panic calls
+// nft.Reset, which leaves an empty input chain, and Enforcing() reports that as
+// not enforcing. Corrected on 2026-09-09 against the spec rather than around
+// it — `fail` with reason `panic`, because a panicked machine is not filtering
+// at all and `degraded` would understate it. See computeHealth.
 func TestHealthStateMachine(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -27,15 +35,33 @@ func TestHealthStateMachine(t *testing.T) {
 	}{
 		{name: "no table", enforcing: false,
 			wantState: shared.HealthFail, wantReason: shared.HealthReasonNotEnforcing},
-		{name: "no table beats a failed proof and a finding", enforcing: false,
+		// The row that used to want not_enforcing here, and the one this
+		// correction is about. A real panicked host lands in the first branch —
+		// the table is recreated empty — so this combination *is* panic mode as
+		// it actually occurs, and answering not_enforcing tells whoever reads
+		// the alert that the kernel has lost its rules rather than that a human
+		// took them away and a reboot will not bring them back.
+		{name: "no table with the marker engaged names panic as the cause", enforcing: false,
 			panicOn: true, established: 0, ports: 40, stamp: shared.SelftestFailed, findings: 2,
+			wantState: shared.HealthFail, wantReason: shared.HealthReasonPanic},
+		// And the same branch without the marker, which is the pair that makes
+		// the row above mean anything: an operator's `nft delete table`, or an
+		// apply whose rollback also failed. Same state, different cause. Without
+		// this row, a computeHealth that ignored the marker and always said
+		// panic here would still be green.
+		{name: "no table with no marker is not_enforcing", enforcing: false,
+			panicOn: false, established: 0, ports: 40, stamp: shared.SelftestFailed, findings: 2,
 			wantState: shared.HealthFail, wantReason: shared.HealthReasonNotEnforcing},
+		// Panic with the table still filtering: the panicLandedDuringWrite
+		// window, where the marker is on disk and the teardown has not landed or
+		// failed. Still fail — the machine is recorded as unfiltered and the
+		// next boot will not re-arm it.
 		{name: "panic beats a healthy table", enforcing: true, panicOn: true,
 			established: 10, ports: 10, stamp: shared.SelftestPassed,
-			wantState: shared.HealthDegraded, wantReason: shared.HealthReasonPanic},
+			wantState: shared.HealthFail, wantReason: shared.HealthReasonPanic},
 		{name: "panic beats the counter", enforcing: true, panicOn: true,
 			established: 0, ports: 40, stamp: shared.SelftestPassed,
-			wantState: shared.HealthDegraded, wantReason: shared.HealthReasonPanic},
+			wantState: shared.HealthFail, wantReason: shared.HealthReasonPanic},
 		// The case the mutation "check the stamp before panic" needs, and the
 		// reason it is here rather than left to the row above: a *passed* stamp
 		// never trips a stamp check wherever it sits, so moving that check ahead
@@ -43,7 +69,7 @@ func TestHealthStateMachine(t *testing.T) {
 		// engaged on a host whose proof also failed tells the two orders apart.
 		{name: "panic beats a failed proof and a finding", enforcing: true, panicOn: true,
 			established: 5, ports: 5, stamp: shared.SelftestFailed, findings: 2,
-			wantState: shared.HealthDegraded, wantReason: shared.HealthReasonPanic},
+			wantState: shared.HealthFail, wantReason: shared.HealthReasonPanic},
 		{name: "the stateful half matches nothing", enforcing: true,
 			established: 0, ports: 40, stamp: shared.SelftestPassed,
 			wantState: shared.HealthDegraded, wantReason: shared.HealthReasonStatefulDead},

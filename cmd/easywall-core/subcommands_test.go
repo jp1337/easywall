@@ -330,10 +330,34 @@ func TestHealthRefusesAStateItDoesNotKnow(t *testing.T) {
 	}
 }
 
-// Panic mode: status says 0, health says 1. The divergence closes
+// Panic mode: status says 0, health says 2. The divergence closes
 // carried-forward's 2.7 entry — "a forgotten panic mode is invisible to
 // monitoring" — and is pinned here so it stays a decision rather than being
 // rediscovered as a bug and "fixed" in either direction.
+//
+// **2 and not 1, corrected on 2026-09-09.** This test wanted 1, because spec §2
+// said panic reads `degraded`. It could not happen on a real host: Firewall.Panic
+// calls nft.Reset, which leaves the input chain empty, and Enforcing() reports an
+// empty input chain as not enforcing — so computeHealth returned in its first
+// branch and the `panic` reason was unreachable. The spec was corrected rather
+// than worked around: `fail` with reason `panic`. A panicked machine is not
+// filtering at all, and `degraded` — "still filtering, something is off" — would
+// understate it, which is the failure this release exists to remove whichever
+// direction it points in.
+//
+// So the divergence gets wider, not narrower. exitNotFiltered is the code
+// `status` uses when it cannot confirm a firewall is up and the code `health`
+// uses with no daemon at all, and it is the honest one here for the same
+// reason: nothing is being filtered. What still separates the two commands is
+// the question they answer — `status` asks after intent and a machine somebody
+// chose to unfilter is in a state somebody chose, so 0; `health` asks after
+// effect, and the effect is that this host is open.
+//
+// The reason is asserted as well as the code, and that is what makes the change
+// an improvement rather than a louder alarm: `not_enforcing` would have said the
+// kernel has lost its rules, where `panic` says a human took them away and a
+// reboot will not bring them back — Daemon.Start declines to filter while the
+// marker is on disk.
 func TestHealthAndStatusDisagreeUnderPanic(t *testing.T) {
 	status, err := json.Marshal(shared.FirewallStatus{Panic: true, Acceptance: shared.AcceptanceIdle})
 	if err != nil {
@@ -348,8 +372,12 @@ func TestHealthAndStatusDisagreeUnderPanic(t *testing.T) {
 			code, exitOK, statusErr.String())
 	}
 
+	// What computeHealth actually answers for a panicked host — asserted there
+	// by TestHealthStateMachine's "no table with the marker engaged names panic
+	// as the cause", so the reply this console is driven with is the reply the
+	// core produces rather than one written to suit the assertion below.
 	health, err := json.Marshal(shared.HealthResult{
-		State:  shared.HealthDegraded,
+		State:  shared.HealthFail,
 		Reason: shared.HealthReasonPanic,
 	})
 	if err != nil {
@@ -358,13 +386,20 @@ func TestHealthAndStatusDisagreeUnderPanic(t *testing.T) {
 	healthCfg := writeConfig(t, coreSocket(t, shared.Response{Success: true, Data: health}))
 
 	var healthOut, healthErr bytes.Buffer
-	if code := runSubcommand("health", []string{"-config", healthCfg}, &healthOut, &healthErr); code != exitFailed {
+	if code := runSubcommand("health", []string{"-config", healthCfg}, &healthOut, &healthErr); code != exitNotFiltered {
 		t.Errorf("health under panic = %d, want %d — a monitoring system asking after health "+
-			"asks a different question from a console asking after intent (stderr %s)",
-			code, exitFailed, healthErr.String())
+			"asks a different question from a console asking after intent, and nothing on this "+
+			"host is being filtered (stderr %s)",
+			code, exitNotFiltered, healthErr.String())
 	}
+	// The cause, not only the code. not_enforcing here would send whoever reads
+	// the alert hunting a kernel that lost its rules.
 	if !strings.Contains(healthOut.String(), string(shared.HealthReasonPanic)) {
-		t.Errorf("health must name panic as the reason, or the 1 is unexplained:\n%s",
+		t.Errorf("health must name panic as the reason, or the 2 is unexplained:\n%s",
+			healthOut.String())
+	}
+	if strings.Contains(healthOut.String(), string(shared.HealthReasonNotEnforcing)) {
+		t.Errorf("health named not_enforcing for a deliberately unfiltered machine:\n%s",
 			healthOut.String())
 	}
 }
@@ -842,4 +877,128 @@ func TestRunSubcommand_NoDaemonFallbackNamesItselfInTheAuditLog(t *testing.T) {
 			"literally in the log table, and `console` is what the daemon-mediated "+
 			"route writes for the same action", entry.User)
 	}
+}
+
+// readAudit returns the audit entries a subcommand wrote into the log under
+// dir, in the order they were appended.
+func readAudit(t *testing.T, dir string) []shared.AuditLogEntry {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(dir, "audit.log"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		t.Fatalf("read audit log: %v", err)
+	}
+	var out []shared.AuditLogEntry
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line == "" {
+			continue
+		}
+		var e shared.AuditLogEntry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("audit line %q: %v", line, err)
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// What the proof found reaches the audit log, with its detail.
+//
+// The detail is the whole point of the entry. HealthResult deliberately drops
+// SelftestStamp.Detail — /healthz is unauthenticated by necessity and the text
+// names a port number and the claim that failed — and printStamp puts it on a
+// terminal that scrolls away. Without this the field is written by RunSelftest
+// and read by nothing that outlives the invocation, which is how a field gets
+// deleted as dead weight by somebody with no way to tell it from some.
+func TestSelftestWritesWhatItProvedToTheAuditLog(t *testing.T) {
+	cases := []struct {
+		name       string
+		result     shared.SelftestResult
+		detail     string
+		wantAction string
+	}{
+		{"passed", shared.SelftestPassed, "four claims held", "selftest_passed"},
+		{"failed", shared.SelftestFailed,
+			"an open port accepts a connection — port 12227 was dropped", "selftest_failed"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfgPath, dir := writeConfigDir(t, filepath.Join(t.TempDir(), "absent.sock"))
+			fakeSelftest(t, shared.SelftestStamp{
+				Version: shared.CurrentVersion,
+				Kernel:  core.KernelRelease(),
+				Result:  tc.result,
+				Detail:  tc.detail,
+			})
+
+			var out, errOut bytes.Buffer
+			runSubcommand("selftest", []string{"-config", cfgPath}, &out, &errOut)
+
+			entries := readAudit(t, dir)
+			if len(entries) != 1 {
+				t.Fatalf("the proof wrote %d audit entries, want 1: %+v", len(entries), entries)
+			}
+			got := entries[0]
+			if got.Action != tc.wantAction {
+				t.Errorf("audit action = %q, want %q", got.Action, tc.wantAction)
+			}
+			if got.Detail != tc.detail {
+				t.Errorf("audit detail = %q, want %q — the proof's own text is kept here and "+
+					"nowhere else that survives the invocation", got.Detail, tc.detail)
+			}
+			if got.User != auditUserSelftest {
+				t.Errorf("audit user = %q, want %q; the log has to say which process wrote a "+
+					"line without an operator inferring it from the timestamp",
+					got.User, auditUserSelftest)
+			}
+		})
+	}
+}
+
+// unprovable writes nothing, and neither does a skipped run.
+//
+// unprovable is the ordinary state on every container and on every host whose
+// daemon holds CAP_NET_ADMIN and not CAP_SYS_ADMIN, which is the normal systemd
+// installation. One line per boot saying the proof could not be attempted would
+// be the whole audit log on a machine that reboots, and it would push out the
+// apply and panic entries an operator greps for. A skipped run proved nothing
+// now, so it has nothing to record either.
+func TestSelftestWritesNoAuditEntryWithNothingProven(t *testing.T) {
+	t.Run("unprovable", func(t *testing.T) {
+		cfgPath, dir := writeConfigDir(t, filepath.Join(t.TempDir(), "absent.sock"))
+		fakeSelftest(t, shared.SelftestStamp{
+			Version: shared.CurrentVersion,
+			Kernel:  core.KernelRelease(),
+			Result:  shared.SelftestUnprovable,
+			Detail:  "this kernel cannot be asked without CAP_SYS_ADMIN",
+		})
+
+		var out, errOut bytes.Buffer
+		runSubcommand("selftest", []string{"-config", cfgPath}, &out, &errOut)
+
+		if entries := readAudit(t, dir); len(entries) != 0 {
+			t.Errorf("unprovable wrote %+v; the normal production state must not fill the "+
+				"audit log one line per boot", entries)
+		}
+		// The result still reached the operator, or "wrote nothing" would be
+		// satisfied by a subcommand that did nothing at all.
+		if !strings.Contains(out.String(), string(shared.SelftestUnprovable)) {
+			t.Errorf("the console did not report the result:\n%s", out.String())
+		}
+	})
+
+	t.Run("skipped as fresh", func(t *testing.T) {
+		cfgPath, dir := writeConfigDir(t, filepath.Join(t.TempDir(), "absent.sock"))
+		writeStamp(t, dir, freshStamp())
+		fakeSelftest(t, shared.SelftestStamp{Result: shared.SelftestFailed})
+
+		var out, errOut bytes.Buffer
+		runSubcommand("selftest", []string{"-config", cfgPath, "-if-stale"}, &out, &errOut)
+
+		if entries := readAudit(t, dir); len(entries) != 0 {
+			t.Errorf("a skipped run wrote %+v; nothing was proven this time", entries)
+		}
+	})
 }

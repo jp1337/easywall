@@ -310,14 +310,24 @@ func printStamp(w io.Writer, stamp shared.SelftestStamp) {
 //
 // The exit codes are the contract a monitoring check and a Docker HEALTHCHECK
 // depend on: ok → 0, degraded → 1, fail → 2. They deliberately diverge from
-// `status` under panic mode, where status exits 0 and health exits 1. That was
-// ruled on rather than overlooked: a machine somebody chose to unfilter is in a
-// state somebody chose, so a console asking after *intent* is right to be
+// `status` under panic mode, where status exits 0 and health exits **2**. That
+// was ruled on rather than overlooked: a machine somebody chose to unfilter is
+// in a state somebody chose, so a console asking after *intent* is right to be
 // quiet — but a monitoring system asking after *health* is asking a different
 // question, and answering it closes carried-forward's entry open since 2.7,
 // "a forgotten panic mode is invisible to monitoring; a panic nobody remembers
 // never pages anyone". TestHealthAndStatusDisagreeUnderPanic pins the
 // divergence so it stays a decision instead of being rediscovered as a bug.
+//
+// 2 and not 1, corrected on 2026-09-09 against this release's own spec: §2 said
+// panic reads `degraded`, and that reason was unreachable — Firewall.Panic
+// leaves an empty input chain, which Enforcing() reports as not enforcing, so
+// computeHealth returned at its first branch. The correction is `fail` with
+// reason `panic`, because a panicked machine is not filtering at all and
+// `degraded` would understate it. The state and the cause are printed on
+// separate lines here for exactly that reason: the code says how bad, the
+// reason says why, and `panic` is what stops whoever reads it hunting a kernel
+// that lost its rules.
 func runHealth(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdGetHealth})
 	if err != nil {
@@ -421,8 +431,53 @@ func runSelftest(cfg *core.Config, o opts, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr,
 			"easywall-core: the self-test ran, but its result could not be recorded: %v\n", err)
 	}
+	recordProof(cfg, stamp)
 	printStamp(stdout, stamp)
 	return proofExitCode(stamp.Result)
+}
+
+// auditUserSelftest is who wrote a selftest_passed or selftest_failed line.
+//
+// Not "core" and not "console": neither is true. The proof runs in this binary,
+// under easywall-selftest.service before the daemon exists or under a
+// maintainer's hand at a shell, and the daemon it precedes never sees it. The
+// same distinction auditUserNoDaemon exists for — the log has to say which
+// process wrote a line without an operator inferring it from the timestamp.
+const auditUserSelftest = "selftest"
+
+// recordProof puts what the proof found into the audit log, with its detail.
+//
+// This is the *only* place SelftestStamp.Detail is durably recorded. It is
+// deliberately absent from HealthResult, because /healthz is unauthenticated by
+// necessity and the detail names a port number and the claim that failed, and
+// printStamp above puts it on a terminal that scrolls away. Without this half,
+// a field RunSelftest writes is read by nothing that outlives the invocation,
+// and the next maintainer deletes it as dead weight having no way to tell it
+// from some.
+//
+// unprovable writes nothing, and that is not the same omission as a missing
+// case. It is the ordinary state on every container and every host whose daemon
+// holds CAP_NET_ADMIN and not CAP_SYS_ADMIN, which is the normal systemd
+// installation — one line per boot saying the proof could not be attempted
+// would be the whole audit log on a machine that reboots, and it would push out
+// the apply and panic entries an operator actually greps for. computeHealth
+// treats unprovable as ok for the same reason: being unable to prove something
+// is not the same as it being broken. The journal carries it, once.
+//
+// Called from both the ran-and-recorded path and the path whose stamp write
+// failed. The proof ran either way, and an unwritable data directory does not
+// change what it found.
+func recordProof(cfg *core.Config, stamp shared.SelftestStamp) {
+	var action string
+	switch stamp.Result {
+	case shared.SelftestPassed:
+		action = "selftest_passed"
+	case shared.SelftestFailed:
+		action = "selftest_failed"
+	default:
+		return
+	}
+	core.WriteAuditLog(cfg.AuditLogPath(), action, "all", stamp.Detail, auditUserSelftest)
 }
 
 // proofExitCode maps a recorded result onto an exit code. Only a false claim is

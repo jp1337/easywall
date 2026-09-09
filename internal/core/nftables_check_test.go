@@ -1,12 +1,17 @@
 package core
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // The regression test for the defect this release exists for. All three ct-state
@@ -242,5 +247,70 @@ func TestCheckKnowsEveryVerdictKindTheLibraryDefines(t *testing.T) {
 	}
 	if f := CheckRules(rules, nil); len(f) != 1 {
 		t.Fatalf("findings = %d, want 1 for verdict kind 6: %+v", len(f), f)
+	}
+}
+
+// A layer-B finding reaches the audit log, and nothing does when there is none.
+//
+// The finding used to exist in two places only: the journal, and a health reply
+// nobody had asked for. The audit log is the record an operator greps after an
+// incident, and it said the apply had simply succeeded.
+func TestAuditBuildFindings(t *testing.T) {
+	one := Finding{Chain: "input", Index: 3, Reason: "a ct state mask that matches nothing"}
+	two := Finding{Chain: "ssh-brute", Index: noIndex, Reason: "a jumped-to chain ends in accept"}
+
+	cases := []struct {
+		name       string
+		findings   []Finding
+		wantWrite  bool
+		wantDetail string
+	}{
+		{name: "no findings", findings: nil, wantWrite: false},
+		{name: "empty slice", findings: []Finding{}, wantWrite: false},
+		{
+			name: "one finding is recorded verbatim", findings: []Finding{one},
+			wantWrite:  true,
+			wantDetail: "input rule 3: a ct state mask that matches nothing",
+		},
+		{
+			// Not all of them: a malformed ruleset can produce one per rule, and
+			// this text is rendered on a web page. The journal has the rest.
+			name: "more than one is counted", findings: []Finding{one, two, one},
+			wantWrite:  true,
+			wantDetail: "input rule 3: a ct state mask that matches nothing (and 2 more; see the journal)",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "audit.log")
+			auditBuildFindings(path, tc.findings, "web")
+
+			raw, err := os.ReadFile(path)
+			if !tc.wantWrite {
+				if err == nil {
+					t.Fatalf("an apply with no findings wrote %q; a clean apply must not "+
+						"report itself degraded", string(raw))
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("nothing was written for %d finding(s): %v", len(tc.findings), err)
+			}
+
+			var entry shared.AuditLogEntry
+			if err := json.Unmarshal([]byte(strings.TrimSpace(string(raw))), &entry); err != nil {
+				t.Fatalf("audit line %q: %v", string(raw), err)
+			}
+			if entry.Action != "health_degraded" {
+				t.Errorf("audit action = %q, want %q", entry.Action, "health_degraded")
+			}
+			if entry.Detail != tc.wantDetail {
+				t.Errorf("audit detail =\n  %q\nwant\n  %q", entry.Detail, tc.wantDetail)
+			}
+			if entry.User != "web" {
+				t.Errorf("audit user = %q; the finding belongs to whoever ran the apply", entry.User)
+			}
+		})
 	}
 }

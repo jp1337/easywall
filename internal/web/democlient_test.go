@@ -631,6 +631,62 @@ func TestDemoAnswersGetHealth(t *testing.T) {
 			"prove anything in, and claiming otherwise would be false in the public demo",
 			got.Selftest.Result, shared.SelftestUnprovable)
 	}
+	// The stamp names no kernel, and that absence is load-bearing: internal/web
+	// imports internal/core nowhere by design, so it cannot reach the
+	// privileged KernelRelease(). The dashboard renders nothing where the kernel
+	// would go rather than an empty value under the label.
+	if got.Selftest.Kernel != "" {
+		t.Errorf("demo self-test kernel = %q; the web process has no path to "+
+			"core.KernelRelease() and must not invent one", got.Selftest.Kernel)
+	}
+}
+
+// And under panic mode it says the thing the banner over every page already
+// says, rather than ok/healthy underneath it.
+//
+// fail with reason panic — the same answer computeHealth gives a real host in
+// the same state, out of its first branch: Firewall.Panic leaves an empty input
+// chain, Enforcing() reports that as not enforcing, and the marker names the
+// cause. Both halves are asserted. fail rather than degraded, because a
+// panicked host is not filtering at all; panic rather than not_enforcing,
+// because a human took the rules away and a reboot will not bring them back. A
+// demo that disagrees with the core about its own state is a demo nothing can
+// be reviewed against.
+func TestDemoHealthFollowsPanicMode(t *testing.T) {
+	d := newDemoState()
+
+	if resp := d.Send(shared.Command{Type: shared.CmdPanic}); !resp.Success {
+		t.Fatalf("PANIC failed: %s", resp.Error)
+	}
+
+	resp := d.Send(shared.Command{Type: shared.CmdGetHealth})
+	if !resp.Success {
+		t.Fatalf("GET_HEALTH failed: %s", resp.Error)
+	}
+	var got shared.HealthResult
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthFail {
+		t.Errorf("demo health state under panic = %q, want %q; the banner and the hero "+
+			"would contradict each other on the same page", got.State, shared.HealthFail)
+	}
+	if got.Reason != shared.HealthReasonPanic {
+		t.Errorf("demo health reason under panic = %q, want %q; not_enforcing would send a "+
+			"reader hunting a kernel that lost its rules", got.Reason, shared.HealthReasonPanic)
+	}
+
+	// And back again, so this does not pass on a demo that answers fail always.
+	if resp := d.Send(shared.Command{Type: shared.CmdResume}); !resp.Success {
+		t.Fatalf("RESUME failed: %s", resp.Error)
+	}
+	resp = d.Send(shared.Command{Type: shared.CmdGetHealth})
+	if err := json.Unmarshal(resp.Data, &got); err != nil {
+		t.Fatalf("unmarshal health result: %v", err)
+	}
+	if got.State != shared.HealthOK {
+		t.Errorf("demo health state after resume = %q, want %q", got.State, shared.HealthOK)
+	}
 }
 
 // The demo has to store time the way the core does, or it cannot surface the
