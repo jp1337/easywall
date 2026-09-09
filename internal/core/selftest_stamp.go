@@ -27,6 +27,23 @@ import (
 type StampStore struct {
 	mu   sync.Mutex
 	path string
+
+	// lastReadErr is the last unreadable-file message reported, so a stamp that
+	// stays broken in the same way is one journal line rather than one per
+	// health poll. Guarded by mu: every caller of read() holds it. The shape is
+	// UsageStore.lastParseErr's, which exists for exactly this reason.
+	//
+	// It was deferred once, on the rationale that "Read and Stale are called
+	// once per process". That is false for Health(): GET_HEALTH reads the stamp
+	// on every call and health.go says the endpoint is deliberately uncached
+	// because Docker asks every ten seconds. So a selftest.json that is corrupt
+	// or has the wrong mode after a restore warned every 10 s indefinitely —
+	// and never healed, because only cmd/easywall-core writes the file and
+	// nothing rewrites it until the next `selftest --if-stale` at boot. That is
+	// the failure mode sdnotify.go and UsageStore.lastParseErr both exist to
+	// prevent: a journal that is one repeated line, in which the line that
+	// matters cannot be found.
+	lastReadErr string
 }
 
 func NewStampStore(path string) *StampStore { return &StampStore{path: path} }
@@ -44,18 +61,26 @@ func (s *StampStore) read() shared.SelftestStamp {
 	data, err := os.ReadFile(s.path) // #nosec G304 -- path is built from the daemon's own config
 	if err != nil {
 		if !os.IsNotExist(err) {
-			slog.Warn("the self-test stamp could not be read; the proof will run again",
-				"path", s.path, "error", err)
+			s.warnOnce("the self-test stamp could not be read; the proof will run again", err)
 		}
 		return shared.SelftestStamp{}
 	}
 	var stamp shared.SelftestStamp
 	if err := json.Unmarshal(data, &stamp); err != nil {
-		slog.Warn("the self-test stamp is unreadable and is being started again",
-			"path", s.path, "error", err)
+		s.warnOnce("the self-test stamp is unreadable and is being started again", err)
 		return shared.SelftestStamp{}
 	}
+	s.lastReadErr = ""
 	return stamp
+}
+
+// warnOnce logs err the first time it is seen and stays quiet while it repeats.
+// Caller holds mu. See StampStore.lastReadErr.
+func (s *StampStore) warnOnce(msg string, err error) {
+	if text := err.Error(); text != s.lastReadErr {
+		s.lastReadErr = text
+		slog.Warn(msg, "path", s.path, "error", err)
+	}
 }
 
 // Stale reports whether the proof has to run for this version and kernel.
