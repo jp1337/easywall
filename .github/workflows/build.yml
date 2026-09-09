@@ -131,6 +131,13 @@ jobs:
       # itself computed. Three states, and the middle one is the recorded
       # incident.
       #
+      # This covers docker-compose.yml as well, by construction rather than by
+      # coincidence: that file declares no `healthcheck:` block, so compose
+      # inherits the image's — the one measured here is the only one there is.
+      # The moment somebody adds a block back to the compose file, this step
+      # stops covering it, which is one of the reasons the comment there asks
+      # them not to.
+      #
       # Its own network namespace, not the host's. docker-compose.yml shares the
       # host's because nftables must reach host tables, and doing that here would
       # apply a firewall to the machine running the job — at policy drop, to the

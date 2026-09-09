@@ -49,36 +49,26 @@ services:
       # Audit and application logs
       - easywall_logs:/var/log/easywall
 
-    # The same check the image now carries, spelled the same way.
+    # There is deliberately no `healthcheck:` here. Compose uses the image's
+    # HEALTHCHECK when this file declares none, and the Dockerfile has one — the
+    # command, the interval, the timeout, the retries and the 15s start period
+    # all come from there and govern this path too.
     #
-    # This used to be its own thing: `test -S /run/easywall/core.sock` and a
-    # fetch of /login. A socket that exists says a core bound it, not that the
-    # kernel is holding any rules — which is the whole subject of 2.17 — and
-    # /login is a page that renders whether or not the firewall behind it is
-    # filtering. /healthz is the one request that sees all of it: it is served
-    # by the web process, so an answer proves that process is alive, and its
-    # handler asks the core over the socket, so a dead core and an unenforced
-    # kernel are both 503. The Dockerfile's HEALTHCHECK carries the argument,
-    # including why adding `easywall-core health` beside it is a mistake and not
-    # an improvement.
+    # Do not add one back for symmetry. A block here would be the *only* thing
+    # that can drift: the image's check and a copy in this file are two
+    # definitions of one artefact, and this repository already knows where that
+    # ends — release.yml refuses a second packaging definition because two
+    # definitions of one artefact is how a package comes to contain no binaries.
+    # Deleting the copy makes the drift impossible instead of guarded.
     #
-    # Repeated here rather than dropped, because compose overriding the image's
-    # check is what an operator expects to be able to edit — and because the
-    # interval keys below are this file's to set. What must not happen again is
-    # the two disagreeing about what they *run*: for a year this file tested one
-    # thing and the image tested nothing, and the difference was invisible until
-    # somebody ran `docker run`. The address follows bind_addr in
-    # config/web.toml — change one and change the other.
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      # 15s, matching the image: the entrypoint chowns a bind-mounted
-      # /etc/easywall before supervisord starts anything, and a first-run
-      # container generates its certificate after that. At 5s the first two
-      # probes measured a container that had not finished starting.
-      start_period: 15s
+    # This block existed *because* the image had no check, and for a year it was
+    # the whole story: it tested `test -S /run/easywall/core.sock` and fetched
+    # /login, while a plain `docker run` was checked by nothing at all. A socket
+    # that exists says a core bound it, not that the kernel is holding any rules
+    # — which is the whole subject of 2.17 — and /login renders whether or not
+    # the firewall behind it is filtering. The Dockerfile's HEALTHCHECK carries
+    # what replaced it and why one request is enough, including the address,
+    # which follows bind_addr in config/web.toml.
 
 volumes:
   easywall_data:
