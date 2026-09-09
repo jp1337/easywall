@@ -904,6 +904,54 @@ indented, so the eye reads container-then-contents instead of two rows of equal-
 The first group carries no border — it follows the ungrouped Home and Overview links, not
 another group, and a rule there divided nothing.
 
+### Measure
+
+**Explanatory body text is capped, in `ch`, and the cap is never `none`.** A sentence an
+operator reads gets a ceiling on its measure, stated in `ch` so it follows the loaded face
+rather than a viewport. Tables and data are not text and take no cap — that is the Layout
+section's rule and it stands. The ceiling is per element, and every one of them is between
+52 and 68:
+
+| Element | Cap | What it carries |
+|---|---|---|
+| `.hero-note`, `.verdict-note` | 60ch | The sentence explaining a state, on the dashboard and on the apply screen. Translated, and unbounded in length |
+| `.apply-lead` | 52ch | The lead-in above the three-step sequence, one authored paragraph per verdict |
+| `.page-subtitle` | 68ch | One authored line of orientation under the page title. It binds: German `apply_subtitle` is 107 characters and wraps |
+
+**Added 2026-09-09, from a measurement rather than a reading.** `.hero-note` and
+`.verdict-note` had no cap at all, and this document had no rule for them to violate — the
+gap was here, not in the stylesheet. `.hero-note` used to carry `dashboard_hero_active`, 46
+characters, and a measure nobody had to think about. 2.17 put the health reason in it.
+Rendered on `/dashboard` at a 1920px viewport the note measured **927px, carrying 151
+characters on one line** — roughly 143 characters of prose. The guidance is under 80.
+German is worse: `health_reason_stateful_dead` is 177 characters.
+
+**60ch is the largest cap whose longest rendered line stays under 80 characters.** Measured
+in Chromium over every string those two selectors can carry, in every locale that ships,
+counting the characters in each line box the browser actually produced. Both selectors set
+at 13px, so the pixel column is that size:
+
+| Cap | Renders at | Longest line |
+|---:|---:|---:|
+| 52ch | 416px | 69 chars |
+| 56ch | 448px | 74 chars |
+| 58ch | 464px | 75 chars |
+| **60ch** | **480px** | **79 chars** |
+| 62ch | 496px | 82 chars |
+| 64ch | 512px | 83 chars |
+| 68ch | 544px | 85 chars |
+
+**Do not re-derive a cap from the `ch` metric.** One `ch` is the advance of `0`, and Inter
+resolves that to 8px at 13px, but prose averages nearer 6px per character. A `ch` cap is
+therefore always looser than its number reads, and the arithmetic misses by two or three
+characters — which is the whole margin here. The number to trust is the rendered one.
+
+A cap is not a width. `dashboard_hero_active` still sets at its own 285px, and the healthy
+reason still fits on one line. Nor does a cap fight the phone: 480px is wider than a whole
+390px viewport, so it never binds there. German wrapping to three lines is the cap working,
+because three short lines read better than one line of 143 characters. Verify it by
+rendering `/dashboard` and `/apply` in German, not by re-doing the arithmetic.
+
 ## Layout
 
 The frame is fixed by the `layout` tokens: a `sidebar-width` of 240px, a `topbar-height` of
