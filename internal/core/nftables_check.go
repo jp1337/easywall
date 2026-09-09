@@ -250,11 +250,26 @@ type jumpSite struct {
 // builders put the load immediately before the mask today, and a rule that
 // grows a counter or a payload test in between must not silently fall out of
 // this check's scope.
+//
+// And past a conntrack load into a *different* register, rather than returning
+// at the first expr.Ct of any kind. Returning there defeated the walk-back the
+// paragraph above exists for: `Ct{STATE}, Ct{COUNT}, Cmp, Bitwise` met the
+// Ct{COUNT} first and reported the ct-state mask unchecked, so a rule that
+// loads a second conntrack key left this check's scope silently — with no
+// finding to say so, which is this release's own subject.
+//
+// What it stops at is the nearest load into the register the mask reads, and it
+// then answers about that one. Not the nearest CtKeySTATE load anywhere: a
+// Ct{COUNT} written into the same register is the value this mask sees, and
+// treating an earlier state load as its source would report the mask as a
+// broken ct-state comparison when it is not one.
 func precededByCtState(exprs []expr.Any, i int, bw *expr.Bitwise) bool {
 	for j := i - 1; j >= 0; j-- {
-		if ct, is := exprs[j].(*expr.Ct); is {
-			return ct.Key == expr.CtKeySTATE && ct.Register == bw.SourceRegister
+		ct, is := exprs[j].(*expr.Ct)
+		if !is || ct.Register != bw.SourceRegister {
+			continue
 		}
+		return ct.Key == expr.CtKeySTATE
 	}
 	return false
 }

@@ -61,6 +61,11 @@ services:
     # definitions of one artefact is how a package comes to contain no binaries.
     # Deleting the copy makes the drift impossible instead of guarded.
     #
+    # And this is a refusal rather than a request: `make test` fails if a
+    # `healthcheck:` block appears here, or if the Dockerfile's HEALTHCHECK goes
+    # away — TestTheContainerHealthCheckHasOneDefinition in internal/shared. The
+    # analogy to release.yml is only worth making if it is enforced the same way.
+    #
     # Two exceptions, and they are what keeps that prohibition credible rather
     # than absolute:
     #

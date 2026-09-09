@@ -76,8 +76,23 @@ func notify(state string) {
 		return
 	}
 	defer func() { _ = conn.Close() }()
+
+	// A deadline, because the watchdog goroutine holds a d.wg slot that Stop()
+	// waits on. $NOTIFY_SOCKET is a datagram socket with a finite queue, and a
+	// write to a full one blocks: PID 1 not draining it would park this
+	// goroutine, and shutdown would then wait on it until systemd sent SIGKILL.
+	// It matches the canonical C implementation and needs systemd itself to
+	// stop reading, so it is a hazard rather than a defect — and the cure is
+	// two lines. Whatever happens, an unsent notification is already dropped on
+	// the floor here by design.
+	_ = conn.SetWriteDeadline(time.Now().Add(notifyWriteTimeout))
 	_, _ = conn.Write([]byte(state))
 }
+
+// notifyWriteTimeout bounds the one write above. Generous by the standards of a
+// local datagram socket that is normally never full, and short enough that
+// shutdown is not visibly delayed by it.
+const notifyWriteTimeout = 2 * time.Second
 
 // NotifyReady tells systemd the daemon is up. Call it once, and only after the
 // thing Type=notify is asserting is true — see Daemon.Start.

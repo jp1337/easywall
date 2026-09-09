@@ -215,6 +215,17 @@ and a real loopback peer is not talked out of it by a header naming someone else
 whoever is allowed gets the real answer. `degraded` answers 200: a `HEALTHCHECK`
 that restarted the container for it would restart a working firewall.
 
+**What the body carries is part of the gate.** `HealthResult` is a reduced type
+because this route is unauthenticated: no rule detail, no counter values, no
+finding text. The reduction was one field short until the 2.17 review — a live
+container answered `"kernel":"7.2.3-ogc3.1.fc44.x86_64"`, the host's exact
+release, to anyone on `health_allow`. `writeHealth` now drops it at the
+endpoint, so the field survives for the authenticated dashboard and leaves the
+unauthenticated reply. That matters because the documented `health_allow`
+examples widen the list to a monitoring subnet: an operator following them
+would otherwise publish the release a hardening guide exists to hide, to a
+whole /24, with no credential.
+
 ## Rate limiting
 
 `LoginRateLimit`: a token bucket per resolved client, 5 tokens refilling one every

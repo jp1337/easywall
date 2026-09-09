@@ -53,7 +53,12 @@ monitoring system can each read.
   session, because an orchestrator holds none. `200` for `ok` and `degraded`,
   `503` for `fail` and for a core that does not answer, `404` for a caller not
   on `health_allow`. Loopback only until an operator widens it, matched against
-  the TCP peer and never against a forwarding header.
+  the TCP peer and never against a forwarding header. The body is deliberately
+  thin: the state, the reason and the proof's identity. No rule detail, no
+  counters, and **no kernel release** — the dashboard names the host's kernel
+  over the authenticated path and this route never does. A proof nothing has
+  recorded renders `"selftest": {}` rather than empty strings, because an empty
+  field where a value belongs is a claim and absence is not.
 - **Layer B: every expression is checked before it reaches netlink.** A
   byte-reversed conntrack mask, a bit the kernel does not define, a jump to a
   chain nobody creates, an accepting chain where a `return` was meant. It needs
@@ -64,7 +69,9 @@ monitoring system can each read.
   connection passes, an open port accepts, a closed port does not, and a
   blacklist outranks an open port. Measured over a veth pair in a throwaway
   network namespace built with netlink alone — no `unshare`, no `ip`, no
-  subprocess anywhere in the privileged path.
+  subprocess anywhere in the privileged path. The pair is `ewst-r` and
+  `ewst-p` in `10.77.9.0/24`, both fixed, and the range and the names are now
+  written where an operator reads them rather than only in the source.
 - **`easywall-selftest.service`**, which runs that proof once per version and
   kernel. It is the only place `CAP_SYS_ADMIN` appears in this repository:
   `CLONE_NEWNET` needs it, and widening the long-lived root daemon to buy a

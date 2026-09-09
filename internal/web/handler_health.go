@@ -83,7 +83,23 @@ func healthAllowed(r *http.Request, allow []string) bool {
 
 // writeHealth answers with the result as JSON. no-store because a cached "ok"
 // is the one answer a health check must never be given.
+//
+// The kernel release is dropped here, and the reduction is at the endpoint
+// rather than in the type on purpose: the *dashboard* reads the same reply over
+// the authenticated path and renders it as a fact worth having, so the field
+// stays on shared.HealthSelftest and the exposure is closed where the exposure
+// is.
+//
+// HealthSelftest exists because this route is unauthenticated by necessity, and
+// its own comment argues that at length — for stripping Detail, which names a
+// port number. The reduction stopped one field short. A measured reply from a
+// live container read "kernel":"7.2.3-ogc3.1.fc44.x86_64": the host's exact
+// release, published with no credential. Both documented health_allow examples
+// widen the list to a /24, so an operator following the documentation hands a
+// whole subnet the one fact every hardening guide exists to hide — strictly
+// more useful to an attacker than the string this type was reduced to exclude.
 func writeHealth(w http.ResponseWriter, code int, res shared.HealthResult) {
+	res.Selftest.Kernel = ""
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(code)

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,6 +95,50 @@ func TestStampHealsFromAnUnreadableFile(t *testing.T) {
 				t.Errorf("after the rewrite Result = %q, want passed", got)
 			}
 		})
+	}
+}
+
+// A stamp that stays broken is one journal line, not one per health poll.
+//
+// GET_HEALTH reads the stamp on every call, and health.go says the endpoint is
+// deliberately uncached because Docker asks every ten seconds. So an
+// unreadable selftest.json warned every 10 s for the life of the installation
+// and never healed: only cmd/easywall-core writes the file, so nothing rewrites
+// it until the next `selftest --if-stale` at boot. This is the case
+// UsageStore.lastParseErr was added for, reached from a second consumer.
+//
+// The count and not the presence: one warning is right, and it is the second
+// through hundredth that make the journal useless.
+func TestAnUnreadableStampWarnsOnceAndNotPerPoll(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "selftest.json")
+	if err := os.WriteFile(path, []byte(`{not json`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var n int
+	prev := slog.Default()
+	slog.SetDefault(slog.New(countingHandler{n: &n, substr: "self-test stamp"}))
+	defer slog.SetDefault(prev)
+
+	s := NewStampStore(path)
+	for range 10 {
+		s.Read()
+	}
+	if n != 1 {
+		t.Errorf("10 reads of the same corrupt stamp logged %d warnings, want 1: "+
+			"Health() reads this on every GET_HEALTH, so one line per read is a "+
+			"journal filled at Docker's poll interval for ever", n)
+	}
+
+	// And the suppression is per message, not permanent: a file that becomes
+	// unreadable in a *different* way is a new fact and has to be said.
+	if err := os.WriteFile(path, []byte(`{"version":"2.17.0","kernel":123}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.Read()
+	if n != 2 {
+		t.Errorf("a stamp that broke in a new way logged %d warnings in total, want 2: "+
+			"the suppression must be per message and not a latch", n)
 	}
 }
 

@@ -2,6 +2,9 @@ package core
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +78,73 @@ func TestCheckRejectsACtStateBitTheKernelDoesNotDefine(t *testing.T) {
 	}
 	if findings := CheckRules([]*nftables.Rule{r}, nil); len(findings) != 1 {
 		t.Fatalf("findings = %d, want 1 for mask 0x8000000", len(findings))
+	}
+}
+
+// A second conntrack load must not carry the mask out of the check's scope.
+//
+// precededByCtState walks back rather than reading i-1 precisely so that a
+// counter or a payload test growing between the load and the mask does not
+// silently drop the rule out of scope. Returning at the first expr.Ct of *any*
+// key defeated that: this rule's Ct{COUNT} came between, and the byte-reversed
+// mask behind it was reported clean.
+//
+// The second case is the price of the fix, and is why the loop stops at the
+// nearest load into the register the mask reads rather than at the nearest
+// state load anywhere. A count written into the register the mask goes on to
+// read is not a ct-state comparison at all, and reporting it as a broken one
+// would be a false alarm in a gate that fails the build.
+//
+// Both fixtures carry the *byte-reversed* mask, and the second one has to.
+// Written with a native mask it produced no finding under either
+// implementation — the mask is correct, so there is nothing to report whatever
+// precededByCtState answers — and the assertion could not see the false
+// positive it exists to prevent: the whole test passed against the bare
+// `continue`. That made this the eleventh guard in this release green for the
+// wrong reason, and the third turn of the same screw: the original defect was
+// a unit test recording the reversed mask as expected output, Task 10's
+// substring-guard helper was itself a substring guard, and this was the test
+// written to pin a fix for a guard green for the wrong reason, blind to the
+// thing it was written for. Reversing the mask is the whole difference: the
+// register scoping is now the only reason the second case reports nothing.
+func TestCheckSeesPastASecondConntrackLoad(t *testing.T) {
+	rule := func(second *expr.Ct, mask []byte) *nftables.Rule {
+		return &nftables.Rule{
+			Chain: &nftables.Chain{Name: "input"},
+			Exprs: []expr.Any{
+				&expr.Ct{Register: 1, Key: expr.CtKeySTATE},
+				second,
+				&expr.Counter{},
+				&expr.Bitwise{
+					SourceRegister: 1, DestRegister: 1, Len: 4,
+					Mask: mask,
+					Xor:  ctStateNoMatch,
+				},
+				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ctStateNoMatch},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+		}
+	}
+
+	reversed := binaryutil.BigEndian.PutUint32(ctStateEstablished | ctStateRelated)
+
+	// A count loaded into another register leaves register 1 holding the state,
+	// so the reversed mask is still this check's business.
+	if findings := CheckRules([]*nftables.Rule{
+		rule(&expr.Ct{Register: 2, Key: expr.CtKeyPKTS}, reversed)}, nil); len(findings) != 1 {
+		t.Errorf("findings = %d, want 1: a conntrack load into another register left a "+
+			"byte-reversed ct-state mask unchecked — the walk-back is defeated by the "+
+			"very expression it was written to see past", len(findings))
+	}
+
+	// The same load into register 1 overwrites the state, so the mask is not a
+	// ct-state comparison and must not be judged as one — even though those four
+	// bytes would be a defect if it were.
+	if findings := CheckRules([]*nftables.Rule{
+		rule(&expr.Ct{Register: 1, Key: expr.CtKeyPKTS}, reversed)}, nil); len(findings) != 0 {
+		t.Errorf("findings = %+v, want none: the mask reads a packet count, not a "+
+			"conntrack state, and a false alarm in a gate that fails the build is how "+
+			"the gate gets switched off", findings)
 	}
 }
 
@@ -313,4 +383,104 @@ func TestAuditBuildFindings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The recording adder is the only door to the connection.
+//
+// CheckRules reads m.built, and only builtRecorder.AddRule fills it. All
+// thirty-one existing builders go through m.adder — and nothing stopped a
+// thirty-second from calling m.conn.AddRule directly, which is what every
+// builder in this file looked like before c4dab40, so it is the shape a
+// copy-paste out of git history produces.
+//
+// The review measured what that costs. A 2.18-shaped builder written the
+// pre-2.17 way, carrying binaryutil.BigEndian.PutUint32(ctStateNew) — the mask
+// class of the original defect — left `go test ./internal/...` green, the
+// integration gate green, m.LastFindings() empty, and `ct state 0x8000000` in
+// the live kernel table. All three layers reported success, and the gate's own
+// three defences survived it intact: checksRun was still 2, the len(m.built)
+// floor was met by the other rules, and the findings loop never saw the rule.
+// A rule that leaves m.built leaves every layer of this release.
+//
+// The AST and not a substring, and this file's own subject is why:
+// nftables.go carries the comment "Thirty-one builders called m.conn.AddRule
+// directly", so a strings.Contains guard would match the sentence describing
+// the thing it is checking and pass. Six of the nine guards this release found
+// green for the wrong reason failed exactly that way.
+//
+// Every non-test source in the package, not nftables.go alone. A guard whose
+// scope is one filename is one commit away from being wrong about its own
+// subject — the same reasoning coreSources carries, which was widened after
+// naming firewall.go and restore.go made it blind to a third writer of the
+// table. A builder in a sibling file is exactly as invisible to layer B.
+//
+// What it still does not see is carried in carried-forward.md: `cn := m.conn`
+// followed by `cn.AddRule(…)` has no `.conn.AddRule` selector left to match,
+// and refusing it needs type resolution rather than syntax.
+func TestEveryRuleIsAddedThroughTheRecordingAdder(t *testing.T) {
+	recorders := 0
+	for file, src := range coreSources(t) {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, file, src, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", file, err)
+		}
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			// builtRecorder.AddRule is the one place that may reach the
+			// connection: it is the forwarding half of the recorder, and it has
+			// already appended to m.built by the time it gets there.
+			if fn.Name.Name == "AddRule" && receiverTypeName(fn) == "builtRecorder" {
+				recorders++
+				continue
+			}
+			ast.Inspect(fn, func(n ast.Node) bool {
+				// A selector rather than a call, so a method value —
+				// `add := m.conn.AddRule` — is refused as well as a call.
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "AddRule" {
+					return true
+				}
+				inner, ok := sel.X.(*ast.SelectorExpr)
+				if !ok || inner.Sel.Name != "conn" {
+					return true
+				}
+				t.Errorf("%s:%d: .conn.AddRule in %s; every rule must be added through "+
+					"m.adder, because CheckRules reads m.built and only "+
+					"builtRecorder.AddRule fills it — a rule added straight to the "+
+					"connection reaches the kernel unchecked by layer B, and invisible "+
+					"to the integration gate and to LastFindings",
+					file, fset.Position(sel.Pos()).Line, fn.Name.Name)
+				return true
+			})
+		}
+	}
+
+	// Not finding builtRecorder.AddRule means this walk skipped nothing across
+	// the whole package, which means it is reading a corpus that no longer has
+	// the recorder in it — the one way a guard built around an exemption passes
+	// by inspecting nothing. coreSources has its own floor on the file count.
+	if recorders != 1 {
+		t.Fatalf("found %d builtRecorder.AddRule declarations in internal/core, want 1: "+
+			"this guard is inspecting the wrong thing", recorders)
+	}
+}
+
+// receiverTypeName is the receiver's type name, pointer or not, and "" for a
+// function that has no receiver.
+func receiverTypeName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return ""
+	}
+	t := fn.Recv.List[0].Type
+	if star, ok := t.(*ast.StarExpr); ok {
+		t = star.X
+	}
+	if id, ok := t.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
 }

@@ -4,7 +4,7 @@ What a piece of work found and deliberately did not fix, with enough context to 
 on. Every entry was reviewed, triaged and ruled on rather than forgotten; the
 reasoning for deferring is part of the entry. Newest first.
 
-**What may not go in here: anything the release caused, or anything belonging to
+**What may not go in here: any defect the release caused, or anything belonging to
 the feature it shipped.** A release is complete or it is not finished, and this file
 is not a place to put the difference. An entry earns its place by being *found* by
 the work rather than *made* by it — and that has to be proven against the base the
@@ -12,6 +12,35 @@ branch started from, not against the branch's own head, which already contains t
 release's mistakes. 2.15 carried a `check:prose` failure as pre-existing on exactly
 that error; comparing against `origin/main` showed its own earlier task had written
 the sentence.
+
+## The one exception, added in 2.17
+
+A **contract hole** the release introduced and deliberately did not close is not a
+defect it caused, and may be carried. The distinction is what the entry would take
+to close:
+
+| | Where it goes |
+|---|---|
+| **Defect** — the thing is wrong, and a diff makes it right | fixed in the release, never here |
+| **Contract hole** — the thing works and its contract is narrower than a reader would assume; closing it is a decision about what the contract *is* | here, under the conditions below |
+
+Three conditions, all of them, or it is a defect being renamed:
+
+1. **A measurement**, showing what the ordinary path actually does today — and
+   saying so when the ordinary path is honest by accident rather than by design.
+2. **A stated reason** naming the decision closing it would require: a protocol
+   change, a new lock, a second independent source of truth. "No time" is not one.
+3. **The honest scope written where a reader meets it** — in the code's own
+   comment, in `invariants.md`, or in the published documentation, as the case
+   needs. A hole nothing outside this file admits to is a hole being hidden.
+
+2.17 wrote this rule because it needed it, and needed it for three entries: it had
+`RunPeer` collapsing every dial error into one word, `GET_HEALTH` taking the nft
+mutex behind a comment that says it does not block, and a self-test that creates a
+fixed range on the host with no collision check. Each works; each has a contract
+narrower than its own comment implies. The rule above had no room for that
+category, so rather than claim an exception it did not grant — in the file whose
+whole subject is not doing that — the rule is amended here, in the open.
 
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
@@ -28,8 +57,23 @@ branch head.
 |---|---|
 | **`TestIntegration_TheWindowIsOpenWhileTheRulesAreLive` is load-sensitive by construction** | `firewall_integration_test.go` is **byte-identical** to `b723422`. It polls `Status()` with `runtime.Gosched()` and no sleep, watching for a gap its own comment calls "a handful of instructions" wide. Under container CPU contention the scheduler widens it, and the test then truly observes a real but unavoidable transient state. Seen once in roughly 15 runs |
 | **Four `TestIntegration_Forward_*` tests skip in a container** | `nftables_forward_test.go` byte-identical to `b723422`; the message is *"the two sides cannot reach each other before any firewall exists"*. A skip whose precondition is absent reads exactly like a pass, which is the class `EASYWALL_REQUIRE_SELFTEST` was added to close for layer C |
-| **`CoreClient.GetHealth`, `GetUsage` and `GetAppliedConfig` have no wire-level error-path tests** | `GetUsage` and `GetAppliedConfig` both predate the branch with the same gap, so this is pre-existing for two of the three. What is missing is a socket that answers a malformed or unsuccessful reply |
+| **`CoreClient.GetHealth`, `GetUsage` and `GetAppliedConfig` have no test for a *malformed* reply** | Narrowed from a wider claim after review. `fakeCore` is a real Unix socket listener (`internal/web/testhelpers_test.go:32-51`), so `TestTheDashboardFallsBackWhenTheCoreCannotAnswerAboutHealth` already exercises `GetHealth`'s `!resp.Success` path at wire level. What is uncovered is the reply that parses as a frame and not as the payload. `GetUsage` and `GetAppliedConfig` predate the branch with the same gap; `GetHealth` is new here, so only two of the three are pre-existing |
 | **The `auditBuildFindings` call site in `Firewall.apply` is covered by no test** | `Firewall.nft` is a concrete `*NftablesManager`, so `Apply` cannot reach the line without a kernel. Covering it needs a finding to exist during a real apply, which needs a deliberately broken builder — a mutation, not a test. The function itself is fully covered |
+
+## Contract holes this release introduced, carried with a stated reason
+
+Four entries this release is responsible for, kept here under *The one
+exception* above — which 2.17 added to the top rule for them, rather than
+claiming an allowance the rule did not contain. Each carries its measurement,
+its stated reason, and the place a reader meets the honest scope. In every case
+the ordinary path measured honest; in the first, honest by accident.
+
+| | |
+|---|---|
+| **`RunPeer` collapses every dial error into `blocked`** | `netns.go:81-83`. `inboundCrosses` separates ECONNREFUSED from a timeout from anything else, precisely so a harness fault is never reported as a verdict. The peer side does not, so a harness that breaks between claim 1's control and its measurement records `failed` — the one inversion `foldClaims`'s own doc comment forbids. The reachable trigger is a second concurrent `selftest`: `wire()` takes no lock and `deleteLink` is unconditional. **Measured: three runs of two concurrent `RunSelftest()` gave all six `unprovable`** — the setup collision wins the race every time, so today the inversion is prevented by accident and not by design. Closing it means the peer reporting *why* it could not connect, which is a change to the pipe protocol in `netns.go`'s header comment |
+| **`GET_HEALTH` is documented as short-deadline because it is read-only, and both its netlink reads take the nft mutex** | `protocol.go:99-110` puts it in `CommandTimeout`'s default branch on the grounds that it queues behind nothing. `RuleCounters` (`nftables.go:416`) and `Enforcing` both take that lock, and `Apply` holds it across `applyCustomRules`' nft subprocess for up to 30 s — which is the reasoning `CmdGetUsage`'s own comment gives for *not* reading netlink. Pre-existing at the core level: `GET_STATUS` already does it at `b723422`. What 2.17 adds is a new consumer — during a slow custom-rules apply `/healthz` answers 503, and the image's `--interval=10s --retries=3` reaches its third failure inside that window. **The cost is a wrong word in `docker ps`**: nothing restarts on unhealthy. Note for whoever picks it up that the health check's own comment claims read-only implies non-blocking |
+| **`TestEveryRuleIsAddedThroughTheRecordingAdder` matches a selector, so a local copy of the connection evades it** | The guard walks every non-test source in `internal/core` for a `.conn.AddRule` selector outside `builtRecorder.AddRule`. **Measured: `cn := m.conn` followed by `cn.AddRule(…)` passes it** — there is no `.conn.AddRule` selector left to match, and refusing it needs type resolution rather than syntax, which is a different kind of guard. It is not the shape the finding measured: a copy-paste from pre-`c4dab40` history writes `m.conn.AddRule` and is caught, in any file of the package. `invariants.md` states the scope as the selector rather than as the intent, so nothing claims more than this |
+| **`10.77.9.0/24`, `ewst-r` and `ewst-p` are created in the host namespace with no collision check** | The names and the range are fixed constants, and setup deletes any host interface called `ewst-r` — whoever made it — because a per-pid name would collide one step later on `10.77.9.1/24` anyway (`netns.go:256-262`). Nothing checks whether the host already uses either. Documented for operators in `features/health.md` in this release; the absence of a check is carried. **Measured: `easywall-core selftest` against a live host table reports `unprovable` with an accurate detail, never `failed`, 2 of 2 runs** — the ordinary case is honest |
 
 ## Measured, and left alone
 

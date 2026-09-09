@@ -110,9 +110,19 @@ func TestCapSysAdminIsGrantedByExactlyOneUnit(t *testing.T) {
 //
 // So the check is driven by the directory listing rather than by a list somebody
 // maintains: every systemd/*.service has to be installed by debian/rules and by
-// the Makefile's install target, and has to be enabled, started, stopped and
-// disabled by the maintainer scripts. Adding a unit and forgetting one of the
-// five is otherwise completely silent.
+// the Makefile's install target, and has to be enabled by postinst and disabled
+// by prerm. Adding a unit and forgetting one of those four is otherwise
+// completely silent.
+//
+// **Four, and not five.** This comment said "enabled, started, stopped and
+// disabled" while the table below held four rows, and the review measured what
+// that cost: deleting the `systemctl stop` line from debian/prerm leaves this
+// suite green. `systemctl start` is not checked here either — build.yml's
+// install-verify job catches that half with `is-active`, and nothing at all
+// checks the stop. A guard described as covering more than it does is this
+// release's own subject, so the description is corrected rather than the table
+// quietly extended: adding a row is a change to what `make test` demands of
+// the maintainer scripts, and belongs in a change of its own.
 func TestEveryUnitIsInstalledAndManaged(t *testing.T) {
 	root := repoRoot(t)
 
