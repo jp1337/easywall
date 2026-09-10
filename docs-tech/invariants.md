@@ -417,13 +417,32 @@ longer sets a `Location` header the client's `CreateOrderCert` relies on to
 poll, a version mismatch this task found by reproducing the identical failure
 against the bare `acme.Client`, bypassing `autocert.Manager` entirely.
 
-Verified by breaking it two ways: pointing the manager's `HostPolicy` at a
-different name, which fails at the CA refusing the wrong host before Pebble is
-ever asked to validate anything; and serving the challenge on the wrong path
-prefix, which fails at issuance once every challenge type has been tried and
-none validated. Also verified that `PEBBLE_VA_ALWAYS_VALID=1` — which must
-never be set here — makes even the second, broken case pass, which is exactly
-why leaving it unset is load-bearing rather than incidental.
+The test also replaces the manager's `HostPolicy` after `NewServer`, and that
+is Pebble's own asymmetry, not production's: `GetCertificate` reads
+`hello.ServerName` off the TLS SNI, which never carries a port, but
+`autocert.Manager.HTTPHandler` checks the *HTTP* request's `r.Host` — and
+Pebble's own `va.go` builds every HTTP-01 validation URL with
+`net.JoinHostPort(identifier, portString)`, port included even at 80, where a
+real client (and RFC 7230) would omit it. `autocert.HostWhitelist` does an
+exact match with no port-stripping, so it would refuse every request Pebble
+makes, on any port — this is a gap in Pebble's own test harness, not
+production's, which is why the replacement policy lives in the integration
+test and not in `newACMEManager`. Production's own construction of
+`HostPolicy` is untouched and covered on its own by
+`TestACMEManagerIssuesOnlyForTheConfiguredHost`.
+
+Verified by breaking it three ways, all with real output, not by argument:
+pointing the manager's `HostPolicy` at a different name, which fails in under
+a second with the CA refusing the wrong host before Pebble is ever asked to
+validate anything; serving the challenge on the wrong path prefix, which
+fails at issuance once every challenge type has been tried and none
+validated; and restoring Task 9's Critical — the `usesACME()` guard removed
+from `Start()`'s preflight — which reproduces the exact panic that guard was
+added to prevent, inside this same test, confirming it would have caught
+that regression on day one. Also verified that `PEBBLE_VA_ALWAYS_VALID=1` —
+which must never be set here — makes even the second, broken case pass,
+which is exactly why leaving it unset is load-bearing rather than
+incidental.
 
 ## The technical documentation stays unpublished
 

@@ -88,10 +88,12 @@ func skipOrFailUnprovable(t *testing.T, reason string) {
 // podman first, not merely as a preference: this whole package's TestMain
 // (proxy_integration_test.go) re-execs into a fresh network namespace via
 // CLONE_NEWNET before any test in this package runs, this one included.
-// podman's rootless model forks its container process directly from the
-// caller with no separate long-lived daemon, so a container started with
-// --network host below shares *that* namespace — the one this test's own
-// listener is also in. docker is a client talking to a system-wide dockerd,
+// What matters is not rootless vs. root — this test runs as whatever the
+// suite around it does, root in CI (sudo) — but that podman has no
+// persistent daemon and forks its container process directly from the
+// caller, so a container started with --network host below shares *that*
+// namespace — the one this test's own listener is also in. docker is a
+// client talking to a system-wide dockerd,
 // which normally lives outside TestMain's namespace entirely; a container it
 // starts with --network host would share dockerd's namespace instead, not
 // this test's, and Pebble would never reach the listener. docker is kept as
@@ -316,33 +318,21 @@ func TestIntegration_ACertificateArrivesOverHTTP01(t *testing.T) {
 	if err := os.MkdirAll(sslDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	cfgPath := dir + "/web.toml"
-	cfgContent := fmt.Sprintf(`
-bind_addr = %q
-socket_path = %q
-ssl_dir = %q
-data_dir = %q
-session_key = "test-session-key-32bytes-padding!"
-language = "en"
-username = "admin"
-password = ""
-update_check = false
-[tls]
-cert = ""
-key  = ""
-hostname = "easywall.test"
-acme = true
-acme_agree_tos = true
-acme_directory = %q
-`, integrationBindAddr, fc.socketPath, sslDir, dir, pebble.DirectoryURL)
-	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0600); err != nil {
-		t.Fatal(err)
-	}
 
-	cfg, err := LoadConfig(cfgPath)
-	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
-	}
+	// validTestConfig (config_test.go) is writeTempConfig + LoadConfig under
+	// the same fixture acmeTestConfig in acme_test.go already builds on —
+	// this is that same shape, with the handful of fields this test needs
+	// pointed somewhere real instead of the fixture's own placeholders.
+	cfg := validTestConfig(t)
+	cfg.BindAddr = integrationBindAddr
+	cfg.SocketPath = fc.socketPath
+	cfg.SSLDir = sslDir
+	cfg.DataDir = dir
+	cfg.TLS.Hostname = "easywall.test"
+	cfg.TLS.ACME = true
+	cfg.TLS.ACMEAgreeTOS = true
+	cfg.TLS.ACMEDirectory = pebble.DirectoryURL
+
 	hash, err := HashPassword(testPassword)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
@@ -403,7 +393,15 @@ acme_directory = %q
 	// root (fetched in startPebble), so this dial fully chain-verifies the
 	// certificate autocert hands back — a stronger claim than skipping
 	// verification and checking the hostname by hand alone.
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	//
+	// 120s, not the brief's suggested 90s: one local run hit 90s exactly,
+	// waiting out Pebble's own randomised per-attempt VA delay (up to 4s ×
+	// 3 concurrent attempts, compounding across the tls-alpn-01 attempt
+	// autocert always tries first and the http-01 one that actually
+	// succeeds). Not a fix for that variance — every wait in this test
+	// already carries an explicit deadline, there is no raw sleep to find —
+	// just margin, and the outer CI step's own -timeout 480s has room for it.
+	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
 	dialer := &tls.Dialer{Config: &tls.Config{ServerName: "easywall.test", RootCAs: pebble.issuingRoots}}
 	conn, err := dialer.DialContext(ctx, "tcp", integrationBindAddr)
