@@ -1299,6 +1299,10 @@ var clientStringKeys = []string{
 	// did not verify, try the same device again" situation the server's own
 	// flash describes when the credential response fails to verify.
 	"passkey_ceremony_failed",
+	// Reused as the custom validity message reportValidity() shows when the
+	// name field is empty — the same rule handlePasskeyFinish enforces on its
+	// own, stated once and asked in both places.
+	"passkey_name_required",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -1380,6 +1384,9 @@ func templateFuncs() template.FuncMap {
 		// Nothing was removed — the id named nothing this store still holds —
 		// which is a rule about the request, not a system failure.
 		"passkey_not_found": true,
+		// The operator's own account is fine as it stands; a name is missing
+		// or too long, the same shape as the password-policy messages above.
+		"passkey_name_required": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

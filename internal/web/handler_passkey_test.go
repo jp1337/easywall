@@ -360,6 +360,42 @@ func TestBeginRegistrationExcludesEnrolledCredentials(t *testing.T) {
 	}
 }
 
+// TestPasskeyFinishRefusesAnEmptyName.
+//
+// app.js's field is required, and reportValidity() refuses to submit an
+// empty one — but the server does not trust that: a request built without
+// the browser's help (a script, a hand-edited form) must be refused on its
+// own terms too. A whitespace-only value is the interesting case, not a
+// truly empty one: TrimSpace is what makes " " indistinguishable from "".
+func TestPasskeyFinishRefusesAnEmptyName(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	auth := virtualwebauthn.NewAuthenticator()
+	rp := virtualwebauthn.RelyingParty{
+		Name:   "easywall",
+		ID:     "firewall.example.org",
+		Origin: "https://firewall.example.org",
+	}
+	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
+
+	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	defer begin.Body.Close()
+	if begin.StatusCode != 200 {
+		t.Fatalf("begin answered %d", begin.StatusCode)
+	}
+	parsed, err := virtualwebauthn.ParseAttestationOptions(readBody(t, begin))
+	if err != nil {
+		t.Fatalf("parse the creation options: %v", err)
+	}
+	attestation := virtualwebauthn.CreateAttestationResponse(rp, auth, cred, *parsed)
+
+	finish := s.postAuthedJSON(t, "/password/passkey/finish", map[string]string{"name": "   "}, attestation)
+	defer finish.Body.Close()
+
+	if n := s.factorCount(); n != 0 {
+		t.Errorf("factorCount() = %d, want 0 — a passkey with no real name was still stored", n)
+	}
+}
+
 // TestEnrollingAPasskeyMintsRecoveryCodesWhenItIsTheFirstFactor.
 //
 // Recovery codes were minted only on the TOTP path, because that was the only

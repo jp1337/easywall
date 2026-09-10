@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -42,6 +43,14 @@ const (
 	passkeyPendingLifetime = 300
 
 	passkeyPendingDataKey = "d"
+
+	// maxPasskeyNameLen bounds what an operator can call a passkey. Runes, not
+	// bytes — same reason passwordPolicyError in auth.go counts runes: a
+	// four-byte emoji or an umlaut must not count as several characters
+	// against a limit stated in characters. 64 is generous for a device
+	// label ("YubiKey on the keyring" is 22) and short enough that the card's
+	// layout does not have to plan for arbitrary length.
+	maxPasskeyNameLen = 64
 )
 
 // newPasskeyPendingStore builds the store for the challenge between
@@ -284,9 +293,18 @@ func (s *Server) handlePasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	// for a second, unrelated attempt to be checked against.
 	s.clearPasskeyChallenge(w, r)
 
+	// Required, not defaulted: the brief's own justification for allowing more
+	// than one passkey is that "the one I lost" has to be findable, and a
+	// silent "Passkey" for every entry defeats that the first time there are
+	// two. The client already enforces this — the field is required, and
+	// app.js refuses to submit an empty one via the field's own native
+	// validation — but the server does not trust that: a request built by
+	// hand or by a script skips it entirely.
 	name := strings.TrimSpace(r.FormValue("name"))
-	if name == "" {
-		name = "Passkey"
+	if name == "" || utf8.RuneCountInString(name) > maxPasskeyNameLen {
+		s.setFlash(w, r, "passkey_name_required")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
 	}
 
 	parsed, err := protocol.ParseCredentialCreationResponseBody(strings.NewReader(r.FormValue("credential")))

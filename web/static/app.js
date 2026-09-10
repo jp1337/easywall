@@ -763,7 +763,8 @@ function initRecoveryCopy() {
    fetch response or patch into the DOM. */
 function initPasskeyEnrol() {
   const btn = document.getElementById('passkey-add-btn');
-  if (!btn) return;
+  const nameInput = document.getElementById('passkey-name');
+  if (!btn || !nameInput) return;
 
   const b64urlToBuf = (s) => {
     const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
@@ -808,8 +809,21 @@ function initPasskeyEnrol() {
   };
 
   btn.addEventListener('click', async () => {
-    const name = window.prompt(btn.dataset.prompt || '');
-    if (!name) return; // Cancelled — nothing was started, so there is nothing to undo.
+    // No window.prompt(): it blocks the tab it runs in — including this
+    // script and, were this run under it, npm run check:ui's own click —
+    // and after enough dialogs Chrome can suppress it permanently, at which
+    // point it returns null forever and the button goes silently dead. A
+    // required, in-page field cannot do either. reportValidity() shows the
+    // browser's own inline message (not a blocking dialog) and focuses the
+    // field; it returns false and does nothing else, so a bare `return`
+    // here is correct.
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.setCustomValidity(str('passkey_name_required'));
+      nameInput.reportValidity();
+      nameInput.setCustomValidity('');
+      return;
+    }
 
     let creation;
     try {
