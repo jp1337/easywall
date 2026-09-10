@@ -204,7 +204,13 @@ async function setUpAccount(page) {
   await page.fill('input[name=password]', PASS);
   await page.fill('input[name=password_confirm]', PASS);
   await Promise.all([
-    page.waitForLoadState('load'),
+    // Not waitForLoadState('load'): the page loaded by the goto() above is
+    // already at 'load', so that resolves immediately and races the click's
+    // own navigation — reading .totp-secret off the pre-submit DOM and
+    // reporting "the wizard refused its own valid input" for a submission
+    // that actually succeeded. This step 1 POST is a real document
+    // navigation, and waitForNavigation() is what actually waits for it.
+    page.waitForNavigation(),
     page.click("form[action='/firstrun'] button[type=submit]"),
   ]);
   const secretEl = await page.$('.totp-secret');

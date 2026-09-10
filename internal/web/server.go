@@ -1280,8 +1280,8 @@ func templateFuncs() template.FuncMap {
 		"rules_rolled_back": true, "rollback_too_late": true,
 		// The important half worked: the account and the second factor exist,
 		// and the codes below are shown. Only the ports/IPv6 staging failed —
-		// amber, not the red firstrun_choices_failed would otherwise imply
-		// about a page that is about to show working recovery codes.
+		// amber, not red: red is for a failure with nothing to show for it,
+		// and this page is about to show working recovery codes.
 		"firstrun_done_choices_failed": true,
 		// The code was accepted and let the operator in; the disk is what
 		// failed. Amber, not red: signing in did work.

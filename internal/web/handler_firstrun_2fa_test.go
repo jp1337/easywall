@@ -335,76 +335,92 @@ func lastCookiePerName(cookies []*http.Cookie) []*http.Cookie {
 
 // The escape hatch exists precisely for an operator who cannot make a code
 // verify. It must not itself go silent: an entry aged past
-// firstRunPendingLifetime has to say so, and the username has to survive the
-// trip back to step 1 — a blank wizard after ten minutes of setup work is its
-// own kind of dead end.
+// firstRunPendingLifetime has to say so, in both routes that can meet it, and
+// the username has to survive the trip back to step 1 — a blank wizard after
+// ten minutes of setup work is its own kind of dead end.
 func TestFirstRun2FA_ExpiredEntryIsNamedAndKeepsTheAnswers(t *testing.T) {
-	fc := newFakeCore(t)
-	s := newFirstRunTestServer(t, fc)
+	for _, path := range []string{"/firstrun/confirm", "/firstrun/recover"} {
+		t.Run(path, func(t *testing.T) {
+			fc := newFakeCore(t)
+			s := newFirstRunTestServer(t, fc)
 
-	_, cookies := beginFirstRun(t, s)
+			_, cookies := beginFirstRun(t, s)
 
-	req := httptest.NewRequest("GET", "/firstrun", nil)
-	for _, c := range cookies {
-		req.AddCookie(c)
-	}
-	sess, err := s.store.Get(req, SessionName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, _ := sess.Values[firstRunPendingKey].(string)
-	p, ok := firstRunPendingLookup(id)
-	if !ok {
-		t.Fatal("no pending entry to age")
-	}
-	// Backdate the same entry rather than fabricate a new one, so the
-	// answers it carries are exactly what step 1 collected.
-	firstRunPendingStore(id, pendingFirstRun{
-		Answers:      p.Answers,
-		PasswordHash: p.PasswordHash,
-		Secret:       p.Secret,
-		Issued:       time.Now().Add(-firstRunPendingLifetime - time.Second),
-	})
+			req := httptest.NewRequest("GET", "/firstrun", nil)
+			for _, c := range cookies {
+				req.AddCookie(c)
+			}
+			sess, err := s.store.Get(req, SessionName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			id, _ := sess.Values[firstRunPendingKey].(string)
+			p, ok := firstRunPendingLookup(id)
+			if !ok {
+				t.Fatal("no pending entry to age")
+			}
+			// Backdate the same entry rather than fabricate a new one, so the
+			// answers it carries are exactly what step 1 collected.
+			firstRunPendingStore(id, pendingFirstRun{
+				Answers:      p.Answers,
+				PasswordHash: p.PasswordHash,
+				Secret:       p.Secret,
+				Issued:       time.Now().Add(-firstRunPendingLifetime - time.Second),
+			})
 
-	rec := doFormRequest(s, "POST", "/firstrun/confirm", "code=000000", cookies...)
-	assertRedirect(t, rec, "/firstrun")
+			form := "code=000000"
+			if path == "/firstrun/recover" {
+				form = "ack=1"
+			}
+			rec := doFormRequest(s, "POST", path, form, cookies...)
+			assertRedirect(t, rec, "/firstrun")
 
-	if !s.cfg.IsFirstRun() {
-		t.Fatal("an expired entry created the account")
-	}
+			if !s.cfg.IsFirstRun() {
+				t.Fatal("an expired entry created the account")
+			}
 
-	back := doRequest(s, "GET", "/firstrun", nil, lastCookiePerName(rec.Result().Cookies())...)
-	body := back.Body.String()
-	if !strings.Contains(strings.ToLower(body), "timed out") {
-		t.Error("the expired entry produced no flash at all; want totp_setup_expired")
-	}
-	if !strings.Contains(body, `value="admin"`) {
-		t.Error("the username was not kept across the expired escape hatch — the " +
-			"operator would have to retype everything as well as start the pairing over")
+			back := doRequest(s, "GET", "/firstrun", nil, lastCookiePerName(rec.Result().Cookies())...)
+			body := back.Body.String()
+			if !strings.Contains(strings.ToLower(body), "timed out") {
+				t.Error("the expired entry produced no flash at all; want totp_setup_expired")
+			}
+			if !strings.Contains(body, `value="admin"`) {
+				t.Error("the username was not kept across the expired escape hatch — the " +
+					"operator would have to retype everything as well as start the pairing over")
+			}
+		})
 	}
 }
 
-// Without a pending id the route creates nothing and sends the operator back.
+// Without a pending id the routes create nothing and send the operator back.
 func TestFirstRun2FA_NoPendingSetupStartsAgain(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/firstrun/confirm", "code=000000")
-	assertRedirect(t, rec, "/firstrun")
-	if !s.cfg.IsFirstRun() {
-		t.Fatal("/firstrun/confirm created an account with no pending setup behind it")
+	for _, path := range []string{"/firstrun/confirm", "/firstrun/recover"} {
+		form := "code=000000"
+		if path == "/firstrun/recover" {
+			form = "ack=1"
+		}
+		rec := doFormRequest(s, "POST", path, form)
+		assertRedirect(t, rec, "/firstrun")
+		if !s.cfg.IsFirstRun() {
+			t.Fatalf("%s created an account with no pending setup behind it", path)
+		}
 	}
 }
 
-// The route exists only while the wizard does.
-func TestFirstRun2FA_RouteIsGoneOnceAnAccountExists(t *testing.T) {
+// The routes exist only while the wizard does.
+func TestFirstRun2FA_RoutesAreGoneOnceAnAccountExists(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc) // has a password, so IsFirstRun() is false
 
-	rec := doFormRequest(s, "POST", "/firstrun/confirm", "")
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("/firstrun/confirm answered %d on a configured install, want 404 — a "+
-			"credential-writing route must not outlive the wizard", rec.Code)
+	for _, path := range []string{"/firstrun/confirm", "/firstrun/recover"} {
+		rec := doFormRequest(s, "POST", path, "")
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s answered %d on a configured install, want 404 — a "+
+				"credential-writing route must not outlive the wizard", path, rec.Code)
+		}
 	}
 }
 
@@ -547,6 +563,54 @@ func TestFirstRun2FA_RecoverAfterAFailedCodeCreatesTheAccountWithTheFactor(t *te
 	}
 	codes := extractRecoveryCodes(rec.Body.String())
 	if len(codes) != recoveryCodeCount {
+		t.Errorf("%d recovery codes on the page, want %d", len(codes), recoveryCodeCount)
+	}
+}
+
+// A code inside the band that is diagnosed but never accepted — offset by
+// more than totpWindowLogin (±1 step, ±30 seconds) but still within
+// totpWindowEnrol (±10 steps, ±5 minutes) — used to be as dead an end as a
+// flatly wrong code: handleFirstRunConfirm's clock-skew case told the
+// operator the truth about their clock and then, unlike the !hit case right
+// above it in the same switch, never marked the pending entry Failed. Found
+// on review by rendering the flow with a *correct* code at a moderate offset
+// rather than a wrong one, which is exactly why it needs its own test instead
+// of trusting the !hit coverage to generalise.
+func TestFirstRun2FA_ADiagnosedSkewAlsoUnlocksTheEscape(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	_, cookies := beginFirstRun(t, s)
+	secret := firstRunPendingSecret(t, s, cookies)
+	raw, err := decodeTOTPSecret(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Four steps out: inside totpWindowEnrol (diagnosed), outside
+	// totpWindowLogin (never accepted here) — the band this fix closes.
+	rec := doFormRequest(s, "POST", "/firstrun/confirm",
+		"code="+totpAt(raw, stepAt(time.Now())+4), cookies...)
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("a diagnosed-but-unaccepted code created the account directly")
+	}
+	body := strings.ToLower(rec.Body.String())
+	if !strings.Contains(body, "clock") && !strings.Contains(body, "uhr") {
+		t.Error("the message does not point at the clock")
+	}
+
+	rec2 := doFormRequest(s, "POST", "/firstrun/recover", "ack=1", cookies...)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("recover after a diagnosed skew answered %d, want 200 with the codes shown", rec2.Code)
+	}
+	if s.cfg.IsFirstRun() {
+		t.Fatal("the escape did not open after a diagnosed-but-unaccepted code")
+	}
+	if s.cfg.TOTPSecret() != secret {
+		t.Error("the stored secret does not match the one shown on screen")
+	}
+	if codes := extractRecoveryCodes(rec2.Body.String()); len(codes) != recoveryCodeCount {
 		t.Errorf("%d recovery codes on the page, want %d", len(codes), recoveryCodeCount)
 	}
 }

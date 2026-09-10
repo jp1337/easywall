@@ -406,6 +406,13 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
 	case offset < -totpWindowLogin || offset > totpWindowLogin:
+		// Diagnosed here (±5 minutes), but only ±30 seconds is ever accepted —
+		// see totpWindowLogin. Everything between those two is a right code
+		// this handler will still never take, so it gets the same escape as
+		// !hit for the same reason: there is no account yet to fall back to a
+		// recovery code with, and a clock stuck in this band is otherwise a
+		// dead end identical to the one !hit already fixed.
+		firstRunPendingMarkFailed(id)
 		s.setFlashN(w, r, clockSkewKey(offset), skewMinutes(offset))
 		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
@@ -468,10 +475,12 @@ func (s *Server) finishFirstRunEnrolled(w http.ResponseWriter, r *http.Request, 
 	s.render(w, r, "firstrun.html", "firstrun", &firstRunPage{Form: &p.Answers, Codes: plain})
 }
 
-// handleFirstRunRecover finishes setup when a code will never verify — most
-// often a clock with no RTC, still wherever it booted to, which the wide
-// ±5-minute window handleFirstRunConfirm already checks cannot reach. It
-// writes the account with the very secret already shown on this step, so the
+// handleFirstRunRecover finishes setup when handleFirstRunConfirm has already
+// marked this pending entry Failed — a code outside the ±5-minute window it
+// searches at all (most often a clock with no RTC, still wherever it booted
+// to), or one it found but will never accept (the diagnosed-but-not-accepted
+// band between ±30 seconds and ±5 minutes; see totpWindowLogin). It writes
+// the account with the very secret already shown on this step, so the
 // authenticator just paired starts working the moment the clock is fixed;
 // nothing is re-enrolled. See finishFirstRunEnrolled for the write itself.
 //
@@ -491,10 +500,16 @@ func (s *Server) handleFirstRunRecover(w http.ResponseWriter, r *http.Request) {
 		s.firstRunError(w, r, "internal_error", &p.Answers)
 		return
 	}
-	if !p.Failed || r.FormValue("ack") == "" {
+	if !p.Failed || r.PostFormValue("ack") == "" {
 		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
 	}
+
+	// The only record that will ever explain a stored TOTP secret nobody has
+	// verified: without this line, the wizard writes an account through this
+	// route and logs nothing at all. Neither the secret nor the recovery codes
+	// belong in a log line.
+	slog.Info("first run: account created via the recovery-code escape, without a verifying code", "username", p.Answers.Username)
 
 	s.finishFirstRunEnrolled(w, r, id, p)
 }

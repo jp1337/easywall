@@ -59,11 +59,8 @@
   {"id": "firstrun_ipv6",           "translation": "IPv6"},
   {"id": "firstrun_telemetry",      "translation": "Compter cette installation"},
   {"id": "firstrun_telemetry_desc", "translation": "Désactivé sauf si vous l'activez. Une fois par jour, un identifiant aléatoire et la version — assez pour voir si un correctif critique a atteint tout le monde, pas assez pour vous décrire. Modifiable à tout moment sous Système."},
-  {"id": "firstrun_totp_help",        "translation": "Il vous faudra une application d'authentification sur votre téléphone. Vous pouvez aussi le faire plus tard sous Mot de passe."},
-  {"id": "firstrun_totp_code_wrong",  "translation": "Ce code n'a pas fonctionné. Réessayez, ou continuez sans deuxième facteur et configurez-en un plus tard sous Mot de passe."},
   {"id": "firstrun_totp_done",        "translation": "Continuer vers la connexion"},
   {"id": "firstrun_done",           "translation": "Compte créé et vos choix mis en attente. Connectez-vous, vérifiez-les, puis appliquez."},
-  {"id": "firstrun_choices_failed", "translation": "Compte créé, mais les choix n'ont pas pu être mis en attente — le service core n'a pas répondu. Connectez-vous et définissez-les vous-même."},
   {"id": "firstrun_done_choices_failed", "translation": "Compte et deuxième facteur créés. Vos codes de récupération sont ci-dessous et ne seront plus affichés. Les choix initiaux n'ont pas pu être mis en attente — le service core n'a pas répondu. Connectez-vous et définissez-les vous-même."},
   {"id": "firstrun_notice",        "translation": "C'est le seul compte. Réinitialiser un mot de passe perdu exige un accès shell au serveur."},
 

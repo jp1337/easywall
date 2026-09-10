@@ -94,9 +94,11 @@ with the page. Retyping a password does not silently reset your SSH port to 22.
 ## If the code never matches
 
 A code that never verifies almost always means the clock on this machine is
-wrong, not a mistyped digit. The confirm step already tolerates five minutes
-either way; a board with no real-time clock can boot years off until NTP
-catches up, and no tolerance covers that.
+wrong, not a mistyped digit. Confirm can tell a clock is off by up to five
+minutes, but it only ever accepts a code within thirty seconds of that.
+Anything wider than thirty seconds is refused the same way a flatly wrong
+code is. A board with no real-time clock can boot years off until NTP
+catches up, and neither is ever accepted.
 
 After one failed attempt, the setup step offers a second way through:
 
