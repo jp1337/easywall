@@ -72,3 +72,6 @@ state.json
 # platform-specific gems that CI's Ruby cannot resolve.
 docs/_site/
 docs/Gemfile.lock
+
+# subagent-driven-development scratch (ledger, briefs, review packages)
+.superpowers/
