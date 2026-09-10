@@ -182,7 +182,8 @@
   {"id": "system_acceptance_duration",      "translation": "Timeout"},
   {"id": "system_acceptance_duration_unit", "translation": "Sekunden"},
   {"id": "system_acceptance_duration_desc", "translation": "Sekunden bis zum automatischen Zurücksetzen der Regeln (10–3600). Standard: 120."},
-  {"id": "system_save",                     "translation": "Systemeinstellungen speichern"},
+  {"id": "system_save_acceptance",          "translation": "Akzeptanzfenster speichern"},
+  {"id": "system_save_counting",            "translation": "Zählung speichern"},
   {"id": "system_saved",                    "translation": "Systemeinstellungen gespeichert."},
   {"id": "system_invalid_duration",         "translation": "Timeout muss zwischen 10 und 3600 Sekunden liegen."},
 

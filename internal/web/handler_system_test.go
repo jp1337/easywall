@@ -371,3 +371,50 @@ func TestHandleSystemGET_NamesTheTelemetryEndpoint(t *testing.T) {
 		t.Error("the telemetry switch is not on its own form; a core outage would block it")
 	}
 }
+
+// TestTheSystemPageHasNoTwoButtonsWithOneName asserts that no visible button
+// label appears twice on /system.
+//
+// It rendered two buttons reading "Save system settings", one after the
+// acceptance window and one after the installation count, and nothing said
+// which section each belonged to. Written over the rendered page rather than
+// over the template so that a label moved into a partial is still caught.
+func TestTheSystemPageHasNoTwoButtonsWithOneName(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSystem, successResp(shared.SystemSettings{
+		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
+	}))
+
+	rec := doRequest(s, "GET", "/system", nil, makeAuthCookie(t, s))
+	body := rec.Body.String()
+
+	labels := buttonLabels(body)
+	seen := map[string]int{}
+	for _, l := range labels {
+		seen[l]++
+	}
+	for label, n := range seen {
+		if n > 1 {
+			t.Errorf("the label %q appears on %d buttons; a reader cannot tell which section each saves", label, n)
+		}
+	}
+	if len(labels) < 2 {
+		t.Fatalf("expected at least two buttons on /system, found %d — the test is no longer looking at the right page", len(labels))
+	}
+}
+
+// buttonLabels returns the visible text of every <button> in html.
+func buttonLabels(html string) []string {
+	var out []string
+	re := regexp.MustCompile(`(?s)<button[^>]*>(.*?)</button>`)
+	tags := regexp.MustCompile(`<[^>]*>`)
+	for _, m := range re.FindAllStringSubmatch(html, -1) {
+		text := strings.TrimSpace(tags.ReplaceAllString(m[1], " "))
+		text = strings.Join(strings.Fields(text), " ")
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
