@@ -103,7 +103,17 @@ func (p *passkeyStore) all() []storedPasskey {
 	}
 	p.mu.Unlock()
 
-	sort.Slice(out, func(i, j int) bool { return out[i].AddedAt.Before(out[j].AddedAt) })
+	// AddedAt breaks ties by credential ID: two passkeys enrolled in the same
+	// instant would otherwise leave the comparator returning false both ways,
+	// sort.Slice would treat them as already in order, and the result would
+	// fall through to map iteration order — randomized per range, and this is
+	// the operator's list of enrolled passkeys, not an internal detail.
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].AddedAt.Equal(out[j].AddedAt) {
+			return out[i].AddedAt.Before(out[j].AddedAt)
+		}
+		return bytes.Compare(out[i].ID, out[j].ID) < 0
+	})
 	return out
 }
 

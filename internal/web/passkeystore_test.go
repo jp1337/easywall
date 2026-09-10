@@ -1,9 +1,12 @@
 package web
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -74,6 +77,37 @@ func TestTheFingerprintIsStableAcrossReads(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		if got := newPasskeyStore(path).fingerprintInput(); got != first {
 			t.Fatalf("read %d gave a different fingerprint input; the set is not being ordered", i)
+		}
+	}
+}
+
+// TestAllIsStableWhenAddedAtTies guards against relying on Go's randomized map
+// iteration order. all() is what Task 12 renders as the operator's list of
+// enrolled passkeys, and a real (if narrow) window exists for two entries to
+// share an identical AddedAt — the ordering must not fall back to map
+// iteration the moment its primary sort key stops discriminating.
+func TestAllIsStableWhenAddedAtTies(t *testing.T) {
+	p := newPasskeyStore(filepath.Join(t.TempDir(), "passkeys.json"))
+
+	same := time.Now()
+	p.mu.Lock()
+	for i := 0; i < 8; i++ {
+		id := []byte{byte(i)}
+		p.passkeys[string(id)] = storedPasskey{ID: id, Name: fmt.Sprintf("key-%d", i), AddedAt: same}
+	}
+	p.mu.Unlock()
+
+	first := p.all()
+	for i := 0; i < 30; i++ {
+		got := p.all()
+		if len(got) != len(first) {
+			t.Fatalf("call %d: got %d entries, want %d", i, len(got), len(first))
+		}
+		for j := range got {
+			if !bytes.Equal(got[j].ID, first[j].ID) {
+				t.Fatalf("call %d gave a different order than call 0 at position %d; "+
+					"all() is not stable when AddedAt ties", i, j)
+			}
 		}
 	}
 }
