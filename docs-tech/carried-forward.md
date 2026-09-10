@@ -99,7 +99,6 @@ branch existed.
 | **`DESIGN.md`'s `module-active` is modelled as a border, and the code paints a shadow** | The token entry carries `borderColor`; `web/src/app.css` marks an enabled module with `box-shadow: inset 2px 0 0`, the same device as the active nav item. Predates 2.16 — the entry said `borderColor: {colors.accent}` before this release only swapped the token. Which of the two is right is a design decision, and it is the kind that should be made once and written down rather than discovered again |
 | **`DESIGN.md` counts the protection toggles twice, differently** | *Why `control-edge` is separate* and *Toggles and checkboxes* both say **eleven**; *Protection modules* says **fourteen**. Predates 2.16 and survived it because the release only touched the colour in those paragraphs. One of the two numbers is wrong and the file argues from both |
 | **Prose in `docs/` leaks into the published stylesheet, not just prose in templates** | The existing entry below records this for template comments. It reaches further: `@source "../../docs/**/*.{html,md}"` scans the generated changelog page, so an ordinary English word that happens to be a Tailwind utility is compiled into the site's CSS. Measured on this release — writing *"a ring with no border change"* in the changelog added `.ring`, and 1,650 bytes, to `docs/assets/css/style.css`. The stylesheet is still correct and CI reproduces it exactly; what it is not is minimal, and the cause is invisible in the diff |
-| **The three landing-page wrappers are still unstyled** | `docs/index.md` carries `.docs-landstrip`, `.docs-cardgrid` and `.docs-card`; `docs.css` defines none of them and Tailwind generates none, so the section renders as unstyled prose. `TestTemplateClassesExistInStylesheet` covers `web/templates/` and `app.js` only — nothing in the suite looks at markup under `docs/`, which is why this survived a release that rewrote the docs stylesheet |
 
 # From the check:ui race fix
 
@@ -114,7 +113,6 @@ the hotfix branch existed, and unrelated to the two defects it fixes.
 
 | | |
 |---|---|
-| **The landing page names three classes the stylesheet does not define** | `docs/index.md` carries `.docs-landstrip`, `.docs-cardgrid` and `.docs-card`; `web/src/docs.css` defines none of them, and Tailwind generates none. The section renders as unstyled prose. `TestTemplateClassesExistInStylesheet` covers `web/templates/` and `app.js` only, so nothing in the suite looks at markup under `docs/`. Belongs with 2.16, which is already rewriting `docs.css` |
 | ~~**`docs/installation/docker.md` tells a remote operator to open `https://localhost:12227`**~~ | **Closed 2026-09-09.** The first-run flow is rewritten around a remote host rather than corrected in one sentence: commands on the server, browser on your own machine, `https://<server>:12227`, and the three things to expect on that first page — the certificate warning, nothing filtered yet, and a container that reads `unhealthy` until the first apply. The page also names what is *not* easywall when the page will not load, which is the question a loopback instruction was hiding |
 
 # From 2.15
