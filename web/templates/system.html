@@ -139,15 +139,25 @@
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
               {{T "acme_port_label"}}
             </h2>
+            {{/* status-dot-wrap: unlike every other status-dot in the
+                 interface, these labels are full sentences that wrap onto
+                 several lines in this column's width — see the class's own
+                 comment in app.css for why that needs a different layout,
+                 not just a different alignment value.
+
+                 static: this row reports a configuration fact, not
+                 something happening while you watch it — unlike "Active" on
+                 the dashboard, nothing here is ongoing, so the dot does not
+                 pulse. */}}
             <p>
               {{if not .Port80Known}}
-              <span class="status-dot inactive">{{T "acme_port_unknown"}}</span>
+              <span class="status-dot status-dot-wrap inactive static">{{T "acme_port_unknown"}}</span>
               {{else if eq .Port80State "open"}}
-              <span class="status-dot active">{{T "acme_port_open"}}</span>
+              <span class="status-dot status-dot-wrap active static">{{T "acme_port_open"}}</span>
               {{else if eq .Port80State "restricted"}}
-              <span class="status-dot pending">{{T "acme_port_restricted"}}</span>
+              <span class="status-dot status-dot-wrap pending static">{{T "acme_port_restricted"}}</span>
               {{else}}
-              <span class="status-dot error">{{T "acme_port_closed"}}</span>
+              <span class="status-dot status-dot-wrap error static">{{T "acme_port_closed"}}</span>
               {{end}}
             </p>
           </div>
