@@ -182,7 +182,8 @@
   {"id": "system_acceptance_duration",      "translation": "Timeout"},
   {"id": "system_acceptance_duration_unit", "translation": "seconds"},
   {"id": "system_acceptance_duration_desc", "translation": "Seconds before rules are automatically rolled back (10–3600). Default: 120."},
-  {"id": "system_save",                     "translation": "Save system settings"},
+  {"id": "system_save_acceptance",          "translation": "Save acceptance window"},
+  {"id": "system_save_counting",            "translation": "Save counting"},
   {"id": "system_saved",                    "translation": "System settings saved."},
   {"id": "system_invalid_duration",         "translation": "Duration must be between 10 and 3600 seconds."},
 
