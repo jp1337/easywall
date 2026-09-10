@@ -100,7 +100,10 @@ type Server struct {
 	// replay remembers the last accepted TOTP step, so a code cannot be used
 	// twice inside its own thirty-second validity window.
 	replay *totpReplay
-	bundle *i18n.Bundle
+	// passkeys holds every enrolled passkey; see passkeystore.go. passkeyCount
+	// below reads its count, and Task 12/13 add and verify against it.
+	passkeys *passkeyStore
+	bundle   *i18n.Bundle
 	// localeStatus is loaded once here, beside the bundle, rather than per
 	// request: whether a language has been reviewed cannot change without a
 	// restart, so reading status.json on every render would be waste. A code
@@ -126,10 +129,10 @@ type Server struct {
 	// because it was safe.
 	acmeSrv atomic.Pointer[http.Server]
 
-	// passkeyCount counts enrolled passkeys for factorCount. A function and not
-	// a *Config method because the passkey store does not exist yet — this
-	// defaults to zero, and the task that adds the store points it at that
-	// store's own count in one line, rather than changing every caller.
+	// passkeyCount counts enrolled passkeys for factorCount. A function and
+	// not a *Config method, so newFactorTestServer's fixture can still set it
+	// directly to a fixed count without a passkey store behind it; NewServer
+	// points it at s.passkeys below.
 	passkeyCount func() int
 
 	// telemetry is nil in demo mode. The public demo is reset every few hours,
@@ -253,12 +256,13 @@ func NewServer(cfg *Config) (*Server, error) {
 		store:        store,
 		pending:      pending,
 		replay:       newTOTPReplay(cfg.TOTPReplayPath()),
+		passkeys:     newPasskeyStore(cfg.PasskeysPath()),
 		bundle:       bundle,
 		localeStatus: localeStatus,
 		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:        certs,
-		passkeyCount: func() int { return 0 },
 	}
+	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 
 	if !cfg.DemoMode {
 		s.telemetry = shared.NewReporter(cfg.TelemetryStatePath(), cfg.TelemetryEnabled)
@@ -1303,6 +1307,8 @@ func templateFuncs() template.FuncMap {
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
+		// Same policy, the other two missing character classes.
+		"password_needs_digit": true, "password_needs_symbol": true,
 		"system_invalid_duration": true,
 		// A network the operator has to correct, not a failure of anything. Amber
 		// here and amber in app.js's toast map, which is the path this one

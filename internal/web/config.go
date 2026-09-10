@@ -380,6 +380,18 @@ func (c *Config) TOTPReplayPath() string {
 	return c.SSLDir + "/../totp_replay.json"
 }
 
+// PasskeysPath returns the path for the enrolled passkey store.
+//
+// In data_dir for the same reason as TOTPReplayPath, and more so: the
+// signature counter changes on every passkey login, so this file is written
+// far more often than the TOTP replay step is.
+func (c *Config) PasskeysPath() string {
+	if c.DataDir != "" {
+		return c.DataDir + "/passkeys.json"
+	}
+	return c.SSLDir + "/../passkeys.json"
+}
+
 // SaveTelemetry records the operator's answer to being counted.
 //
 // Separate from every other save on purpose: withdrawing consent must work
