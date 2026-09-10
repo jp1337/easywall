@@ -62,10 +62,9 @@ earlier as an end in itself and never twice.
 > one exactly, and it is worth stating because a reader who counts will check.
 >
 > **2.18 — A password alone is not enough** takes the head. easywall has had a
-> second factor since 2.8 and it has been a checkbox; the ordering principle is
-> exposure, and an administration interface for a firewall reachable over the
-> network behind one password is a higher exposure than not being told about a
-> rollback.
+> second factor since 2.8, and it has been a checkbox. The ordering principle is
+> exposure, and one password in front of a firewall's administration interface
+> is a higher exposure than not being told about a rollback.
 >
 > **2.28 — More than one account is deleted**, not deferred. It is in
 > *Deliberately excluded* below with its reasoning. One consequence is worth
@@ -75,16 +74,17 @@ earlier as an end in itself and never twice.
 >
 > **3.1 — Passkeys is absorbed into 2.18**, and the reason it was 3.1 turned out
 > to be half the reason. The entry said WebAuthn needs a registrable domain as
-> its Relying Party ID and rejects a bare IP address, which is still true —
-> re-checked on 2026-09-10 against WebAuthn Level 3, W3C Candidate
-> Recommendation, February 2026, unchanged from the 2020 working-group decision.
-> The half nobody had written down: since **Chrome 110**, WebAuthn is refused on
-> any origin with a TLS certificate error, and `--ignore-certificate-errors`
-> explicitly does not lift it. easywall generates a self-signed certificate by
-> default. So the blocker was never only the address — it was the certificate
-> too, and that is why **ACME comes out of 3.0 and travels with the passkeys it
-> unblocks** rather than waiting for the API. 3.0 keeps its number: it is a
-> statement rather than a position, for the reason the 2.12 amendment gives.
+> its Relying Party ID and rejects a bare IP address. That is still true. It
+> was re-checked on 2026-09-10 against WebAuthn Level 3, W3C Candidate
+> Recommendation, February 2026, and is unchanged from the 2020 working-group
+> decision. The half nobody had written down: since **Chrome 110**, WebAuthn is
+> refused on any origin with a TLS certificate error, and
+> `--ignore-certificate-errors` explicitly does not lift it. easywall generates
+> a self-signed certificate by default. So the blocker was never only the
+> address. It was the certificate too. That is why **ACME comes out of 3.0 and
+> travels with the passkeys it unblocks** rather than waiting for the API. 3.0
+> keeps its number: it is a statement rather than a position, for the reason
+> the 2.12 amendment gives.
 
 > **Amended after 2.16.** Five releases were inserted and a group was added
 > above the others, so everything from the old 2.17 down moved. **The numbers in
