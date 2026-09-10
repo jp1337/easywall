@@ -191,6 +191,10 @@ func TestEnrol_DisableNeedsThePasswordAndNoCode(t *testing.T) {
 	plain, hashes, _ := newRecoveryCodes()
 	_ = plain
 	_ = s.cfg.SaveTOTP("JBSWY3DPEHPK3PXP", hashes)
+	// A second factor standing by, so this test still exercises the password
+	// gate rather than colliding with mayRemoveFactor — that guard has its own
+	// tests in factors_test.go.
+	s.passkeyCount = func() int { return 1 }
 
 	assertRedirect(t, doAuthFormRequest(t, s, "/password/2fa/disable", "current_password=wrong"), "/password")
 	if !s.cfg.TOTPEnabled() {

@@ -112,6 +112,12 @@ type Server struct {
 	version      *shared.Checker
 	certs        *certManager
 
+	// passkeyCount counts enrolled passkeys for factorCount. A function and not
+	// a *Config method because the passkey store does not exist yet — this
+	// defaults to zero, and the task that adds the store points it at that
+	// store's own count in one line, rather than changing every caller.
+	passkeyCount func() int
+
 	// telemetry is nil in demo mode. The public demo is reset every few hours,
 	// which would give it a fresh identifier each time and manufacture several
 	// installations a day — in a count whose whole value is being small enough
@@ -234,6 +240,7 @@ func NewServer(cfg *Config) (*Server, error) {
 		localeStatus: localeStatus,
 		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:        certs,
+		passkeyCount: func() int { return 0 },
 	}
 
 	if !cfg.DemoMode {
@@ -1285,6 +1292,10 @@ func templateFuncs() template.FuncMap {
 		"totp_clock_behind_one": true, "totp_clock_behind_many": true,
 		"totp_clock_ahead_one": true, "totp_clock_ahead_many": true,
 		"totp_setup_expired": true,
+		// Not a failure of anything: the operator's own account is fine as it
+		// stands. It is a rule about what may happen next, the same shape as
+		// password_mismatch and username_required above.
+		"factor_last": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

@@ -228,6 +228,11 @@ func (s *Server) handle2FADisable(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
+	if !s.mayRemoveFactor() {
+		s.setFlash(w, r, "factor_last")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
 	if err := s.cfg.SaveTOTP("", nil); err != nil {
 		slog.Error("could not switch the second factor off", "error", err)
 		s.setFlash(w, r, "internal_error")

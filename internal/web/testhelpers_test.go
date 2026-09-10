@@ -287,14 +287,15 @@ key  = ""
 	tmpl := testTemplates(t)
 
 	s := &Server{
-		cfg:     cfg,
-		client:  client,
-		store:   store,
-		pending: pendingStore,
-		replay:  newTOTPReplay(dir + "/totp_replay.json"),
-		bundle:  bundle,
-		tmpl:    tmpl,
-		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		cfg:          cfg,
+		client:       client,
+		store:        store,
+		pending:      pendingStore,
+		replay:       newTOTPReplay(dir + "/totp_replay.json"),
+		bundle:       bundle,
+		tmpl:         tmpl,
+		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		passkeyCount: func() int { return 0 },
 	}
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
 	// s.events.
@@ -350,14 +351,15 @@ key  = ""
 	tmpl := testTemplates(t)
 
 	s := &Server{
-		cfg:     cfg,
-		client:  client,
-		store:   store,
-		pending: pendingStore,
-		replay:  newTOTPReplay(dir + "/totp_replay.json"),
-		bundle:  bundle,
-		tmpl:    tmpl,
-		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		cfg:          cfg,
+		client:       client,
+		store:        store,
+		pending:      pendingStore,
+		replay:       newTOTPReplay(dir + "/totp_replay.json"),
+		bundle:       bundle,
+		tmpl:         tmpl,
+		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		passkeyCount: func() int { return 0 },
 	}
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
 	// s.events.
@@ -553,4 +555,44 @@ func newDemoTestServer(t *testing.T) *Server {
 
 	s.router = s.buildRouter(s.cfg)
 	return s
+}
+
+// testPassword is the plaintext newTestServer hashes into cfg.Password, so any
+// helper built on it can authenticate without minting its own hash.
+const testPassword = "testpassword123!"
+
+// newFactorTestServer builds a Server carrying the given second factors, for
+// factorCount/mayRemoveFactor and the routes that call them.
+//
+// totp, when non-empty, is stored the way enrolment stores it (SaveTOTP), so
+// TOTPSecret() and TOTPEnabled() agree with it. passkeys sets s.passkeyCount
+// to a fixed count, standing in for the passkey store a later task adds.
+// demo reuses newDemoTestServer's own client swap, so IsDemo() agrees with
+// cfg.DemoMode exactly as production wires it.
+func newFactorTestServer(t *testing.T, totp string, passkeys int, demo bool) *Server {
+	t.Helper()
+	var s *Server
+	if demo {
+		s = newDemoTestServer(t)
+	} else {
+		s = newTestServer(t, newFakeCore(t))
+	}
+	if totp != "" {
+		if err := s.cfg.SaveTOTP(totp, nil); err != nil {
+			t.Fatalf("SaveTOTP: %v", err)
+		}
+	}
+	s.passkeyCount = func() int { return passkeys }
+	return s
+}
+
+// postAuthed performs an authenticated POST with form values and returns the
+// raw response, for tests that only need the status code and not a recorder.
+func (s *Server) postAuthed(t *testing.T, path string, form map[string]string) *http.Response {
+	t.Helper()
+	vals := url.Values{}
+	for k, v := range form {
+		vals.Set(k, v)
+	}
+	return doAuthFormRequest(t, s, path, vals.Encode()).Result()
 }
