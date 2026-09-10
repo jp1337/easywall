@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/acme/autocert"
 )
 
 // renewalWindow is how close to expiry a certificate may come before it is
@@ -46,6 +48,11 @@ type certManager struct {
 	// it but never overwrites it.
 	sslDir string
 
+	// acme is non-nil when the certificate comes from a certificate authority.
+	// It supplies its own GetCertificate and renews on its own schedule, so
+	// ensure() and maintain() have nothing to do for this source.
+	acme *autocert.Manager
+
 	mu       sync.Mutex
 	cert     *tls.Certificate
 	loadedAt time.Time // modification time of certPath when cert was loaded
@@ -54,7 +61,7 @@ type certManager struct {
 	stopOnce sync.Once
 }
 
-func newCertManager(cfg *Config) *certManager {
+func newCertManager(cfg *Config) (*certManager, error) {
 	m := &certManager{
 		certPath: cfg.CertPath(),
 		keyPath:  cfg.KeyPath(),
@@ -63,12 +70,32 @@ func newCertManager(cfg *Config) *certManager {
 	if cfg.TLS.CertFile == "" {
 		m.sslDir = cfg.SSLDir
 	}
-	return m
+
+	if cfg.ACMEEnabled() {
+		am, err := newACMEManager(cfg)
+		if err != nil {
+			// Refused at startup rather than served with a self-signed
+			// certificate the operator did not ask for. A firewall interface
+			// that quietly serves something other than what its configuration
+			// says is the failure this release exists to stop being possible.
+			return nil, err
+		}
+		m.acme = am
+		// A CA-issued certificate is not easywall's to generate or renew.
+		m.sslDir = ""
+	}
+	return m, nil
 }
+
+// usesACME reports whether the certificate comes from a certificate authority.
+func (m *certManager) usesACME() bool { return m.acme != nil }
 
 // ensure generates a certificate if easywall owns it and it is missing or
 // close to expiry. Called once at startup, and again on every maintenance tick.
 func (m *certManager) ensure() error {
+	if m.acme != nil {
+		return nil // autocert fetches on demand and renews itself
+	}
 	if m.sslDir == "" {
 		return nil
 	}
@@ -81,7 +108,11 @@ func (m *certManager) ensure() error {
 
 // GetCertificate is the tls.Config hook. It returns the loaded certificate,
 // re-reading it first if the file on disk has changed since.
-func (m *certManager) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (m *certManager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	if m.acme != nil {
+		return m.acme.GetCertificate(hello)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -113,8 +144,8 @@ func (m *certManager) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, er
 
 // maintain renews the certificate for as long as the server runs.
 func (m *certManager) maintain() {
-	if m.sslDir == "" {
-		return // a custom certificate is renewed by whoever issued it
+	if m.acme != nil || m.sslDir == "" {
+		return // a custom certificate, or one ACME renews on its own, is not ours to renew
 	}
 	ticker := time.NewTicker(renewalCheckInterval)
 	defer ticker.Stop()

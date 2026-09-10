@@ -283,6 +283,13 @@ func (c *Config) ACMEDirectory() string {
 	return c.WebConfig.TLS.ACMEDirectory
 }
 
+// ACMEAgreedTOS reports whether the operator has agreed to the CA's terms.
+func (c *Config) ACMEAgreedTOS() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.WebConfig.TLS.ACMEAgreeTOS
+}
+
 // LocalesDir returns the locales directory path.
 func (c *Config) LocalesDir() string {
 	return "locales"

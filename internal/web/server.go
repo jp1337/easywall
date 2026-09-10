@@ -195,7 +195,10 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	// TLS certificate — generated on first start, and kept current from here on
 	// by the manager rather than only at process start.
-	certs := newCertManager(cfg)
+	certs, err := newCertManager(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("configure TLS certificate: %w", err)
+	}
 	if err := certs.ensure(); err != nil {
 		return nil, fmt.Errorf("generate TLS cert: %w", err)
 	}
