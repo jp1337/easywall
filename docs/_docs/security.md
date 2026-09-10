@@ -58,9 +58,9 @@ most common cause is a board with no real-time clock, still at whatever it
 booted to until NTP catches up. After one failed code, both the first-run
 wizard and `/password` offer a second way through. An explicit
 acknowledgement stores the secret already shown on screen and issues eight
-recovery codes. The account is usable immediately. Sign in normally, or with
-a code once the clock is fixed — the authenticator already paired starts
-working the moment it is.
+recovery codes, and the account is usable immediately. Until the clock is
+fixed, one of the eight codes is the way in; once it is, the authenticator
+already paired works and normal sign-in works again.
 
 This is gated on being the first factor. An operator who already has one is
 not locked out by a failed code on `/password` and can simply leave the

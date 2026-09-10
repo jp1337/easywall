@@ -42,7 +42,7 @@ type pendingSecret struct {
 	// It gates the recovery-code escape on the setup card the same way
 	// pendingFirstRun.Failed gates the wizard's: offered from the first
 	// render, it would be the path of least resistance instead of the escape
-	// hatch it is. See pendingSecretMarkFailed and handle2FARecover.
+	// hatch it is. See pendingSecretMarkFailed and handle2FAEnrolUnverified.
 	failed bool
 }
 
@@ -61,17 +61,22 @@ func pendingSecretStore(sessionID, secret string) {
 	pendingSecrets.at[sessionID] = pendingSecret{secret: secret, issued: now}
 }
 
-func pendingSecretLookup(sessionID string) (string, bool) {
+// pendingSecretLookup returns the secret, whether a code has already failed
+// against it, and whether the entry exists and has not aged past its
+// lifetime — one lock acquisition for what a caller wanting both the secret
+// and the failed flag used to need two separate accessors, and two separate
+// locks, to get.
+func pendingSecretLookup(sessionID string) (secret string, failed bool, ok bool) {
 	if sessionID == "" {
-		return "", false
+		return "", false, false
 	}
 	pendingSecrets.mu.Lock()
 	defer pendingSecrets.mu.Unlock()
-	p, ok := pendingSecrets.at[sessionID]
-	if !ok || time.Since(p.issued) > pendingSecretLifetime {
-		return "", false
+	p, exists := pendingSecrets.at[sessionID]
+	if !exists || time.Since(p.issued) > pendingSecretLifetime {
+		return "", false, false
 	}
-	return p.secret, true
+	return p.secret, p.failed, true
 }
 
 func pendingSecretClear(sessionID string) {
@@ -97,24 +102,6 @@ func pendingSecretMarkFailed(sessionID string) {
 	}
 	p.failed = true
 	pendingSecrets.at[sessionID] = p
-}
-
-// pendingSecretFailed reports whether sessionID's pending entry has already
-// had a code fail against it. False for an entry that does not exist or has
-// aged out — the same as a fresh one, which is the point: nothing here is
-// ever owed a recovery-code escape it has not earned.
-func pendingSecretFailed(sessionID string) bool {
-	if sessionID == "" {
-		return false
-	}
-	pendingSecrets.mu.Lock()
-	defer pendingSecrets.mu.Unlock()
-
-	p, ok := pendingSecrets.at[sessionID]
-	if !ok || time.Since(p.issued) > pendingSecretLifetime {
-		return false
-	}
-	return p.failed
 }
 
 // sessionID returns the identifier of the session this request carries.
@@ -159,7 +146,7 @@ func (s *Server) handle2FABegin(w http.ResponseWriter, r *http.Request) {
 // handle2FAConfirm stores the secret and the eight hashes in one write.
 func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	id := s.sessionID(r)
-	secret, ok := pendingSecretLookup(id)
+	secret, _, ok := pendingSecretLookup(id)
 	if !ok {
 		s.setFlash(w, r, "totp_setup_expired")
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
@@ -190,7 +177,7 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	case !hit:
 		// Marked failed before the re-render regardless of wasFirstFactor: an
 		// operator who already has a factor is not locked out by this and
-		// simply never uses the card it unlocks — handle2FARecover is the one
+		// simply never uses the card it unlocks — handle2FAEnrolUnverified is the one
 		// place that actually decides whether the escape applies, by checking
 		// hasSecondFactor() itself. See it for why marking here is unconditional.
 		pendingSecretMarkFailed(id)
@@ -251,7 +238,7 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "password.html", "password", page)
 }
 
-// handle2FARecover is the third instance of the lockout Ruling 11 found in
+// handle2FAEnrolUnverified is the third instance of the lockout Ruling 11 found in
 // the wizard and round 2 of Task 7 closed there: a clock this page cannot
 // fix must never be the only thing standing between an operator and their
 // own account. It differs from handleFirstRunRecover in what it writes —
@@ -270,14 +257,14 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 // with an explicit acknowledgement (ack). Any of the three missing sends the
 // request back to the setup card instead of rewarding it with a stored
 // secret.
-func (s *Server) handle2FARecover(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handle2FAEnrolUnverified(w http.ResponseWriter, r *http.Request) {
 	if s.hasSecondFactor() || s.client.IsDemo() {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
 
 	id := s.sessionID(r)
-	secret, ok := pendingSecretLookup(id)
+	secret, failed, ok := pendingSecretLookup(id)
 	if !ok {
 		s.setFlash(w, r, "totp_setup_expired")
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
@@ -288,7 +275,7 @@ func (s *Server) handle2FARecover(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
-	if !pendingSecretFailed(id) || r.PostFormValue("ack") == "" {
+	if !failed || r.PostFormValue("ack") == "" {
 		s.renderSetupAgain(w, r, secret)
 		return
 	}
@@ -319,7 +306,7 @@ func (s *Server) handle2FARecover(w http.ResponseWriter, r *http.Request) {
 	slog.Info("second factor enabled via the recovery escape, without a verifying code")
 
 	s.setFlash(w, r, "totp_enabled")
-	// This was necessarily the first factor — handle2FARecover refused at the
+	// This was necessarily the first factor — handle2FAEnrolUnverified refused at the
 	// top otherwise — so, exactly as handle2FAConfirm's success path does, the
 	// codes shown here also carry the way past the gate the operator arrived
 	// through.
@@ -339,6 +326,9 @@ func (s *Server) renderSetupAgain(w http.ResponseWriter, r *http.Request, secret
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
+	// The secret is the caller's own, already in hand — only failed is read
+	// back here, and pendingSecretLookup happens to be the accessor for both.
+	_, failed, _ := pendingSecretLookup(s.sessionID(r))
 	s.render(w, r, "password.html", "password", s.passwordPage(&totpSetup{
 		// #nosec G203 -- qrURI is "data:image/png;base64," followed by base64 of
 		// PNG bytes this process just encoded. Base64 output is [A-Za-z0-9+/=],
@@ -349,7 +339,7 @@ func (s *Server) renderSetupAgain(w http.ResponseWriter, r *http.Request, secret
 		QR:         template.URL(qrURI), //nolint:gosec // G203 — see above
 		SecretText: formatTOTPSecret(secret),
 		ServerTime: time.Now().UTC().Format("2 Jan 2006, 15:04:05 MST"),
-		Failed:     pendingSecretFailed(s.sessionID(r)),
+		Failed:     failed,
 	}, nil))
 }
 
@@ -394,7 +384,7 @@ func (s *Server) handle2FADisable(w http.ResponseWriter, r *http.Request) {
 // this on the strength of their password alone would get eight codes with no
 // account state behind them and remain exactly as locked out as before —
 // the loophole the review found this route left open once /password could be
-// reached with no factor at all. See handle2FARecover for the actual way
+// reached with no factor at all. See handle2FAEnrolUnverified for the actual way
 // past that gate.
 func (s *Server) handle2FARecovery(w http.ResponseWriter, r *http.Request) {
 	if !s.hasSecondFactor() && !s.client.IsDemo() {

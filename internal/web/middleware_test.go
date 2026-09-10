@@ -559,16 +559,16 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	s := newFactorTestServer(t, "", 0, false) // no TOTP, no passkey, not demo
 
 	allowed := map[string]bool{
-		"/password":                true,
-		"/password/2fa/begin":      true,
-		"/password/2fa/confirm":    true,
-		"/password/2fa/recover":    true,
-		"/password/2fa/disable":    true,
-		"/password/2fa/recovery":   true,
-		"/password/passkey/begin":  true,
-		"/password/passkey/finish": true,
-		"/password/passkey/remove": true,
-		"/logout":                  true,
+		"/password":                      true,
+		"/password/2fa/begin":            true,
+		"/password/2fa/confirm":          true,
+		"/password/2fa/enrol-unverified": true,
+		"/password/2fa/disable":          true,
+		"/password/2fa/recovery":         true,
+		"/password/passkey/begin":        true,
+		"/password/passkey/finish":       true,
+		"/password/passkey/remove":       true,
+		"/logout":                        true,
 	}
 
 	var checked int
@@ -606,7 +606,7 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	}
 	// 38 gated routes: the 37 routes chi registers inside the
 	// RequireAuth+RequireSecondFactor group as of Task 16's own
-	// /password/2fa/recover (including the bare "/", whose entire handler is
+	// /password/2fa/enrol-unverified (including the bare "/", whose entire handler is
 	// a redirect to the gated /dashboard, and which the gate intercepts
 	// before that handler ever runs), plus POST /logout, which isGatedRoute
 	// does not exclude (it sits in the public group but is listed in

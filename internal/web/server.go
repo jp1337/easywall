@@ -482,7 +482,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		// no URL.
 		r.Post("/password/2fa/begin", s.handle2FABegin)
 		r.Post("/password/2fa/confirm", s.handle2FAConfirm)
-		r.Post("/password/2fa/recover", s.handle2FARecover)
+		r.Post("/password/2fa/enrol-unverified", s.handle2FAEnrolUnverified)
 		r.Post("/password/2fa/disable", s.handle2FADisable)
 		r.Post("/password/2fa/recovery", s.handle2FARecovery)
 

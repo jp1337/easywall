@@ -12,7 +12,7 @@ import (
 //
 // A list rather than a pattern: a new credential-writing route has to be added
 // here by hand, which is the point. Task 12 adds the four /password/2fa/*
-// routes; Task 16 adds /password/2fa/recover.
+// routes; Task 16 adds /password/2fa/enrol-unverified.
 //
 // The confirm entry below does NOT exercise handle2FAConfirm's demo guard: with
 // no prior begin(), pendingSecretLookup fails and the handler returns via
@@ -23,11 +23,15 @@ import (
 // behaviour is most visible to a visitor — it puts eight real-looking
 // recovery codes on screen.
 //
-// recover's entry below needs no equivalent follow-up test: unlike confirm,
-// its IsDemo() check is the very first thing the handler does, before it
-// ever looks for a pending secret — so this shallow entry already exercises
-// the real guard, not a different one that happens to redirect for the same
-// reason.
+// enrol-unverified's entry below does NOT exercise handle2FAEnrolUnverified's
+// IsDemo() guard either, for the same reason confirm's does not: with no
+// prior begin(), there is no pending secret, and the totp_setup_expired
+// redirect from the earlier !ok check answers first regardless of demo mode
+// — deleting the IsDemo() clause leaves this shallow entry passing. Proved,
+// not assumed: a review found a comment here once claiming the opposite.
+// TestDemoModeEnrolUnverifiedRefusesAfterAFailedCode below drives the real
+// path — begin, fail a code, then reach for the escape — so the IsDemo()
+// check is the only thing between it and a real secret on disk.
 var credentialWritingRoutes = []struct {
 	path string
 	body string
@@ -35,7 +39,7 @@ var credentialWritingRoutes = []struct {
 	{"/password", "current_password=currentpassword123&new_password=ReplacedInTheDemo1&confirm_password=ReplacedInTheDemo1"},
 	{"/password/2fa/begin", "current_password=currentpassword123"},
 	{"/password/2fa/confirm", "code=000000"},
-	{"/password/2fa/recover", "ack=1"},
+	{"/password/2fa/enrol-unverified", "ack=1"},
 	{"/password/2fa/disable", "current_password=currentpassword123"},
 	{"/password/2fa/recovery", "current_password=currentpassword123"},
 }
@@ -170,5 +174,37 @@ func TestDemoModeConfirmShowsTheCodesAndStoresNothing(t *testing.T) {
 	}
 	if shown < recoveryCodeCount {
 		t.Errorf("%d recovery codes on the demo page, want %d", shown, recoveryCodeCount)
+	}
+}
+
+// The shallow credentialWritingRoutes entry for /password/2fa/enrol-unverified
+// never reaches its own IsDemo() guard — see the comment on that list for
+// why. This test drives the path that does: begin, fail a code so the escape
+// unlocks, then take it. In a real installation this is exactly the sequence
+// that stores a second factor; in the demo it must store nothing.
+func TestDemoModeEnrolUnverifiedRefusesAfterAFailedCode(t *testing.T) {
+	s := newDemoTestServer(t)
+	hash, err := HashPassword("currentpassword123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.Password = hash
+
+	cookie := makeAuthCookie(t, s)
+	if rec := doFormRequest(s, "POST", "/password/2fa/begin",
+		"current_password=currentpassword123", cookie); rec.Code != http.StatusOK {
+		t.Fatalf("begin answered %d, want 200", rec.Code)
+	}
+	doFormRequest(s, "POST", "/password/2fa/confirm", "code=000000", cookie)
+
+	rec := doFormRequest(s, "POST", "/password/2fa/enrol-unverified", "ack=1", cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Errorf("enrol-unverified in demo mode answered %d, want a redirect", rec.Code)
+	}
+	if s.cfg.TOTPEnabled() {
+		t.Error("the demo enrolled a second factor through the recovery escape; the next visitor cannot get in")
+	}
+	if n := len(s.cfg.RecoveryCodes()); n != 0 {
+		t.Errorf("the demo stored %d recovery hashes through the escape", n)
 	}
 }

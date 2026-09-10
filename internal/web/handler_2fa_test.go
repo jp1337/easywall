@@ -65,7 +65,7 @@ func TestEnrol_BeginRequiresTheCurrentPassword(t *testing.T) {
 func TestEnrol_EveryRouteRequiresASession(t *testing.T) {
 	s := serverWithPassword(t)
 	for _, path := range []string{
-		"/password/2fa/begin", "/password/2fa/confirm", "/password/2fa/recover",
+		"/password/2fa/begin", "/password/2fa/confirm", "/password/2fa/enrol-unverified",
 		"/password/2fa/disable", "/password/2fa/recovery",
 	} {
 		rec := doFormRequest(s, "POST", path, "current_password=currentpassword123")
@@ -170,7 +170,7 @@ func TestEnrol_RecoverAfterAWrongCodeReachesAUsableAccount(t *testing.T) {
 		t.Fatal("the failed code itself enabled the factor")
 	}
 
-	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	rec := doFormRequest(s, "POST", "/password/2fa/enrol-unverified", "ack=1", cookie)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("recover answered %d, want 200 with the codes shown", rec.Code)
 	}
@@ -217,7 +217,7 @@ func TestEnrol_RecoverAfterADiagnosedSkewReachesAUsableAccount(t *testing.T) {
 		t.Error("the message does not point at the clock")
 	}
 
-	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	rec := doFormRequest(s, "POST", "/password/2fa/enrol-unverified", "ack=1", cookie)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("recover after a diagnosed skew answered %d, want 200 with the codes shown", rec.Code)
 	}
@@ -254,7 +254,7 @@ func TestEnrol_RecoverIsNotReachableWithAnExistingFactor(t *testing.T) {
 	doFormRequest(s, "POST", "/password/2fa/begin", "current_password=currentpassword123", cookie)
 	failEnrolment(t, s, cookie)
 
-	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	rec := doFormRequest(s, "POST", "/password/2fa/enrol-unverified", "ack=1", cookie)
 	assertRedirect(t, rec, "/password")
 	if s.cfg.TOTPSecret() != "JBSWY3DPEHPK3PXP" {
 		t.Error("the existing factor was replaced by the escape")
@@ -271,7 +271,7 @@ func TestEnrol_RecoverIsNotReachableBeforeAFailedCode(t *testing.T) {
 	s := serverWithPassword(t)
 	_, cookie := beginEnrolment(t, s)
 
-	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	rec := doFormRequest(s, "POST", "/password/2fa/enrol-unverified", "ack=1", cookie)
 	if rec.Code != http.StatusOK {
 		t.Errorf("recover before any code failed answered %d, want 200 with the setup card re-rendered", rec.Code)
 	}
@@ -288,7 +288,7 @@ func TestEnrol_RecoverRequiresTheAcknowledgement(t *testing.T) {
 	_, cookie := beginEnrolment(t, s)
 	failEnrolment(t, s, cookie)
 
-	rec := doFormRequest(s, "POST", "/password/2fa/recover", "", cookie)
+	rec := doFormRequest(s, "POST", "/password/2fa/enrol-unverified", "", cookie)
 	if s.cfg.TOTPEnabled() {
 		t.Fatal("the recovery escape enabled a factor without the acknowledgement")
 	}
@@ -307,6 +307,48 @@ func TestEnrol_RecoveryRefusesWithNoFactorEnrolled(t *testing.T) {
 	assertRedirect(t, rec, "/password")
 	if n := len(s.cfg.RecoveryCodes()); n != 0 {
 		t.Errorf("%d recovery codes issued for an account with no factor", n)
+	}
+}
+
+// {{if and .Setup.Failed .MustEnrol}} in password.html is the only thing
+// between a working handler and an operator who can actually reach it — the
+// operator-facing half of this fix round, and the half a Go test over the
+// handler alone cannot see at all. Checked against the form's own action
+// attribute rather than translated copy, so a locale edit cannot make this
+// pass or fail for the wrong reason.
+func TestEnrol_TheEscapeCardAppearsExactlyWhenItShould(t *testing.T) {
+	const marker = `action="/password/2fa/enrol-unverified"`
+
+	// Absent before any code has failed.
+	s1 := serverWithPassword(t)
+	before, _ := beginEnrolment(t, s1)
+	if strings.Contains(before, marker) {
+		t.Error("the escape card is on the page before any code has failed")
+	}
+
+	// Present after a code has failed.
+	s2 := serverWithPassword(t)
+	_, cookie2 := beginEnrolment(t, s2)
+	failed := doFormRequest(s2, "POST", "/password/2fa/confirm", "code=000000", cookie2)
+	if !strings.Contains(failed.Body.String(), marker) {
+		t.Error("the escape card is not on the page after a code failed")
+	}
+
+	// Absent with an existing factor, even after a failed code — that
+	// operator is not locked out by it and can simply leave the page.
+	s3 := serverWithPassword(t)
+	_, hashes, err := newRecoveryCodes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s3.cfg.SaveTOTP("JBSWY3DPEHPK3PXP", hashes); err != nil {
+		t.Fatal(err)
+	}
+	cookie3 := makeAuthCookie(t, s3)
+	doFormRequest(s3, "POST", "/password/2fa/begin", "current_password=currentpassword123", cookie3)
+	withFactor := doFormRequest(s3, "POST", "/password/2fa/confirm", "code=000000", cookie3)
+	if strings.Contains(withFactor.Body.String(), marker) {
+		t.Error("the escape card is on the page even though a factor already exists")
 	}
 }
 
@@ -443,7 +485,7 @@ func (s *Server) pendingSecretFor(t *testing.T, cookie *http.Cookie) string {
 		t.Fatal(err)
 	}
 	id, _ := sess.Values[SessionIDKey].(string)
-	secret, ok := pendingSecretLookup(id)
+	secret, _, ok := pendingSecretLookup(id)
 	if !ok {
 		t.Fatalf("no pending secret for session %q", id)
 	}

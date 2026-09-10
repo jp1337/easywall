@@ -117,16 +117,16 @@ func RequireSecondFactor(hasFactor func() bool, isDemo func() bool) func(http.Ha
 	// of "/password" would also admit anything a later release mounts below it,
 	// and the gate would widen without anyone deciding that it should.
 	allowed := map[string]bool{
-		"/password":                true,
-		"/password/2fa/begin":      true,
-		"/password/2fa/confirm":    true,
-		"/password/2fa/recover":    true,
-		"/password/2fa/disable":    true,
-		"/password/2fa/recovery":   true,
-		"/password/passkey/begin":  true,
-		"/password/passkey/finish": true,
-		"/password/passkey/remove": true,
-		"/logout":                  true,
+		"/password":                      true,
+		"/password/2fa/begin":            true,
+		"/password/2fa/confirm":          true,
+		"/password/2fa/enrol-unverified": true,
+		"/password/2fa/disable":          true,
+		"/password/2fa/recovery":         true,
+		"/password/passkey/begin":        true,
+		"/password/passkey/finish":       true,
+		"/password/passkey/remove":       true,
+		"/logout":                        true,
 	}
 
 	return func(next http.Handler) http.Handler {
