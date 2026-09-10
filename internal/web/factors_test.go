@@ -45,6 +45,7 @@ func TestDisablingTheOnlyFactorIsRefusedOverHTTP(t *testing.T) {
 	resp := s.postAuthed(t, "/password/2fa/disable", map[string]string{
 		"current_password": testPassword,
 	})
+	defer resp.Body.Close()
 	if resp.StatusCode != 303 {
 		t.Fatalf("expected a redirect, got %d", resp.StatusCode)
 	}

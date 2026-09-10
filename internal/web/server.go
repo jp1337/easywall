@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -114,7 +115,16 @@ type Server struct {
 
 	// acmeSrv is the HTTP-01 challenge listener on port 80, non-nil only while
 	// tls.acme is on and Start has run. See acme.go.
-	acmeSrv *http.Server
+	//
+	// atomic.Pointer, not a plain field: cmd/easywall-web runs Start() in its
+	// own goroutine and calls Stop() from the one that caught the signal —
+	// exactly the shape TestStartWithACMEConfiguredDoesNotPanic exercises —
+	// so the write in startACMEChallengeListener and the read in
+	// stopACMEChallengeListener are genuinely concurrent. -race found this
+	// one; a plain *http.Server did not fail in the wild only because the
+	// window between "Start assigns it" and "a signal arrives" is narrow, not
+	// because it was safe.
+	acmeSrv atomic.Pointer[http.Server]
 
 	// passkeyCount counts enrolled passkeys for factorCount. A function and not
 	// a *Config method because the passkey store does not exist yet — this
@@ -331,8 +341,19 @@ func (s *Server) Start() error {
 	// Load the certificate before binding. Serving the port and failing every
 	// handshake looks, from the outside, like a broken network rather than a
 	// missing file; refusing to start says which.
-	if _, err := s.certs.GetCertificate(nil); err != nil {
-		return fmt.Errorf("TLS certificate: %w", err)
+	//
+	// Skipped when ACME is on: this checks a file easywall owns, and ACME owns
+	// none — autocert fetches per handshake, lazily, against the SNI a real
+	// client sends, from its own cache or the CA. Calling this with a nil
+	// *tls.ClientHelloInfo (there is no handshake yet to take one from) is not
+	// "no file to check", it is a nil pointer straight into
+	// autocert.Manager.GetCertificate, whose first statement reads
+	// hello.ServerName — a panic before startACMEChallengeListener below ever
+	// runs, on every host that turns ACME on.
+	if !s.certs.usesACME() {
+		if _, err := s.certs.GetCertificate(nil); err != nil {
+			return fmt.Errorf("TLS certificate: %w", err)
+		}
 	}
 
 	// Before the HTTPS listener: a certificate that needs ACME cannot be

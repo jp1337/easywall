@@ -6,7 +6,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -124,7 +126,7 @@ func TestTheChallengeListenerDoesNothingWithoutACME(t *testing.T) {
 	if err := s.startACMEChallengeListener(); err != nil {
 		t.Fatalf("startACMEChallengeListener: %v", err)
 	}
-	if s.acmeSrv != nil {
+	if s.acmeSrv.Load() != nil {
 		t.Error("a listener was started without ACME configured")
 	}
 	s.stopACMEChallengeListener() // must not panic with nothing to stop
@@ -135,8 +137,14 @@ func TestTheChallengeListenerDoesNothingWithoutACME(t *testing.T) {
 // for one test: it counts Error-level log records whose message contains
 // substr, so a test can assert a specific line was — or was not — written,
 // instead of parsing captured stdout.
+//
+// n is written from the Serve goroutine's own logging call and read from the
+// test's polling loop — an *atomic.Int64, not a plain int, because the two
+// goroutines really do touch it concurrently and a plain int is only "safe"
+// by the accident of the write never firing in the passing case. That is
+// exactly the case a future regression changes.
 type substringErrorHandler struct {
-	n      *int
+	n      *atomic.Int64
 	substr string
 }
 
@@ -145,7 +153,7 @@ func (h substringErrorHandler) Enabled(_ context.Context, level slog.Level) bool
 }
 func (h substringErrorHandler) Handle(_ context.Context, r slog.Record) error {
 	if strings.Contains(r.Message, h.substr) {
-		*h.n++
+		h.n.Add(1)
 	}
 	return nil
 }
@@ -190,7 +198,7 @@ func TestTheChallengeListenerActuallyBindsAndServes(t *testing.T) {
 	acmeChallengePort = ":18443"
 	t.Cleanup(func() { acmeChallengePort = orig })
 
-	var falseAlarms int
+	var falseAlarms atomic.Int64
 	prevLog := slog.Default()
 	slog.SetDefault(slog.New(substringErrorHandler{n: &falseAlarms, substr: "certificate renewal will fail"}))
 	t.Cleanup(func() { slog.SetDefault(prevLog) })
@@ -209,7 +217,7 @@ func TestTheChallengeListenerActuallyBindsAndServes(t *testing.T) {
 	if err := s.startACMEChallengeListener(); err != nil {
 		t.Fatalf("startACMEChallengeListener: %v", err)
 	}
-	if s.acmeSrv == nil {
+	if s.acmeSrv.Load() == nil {
 		t.Fatal("no listener recorded as started")
 	}
 
@@ -237,11 +245,157 @@ func TestTheChallengeListenerActuallyBindsAndServes(t *testing.T) {
 	// its Accept() call, which already happened above (the rebind could not
 	// have succeeded otherwise) — this only waits out the scheduler.
 	deadline := time.Now().Add(300 * time.Millisecond)
-	for falseAlarms == 0 && time.Now().Before(deadline) {
+	for falseAlarms.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if falseAlarms != 0 {
+	if falseAlarms.Load() != 0 {
 		t.Error(`a clean Stop logged "certificate renewal will fail" — ` +
 			"an operator would learn to ignore this error class on every ordinary restart")
+	}
+}
+
+// TestStartWithACMEConfiguredDoesNotPanic proves Start() actually starts when
+// ACME is correctly configured — not merely that a misconfigured setup is
+// refused (TestACMEIsRefusedWithoutAgreedTerms and its siblings in
+// config_test.go), which is a different claim. Nothing anywhere in this
+// package called Start() at all before this test, ACME or not — that gap is
+// why a startup-fatal defect here passed review twice.
+//
+// The defect: Start()'s preflight calls s.certs.GetCertificate(nil) to catch
+// a missing certificate file before binding, so the interface refuses to
+// start rather than serving a broken handshake to everyone. certManager
+// forwards that nil straight into autocert.Manager.GetCertificate, whose
+// first statement reads hello.ServerName — a nil-pointer dereference, before
+// startACMEChallengeListener (this task's own function, three lines later)
+// ever runs. On a real host: three panic-restart cycles against
+// StartLimitBurst=3, then no web interface, silently.
+//
+// Restoring the bug (removing the usesACME() guard around the preflight in
+// Start()) makes this test fail:
+//
+//	go test ./internal/web/ -run TestStartWithACMEConfiguredDoesNotPanic -v
+//	--- FAIL: TestStartWithACMEConfiguredDoesNotPanic
+//	    acme_test.go:...: Start() panicked with ACME correctly configured:
+//	    runtime error: invalid memory address or nil pointer dereference
+//
+// The goroutine below recovers the panic itself specifically so this shows up
+// as a reported FAIL rather than taking the whole test binary down with it —
+// go test cannot turn an unrecovered panic in a background goroutine into a
+// clean failure of one test.
+//
+// Built through NewServer, not newTestServer/newACMESystemTestServer: those
+// build a Server by hand for handler-level tests that only ever go through
+// s.router directly, and leave s.httpSrv nil — a gap that never mattered
+// until a test tried to call the real Start(), which panics on a nil
+// receiver exactly the way s.certs used to. NewServer is what production
+// calls, and is what Start() has to be tested against.
+func TestStartWithACMEConfiguredDoesNotPanic(t *testing.T) {
+	origPort := acmeChallengePort
+	acmeChallengePort = ":18446"
+	t.Cleanup(func() { acmeChallengePort = origPort })
+
+	fc := newFakeCore(t)
+	dir := t.TempDir()
+	sslDir := dir + "/ssl"
+	if err := os.MkdirAll(sslDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := dir + "/web.toml"
+	if err := os.WriteFile(cfgPath, []byte(`
+bind_addr = "127.0.0.1:19876"
+socket_path = "`+fc.socketPath+`"
+ssl_dir = "`+sslDir+`"
+data_dir = "`+dir+`"
+session_key = "test-session-key-32bytes-padding!"
+language = "en"
+username = "admin"
+password = ""
+update_check = false
+[tls]
+cert = ""
+key  = ""
+hostname = "firewall.example.org"
+acme = true
+acme_agree_tos = true
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	hash, err := HashPassword(testPassword)
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+	cfg.Password = hash
+
+	s, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	// TemplatesDir() ("web/templates") is resolved relative to the working
+	// directory, which under `go test` is this package's own directory, not
+	// the repo root NewServer's real callers run from. A test-only
+	// substitution for that path difference, not a stand-in for what
+	// NewServer itself builds — everything else above came from NewServer
+	// unmodified, httpSrv included.
+	s.tmpl = testTemplates(t)
+	t.Cleanup(s.Stop)
+
+	type result struct {
+		err      error
+		panicVal any
+	}
+	done := make(chan result, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- result{panicVal: r}
+			}
+		}()
+		done <- result{err: s.Start()}
+	}()
+
+	// Poll for the HTTPS port to come up, rather than sleep-and-hope: proof
+	// Start() ran all the way through the preflight, the challenge listener,
+	// and into ListenAndServeTLS, not just that nothing crashed within an
+	// arbitrary window.
+	addr := s.cfg.BindAddr
+	deadline := time.Now().Add(2 * time.Second)
+	dialed := false
+	for time.Now().Before(deadline) {
+		select {
+		case res := <-done:
+			if res.panicVal != nil {
+				t.Fatalf("Start() panicked with ACME correctly configured: %v", res.panicVal)
+			}
+			t.Fatalf("Start() returned before ever serving: %v", res.err)
+		default:
+		}
+		conn, dialErr := net.DialTimeout("tcp", addr, 50*time.Millisecond)
+		if dialErr == nil {
+			_ = conn.Close()
+			dialed = true
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !dialed {
+		t.Fatal("the HTTPS listener never came up")
+	}
+
+	s.Stop()
+	select {
+	case res := <-done:
+		if res.panicVal != nil {
+			t.Fatalf("Start() panicked during shutdown: %v", res.panicVal)
+		}
+		if res.err != nil {
+			t.Errorf("Start() returned %v after a clean Stop, want nil", res.err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start() did not return after Stop()")
 	}
 }

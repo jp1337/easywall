@@ -258,21 +258,21 @@ func (c *Config) KeyPath() string {
 func (c *Config) Hostname() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.WebConfig.TLS.Hostname
+	return c.TLS.Hostname
 }
 
 // ACMEEnabled reports whether autocert should supply the certificate.
 func (c *Config) ACMEEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.WebConfig.TLS.ACME
+	return c.TLS.ACME
 }
 
 // ACMEEmail returns the contact address registered with the CA, possibly "".
 func (c *Config) ACMEEmail() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.WebConfig.TLS.ACMEEmail
+	return c.TLS.ACMEEmail
 }
 
 // ACMEDirectory returns the directory URL override; "" means the CA autocert
@@ -280,14 +280,14 @@ func (c *Config) ACMEEmail() string {
 func (c *Config) ACMEDirectory() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.WebConfig.TLS.ACMEDirectory
+	return c.TLS.ACMEDirectory
 }
 
 // ACMEAgreedTOS reports whether the operator has agreed to the CA's terms.
 func (c *Config) ACMEAgreedTOS() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.WebConfig.TLS.ACMEAgreeTOS
+	return c.TLS.ACMEAgreeTOS
 }
 
 // LocalesDir returns the locales directory path.

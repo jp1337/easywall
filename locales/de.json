@@ -462,8 +462,8 @@
 
   {"id": "acme_port_label", "translation": "Port 80, für die Zertifikatserneuerung"},
   {"id": "acme_port_open", "translation": "In deinen Regeln geöffnet"},
-  {"id": "acme_port_restricted", "translation": "In deinen Regeln, aber auf bestimmte Quellen beschränkt. Eine Zertifizierungsstelle erreicht dich aus dem öffentlichen Internet — prüfe, ob deine Beschränkung das zulässt"},
-  {"id": "acme_port_closed", "translation": "Nicht in deinen Regeln — die Erneuerung wird fehlschlagen. Füge Port 80 auf der Ports-Seite hinzu"},
+  {"id": "acme_port_restricted", "translation": "In deinen Regeln, aber auf bestimmte Quellen beschränkt. Eine Zertifizierungsstelle erreicht dich aus dem öffentlichen Internet — prüfe, ob deine Beschränkung das zulässt."},
+  {"id": "acme_port_closed", "translation": "Nicht in deinen Regeln — die Erneuerung wird fehlschlagen. Füge Port 80 auf der Ports-Seite hinzu."},
   {"id": "acme_port_unknown", "translation": "Nicht prüfbar, solange der Core nicht erreichbar ist"},
 
   {"id": "system_telemetry_title", "translation": "Installationszählung"},

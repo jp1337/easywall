@@ -135,16 +135,19 @@ key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 
 ### The one exception: ACME's port 80
 
-No other plaintext port is opened, but `tls.acme = true` opens one: a
+No other plaintext port is opened, but `tls.acme = true` opens one. A
 certificate authority proves you control `tls.hostname` by connecting to port
-80 over plain HTTP and reading back a token (HTTP-01). easywall's listener
-answers that one path and nothing else — 404 for everything else, deliberately
-not a second web interface, and deliberately not autocert's own default, whose
-fallback redirects to `https://host/` where easywall is not listening. It runs
-for as long as the service does, not only while a certificate is first being
-issued, because renewal happens on autocert's own schedule and a listener that
-only exists for the first issuance is one that has silently stopped working by
-the time a renewal needs it.
+80 over plain HTTP and reading back a token (HTTP-01).
+
+easywall's listener answers that one path and nothing else — 404 for
+everything else. It is deliberately not a second web interface, and
+deliberately not autocert's own default, whose fallback redirects to
+`https://host/` where easywall is not listening.
+
+It runs for as long as the service does, not only while a certificate is first
+being issued. Renewal happens on autocert's own schedule, and a listener that
+only exists for the first issuance has silently stopped working by the time a
+renewal needs it.
 
 Three things have to be true before that listener can answer at all, and
 easywall does none of them for you:
@@ -155,11 +158,26 @@ easywall does none of them for you:
    needs the same line.
 3. **Port 80 is open in your own easywall rules.** easywall will not open a
    port by itself — a firewall that opens ports on its own initiative is not
-   one you can reason about — so this is the one precondition on this list
-   that is actually your job. The System page reports whether it is, in your
-   *live* rules, restricted or not: a rule for 80 whose `sources` excludes the
-   public internet does not let the certificate authority in, even though the
-   port is technically "in your rules".
+   one you can reason about. So this is the one precondition on this list
+   that is actually your job.
+
+   The System page reports whether it is, in your *live* rules, restricted or
+   not. A rule for 80 whose `sources` excludes the public internet does not
+   let the certificate authority in, even though the port is technically "in
+   your rules".
+
+   The report does not see everything that decides reachability, though. A
+   blacklist entry, a custom rule, or IPv6 mode = `block` can each keep a
+   certificate authority out even when the row says open. Let's Encrypt
+   prefers IPv6 when an AAAA record exists, and the report reads the ports
+   table only.
+
+A bind failure on port 80 is fatal to the whole interface, not only to ACME.
+`Start()` refuses rather than run with a configuration it cannot honor — the
+same choice this project already makes for a missing certificate file or
+missing templates. If something else already holds port 80 — nginx in front,
+another service — free it or turn `tls.acme` off. Nothing here retries in the
+background or falls back to serving without it.
 
 ### The one place a string reaches a command
 

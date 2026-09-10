@@ -198,6 +198,12 @@ const (
 // Reads the *live* rule set (state.Current), not what is staged for the next
 // apply: the question is whether a certificate authority can reach this host
 // right now, and an unapplied change has not touched the kernel yet.
+//
+// Only the ports table, deliberately. Rules.Custom, a blacklist entry, or
+// IPv6Mode = block can each still keep a certificate authority out even when
+// this reports open — Let's Encrypt prefers IPv6 where an AAAA record
+// exists — and this function does not try to read custom rules to check.
+// Say what is not checked rather than guess at it.
 func (s *Server) port80Reachability() (state port80State, known bool) {
 	rules, err := s.client.GetRules()
 	if err != nil {

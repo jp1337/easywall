@@ -131,7 +131,7 @@ func (s *Server) startACMEChallengeListener() error {
 		Handler:           acmeChallengeHandler(s.certs.acme),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	s.acmeSrv = srv
+	s.acmeSrv.Store(srv)
 	go func() {
 		// srv.Close() below is what makes this ErrServerClosed rather than a
 		// raw "use of closed network connection" — it flips the server's own
@@ -148,7 +148,7 @@ func (s *Server) startACMEChallengeListener() error {
 // stopACMEChallengeListener closes the listener, if startACMEChallengeListener
 // ever opened one.
 func (s *Server) stopACMEChallengeListener() {
-	if s.acmeSrv != nil {
-		_ = s.acmeSrv.Close()
+	if srv := s.acmeSrv.Load(); srv != nil {
+		_ = srv.Close()
 	}
 }

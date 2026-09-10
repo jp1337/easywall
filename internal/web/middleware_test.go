@@ -580,6 +580,7 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 		}
 		checked++
 		resp := s.doAuthed(t, method, route)
+		defer resp.Body.Close()
 		// The discriminator is the gate's own header, not "did this answer land
 		// on /password" — an empty-body POST to an enrolment route (a wrong
 		// current_password, a short new one, a confirm with no pending secret)
@@ -622,13 +623,17 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 // TestTheDemoIsExemptAndNothingElseIs asserts the exemption keys on DemoMode.
 func TestTheDemoIsExemptAndNothingElseIs(t *testing.T) {
 	demo := newFactorTestServer(t, "", 0, true)
-	if resp := demo.doAuthed(t, "GET", "/dashboard"); resp.StatusCode != 200 {
-		t.Errorf("the demo was gated: /dashboard answered %d", resp.StatusCode)
+	demoResp := demo.doAuthed(t, "GET", "/dashboard")
+	defer demoResp.Body.Close()
+	if demoResp.StatusCode != 200 {
+		t.Errorf("the demo was gated: /dashboard answered %d", demoResp.StatusCode)
 	}
 
 	real := newFactorTestServer(t, "", 0, false)
-	if resp := real.doAuthed(t, "GET", "/dashboard"); resp.StatusCode != 303 {
-		t.Errorf("a real installation was not gated: /dashboard answered %d", resp.StatusCode)
+	realResp := real.doAuthed(t, "GET", "/dashboard")
+	defer realResp.Body.Close()
+	if realResp.StatusCode != 303 {
+		t.Errorf("a real installation was not gated: /dashboard answered %d", realResp.StatusCode)
 	}
 }
 
@@ -644,7 +649,9 @@ func TestTheGateOpensAsSoonAsAFactorExists(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := newFactorTestServer(t, tc.totp, tc.passkeys, false)
-			if resp := s.doAuthed(t, "GET", "/dashboard"); resp.StatusCode != 200 {
+			resp := s.doAuthed(t, "GET", "/dashboard")
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
 				t.Errorf("/dashboard answered %d with %s enrolled", resp.StatusCode, tc.name)
 			}
 		})

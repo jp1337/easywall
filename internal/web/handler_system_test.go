@@ -509,25 +509,29 @@ func translated(t *testing.T, id string) string {
 	return T(loc, id)
 }
 
-// stagedTCP re-reads the rules and returns the staged TCP set — a test helper
-// so a test can assert that answering the port-80 question never turned into
-// a write that staged the port itself.
-func (c *CoreClient) stagedTCP() []shared.PortRule {
-	state, err := c.GetRules()
-	if err != nil {
-		return nil
-	}
-	return state.Staged.TCP
-}
-
-// containsPort reports whether any rule in rules opens exactly port.
-func containsPort(rules []shared.PortRule, port string) bool {
-	for _, r := range rules {
-		if r.Port == port {
-			return true
+// assertNoRuleWriteReachesTheCore registers an observer on the fake core that
+// fails t the instant any rule-mutating command arrives during the request
+// under test — port80Reachability is supposed to be read-only.
+//
+// Replaces an earlier version of this check that re-read GET_RULES after the
+// request and looked for port 80 in the *canned* Staged response — which
+// cannot fail no matter what port80Reachability does, because the fake core
+// always answers GET_RULES with the same fixed response regardless of any
+// write sent to it; nothing in the fake replays a write into its own read
+// path. Proven vacuous: inserting a real SaveRules call into
+// port80Reachability and rerunning left the old assertion green. This
+// version watches the wire instead of re-reading a fixture, and does fail
+// under that same mutation — see the "closed" subtest below.
+func assertNoRuleWriteReachesTheCore(t *testing.T) func(*fakeCore) {
+	t.Helper()
+	return func(fc *fakeCore) {
+		for _, cmd := range []shared.CommandType{shared.CmdSaveRules, shared.CmdApplyRules, shared.CmdImportRules} {
+			fc.OnCommand(cmd, func(shared.Command) {
+				t.Errorf("the GET that only asks whether port 80 is reachable sent a %s to the core — "+
+					"easywall must never write rules on its own initiative", cmd)
+			})
 		}
 	}
-	return false
 }
 
 // TestTheSystemPageReportsWhetherPortEightyIsOpen asserts easywall measures
@@ -547,15 +551,13 @@ func containsPort(rules []shared.PortRule, port string) bool {
 // is the honest answer.
 func TestTheSystemPageReportsWhetherPortEightyIsOpen(t *testing.T) {
 	t.Run("closed", func(t *testing.T) {
-		s := newACMESystemTestServer(t, withTCPPorts("22", "12227"))
+		s := newACMESystemTestServer(t, withTCPPorts("22", "12227"), assertNoRuleWriteReachesTheCore(t))
 		body := s.getAuthedBody(t, "/system")
 		if !strings.Contains(body, "acme_port_closed") && !strings.Contains(body, translated(t, "acme_port_closed")) {
 			t.Error("port 80 is not in the rule set and the page did not say so")
 		}
-		// And it did not stage it.
-		if containsPort(s.client.stagedTCP(), "80") {
-			t.Fatal("easywall staged port 80 by itself")
-		}
+		// assertNoRuleWriteReachesTheCore above fails the test itself if
+		// easywall staged port 80 on its own initiative.
 	})
 
 	t.Run("open", func(t *testing.T) {

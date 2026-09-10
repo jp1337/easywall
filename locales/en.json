@@ -462,8 +462,8 @@
 
   {"id": "acme_port_label", "translation": "Port 80, for certificate renewal"},
   {"id": "acme_port_open", "translation": "Open in your rules"},
-  {"id": "acme_port_restricted", "translation": "In your rules, but restricted to specific sources. A certificate authority reaches you from the public internet — check whether your restriction allows that"},
-  {"id": "acme_port_closed", "translation": "Not in your rules — renewal will fail. Add port 80 on the Ports page"},
+  {"id": "acme_port_restricted", "translation": "In your rules, but restricted to specific sources. A certificate authority reaches you from the public internet — check whether your restriction allows that."},
+  {"id": "acme_port_closed", "translation": "Not in your rules — renewal will fail. Add port 80 on the Ports page."},
   {"id": "acme_port_unknown", "translation": "Cannot be checked while the core is unreachable"},
 
   {"id": "system_telemetry_title", "translation": "Installation count"},

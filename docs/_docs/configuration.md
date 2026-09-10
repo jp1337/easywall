@@ -350,10 +350,10 @@ Leave both keys empty to use an auto-generated self-signed certificate in `ssl_d
 | `acme_agree_tos` | Your agreement to the certificate authority's subscriber agreement. Has **no default** — easywall never agrees to a third party's terms on your behalf, so `acme = true` without this set is refused at startup |
 | `acme_directory` | ACME directory URL override. Empty is Let's Encrypt production; point it at a staging endpoint while getting DNS and port 80 right |
 
-`acme = true` also opens a fixed HTTP-01 listener on port 80 — see
-[Security → Transport]({{ '/docs/security/' | relative_url }}#transport) for the
-three things that have to be true before it can answer, including the one
-easywall will not do for you.
+`acme = true` also opens a fixed HTTP-01 listener on port 80. See
+[Security → Transport]({{ '/docs/security/' | relative_url }}#transport) for what
+has to be true before it can answer — including the one thing easywall will not
+do for you.
 
 The auto-generated certificate is valid for a year and is replaced once it comes within
 30 days of expiry. That's checked at startup and twice a day while the service runs, so a
