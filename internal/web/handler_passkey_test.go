@@ -320,6 +320,46 @@ func TestAPasskeyCanBeEnrolledAndCounts(t *testing.T) {
 	}
 }
 
+// TestBeginRegistrationExcludesEnrolledCredentials.
+//
+// Without excludeCredentials, the same physical authenticator can be
+// enrolled again and again under a different name: the operator's list shows
+// several entries for one device, factorCount() reports several factors, and
+// the mandate rests on a number that overstates how many independent things
+// actually stand between an attacker and the account. mayRemoveFactor() is
+// the sharper case — it would allow removing "one of two" when both entries
+// are the same key.
+//
+// Asserts the excluded id itself, not merely that the list is non-empty: a
+// list carrying the wrong id would satisfy a bare non-nil check while still
+// leaving the real device excludable a second time.
+func TestBeginRegistrationExcludesEnrolledCredentials(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	id := enrolPasskey(t, s, "already enrolled")
+
+	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	defer begin.Body.Close()
+	if begin.StatusCode != 200 {
+		t.Fatalf("begin answered %d", begin.StatusCode)
+	}
+	parsed, err := virtualwebauthn.ParseAttestationOptions(readBody(t, begin))
+	if err != nil {
+		t.Fatalf("parse the creation options: %v", err)
+	}
+
+	want := base64.RawURLEncoding.EncodeToString(id)
+	excluded := false
+	for _, c := range parsed.ExcludeCredentials {
+		if c == want {
+			excluded = true
+		}
+	}
+	if !excluded {
+		t.Errorf("excludeCredentials = %v, want it to contain %q (the already-enrolled credential)",
+			parsed.ExcludeCredentials, want)
+	}
+}
+
 // TestEnrollingAPasskeyMintsRecoveryCodesWhenItIsTheFirstFactor.
 //
 // Recovery codes were minted only on the TOTP path, because that was the only

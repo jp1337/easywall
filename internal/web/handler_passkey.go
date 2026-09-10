@@ -225,7 +225,15 @@ func (s *Server) handlePasskeyBegin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	creation, session, err := wa.BeginRegistration(s.passkeyUser())
+	// Excludes every already-enrolled credential, so the same physical
+	// authenticator cannot be enrolled a second time under a different name.
+	// Without this, factorCount() and mayRemoveFactor() count entries rather
+	// than devices: three enrolments of one key read as three factors, and
+	// removing "one of them" leaves the operator believing another still
+	// stands between them and the account when it was the same key all along.
+	user := s.passkeyUser()
+	creation, session, err := wa.BeginRegistration(user,
+		webauthn.WithExclusions(webauthn.Credentials(user.credentials).CredentialDescriptors()))
 	if err != nil {
 		slog.Error("could not begin a passkey registration ceremony", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
