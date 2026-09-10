@@ -323,6 +323,7 @@ func TestIntegration_ACertificateArrivesOverHTTP01(t *testing.T) {
 	// the same fixture acmeTestConfig in acme_test.go already builds on —
 	// this is that same shape, with the handful of fields this test needs
 	// pointed somewhere real instead of the fixture's own placeholders.
+	// Username and UpdateCheckEnabled are left at its defaults, checked as inert rather than carried over — no HTTP request here, and nothing calls Checker.Info().
 	cfg := validTestConfig(t)
 	cfg.BindAddr = integrationBindAddr
 	cfg.SocketPath = fc.socketPath
