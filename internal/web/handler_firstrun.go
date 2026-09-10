@@ -150,13 +150,15 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 // follows it. written is whether the account now exists; staged is whether
 // applyFirstRunChoices also succeeded.
 //
-// handleFirstRunConfirm is its only caller now: the checkbox and the skip path
+// finishFirstRunEnrolled is its only caller: the checkbox and the skip path
 // that used to reach this without a factor are gone, so every write here
-// carries a TOTP secret already confirmed against a code. The two-bool return
-// still matters with one caller, because that caller has eight recovery codes
-// that must reach the operator regardless of what happened to the ports and
-// the IPv6 mode — collapsing written and staged into one bool would silently
-// discard codes already generated and hashed to disk.
+// carries a TOTP secret already shown to the operator — either confirmed
+// against a code, or accepted as-is through the recovery-code escape when no
+// code ever will verify. The two-bool return still matters with one caller,
+// because that caller has eight recovery codes that must reach the operator
+// regardless of what happened to the ports and the IPv6 mode — collapsing
+// written and staged into one bool would silently discard codes already
+// generated and hashed to disk.
 //
 // A staging failure does not redirect from here for exactly that reason: only
 // the caller knows whether it still has something to show before the
@@ -173,7 +175,7 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 // it, so /login is right either way. A genuine write failure does not: the
 // caller has a secret already shown to the operator, and sending it back to
 // step 1 mints a fresh one and orphans that pairing — see
-// handleFirstRunConfirm for how it answers that case.
+// finishFirstRunEnrolled for how it answers that case.
 func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) (written, staged bool, saveErr error) {
 	if err := s.cfg.SaveFirstRun(a); err != nil {
 		if errors.Is(err, ErrAlreadySetUp) {
@@ -249,6 +251,12 @@ type firstRunSetup struct {
 	QR         template.URL
 	SecretText string
 	ServerTime string
+
+	// Failed mirrors pendingFirstRun.Failed: whether a submitted code has
+	// already missed once against this pending entry. The template shows the
+	// recovery-code escape only when this is true — see the doc comment on
+	// pendingFirstRun.Failed for why it is not offered from the first render.
+	Failed bool
 }
 
 // firstRunPage is what firstrun.html reads once the wizard has more than one
@@ -302,6 +310,12 @@ func (s *Server) beginFirstRunTOTP(w http.ResponseWriter, r *http.Request, answe
 // guard against reviving one that had already timed out.
 func (s *Server) renderFirstRunSetup(w http.ResponseWriter, r *http.Request, id string, answers *firstRunData, secret string) {
 	firstRunPendingRefresh(id)
+	// A second lookup rather than a parameter threaded through every caller:
+	// beginFirstRunTOTP calls this the moment the entry is stored, when Failed
+	// is always false, and handleFirstRunConfirm calls it after marking Failed
+	// true on the very same entry — reading it back here is what keeps this
+	// function from needing to know which of those two callers it is.
+	p, _ := firstRunPendingLookup(id)
 	qrURI, err := qrPNGDataURI(otpauthURI(answers.Username, secret))
 	if err != nil {
 		slog.Error("could not render the QR code", "error", err)
@@ -319,6 +333,7 @@ func (s *Server) renderFirstRunSetup(w http.ResponseWriter, r *http.Request, id 
 			QR:         template.URL(qrURI), //nolint:gosec // G203 — see above
 			SecretText: formatTOTPSecret(secret),
 			ServerTime: time.Now().UTC().Format("2 Jan 2006, 15:04:05 MST"),
+			Failed:     p.Failed,
 		},
 	})
 }
@@ -383,9 +398,10 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		// points at the server time it is already showing, because the most
 		// common cause here is a board with no RTC, still at the epoch until
 		// NTP catches up — and unlike /password, there is no account yet to
-		// fall back to a recovery code with. Fixing the clock and retrying is
-		// the only way through; there is no escape hatch past a code that will
-		// never verify.
+		// fall back to a recovery code with. Marked failed before the
+		// re-render: this is what turns on the recovery-code escape on the
+		// step the operator is about to see again — see handleFirstRunRecover.
+		firstRunPendingMarkFailed(id)
 		s.setFlash(w, r, "firstrun_totp_code_wrong")
 		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
@@ -395,6 +411,16 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.finishFirstRunEnrolled(w, r, id, p)
+}
+
+// finishFirstRunEnrolled writes the account with the secret already on
+// screen and shows the recovery codes generated for it — the one ending both
+// a confirmed code (handleFirstRunConfirm) and the recovery-code escape
+// (handleFirstRunRecover) share. Either caller already knows p.Secret has
+// been placed in front of the operator; this is only ever the point at which
+// it also gets stored.
+func (s *Server) finishFirstRunEnrolled(w http.ResponseWriter, r *http.Request, id string, p pendingFirstRun) {
 	plain, hashes, err := newRecoveryCodes()
 	if err != nil {
 		slog.Error("could not generate recovery codes", "error", err)
@@ -440,4 +466,35 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		s.setFlash(w, r, "firstrun_done_choices_failed")
 	}
 	s.render(w, r, "firstrun.html", "firstrun", &firstRunPage{Form: &p.Answers, Codes: plain})
+}
+
+// handleFirstRunRecover finishes setup when a code will never verify — most
+// often a clock with no RTC, still wherever it booted to, which the wide
+// ±5-minute window handleFirstRunConfirm already checks cannot reach. It
+// writes the account with the very secret already shown on this step, so the
+// authenticator just paired starts working the moment the clock is fixed;
+// nothing is re-enrolled. See finishFirstRunEnrolled for the write itself.
+//
+// Reachable only once this pending entry has failed at least one code
+// (p.Failed) — offered from the first render, this would be the path of
+// least resistance rather than the escape hatch it is, and a request that
+// arrives here without that history is sent back to the setup step instead
+// of being rewarded with an account. ack is the deliberate act the template's
+// required checkbox provides; a request missing it is refused the same way.
+func (s *Server) handleFirstRunRecover(w http.ResponseWriter, r *http.Request) {
+	id, p, ok := s.pendingFirstRunFor(r)
+	if !ok {
+		s.firstRunExpired(w, r, p)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.firstRunError(w, r, "internal_error", &p.Answers)
+		return
+	}
+	if !p.Failed || r.FormValue("ack") == "" {
+		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
+		return
+	}
+
+	s.finishFirstRunEnrolled(w, r, id, p)
 }

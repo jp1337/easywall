@@ -38,9 +38,11 @@ recovery codes shown once.
 You need an authenticator app already installed and in hand to confirm it on
 this page. The first run is the moment an operator is least likely to have
 one. It happens mid-installation, on a machine that may not even have a
-browser tab to spare for scanning a QR code. There is no way to defer it,
-though: a password with no second factor is exactly the state this release
-makes unreachable, so the wizard does not offer one.
+browser tab to spare for scanning a QR code. The wizard does not offer a way
+to skip the factor — a password with no second factor is exactly the state
+this release makes unreachable. If a code simply never verifies, though,
+there is still a way through: see
+[If the code never matches](#if-the-code-never-matches).
 
 ## First choices — all of them staged
 
@@ -88,6 +90,26 @@ of you, so you can correct it.
 
 If the wizard rejects something, every answer except the two passwords comes back
 with the page. Retyping a password does not silently reset your SSH port to 22.
+
+## If the code never matches
+
+A code that never verifies almost always means the clock on this machine is
+wrong, not a mistyped digit. The confirm step already tolerates five minutes
+either way; a board with no real-time clock can boot years off until NTP
+catches up, and no tolerance covers that.
+
+After one failed attempt, the setup step offers a second way through:
+
+| | |
+|---|---|
+| Reachable | only once a code has already failed — it is not on the page from the first render |
+| Acknowledgement | a checkbox, not a link: "I understand my code will not verify…" has to be ticked |
+| What it writes | the account, the secret already shown above, and eight recovery codes — the same write a confirmed code makes |
+| What it does not do | skip the factor. The account this creates has one enrolled, unlike the skip path this release removes |
+
+Sign in with one of the eight codes, then fix the clock. The authenticator
+already paired keeps working with no re-enrolment: the secret stored is the
+one already on screen when you chose this instead of a matching code.
 
 ## Changing the password later
 

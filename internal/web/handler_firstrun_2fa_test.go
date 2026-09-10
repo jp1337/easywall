@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -481,5 +482,160 @@ func TestTheWizardDoesNotPromiseALaterThatDoesNotExist(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// recoveryCodeListItem matches one <li class="recovery-code">CODE</li> from
+// the template. Anchored to that element rather than reusing the
+// whitespace-token-plus-isRecoveryShape trick the count-only tests above use:
+// that trick also matches "btn-primary" and "management" elsewhere on this
+// very page (dashes stripped and re-inserted, then within the recovery
+// alphabet once I/L/O/U are folded the way normaliseRecoveryCode folds them),
+// which only costs those tests an inflated count but would cost this one a
+// wrong code to sign in with.
+var recoveryCodeListItem = regexp.MustCompile(`(?s)<li class="recovery-code">\s*([0-9A-Z]{5}-[0-9A-Z]{5})\s*</li>`)
+
+// extractRecoveryCodes pulls the plain codes out of a rendered recovery-codes
+// page, in the order they were issued.
+func extractRecoveryCodes(body string) []string {
+	var codes []string
+	for _, m := range recoveryCodeListItem.FindAllStringSubmatch(body, -1) {
+		codes = append(codes, m[1])
+	}
+	return codes
+}
+
+// failFirstRunCode submits a code that can never verify — not a mismatched
+// digit, eight steps out like AFarOutCodeDiagnosesTheClockAndStoresNothing
+// above, but outside the ±5-minute window matchTOTP searches entirely. It is
+// the shape a board with no RTC produces: the clock is not offset, it is
+// wrong by years, and no window search reaches the operator's real code.
+func failFirstRunCode(t *testing.T, s *Server, cookies []*http.Cookie) {
+	t.Helper()
+	doFormRequest(s, "POST", "/firstrun/confirm", "code=000000", cookies...)
+}
+
+// THE test of this fix round. A board with no RTC boots years off, a code
+// against that clock can never verify, and deleting the skip path in the
+// commit above this one closed the only way such a board used to get an
+// account at all. The recovery-code escape is what replaces it: the account
+// is written with the secret already on screen, not a blank one — the
+// authenticator just paired works the moment the clock is fixed, without
+// re-enrolling.
+func TestFirstRun2FA_RecoverAfterAFailedCodeCreatesTheAccountWithTheFactor(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	_, cookies := beginFirstRun(t, s)
+	secret := firstRunPendingSecret(t, s, cookies)
+
+	failFirstRunCode(t, s, cookies)
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("the failed code itself created the account")
+	}
+
+	rec := doFormRequest(s, "POST", "/firstrun/recover", "ack=1", cookies...)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("recover answered %d, want 200 with the codes shown", rec.Code)
+	}
+	if s.cfg.IsFirstRun() {
+		t.Fatal("the recovery escape did not create the account")
+	}
+	if s.cfg.TOTPSecret() != secret {
+		t.Errorf("stored secret %q does not match the one shown on screen (%q) — a fresh one was minted instead of keeping the pairing", s.cfg.TOTPSecret(), secret)
+	}
+	codes := extractRecoveryCodes(rec.Body.String())
+	if len(codes) != recoveryCodeCount {
+		t.Errorf("%d recovery codes on the page, want %d", len(codes), recoveryCodeCount)
+	}
+}
+
+// The clock-independent way in the ruling asks for: a code from the escape's
+// own recovery codes signs in, regardless of what the clock says.
+func TestFirstRun2FA_ARecoveryCodeFromTheEscapeSignsIn(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	_, cookies := beginFirstRun(t, s)
+	failFirstRunCode(t, s, cookies)
+	rec := doFormRequest(s, "POST", "/firstrun/recover", "ack=1", cookies...)
+	codes := extractRecoveryCodes(rec.Body.String())
+	if len(codes) == 0 {
+		t.Fatal("no recovery codes to sign in with")
+	}
+
+	first := doFormRequest(s, "POST", "/login", "username=admin&password=firstrunpassword1")
+	verify := doFormRequest(s, "POST", "/login/verify", "code="+codes[0], first.Result().Cookies()...)
+	assertRedirect(t, verify, "/dashboard")
+}
+
+// The gate opens because a factor is enrolled — not because a recovery code
+// got the operator past it this once. RequireSecondFactor asks hasFactor(),
+// and hasFactor is true the moment TOTPSecret is non-empty; the recovery code
+// that got this session in does not itself count as one (Task 5's
+// factorCount deliberately does not count recovery codes).
+func TestFirstRun2FA_RecoverOpensTheGate(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+
+	_, cookies := beginFirstRun(t, s)
+	failFirstRunCode(t, s, cookies)
+	rec := doFormRequest(s, "POST", "/firstrun/recover", "ack=1", cookies...)
+	codes := extractRecoveryCodes(rec.Body.String())
+	if len(codes) == 0 {
+		t.Fatal("no recovery codes to sign in with")
+	}
+
+	first := doFormRequest(s, "POST", "/login", "username=admin&password=firstrunpassword1")
+	verify := doFormRequest(s, "POST", "/login/verify", "code="+codes[0], first.Result().Cookies()...)
+	assertRedirect(t, verify, "/dashboard")
+
+	// lastCookiePerName, not the raw list: granting the session and consuming
+	// the recovery code both save it in this one response, and a browser's jar
+	// would keep only the later of the two same-named cookies that produces.
+	dash := doRequest(s, "GET", "/dashboard", nil, lastCookiePerName(verify.Result().Cookies())...)
+	assertStatus(t, dash, http.StatusOK)
+}
+
+// The escape is not reachable before a code has failed — offered up front, it
+// would be easier than typing the code correctly, and it would stop being an
+// escape hatch and start being the path everyone takes.
+func TestFirstRun2FA_RecoverIsNotReachableBeforeAFailedCode(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+
+	_, cookies := beginFirstRun(t, s)
+	rec := doFormRequest(s, "POST", "/firstrun/recover", "ack=1", cookies...)
+
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("the recovery escape created an account before any code had failed")
+	}
+	if s.cfg.TOTPEnabled() {
+		t.Error("a factor was enrolled before any code had failed")
+	}
+	if strings.Contains(rec.Body.String(), "recovery-code") {
+		t.Error("recovery codes were shown before any code had failed")
+	}
+}
+
+// The checkbox is the deliberate act, not the click that lands on this route.
+// A POST missing it must not create the account either, even after a code
+// has already failed.
+func TestFirstRun2FA_RecoverRequiresTheAcknowledgement(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
+
+	_, cookies := beginFirstRun(t, s)
+	failFirstRunCode(t, s, cookies)
+	rec := doFormRequest(s, "POST", "/firstrun/recover", "", cookies...)
+
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("the recovery escape created an account without the acknowledgement")
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("recover without ack answered %d, want 200 with the setup step re-rendered", rec.Code)
 	}
 }
