@@ -112,6 +112,10 @@ type Server struct {
 	version      *shared.Checker
 	certs        *certManager
 
+	// acmeSrv is the HTTP-01 challenge listener on port 80, non-nil only while
+	// tls.acme is on and Start has run. See acme.go.
+	acmeSrv *http.Server
+
 	// passkeyCount counts enrolled passkeys for factorCount. A function and not
 	// a *Config method because the passkey store does not exist yet — this
 	// defaults to zero, and the task that adds the store points it at that
@@ -331,6 +335,13 @@ func (s *Server) Start() error {
 		return fmt.Errorf("TLS certificate: %w", err)
 	}
 
+	// Before the HTTPS listener: a certificate that needs ACME cannot be
+	// fetched at all without this, and refusing to start says so plainly
+	// instead of leaving renewal to fail silently sixty days from now.
+	if err := s.startACMEChallengeListener(); err != nil {
+		return err
+	}
+
 	slog.Info("easywall-web listening", "addr", s.cfg.BindAddr)
 	go s.certs.maintain()
 	if s.telemetry != nil {
@@ -347,6 +358,7 @@ func (s *Server) Start() error {
 // Stop gracefully shuts down the server.
 func (s *Server) Stop() {
 	s.certs.close()
+	s.stopACMEChallengeListener()
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
 	}

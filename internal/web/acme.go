@@ -1,8 +1,13 @@
 package web
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
@@ -65,4 +70,85 @@ func newACMEManager(cfg *Config) (*autocert.Manager, error) {
 		m.Client = &acme.Client{DirectoryURL: dir}
 	}
 	return m, nil
+}
+
+// acmeChallengePort is where a certificate authority looks for an HTTP-01
+// response. Not configurable — no web.toml key, no flag, nothing an operator
+// can reach — because the ACME specification fixes it and a setting for a
+// constant is a setting that can only be wrong.
+//
+// A var regardless, the same reasoning as TelemetryEndpoint and
+// telemetryTimeout in internal/shared/telemetry.go: the two arguments are
+// independent. "Not configurable" is about the operator-facing surface —
+// there is no [tls] key that could disagree with the spec — and says nothing
+// about whether test code in this package may point the bind at a different
+// port to prove the listener actually opens and actually closes, rather than
+// only that its handler answers 404 in isolation. Unexported, so nothing
+// outside this package can touch it either way.
+var acmeChallengePort = ":80"
+
+// acmeChallengeHandler serves HTTP-01 responses and nothing else.
+//
+// Deliberately not autocert's own HTTPHandler(nil), whose fallback redirects to
+// https://host/ — port 443, where easywall is not listening. An operator who
+// typed the bare hostname would be redirected by easywall into a connection
+// refused. 404 is the honest answer: this listener exists for one purpose and
+// has no opinion about anything else — it is not a second web interface.
+func acmeChallengeHandler(m *autocert.Manager) http.Handler {
+	return m.HTTPHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	}))
+}
+
+// startACMEChallengeListener opens port 80 for as long as the server runs, or
+// does nothing at all when ACME is not configured.
+//
+// Permanently, not only during issuance: autocert renews at a time it
+// chooses, roughly thirty days before expiry, and a listener that is only up
+// during a deliberate first issuance is a listener that is down for every
+// renewal after it. The failure would be silent for sixty days and then
+// total.
+func (s *Server) startACMEChallengeListener() error {
+	if !s.certs.usesACME() {
+		return nil
+	}
+	// #nosec G102 -- binding every interface is the point, not an oversight.
+	// The certificate authority connects from the public internet to prove
+	// control of tls.hostname; a listener on 127.0.0.1 or a single configured
+	// interface could not answer that challenge at all. What decides whether
+	// this ever answers a real request is the same as everywhere else in
+	// easywall: the kernel rules, which this process never writes to for
+	// port 80 — see port80Reachability in handler_system.go.
+	ln, err := net.Listen("tcp", acmeChallengePort) //nolint:gosec // G102 — see above
+	if err != nil {
+		// Named in full, because the two causes have different fixes and the
+		// operator cannot tell them apart from "permission denied".
+		return fmt.Errorf("could not listen on port 80 for ACME challenges: %w — "+
+			"the service unit needs AmbientCapabilities=CAP_NET_BIND_SERVICE, and nothing "+
+			"else on this host may already hold the port", err)
+	}
+	srv := &http.Server{
+		Handler:           acmeChallengeHandler(s.certs.acme),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	s.acmeSrv = srv
+	go func() {
+		// srv.Close() below is what makes this ErrServerClosed rather than a
+		// raw "use of closed network connection" — it flips the server's own
+		// done flag, where closing ln directly would not, and every ordinary
+		// shutdown would log as though renewal had broken.
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("the ACME challenge listener stopped; certificate renewal will fail", "error", err)
+		}
+	}()
+	slog.Info("listening for ACME challenges", "addr", acmeChallengePort)
+	return nil
+}
+
+// stopACMEChallengeListener closes the listener, if startACMEChallengeListener
+// ever opened one.
+func (s *Server) stopACMEChallengeListener() {
+	if s.acmeSrv != nil {
+		_ = s.acmeSrv.Close()
+	}
 }

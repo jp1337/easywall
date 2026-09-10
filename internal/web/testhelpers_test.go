@@ -286,6 +286,16 @@ key  = ""
 	bundle := testBundle(t)
 	tmpl := testTemplates(t)
 
+	// NewServer builds this before anything else and refuses to start without
+	// one; a Server with no certManager at all is not a smaller stand-in for a
+	// real one, it is a state production never reaches. Building it here is
+	// free — with tls.acme unset (the default in this fixture's config) it is
+	// just struct fields, no filesystem I/O.
+	certs, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
+
 	s := &Server{
 		cfg:          cfg,
 		client:       client,
@@ -295,6 +305,7 @@ key  = ""
 		bundle:       bundle,
 		tmpl:         tmpl,
 		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:        certs,
 		passkeyCount: func() int { return 0 },
 	}
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
@@ -350,6 +361,13 @@ key  = ""
 	bundle := testBundle(t)
 	tmpl := testTemplates(t)
 
+	// See newTestServer's own certs construction: NewServer never leaves this
+	// nil, so neither does this fixture.
+	certs, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
+
 	s := &Server{
 		cfg:          cfg,
 		client:       client,
@@ -359,6 +377,7 @@ key  = ""
 		bundle:       bundle,
 		tmpl:         tmpl,
 		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:        certs,
 		passkeyCount: func() int { return 0 },
 	}
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for

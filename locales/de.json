@@ -460,6 +460,12 @@
   {"id": "system_timeout_body", "translation": "Lang genug, um eine zweite Verbindung zu öffnen und das Geänderte zu prüfen. Kurz genug, dass sich ein Aussperren von selbst löst, bevor es den Nachmittag kostet."},
   {"id": "system_timeout_note", "translation": "120 Sekunden passen meistens. Höher setzen, wenn die Prüfung mehr umfasst als eine SSH-Anmeldung."},
 
+  {"id": "acme_port_label", "translation": "Port 80, für die Zertifikatserneuerung"},
+  {"id": "acme_port_open", "translation": "In deinen Regeln geöffnet"},
+  {"id": "acme_port_restricted", "translation": "In deinen Regeln, aber auf bestimmte Quellen beschränkt. Eine Zertifizierungsstelle erreicht dich aus dem öffentlichen Internet — prüfe, ob deine Beschränkung das zulässt"},
+  {"id": "acme_port_closed", "translation": "Nicht in deinen Regeln — die Erneuerung wird fehlschlagen. Füge Port 80 auf der Ports-Seite hinzu"},
+  {"id": "acme_port_unknown", "translation": "Nicht prüfbar, solange der Core nicht erreichbar ist"},
+
   {"id": "system_telemetry_title", "translation": "Installationszählung"},
   {"id": "system_telemetry_desc", "translation": "Ein kritischer Fix wiegt bei zehn Installationen anders als bei zehntausend. Nur eine Zählung sagt, welcher Fall vorliegt — und ob ein Fix die meisten erreicht hat."},
   {"id": "system_telemetry_switch_desc", "translation": "Einmal am Tag eine auf diesem Rechner erzeugte Zufalls-Kennung und die laufende Version. Nicht der Hostname, keine Adresse, keine Regel, keine Anzahl von irgendetwas, das du eingerichtet hast. Abschalten heißt: am nächsten Tag geht nichts mehr raus; die Kennung liegt in deinem Datenverzeichnis und darf gelöscht werden."},

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -434,4 +436,229 @@ func buttonLabels(html string) []string {
 		}
 	}
 	return out
+}
+
+// ── ACME port-80 report ───────────────────────────────────────────────────
+
+// newACMESystemTestServer builds a Server the way newTestServer does, then
+// turns tls.acme on and attaches a real certManager for it: the four-state
+// port-80 report has nothing to say while usesACME() is false, and only a
+// certManager built from an ACME-on config answers true.
+func newACMESystemTestServer(t *testing.T, opts ...func(*fakeCore)) *Server {
+	t.Helper()
+	fc := newFakeCore(t)
+	for _, opt := range opts {
+		opt(fc)
+	}
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+
+	s.cfg.TLS.ACME = true
+	s.cfg.TLS.Hostname = "firewall.example.org"
+	s.cfg.TLS.ACMEAgreeTOS = true
+	certs, err := newCertManager(s.cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
+	s.certs = certs
+	return s
+}
+
+// withPortRules configures the fake core's GetRules response with the given
+// rules as the *live* TCP set (RulesState.Current) — port80Reachability reads
+// Current, not Staged, because the question is whether a certificate
+// authority can reach the host right now.
+func withPortRules(rules ...shared.PortRule) func(*fakeCore) {
+	return func(fc *fakeCore) {
+		fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+			Current: shared.Rules{TCP: rules},
+		}))
+	}
+}
+
+// withTCPPorts is withPortRules for the common case: one rule per port, no
+// Sources restriction.
+func withTCPPorts(ports ...string) func(*fakeCore) {
+	rules := make([]shared.PortRule, len(ports))
+	for i, p := range ports {
+		rules[i] = shared.PortRule{Port: p}
+	}
+	return withPortRules(rules...)
+}
+
+// withCoreUnreachable closes the fake core's listener before the server ever
+// gets a chance to dial it — the same shape TestHandleTelemetryPOST_WorksWithoutTheCore
+// uses, so a request meets a real dial failure rather than a canned error.
+func withCoreUnreachable() func(*fakeCore) {
+	return func(fc *fakeCore) { fc.listener.Close() }
+}
+
+// getAuthedBody performs an authenticated GET and returns the response body,
+// for tests that only care about what rendered.
+func (s *Server) getAuthedBody(t *testing.T, path string) string {
+	t.Helper()
+	return doAuthRequest(t, s, http.MethodGet, path, nil).Body.String()
+}
+
+// translated returns the English translation of a message id, using the
+// package's shared test bundle — so a test can assert against the rendered
+// sentence rather than the raw id, the same text an operator actually reads.
+func translated(t *testing.T, id string) string {
+	t.Helper()
+	loc := i18n.NewLocalizer(testBundle(t), "en")
+	return T(loc, id)
+}
+
+// stagedTCP re-reads the rules and returns the staged TCP set — a test helper
+// so a test can assert that answering the port-80 question never turned into
+// a write that staged the port itself.
+func (c *CoreClient) stagedTCP() []shared.PortRule {
+	state, err := c.GetRules()
+	if err != nil {
+		return nil
+	}
+	return state.Staged.TCP
+}
+
+// containsPort reports whether any rule in rules opens exactly port.
+func containsPort(rules []shared.PortRule, port string) bool {
+	for _, r := range rules {
+		if r.Port == port {
+			return true
+		}
+	}
+	return false
+}
+
+// TestTheSystemPageReportsWhetherPortEightyIsOpen asserts easywall measures
+// rather than asserts, and does not open the port itself.
+//
+// ACME needs port 80 reachable. easywall is the firewall in front of it, so
+// the operator has to open it — and a firewall program that opens ports on
+// its own initiative contradicts the whole design. What it can do is look and
+// say.
+//
+// Four states, because that is what the truth has: a rule (single value or
+// range) may or may not cover port 80, and a covering rule's Sources may or
+// may not restrict who reaches it. Matching "80" alone would call a rule of
+// 79:81 "not covered" and send an operator to add a rule they already have;
+// ignoring Sources would call a rule restricted to 10.0.0.0/8 "open" to a
+// certificate authority that reaches them from the public internet. Neither
+// is the honest answer.
+func TestTheSystemPageReportsWhetherPortEightyIsOpen(t *testing.T) {
+	t.Run("closed", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withTCPPorts("22", "12227"))
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, "acme_port_closed") && !strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("port 80 is not in the rule set and the page did not say so")
+		}
+		// And it did not stage it.
+		if containsPort(s.client.stagedTCP(), "80") {
+			t.Fatal("easywall staged port 80 by itself")
+		}
+	})
+
+	t.Run("open", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withTCPPorts("22", "80", "12227"))
+		body := s.getAuthedBody(t, "/system")
+		if strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("port 80 is in the rule set and the page said it was closed")
+		}
+		if !strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("an unrestricted rule for 80 did not render as open")
+		}
+	})
+
+	// A range containing 80 admits it exactly as a bare "80" does. Reporting
+	// this "not covered" would send the operator to add a rule they already
+	// have — the mistake the plan this task replaced would have made.
+	t.Run("open via range", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withPortRules(shared.PortRule{Port: "79:81"}))
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("a range covering 80 did not render as open")
+		}
+	})
+
+	// A range that does not reach 80 must not be confused with one that does.
+	t.Run("range does not cover 80", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withPortRules(shared.PortRule{Port: "8000:9000"}))
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("a range that does not reach 80 did not render as not covered")
+		}
+	})
+
+	// A rule for 80 restricted to specific sources does not let a certificate
+	// authority on the public internet in. Calling that "open" is the false
+	// reassurance in the other direction — the second thing the plan this
+	// task replaced would have missed entirely.
+	t.Run("restricted", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withPortRules(
+			shared.PortRule{Port: "80", Sources: []string{"10.0.0.0/8"}}))
+		body := s.getAuthedBody(t, "/system")
+		if strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("a rule restricted to a private network rendered as open to anyone")
+		}
+		if strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("a rule that does cover 80 rendered as not covered at all")
+		}
+		if !strings.Contains(body, translated(t, "acme_port_restricted")) {
+			t.Error("a restricted rule for 80 did not say so")
+		}
+	})
+
+	t.Run("no rules at all", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withTCPPorts())
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("an empty rule set did not render as not covered")
+		}
+	})
+
+	// A port value this parser cannot read must not take the page down — this
+	// is a status row about a rule the core already accepted in some shape.
+	// Two shapes: no colon at all, and a colon with a non-numeric half — the
+	// second is the one that reaches the range parser's own error path rather
+	// than being turned away before it.
+	for _, malformed := range []string{"not-a-port", "abc:def"} {
+		t.Run("malformed port value/"+malformed, func(t *testing.T) {
+			s := newACMESystemTestServer(t, withPortRules(shared.PortRule{Port: malformed}))
+			body := s.getAuthedBody(t, "/system")
+			if !strings.Contains(body, translated(t, "acme_port_closed")) {
+				t.Errorf("port value %q did not render as not covered", malformed)
+			}
+		})
+	}
+
+	// The core cannot be asked at all. Reported as unknown, never folded into
+	// "not covered" — an operator whose core is down must not be told their
+	// firewall is blocking a port when nothing was actually asked.
+	t.Run("unknown", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withCoreUnreachable())
+		body := s.getAuthedBody(t, "/system")
+		if strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("an unreachable core rendered as not covered instead of unknown")
+		}
+		if strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("an unreachable core rendered as open")
+		}
+		if !strings.Contains(body, translated(t, "acme_port_unknown")) {
+			t.Error("an unreachable core did not render as unknown")
+		}
+	})
+}
+
+// TestTheSystemPageHasNoPortEightyReportWithoutACME asserts the row is
+// invisible on every installation that has not turned ACME on — which is
+// most of them — rather than showing a report about a feature that is off.
+func TestTheSystemPageHasNoPortEightyReportWithoutACME(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+
+	body := s.getAuthedBody(t, "/system")
+	if strings.Contains(body, translated(t, "acme_port_label")) {
+		t.Error("the port-80 report is shown even though ACME is off")
+	}
 }

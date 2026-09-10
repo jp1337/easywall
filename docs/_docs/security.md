@@ -117,12 +117,12 @@ per source address in the kernel and are unaffected by any HTTP header.
 
 ## Transport
 
-HTTPS only, TLS 1.2+. No plaintext port is opened at all. Without a configured
-certificate easywall generates a self-signed **ECDSA P-256** one into `ssl_dir`.
-It replaces that certificate once it comes within 30 days of expiry — checked at
-startup, and twice a day while the service is running. The certificate is read per handshake rather than once at
-startup, so a renewal takes effect without a restart. That matters for a service that
-may well outlive its own one-year certificate.
+HTTPS only, TLS 1.2+. Without a configured certificate easywall generates a
+self-signed **ECDSA P-256** one into `ssl_dir`. It replaces that certificate
+once it comes within 30 days of expiry — checked at startup, and twice a day
+while the service is running. The certificate is read per handshake rather
+than once at startup, so a renewal takes effect without a restart. That
+matters for a service that may well outlive its own one-year certificate.
 
 A certificate you configure yourself is never overwritten. It is re-read when the file
 changes, so an ACME client renewing it in place needs no restart either.
@@ -132,6 +132,34 @@ changes, so an ACME client renewing it in place needs no restart either.
 cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 ```
+
+### The one exception: ACME's port 80
+
+No other plaintext port is opened, but `tls.acme = true` opens one: a
+certificate authority proves you control `tls.hostname` by connecting to port
+80 over plain HTTP and reading back a token (HTTP-01). easywall's listener
+answers that one path and nothing else — 404 for everything else, deliberately
+not a second web interface, and deliberately not autocert's own default, whose
+fallback redirects to `https://host/` where easywall is not listening. It runs
+for as long as the service does, not only while a certificate is first being
+issued, because renewal happens on autocert's own schedule and a listener that
+only exists for the first issuance is one that has silently stopped working by
+the time a renewal needs it.
+
+Three things have to be true before that listener can answer at all, and
+easywall does none of them for you:
+
+1. `tls.hostname` resolves to this host from the public internet.
+2. The service can bind port 80. The packaged systemd unit grants exactly
+   `AmbientCapabilities=CAP_NET_BIND_SERVICE` for this; a unit built by hand
+   needs the same line.
+3. **Port 80 is open in your own easywall rules.** easywall will not open a
+   port by itself — a firewall that opens ports on its own initiative is not
+   one you can reason about — so this is the one precondition on this list
+   that is actually your job. The System page reports whether it is, in your
+   *live* rules, restricted or not: a rule for 80 whose `sources` excludes the
+   public internet does not let the certificate authority in, even though the
+   port is technically "in your rules".
 
 ### The one place a string reaches a command
 

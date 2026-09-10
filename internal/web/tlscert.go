@@ -88,6 +88,14 @@ func newCertManager(cfg *Config) (*certManager, error) {
 }
 
 // usesACME reports whether the certificate comes from a certificate authority.
+//
+// Not nil-safe, deliberately: NewServer always produces a certManager — it is
+// the first thing built, and NewServer refuses to start if it can't be — so a
+// nil *certManager is not a state production ever reaches. A Server with no
+// certificate story is not a smaller easywall-web, it is not easywall-web,
+// and a method that tolerated the gap would be documenting a test fixture in
+// production code rather than a fact about a running server. See
+// newTestServer / newFirstRunTestServer for the fixture-side fix.
 func (m *certManager) usesACME() bool { return m.acme != nil }
 
 // ensure generates a certificate if easywall owns it and it is missing or
