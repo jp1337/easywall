@@ -167,6 +167,19 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("tls.cert is set but tls.key is not; set both, or neither for a self-signed certificate")
 	case c.TLS.KeyFile != "" && c.TLS.CertFile == "":
 		return fmt.Errorf("tls.key is set but tls.cert is not; set both, or neither for a self-signed certificate")
+
+	// The same reasoning one step out: a configuration that names two sources
+	// of one certificate has not said which one to serve.
+	case c.TLS.ACME && c.TLS.CertFile != "":
+		return fmt.Errorf("tls.acme is on and tls.cert is set; a certificate comes from one place — " +
+			"clear tls.cert and tls.key to let ACME issue it, or turn tls.acme off to keep your own")
+	case c.TLS.ACME && c.TLS.Hostname == "":
+		return fmt.Errorf("tls.acme is on but tls.hostname is empty; ACME issues for a name, " +
+			"and a certificate authority will not issue for an IP address")
+	case c.TLS.ACME && !c.TLS.ACMEAgreeTOS:
+		return fmt.Errorf("tls.acme is on but acme_agree_tos is false; issuing a certificate means " +
+			"agreeing to the certificate authority's subscriber agreement, and easywall does not " +
+			"agree to it on your behalf — set acme_agree_tos = true when you have read it")
 	}
 	return nil
 }
@@ -238,6 +251,36 @@ func (c *Config) KeyPath() string {
 		return c.TLS.KeyFile
 	}
 	return c.SSLDir + "/key.pem"
+}
+
+// Hostname returns the name this installation is reached by, or "" when the
+// operator has not set one.
+func (c *Config) Hostname() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.WebConfig.TLS.Hostname
+}
+
+// ACMEEnabled reports whether autocert should supply the certificate.
+func (c *Config) ACMEEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.WebConfig.TLS.ACME
+}
+
+// ACMEEmail returns the contact address registered with the CA, possibly "".
+func (c *Config) ACMEEmail() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.WebConfig.TLS.ACMEEmail
+}
+
+// ACMEDirectory returns the directory URL override; "" means the CA autocert
+// defaults to.
+func (c *Config) ACMEDirectory() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.WebConfig.TLS.ACMEDirectory
 }
 
 // LocalesDir returns the locales directory path.
