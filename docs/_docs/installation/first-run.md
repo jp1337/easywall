@@ -20,7 +20,7 @@ and nothing else. It asks for two things.
 | | |
 |---|---|
 | How many | one. easywall has no user management yet — [roadmap]({{ '/docs/roadmap/' | relative_url }}) |
-| Password | at least 12 characters, hashed with Argon2id and a per-password salt |
+| Password | at least 12 characters, with a digit and a symbol, hashed with Argon2id and a per-password salt |
 | Recovery | **none by design.** No mail, no outside service — see [below](#if-you-lose-the-password) |
 
 **A second factor is mandatory.** Finish does not create the account — it

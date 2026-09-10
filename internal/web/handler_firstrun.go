@@ -115,11 +115,12 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 	case answers.Username == "":
 		s.firstRunError(w, r, "username_required", answers)
 		return
-	case len(password) < minPasswordLen:
-		s.firstRunError(w, r, "password_too_short", answers)
-		return
 	case password != confirm:
 		s.firstRunError(w, r, "password_mismatch", answers)
+		return
+	}
+	if key := passwordPolicyError(password); key != "" {
+		s.firstRunError(w, r, key, answers)
 		return
 	}
 

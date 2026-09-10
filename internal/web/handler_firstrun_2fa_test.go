@@ -18,7 +18,7 @@ import (
 func beginFirstRun(t *testing.T, s *Server) (string, []*http.Cookie) {
 	t.Helper()
 	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=firstrunpassword1&password_confirm=firstrunpassword1"+
+		"username=admin&password=firstrunpassword1!&password_confirm=firstrunpassword1!"+
 			"&ssh_port=22&ipv6_mode=filter")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("step 1 answered %d, want 200 with the setup step rendered in place", rec.Code)
@@ -630,7 +630,7 @@ func TestFirstRun2FA_ARecoveryCodeFromTheEscapeSignsIn(t *testing.T) {
 		t.Fatal("no recovery codes to sign in with")
 	}
 
-	first := doFormRequest(s, "POST", "/login", "username=admin&password=firstrunpassword1")
+	first := doFormRequest(s, "POST", "/login", "username=admin&password=firstrunpassword1!")
 	verify := doFormRequest(s, "POST", "/login/verify", "code="+codes[0], first.Result().Cookies()...)
 	assertRedirect(t, verify, "/dashboard")
 }
@@ -653,7 +653,7 @@ func TestFirstRun2FA_RecoverOpensTheGate(t *testing.T) {
 		t.Fatal("no recovery codes to sign in with")
 	}
 
-	first := doFormRequest(s, "POST", "/login", "username=admin&password=firstrunpassword1")
+	first := doFormRequest(s, "POST", "/login", "username=admin&password=firstrunpassword1!")
 	verify := doFormRequest(s, "POST", "/login/verify", "code="+codes[0], first.Result().Cookies()...)
 	assertRedirect(t, verify, "/dashboard")
 

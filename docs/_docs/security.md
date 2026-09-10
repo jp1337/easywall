@@ -33,6 +33,7 @@ holds no privilege worth stealing.
 | | |
 |---|---|
 | Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password |
+| Password floor | at least 12 characters, with a digit and a symbol — not configurable |
 | Default password | none. The first-run wizard is mandatory |
 | Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
 | Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |

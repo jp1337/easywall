@@ -96,14 +96,14 @@ func (s *Server) handlePasswordPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(newPw) < minPasswordLen {
-		s.setFlash(w, r, "password_too_short")
+	if newPw != confirm {
+		s.setFlash(w, r, "password_mismatch")
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
 
-	if newPw != confirm {
-		s.setFlash(w, r, "password_mismatch")
+	if key := passwordPolicyError(newPw); key != "" {
+		s.setFlash(w, r, key)
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}

@@ -35,7 +35,7 @@ func TestHandlePasswordPOST_WrongCurrent(t *testing.T) {
 	s := newTestServer(t, fc)
 	// cfg.Password is "" — VerifyPassword("wrong", "") returns false
 	rec := doAuthFormRequest(t, s, "/password",
-		"current_password=wrong&new_password=ValidPassword123&confirm_password=ValidPassword123")
+		"current_password=wrong&new_password=ValidPassword123!&confirm_password=ValidPassword123!")
 	assertRedirect(t, rec, "/password")
 }
 
@@ -58,7 +58,7 @@ func TestHandlePasswordPOST_Mismatch(t *testing.T) {
 	s.cfg.Password = hash
 
 	rec := doAuthFormRequest(t, s, "/password",
-		"current_password=currentpassword123&new_password=ValidPassword123&confirm_password=DifferentPassword123")
+		"current_password=currentpassword123&new_password=ValidPassword123!&confirm_password=DifferentPassword123")
 	assertRedirect(t, rec, "/password")
 }
 
@@ -69,7 +69,7 @@ func TestHandlePasswordPOST_Success(t *testing.T) {
 	s.cfg.Password = hash
 
 	rec := doAuthFormRequest(t, s, "/password",
-		"current_password=currentpassword123&new_password=ValidPassword123&confirm_password=ValidPassword123")
+		"current_password=currentpassword123&new_password=ValidPassword123!&confirm_password=ValidPassword123!")
 	assertRedirect(t, rec, "/password")
 }
 
@@ -95,7 +95,7 @@ func TestHandlePasswordPOST_EndsSessionsIssuedUnderTheOldPassword(t *testing.T) 
 	}
 
 	rec := doAuthFormRequest(t, s, "/password",
-		"current_password=currentpassword123&new_password=ValidPassword123&confirm_password=ValidPassword123")
+		"current_password=currentpassword123&new_password=ValidPassword123!&confirm_password=ValidPassword123!")
 	assertRedirect(t, rec, "/password")
 
 	after := doRequest(s, "GET", "/dashboard", nil, other)
@@ -118,7 +118,7 @@ func TestHandlePasswordPOST_KeepsTheChangersOwnSession(t *testing.T) {
 
 	cookie := makeAuthCookie(t, s)
 	rec := doFormRequest(s, "POST", "/password",
-		"current_password=currentpassword123&new_password=ValidPassword123&confirm_password=ValidPassword123",
+		"current_password=currentpassword123&new_password=ValidPassword123!&confirm_password=ValidPassword123!",
 		cookie)
 	assertRedirect(t, rec, "/password")
 

@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/gorilla/sessions"
 	"golang.org/x/crypto/argon2"
@@ -33,6 +35,57 @@ const (
 	// which is one place too many for a rule the interface also states in words.
 	minPasswordLen = 12
 )
+
+// What a password must be, and it is not configurable.
+//
+// Twelve characters has been the rule since the wizard existed, and it accepted
+// twelve lower-case letters — a rule about effort rather than about strength.
+// This adds a digit and a symbol to it.
+//
+// It is deliberately not a setting. A minimum somebody can lower is not a
+// minimum, and the operator who would lower it is the one this protects.
+//
+// A note for whoever revisits this: NIST SP 800-63B advises verifiers NOT to
+// impose composition rules, on the measured ground that they produce
+// `Password1!` — and to prefer length plus a check against known-breached
+// passwords. That argument was put to the maintainer and the composition rule
+// was chosen anyway, with the length kept at 12 rather than lowered to the 8
+// originally asked for. The breach-list alternative is the better idea and is
+// the thing to build if this is ever revisited; it needs a list to ship or
+// query, and the web process is not allowed to telephone anybody.
+func passwordPolicyError(password string) string {
+	// Runes, not bytes. utf8.RuneCountInString("äöüäöüäöüäö1!") is 13 and
+	// len() is 24, and a rule that counted bytes would accept six umlauts as
+	// twelve characters.
+	if utf8.RuneCountInString(password) < minPasswordLen {
+		return "password_too_short"
+	}
+
+	var hasDigit, hasSymbol bool
+	for _, r := range password {
+		switch {
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case !unicode.IsLetter(r):
+			// Anything that is neither a letter nor a digit, rather than a list
+			// of accepted punctuation. A list rejects §, € and an en dash,
+			// which are no weaker than !, and it rejects a space — which would
+			// punish a passphrase for being one.
+			hasSymbol = true
+		}
+	}
+
+	// The first unmet requirement, not all of them: the hint under the field
+	// states all three before anything is typed, so one specific sentence is
+	// more use than three at once.
+	switch {
+	case !hasDigit:
+		return "password_needs_digit"
+	case !hasSymbol:
+		return "password_needs_symbol"
+	}
+	return ""
+}
 
 // newSessionStore builds the cookie store every session is signed with.
 //
