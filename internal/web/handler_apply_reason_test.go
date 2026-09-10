@@ -22,6 +22,7 @@ import (
 func TestHandleApplyGET_RolledBackByOperatorGetsTheOperatorLead(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Acceptance:       shared.AcceptanceRolledBack,
 		AcceptanceReason: "cancelled by operator",
@@ -45,6 +46,7 @@ func TestHandleApplyGET_RolledBackByOperatorGetsTheOperatorLead(t *testing.T) {
 func TestHandleApplyGET_RolledBackByTimeoutKeepsTheTimeoutLead(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Acceptance:       shared.AcceptanceRolledBack,
 		AcceptanceReason: "timeout",

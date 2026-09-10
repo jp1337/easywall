@@ -81,6 +81,7 @@ func TestHandlePasswordPOST_Success(t *testing.T) {
 func TestHandlePasswordPOST_EndsSessionsIssuedUnderTheOldPassword(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	hash, err := HashPassword("currentpassword123")
 	if err != nil {
 		t.Fatal(err)
@@ -108,6 +109,7 @@ func TestHandlePasswordPOST_EndsSessionsIssuedUnderTheOldPassword(t *testing.T) 
 func TestHandlePasswordPOST_KeepsTheChangersOwnSession(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	hash, err := HashPassword("currentpassword123")
 	if err != nil {
 		t.Fatal(err)

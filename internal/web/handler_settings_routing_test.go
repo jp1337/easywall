@@ -22,6 +22,7 @@ func sentSettings(t *testing.T, fc *fakeCore, form string) shared.NetworkSetting
 	fc.SetResponse(shared.CmdSaveSettings, shared.Response{Success: true})
 
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	rec := doAuthFormRequest(t, s, "/settings", form)
 	assertRedirect(t, rec, "/settings")
 	return got
@@ -60,6 +61,7 @@ func TestSettingsPOST_RefusesARoutingNetworkThatIsNotOne(t *testing.T) {
 	reached := false
 	fc.OnCommand(shared.CmdSaveSettings, func(shared.Command) { reached = true })
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/settings",
 		"routing_mode=networks&routing_networks=10.8.0.0%2F24%0Anot-a-network")
@@ -77,6 +79,7 @@ func TestSettingsGET_RendersTheRoutingCard(t *testing.T) {
 		Routing: shared.RoutingConfig{Mode: shared.RoutingNetworks, Networks: []string{"10.8.0.0/24"}},
 	}))
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthRequest(t, s, "GET", "/settings", nil)
 	assertStatus(t, rec, http.StatusOK)

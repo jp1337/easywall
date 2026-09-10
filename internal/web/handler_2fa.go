@@ -130,6 +130,14 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read before SaveTOTP: once that call succeeds, factorCount is one and the
+	// question "was this the first factor" can no longer be asked. An operator
+	// who arrived here through the gate was trying to reach the interface, not
+	// its settings page — see the JustGated field on passwordPageData for where
+	// that earns them a way onward without skipping the recovery codes they
+	// have not seen yet.
+	wasFirstFactor := s.factorCount() == 0
+
 	// The wide window first, so a right code with a wrong clock gets a diagnosis
 	// rather than "wrong code". The fault is on the server; the message must not
 	// point at the human.
@@ -184,7 +192,12 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	s.recordLoginEvent(r, shared.EvTOTPEnabled, 0)
 
 	s.setFlash(w, r, "totp_enabled")
-	s.render(w, r, "password.html", "password", s.passwordPage(nil, plain))
+	// The codes still have to be shown here — this is the only response that
+	// will ever carry them. wasFirstFactor only decides whether the same
+	// response also offers a way past the gate they came through.
+	page := s.passwordPage(nil, plain)
+	page.JustGated = wasFirstFactor
+	s.render(w, r, "password.html", "password", page)
 }
 
 // renderSetupAgain redraws the setup card with the same secret, so a wrong code

@@ -20,6 +20,7 @@ func TestHandleForwardingGET_RequiresAuth(t *testing.T) {
 func TestHandleForwardingGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{
 			Forwarding: []shared.ForwardingRule{
@@ -35,6 +36,7 @@ func TestHandleForwardingGET_Success(t *testing.T) {
 func TestHandleForwardingGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules error"))
 
 	rec := doAuthRequest(t, s, "GET", "/forwarding", nil)
@@ -52,6 +54,7 @@ func TestHandleForwardingPOST_RequiresAuth(t *testing.T) {
 func TestHandleForwardingPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rules := []shared.ForwardingRule{{Protocol: "tcp", SourcePort: 8080, DestPort: 80}}
@@ -65,6 +68,7 @@ func TestHandleForwardingPOST_Success(t *testing.T) {
 func TestHandleForwardingPOST_InvalidJSON(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/forwarding", "rules=not-valid-json")
 	assertRedirect(t, rec, "/forwarding")
@@ -73,6 +77,7 @@ func TestHandleForwardingPOST_InvalidJSON(t *testing.T) {
 func TestHandleForwardingPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, errorRespFor("save error"))
 
 	rec := doAuthFormRequest(t, s, "/forwarding", "rules=[]")
@@ -84,6 +89,7 @@ func TestHandleForwardingPOST_CoreError(t *testing.T) {
 func TestHandleForwardingPOST_IncompleteRuleIsRejectedAndKeptOnScreen(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var reached bool
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })

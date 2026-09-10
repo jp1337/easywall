@@ -18,6 +18,7 @@ func TestHandleWhitelistGET_RequiresAuth(t *testing.T) {
 func TestHandleWhitelistGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{Whitelist: []string{"10.0.0.1", "10.0.0.2/24"}},
 	}))
@@ -29,6 +30,7 @@ func TestHandleWhitelistGET_Success(t *testing.T) {
 func TestHandleWhitelistGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("error"))
 
 	rec := doAuthRequest(t, s, "GET", "/whitelist", nil)
@@ -46,6 +48,7 @@ func TestHandleWhitelistPOST_RequiresAuth(t *testing.T) {
 func TestHandleWhitelistPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/whitelist", "entries=10.0.0.1%0A10.0.0.2")
@@ -55,6 +58,7 @@ func TestHandleWhitelistPOST_Success(t *testing.T) {
 func TestHandleWhitelistPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, errorRespFor("save failed"))
 
 	rec := doAuthFormRequest(t, s, "/whitelist", "entries=10.0.0.1")

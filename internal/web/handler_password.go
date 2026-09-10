@@ -31,6 +31,17 @@ type passwordPageData struct {
 	// once" into "retrievable at any time".
 	Codes []string
 	Demo  bool
+	// MustEnrol is true when this page is the gate rather than a settings page:
+	// the operator has no second factor and cannot go anywhere else until they
+	// have one. It changes the copy at the top and where a successful enrolment
+	// sends them — to the dashboard they were trying to reach, not back here.
+	MustEnrol bool
+	// JustGated is true on the one response that both shows fresh recovery
+	// codes and was the operator's first factor. The codes cannot move to a
+	// redirect target — this is the only response that will ever carry them —
+	// so instead this response also offers the way onward: a link to the
+	// dashboard the operator was trying to reach when the gate stopped them.
+	JustGated bool
 }
 
 func (s *Server) passwordPage(setup *totpSetup, codes []string) passwordPageData {
@@ -40,6 +51,7 @@ func (s *Server) passwordPage(setup *totpSetup, codes []string) passwordPageData
 		Setup:        setup,
 		Codes:        codes,
 		Demo:         s.client.IsDemo(),
+		MustEnrol:    !s.hasSecondFactor() && !s.client.IsDemo(),
 	}
 }
 

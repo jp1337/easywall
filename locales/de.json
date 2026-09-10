@@ -537,6 +537,9 @@
   {"id": "password_lost_body", "translation": "Es gibt keinen Zurücksetzen-Link — diese Oberfläche versendet keine Mail und erreicht keinen externen Dienst. Wiederherstellen heißt: die Web-Konfiguration auf dem Host selbst bearbeiten — die Zeile `password`, sowie `totp_secret` und `recovery_codes`, falls ein zweiter Faktor eingerichtet ist. {}"},
   {"id": "totp_read_more", "translation": "Mehr zum zweiten Faktor"},
 
+  {"id": "gate_title", "translation": "Zum Fortfahren einen zweiten Faktor einrichten"},
+  {"id": "gate_body",  "translation": "Ein Passwort allein lässt sich erraten, wiederverwenden oder aus dem Datenleck einer anderen Seite ablesen. easywall verlangt eine Sache mehr, bevor es Sie an die Firewall lässt. Richten Sie unten eine Authenticator-App ein — das dauert etwa eine Minute, und Sie bekommen acht Wiederherstellungscodes für den Fall, dass das Telefon abhandenkommt."},
+
   {"id": "totp_card_title",   "translation": "Zweiter Faktor"},
   {"id": "totp_state_on",     "translation": "Aktiv"},
   {"id": "totp_state_off",    "translation": "Inaktiv"},

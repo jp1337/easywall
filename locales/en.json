@@ -537,6 +537,9 @@
   {"id": "password_lost_body", "translation": "There is no reset link — this interface sends no mail and reaches no outside service. Recovery means editing the web config on the host itself: the `password` line, and `totp_secret` and `recovery_codes` if a second factor is enrolled. {}"},
   {"id": "totp_read_more", "translation": "More about the second factor"},
 
+  {"id": "gate_title", "translation": "Set up a second factor to continue"},
+  {"id": "gate_body",  "translation": "A password on its own can be guessed, reused, or read off another site's breach. easywall needs one more thing before it will let you at the firewall. Set up an authenticator app below — it takes about a minute, and you will get eight recovery codes in case you lose the phone."},
+
   {"id": "totp_card_title",   "translation": "Second factor"},
   {"id": "totp_state_on",     "translation": "On"},
   {"id": "totp_state_off",    "translation": "Off"},

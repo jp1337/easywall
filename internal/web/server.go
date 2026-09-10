@@ -440,6 +440,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(RequireAuth(s.store, s.currentCredential()))
+		r.Use(RequireSecondFactor(s.hasSecondFactor, s.client.IsDemo))
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)

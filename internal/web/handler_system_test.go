@@ -22,6 +22,7 @@ func TestHandleSystemGET_RequiresAuth(t *testing.T) {
 func TestHandleSystemGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSystem, successResp(shared.SystemSettings{
 		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
 	}))
@@ -33,6 +34,7 @@ func TestHandleSystemGET_Success(t *testing.T) {
 func TestHandleSystemGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSystem, errorRespFor("core unavailable"))
 
 	rec := doAuthRequest(t, s, "GET", "/system", nil)
@@ -50,6 +52,7 @@ func TestHandleSystemPOST_RequiresAuth(t *testing.T) {
 func TestHandleSystemPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/system",
@@ -60,6 +63,7 @@ func TestHandleSystemPOST_Success(t *testing.T) {
 func TestHandleSystemPOST_InvalidDuration(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/system", "acceptance_duration=abc")
 	assertRedirect(t, rec, "/system")
@@ -74,6 +78,7 @@ func TestHandleSystemPOST_RejectsADurationOutsideTheAdvertisedRange(t *testing.T
 		t.Run(dur, func(t *testing.T) {
 			fc := newFakeCore(t)
 			s := newTestServer(t, fc)
+			enrollFactor(t, s)
 			fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
 
 			rec := doAuthFormRequest(t, s, "/system",
@@ -92,6 +97,7 @@ func TestHandleSystemPOST_AcceptsTheRangeBoundaries(t *testing.T) {
 		t.Run(dur, func(t *testing.T) {
 			fc := newFakeCore(t)
 			s := newTestServer(t, fc)
+			enrollFactor(t, s)
 			fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
 
 			rec := doAuthFormRequest(t, s, "/system",
@@ -109,6 +115,7 @@ func TestHandleSystemPOST_AcceptsTheRangeBoundaries(t *testing.T) {
 func TestHandleSystemPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSystem, errorRespFor("save failed"))
 
 	rec := doAuthFormRequest(t, s, "/system", "acceptance_duration=120")
@@ -133,6 +140,7 @@ func doAuthFormHTMX(t *testing.T, s *Server, url, formBody string) *httptest.Res
 func TestHandleSystemPOST_HTMX_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormHTMX(t, s, "/system", "acceptance_enabled=on&acceptance_duration=60")
 	assertStatus(t, rec, http.StatusNoContent)
@@ -148,6 +156,7 @@ func TestHandleSystemPOST_HTMX_Success(t *testing.T) {
 func TestHandleSystemPOST_HTMX_InvalidDuration(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormHTMX(t, s, "/system", "acceptance_duration=0")
 	assertStatus(t, rec, http.StatusOK)
@@ -163,6 +172,7 @@ func TestHandleSystemPOST_HTMX_InvalidDuration(t *testing.T) {
 func TestHandleSystemPOST_HTMX_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSystem, errorRespFor("save failed"))
 
 	rec := doAuthFormHTMX(t, s, "/system", "acceptance_duration=120")
@@ -181,6 +191,7 @@ func TestHandleSystemPOST_HTMX_CoreError(t *testing.T) {
 func TestHandleTelemetryPOST_WorksWithoutTheCore(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(true); err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +209,7 @@ func TestHandleTelemetryPOST_WorksWithoutTheCore(t *testing.T) {
 func TestHandleTelemetryPOST_RecordsConsent(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	doFormRequest(s, "POST", "/system/telemetry", "telemetry=on", makeAuthCookie(t, s))
 	if !s.cfg.TelemetryEnabled() {
@@ -222,6 +234,7 @@ func TestHandleTelemetryPOST_ResetRemovesTheStoredLine(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(false); err != nil {
 		t.Fatalf("SaveTelemetry: %v", err)
 	}
@@ -266,6 +279,7 @@ func TestHandleSystemGET_TelemetryResetIsNeverTheDefaultButton(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(false); err != nil {
 		t.Fatalf("SaveTelemetry: %v", err)
 	}
@@ -310,6 +324,7 @@ func TestHandleTelemetryPOST_HTMX_ResetUpdatesTheDOM(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(false); err != nil {
 		t.Fatalf("SaveTelemetry: %v", err)
 	}
@@ -361,6 +376,7 @@ func TestNewServer_DemoModeNeverCounts(t *testing.T) {
 func TestHandleSystemGET_NamesTheTelemetryEndpoint(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doRequest(s, "GET", "/system", nil, makeAuthCookie(t, s))
 	body := rec.Body.String()
@@ -382,6 +398,7 @@ func TestHandleSystemGET_NamesTheTelemetryEndpoint(t *testing.T) {
 func TestTheSystemPageHasNoTwoButtonsWithOneName(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSystem, successResp(shared.SystemSettings{
 		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
 	}))

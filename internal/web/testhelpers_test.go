@@ -596,3 +596,33 @@ func (s *Server) postAuthed(t *testing.T, path string, form map[string]string) *
 	}
 	return doAuthFormRequest(t, s, path, vals.Encode()).Result()
 }
+
+// doAuthed performs an authenticated request with no body and returns the raw
+// response, for TestTheGateCannotBeWalkedPast: it walks every route the
+// router registers under whatever method chi.Walk reports for it, and most of
+// those carry no form.
+func (s *Server) doAuthed(t *testing.T, method, path string) *http.Response {
+	t.Helper()
+	cookie := makeAuthCookie(t, s)
+	return doRequest(s, method, path, nil, cookie).Result()
+}
+
+// enrollFactor gives s a TOTP secret directly through cfg.SaveTOTP, the same
+// call SaveTOTP-based enrolment itself makes.
+//
+// RequireSecondFactor's arrival in this release means every test that drives
+// an ordinary authenticated route — /dashboard, /ports, /apply, and the rest —
+// through a server built by newTestServer now needs a factor enrolled or the
+// gate redirects it to /password before the handler under test ever runs.
+// This is that one line, named for what it does rather than repeated as the
+// three-line SaveTOTP-plus-error-check newFactorTestServer already carries for
+// the tests that need to control the exact factor count. Tests exercising
+// login, enrolment, or the factor count itself build their own factor state
+// instead — starting unenrolled, or with a specific count, is what they are
+// testing — and call newFactorTestServer or SaveTOTP directly rather than this.
+func enrollFactor(t *testing.T, s *Server) {
+	t.Helper()
+	if err := s.cfg.SaveTOTP("JBSWY3DPEHPK3PXP", nil); err != nil {
+		t.Fatalf("enrollFactor: SaveTOTP: %v", err)
+	}
+}

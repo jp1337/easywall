@@ -29,6 +29,7 @@ import (
 func TestPerRequestViewFuncsFollowTheRequestsLanguage(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{
 		{Time: "t1", Action: "rules_saved", User: "web"},
 	}))

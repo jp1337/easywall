@@ -22,6 +22,7 @@ func TestHandleDashboard_RequiresAuth(t *testing.T) {
 func TestHandleDashboard_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Active:     true,
 		Acceptance: shared.AcceptanceIdle,
@@ -35,6 +36,7 @@ func TestHandleDashboard_Success(t *testing.T) {
 func TestHandleDashboard_CoreUnavailable(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, errorRespFor("core not reachable"))
 
 	rec := doAuthRequest(t, s, "GET", "/dashboard", nil)
@@ -45,6 +47,7 @@ func TestHandleDashboard_CoreUnavailable(t *testing.T) {
 func TestHandleDashboard_WithVersionCache(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
 
 	// A fresh cache naming a release ahead of this build. Fresh means the
@@ -75,6 +78,7 @@ func TestHandleDashboard_WithVersionCache(t *testing.T) {
 func TestHandleDashboard_DoesNotWaitOnAnUnreachableUpdateAPI(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
 
 	// No cache, update check on, and nothing listening: the state of a host
@@ -95,6 +99,7 @@ func TestHandleDashboard_DoesNotWaitOnAnUnreachableUpdateAPI(t *testing.T) {
 func TestHandleDashboard_RootRedirectsToDashboard(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthRequest(t, s, "GET", "/", nil)
 	assertRedirect(t, rec, "/dashboard")
@@ -103,6 +108,7 @@ func TestHandleDashboard_RootRedirectsToDashboard(t *testing.T) {
 func TestHandleDashboard_WithRuleCounts(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rules := shared.RulesState{
 		Current: shared.Rules{
@@ -128,6 +134,7 @@ func TestHandleDashboard_WithRuleCounts(t *testing.T) {
 func TestDashboardCountsIgnoreCommentsAndBlankLines(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Current: shared.Rules{
@@ -162,6 +169,7 @@ func TestDashboardCountsIgnoreCommentsAndBlankLines(t *testing.T) {
 func TestDashboard_TheChipCarriesTheCount(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{

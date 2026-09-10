@@ -21,6 +21,7 @@ func TestHandlePortsGET_RequiresAuth(t *testing.T) {
 func TestHandlePortsGET_TCP(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{
 			TCP: []shared.PortRule{{Port: "80", Description: "HTTP"}},
@@ -35,6 +36,7 @@ func TestHandlePortsGET_TCP(t *testing.T) {
 func TestHandlePortsGET_UDP(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{
 			TCP: []shared.PortRule{},
@@ -49,6 +51,7 @@ func TestHandlePortsGET_UDP(t *testing.T) {
 func TestHandlePortsGET_DefaultsToTCP(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
 
 	rec := doAuthRequest(t, s, "GET", "/ports", nil)
@@ -58,6 +61,7 @@ func TestHandlePortsGET_DefaultsToTCP(t *testing.T) {
 func TestHandlePortsGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules error"))
 
 	rec := doAuthRequest(t, s, "GET", "/ports", nil)
@@ -75,6 +79,7 @@ func TestHandlePortsPOST_RequiresAuth(t *testing.T) {
 func TestHandlePortsPOST_SavesTCPRules(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rules := []shared.PortRule{{Port: "443", Description: "HTTPS"}}
@@ -88,6 +93,7 @@ func TestHandlePortsPOST_SavesTCPRules(t *testing.T) {
 func TestHandlePortsPOST_SavesUDPRules(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rules := []shared.PortRule{{Port: "53", Description: "DNS"}}
@@ -101,6 +107,7 @@ func TestHandlePortsPOST_SavesUDPRules(t *testing.T) {
 func TestHandlePortsPOST_InvalidRulesJSON(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules=not-json")
 	assertRedirect(t, rec, "/ports?type=tcp")
@@ -109,6 +116,7 @@ func TestHandlePortsPOST_InvalidRulesJSON(t *testing.T) {
 func TestHandlePortsPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, errorRespFor("save error"))
 
 	rec := doAuthFormRequest(t, s, "/ports", "type=tcp&rules=[]")
@@ -118,6 +126,7 @@ func TestHandlePortsPOST_CoreError(t *testing.T) {
 func TestHandlePortsPOST_DefaultsToTCPType(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/ports", "rules=[]")
@@ -135,6 +144,7 @@ func TestHandlePortsPOST_DefaultsToTCPType(t *testing.T) {
 func TestHandlePortsPOST_IncompleteRuleIsRejectedAndKeptOnScreen(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var reached bool
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
@@ -169,6 +179,7 @@ func TestHandlePortsPOST_IncompleteRuleIsRejectedAndKeptOnScreen(t *testing.T) {
 func TestHandlePortsPOST_CompleteRulesStillSave(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var saved []shared.PortRule
 	fc.OnCommand(shared.CmdSaveRules, func(cmd shared.Command) {
@@ -191,6 +202,7 @@ func TestHandlePortsPOST_CompleteRulesStillSave(t *testing.T) {
 func TestHandlePortsPOST_KeepsSources(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	var saved []shared.PortRule
@@ -228,6 +240,7 @@ func TestHandlePortsPOST_KeepsSources(t *testing.T) {
 func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
 
 	rec := doAuthRequest(t, s, "GET", "/ports?type=tcp", nil)
@@ -264,6 +277,7 @@ func TestHandlePortsGET_RendersTheCatalogueForTheTab(t *testing.T) {
 func TestPortsPOST_ForwardsTheRuleID(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	var saved []shared.PortRule
@@ -293,6 +307,7 @@ func TestPortsPOST_ForwardsTheRuleID(t *testing.T) {
 func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var reached bool
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
@@ -314,6 +329,7 @@ func TestHandlePortsPOST_RejectsAnInvalidSource(t *testing.T) {
 func TestPortsGET_RendersTheLastUsedColumn(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{
 			TCP: []shared.PortRule{
@@ -355,6 +371,7 @@ func TestPortsGET_RendersTheLastUsedColumn(t *testing.T) {
 func TestPortsGET_SurvivesACoreThatCannotAnswerGetUsage(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{
 			TCP: []shared.PortRule{{ID: "cccccccccccc", Port: "22", Description: "SSH"}},
