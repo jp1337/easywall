@@ -23,6 +23,7 @@ holds no privilege worth stealing.
 | XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
 | Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime, and every session ends the moment the password changes |
 | Locking the admin out | The acceptance window rolls back on its own; if it already has and you are still shut out, `easywall-core panic` reaches the firewall from the console — see [Panic mode](#panic-mode) |
+| A clock that blocks the mandatory second factor | A board with no real-time clock, or one that is simply wrong, can make every code fail. Enrolling does not need console access to recover from that — see [If the clock is wrong](#if-the-clock-is-wrong) |
 | Known CVEs in dependencies | `govulncheck` on every pull request and weekly, plus CodeQL and `gosec` |
 | Dependency hijacking | Renovate raises every update, patch releases auto-merge only once CI is green, minor and major wait for a person; plus secret scanning and dependency review |
 | A spoofed source address | `X-Forwarded-For` is **not** trusted — see [behind a reverse proxy](#behind-a-reverse-proxy) |
@@ -39,7 +40,7 @@ holds no privilege worth stealing.
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
 | Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/docs/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
-| Second factor | optional, per the single account — [TOTP and eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
+| Second factor | mandatory, per the single account — [TOTP and eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
 
 With a second factor enrolled, the password step ends in a redirect rather than a
 session, and the code is checked at `/login/verify`. That step has no rate limit
@@ -49,6 +50,22 @@ per ten minutes per address, so **fifteen code attempts per ten minutes per
 address** against a target that rotates every thirty seconds.
 `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` is that sentence as an
 executable claim.
+
+### If the clock is wrong
+
+A code that will never verify does not have to end an enrolment attempt. The
+most common cause is a board with no real-time clock, still at whatever it
+booted to until NTP catches up. After one failed code, both the first-run
+wizard and `/password` offer a second way through. An explicit
+acknowledgement stores the secret already shown on screen and issues eight
+recovery codes. The account is usable immediately. Sign in normally, or with
+a code once the clock is fixed — the authenticator already paired starts
+working the moment it is.
+
+This is gated on being the first factor. An operator who already has one is
+not locked out by a failed code on `/password` and can simply leave the
+page. The escape exists only for the account that cannot otherwise be used
+at all.
 
 ## Panic mode
 

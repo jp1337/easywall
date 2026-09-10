@@ -562,6 +562,7 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 		"/password":                true,
 		"/password/2fa/begin":      true,
 		"/password/2fa/confirm":    true,
+		"/password/2fa/recover":    true,
 		"/password/2fa/disable":    true,
 		"/password/2fa/recovery":   true,
 		"/password/passkey/begin":  true,
@@ -603,17 +604,17 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk the router: %v", err)
 	}
-	// 37 gated routes, measured 2026-09-10 with TestZZCountRoutes against this
-	// branch's server.go: the 36 routes chi registers inside the
-	// RequireAuth+RequireSecondFactor group (including the bare "/", whose
-	// entire handler is a redirect to the gated /dashboard, and which the gate
-	// intercepts before that handler ever runs), plus POST /logout, which
-	// isGatedRoute does not exclude (it sits in the public group but is
-	// listed in `allowed` above, on purpose — a way out must never need the
-	// factor it is gating). A floor copied from the plan (15) would have
-	// passed while missing most of the actual group; a floor above the real
-	// count would fail on every run for no reason.
-	if checked < 37 {
+	// 38 gated routes: the 37 routes chi registers inside the
+	// RequireAuth+RequireSecondFactor group as of Task 16's own
+	// /password/2fa/recover (including the bare "/", whose entire handler is
+	// a redirect to the gated /dashboard, and which the gate intercepts
+	// before that handler ever runs), plus POST /logout, which isGatedRoute
+	// does not exclude (it sits in the public group but is listed in
+	// `allowed` above, on purpose — a way out must never need the factor it
+	// is gating). A floor copied from the plan (15) would have passed while
+	// missing most of the actual group; a floor above the real count would
+	// fail on every run for no reason.
+	if checked < 38 {
 		t.Fatalf("only %d gated routes were walked; the walk is not finding the authenticated group", checked)
 	}
 }

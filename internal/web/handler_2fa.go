@@ -37,6 +37,13 @@ var pendingSecrets = struct {
 type pendingSecret struct {
 	secret string
 	issued time.Time
+
+	// failed is whether a submitted code has ever missed against this entry.
+	// It gates the recovery-code escape on the setup card the same way
+	// pendingFirstRun.Failed gates the wizard's: offered from the first
+	// render, it would be the path of least resistance instead of the escape
+	// hatch it is. See pendingSecretMarkFailed and handle2FARecover.
+	failed bool
 }
 
 func pendingSecretStore(sessionID, secret string) {
@@ -71,6 +78,43 @@ func pendingSecretClear(sessionID string) {
 	pendingSecrets.mu.Lock()
 	defer pendingSecrets.mu.Unlock()
 	delete(pendingSecrets.at, sessionID)
+}
+
+// pendingSecretMarkFailed records that a submitted code missed against
+// sessionID, so the next render of the setup card offers the recovery-code
+// escape. Mirrors firstRunPendingMarkFailed's shape and its guard against
+// reviving an entry already past its lifetime.
+func pendingSecretMarkFailed(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	pendingSecrets.mu.Lock()
+	defer pendingSecrets.mu.Unlock()
+
+	p, ok := pendingSecrets.at[sessionID]
+	if !ok || time.Since(p.issued) > pendingSecretLifetime {
+		return
+	}
+	p.failed = true
+	pendingSecrets.at[sessionID] = p
+}
+
+// pendingSecretFailed reports whether sessionID's pending entry has already
+// had a code fail against it. False for an entry that does not exist or has
+// aged out — the same as a fresh one, which is the point: nothing here is
+// ever owed a recovery-code escape it has not earned.
+func pendingSecretFailed(sessionID string) bool {
+	if sessionID == "" {
+		return false
+	}
+	pendingSecrets.mu.Lock()
+	defer pendingSecrets.mu.Unlock()
+
+	p, ok := pendingSecrets.at[sessionID]
+	if !ok || time.Since(p.issued) > pendingSecretLifetime {
+		return false
+	}
+	return p.failed
 }
 
 // sessionID returns the identifier of the session this request carries.
@@ -144,11 +188,18 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	_, offset, hit := matchTOTP(raw, time.Now(), r.FormValue("code"), totpWindowEnrol)
 	switch {
 	case !hit:
+		// Marked failed before the re-render regardless of wasFirstFactor: an
+		// operator who already has a factor is not locked out by this and
+		// simply never uses the card it unlocks — handle2FARecover is the one
+		// place that actually decides whether the escape applies, by checking
+		// hasSecondFactor() itself. See it for why marking here is unconditional.
+		pendingSecretMarkFailed(id)
 		s.setFlash(w, r, "totp_code_wrong")
 		s.renderSetupAgain(w, r, secret)
 		return
 	case offset < -totpWindowLogin || offset > totpWindowLogin:
 		// Signed magnitude, in whole minutes, rounded the way a human reads it.
+		pendingSecretMarkFailed(id)
 		s.setFlashN(w, r, clockSkewKey(offset), skewMinutes(offset))
 		s.renderSetupAgain(w, r, secret)
 		return
@@ -200,6 +251,83 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "password.html", "password", page)
 }
 
+// handle2FARecover is the third instance of the lockout Ruling 11 found in
+// the wizard and round 2 of Task 7 closed there: a clock this page cannot
+// fix must never be the only thing standing between an operator and their
+// own account. It differs from handleFirstRunRecover in what it writes —
+// there, a whole account; here, only the second factor, since the account
+// this runs against already exists — so it is its own function rather than
+// a shared one forced to take a flag for which write it is doing. See
+// finishFirstRunEnrolled's doc comment for the sibling case and why the
+// review kept that one shared: the two here would have to be parameterised
+// on "is there an account to create," which is exactly the viaOverride bool
+// that ruling warned against.
+//
+// Reachable only when this would be the operator's first factor
+// (!hasSecondFactor()) — an operator who already has one is not locked out
+// by a failed code here and can simply leave the page — and only once a
+// code has already failed against this pending entry (pendingSecretFailed),
+// with an explicit acknowledgement (ack). Any of the three missing sends the
+// request back to the setup card instead of rewarding it with a stored
+// secret.
+func (s *Server) handle2FARecover(w http.ResponseWriter, r *http.Request) {
+	if s.hasSecondFactor() || s.client.IsDemo() {
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
+
+	id := s.sessionID(r)
+	secret, ok := pendingSecretLookup(id)
+	if !ok {
+		s.setFlash(w, r, "totp_setup_expired")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		s.setFlash(w, r, "internal_error")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
+	if !pendingSecretFailed(id) || r.PostFormValue("ack") == "" {
+		s.renderSetupAgain(w, r, secret)
+		return
+	}
+
+	plain, hashes, err := newRecoveryCodes()
+	if err != nil {
+		slog.Error("could not generate recovery codes", "error", err)
+		s.setFlash(w, r, "internal_error")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
+	if err := s.cfg.SaveTOTP(secret, hashes); err != nil {
+		// Same reasoning as handle2FAConfirm's identical branch: the pending
+		// entry survives a write failure, so a briefly full disk does not cost
+		// the pairing already scanned into the phone.
+		slog.Error("could not store the second factor", "error", err)
+		s.setFlash(w, r, "totp_not_saved")
+		s.renderSetupAgain(w, r, secret)
+		return
+	}
+	pendingSecretClear(id)
+
+	s.restampSession(w, r)
+	s.recordLoginEvent(r, shared.EvTOTPEnabled, 0)
+	// The only record that will ever explain a stored TOTP secret nobody has
+	// verified — see handleFirstRunRecover's identical line. Neither the
+	// secret nor the recovery codes belong in a log line.
+	slog.Info("second factor enabled via the recovery escape, without a verifying code")
+
+	s.setFlash(w, r, "totp_enabled")
+	// This was necessarily the first factor — handle2FARecover refused at the
+	// top otherwise — so, exactly as handle2FAConfirm's success path does, the
+	// codes shown here also carry the way past the gate the operator arrived
+	// through.
+	page := s.passwordPage(nil, plain)
+	page.JustGated = true
+	s.render(w, r, "password.html", "password", page)
+}
+
 // renderSetupAgain redraws the setup card with the same secret, so a wrong code
 // or a failed write does not cost the operator their pairing.
 func (s *Server) renderSetupAgain(w http.ResponseWriter, r *http.Request, secret string) {
@@ -221,6 +349,7 @@ func (s *Server) renderSetupAgain(w http.ResponseWriter, r *http.Request, secret
 		QR:         template.URL(qrURI), //nolint:gosec // G203 — see above
 		SecretText: formatTOTPSecret(secret),
 		ServerTime: time.Now().UTC().Format("2 Jan 2006, 15:04:05 MST"),
+		Failed:     pendingSecretFailed(s.sessionID(r)),
 	}, nil))
 }
 
@@ -259,7 +388,20 @@ func (s *Server) handle2FADisable(w http.ResponseWriter, r *http.Request) {
 }
 
 // handle2FARecovery issues eight fresh codes and invalidates the old ones.
+//
+// Refuses on a password check alone otherwise: with no factor enrolled there
+// is nothing recovery codes are codes *for*, and a gated operator reaching
+// this on the strength of their password alone would get eight codes with no
+// account state behind them and remain exactly as locked out as before —
+// the loophole the review found this route left open once /password could be
+// reached with no factor at all. See handle2FARecover for the actual way
+// past that gate.
 func (s *Server) handle2FARecovery(w http.ResponseWriter, r *http.Request) {
+	if !s.hasSecondFactor() && !s.client.IsDemo() {
+		s.setFlash(w, r, "totp_recovery_needs_factor")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
 	if !s.checkCurrentPassword(r) {
 		s.setFlash(w, r, "password_wrong")
 		http.Redirect(w, r, "/password", http.StatusSeeOther)

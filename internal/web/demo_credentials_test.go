@@ -11,7 +11,8 @@ import (
 // would make it do so.
 //
 // A list rather than a pattern: a new credential-writing route has to be added
-// here by hand, which is the point. Task 12 adds the four /password/2fa/* routes.
+// here by hand, which is the point. Task 12 adds the four /password/2fa/*
+// routes; Task 16 adds /password/2fa/recover.
 //
 // The confirm entry below does NOT exercise handle2FAConfirm's demo guard: with
 // no prior begin(), pendingSecretLookup fails and the handler returns via
@@ -21,6 +22,12 @@ import (
 // drives confirm's demo branch, because it is the one route whose demo
 // behaviour is most visible to a visitor — it puts eight real-looking
 // recovery codes on screen.
+//
+// recover's entry below needs no equivalent follow-up test: unlike confirm,
+// its IsDemo() check is the very first thing the handler does, before it
+// ever looks for a pending secret — so this shallow entry already exercises
+// the real guard, not a different one that happens to redirect for the same
+// reason.
 var credentialWritingRoutes = []struct {
 	path string
 	body string
@@ -28,6 +35,7 @@ var credentialWritingRoutes = []struct {
 	{"/password", "current_password=currentpassword123&new_password=ReplacedInTheDemo1&confirm_password=ReplacedInTheDemo1"},
 	{"/password/2fa/begin", "current_password=currentpassword123"},
 	{"/password/2fa/confirm", "code=000000"},
+	{"/password/2fa/recover", "ack=1"},
 	{"/password/2fa/disable", "current_password=currentpassword123"},
 	{"/password/2fa/recovery", "current_password=currentpassword123"},
 }

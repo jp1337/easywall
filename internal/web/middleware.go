@@ -120,6 +120,7 @@ func RequireSecondFactor(hasFactor func() bool, isDemo func() bool) func(http.Ha
 		"/password":                true,
 		"/password/2fa/begin":      true,
 		"/password/2fa/confirm":    true,
+		"/password/2fa/recover":    true,
 		"/password/2fa/disable":    true,
 		"/password/2fa/recovery":   true,
 		"/password/passkey/begin":  true,

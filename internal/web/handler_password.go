@@ -19,6 +19,13 @@ type totpSetup struct {
 	QR         template.URL
 	SecretText string // grouped in fours, because it gets copied by hand
 	ServerTime string
+
+	// Failed mirrors pendingSecret.failed: whether a submitted code has
+	// already missed against this pending entry. The template shows the
+	// recovery-code escape only when this is true and MustEnrol also is —
+	// an operator with an existing factor is not locked out by a failed
+	// code here and simply leaves the page instead.
+	Failed bool
 }
 
 // passwordPageData is what password.html reads.

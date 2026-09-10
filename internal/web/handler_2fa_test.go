@@ -61,11 +61,11 @@ func TestEnrol_BeginRequiresTheCurrentPassword(t *testing.T) {
 	}
 }
 
-// Every one of the four routes is behind RequireAuth.
+// Every one of the five routes is behind RequireAuth.
 func TestEnrol_EveryRouteRequiresASession(t *testing.T) {
 	s := serverWithPassword(t)
 	for _, path := range []string{
-		"/password/2fa/begin", "/password/2fa/confirm",
+		"/password/2fa/begin", "/password/2fa/confirm", "/password/2fa/recover",
 		"/password/2fa/disable", "/password/2fa/recovery",
 	} {
 		rec := doFormRequest(s, "POST", path, "current_password=currentpassword123")
@@ -143,6 +143,170 @@ func TestEnrol_AWrongCodeStoresNothing(t *testing.T) {
 	_ = doFormRequest(s, "POST", "/password/2fa/confirm", "code=000000", cookie)
 	if s.cfg.TOTPEnabled() {
 		t.Error("a wrong code enabled the factor")
+	}
+}
+
+// failEnrolment submits a code that can never verify — outside the whole
+// ±5-minute window matchTOTP searches, not merely eight steps out inside it.
+// The shape a board with no RTC produces: !hit, not a diagnosis.
+func failEnrolment(t *testing.T, s *Server, cookie *http.Cookie) {
+	t.Helper()
+	doFormRequest(s, "POST", "/password/2fa/confirm", "code=000000", cookie)
+}
+
+// THE test of Task 16. An account that predates this release — password set,
+// no factor, the only way that state now arises — is gated to /password by
+// RequireSecondFactor. Without this escape, a code that will never verify
+// here means an account that exists and cannot be used: the same lockout
+// Ruling 11 found in the wizard, one layer later, on an account instead of
+// on nothing at all.
+func TestEnrol_RecoverAfterAWrongCodeReachesAUsableAccount(t *testing.T) {
+	s := serverWithPassword(t)
+	_, cookie := beginEnrolment(t, s)
+	secret := s.pendingSecretFor(t, cookie)
+
+	failEnrolment(t, s, cookie)
+	if s.cfg.TOTPEnabled() {
+		t.Fatal("the failed code itself enabled the factor")
+	}
+
+	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("recover answered %d, want 200 with the codes shown", rec.Code)
+	}
+	if !s.cfg.TOTPEnabled() {
+		t.Fatal("the recovery escape did not enable the factor")
+	}
+	if s.cfg.TOTPSecret() != secret {
+		t.Errorf("stored secret %q does not match the one shown on screen (%q) — a fresh one was minted instead of keeping the pairing", s.cfg.TOTPSecret(), secret)
+	}
+	if codes := extractRecoveryCodes(rec.Body.String()); len(codes) != recoveryCodeCount {
+		t.Errorf("%d recovery codes on the page, want %d", len(codes), recoveryCodeCount)
+	}
+
+	// lastCookiePerName, not the raw list: restampSession and setFlash both
+	// save the session in this one response, and a browser's jar would keep
+	// only the later of the two same-named cookies that produces.
+	dash := doRequest(s, "GET", "/dashboard", nil, lastCookiePerName(rec.Result().Cookies())...)
+	assertStatus(t, dash, http.StatusOK)
+}
+
+// A code inside the band that is diagnosed but never accepted — offset by
+// more than totpWindowLogin (±1 step) but still within totpWindowEnrol (±10
+// steps). This is a *second* branch from !hit, and Task 7's own wizard fix
+// found that a shared switch shape does not mean shared coverage: round 1
+// there fixed only !hit, and round 2 was needed because this branch did not
+// mark the pending entry failed. Fixed here from the start, but still worth
+// its own test rather than trusting !hit's to generalise.
+func TestEnrol_RecoverAfterADiagnosedSkewReachesAUsableAccount(t *testing.T) {
+	s := serverWithPassword(t)
+	_, cookie := beginEnrolment(t, s)
+	secret := s.pendingSecretFor(t, cookie)
+	raw, err := decodeTOTPSecret(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	skewed := doFormRequest(s, "POST", "/password/2fa/confirm",
+		"code="+totpAt(raw, stepAt(time.Now())+4), cookie)
+	if s.cfg.TOTPEnabled() {
+		t.Fatal("a diagnosed-but-unaccepted code enabled the factor directly")
+	}
+	body := strings.ToLower(skewed.Body.String())
+	if !strings.Contains(body, "clock") && !strings.Contains(body, "uhr") {
+		t.Error("the message does not point at the clock")
+	}
+
+	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("recover after a diagnosed skew answered %d, want 200 with the codes shown", rec.Code)
+	}
+	if !s.cfg.TOTPEnabled() {
+		t.Fatal("the escape did not enable the factor after a diagnosed-but-unaccepted code")
+	}
+	if s.cfg.TOTPSecret() != secret {
+		t.Error("stored secret does not match the one shown on screen")
+	}
+	if codes := extractRecoveryCodes(rec.Body.String()); len(codes) != recoveryCodeCount {
+		t.Errorf("%d recovery codes on the page, want %d", len(codes), recoveryCodeCount)
+	}
+
+	dash := doRequest(s, "GET", "/dashboard", nil, lastCookiePerName(rec.Result().Cookies())...)
+	assertStatus(t, dash, http.StatusOK)
+}
+
+// Not reachable when a factor already exists: that operator is not locked
+// out by a failed code here and can simply leave the page, exactly the
+// distinction that makes handler_2fa.go's switch not a dead end in general —
+// see Task 16's own report for the case (this one) where it is.
+func TestEnrol_RecoverIsNotReachableWithAnExistingFactor(t *testing.T) {
+	s := serverWithPassword(t)
+	_, hashes, err := newRecoveryCodes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.cfg.SaveTOTP("JBSWY3DPEHPK3PXP", hashes); err != nil {
+		t.Fatal(err)
+	}
+	cookie := makeAuthCookie(t, s)
+
+	// A second enrolment attempt — replacing the factor — that then fails.
+	doFormRequest(s, "POST", "/password/2fa/begin", "current_password=currentpassword123", cookie)
+	failEnrolment(t, s, cookie)
+
+	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	assertRedirect(t, rec, "/password")
+	if s.cfg.TOTPSecret() != "JBSWY3DPEHPK3PXP" {
+		t.Error("the existing factor was replaced by the escape")
+	}
+	if n := len(s.cfg.RecoveryCodes()); n != recoveryCodeCount {
+		t.Errorf("%d recovery codes stored, want the original %d untouched", n, recoveryCodeCount)
+	}
+}
+
+// Not reachable before an attempt has failed — offered up front, it would be
+// easier than typing the code correctly, and it would stop being an escape
+// hatch and start being the path everyone takes.
+func TestEnrol_RecoverIsNotReachableBeforeAFailedCode(t *testing.T) {
+	s := serverWithPassword(t)
+	_, cookie := beginEnrolment(t, s)
+
+	rec := doFormRequest(s, "POST", "/password/2fa/recover", "ack=1", cookie)
+	if rec.Code != http.StatusOK {
+		t.Errorf("recover before any code failed answered %d, want 200 with the setup card re-rendered", rec.Code)
+	}
+	if s.cfg.TOTPEnabled() {
+		t.Fatal("the recovery escape enabled a factor before any code had failed")
+	}
+}
+
+// The checkbox is the deliberate act, not the click that lands on this
+// route. A POST missing it must not enable the factor either, even after a
+// code has already failed.
+func TestEnrol_RecoverRequiresTheAcknowledgement(t *testing.T) {
+	s := serverWithPassword(t)
+	_, cookie := beginEnrolment(t, s)
+	failEnrolment(t, s, cookie)
+
+	rec := doFormRequest(s, "POST", "/password/2fa/recover", "", cookie)
+	if s.cfg.TOTPEnabled() {
+		t.Fatal("the recovery escape enabled a factor without the acknowledgement")
+	}
+	if rec.Code != http.StatusOK {
+		t.Errorf("recover without ack answered %d, want 200 with the setup card re-rendered", rec.Code)
+	}
+}
+
+// /password/2fa/recovery — issuing fresh codes for an existing factor —
+// refuses while no factor is enrolled at all: codes for an account with
+// nothing to recover to are noise, and a password check alone used to hand
+// them to a gated operator anyway, which is the loophole review found.
+func TestEnrol_RecoveryRefusesWithNoFactorEnrolled(t *testing.T) {
+	s := serverWithPassword(t)
+	rec := doAuthFormRequest(t, s, "/password/2fa/recovery", "current_password=currentpassword123")
+	assertRedirect(t, rec, "/password")
+	if n := len(s.cfg.RecoveryCodes()); n != 0 {
+		t.Errorf("%d recovery codes issued for an account with no factor", n)
 	}
 }
 

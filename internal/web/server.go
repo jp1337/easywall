@@ -475,12 +475,14 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/password", s.handlePasswordGET)
 		r.Post("/password", s.handlePasswordPOST)
 
-		// All four POST, all inside this group, and therefore all under the
-		// existing http.NewCrossOriginProtection. begin, confirm and recovery
-		// render their result in place rather than redirecting to a GET, so a
-		// reload cannot mint a second secret and the eight codes have no URL.
+		// All five POST, all inside this group, and therefore all under the
+		// existing http.NewCrossOriginProtection. begin, confirm, recover and
+		// recovery render their result in place rather than redirecting to a
+		// GET, so a reload cannot mint a second secret and the eight codes have
+		// no URL.
 		r.Post("/password/2fa/begin", s.handle2FABegin)
 		r.Post("/password/2fa/confirm", s.handle2FAConfirm)
+		r.Post("/password/2fa/recover", s.handle2FARecover)
 		r.Post("/password/2fa/disable", s.handle2FADisable)
 		r.Post("/password/2fa/recovery", s.handle2FARecovery)
 
@@ -1297,6 +1299,9 @@ func templateFuncs() template.FuncMap {
 		// stands. It is a rule about what may happen next, the same shape as
 		// password_mismatch and username_required above.
 		"factor_last": true,
+		// Same shape again: nothing is broken, there is just nothing yet to
+		// reissue codes for.
+		"totp_recovery_needs_factor": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)
