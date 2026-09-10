@@ -301,3 +301,8 @@ panic button pointed the other way.
 - Anyone holding `session_key`. It signs the cookies, so it is a login. easywall
   generates one on first start if the key is missing, too short, or still the
   placeholder — that placeholder is published in this repository.
+- `CAP_NET_BIND_SERVICE` on the web process. 2.18 added it for ACME's port-80
+  listener, and a compromise there can now bind any free port below 1024 — 443,
+  or 22 if sshd is down — for squatting or phishing. It still opens no path to
+  netlink, so the two-process split holds in the same kind, just not the same
+  degree.
