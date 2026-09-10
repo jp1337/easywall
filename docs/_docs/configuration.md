@@ -344,6 +344,11 @@ Leave both keys empty to use an auto-generated self-signed certificate in `ssl_d
 |---|---|
 | `cert` | Absolute path to a custom TLS certificate PEM file (e.g. Let's Encrypt fullchain) |
 | `key` | Absolute path to the matching private key PEM file |
+| `hostname` | The name this installation is reached by. One field, two consumers: the domain ACME issues for, and the WebAuthn Relying Party ID for passkeys |
+| `acme` | Fetch and renew a certificate automatically via ACME (Let's Encrypt by default). Requires `hostname` and `acme_agree_tos`; mutually exclusive with `cert`/`key` |
+| `acme_email` | Optional contact address the certificate authority sends expiry warnings to |
+| `acme_agree_tos` | Your agreement to the certificate authority's subscriber agreement. Has **no default** — easywall never agrees to a third party's terms on your behalf, so `acme = true` without this set is refused at startup |
+| `acme_directory` | ACME directory URL override. Empty is Let's Encrypt production; point it at a staging endpoint while getting DNS and port 80 right |
 
 The auto-generated certificate is valid for a year and is replaced once it comes within
 30 days of expiry. That's checked at startup and twice a day while the service runs, so a
