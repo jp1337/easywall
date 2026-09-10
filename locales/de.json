@@ -561,7 +561,7 @@
   {"id": "totp_copied",       "translation": "Codes kopiert"},
   {"id": "totp_copy_failed",  "translation": "Kopieren fehlgeschlagen — markieren Sie die Codes oben und kopieren Sie sie von Hand"},
   {"id": "totp_enabled",      "translation": "Zweiter Faktor aktiviert. Bewahren Sie die acht Wiederherstellungscodes sicher auf — sie werden nicht noch einmal angezeigt."},
-  {"id": "totp_disabled",     "translation": "Zweiter Faktor ausgeschaltet. Das Passwort allein meldet Sie jetzt an."},
+  {"id": "totp_disabled",     "translation": "Zweiter Faktor ausgeschaltet."},
   {"id": "factor_last",       "translation": "Das ist Ihr einziger zweiter Faktor. Richten Sie einen weiteren ein, bevor Sie diesen abschalten."},
   {"id": "totp_recovery_renewed", "translation": "Neue Wiederherstellungscodes ausgestellt. Die vorherigen acht funktionieren nicht mehr."},
   {"id": "totp_code_wrong",   "translation": "Dieser Code hat nicht funktioniert."},

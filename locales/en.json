@@ -561,7 +561,7 @@
   {"id": "totp_copied",       "translation": "Codes copied"},
   {"id": "totp_copy_failed",  "translation": "Could not copy — select the codes above and copy them by hand"},
   {"id": "totp_enabled",      "translation": "Second factor enabled. Keep the eight recovery codes somewhere safe — they will not be shown again."},
-  {"id": "totp_disabled",     "translation": "Second factor turned off. The password alone signs you in now."},
+  {"id": "totp_disabled",     "translation": "Second factor turned off."},
   {"id": "factor_last",       "translation": "This is your only second factor. Add another one before you switch this off."},
   {"id": "totp_recovery_renewed", "translation": "New recovery codes issued. The previous eight no longer work."},
   {"id": "totp_code_wrong",   "translation": "That code did not work."},
