@@ -8,8 +8,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/descope/virtualwebauthn"
 )
@@ -393,6 +395,48 @@ func TestPasskeyFinishRefusesAnEmptyName(t *testing.T) {
 
 	if n := s.factorCount(); n != 0 {
 		t.Errorf("factorCount() = %d, want 0 — a passkey with no real name was still stored", n)
+	}
+}
+
+// TestPasskeyFinishRefusesAnOverLongName covers the other half of
+// handlePasskeyFinish's `name == "" || utf8.RuneCountInString(name) >
+// maxPasskeyNameLen` — untested before this: TestPasskeyFinishRefusesAnEmptyName
+// only ever exercises the left side, so a change to the length half, or to
+// the constant itself, could pass every existing test while the bound quietly
+// stopped applying.
+//
+// The fixture is 65 runes of a two-byte character, not 65 ASCII bytes: for
+// ASCII, a rune count and a byte count are the same number, so an ASCII
+// fixture cannot tell a rune-counting bound from a byte-counting one apart —
+// either would reject it identically. Multi-byte runes make the 65 explicit
+// as a *character* count, matching utf8.RuneCountInString rather than len().
+func TestPasskeyFinishRefusesAnOverLongName(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	auth := virtualwebauthn.NewAuthenticator()
+	rp := virtualwebauthn.RelyingParty{
+		Name:   "easywall",
+		ID:     "firewall.example.org",
+		Origin: "https://firewall.example.org",
+	}
+	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
+
+	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	defer begin.Body.Close()
+	if begin.StatusCode != 200 {
+		t.Fatalf("begin answered %d", begin.StatusCode)
+	}
+	parsed, err := virtualwebauthn.ParseAttestationOptions(readBody(t, begin))
+	if err != nil {
+		t.Fatalf("parse the creation options: %v", err)
+	}
+	attestation := virtualwebauthn.CreateAttestationResponse(rp, auth, cred, *parsed)
+
+	name := strings.Repeat("é", maxPasskeyNameLen+1)
+	finish := s.postAuthedJSON(t, "/password/passkey/finish", map[string]string{"name": name}, attestation)
+	defer finish.Body.Close()
+
+	if n := s.factorCount(); n != 0 {
+		t.Errorf("factorCount() = %d, want 0 — a passkey with a %d-rune name was still stored", n, utf8.RuneCountInString(name))
 	}
 }
 

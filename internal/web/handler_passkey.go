@@ -44,12 +44,16 @@ const (
 
 	passkeyPendingDataKey = "d"
 
-	// maxPasskeyNameLen bounds what an operator can call a passkey. Runes, not
-	// bytes — same reason passwordPolicyError in auth.go counts runes: a
-	// four-byte emoji or an umlaut must not count as several characters
-	// against a limit stated in characters. 64 is generous for a device
-	// label ("YubiKey on the keyring" is 22) and short enough that the card's
-	// layout does not have to plan for arbitrary length.
+	// maxPasskeyNameLen bounds what an operator can call a passkey. Not a
+	// storage limit — passkeys.json is JSON on disk and would hold a name of
+	// any length without complaint — this is a display and sanity bound: what
+	// the card can show on one line, and a check against a name nobody typed
+	// on purpose (a script, a pasted blob). Runes, not bytes — same reason
+	// passwordPolicyError in auth.go counts runes: a four-byte emoji or an
+	// umlaut must not count as several characters against a limit stated in
+	// characters. 64 is generous for a device label ("YubiKey on the keyring"
+	// is 22) and short enough that the card's layout does not have to plan
+	// for arbitrary length.
 	maxPasskeyNameLen = 64
 )
 
