@@ -70,7 +70,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	// whether this visitor is signed in — see the comment above sessionUser.
 	pending := pendingLogin{
 		User:     username,
-		CredFP:   credentialFingerprint(wantHash, secret),
+		CredFP:   credentialFingerprint(wantHash, secret, s.passkeys.fingerprintInput()),
 		IssuedAt: time.Now().Unix(),
 	}
 	if err := s.writePending(w, r, pending); err != nil {
@@ -90,7 +90,7 @@ func (s *Server) grantSession(w http.ResponseWriter, r *http.Request, username s
 	_, hash := s.cfg.Credentials()
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values[SessionUserKey] = username
-	sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret())
+	sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput())
 	sess.Values[SessionIDKey] = newSessionID()
 	sess.Options = &sessions.Options{
 		Path:     "/",
@@ -118,7 +118,7 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 		return pendingLogin{}, false
 	}
 	_, hash := s.cfg.Credentials()
-	if p.CredFP != credentialFingerprint(hash, s.cfg.TOTPSecret()) {
+	if p.CredFP != credentialFingerprint(hash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput()) {
 		return pendingLogin{}, false
 	}
 	return p, true

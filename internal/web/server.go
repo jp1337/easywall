@@ -103,7 +103,14 @@ type Server struct {
 	// passkeys holds every enrolled passkey; see passkeystore.go. passkeyCount
 	// below reads its count, and Task 12/13 add and verify against it.
 	passkeys *passkeyStore
-	bundle   *i18n.Bundle
+	// passkeyPending carries the challenge between a registration ceremony's
+	// Begin and Finish steps; see handler_passkey.go. Separate from pending
+	// above for the same reason pending is separate from store: a different
+	// cookie path (/password, not /login) and a different lifetime, and mixing
+	// an unrelated ceremony's state into either existing cookie is exactly the
+	// kind of cross-purpose store newPendingStore's own comment warns against.
+	passkeyPending sessions.Store
+	bundle         *i18n.Bundle
 	// localeStatus is loaded once here, beside the bundle, rather than per
 	// request: whether a language has been reviewed cannot change without a
 	// restart, so reading status.json on every render would be waste. A code
@@ -251,16 +258,17 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	s := &Server{
-		cfg:          cfg,
-		client:       client,
-		store:        store,
-		pending:      pending,
-		replay:       newTOTPReplay(cfg.TOTPReplayPath()),
-		passkeys:     newPasskeyStore(cfg.PasskeysPath()),
-		bundle:       bundle,
-		localeStatus: localeStatus,
-		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:        certs,
+		cfg:            cfg,
+		client:         client,
+		store:          store,
+		pending:        pending,
+		replay:         newTOTPReplay(cfg.TOTPReplayPath()),
+		passkeys:       newPasskeyStore(cfg.PasskeysPath()),
+		passkeyPending: newPasskeyPendingStore(cfg.SessionKey),
+		bundle:         bundle,
+		localeStatus:   localeStatus,
+		version:        shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:          certs,
 	}
 	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 
@@ -526,6 +534,14 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Post("/password/2fa/disable", s.handle2FADisable)
 		r.Post("/password/2fa/recovery", s.handle2FARecovery)
 
+		// Passkeys, the stronger second factor 2.18 adds beside TOTP. begin and
+		// finish are the two halves of one registration ceremony — see
+		// handler_passkey.go — and both, like the 2fa/* routes above, render
+		// their result in place rather than redirecting to a GET.
+		r.Post("/password/passkey/begin", s.handlePasskeyBegin)
+		r.Post("/password/passkey/finish", s.handlePasskeyFinish)
+		r.Post("/password/passkey/remove", s.handlePasskeyRemove)
+
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
 		r.Post("/system/telemetry", s.handleTelemetryPOST)
@@ -574,7 +590,9 @@ func staticCacheHeaders(next http.Handler) http.Handler {
 // function so callers see the value at the moment they ask rather than at wiring
 // time.
 func (s *Server) currentCredential() func() string {
-	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
+	return func() string {
+		return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret(), s.passkeys.fingerprintInput())
+	}
 }
 
 // clientAddr is who this request is from and whether that address stands in for
@@ -1304,6 +1322,9 @@ func templateFuncs() template.FuncMap {
 		// A removal that worked, not a warning: the stored answer is gone and
 		// the environment is back in force, exactly as asked.
 		"provenance_reset_done": true,
+		// The second factor is now doing what it was set up to do, the same
+		// direction as the totp_enabled/totp_disabled pair above.
+		"passkey_added": true, "passkey_removed": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -1344,6 +1365,13 @@ func templateFuncs() template.FuncMap {
 		// Same shape again: nothing is broken, there is just nothing yet to
 		// reissue codes for.
 		"totp_recovery_needs_factor": true,
+		// The same three shapes handle2FAConfirm's own clock/expiry keys carry,
+		// one level up: a ceremony that ran out the clock, or one whose
+		// signature did not check out — a wrong device, a stale challenge —
+		// is a rule about what may happen next, not a system failure. The
+		// card being switched off is the same shape as demo_readonly above.
+		"passkey_setup_expired": true, "passkey_ceremony_failed": true,
+		"passkey_no_hostname": true, "passkey_demo": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

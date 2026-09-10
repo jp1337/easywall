@@ -165,17 +165,25 @@ func newPendingStore(key string) *sessions.CookieStore {
 // compared on every request, which is precisely where the remedy the query asks
 // for, an expensive KDF, cannot go. Read that before "fixing" it.
 //
-// It hashes the password hash and the TOTP secret from 2.8 on. Enabling or
-// disabling a second factor therefore ends every other session at that moment,
-// and the acting one is re-stamped exactly as a password change already does.
-// A second factor that lets previously open sessions run on protects from the
-// next login, not from now.
+// It hashes the password hash, the TOTP secret from 2.8 on, and the passkey set
+// from 2.18 on. Enabling or disabling any factor therefore ends every other
+// session at that moment, and the acting one is re-stamped exactly as a
+// password change already does.
 //
-// The domain separator went v1 → v2 with that change, so every session in flight
-// across the upgrade ends once. That is the correct direction and it is worth a
-// changelog line.
-func credentialFingerprint(passwordHash, totpSecret string) string {
-	sum := sha256.Sum256([]byte("easywall-session-v2:" + passwordHash + "\x00" + totpSecret))
+// The passkey half is what makes removing a lost device mean something.
+// Without it, taking the credential out of passkeys.json would stop the device
+// being able to sign in again and leave every session it had already opened
+// running — which is the case the mechanism exists for.
+//
+// passkeySet is passkeyStore.fingerprintInput(): the credential IDs, sorted,
+// joined. Deliberately not the signature counters, which change on every login
+// and would make each request invalidate its own session.
+//
+// The domain separator went v2 → v3 with that change, so every session in
+// flight across the upgrade ends once. That is the correct direction and it is
+// worth a changelog line, as v1 → v2 was in 2.8.
+func credentialFingerprint(passwordHash, totpSecret, passkeySet string) string {
+	sum := sha256.Sum256([]byte("easywall-session-v3:" + passwordHash + "\x00" + totpSecret + "\x00" + passkeySet))
 	return base64.RawStdEncoding.EncodeToString(sum[:16])
 }
 

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 // begin renders the setup card as the response to the POST and returns the body
@@ -108,6 +110,44 @@ func TestEnrol_ConfirmStoresEverythingInOneWriteAndShowsTheCodesOnce(t *testing.
 	if again := doRequest(s, "GET", "/password", nil, cookie); strings.Contains(again.Body.String(), "-") &&
 		strings.Count(again.Body.String(), "recovery-code") > 0 {
 		t.Error("the codes are still on the page after a reload; shown once must mean shown once")
+	}
+}
+
+// TestEnrol_ConfirmDoesNotReMintCodesWhenItIsNotTheFirstFactor.
+//
+// A passkey enrolled first may already have minted the operator's one set of
+// recovery codes; pairing TOTP as a second factor — or replacing it while it
+// is already the only one — must leave that set alone. It is the same rule
+// handlePasskeyFinish applies in the other direction, and this was the gap
+// before it existed: this path minted a fresh set on every confirm,
+// unconditionally.
+func TestEnrol_ConfirmDoesNotReMintCodesWhenItIsNotTheFirstFactor(t *testing.T) {
+	s := serverWithPassword(t)
+	if err := s.passkeys.add("already enrolled", webauthn.Credential{ID: []byte("existing-cred")}); err != nil {
+		t.Fatal(err)
+	}
+	existing := []string{"a-hash-that-must-survive"}
+	if err := s.cfg.SaveRecoveryCodes(existing); err != nil {
+		t.Fatal(err)
+	}
+
+	_, cookie := beginEnrolment(t, s)
+	secret := s.pendingSecretFor(t, cookie)
+	raw, _ := decodeTOTPSecret(secret)
+	code := totpAt(raw, stepAt(time.Now()))
+
+	rec := doFormRequest(s, "POST", "/password/2fa/confirm", "code="+code, cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm answered %d, want 200", rec.Code)
+	}
+	if !s.cfg.TOTPEnabled() {
+		t.Fatal("a correct code did not enable the factor")
+	}
+	if got := s.cfg.RecoveryCodes(); len(got) != 1 || got[0] != existing[0] {
+		t.Errorf("recovery codes = %v, want the untouched existing set %v", got, existing)
+	}
+	if strings.Contains(rec.Body.String(), "recovery-code") {
+		t.Error("codes were shown even though none were minted; there is nothing new to show")
 	}
 }
 

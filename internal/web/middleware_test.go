@@ -336,7 +336,7 @@ func TestRequireAuth_SessionFromABeforePasswordChangeIsRejected(t *testing.T) {
 	}
 
 	current := oldHash
-	mw := RequireAuth(store, func() string { return credentialFingerprint(current, "") })
+	mw := RequireAuth(store, func() string { return credentialFingerprint(current, "", "") })
 
 	called := false
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -348,7 +348,7 @@ func TestRequireAuth_SessionFromABeforePasswordChangeIsRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sess, _ := store.Get(req, SessionName)
 	sess.Values[SessionUserKey] = "admin"
-	sess.Values[SessionCredentialKey] = credentialFingerprint(oldHash, "")
+	sess.Values[SessionCredentialKey] = credentialFingerprint(oldHash, "", "")
 	if err := sess.Save(req, rec); err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +382,7 @@ func TestRequireAuth_SessionWithoutAFingerprintIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mw := RequireAuth(store, func() string { return credentialFingerprint(hash, "") })
+	mw := RequireAuth(store, func() string { return credentialFingerprint(hash, "", "") })
 
 	called := false
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))

@@ -192,27 +192,35 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.client.IsDemo() {
-		// The demo runs the whole flow — a real QR code, a real code check, real
-		// recovery codes on screen — and discards the final write, saying so.
-		plain, _, err := newRecoveryCodes()
+	// Eight codes at the first factor, whichever it is, and only at the
+	// first: a passkey may already have made this account's mandate satisfied
+	// once, and re-pairing TOTP as a second factor — or a fresh secret while
+	// it is already the only one — must not silently invalidate a printout
+	// the operator already has. hashes defaults to what is already stored, so
+	// the SaveTOTP write below leaves it untouched unless this is genuinely
+	// the first factor with nothing minted yet.
+	var plain []string
+	hashes := s.cfg.RecoveryCodes()
+	if wasFirstFactor && len(hashes) == 0 {
+		p, h, err := newRecoveryCodes()
 		if err != nil {
+			slog.Error("could not generate recovery codes", "error", err)
 			s.setFlash(w, r, "internal_error")
 			http.Redirect(w, r, "/password", http.StatusSeeOther)
 			return
 		}
+		plain, hashes = p, h
+	}
+
+	if s.client.IsDemo() {
+		// The demo runs the whole flow — a real QR code, a real code check, real
+		// recovery codes on screen when they are minted — and discards the
+		// final write, saying so.
 		s.setFlash(w, r, "demo_readonly")
 		s.render(w, r, "password.html", "password", s.passwordPage(nil, plain))
 		return
 	}
 
-	plain, hashes, err := newRecoveryCodes()
-	if err != nil {
-		slog.Error("could not generate recovery codes", "error", err)
-		s.setFlash(w, r, "internal_error")
-		http.Redirect(w, r, "/password", http.StatusSeeOther)
-		return
-	}
 	if err := s.cfg.SaveTOTP(secret, hashes); err != nil {
 		// Nothing enabled, and the pending secret stays in memory — otherwise the
 		// operator re-pairs their app because the disk was briefly full.
@@ -428,7 +436,7 @@ func (s *Server) restampSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, hash := s.cfg.Credentials()
-	sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret())
+	sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput())
 	if err := sess.Save(r, w); err != nil {
 		slog.Warn("could not refresh the session after a second-factor change", "error", err)
 	}

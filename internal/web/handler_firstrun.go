@@ -81,6 +81,23 @@ func (s *Server) webPort() string {
 	return port
 }
 
+// publicOrigin returns the origin passkeys are bound to: the configured
+// hostname over https, plus the port bind_addr names when it is not the
+// default for https. WebAuthn treats the origin's port as part of the origin
+// but never part of the Relying Party ID, so an installation on :12227 has
+// origin https://host:12227 and RP ID host — the two are computed
+// separately for exactly that reason.
+//
+// Built beside webPort, which already parses bind_addr, rather than a second
+// time.
+func (s *Server) publicOrigin() string {
+	origin := "https://" + s.cfg.Hostname()
+	if port := s.webPort(); port != "" && port != "443" {
+		origin += ":" + port
+	}
+	return origin
+}
+
 // handleFirstRunPOST validates step 1 and moves the wizard to the TOTP setup
 // step. Nothing is written here: an account with a password and no factor is
 // exactly the state 2.18 exists to make unreachable, so the only way to reach

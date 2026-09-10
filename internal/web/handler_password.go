@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/base64"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -48,16 +49,43 @@ type passwordPageData struct {
 	// so instead this response also offers the way onward: a link to the
 	// dashboard the operator was trying to reach when the gate stopped them.
 	JustGated bool
+
+	// Passkeys lists what is enrolled, oldest first — passkeyStore.all()'s own
+	// order — for the card's remove buttons.
+	Passkeys []passkeyView
+	// PasskeyReason is the locale key naming why the card's add control is
+	// disabled, or "" when passkeys are available. See passkeyUnavailableReason.
+	PasskeyReason string
+}
+
+// passkeyView is one row of the passkey card: passkeystore.go's storedPasskey
+// reshaped for the template, which needs the ID as the string a hidden form
+// field can hold and the date as text rather than a time.Time to format itself.
+type passkeyView struct {
+	IDBase64 string
+	Name     string
+	AddedAt  string
 }
 
 func (s *Server) passwordPage(setup *totpSetup, codes []string) passwordPageData {
+	stored := s.passkeys.all()
+	views := make([]passkeyView, len(stored))
+	for i, pk := range stored {
+		views[i] = passkeyView{
+			IDBase64: base64.RawURLEncoding.EncodeToString(pk.ID),
+			Name:     pk.Name,
+			AddedAt:  pk.AddedAt.Format("2 Jan 2006, 15:04"),
+		}
+	}
 	return passwordPageData{
-		TOTPEnabled:  s.cfg.TOTPEnabled(),
-		RecoveryLeft: len(s.cfg.RecoveryCodes()),
-		Setup:        setup,
-		Codes:        codes,
-		Demo:         s.client.IsDemo(),
-		MustEnrol:    !s.hasSecondFactor() && !s.client.IsDemo(),
+		TOTPEnabled:   s.cfg.TOTPEnabled(),
+		RecoveryLeft:  len(s.cfg.RecoveryCodes()),
+		Setup:         setup,
+		Codes:         codes,
+		Demo:          s.client.IsDemo(),
+		MustEnrol:     !s.hasSecondFactor() && !s.client.IsDemo(),
+		Passkeys:      views,
+		PasskeyReason: s.passkeyUnavailableReason(),
 	}
 }
 
@@ -127,7 +155,7 @@ func (s *Server) handlePasswordPOST(w http.ResponseWriter, r *http.Request) {
 	// one so the operator who just changed it is not thrown out of the tab they
 	// are working in — anyone else signed in is.
 	if sess, err := s.store.Get(r, SessionName); err == nil {
-		sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret())
+		sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput())
 		if err := sess.Save(r, w); err != nil {
 			slog.Warn("could not refresh session after password change", "error", err)
 		}

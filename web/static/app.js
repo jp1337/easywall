@@ -88,6 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Copy recovery codes ─────────────────────────────────────────────── */
   initRecoveryCopy();
+
+  /* ── Passkey enrolment ───────────────────────────────────────────────── */
+  initPasskeyEnrol();
 });
 
 /* ── List editor counter ──────────────────────────────────────────────────
@@ -738,6 +741,97 @@ function initRecoveryCopy() {
       btn.textContent = str('totp_copy_failed');
       setTimeout(() => { btn.textContent = str('totp_copy'); }, 4000);
     });
+  });
+}
+
+/* ── Passkey enrolment ─────────────────────────────────────────────────────
+   navigator.credentials.create() must run from a real user gesture, so the
+   whole ceremony happens inside this button's click handler rather than a
+   form submission — /password/passkey/begin and /finish are POSTs from here,
+   not from a <form>. The result is then handed to the server the same way
+   every other card here writes: a plain form submission, so the response is
+   the whole re-rendered page — recovery codes included, on the one response
+   that ever carries them — and there is nothing here to parse back out of a
+   fetch response or patch into the DOM. */
+function initPasskeyEnrol() {
+  const btn = document.getElementById('passkey-add-btn');
+  if (!btn) return;
+
+  const b64urlToBuf = (s) => {
+    const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+    const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  };
+  const bufToB64url = (buf) => {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const submitCredential = (name, credential) => {
+    const attestation = JSON.stringify({
+      id: credential.id,
+      rawId: bufToB64url(credential.rawId),
+      type: credential.type,
+      response: {
+        attestationObject: bufToB64url(credential.response.attestationObject),
+        clientDataJSON: bufToB64url(credential.response.clientDataJSON),
+      },
+      clientExtensionResults: credential.getClientExtensionResults
+        ? credential.getClientExtensionResults() : {},
+    });
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/password/passkey/finish';
+    form.hidden = true;
+    const nameField = document.createElement('input');
+    nameField.name = 'name';
+    nameField.value = name;
+    const credField = document.createElement('input');
+    credField.name = 'credential';
+    credField.value = attestation;
+    form.append(nameField, credField);
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  btn.addEventListener('click', async () => {
+    const name = window.prompt(btn.dataset.prompt || '');
+    if (!name) return; // Cancelled — nothing was started, so there is nothing to undo.
+
+    let creation;
+    try {
+      const beginResp = await fetch('/password/passkey/begin', { method: 'POST' });
+      if (!beginResp.ok) throw new Error('begin failed');
+      creation = await beginResp.json();
+    } catch (e) {
+      return; // The card already names why, when it is why; a failure past
+               // that is not one this button can explain better than the
+               // page it is already sitting on.
+    }
+
+    const options = creation.publicKey;
+    options.challenge = b64urlToBuf(options.challenge);
+    options.user.id = b64urlToBuf(options.user.id);
+    if (options.excludeCredentials) {
+      options.excludeCredentials = options.excludeCredentials.map(
+        (c) => ({ ...c, id: b64urlToBuf(c.id) }));
+    }
+
+    let credential;
+    try {
+      credential = await navigator.credentials.create({ publicKey: options });
+    } catch (e) {
+      return; // Cancelled in the platform's own UI, or the authenticator
+               // refused — either way there is nothing to submit.
+    }
+    if (!credential) return;
+
+    submitCredential(name, credential);
   });
 }
 

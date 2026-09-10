@@ -14,6 +14,7 @@ toolchain go1.27.1
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/boombuler/barcode v1.1.0
+	github.com/descope/virtualwebauthn v1.0.5
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-webauthn/webauthn v0.18.1
 	github.com/google/nftables v0.3.0
