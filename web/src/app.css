@@ -1497,11 +1497,12 @@ body {
     line-height: 0;
   }
   .totp-setup { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-  /* The text column's default flex-basis is its own max-content, which is
-     firstrun_totp_skip_help — the longest line on the page. That pushed the
-     basis past whatever space was left beside the QR plate and wrapped the
-     whole column beneath it, even at 1600px where there was room to spare.
-     A basis that can shrink below max-content lets it share the line instead. */
+  /* The text column's default flex-basis is its own max-content. A long help
+     line here — this page's longest strings are locale-dependent, and German
+     runs longer than English — pushes the basis past whatever space is left
+     beside the QR plate and wraps the whole column beneath it, even at 1600px
+     where there is room to spare. A basis that can shrink below max-content
+     lets it share the line instead. */
   .totp-setup > div:last-child { flex: 1 1 260px; min-width: 0; }
   .totp-secret {
     font-family: var(--font-data);

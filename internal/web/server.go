@@ -428,12 +428,11 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 			r.Get("/firstrun", s.handleFirstRunGET)
 			r.Post("/firstrun", s.handleFirstRunPOST)
 
-			// Inside this block on purpose: these write credentials, and they
+			// Inside this block on purpose: this writes credentials, and it
 			// must stop existing the moment an account does. That is also why
-			// they are not in credentialWritingRoutes — the demo ships with a
-			// password set, so they are never registered there at all.
+			// it is not in credentialWritingRoutes — the demo ships with a
+			// password set, so it is never registered there at all.
 			r.Post("/firstrun/confirm", s.handleFirstRunConfirm)
-			r.Post("/firstrun/skip", s.handleFirstRunSkip)
 		}
 	})
 

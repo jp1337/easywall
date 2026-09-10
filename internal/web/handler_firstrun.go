@@ -31,11 +31,6 @@ type firstRunData struct {
 	// WebPort is the port this page is being served on. It is staged as open,
 	// and the wizard says so rather than doing it quietly.
 	WebPort string
-
-	// WantTOTP is the checkbox. It survives a rejected submission like every
-	// other answer: an operator who mistypes the confirmation must not have to
-	// remember they had asked for a second factor.
-	WantTOTP bool
 }
 
 // defaultSSHPort is what the wizard offers when the operator has not moved SSH.
@@ -86,13 +81,11 @@ func (s *Server) webPort() string {
 	return port
 }
 
-// handleFirstRunPOST creates the account and records the first decisions.
-//
-// The account is written first and everything else afterwards, because the
-// wizard closes the moment a password exists: if the core is unreachable, an
-// operator with an account can still get in and set the rest by hand, whereas an
-// operator without one cannot get in at all. Whatever did not land is named in
-// the message rather than left to be discovered.
+// handleFirstRunPOST validates step 1 and moves the wizard to the TOTP setup
+// step. Nothing is written here: an account with a password and no factor is
+// exactly the state 2.18 exists to make unreachable, so the only way to reach
+// completeFirstRun's one write is through a confirmed code — see
+// beginFirstRunTOTP and handleFirstRunConfirm.
 func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 	if !s.cfg.IsFirstRun() {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -113,7 +106,6 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		OpenWeb:   r.FormValue("open_web") != "",
 		IPv6Mode:  ipv6ModeFromForm(r.FormValue("ipv6_mode")),
 		Telemetry: r.FormValue("telemetry") != "",
-		WantTOTP:  r.FormValue("want_totp") != "",
 	}
 
 	password := r.FormValue("password")
@@ -146,48 +138,25 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// With the box ticked, nothing is written yet. The answers and the hash go
-	// into memory, the secret is generated, and step 2 is rendered as this
-	// POST's own response — not a GET with a URL, so a reload cannot mint a
-	// second secret.
-	if answers.WantTOTP {
-		s.beginFirstRunTOTP(w, r, answers, hash)
-		return
-	}
-
-	written, staged, saveErr := s.completeFirstRun(w, r, FirstRunAccount{
-		Username:     answers.Username,
-		PasswordHash: hash,
-		Telemetry:    answers.Telemetry,
-	}, answers)
-	if !written {
-		// saveErr is nil when completeFirstRun already answered the request
-		// itself — the ErrAlreadySetUp race, identical for every caller. This
-		// path has no pairing to protect, so a real write failure keeps its
-		// original response: re-render step 1 with the answers kept.
-		if saveErr != nil {
-			s.firstRunError(w, r, "save_error", answers)
-		}
-		return
-	}
-	if !staged {
-		s.setFlash(w, r, "firstrun_choices_failed")
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	s.setFlash(w, r, "firstrun_done")
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
+	// Nothing is written yet. The answers and the hash go into memory, the
+	// secret is generated, and step 2 is rendered as this POST's own response —
+	// not a GET with a URL, so a reload cannot mint a second secret. The
+	// account is created only once a code confirms it; see
+	// handleFirstRunConfirm and completeFirstRun.
+	s.beginFirstRunTOTP(w, r, answers, hash)
 }
 
 // completeFirstRun performs the one write and, best-effort, the staging that
 // follows it. written is whether the account now exists; staged is whether
-// applyFirstRunChoices also succeeded. A caller with nothing further of its
-// own to show (the plain wizard, the skip path) only needs written. The
-// confirm path needs both, because it has eight recovery codes that must
-// reach the operator regardless of what happened to the ports and the IPv6
-// mode — collapsing the two once meant a staging failure silently discarded
-// codes that had already been generated and hashed to disk.
+// applyFirstRunChoices also succeeded.
+//
+// handleFirstRunConfirm is its only caller now: the checkbox and the skip path
+// that used to reach this without a factor are gone, so every write here
+// carries a TOTP secret already confirmed against a code. The two-bool return
+// still matters with one caller, because that caller has eight recovery codes
+// that must reach the operator regardless of what happened to the ports and
+// the IPv6 mode — collapsing written and staged into one bool would silently
+// discard codes already generated and hashed to disk.
 //
 // A staging failure does not redirect from here for exactly that reason: only
 // the caller knows whether it still has something to show before the
@@ -199,14 +168,12 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 // cannot get in at all.
 //
 // The write failure returned as saveErr is deliberately *not* answered from
-// here, unlike the ErrAlreadySetUp race just above it. That race ends the
-// same way for every caller — the account now belongs to whoever won it, so
-// /login is right regardless of which route arrived second. A genuine write
-// failure does not: the plain and skip paths have no pairing to protect and
-// keep re-rendering step 1, but the confirm path has a secret already shown to
-// the operator, and sending it back to step 1 mints a fresh one and orphans
-// that pairing. Each caller decides for itself; see handleFirstRunConfirm for
-// the one that differs.
+// here, unlike the ErrAlreadySetUp race just above it. That race ends the same
+// way regardless of who called this — the account now belongs to whoever won
+// it, so /login is right either way. A genuine write failure does not: the
+// caller has a secret already shown to the operator, and sending it back to
+// step 1 mints a fresh one and orphans that pairing — see
+// handleFirstRunConfirm for how it answers that case.
 func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a FirstRunAccount, answers *firstRunData) (written, staged bool, saveErr error) {
 	if err := s.cfg.SaveFirstRun(a); err != nil {
 		if errors.Is(err, ErrAlreadySetUp) {
@@ -412,10 +379,13 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 	_, offset, hit := matchTOTP(raw, time.Now(), strings.TrimSpace(r.FormValue("code")), totpWindowEnrol)
 	switch {
 	case !hit:
-		// firstrun_totp_code_wrong, not the shared totp_code_wrong: this is the
-		// only page where a code that will never verify — a board with no RTC,
-		// still at the epoch — must not be a dead end. /password's identical
-		// wrong-code case has an account already and stays on the plain message.
+		// firstrun_totp_code_wrong, not the shared totp_code_wrong: this page
+		// points at the server time it is already showing, because the most
+		// common cause here is a board with no RTC, still at the epoch until
+		// NTP catches up — and unlike /password, there is no account yet to
+		// fall back to a recovery code with. Fixing the clock and retrying is
+		// the only way through; there is no escape hatch past a code that will
+		// never verify.
 		s.setFlash(w, r, "firstrun_totp_code_wrong")
 		s.renderFirstRunSetup(w, r, id, &p.Answers, p.Secret)
 		return
@@ -470,43 +440,4 @@ func (s *Server) handleFirstRunConfirm(w http.ResponseWriter, r *http.Request) {
 		s.setFlash(w, r, "firstrun_done_choices_failed")
 	}
 	s.render(w, r, "firstrun.html", "firstrun", &firstRunPage{Form: &p.Answers, Codes: plain})
-}
-
-// handleFirstRunSkip creates the account without a factor.
-//
-// This is the branch that keeps an optional feature from becoming a way of not
-// getting an account. easywall runs on boards with no RTC, which come up at the
-// epoch until NTP lands; if a correct code were the only way past the setup step,
-// a flat battery would mean no account at all on a machine already reachable from
-// the network. It takes today's path exactly.
-func (s *Server) handleFirstRunSkip(w http.ResponseWriter, r *http.Request) {
-	id, p, ok := s.pendingFirstRunFor(r)
-	if !ok {
-		s.firstRunExpired(w, r, p)
-		return
-	}
-	written, staged, saveErr := s.completeFirstRun(w, r, FirstRunAccount{
-		Username:     p.Answers.Username,
-		PasswordHash: p.PasswordHash,
-		Telemetry:    p.Answers.Telemetry,
-	}, &p.Answers)
-	if !written {
-		// No pairing at stake on this path — see completeFirstRun — so a real
-		// write failure keeps its original response: back to step 1 with the
-		// answers kept, same as the plain wizard's.
-		if saveErr != nil {
-			s.firstRunError(w, r, "save_error", &p.Answers)
-		}
-		return
-	}
-	firstRunPendingClear(id)
-
-	if !staged {
-		s.setFlash(w, r, "firstrun_choices_failed")
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	s.setFlash(w, r, "firstrun_done")
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

@@ -10,13 +10,15 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// beginFirstRunWith2FA submits step 1 with the box ticked and returns the body
-// of the step-2 page plus the cookies that carry the pending id.
-func beginFirstRunWith2FA(t *testing.T, s *Server) (string, []*http.Cookie) {
+// beginFirstRun submits a valid step 1 and returns the body of the step-2
+// page plus the cookies that carry the pending id. Step 1 has no checkbox
+// left to tick — the TOTP step is unconditional — so a valid submission always
+// lands here.
+func beginFirstRun(t *testing.T, s *Server) (string, []*http.Cookie) {
 	t.Helper()
 	rec := doFormRequest(s, "POST", "/firstrun",
 		"username=admin&password=firstrunpassword1&password_confirm=firstrunpassword1"+
-			"&ssh_port=22&ipv6_mode=filter&want_totp=1")
+			"&ssh_port=22&ipv6_mode=filter")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("step 1 answered %d, want 200 with the setup step rendered in place", rec.Code)
 	}
@@ -47,7 +49,7 @@ func TestFirstRun2FA_StepOneStoresNothing(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	body, _ := beginFirstRunWith2FA(t, s)
+	body, _ := beginFirstRun(t, s)
 
 	if !s.cfg.IsFirstRun() {
 		t.Error("step 1 created the account; the wizard is closed before a code was seen")
@@ -72,7 +74,7 @@ func TestFirstRun2FA_ConfirmCreatesTheAccountWithTheFactor(t *testing.T) {
 	// carries, for the same reason.
 	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
 
-	_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 	raw, err := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +118,7 @@ func TestFirstRun2FA_ConfirmShowsCodesEvenWhenStagingFails(t *testing.T) {
 	s := newFirstRunTestServer(t, fc)
 	fc.SetResponse(shared.CmdSaveRules, errorRespFor("the core is not up yet"))
 
-	_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 	raw, err := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
 	if err != nil {
 		t.Fatal(err)
@@ -152,30 +154,6 @@ func TestFirstRun2FA_ConfirmShowsCodesEvenWhenStagingFails(t *testing.T) {
 	}
 }
 
-// THE test of this change. A board with a dead RTC must still end up with an
-// account. If this fails, an optional feature has become a way of bricking the
-// wizard.
-func TestFirstRun2FA_SkipCreatesTheAccountWithoutAFactor(t *testing.T) {
-	fc := newFakeCore(t)
-	s := newFirstRunTestServer(t, fc)
-
-	_, cookies := beginFirstRunWith2FA(t, s)
-
-	rec := doFormRequest(s, "POST", "/firstrun/skip", "", cookies...)
-	assertRedirect(t, rec, "/login")
-
-	if s.cfg.IsFirstRun() {
-		t.Fatal("skipping the second factor did not create the account — a wrong " +
-			"clock can now prevent an account existing at all")
-	}
-	if s.cfg.TOTPEnabled() {
-		t.Error("skipping the second factor enrolled one anyway")
-	}
-	if u, _ := s.cfg.Credentials(); u != "admin" {
-		t.Errorf("the account was created as %q, so the wizard's answers were lost", u)
-	}
-}
-
 // The wizard collects more than the account. Confirming a factor must not drop
 // the ports and the IPv6 mode the operator chose above the password.
 func TestFirstRun2FA_ConfirmStillStagesTheOtherAnswers(t *testing.T) {
@@ -185,7 +163,7 @@ func TestFirstRun2FA_ConfirmStillStagesTheOtherAnswers(t *testing.T) {
 	var savedTCP *shared.Command
 	fc.OnCommand(shared.CmdSaveRules, func(c shared.Command) { savedTCP = &c })
 
-	_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 	raw, _ := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
 	_ = doFormRequest(s, "POST", "/firstrun/confirm",
 		"code="+totpAt(raw, stepAt(time.Now())), cookies...)
@@ -211,7 +189,7 @@ func TestFirstRun2FA_ConfirmSurvivesAFailedWrite(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 	raw, err := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +268,7 @@ func TestFirstRun2FA_AFarOutCodeDiagnosesTheClockAndStoresNothing(t *testing.T) 
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 	raw, _ := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
 
 	rec := doFormRequest(s, "POST", "/firstrun/confirm",
@@ -322,7 +300,7 @@ func TestFirstRun2FA_AWrongCodeStoresNothing(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 	_ = doFormRequest(s, "POST", "/firstrun/confirm", "code=000000", cookies...)
 
 	if !s.cfg.IsFirstRun() {
@@ -356,105 +334,152 @@ func lastCookiePerName(cookies []*http.Cookie) []*http.Cookie {
 
 // The escape hatch exists precisely for an operator who cannot make a code
 // verify. It must not itself go silent: an entry aged past
-// firstRunPendingLifetime has to say so, in both routes that can meet it, and
-// the username has to survive the trip back to step 1 — a blank wizard after
-// ten minutes of setup work is its own kind of dead end.
+// firstRunPendingLifetime has to say so, and the username has to survive the
+// trip back to step 1 — a blank wizard after ten minutes of setup work is its
+// own kind of dead end.
 func TestFirstRun2FA_ExpiredEntryIsNamedAndKeepsTheAnswers(t *testing.T) {
-	for _, path := range []string{"/firstrun/confirm", "/firstrun/skip"} {
-		t.Run(path, func(t *testing.T) {
-			fc := newFakeCore(t)
-			s := newFirstRunTestServer(t, fc)
+	fc := newFakeCore(t)
+	s := newFirstRunTestServer(t, fc)
 
-			_, cookies := beginFirstRunWith2FA(t, s)
+	_, cookies := beginFirstRun(t, s)
 
-			req := httptest.NewRequest("GET", "/firstrun", nil)
-			for _, c := range cookies {
-				req.AddCookie(c)
-			}
-			sess, err := s.store.Get(req, SessionName)
-			if err != nil {
-				t.Fatal(err)
-			}
-			id, _ := sess.Values[firstRunPendingKey].(string)
-			p, ok := firstRunPendingLookup(id)
-			if !ok {
-				t.Fatal("no pending entry to age")
-			}
-			// Backdate the same entry rather than fabricate a new one, so the
-			// answers it carries are exactly what step 1 collected.
-			firstRunPendingStore(id, pendingFirstRun{
-				Answers:      p.Answers,
-				PasswordHash: p.PasswordHash,
-				Secret:       p.Secret,
-				Issued:       time.Now().Add(-firstRunPendingLifetime - time.Second),
-			})
+	req := httptest.NewRequest("GET", "/firstrun", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	sess, err := s.store.Get(req, SessionName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _ := sess.Values[firstRunPendingKey].(string)
+	p, ok := firstRunPendingLookup(id)
+	if !ok {
+		t.Fatal("no pending entry to age")
+	}
+	// Backdate the same entry rather than fabricate a new one, so the
+	// answers it carries are exactly what step 1 collected.
+	firstRunPendingStore(id, pendingFirstRun{
+		Answers:      p.Answers,
+		PasswordHash: p.PasswordHash,
+		Secret:       p.Secret,
+		Issued:       time.Now().Add(-firstRunPendingLifetime - time.Second),
+	})
 
-			form := ""
-			if path == "/firstrun/confirm" {
-				form = "code=000000"
-			}
-			rec := doFormRequest(s, "POST", path, form, cookies...)
-			assertRedirect(t, rec, "/firstrun")
+	rec := doFormRequest(s, "POST", "/firstrun/confirm", "code=000000", cookies...)
+	assertRedirect(t, rec, "/firstrun")
 
-			if !s.cfg.IsFirstRun() {
-				t.Fatal("an expired entry created the account")
-			}
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("an expired entry created the account")
+	}
 
-			back := doRequest(s, "GET", "/firstrun", nil, lastCookiePerName(rec.Result().Cookies())...)
-			body := back.Body.String()
-			if !strings.Contains(strings.ToLower(body), "timed out") {
-				t.Error("the expired entry produced no flash at all; want totp_setup_expired")
-			}
-			if !strings.Contains(body, `value="admin"`) {
-				t.Error("the username was not kept across the expired escape hatch — the " +
-					"operator would have to retype everything as well as start the pairing over")
-			}
-		})
+	back := doRequest(s, "GET", "/firstrun", nil, lastCookiePerName(rec.Result().Cookies())...)
+	body := back.Body.String()
+	if !strings.Contains(strings.ToLower(body), "timed out") {
+		t.Error("the expired entry produced no flash at all; want totp_setup_expired")
+	}
+	if !strings.Contains(body, `value="admin"`) {
+		t.Error("the username was not kept across the expired escape hatch — the " +
+			"operator would have to retype everything as well as start the pairing over")
 	}
 }
 
-// Without a pending id the routes create nothing and send the operator back.
+// Without a pending id the route creates nothing and sends the operator back.
 func TestFirstRun2FA_NoPendingSetupStartsAgain(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	for _, path := range []string{"/firstrun/confirm", "/firstrun/skip"} {
-		rec := doFormRequest(s, "POST", path, "code=000000")
-		assertRedirect(t, rec, "/firstrun")
-		if !s.cfg.IsFirstRun() {
-			t.Fatalf("%s created an account with no pending setup behind it", path)
-		}
+	rec := doFormRequest(s, "POST", "/firstrun/confirm", "code=000000")
+	assertRedirect(t, rec, "/firstrun")
+	if !s.cfg.IsFirstRun() {
+		t.Fatal("/firstrun/confirm created an account with no pending setup behind it")
 	}
 }
 
-// The routes exist only while the wizard does.
-func TestFirstRun2FA_RoutesAreGoneOnceAnAccountExists(t *testing.T) {
+// The route exists only while the wizard does.
+func TestFirstRun2FA_RouteIsGoneOnceAnAccountExists(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc) // has a password, so IsFirstRun() is false
 
-	for _, path := range []string{"/firstrun/confirm", "/firstrun/skip"} {
-		rec := doFormRequest(s, "POST", path, "")
-		if rec.Code != http.StatusNotFound {
-			t.Errorf("%s answered %d on a configured install, want 404 — a "+
-				"credential-writing route must not outlive the wizard", path, rec.Code)
-		}
+	rec := doFormRequest(s, "POST", "/firstrun/confirm", "")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("/firstrun/confirm answered %d on a configured install, want 404 — a "+
+			"credential-writing route must not outlive the wizard", rec.Code)
 	}
 }
 
-// Unticked, nothing about the wizard changes.
-func TestFirstRun2FA_UntickedIsTodaysPathExactly(t *testing.T) {
+// TestTheWizardHasNoWayPastTheSecondFactor asserts that the first-run wizard
+// cannot produce an account without one.
+//
+// It offered a checkbox and a Skip button. An operator who reads nothing and
+// presses the button ended up with a firewall interface reachable over the
+// network behind one argon2id hash, which is the thing 2.18 is for.
+func TestTheWizardHasNoWayPastTheSecondFactor(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=firstrunpassword1&password_confirm=firstrunpassword1"+
-			"&ssh_port=22&ipv6_mode=filter")
-	assertRedirect(t, rec, "/login")
-
-	if s.cfg.IsFirstRun() {
-		t.Fatal("the plain wizard stopped creating the account")
+	// The route is gone, not merely unlinked. An unlinked route is a route.
+	if rec := doFormRequest(s, "POST", "/firstrun/skip", ""); rec.Code != http.StatusNotFound {
+		t.Errorf("POST /firstrun/skip answered %d; the skip route still exists", rec.Code)
 	}
-	if s.cfg.TOTPEnabled() {
-		t.Error("a wizard run with the box unticked enrolled a factor")
+
+	// Nor does omitting the old checkbox get you past it: there is no checkbox
+	// left, and a valid step 1 leads to the TOTP step every time.
+	rec := doFormRequest(s, "POST", "/firstrun",
+		"password="+testPassword+"&password_confirm="+testPassword+
+			"&username=admin&ssh_port=22")
+	body := strings.ToLower(rec.Body.String())
+	if !strings.Contains(body, "totp") && !strings.Contains(body, "authenticator") {
+		t.Error("submitting the wizard did not lead to the second-factor step")
+	}
+	if !s.cfg.IsFirstRun() {
+		t.Error("an account was created before a factor was confirmed")
+	}
+	if s.cfg.TOTPSecret() != "" {
+		t.Error("a secret was stored before the operator confirmed a code")
+	}
+}
+
+// wizardRenderableStrings returns every firstrun_* locale entry for lang — the
+// substrings the wizard can actually put in front of an operator. The
+// totp_clock_* keys are deliberately out of scope: Task 6 owns them, edits
+// them in the same locale files, and a check here would fail on work that is
+// not this test's to police.
+func wizardRenderableStrings(t *testing.T, lang string) map[string]string {
+	t.Helper()
+	out := make(map[string]string)
+	for id, text := range localeStrings(t, lang) {
+		if strings.HasPrefix(id, "firstrun_") {
+			out[id] = text
+		}
+	}
+	return out
+}
+
+// TestTheWizardDoesNotPromiseALaterThatDoesNotExist asserts no string the wizard
+// can render still offers to defer the second factor.
+//
+// Six strings survived the commit that made the factor mandatory, in both
+// locales, each true until that moment. A passing test suite said nothing,
+// because no test reads copy for whether it is still true.
+func TestTheWizardDoesNotPromiseALaterThatDoesNotExist(t *testing.T) {
+	// Substrings that only make sense when declining is possible. English and
+	// German, because a check in one locale is half a check.
+	forbidden := []string{
+		"later under Password",
+		"without a second factor",
+		"password alone",
+		"später unter Passwort",
+		"ohne zweiten Faktor",
+		"nur mit einem Passwort",
+	}
+	for _, locale := range []string{"en", "de"} {
+		for id, text := range wizardRenderableStrings(t, locale) {
+			for _, bad := range forbidden {
+				if strings.Contains(text, bad) {
+					t.Errorf("%s/%s still offers to defer the second factor: %q contains %q",
+						locale, id, text, bad)
+				}
+			}
+		}
 	}
 }

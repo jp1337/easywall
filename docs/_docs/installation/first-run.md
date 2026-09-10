@@ -23,27 +23,24 @@ and nothing else. It asks for two things.
 | Password | at least 12 characters, hashed with Argon2id and a per-password salt |
 | Recovery | **none by design.** No mail, no outside service — see [below](#if-you-lose-the-password) |
 
-**The wizard offers a second factor, unticked by default.**
-
-| Answer | What happens |
-|---|---|
-| Left unticked | the account is created with a password alone, same as before |
-| Ticked | a setup step replaces Finish: the QR code, the typed key and the server's own clock, exactly as on [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}) |
-| On that step, confirmed | the six-digit code is checked; only then is the secret written, together with eight recovery codes shown once |
-| On that step, skipped | the account is still created, with a password alone — skipping is a first-class answer here, not a failure |
+**A second factor is mandatory.** Finish does not create the account — it
+shows a setup step instead: the QR code, the typed key and the server's own
+clock, exactly as on [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}).
+Only a confirmed six-digit code writes the account, together with eight
+recovery codes shown once.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/firstrun-2fa" ext="png"
-     alt="The first-run wizard's setup step: a QR code on a white plate, the typed key and the server's own clock on the left, a field for the six-digit confirmation code and a Confirm button on the right, and below them a Continue without a second factor button." %}
-  <figcaption>Nothing is saved until the code is confirmed — and the escape hatch beneath it is never smaller than the button that saves something.</figcaption>
+     alt="The first-run wizard's setup step: a QR code on a white plate, the typed key and the server's own clock on the left, and a field for the six-digit confirmation code with a Confirm button on the right." %}
+  <figcaption>Nothing is saved until the code is confirmed. There is no way past this step without one.</figcaption>
 </figure>
 
 You need an authenticator app already installed and in hand to confirm it on
 this page. The first run is the moment an operator is least likely to have
 one. It happens mid-installation, on a machine that may not even have a
-browser tab to spare for scanning a QR code. Skipping costs nothing: a second
-factor set up later works exactly the same way, reachable any time after
-signing in on **Password → Second factor**: [Second Factor]({{ '/docs/features/two-factor/' | relative_url }}).
+browser tab to spare for scanning a QR code. There is no way to defer it,
+though: a password with no second factor is exactly the state this release
+makes unreachable, so the wizard does not offer one.
 
 ## First choices — all of them staged
 
@@ -67,21 +64,15 @@ of you, so you can correct it.
 
 ## What happens when you press Finish
 
-**With the second factor left unticked:**
-
-1. The account is written first. From that moment the setup page is closed and
-   `/login` is served instead.
-2. The choices are staged. If the core daemon is not answering, this is the part
-   that fails — and it says so: *"Account created, but the choices could not be
-   staged."* You can sign in and set them by hand.
-3. You land on the sign-in page.
-
-**With it ticked**, Finish does not write the account yet — it shows the setup
-step instead, and the account is written only once that step is confirmed or
-skipped. The choices are staged the same way either time, but the two endings
-differ. **Confirming** lands you on the recovery codes, shown once and never
-again. Sign-in is a deliberate click from there, not a redirect. **Skipping**
-goes straight to the sign-in page, the same as leaving the box unticked.
+1. Finish validates the account fields and the SSH port, then shows the setup
+   step described above — nothing is written yet.
+2. **Confirming** a code writes the account, then stages the first choices, and
+   lands you on the recovery codes: shown once and never again. Sign-in is a
+   deliberate click from there, not a redirect.
+3. If the core daemon is not answering while the choices stage, that is the
+   part that fails, and the recovery-codes page says so: *"Account and second
+   factor created... The initial choices could not be staged."* You can sign in
+   and set them by hand.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/firstrun-codes" ext="png"
