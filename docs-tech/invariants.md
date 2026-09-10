@@ -395,6 +395,36 @@ did not work in the image at all, `podman build` exits 0 while producing
 its name with the `docker/` directory and was missing from `.PHONY`. All three
 were found by trying to measure rather than to assert.
 
+## A certificate really arrives
+
+| Test | Protects | What happened without it |
+|---|---|---|
+| `TestIntegration_ACertificateArrivesOverHTTP01` | ACME issuance works over the wire — a real order, a real HTTP-01 challenge fetched by a real CA, a certificate that verifies for the configured host and is cached to survive a restart — reached through the real `Start()`, not `newACMEManager` and `GetCertificate` called by hand | Prospective, not historical: nothing has shipped this to a real host yet. It exists because everything else asserting ACME's shape had already been green while the wiring was completely broken once — `TestStartWithACMEConfiguredDoesNotPanic`'s own comment (`acme_test.go`) is the record of that Critical, a nil `*tls.ClientHelloInfo` straight into `autocert.Manager.GetCertificate` before the challenge listener ever opened. A unit test can assert that `newACMEManager` builds the right shape, or that a handler answers correctly in isolation; none of them can tell you Pebble's own HTTP-01 request ever reached a live listener, or that the issued leaf verifies for the name that was configured. This is the one test in the repository that asks Pebble instead |
+
+Runs behind the `integration` tag, alongside the core's nftables suite, and
+shares its gate: `EASYWALL_REQUIRE_SELFTEST` turns "no container runtime here"
+from a skip into a failure in CI, for the same reason `skipOrFailUnprovable`
+exists in `internal/core` — a run that proved nothing must not report the same
+green tick as a run that proved the certificate arrived. Pebble and
+`pebble-challtestsrv` run as containers with `--network host`, sharing the
+same network namespace `TestMain`'s own `CLONE_NEWNET` already put the suite
+in, which is also why `podman` is required rather than `docker`: podman forks
+its container directly from the calling process, so `--network host` lands in
+that namespace; `docker` talks to a system-wide daemon outside it. Pinned to
+Pebble `2.7.0`, matching the version `golang.org/x/crypto/acme`'s own
+`pebble_test.go` is written against — current Pebble's `FinalizeOrder` no
+longer sets a `Location` header the client's `CreateOrderCert` relies on to
+poll, a version mismatch this task found by reproducing the identical failure
+against the bare `acme.Client`, bypassing `autocert.Manager` entirely.
+
+Verified by breaking it two ways: pointing the manager's `HostPolicy` at a
+different name, which fails at the CA refusing the wrong host before Pebble is
+ever asked to validate anything; and serving the challenge on the wrong path
+prefix, which fails at issuance once every challenge type has been tried and
+none validated. Also verified that `PEBBLE_VA_ALWAYS_VALID=1` — which must
+never be set here — makes even the second, broken case pass, which is exactly
+why leaving it unset is load-bearing rather than incidental.
+
 ## The technical documentation stays unpublished
 
 `TestTheTechnicalDocsAreNotPublished` asserts that `docs-tech/` is outside `docs/`

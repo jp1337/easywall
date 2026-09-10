@@ -71,7 +71,7 @@ jobs:
           fail_ci_if_error: true
 
   test-integration:
-    name: Integration tests (nftables / CAP_NET_ADMIN)
+    name: Integration tests (nftables / CAP_NET_ADMIN, ACME / Pebble)
     runs-on: ubuntu-24.04
 
     steps:
@@ -88,23 +88,46 @@ jobs:
       - name: Install nftables
         run: sudo apt-get install -y nftables
 
+      # Pulled here, before TestMain's CLONE_NEWNET below, not inside the
+      # test itself: once that namespace exists it has only loopback, and a
+      # container image that still has to be pulled finds no route to
+      # ghcr.io from inside it — see internal/web/acme_integration_test.go's
+      # own package comment for the arrangement this feeds. Pinned to the
+      # same version pebbleImageVersion names there, for the same reason
+      # named there (a Location-header regression between that version and
+      # current Pebble). As root (sudo): rootless and root podman keep
+      # separate storage directories, and the test below also runs under
+      # sudo — a pull done as the runner user would sit in a store the
+      # suite, running as root, never looks in.
+      - name: Pull Pebble images
+        run: sudo podman pull ghcr.io/letsencrypt/pebble:2.7.0 ghcr.io/letsencrypt/pebble-challtestsrv:2.7.0
+
       # Integration tests run in an isolated network namespace created by
       # TestMain via CLONE_NEWNET (requires CAP_SYS_ADMIN = root via sudo).
       # They verify that actual nftables rules are applied correctly to the
       # kernel — something unit-test mocking cannot achieve — and, since 2.13,
       # that the trusted-proxy resolution sees a peer address the kernel
-      # assigned rather than one a test wrote into a struct.
+      # assigned rather than one a test wrote into a struct. Since this task,
+      # ./internal/web/...'s own TestIntegration_ACertificateArrivesOverHTTP01
+      # runs in the same namespace and proves the ACME path the same way: a
+      # certificate arriving from Pebble over a challenge Start() really
+      # served, not a mock standing in for the wire.
       #
-      # The timeout is there to catch a hang, not to police seconds: two
-      # packages now run under it, namespace setup included, and a limit that
-      # trips intermittently costs far more to diagnose than a generous one
-      # costs to wait for.
+      # The timeout is there to catch a hang, not to police seconds: three
+      # provers now run under it (the nftables suite, the core self-test
+      # layer, and Pebble's own issuance round trip, which alone measured up
+      # to 90s against this same job's usual load), and a limit that trips
+      # intermittently costs far more to diagnose than a generous one costs
+      # to wait for.
       #
       # EASYWALL_REQUIRE_SELFTEST is what stops this step being green for a run
       # that measured nothing. 2.17's layer C proves four claims inside a network
       # namespace of its own, and every prover skips politely when it cannot
       # build one — right on a developer's machine, silent here. Measured: with
       # all of them skipping, one of the three parent tests still reports PASS.
+      # The same variable also gates TestIntegration_ACertificateArrivesOverHTTP01's
+      # own precondition, a container runtime — see acme_integration_test.go's
+      # skipOrFailUnprovable.
       #
       # Not for the case of this whole job losing CAP_SYS_ADMIN — TestMain
       # re-execs into CLONE_NEWNET and exits 1 when it cannot, so that day is
@@ -116,8 +139,8 @@ jobs:
       # Passed to sudo as an assignment rather than relying on -E: sudo's default
       # env_reset drops it, and a variable the suite never sees is a gate that
       # does nothing while looking exactly like a gate that works.
-      - name: Integration tests (kernel nftables)
-        run: sudo EASYWALL_REQUIRE_SELFTEST=1 go test -tags integration -v -count=1 -timeout 300s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/... ./internal/web/...
+      - name: Integration tests (kernel nftables, ACME/Pebble)
+        run: sudo EASYWALL_REQUIRE_SELFTEST=1 go test -tags integration -v -count=1 -timeout 480s -coverprofile=coverage-integration.out -covermode=atomic ./internal/core/... ./internal/web/...
 
       # Counted, not just run. Without this the rule builders in nftables.go
       # measured 0% — every one of them is exercised here and nowhere else, so
