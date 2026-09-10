@@ -33,8 +33,7 @@ type passwordPageData struct {
 	Demo  bool
 	// MustEnrol is true when this page is the gate rather than a settings page:
 	// the operator has no second factor and cannot go anywhere else until they
-	// have one. It changes the copy at the top and where a successful enrolment
-	// sends them — to the dashboard they were trying to reach, not back here.
+	// have one. It changes the copy at the top of the page.
 	MustEnrol bool
 	// JustGated is true on the one response that both shows fresh recovery
 	// codes and was the operator's first factor. The codes cannot move to a

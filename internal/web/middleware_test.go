@@ -522,6 +522,13 @@ func TestOnBlockedReportsProxiedWhenTheTrustedPeerNamesNoClient(t *testing.T) {
 // walks: the authenticated group, not the routes that are reachable by design
 // before anyone has signed in.
 //
+// "/" is not excluded: it sits inside the same RequireAuth+RequireSecondFactor
+// group as everything else in server.go, and the gate runs before its handler
+// ever gets to redirect to /dashboard. Excluding it would have hidden a real
+// hole — the gate skipping the one route whose entire body is "go to the page
+// this test exists to protect" — behind a floor number that happened to still
+// be met.
+//
 // /language joins the four routing-table prefixes for the same reason /login
 // and /healthz are already there: r.Group registers it, like them, outside
 // RequireAuth (see server.go — the login page has to be able to change
@@ -530,7 +537,7 @@ func TestOnBlockedReportsProxiedWhenTheTrustedPeerNamesNoClient(t *testing.T) {
 // asserting a behaviour the router never had.
 func isGatedRoute(route string) bool {
 	switch {
-	case route == "/", route == "/language":
+	case route == "/language":
 		return false
 	case strings.HasPrefix(route, "/login"),
 		strings.HasPrefix(route, "/firstrun"),
@@ -596,15 +603,17 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk the router: %v", err)
 	}
-	// 36 gated routes, measured 2026-09-10 with TestZZCountRoutes against this
-	// branch's server.go: the 35 routes chi registers inside the
-	// RequireAuth+RequireSecondFactor group, plus POST /logout, which
+	// 37 gated routes, measured 2026-09-10 with TestZZCountRoutes against this
+	// branch's server.go: the 36 routes chi registers inside the
+	// RequireAuth+RequireSecondFactor group (including the bare "/", whose
+	// entire handler is a redirect to the gated /dashboard, and which the gate
+	// intercepts before that handler ever runs), plus POST /logout, which
 	// isGatedRoute does not exclude (it sits in the public group but is
 	// listed in `allowed` above, on purpose — a way out must never need the
 	// factor it is gating). A floor copied from the plan (15) would have
-	// passed while missing two-thirds of the actual group; a floor above the
-	// real count would fail on every run for no reason.
-	if checked < 36 {
+	// passed while missing most of the actual group; a floor above the real
+	// count would fail on every run for no reason.
+	if checked < 37 {
 		t.Fatalf("only %d gated routes were walked; the walk is not finding the authenticated group", checked)
 	}
 }
