@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -127,16 +128,30 @@ func (s *Server) clearPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 // be used on this installation, or "" when they can.
 //
 // One reason at a time, most fixable first: an operator told all three at
-// once is told none of them usefully. The demo is checked before the
-// hostname because it is the one a running instance can never fix by editing
-// web.toml — there is nothing to point the operator at past "this is the
-// demo".
+// once is told none of them usefully. The demo is checked first because it is
+// the one a running instance can never fix by editing web.toml — there is
+// nothing to point the operator at past "this is the demo". The hostname is
+// checked next because it is a precondition of the third check even mattering:
+// WebAuthn's Relying Party ID has to be a registrable domain before whether a
+// browser trusts the certificate on it is a question worth asking.
+//
+// The third reason is the one this function can name with real certainty
+// despite not knowing what any given browser trusts: an installation with a
+// hostname, no ACME, and no operator-supplied certificate is running on the
+// self-signed pair easywall generates itself (see CustomCertConfigured), and
+// no browser trusts that by default. Leaving this reason unchecked was the
+// exact failure this file's own package comment describes: hostname set,
+// self-signed cert, the button reads enabled, the ceremony fails in the
+// browser with a SecurityError, and the operator sees nothing at all.
 func (s *Server) passkeyUnavailableReason() string {
 	if s.client.IsDemo() {
 		return "passkey_demo"
 	}
 	if s.cfg.Hostname() == "" {
 		return "passkey_no_hostname"
+	}
+	if !s.cfg.ACMEEnabled() && !s.cfg.CustomCertConfigured() {
+		return "passkey_self_signed"
 	}
 	return ""
 }
@@ -356,6 +371,26 @@ func (s *Server) handlePasskeyRemove(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
+
+	// passkeyStore.remove treats an absent id as the desired end state
+	// already reached, which is right for that method — a caller asking to
+	// remove something already gone gets what it wanted. This handler has to
+	// know the difference: a stale page, a resubmitted form, or a bogus id
+	// must not restamp the session and end every other one, or flash success
+	// for a removal that did not happen.
+	found := false
+	for _, pk := range s.passkeys.all() {
+		if bytes.Equal(pk.ID, id) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		s.setFlash(w, r, "passkey_not_found")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
+
 	if err := s.passkeys.remove(id); err != nil {
 		slog.Error("could not remove the passkey", "error", err)
 		s.setFlash(w, r, "internal_error")

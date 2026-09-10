@@ -90,6 +90,16 @@ func (s *Server) webPort() string {
 //
 // Built beside webPort, which already parses bind_addr, rather than a second
 // time.
+//
+// This is the port easywall itself listens on, which is not the same thing
+// as the port a browser used when a reverse proxy sits in front — see
+// docs/_docs/installation/reverse-proxy.md's "Passkeys do not work through
+// this". Reading X-Forwarded-Host to close that gap is deliberately not done
+// here, for the same reason X-Forwarded-For is only ever believed from a
+// listed trusted_proxies entry: there is no equivalent scoping for *which*
+// proxy's X-Forwarded-Host to believe, so accepting it from anyone would let
+// any client claim any origin. Documented as a limitation instead of worked
+// around.
 func (s *Server) publicOrigin() string {
 	origin := "https://" + s.cfg.Hostname()
 	if port := s.webPort(); port != "" && port != "443" {

@@ -118,9 +118,31 @@ function initListCounter(inputId, outId, one, many) {
    Listens for custom events that the server fires via the HX-Trigger
    response header. Shows a small auto-dismissing alert in the toast
    container at the bottom-right of the page. */
-function initHtmxToast() {
+// showToast draws one auto-dismissing alert in the toast container. Shared
+// by the HTMX HX-Trigger listener below and by anything else — the passkey
+// ceremony, chiefly — that needs to tell the operator something failed with
+// no page navigation of its own to carry a flash on.
+function showToast(text, kind) {
   const container = document.getElementById('toast-container');
   if (!container) return;
+  // Map to the alert variants the stylesheet actually defines. There is no
+  // informational variant by design — only firewall state carries colour.
+  const variant = { success: 'alert-ok', error: 'alert-crit', warning: 'alert-warn' }[kind] || '';
+  const el = document.createElement('div');
+  el.setAttribute('role', 'alert');
+  el.className = `alert ${variant} toast-item`.replace(/\s+/g, ' ').trim();
+  el.innerHTML = `<span>${esc(text)}</span>`;
+  container.appendChild(el);
+  // Auto-dismiss after 2.5 seconds. The fade lives in CSS (.is-leaving) —
+  // setting .style.* here would violate style-src 'self'.
+  setTimeout(() => {
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), 300);
+  }, 2500);
+}
+
+function initHtmxToast() {
+  if (!document.getElementById('toast-container')) return;
 
   // Keys match the flashKey values the server sends. The text comes from the
   // locale so a toast is in the same language as the page that raised it.
@@ -138,21 +160,7 @@ function initHtmxToast() {
 
   const show = (key, kind) => {
     const msg = messages[key] || { text: key, kind: kind || 'info' };
-    const k = msg.kind || kind || 'info';
-    // Map to the alert variants the stylesheet actually defines. There is no
-    // informational variant by design — only firewall state carries colour.
-    const variant = { success: 'alert-ok', error: 'alert-crit', warning: 'alert-warn' }[k] || '';
-    const el = document.createElement('div');
-    el.setAttribute('role', 'alert');
-    el.className = `alert ${variant} toast-item`.replace(/\s+/g, ' ').trim();
-    el.innerHTML = `<span>${esc(msg.text)}</span>`;
-    container.appendChild(el);
-    // Auto-dismiss after 2.5 seconds. The fade lives in CSS (.is-leaving) —
-    // setting .style.* here would violate style-src 'self'.
-    setTimeout(() => {
-      el.classList.add('is-leaving');
-      setTimeout(() => el.remove(), 300);
-    }, 2500);
+    showToast(msg.text, msg.kind || kind || 'info');
   };
 
   // We parse the HX-Trigger header manually in htmx:afterRequest. HTMX's
@@ -809,9 +817,13 @@ function initPasskeyEnrol() {
       if (!beginResp.ok) throw new Error('begin failed');
       creation = await beginResp.json();
     } catch (e) {
-      return; // The card already names why, when it is why; a failure past
-               // that is not one this button can explain better than the
-               // page it is already sitting on.
+      // Not the same case the disabled button already covers: the card names
+      // *that* reason before this click handler ever runs. Reaching here
+      // means the button was enabled and the request still failed — a 500,
+      // a dropped connection — and a silent return would read as a dead
+      // click with no explanation at all.
+      showToast(str('passkey_ceremony_failed'), 'error');
+      return;
     }
 
     const options = creation.publicKey;

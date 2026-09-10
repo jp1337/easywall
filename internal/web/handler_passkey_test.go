@@ -1,9 +1,11 @@
 package web
 
 import (
+	"bytes"
 	"encoding/base64"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"testing"
@@ -20,8 +22,21 @@ type passkeyTestOption func(*Server)
 
 // withHostname sets tls.hostname directly on the fixture's config, which is
 // what (*Config).Hostname reads.
+//
+// A non-empty host also marks a certificate as operator-supplied
+// (s.cfg.TLS.CertFile), so passkeyUnavailableReason's self-signed check does
+// not block the ceremony tests this option exists for — they are about the
+// ceremony, not about that check, which has its own dedicated test
+// (TestPasskeysAreRefusedOnASelfSignedCertificate) built without this helper.
+// The empty-hostname fixture is unaffected: the hostname check refuses first
+// regardless of the certificate.
 func withHostname(host string) passkeyTestOption {
-	return func(s *Server) { s.cfg.TLS.Hostname = host }
+	return func(s *Server) {
+		s.cfg.TLS.Hostname = host
+		if host != "" {
+			s.cfg.TLS.CertFile = "test-fixture-cert.pem"
+		}
+	}
 }
 
 // withTOTP enrols a TOTP secret the way SaveTOTP itself does, for the tests
@@ -232,6 +247,26 @@ func TestPasskeysAreRefusedInDemoMode(t *testing.T) {
 	}
 }
 
+// TestPasskeysAreRefusedOnASelfSignedCertificate — a hostname with neither
+// ACME nor an operator-supplied certificate is the self-signed pair easywall
+// generates itself, which no browser trusts by default. Built without
+// withHostname's cert-marking side effect, so nothing here stands in for the
+// check under test.
+func TestPasskeysAreRefusedOnASelfSignedCertificate(t *testing.T) {
+	s := newPasskeyTestServer(t)
+	s.cfg.TLS.Hostname = "firewall.example.org" // no CertFile, ACME left off
+
+	if got := s.passkeyUnavailableReason(); got != "passkey_self_signed" {
+		t.Errorf("reason = %q, want passkey_self_signed", got)
+	}
+
+	resp := s.postAuthed(t, "/password/passkey/begin", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode == 200 {
+		t.Error("the registration ceremony started on a self-signed certificate")
+	}
+}
+
 // TestAPasskeyCanBeEnrolledAndCounts drives a real ceremony with a virtual
 // authenticator and asserts the result satisfies the mandate.
 func TestAPasskeyCanBeEnrolledAndCounts(t *testing.T) {
@@ -267,6 +302,21 @@ func TestAPasskeyCanBeEnrolledAndCounts(t *testing.T) {
 	}
 	if !s.hasSecondFactor() {
 		t.Error("the gate is still closed after a passkey was enrolled")
+	}
+
+	// The stored record is the one this ceremony actually produced — the
+	// credential id the authenticator generated, under the name submitted —
+	// not merely a count. factorCount()==1 alone would pass just as well for
+	// a record holding the wrong id or a name nobody typed.
+	stored := s.passkeys.all()
+	if len(stored) != 1 {
+		t.Fatalf("%d passkeys stored, want 1", len(stored))
+	}
+	if stored[0].Name != "YubiKey on the keyring" {
+		t.Errorf("stored name = %q, want %q", stored[0].Name, "YubiKey on the keyring")
+	}
+	if !bytes.Equal(stored[0].ID, cred.ID) {
+		t.Errorf("stored credential id = %x, want the one the ceremony produced (%x)", stored[0].ID, cred.ID)
 	}
 }
 
@@ -331,5 +381,78 @@ func TestRemovingAPasskeyEndsSessions(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != 303 {
 		t.Error("a session open before the passkey was removed still works")
+	}
+}
+
+// TestTheLastPasskeyCannotBeRemoved is the passkey side of "the last factor
+// cannot be removed" — mayRemoveFactor's own invariant, and the one no
+// existing test actually watched fail here: TestRemovingAPasskeyEndsSessions
+// enrols TOTP specifically so mayRemoveFactor allows the removal, which means
+// it can only ever observe the gate agreeing to act — never refusing. With no
+// other factor enrolled, removing the account's only passkey must be refused.
+func TestTheLastPasskeyCannotBeRemoved(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	id := enrolPasskey(t, s, "the only one")
+
+	resp := s.postAuthed(t, "/password/passkey/remove", map[string]string{
+		"id":               base64.RawURLEncoding.EncodeToString(id),
+		"current_password": testPassword,
+	})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Errorf("remove answered %d, want a redirect", resp.StatusCode)
+	}
+
+	if got := s.passkeys.all(); len(got) != 1 {
+		t.Errorf("%d passkeys remain, want 1 — the account's only factor was removed", len(got))
+	}
+	if n := s.factorCount(); n != 1 {
+		t.Errorf("factorCount() = %d after a refused removal, want 1", n)
+	}
+}
+
+// TestRemovingAnUnknownPasskeyDoesNothing.
+//
+// passkeyStore.remove treats an absent id as the desired end state already
+// reached — reasonable there, since a caller asking to delete something
+// already gone gets what it wanted. The handler has to know the difference:
+// a stale page, a resubmitted form, or a bogus id must not claim success —
+// removing an id that changes nothing about the enrolled set leaves the
+// fingerprint unchanged too, so a wrongly "successful" removal would not
+// even show up as an ended session; the flash is the only place this is
+// observable at all.
+func TestRemovingAnUnknownPasskeyDoesNothing(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"),
+		withTOTP("JBSWY3DPEHPK3PXP")) // a second factor, so mayRemoveFactor is not what refuses this
+	enrolPasskey(t, s, "the real one")
+	before := s.passkeys.all()
+
+	resp := s.postAuthed(t, "/password/passkey/remove", map[string]string{
+		"id":               base64.RawURLEncoding.EncodeToString([]byte("not-a-real-credential-id")),
+		"current_password": testPassword,
+	})
+	defer resp.Body.Close()
+
+	if got := s.passkeys.all(); len(got) != len(before) || got[0].Name != before[0].Name {
+		t.Errorf("the store changed after removing an id it never held: got %v, want %v", got, before)
+	}
+
+	var flashCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == SessionName {
+			flashCookie = c
+		}
+	}
+	if flashCookie == nil {
+		t.Fatal("no session cookie set on the response")
+	}
+	sessReq := httptest.NewRequest("GET", "/", nil)
+	sessReq.AddCookie(flashCookie)
+	sess, err := s.store.Get(sessReq, SessionName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flash, _ := sess.Values["flash"].(string); flash != "passkey_not_found" {
+		t.Errorf("flash = %q, want passkey_not_found — nothing was removed", flash)
 	}
 }

@@ -451,8 +451,41 @@ func TestEnrol_DisableNeedsThePasswordAndNoCode(t *testing.T) {
 	if s.cfg.TOTPEnabled() {
 		t.Error("the correct password did not switch the factor off")
 	}
-	if n := len(s.cfg.RecoveryCodes()); n != 0 {
-		t.Errorf("%d recovery hashes survived disabling", n)
+	// The passkey standing in above is what makes this reachable at all — see
+	// TestEnrol_DisablingKeepsRecoveryCodesWhenAnotherFactorRemains for why the
+	// codes must survive it rather than being wiped, as they were before a
+	// passkey could be the factor left behind.
+	if n := len(s.cfg.RecoveryCodes()); n != recoveryCodeCount {
+		t.Errorf("%d recovery hashes survived disabling, want all %d — a factor is still enrolled to use them with", n, recoveryCodeCount)
+	}
+}
+
+// TestEnrol_DisablingKeepsRecoveryCodesWhenAnotherFactorRemains.
+//
+// mayRemoveFactor only allows switching TOTP off when another factor —
+// necessarily a passkey, since TOTP is the only other kind — is already
+// enrolled. Before a passkey could be that other factor, disabling TOTP
+// always meant disabling the account's only factor, and clearing the
+// recovery codes alongside it was correct: there was nothing left to keep
+// them for. Now it silently voids a printout the operator may still need,
+// while a factor remains enrolled to use it with. The same class of gap as
+// handle2FAConfirm's — see TestEnrol_ConfirmDoesNotReMintCodesWhenItIsNotTheFirstFactor.
+func TestEnrol_DisablingKeepsRecoveryCodesWhenAnotherFactorRemains(t *testing.T) {
+	s := serverWithPassword(t)
+	if err := s.passkeys.add("standing by", webauthn.Credential{ID: []byte("surviving-cred")}); err != nil {
+		t.Fatal(err)
+	}
+	existing := []string{"a-hash-that-must-survive"}
+	if err := s.cfg.SaveTOTP("JBSWY3DPEHPK3PXP", existing); err != nil {
+		t.Fatal(err)
+	}
+
+	assertRedirect(t, doAuthFormRequest(t, s, "/password/2fa/disable", "current_password=currentpassword123"), "/password")
+	if s.cfg.TOTPEnabled() {
+		t.Fatal("the correct password did not switch the factor off")
+	}
+	if got := s.cfg.RecoveryCodes(); len(got) != 1 || got[0] != existing[0] {
+		t.Errorf("recovery codes = %v, want the untouched existing set %v — a passkey is still enrolled", got, existing)
 	}
 }
 

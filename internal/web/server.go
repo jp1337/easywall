@@ -1294,6 +1294,11 @@ var clientStringKeys = []string{
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
 	"totp_copy", "totp_copied", "totp_copy_failed",
+	// Reused from the server-side flash of the same name: the begin request
+	// failing in the browser (a 500, a dropped connection) is the same "that
+	// did not verify, try the same device again" situation the server's own
+	// flash describes when the credential response fails to verify.
+	"passkey_ceremony_failed",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -1371,7 +1376,10 @@ func templateFuncs() template.FuncMap {
 		// is a rule about what may happen next, not a system failure. The
 		// card being switched off is the same shape as demo_readonly above.
 		"passkey_setup_expired": true, "passkey_ceremony_failed": true,
-		"passkey_no_hostname": true, "passkey_demo": true,
+		"passkey_no_hostname": true, "passkey_self_signed": true, "passkey_demo": true,
+		// Nothing was removed — the id named nothing this store still holds —
+		// which is a rule about the request, not a system failure.
+		"passkey_not_found": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

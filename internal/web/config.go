@@ -275,6 +275,20 @@ func (c *Config) ACMEEmail() string {
 	return c.TLS.ACMEEmail
 }
 
+// CustomCertConfigured reports whether the operator supplied their own
+// certificate file, as opposed to leaving TLSConfig's third source — a
+// self-signed pair easywall generates and renews itself — in force. Neither
+// this nor ACMEEnabled tells the server what a particular *browser* trusts;
+// together they are what it can know about itself: a hostname with neither
+// ACME nor an operator-supplied certificate is a self-signed installation,
+// which is the one case passkeyUnavailableReason (handler_passkey.go) can
+// name with certainty.
+func (c *Config) CustomCertConfigured() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.TLS.CertFile != ""
+}
+
 // ACMEDirectory returns the directory URL override; "" means the CA autocert
 // defaults to.
 func (c *Config) ACMEDirectory() string {

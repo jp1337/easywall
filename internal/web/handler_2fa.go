@@ -374,7 +374,15 @@ func (s *Server) handle2FADisable(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
-	if err := s.cfg.SaveTOTP("", nil); err != nil {
+	// The recovery codes are carried through, not cleared: SaveTOTP always
+	// overwrites RecoveryCodes wholesale with whatever it is handed, and mayRemoveFactor
+	// having just passed means a passkey remains enrolled. Passing nil here —
+	// as this line did before a passkey could be the surviving factor, when
+	// disabling TOTP always meant disabling the account's only factor and
+	// there really was nothing left to keep codes for — would silently void
+	// the operator's printout while a factor is still enrolled to use it
+	// with. The same class of gap as handle2FAConfirm's, above.
+	if err := s.cfg.SaveTOTP("", s.cfg.RecoveryCodes()); err != nil {
 		slog.Error("could not switch the second factor off", "error", err)
 		s.setFlash(w, r, "internal_error")
 		http.Redirect(w, r, "/password", http.StatusSeeOther)

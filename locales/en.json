@@ -593,9 +593,11 @@
   {"id": "passkey_name_prompt",  "translation": "What should this one be called?"},
   {"id": "passkey_added",        "translation": "Passkey added."},
   {"id": "passkey_removed",      "translation": "Passkey removed."},
+  {"id": "passkey_not_found",    "translation": "That passkey no longer exists — maybe it was already removed."},
   {"id": "passkey_setup_expired",   "translation": "The setup timed out. Start again."},
   {"id": "passkey_ceremony_failed", "translation": "That did not verify. Try again with the same device."},
   {"id": "passkey_no_hostname",  "translation": "Passkeys need a hostname. easywall is reached by address, and a passkey is tied to a name — set tls.hostname and reach easywall by that name."},
+  {"id": "passkey_self_signed",  "translation": "Passkeys need a certificate a browser trusts. This installation is using one it generated itself — turn tls.acme on, or set tls.cert and tls.key to a certificate from a trusted authority."},
   {"id": "passkey_demo",         "translation": "Switched off in the demo. Anyone can open this page, and a passkey left here would stay."},
 
   {"id": "nav_menu", "translation": "Menu"},
