@@ -251,12 +251,13 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 // that ruling warned against.
 //
 // Reachable only when this would be the operator's first factor
-// (!hasSecondFactor()) — an operator who already has one is not locked out
-// by a failed code here and can simply leave the page — and only once a
-// code has already failed against this pending entry (pendingSecretFailed),
-// with an explicit acknowledgement (ack). Any of the three missing sends the
-// request back to the setup card instead of rewarding it with a stored
-// secret.
+// (!hasSecondFactor(), and never in the demo) — an operator who already has
+// one is not locked out by a failed code here and can simply leave the
+// page, so that case redirects to /password outright rather than rendering
+// anything. Past that guard, it needs a code that has already failed
+// against this pending entry — the failed pendingSecretLookup returns —
+// and an explicit acknowledgement (ack); either one missing re-renders the
+// setup card instead of rewarding the request with a stored secret.
 func (s *Server) handle2FAEnrolUnverified(w http.ResponseWriter, r *http.Request) {
 	if s.hasSecondFactor() || s.client.IsDemo() {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
