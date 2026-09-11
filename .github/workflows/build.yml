@@ -396,21 +396,29 @@ jobs:
       # could not tell those apart. So both are named, the budget covers the
       # install, and a container that has already exited is not waited out for
       # three minutes to be told what its logs said immediately.
-      # 360, not 180 — but the budget was never the real fault, and the first
-      # attempt at this on 2026-09-11 raised it on a misreading: an apt line
-      # from an *earlier step on the runner* was taken for the container's own.
-      # What the container actually printed in six minutes was nothing at all,
-      # which for `apt-get install -y` is impossible unless `apt-get update`
-      # never returned. Hence ForceIPv4 above and the dropped -qq: on these
-      # runners IPv6 to the archive blackholes, and -qq hid it. arm64 passed
-      # the identical recipe throughout, which is what pointed at the network
-      # rather than at the recipe. The wider budget stays because a cold pull
-      # plus a real install genuinely can exceed three minutes.
+      # Two faults, found one at a time on 2026-09-11, and each hid the other.
+      #
+      # IPv6 to the archive blackholes on the amd64 runners, so `apt-get update
+      # -qq` waited out its own timeout and printed nothing — `docker logs` was
+      # empty after six minutes, which for `apt-get install -y` is impossible
+      # unless update never returned. ForceIPv4 above fixes that half, and -qq
+      # is gone so the next stall says where it stopped.
+      #
+      # With the downloads flowing, the install still did not finish inside 360
+      # seconds: the last poll read `offline` — systemctl unpacked, /sbin/init
+      # not yet reached — while the container was visibly still unpacking. So
+      # the budget is too small as well. arm64 does the same work in 1m47s;
+      # this is the amd64 flavour being slow, not the recipe being wrong.
+      #
+      # 900 is a ceiling, not a cost. The loop breaks the moment systemd
+      # answers, so a healthy run pays nothing for the headroom — while a
+      # budget shorter than the install reads exactly like a broken package,
+      # and sends the next person bisecting something that was never broken.
       - name: Assert systemd is actually running before installing anything
         run: |
           set -euo pipefail
           state=""
-          for i in $(seq 1 360); do
+          for i in $(seq 1 900); do
             if [ "$(docker inspect -f '{{.State.Running}}' easywall-test 2>/dev/null || echo false)" != "true" ]; then
               echo "::error::the container exited before systemd came up — the install inside it failed"
               docker logs easywall-test --tail 100 || true
