@@ -24,16 +24,44 @@
 
 ## Dependency graph
 
+**Corrected 2026-09-11 by the pre-flight scan.** An earlier version of this
+graph claimed intra-phase parallelism the file matrix contradicts: `T20 T21 T22
+T24` all write `web/src/docs.css`, `T28 T29 T30` all write
+`docs-tech/invariants.md`, `T8`+`T10` share `netns.go`, `T17`+`T18` share
+`render-changelog.mjs`, `T21`+`T26` share `DESIGN.md`. Two implementers writing
+one file concurrently is a **lost edit**, not a merge conflict — and each of
+those tasks also has a `git checkout <that file>` mutation-revert step, which in
+a shared tree discards a sibling's uncommitted work.
+
+**The unit of parallelism is a file-disjoint batch, not a task.** Tasks sharing
+a written file go into one batch, committed sequentially inside it; batches run
+concurrently, each in its own `git worktree`.
+
 ```
-Phase 1  internal/web tests        T1 T2 T3 T4 T5 T6      ── all parallel, disjoint files
-Phase 2  internal/core + CI        T7 T8 T9 T10 T11 T12 T13 T14
-                                   T8..T11 parallel; T13 before T14 (both edit CI config)
-Phase 3  scripts/ checks           T15 T16 T17 T18 T19    ── T15 before T16 (same file)
-Phase 4  CSS and design            T20 T21 T22 T23 T24 T25 T26
-                                   T20..T24 parallel; T25 LAST in the phase (rebuilds both stylesheets)
-Phase 5  documents                 T27 T28 T29 T30 T31    ── all parallel
-Phase 6  closing                   T32 → T33 → T34        ── strictly sequential
+Phase 1  B1a T1+T4     acme/tlscert + the passkey fixture
+         B1b T2+T3     store & fingerprint pins + the password-floor guard
+         B1c T5+T6     password.html/handler_2fa + the client's wire edge
+Phase 2  B2a T8+T10    netns.go — shared file, sequential inside the batch
+         B2b T7+T9     forward skips + GET_HEALTH's comments
+         B2c T11+T12   the panic CLI + the two audit labels
+         B2d T13→T14   CI config, already ordered
+Phase 3  B3a T17+T18   render-changelog.mjs — shared
+         B3b T15→T16   ui-check.mjs, already ordered
+         B3c T19       the compose healthcheck
+Phase 4  B4a T20+T21+T22+T24+T26   docs.css and DESIGN.md — both shared
+         B4b T23                    app.css only
+         B4c T25                    LAST — owns both stylesheet rebuilds
+Phase 5  B5a T28+T29+T30   invariants.md — shared
+         B5b T27           DESIGN.md
+         B5c T31           CLAUDE.md
+Phase 6  T32 → T33 → T34   strictly sequential, no batching
 ```
+
+**One cross-phase edge: T10 → T13.** T13's Step 4 proves the G115 rule is live
+by mutating `internal/core/netns.go` before `func harnessCollision`, which
+exists only after T10. Run T13 after B2a has landed, or mutate a scratch file
+in the package instead — a fresh implementer seeing a no-op `sed` and no G115
+finding would conclude the rule is not live.
 
 **The one hard ordering rule:** Phase 4 must be complete and its stylesheets rebuilt before **T32 (screenshots)**, because the screenshots photograph what Phase 4 changes. **T33** empties `carried-forward.md` and needs every other task's outcome to be known. **T34** is the only whole-branch verification.
 
@@ -145,7 +173,13 @@ git checkout internal/web/tlscert.go
 # Mutation 2 — stop delegating in GetCertificate
 sed -i '120,121s|if m.acme != nil {|if false { // MUTATION|' internal/web/tlscert.go
 go test ./internal/web/ -run 'TestCertManager_WithACME' 2>&1 | tail -5
-# Expected: FAIL — "a handshake for an unconfigured name was answered with a certificate"
+# Expected: FAIL — but on the SECOND assertion, not the first. With the
+# delegation gone, GetCertificate falls through to tls.LoadX509KeyPair on a
+# path that does not exist and returns "load TLS keypair: ...", so err is
+# non-nil and `if err == nil` never fires. The test goes red on "the refusal
+# does not name the host it refused", which is correct: autocert's host policy
+# is no longer talking. A red run on either line is the mutation being caught —
+# do not "fix" the test because the first message did not appear.
 git checkout internal/web/tlscert.go
 ```
 
@@ -629,7 +663,14 @@ func TestAPasskeyIsEnrolledOnEasywallsOwnDefaultPort(t *testing.T) {
 }
 ```
 
-Fill the ceremony half from the existing test. Do not invent an authenticator API — use exactly what `TestAPasskeyCanBeEnrolledAndCounts` uses.
+Fill the ceremony half from the existing test, with **one deliberate change**:
+`TestAPasskeyCanBeEnrolledAndCounts` hard-codes `Origin: "https://firewall.example.org"`
+(`internal/web/handler_passkey_test.go:352`). On `:12227` the server's
+`RPOrigins` is `https://firewall.example.org:12227`, so copying that line
+verbatim fails origin verification — which is this task's subject, not a
+finding. Write `Origin: "https://firewall.example.org:12227"`.
+
+Everything else is copied unchanged. Do not invent an authenticator API.
 
 - [ ] **Step 3: Run it**
 
@@ -637,7 +678,10 @@ Fill the ceremony half from the existing test. Do not invent an authenticator AP
 go test ./internal/web/ -run TestAPasskeyIsEnrolledOnEasywallsOwnDefaultPort -v
 ```
 
-Expected: PASS. If the ceremony half fails on origin mismatch, that is the finding this task exists to find — read the error before changing the test, and report it rather than adjusting the expectation.
+Expected: PASS. If it fails on origin mismatch, check `Origin` in the copied
+ceremony first — Step 2 names the one line that has to differ from the test it
+was copied from. A mismatch that survives that is a real finding: report it
+rather than adjusting the expectation.
 
 - [ ] **Step 4: Mutate `publicOrigin` and watch it go red**
 
@@ -745,7 +789,12 @@ func TestTheWayOnwardDoesNotDependOnCodesBeingMinted(t *testing.T) {
 	if strings.Contains(body, "recovery-code") {
 		t.Fatal("the codes block rendered with no codes — the fixture is wrong, not the template")
 	}
-	if !strings.Contains(body, `href="/dashboard"`) {
+	// The arrow, not href="/dashboard": base.html:93 carries that link in the
+	// sidebar of every page, so asserting it would pass with or without the
+	// un-nesting — a test green for the wrong reason, in the task whose whole
+	// subject is a flag nothing can observe. &rarr; appears nowhere else on
+	// this page, which is why the sibling test uses it as its discriminator.
+	if !strings.Contains(body, "&rarr;") {
 		t.Error("the gate opened with no recovery codes and the page offers no way onward; " +
 			"JustGated is unobservable without Codes")
 	}
@@ -1100,7 +1149,11 @@ func TestPeerVerdictNeverCallsAHarnessFaultAVerdict(t *testing.T) {
 	}{
 		{"a completed handshake is open", nil, "open"},
 		{"a timeout is the only thing a dropping chain produces", timeoutError{}, "blocked"},
-		{"a refusal is not a drop", syscall.ECONNREFUSED, "failed"},
+		// A refusal is a harness fault on THIS side, unlike inboundCrosses,
+		// where it is positive evidence: there, nothing listens in the peer
+		// namespace; here, the router's listener is bound, so a RST means the
+		// harness did not finish standing itself up.
+		{"a refusal against a bound listener is a harness fault", syscall.ECONNREFUSED, "failed"},
 		{"an unreachable network is the harness", syscall.ENETUNREACH, "failed"},
 		{"an unreachable host is the harness", syscall.EHOSTUNREACH, "failed"},
 		{"anything nobody thought of is the harness", errors.New("something else"), "failed"},
@@ -1178,12 +1231,20 @@ In `internal/core/netns.go`, add beside `RunPeer`:
 ```go
 // peerVerdict maps a dial error to the one word the parent reads.
 //
-// It mirrors inboundCrosses' classification, and for the same reason that
-// comment gives: a timeout is the only thing a dropping chain produces, so it
-// is the verdict `blocked`. Anything else — a refusal, an unreachable network,
-// an ICMP error the kernel turned into EHOSTUNREACH — is the harness, and
-// reporting it as a verdict would let a broken harness record `failed` against
-// a firewall that is working. foldClaims' doc comment forbids exactly that.
+// It does NOT mirror inboundCrosses, and the difference is the point. That
+// side dials a namespace where **nothing listens**, so ECONNREFUSED is a
+// verdict — positive evidence a packet crossed, which is why it returns
+// (true, nil). This side dials the router, where the harness's own listener
+// **is** bound: a refusal there means the SYN arrived and nobody answered,
+// which is the harness failing to set itself up, not the firewall deciding
+// anything. Same rule, opposite conclusion, because the two dials face
+// different ends of the wire.
+//
+// So: a timeout is `blocked`, because a dropping chain can produce nothing
+// else. Everything else — a refusal, an unreachable network, an ICMP error
+// the kernel turned into EHOSTUNREACH — is the harness. Reporting any of them
+// as a verdict lets a broken harness record `failed` against a working
+// firewall, which foldClaims' own doc comment forbids.
 //
 // The reason travels back so the parent can say what happened rather than
 // "not a verdict". It is flattened to one line because the pipe protocol is
@@ -1820,23 +1881,38 @@ func TestPanicTimesOutAndSaysWhatTheMarkerHolds(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ln.Close() })
 	go func() {
+		// Closed in this goroutine's own defer. t.Cleanup must never be called
+		// from here: the goroutine outlives the test function, and a Cleanup
+		// registered after the test returns panics with "Cleanup called after
+		// test finished".
+		var held []net.Conn
+		defer func() {
+			for _, c := range held {
+				_ = c.Close()
+			}
+		}()
 		for {
 			c, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			// Accept and hold: never read, never answer.
-			t.Cleanup(func() { _ = c.Close() })
+			held = append(held, c) // accept and hold: never read, never answer
 		}
 	}()
 
-	cfg := testConfigWithSocket(t, sock) // use this file's own fixture
-	if err := core.EngagePanic(cfg.PanicMarkerPath()); err != nil {
-		t.Fatalf("EngagePanic: %v", err)
+	// writeConfigDir is this file's fixture (subcommands_test.go:68): it writes
+	// an easywall.toml pointing at the socket and returns the data directory,
+	// which is where the panic marker lives — filepath.Join(dir, "panic"), the
+	// path the existing panic tests at :669 and :687 already use.
+	cfgPath, dir := writeConfigDir(t, sock)
+	if err := os.WriteFile(filepath.Join(dir, "panic"), nil, 0o600); err != nil {
+		t.Fatalf("write the panic marker: %v", err)
 	}
 
+	// Driven through runSubcommand, the way every other CLI test in this file
+	// drives it — not by calling runPanic directly.
 	var stdout, stderr bytes.Buffer
-	code := runPanic(cfg, opts{}, &stdout, &stderr)
+	code := runSubcommand("panic", []string{"-config", cfgPath}, &stdout, &stderr)
 
 	if code != exitFailed {
 		t.Errorf("exit code %d, want exitFailed — the command did not complete as asked", code)
@@ -1851,7 +1927,21 @@ func TestPanicTimesOutAndSaysWhatTheMarkerHolds(t *testing.T) {
 }
 ```
 
-Use this test file's own config fixture rather than inventing one; `runPanic`'s signature is `runPanic(cfg *core.Config, _ opts, stdout, stderr io.Writer) int`. A `CommandTimeout(CmdPanic)` of 35 s makes this test slow — check whether the fixture can shorten the deadline; if it cannot, mark the test `t.Parallel()` and say in a comment that it costs 35 s, or drive the branch by calling the reporting helper directly (see Step 2, which extracts one).
+The CLI tests in this file drive through `runSubcommand(name string, args []string, stdout, stderr io.Writer) int` and build their config with `writeConfigDir(t, socketPath) (cfgPath, dir string)` — see `subcommands_test.go:68` and the existing panic tests at `:124`, `:664`. `runPanic`'s own signature is `runPanic(cfg *core.Config, _ opts, stdout, stderr io.Writer) int`, but do not call it directly: nothing else in the file does.
+
+**This test costs 35 seconds** — `CommandTimeout(CmdPanic)` is
+`NftTimeout + defaultCommandTimeout`, and the socket above never answers. That
+is 35 s added to every `go test ./cmd/...`, which is not acceptable for one
+assertion. Take whichever of these the code allows, in order:
+
+1. If the deadline is reachable through the config or a package-level var,
+   shorten it for the test and restore it with `t.Cleanup`.
+2. Otherwise **extract the reporting branch** into a small function —
+   `panicTimeoutReport(cfg *core.Config, err error, stderr io.Writer)` — and
+   test that directly with a synthetic `net.Error` timeout. The branch's logic
+   is the deliverable; driving a real 35 s dial to reach it is not.
+
+Option 2 is the expected answer. Say in the commit message which you took.
 
 - [ ] **Step 2: Implement it**
 
@@ -1911,14 +2001,14 @@ Re-apply Step 2 after the checkout, or stash instead.
 
 - [ ] **Step 4: Document the console behaviour**
 
-`docs/_docs/features/panic-mode.md` (confirm the filename with `ls docs/_docs/features/`) describes what the console command reports. Add the timeout case in one or two short sentences — an operator who sees this message needs to know `status` is the next command, not a second `panic`.
+`docs/_docs/features/recovery.md` — there is no `panic-mode.md`; the console commands are documented there describes what the console command reports. Add the timeout case in one or two short sentences — an operator who sees this message needs to know `status` is the next command, not a second `panic`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 go test ./cmd/... ./internal/... 2>&1 | tail -4
 npm run check:prose 2>&1 | tail -3
-git add cmd/easywall-core/subcommands.go cmd/easywall-core/subcommands_test.go docs/_docs/features/panic-mode.md
+git add cmd/easywall-core/subcommands.go cmd/easywall-core/subcommands_test.go docs/_docs/features/recovery.md
 git commit -m "$(cat <<'MSG'
 fix(cli): a panic that times out reports what the marker holds
 
@@ -1947,7 +2037,7 @@ MSG
 
 Closes *`boot_enforce_failed` reads "at startup"* and *`rollback_skipped`'s label*, both carried since 2.7.
 
-`actionLabel` (`internal/web/server.go:698`) is what the audit filter searches, so the label is the string an operator types. Both are narrower than what the action now covers:
+`actionLabel` (`internal/web/server.go:1055`) is what the audit filter searches, so the label is the string an operator types. Both are narrower than what the action now covers:
 
 | Action | Label today | What it also covers |
 |---|---|---|
@@ -1959,7 +2049,7 @@ Closes *`boot_enforce_failed` reads "at startup"* and *`rollback_skipped`'s labe
 **Files:**
 - Modify: `locales/en.json:244-250`, `locales/de.json:244-250` — `audit_boot_enforce_failed`, `audit_rollback_skipped`
 - Modify: `docs/_docs/features/audit-log.md:33` (the *Reads as* cell), `:38` (the *everything else* row quotes the rollback label verbatim), and the block quote at `:42-45` if the new label makes a sentence redundant
-- Read for context: `internal/core/restore.go:72`, `:133`, `:145`; `internal/core/firewall.go:612-621`, `:660-700`
+- Read for context: **all six sites that write `boot_enforce_failed`** — `internal/core/daemon.go:101`, `internal/core/restore.go:72`, `:133`, `:145`, `:183`, `:311`. `:311` is the substitution path (`action = "boot_enforce_failed"` whatever the caller asked for) and matters most to the wording, because it is where a *teardown* failure becomes this action. And both `rollback_skipped` sites: `internal/core/firewall.go:619`, `:695`
 
 **Interfaces:**
 - Consumes: nothing
@@ -1968,9 +2058,15 @@ Closes *`boot_enforce_failed` reads "at startup"* and *`rollback_skipped`'s labe
 - [ ] **Step 1: Read both write sites before choosing words**
 
 ```bash
-sed -n '66,80p;126,150p' internal/core/restore.go
+grep -n 'boot_enforce_failed' internal/core/*.go | grep -v _test
+sed -n '96,104p' internal/core/daemon.go
+sed -n '66,80p;126,150p;178,190p;280,315p' internal/core/restore.go
 sed -n '608,624p;690,700p' internal/core/firewall.go
 ```
+
+**Six sites, not three.** `restore.go:311` substitutes this action for whatever
+the caller asked for, which is where a *teardown* failure becomes
+`boot_enforce_failed` — the case that makes "at startup" wrong.
 
 The wording has to be true of **every** site that writes the action. This is the step that makes the difference between a fix and a second wrong label.
 
@@ -2519,15 +2615,28 @@ async function checkPortsCatalogue(page) {
       (before ? ` — ${before} were already there from an earlier run` : ''));
     return;
   }
-  // The rows this run added are the last two, not the first two: an earlier
-  // run's rows sit ahead of them.
+  // Measured, not assumed: the catalogue appends — web/static/app.js:255, :293
+  // and :442 all use tbody.appendChild — so this run's rows are the last two.
+  // Selected by their ports as well, because position alone would silently
+  // check an earlier run's row if that ever changes.
   const fresh = added.slice(before);
+  const ports = fresh.map(r => r.port).sort();
+  if (ports.join(',') !== '53,80') {
+    fail('ports catalogue', `the two rows this run added are ports ${ports.join(', ')}, expected 53 and 80`);
+    return;
+  }
   if (!fresh[0].sources.includes('fc00::/7')) {
     fail('ports catalogue', `the private suggestion did not reach the field: "${fresh[0].sources}"`);
   }
 ```
 
 Then read the rest of the function from `:718` and give the `#rules-json` assertion the same treatment — if it also asserts an absolute count or indexes from zero, it has the same defect.
+
+**And check the two other catalogue writers.** `checkPortsRowAgreesWithServer`
+(`scripts/ui-check.mjs:736`) and the block at `:1555` also add catalogue rows,
+so "both runs must pass" may not be achievable by fixing this one function.
+Read both before declaring the task done; if either asserts an absolute count,
+it is in scope here.
 
 - [ ] **Step 2: Prove it by running twice against one server**
 
@@ -2654,7 +2763,13 @@ const linked = new Set(
 );
 
 // 3. Sections on the generated page.
-const sections = (page.match(/<details/g) || []).length;
+//
+// The renderer's own section marker, not every <details>: CHANGELOG.md
+// contains one <details> in prose that the renderer passes through, so
+// counting the tag gives 36 against 35 headings on an unmodified tree.
+// Measured 2026-09-11: `grep -c '<details' docs/_docs/changelog.md` = 36,
+// `grep -c '^## \[' CHANGELOG.md` = 35, `grep -c '<details' CHANGELOG.md` = 1.
+const sections = (page.match(/<summary><strong>/g) || []).length;
 
 const seen = new Set();
 for (const v of headingVersions) {
@@ -2689,7 +2804,15 @@ Count the `Unreleased` heading's treatment against the real file before finishin
 node scripts/check-changelog-versions.mjs
 ```
 
-Expected: it agrees. If it does not, **read the discrepancy before changing the script** — a real mismatch here is exactly what this task exists to surface, and adjusting the checker to match a broken file is the failure mode it is guarding against.
+Expected: it agrees — 35 headings, 35 sections. **Confirm the marker first**, because the count is the whole check:
+
+```bash
+grep -c '^## \[' CHANGELOG.md                    # 35 version headings
+grep -c '<summary><strong>' docs/_docs/changelog.md  # must equal it
+grep -c '<details' docs/_docs/changelog.md        # 36 — one <details> lives in CHANGELOG.md's prose
+```
+
+If the script reports a mismatch, **read the discrepancy before changing it** — a real mismatch is what this task exists to surface, and adjusting the checker to match a broken file is the failure mode it guards against. If `<summary><strong>` is not what the renderer emits, take the marker from `render-changelog.mjs` itself rather than guessing.
 
 - [ ] **Step 3: Prove it against the historical defect**
 
@@ -2871,7 +2994,7 @@ The decision, taken in the spec: **accept a compose-level `healthcheck:` and giv
 
 **Files:**
 - Modify: `docker-compose.yml:60-80` — add the block, rewrite the comment
-- Modify: `internal/shared/healthcheck_definition_test.go` — invert the first assertion into an agreement check
+- Modify: `internal/shared/healthcheck_definition_test.go` — invert the first assertion into an agreement check. **The file imports `"testing"` and nothing else**, and its own comment at `:20-24` forbids the obvious implementation: *"a plain `strings.Contains` over either file would be a checker satisfied by the sentence describing the thing it checks. Nine guards in this release were green for the wrong reason and six failed exactly that way."* Step 1 adds a prose comment to `docker-compose.yml` naming every field — so a `Contains` check would pass on that comment alone. Use `namedOutsideAComment(body, needle string) bool` (`internal/shared/systemd_units_test.go:50`), which is in the same package and exists for exactly this
 - Modify: `docs/_docs/installation/docker.md:78-93` — `--format docker` stops being required for the compose path
 - Read for context: `Dockerfile:150-157` (the values to mirror), `.github/workflows/build.yml`'s health-check job (its coverage narrows — see Step 4)
 
@@ -2955,11 +3078,11 @@ func TestTheContainerHealthCheckHasOneDefinition(t *testing.T) {
 		{"start period", "--start-period=15s", "start_period: 15s"},
 		{"retries", "--retries=3", "retries: 3"},
 	} {
-		if !strings.Contains(dockerfile, f.dockerFlag) {
+		if !namedOutsideAComment(dockerfile, f.dockerFlag) {
 			t.Errorf("the Dockerfile's HEALTHCHECK %s is not %q — and compose still says %q",
 				f.name, f.dockerFlag, f.composeKey)
 		}
-		if !strings.Contains(compose, f.composeKey) {
+		if !namedOutsideAComment(compose, f.composeKey) {
 			t.Errorf("compose's healthcheck %s is not %q — and the Dockerfile still says %q",
 				f.name, f.composeKey, f.dockerFlag)
 		}
@@ -2967,11 +3090,16 @@ func TestTheContainerHealthCheckHasOneDefinition(t *testing.T) {
 
 	// The probe itself: same endpoint, same flags, however the two files spell
 	// the argument list.
+	// namedOutsideAComment throughout, not strings.Contains, for the reason this
+	// file has carried since 2.17: both files argue their case in prose, and
+	// Step 1 adds a compose comment naming every field above. A Contains check
+	// would be satisfied by that comment — "a checker satisfied by the sentence
+	// describing the thing it checks". No new import: the helper is package-local.
 	for _, fragment := range []string{"--no-check-certificate", "https://127.0.0.1:12227/healthz"} {
-		if !strings.Contains(dockerfile, fragment) {
+		if !namedOutsideAComment(dockerfile, fragment) {
 			t.Errorf("the Dockerfile's probe does not contain %q", fragment)
 		}
-		if !strings.Contains(compose, fragment) {
+		if !namedOutsideAComment(compose, fragment) {
 			t.Errorf("compose's probe does not contain %q", fragment)
 		}
 	}
@@ -3068,15 +3196,21 @@ The entry says info is the exception: *"hard-codes `rgba(56,189,248,…)` dark a
 
 | | Dark wash | Light wash | Text |
 |---|---|---|---|
-| `.callout-info` `:1113` | `rgba(56,189,248,…)` | `rgba(2,132,199,…)` | `var(--code-builtin)` |
-| `.callout-warning` `:1128` | `rgba(245,158,11,…)` | — | `var(--code-number)` |
-| `.callout-success` `:1137` | `rgba(16,185,129,…)` | `rgba(5,150,105,…)` | `var(--code-string)` |
+| `.callout-info` `:1113` | `rgba(56,189,248,…)` | `rgba(2,132,199,…)` `:1119` | `var(--code-builtin)` |
+| `.callout-warning` `:1125` | `rgba(245,158,11,…)` | `rgba(217,119,6,…)` `:1131` | `var(--code-number)` |
+| `.callout-success` `:1137` | `rgba(16,185,129,…)` | `rgba(5,150,105,…)` `:1143` | `var(--code-string)` |
+
+**Three light overrides, not two, and warning has one.** An earlier draft of
+this task said warning had none and gave its dark value as the light token —
+which would have shifted the light warning callout in a commit whose message
+says *no visual change*. Read all three override blocks before writing a token.
 
 All three hard-code their wash and edge; all three already tokenise their text. The pattern is uniform, and there is no info-only exception to remove. **The blue stays** — *info* is a state, and *colour means state* does not forbid a state from having a colour. What is worth fixing is the three pairs of literals.
 
 **Files:**
 - Modify: `web/src/docs.css:1113-1148` — the three callouts, and wherever the file's `:root` tokens are declared
-- Read for context: the token block at the top of `docs.css` (find it with `grep -n '^  --' web/src/docs.css | head -30`), and both `[data-theme="easywall-light"]` overrides
+- Modify: `DESIGN.md:1504-1508` — it still carries *"`.callout-info` on the documentation site **still** hard-codes a sky blue"* as an **open question**, under *Design decisions nobody has made yet*. Ruling #4 answers it, and T33 strikes the matching carried entry through; leaving this paragraph would have `DESIGN.md` contradicting `carried-forward.md`. Replace it with the ruling and name the six tokens
+- Read for context: the token block at the top of `docs.css` (find it with `grep -n '^  --' web/src/docs.css | head -30`), and all **three** `[data-theme="easywall-light"]` overrides at `:1119`, `:1131`, `:1143`
 
 **Interfaces:**
 - Produces: six tokens — `--callout-info-wash` / `--callout-info-edge` and the same for `warning` and `success` — declared in the light palette on bare `:root` and overridden in the dark block, matching however `docs.css` already orders its two themes
@@ -3102,8 +3236,8 @@ Add to the token block, keeping the existing literals as the values so **nothing
      what TestNoRetiredHueSurvives exists to catch one palette later. */
   --callout-info-wash: rgba(2,132,199,0.06);
   --callout-info-edge: rgba(2,132,199,0.30);
-  --callout-warning-wash: rgba(245,158,11,0.08);
-  --callout-warning-edge: rgba(245,158,11,0.30);
+  --callout-warning-wash: rgba(217,119,6,0.06);
+  --callout-warning-edge: rgba(217,119,6,0.30);
   --callout-success-wash: rgba(5,150,105,0.06);
   --callout-success-edge: rgba(5,150,105,0.30);
 ```
@@ -3118,9 +3252,13 @@ Add to the token block, keeping the existing literals as the values so **nothing
   }
 ```
 
-and the two `[data-theme="easywall-light"]` callout overrides **are deleted** — the tokens carry the theme now, which is the point.
+and **all three** `[data-theme="easywall-light"]` callout overrides — `:1119`, `:1131`, `:1143` — are deleted, because the tokens carry the theme now.
 
-Read the current values carefully: `.callout-warning` has no light override in the source, so check whether that is deliberate before inventing one. If it has none, give warning the same value in both palettes and say so in a comment rather than quietly changing it.
+Transcribe every value from the file rather than from this plan: the light
+palette gets `rgba(2,132,199,…)`, `rgba(217,119,6,…)` and `rgba(5,150,105,…)`;
+the dark block gets `rgba(56,189,248,…)`, `rgba(245,158,11,…)` and
+`rgba(16,185,129,…)`. Getting one of the six wrong is a silent colour change
+in a commit that claims none — which Step 4 is there to catch.
 
 - [ ] **Step 3: Rebuild and prove nothing moved**
 
@@ -3225,15 +3363,16 @@ Record the number. *482px against 390* is the carried measurement; confirm it st
 
 And in the `pre code` reset:
 
+**Add one declaration to the existing rule — do not retype the rule.** It is
+`docs.css:1768-1774` and carries five declarations; `padding: 0` and
+`font-size: inherit` are what stop the inline chip's `padding: 1px 6px` and
+`font-size: 0.85em` applying inside a `<pre>`, which is the "ragged grey
+rectangles" the comment above it records. Read it, then append:
+
 ```css
-.content-body pre code {
-  background: none;
-  border: none;
-  color: inherit;
   /* A code block scrolls; it does not wrap. A broken command line is a command
      somebody pastes wrong. */
   overflow-wrap: normal;
-}
 ```
 
 - [ ] **Step 3: Verify by rendering, which is the whole point**
@@ -3876,15 +4015,16 @@ So **eleven is the number of modules with parameters**, used twice as the number
 
 | Line | Says | Verdict |
 |---|---|---|
-| `DESIGN.md:744` | *"the options page carries eleven protection-module toggles"* | **wrong — there are 14** |
+| `DESIGN.md:745` | *"the options page carries eleven protection-module toggles"* | **wrong — there are 14** |
+| `DESIGN.md:998` | *"eight ports, four forwards, **eleven switches**"* | **wrong — there are 14.** Run `grep -n eleven DESIGN.md` rather than trusting this table; an earlier draft of it missed this line |
 | `DESIGN.md:1272` | *"the largest cluster of controls in the product — eleven toggles on one page"* | **wrong — there are 14** |
 | `DESIGN.md:1154` | *"fourteen of them took 1700px of scroll"* | **right** |
-| `DESIGN.md:1191` | *"the code coloured eleven"* | unrelated — audit actions, not toggles. **Do not touch** |
+| `DESIGN.md:1191`, `:1193` | *"the code coloured eleven"* | unrelated — audit actions, not toggles. **Do not touch** |
 
 `module-active` is `DESIGN.md:535-540` and carries `borderColor: "{colors.select-edge}"`. `web/src/app.css` marks an enabled module with `box-shadow: inset 2px 0 0` — the same device as the active nav item. Ruling #5: **the code is right and the spec is amended**, because consistency with a shipped pattern beats a token entry nobody implemented.
 
 **Files:**
-- Modify: `DESIGN.md:535-540` (the token entry), `:744`, `:1272` (the two counts)
+- Modify: `DESIGN.md:535-540` (the token entry), `:745`, `:998`, `:1272` (**three** wrong counts — run `grep -n eleven DESIGN.md` first and check each hit yourself)
 - Read for context: `web/src/app.css`'s enabled-module rule (`grep -n 'inset 2px 0 0' web/src/app.css`), and the active nav item rule beside it
 
 **Interfaces:**
@@ -3924,7 +4064,7 @@ Use whatever key name `DESIGN.md` already uses for an inset shadow elsewhere —
 
 - [ ] **Step 3: Fix the two counts, and define the term once**
 
-At `:744`:
+At `:745`:
 
 > …This matters more here than in most products: the options page carries
 > **fourteen** protection-module toggles, and an operator has to be able to see
@@ -3934,6 +4074,11 @@ At `:1272`:
 
 > The protection modules are the largest cluster of controls in the product —
 > **fourteen** toggles on one page, eleven of which carry their own parameters.
+
+At `:998`, in the row-count sentence:
+
+> Most pages here carry few rows — eight ports, four forwards, **fourteen**
+> switches.
 
 Then add one sentence where the modules are first described (`:1152`), so the next reader cannot make the same substitution:
 
@@ -3988,7 +4133,7 @@ Ruling #1: **fold.** The six incident texts move into the *Protects* cell. Three
 
 **Files:**
 - Modify: `docs-tech/invariants.md:106-129`, `:142`, `:166`
-- Also modify: whatever rows Tasks 9, 13, 14, 19, 25, 29 and 30 add or change — **those tasks own their own rows.** This task owns only the two structural defects
+- Also modify: **the rows for every new guard this branch adds.** The spec's §7 requires that *"every new guard from Bucket A is listed in `invariants.md` with the incident that produced it"*, and no earlier task carries that — T1–T6, T8, T10, T11, T17 and T26 add roughly a dozen guards between them and none of their Files blocks names this file. This task runs in Phase 5, after all of them exist, and already owns the file, so the sweep belongs here. Tasks 9, 13, 14, 19, 25, 29 and 30 still own the rows they explicitly write; everything else is yours
 
 **Interfaces:**
 - Produces: nothing
@@ -4047,6 +4192,28 @@ Read both rows in full, then make `:142`'s third cell carry both claims:
 ```
 
 Then delete `:166`. Keep `:142`'s existing sentence verbatim and append; do not paraphrase either claim into a shorter one that loses which release found it.
+
+- [ ] **Step 4a: Add a row for every guard this branch added**
+
+```bash
+git log --oneline main..HEAD
+git diff main..HEAD --stat -- '*_test.go'
+git diff main..HEAD -- '*_test.go' | grep '^+func Test' | sed 's/^+func /  /'
+```
+
+Every new `Test…` that guard list does not already contain gets a row, in the
+section it belongs to, with **the incident that produced it** — which for this
+branch is the carried entry it closes. That is the column this file exists for,
+and a row asserting a guarantee with no incident is the shape Task 28's own
+first half is fixing.
+
+Expect roughly a dozen: the ACME serving and precondition tests (T1), the
+passkey store's mode and the fingerprint digest (T2), the widened password-floor
+guard (T3), the ceremony on `:12227` (T4), `JustGated` (T5), the three
+malformed-reply tests (T6), `peerVerdict`/`interpretPeerLine` (T8), the harness
+collision (T10), the panic timeout (T11), the independent changelog parser
+(T17), and the mark's geometry (T26). Take the list from the diff, not from
+this paragraph.
 
 - [ ] **Step 5: Confirm nothing links to the deleted row**
 
@@ -4165,7 +4332,9 @@ Closes *`TestEveryRuleIsAddedThroughTheRecordingAdder` matches a selector, so a 
 
 `internal/core/nftables_check_test.go:420-440` walks every non-test source in `internal/core` with `go/parser` and refuses a `.conn.AddRule` selector outside `builtRecorder.AddRule`. **Measured: `cn := m.conn` followed by `cn.AddRule(…)` passes it** — there is no `.conn.AddRule` selector left to match, and refusing that needs type resolution rather than syntax, which is a different kind of guard.
 
-It is **not** the shape the finding measured: a copy-paste from pre-`c4dab40` history writes `m.conn.AddRule` and is caught, in any file of the package. `docs-tech/invariants.md` already states the scope as the selector rather than as the intent, so nothing claims more than this. The decision is to leave the guard and put the limit in its own comment — the one place it is currently missing.
+It is **not** the shape the finding measured: a copy-paste from pre-`c4dab40` history writes `m.conn.AddRule` and is caught, in any file of the package. `docs-tech/invariants.md` already states the scope as the selector rather than as the intent, so nothing claims more than this.
+
+**The limit is already in the guard's comment** — `internal/core/nftables_check_test.go:417-419` says it almost word for word. What is wrong there is the pointer: it reads *"What it still does not see **is carried in carried-forward.md**"*, and after T33 that file has no such row. So this task's work is **not** adding a paragraph. It is replacing a pointer that is about to dangle with the ruling that replaced it: measured, declined deliberately, and why.
 
 **Files:**
 - Modify: `internal/core/nftables_check_test.go:415-440` — the guard's doc comment
@@ -4199,7 +4368,15 @@ Record the result. If it now **fails**, the guard has been strengthened since th
 
 - [ ] **Step 2: Put the limit in the guard's comment**
 
-Extend the doc comment above `TestEveryRuleIsAddedThroughTheRecordingAdder`:
+**Replace** `:417-419` — do not append beside it, or the file says the same thing twice. The existing three lines are:
+
+```go
+// What it still does not see is carried in carried-forward.md: `cn := m.conn`
+// followed by `cn.AddRule(…)` has no `.conn.AddRule` selector left to match,
+// and refusing it needs type resolution rather than syntax.
+```
+
+They become:
 
 ```go
 // What this does NOT catch, measured rather than assumed: a local copy of the
@@ -4207,6 +4384,10 @@ Extend the doc comment above `TestEveryRuleIsAddedThroughTheRecordingAdder`:
 // is no `.conn.AddRule` selector left to match. Refusing that needs type
 // resolution rather than syntax — go/types and a full package load, which is a
 // different kind of guard and a much slower test.
+//
+// It was carried in carried-forward.md until 2026-09-11, when that file was
+// emptied; the ruling lives here now, which is where a reader of the guard
+// meets it.
 //
 // Left alone deliberately, and not for lack of time. The shape this exists to
 // catch is a copy-paste from pre-c4dab40 history, which writes `m.conn.AddRule`
@@ -4667,8 +4848,8 @@ Thirteen checks are required on `main` and enforced for administrators. A red ch
 | 17 | G115 excluded globally | T13 |
 | 18 | The spelling gate's scope | T14 |
 | 19 | `ui-check.mjs` does not derive its URL | T15 |
-| 20 | `check:ui` is not re-runnable | T16 |
-| 21 | `checkPortsCatalogue` is not idempotent | T16 (same finding) |
+| 20 | `check:ui` is not re-runnable / `checkPortsCatalogue` is not idempotent — **one finding, recorded twice** in `carried-forward.md` | T16 |
+| 21 | `npm run build:diagrams` is not byte-reproducible | T31 |
 | 22 | `render-changelog.mjs` is renderer and checker | T17 |
 | 23 | The changelog page has no on-page contents | T18 |
 | 24 | `podman build` drops `HEALTHCHECK` | T19 |
@@ -4691,5 +4872,7 @@ Thirteen checks are required on `main` and enforced for administrators. A red ch
 | 41 | The nft mutex is pinned only under `integration` | T29 |
 | 42 | `.opencode/opencode.json` is in the history | T29 |
 | 43 | The recording-adder guard matches a selector | T30 |
-| — | `build:diagrams` is not byte-reproducible | T31 |
-| — | *Every page pays a `GET_STATUS`* (shipped in 2.14, never struck) | T33 |
+| — | *Every page pays a `GET_STATUS`* — shipped in 2.14, never struck through; bookkeeping, not work | T33 |
+
+**43 distinct entries in 43 numbered rows.** Row 20 carries the finding
+`carried-forward.md` records twice; the unnumbered row is the bookkeeping strike.
