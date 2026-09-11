@@ -139,7 +139,7 @@ func TestIntegration_Forward_DockerNetworksAreRouted(t *testing.T) {
 	r := newRouter(t)
 
 	if !r.reachable() {
-		t.Skip("skipping: the two sides cannot reach each other before any firewall exists")
+		skipOrFailUnprovable(t, "the two sides cannot reach each other before any firewall exists")
 	}
 
 	// easywall with Docker coexistence off. The forward chain is closed, which
@@ -177,7 +177,7 @@ func TestIntegration_Forward_RoutingModes(t *testing.T) {
 	r := newRouter(t)
 
 	if !r.reachable() {
-		t.Skip("skipping: the two sides cannot reach each other before any firewall exists")
+		skipOrFailUnprovable(t, "the two sides cannot reach each other before any firewall exists")
 	}
 
 	for _, tc := range []struct {
@@ -232,7 +232,7 @@ func TestIntegration_Forward_DockerCrossesEveryRoutingMode(t *testing.T) {
 	r := newRouter(t)
 
 	if !r.reachable() {
-		t.Skip("skipping: the two sides cannot reach each other before any firewall exists")
+		skipOrFailUnprovable(t, "the two sides cannot reach each other before any firewall exists")
 	}
 
 	docker := shared.DockerConfig{Enabled: true, CustomNetworks: []string{r.netA, r.netB}}
@@ -259,7 +259,7 @@ func TestIntegration_Forward_OneSidedNetworkStillRoutes(t *testing.T) {
 	r := newRouter(t)
 
 	if !r.reachable() {
-		t.Skip("skipping: the two sides cannot reach each other before any firewall exists")
+		skipOrFailUnprovable(t, "the two sides cannot reach each other before any firewall exists")
 	}
 
 	// Only the far side is a Docker network. The ping out of namespace A has a
