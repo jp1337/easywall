@@ -787,19 +787,37 @@ body {
     .page-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
-  /* /ports only. Every page with an aside shares .page-grid/.aside-stack and
-     collapses at the shared 1570px above — moving that breakpoint would
-     relayout the dashboard, blacklist, custom rules and everything else that
-     has never needed it, for a problem that is specific to this one table's
-     own six-column budget. .page-grid-ports carries the same "two classes
-     beat one" idiom .table-reflow already uses on .table: it always wins the
-     cascade over the shared rule (0,0,2,0 beats 0,0,1,0), at every width, so
-     it needs no media query of its own to track if 1570 ever moves. Ports'
-     own aside (port syntax, SSH protection, sources) is worth having, but not
-     worth this table's row width — it collapses under the table
-     unconditionally rather than only below 1570px, the same as every other
-     page still does. */
-  .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
+  /* /ports only, and no longer unconditional.
+     The 2.15 decision was that ports' own aside (port syntax, SSH protection,
+     sources) is "worth having, but not worth this table's row width", and it
+     collapsed at every width. That reasoning was width-blind — it never asked
+     what happens above 1570px.
+     1650px below is PROVISIONAL — not yet confirmed by a render against the
+     running demo — and it cannot be replaced by a better arithmetic estimate
+     instead of a render. Every fixed column here (.col-port, .col-toggle,
+     .col-sources, .col-used, .col-actions) is only ever a hint to
+     table-layout: auto, which redistributes actual column widths from the
+     rendered content rather than honouring a declaration literally (see the
+     comments at :1790 and :1804 two blocks below — a declared 10rem/144px
+     column rendered at 126px there, 18px under what the CSS says). Summing
+     declared widths and subtracting from a viewport figure — the same
+     shortcut that made the shared 1570px breakpoint's own first estimate
+     (~1500px, see two comments up) wrong by 60-plus pixels before a real
+     render corrected it — has no more standing here, and produced a wrong
+     sum in an earlier version of this comment (three of the five fixed
+     columns, undercounting by 216px, plus ignoring this rule's own 16px gap).
+     What a render must establish: the width at which .col-flex can no longer
+     show "PostgreSQL — replication peer" — the longest real description — on
+     one line, with the 320px aside and its 16px gap (line 771) both present.
+     .page-grid-ports still carries the "two classes beat one" idiom
+     .table-reflow uses on .table (0,0,2,0 beats 0,0,1,0): inside this query
+     it wins the cascade only below the threshold, so above it the shared
+     .page-grid rule's own two-column layout applies uncontested — the double
+     class still matters, just now only within the query's range rather than
+     at every width. */
+  @media (max-width: 1650px) {
+    .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
+  }
 
   .page-grid > * { min-width: 0; }
 
