@@ -101,6 +101,11 @@ machine you already have a more physical way to reach.
 rules through `nft`. If it appears to hang, that is almost certainly the wait —
 it is not stuck.
 
+If the daemon does not answer within that wait, `panic` reports the failure. It
+also reads the marker and says what it holds, because the daemon writes the
+marker before it touches the table. The teardown is usually already landing by
+the time the wait runs out. Run `status` next, rather than `panic` again.
+
 ### `resume`
 
 ```
