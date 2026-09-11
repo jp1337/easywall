@@ -315,6 +315,7 @@ func TestRender_NilTemplates(t *testing.T) {
 func TestRender_WithFlash(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
 
 	// First: set a flash via a POST that fails
@@ -345,6 +346,7 @@ func TestRender_WithFlash(t *testing.T) {
 // state where not noticing is the entire problem.
 func TestRender_PanicBannerAppearsOnEveryAuthenticatedPage(t *testing.T) {
 	srv := newTestServerWithStatus(t, &shared.FirewallStatus{Panic: true, Acceptance: shared.AcceptanceIdle})
+	enrollFactor(t, srv)
 
 	for _, path := range []string{"/dashboard", "/ports", "/blacklist", "/log", "/apply"} {
 		t.Run(path, func(t *testing.T) {
@@ -695,6 +697,7 @@ func TestServer_StartStop(t *testing.T) {
 func TestPageDataCarriesTheInstalledVersion(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := getAuthenticated(t, s, "/dashboard")
 	assertStatus(t, rec, http.StatusOK)

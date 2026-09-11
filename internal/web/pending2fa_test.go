@@ -108,13 +108,17 @@ func TestPending_TheServerEnforcesTheShortLifetimeToo(t *testing.T) {
 	}
 }
 
-func TestPending_AForgedCounterIsInvalid(t *testing.T) {
+// The pending cookie is signed, so its contents cannot be edited in flight. What
+// it carries changed in 2.18 — the attempt counter moved to the server and an
+// id took its place — and the signature is what keeps an attacker from minting
+// an id of their own choosing, which would be a fresh budget on demand.
+func TestPending_AForgedCookieIsInvalid(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/login", nil)
-	_ = s.writePending(rec, req, pendingLogin{User: "admin", CredFP: "x", Attempts: 2, IssuedAt: time.Now().Unix()})
+	_ = s.writePending(rec, req, pendingLogin{User: "admin", CredFP: "x", IssuedAt: time.Now().Unix()})
 	c := rec.Result().Cookies()[0]
 
 	// Flip a byte in the middle of the signed value.
@@ -125,7 +129,7 @@ func TestPending_AForgedCounterIsInvalid(t *testing.T) {
 	req2 := httptest.NewRequest("GET", "/login/verify", nil)
 	req2.AddCookie(tampered)
 	if _, ok := s.readPending(req2); ok {
-		t.Error("a tampered pending cookie was accepted; the attempt counter is forgeable")
+		t.Error("a tampered pending cookie was accepted; the pending id is forgeable")
 	}
 }
 
@@ -150,7 +154,7 @@ func TestPending_RoundTrips(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
-	want := pendingLogin{User: "admin", CredFP: "abc123", Attempts: 2, IssuedAt: time.Now().Unix()}
+	want := pendingLogin{User: "admin", CredFP: "abc123", IssuedAt: time.Now().Unix()}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/login", nil)
 	if err := s.writePending(rec, req, want); err != nil {
@@ -163,8 +167,13 @@ func TestPending_RoundTrips(t *testing.T) {
 	if !ok {
 		t.Fatal("a pending state this server wrote does not read back")
 	}
-	if got.User != want.User || got.CredFP != want.CredFP || got.Attempts != want.Attempts {
+	if got.User != want.User || got.CredFP != want.CredFP {
 		t.Errorf("read back %+v, want %+v", got, want)
+	}
+	// Attempts is deliberately not round-tripped: it is not in the cookie. The
+	// id is, and without it the server has nothing to key the count on.
+	if got.ID == "" {
+		t.Error("writePending minted no pending id; the attempt count has nothing to attach to")
 	}
 }
 

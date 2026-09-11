@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
 )
 
@@ -335,7 +336,7 @@ func TestRequireAuth_SessionFromABeforePasswordChangeIsRejected(t *testing.T) {
 	}
 
 	current := oldHash
-	mw := RequireAuth(store, func() string { return credentialFingerprint(current, "") })
+	mw := RequireAuth(store, func() string { return credentialFingerprint(current, "", "") })
 
 	called := false
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -347,7 +348,7 @@ func TestRequireAuth_SessionFromABeforePasswordChangeIsRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
 	sess, _ := store.Get(req, SessionName)
 	sess.Values[SessionUserKey] = "admin"
-	sess.Values[SessionCredentialKey] = credentialFingerprint(oldHash, "")
+	sess.Values[SessionCredentialKey] = credentialFingerprint(oldHash, "", "")
 	if err := sess.Save(req, rec); err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +382,7 @@ func TestRequireAuth_SessionWithoutAFingerprintIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mw := RequireAuth(store, func() string { return credentialFingerprint(hash, "") })
+	mw := RequireAuth(store, func() string { return credentialFingerprint(hash, "", "") })
 
 	called := false
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
@@ -514,5 +515,146 @@ func TestOnBlockedReportsProxiedWhenTheTrustedPeerNamesNoClient(t *testing.T) {
 	}
 	if !blockedProxied {
 		t.Error("onBlocked was given proxied=false for a trusted peer with no usable header, want true")
+	}
+}
+
+// isGatedRoute reports whether route belongs to the set TestTheGateCannotBeWalkedPast
+// walks: the authenticated group, not the routes that are reachable by design
+// before anyone has signed in.
+//
+// "/" is not excluded: it sits inside the same RequireAuth+RequireSecondFactor
+// group as everything else in server.go, and the gate runs before its handler
+// ever gets to redirect to /dashboard. Excluding it would have hidden a real
+// hole — the gate skipping the one route whose entire body is "go to the page
+// this test exists to protect" — behind a floor number that happened to still
+// be met.
+//
+// /language joins the four routing-table prefixes for the same reason /login
+// and /healthz are already there: r.Group registers it, like them, outside
+// RequireAuth (see server.go — the login page has to be able to change
+// language before a session exists), so it is never reached by
+// RequireSecondFactor at all and asserting a gate redirect on it would be
+// asserting a behaviour the router never had.
+func isGatedRoute(route string) bool {
+	switch {
+	case route == "/language":
+		return false
+	case strings.HasPrefix(route, "/login"),
+		strings.HasPrefix(route, "/firstrun"),
+		strings.HasPrefix(route, "/static"),
+		strings.HasPrefix(route, "/healthz"):
+		return false
+	}
+	return true
+}
+
+// TestTheGateCannotBeWalkedPast walks every route the server registers and
+// asserts that an authenticated session without a second factor reaches none
+// of them except the ones enrolment needs.
+//
+// Every route, from the router's own walk — not a list. A test over a list
+// protects the list: the route added next release is not in it, and the test
+// stays green while the gate has a hole.
+func TestTheGateCannotBeWalkedPast(t *testing.T) {
+	s := newFactorTestServer(t, "", 0, false) // no TOTP, no passkey, not demo
+
+	allowed := map[string]bool{
+		"/password":                      true,
+		"/password/2fa/begin":            true,
+		"/password/2fa/confirm":          true,
+		"/password/2fa/enrol-unverified": true,
+		"/password/2fa/disable":          true,
+		"/password/2fa/recovery":         true,
+		"/password/passkey/begin":        true,
+		"/password/passkey/finish":       true,
+		"/password/passkey/remove":       true,
+		"/logout":                        true,
+	}
+
+	var checked int
+	err := chi.Walk(s.router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		// Only the authenticated routes are gated; /login, /firstrun and
+		// /static are reachable by design.
+		if !isGatedRoute(route) {
+			return nil
+		}
+		checked++
+		resp := s.doAuthed(t, method, route)
+		defer resp.Body.Close()
+		// The discriminator is the gate's own header, not "did this answer land
+		// on /password" — an empty-body POST to an enrolment route (a wrong
+		// current_password, a short new one, a confirm with no pending secret)
+		// legitimately redirects to /password too, for reasons that have
+		// nothing to do with the gate. Without the header, every one of those
+		// ordinary validation failures reads as "the gate blocked an allowed
+		// route" and the assertion below cannot tell the two apart.
+		gated := resp.Header.Get("X-Easywall-Gate") != ""
+		switch {
+		case allowed[route]:
+			if gated {
+				t.Errorf("%s %s is needed to enrol and the gate redirected it", method, route)
+			}
+		default:
+			if !gated {
+				t.Errorf("%s %s answered %d (Location %q) with no gate header; an account with no second factor reached it",
+					method, route, resp.StatusCode, resp.Header.Get("Location"))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the router: %v", err)
+	}
+	// 41 gated routes: the 40 routes chi registers inside the
+	// RequireAuth+RequireSecondFactor group — Task 16's own
+	// /password/2fa/enrol-unverified and the three /password/passkey/* routes
+	// (including the bare "/", whose entire handler is
+	// a redirect to the gated /dashboard, and which the gate intercepts
+	// before that handler ever runs), plus POST /logout, which isGatedRoute
+	// does not exclude (it sits in the public group but is listed in
+	// `allowed` above, on purpose — a way out must never need the factor it
+	// is gating). A floor copied from the plan (15) would have passed while
+	// missing most of the actual group; a floor above the real count would
+	// fail on every run for no reason.
+	if checked < 41 {
+		t.Fatalf("only %d gated routes were walked; the walk is not finding the authenticated group", checked)
+	}
+}
+
+// TestTheDemoIsExemptAndNothingElseIs asserts the exemption keys on DemoMode.
+func TestTheDemoIsExemptAndNothingElseIs(t *testing.T) {
+	demo := newFactorTestServer(t, "", 0, true)
+	demoResp := demo.doAuthed(t, "GET", "/dashboard")
+	defer demoResp.Body.Close()
+	if demoResp.StatusCode != 200 {
+		t.Errorf("the demo was gated: /dashboard answered %d", demoResp.StatusCode)
+	}
+
+	real := newFactorTestServer(t, "", 0, false)
+	realResp := real.doAuthed(t, "GET", "/dashboard")
+	defer realResp.Body.Close()
+	if realResp.StatusCode != 303 {
+		t.Errorf("a real installation was not gated: /dashboard answered %d", realResp.StatusCode)
+	}
+}
+
+// TestTheGateOpensAsSoonAsAFactorExists — one factor is the whole condition.
+func TestTheGateOpensAsSoonAsAFactorExists(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		totp     string
+		passkeys int
+	}{
+		{"TOTP", "JBSWY3DPEHPK3PXP", 0},
+		{"a passkey", "", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newFactorTestServer(t, tc.totp, tc.passkeys, false)
+			resp := s.doAuthed(t, "GET", "/dashboard")
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				t.Errorf("/dashboard answered %d with %s enrolled", resp.StatusCode, tc.name)
+			}
+		})
 	}
 }

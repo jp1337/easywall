@@ -18,6 +18,7 @@ func TestHandleBlacklistGET_RequiresAuth(t *testing.T) {
 func TestHandleBlacklistGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{Blacklist: []string{"192.168.1.1"}},
 	}))
@@ -29,6 +30,7 @@ func TestHandleBlacklistGET_Success(t *testing.T) {
 func TestHandleBlacklistGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules error"))
 
 	rec := doAuthRequest(t, s, "GET", "/blacklist", nil)
@@ -46,6 +48,7 @@ func TestHandleBlacklistPOST_RequiresAuth(t *testing.T) {
 func TestHandleBlacklistPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/blacklist", "entries=192.168.1.1%0A10.0.0.1")
@@ -55,6 +58,7 @@ func TestHandleBlacklistPOST_Success(t *testing.T) {
 func TestHandleBlacklistPOST_EmptyEntries(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/blacklist", "entries=")
@@ -64,6 +68,7 @@ func TestHandleBlacklistPOST_EmptyEntries(t *testing.T) {
 func TestHandleBlacklistPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, errorRespFor("save error"))
 
 	rec := doAuthFormRequest(t, s, "/blacklist", "entries=192.168.1.1")

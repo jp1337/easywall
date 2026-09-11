@@ -246,7 +246,7 @@ Two logging switches belong to no module and are set here as well:
 | `session_key` | string | Hex secret that signs the session cookie — `openssl rand -hex 32`, which is 64 characters. Optional: one is generated on first start and written back here if the key is missing, shorter than 32 characters, or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
-| `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this and `recovery_codes` and restart to sign in with the password alone |
+| `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this, `recovery_codes` and `<data_dir>/passkeys.json`, then restart, for password-only sign-in |
 | `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
 | `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of two possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
@@ -344,6 +344,16 @@ Leave both keys empty to use an auto-generated self-signed certificate in `ssl_d
 |---|---|
 | `cert` | Absolute path to a custom TLS certificate PEM file (e.g. Let's Encrypt fullchain) |
 | `key` | Absolute path to the matching private key PEM file |
+| `hostname` | The name this installation is reached by. One field, two consumers: the domain ACME issues for, and the WebAuthn Relying Party ID for passkeys |
+| `acme` | Fetch and renew a certificate automatically via ACME (Let's Encrypt by default). Requires `hostname` and `acme_agree_tos`; mutually exclusive with `cert`/`key` |
+| `acme_email` | Optional contact address the certificate authority sends expiry warnings to |
+| `acme_agree_tos` | Your agreement to the certificate authority's subscriber agreement. Has **no default** — easywall never agrees to a third party's terms on your behalf, so `acme = true` without this set is refused at startup |
+| `acme_directory` | ACME directory URL override. Empty is Let's Encrypt production; point it at a staging endpoint while getting DNS and port 80 right |
+
+`acme = true` also opens a fixed HTTP-01 listener on port 80. See
+[Security → Transport]({{ '/docs/security/' | relative_url }}#transport) for what
+has to be true before it can answer — including the one thing easywall will not
+do for you.
 
 The auto-generated certificate is valid for a year and is replaced once it comes within
 30 days of expiry. That's checked at startup and twice a day while the service runs, so a

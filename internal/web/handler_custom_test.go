@@ -20,6 +20,7 @@ func TestHandleCustomGET_RequiresAuth(t *testing.T) {
 func TestHandleCustomGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Staged: shared.Rules{Custom: []string{"# drop all invalid"}},
 	}))
@@ -31,6 +32,7 @@ func TestHandleCustomGET_Success(t *testing.T) {
 func TestHandleCustomGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("error"))
 
 	rec := doAuthRequest(t, s, "GET", "/custom", nil)
@@ -50,6 +52,7 @@ func TestHandleCustomPOST_RequiresAuth(t *testing.T) {
 func TestHandleCustomPOST_Valid(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	// ValidateCustom returns an empty Errors map (all valid)
 	validateResp, _ := json.Marshal(shared.ValidateCustomResult{Errors: map[int]string{}})
@@ -65,6 +68,7 @@ func TestHandleCustomPOST_Valid(t *testing.T) {
 func TestHandleCustomPOST_ValidationError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	// ValidateCustom returns errors for line index 0
 	errs := map[int]string{0: "syntax error: invalid expression"}
@@ -81,6 +85,7 @@ func TestHandleCustomPOST_ValidationError(t *testing.T) {
 func TestHandleCustomPOST_CoreUnavailable(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	// ValidateCustom fails
 	fc.SetResponse(shared.CmdValidateCustom, errorRespFor("core unavailable"))
@@ -96,6 +101,7 @@ func TestHandleCustomPOST_CoreUnavailable(t *testing.T) {
 func TestHandleCustomPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	validateResp, _ := json.Marshal(shared.ValidateCustomResult{Errors: map[int]string{}})
 	fc.SetResponse(shared.CmdValidateCustom, shared.Response{Success: true, Data: validateResp})
@@ -108,6 +114,7 @@ func TestHandleCustomPOST_CoreError(t *testing.T) {
 func TestHandleCustomPOST_EmptyRules(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	// Empty rules: ValidateCustom skips all (no non-blank/non-comment lines),
 	// returns empty errors map.
@@ -132,6 +139,7 @@ func TestHandleCustomValidate_RequiresAuth(t *testing.T) {
 func TestHandleCustomValidate_AllValid(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	resp, _ := json.Marshal(shared.ValidateCustomResult{Errors: map[int]string{}})
 	fc.SetResponse(shared.CmdValidateCustom, shared.Response{Success: true, Data: resp})
@@ -144,6 +152,7 @@ func TestHandleCustomValidate_AllValid(t *testing.T) {
 func TestHandleCustomValidate_SyntaxErrors(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	resp, _ := json.Marshal(shared.ValidateCustomResult{
 		Errors: map[int]string{0: "syntax error: unknown token"},
@@ -162,6 +171,7 @@ func TestHandleCustomValidate_SyntaxErrors(t *testing.T) {
 func TestHandleCustomValidate_CoreOffline(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdValidateCustom, errorRespFor("core unavailable"))
 
 	rec := doAuthFormRequest(t, s, "/custom/validate", "rules=tcp+dport+22+accept")

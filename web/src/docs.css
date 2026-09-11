@@ -1253,6 +1253,42 @@ html, body {
     color: var(--text-subtle);
   }
 
+  /* The landing strip: three cards below the hero.
+   *
+   * Written as plain CSS rather than @apply because these three are the only
+   * classes docs/index.md brings of its own, and a rule Tailwind never sees in
+   * a template is a rule Tailwind cannot drop. */
+  .docs-landstrip {
+    margin-block: 4rem;
+  }
+
+  .docs-cardgrid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 48rem) {
+    .docs-cardgrid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .docs-card {
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    background: var(--surface);
+  }
+
+  .docs-card > :first-child {
+    margin-top: 0;
+  }
+
+  .docs-card > :last-child {
+    margin-bottom: 0;
+  }
+
 }
 
 /* ── Pagefind's own markup, unlayered on purpose ────────────────────────────

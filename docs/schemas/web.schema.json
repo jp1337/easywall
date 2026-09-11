@@ -66,7 +66,7 @@
     },
     "totp_secret": {
       "type": "string",
-      "description": "Base32 shared secret for the account's second factor, written by the interface. Empty means no factor is enrolled. Clear this and recovery_codes to sign in with the password alone.",
+      "description": "Base32 shared secret for the account's second factor, written by the interface. Empty means no factor is enrolled. Clear this, recovery_codes and <data_dir>/passkeys.json to sign in with the password alone.",
       "default": ""
     },
     "recovery_codes": {
@@ -104,7 +104,7 @@
     },
     "tls": {
       "type": "object",
-      "description": "Custom TLS certificate settings. Leave both fields empty to use an auto-generated self-signed certificate; set both to use your own. Setting only one is rejected at startup.",
+      "description": "TLS settings. Leave cert and key empty to use an auto-generated self-signed certificate; set both to use your own, or set acme to have one issued. Setting only one of cert/key is rejected at startup, as is acme together with either.",
       "additionalProperties": false,
       "dependencies": {
         "cert": ["key"],
@@ -122,6 +122,33 @@
           "description": "Path to a PEM-encoded TLS private key file. Leave empty for auto-generated key.",
           "default": "",
           "examples": ["/etc/letsencrypt/live/example.com/privkey.pem"]
+        },
+        "hostname": {
+          "type": "string",
+          "description": "The name this installation is reached by. Two consumers, one field: it is the domain ACME issues a certificate for, and it is the WebAuthn Relying Party ID for passkeys. Leave empty for an installation reached by IP address — both features are then unavailable.",
+          "default": "",
+          "examples": ["firewall.example.org"]
+        },
+        "acme": {
+          "type": "boolean",
+          "description": "Fetch and renew a TLS certificate automatically via ACME (Let's Encrypt by default). Requires hostname and acme_agree_tos; rejected at startup together with cert/key.",
+          "default": false
+        },
+        "acme_email": {
+          "type": "string",
+          "description": "Optional contact address registered with the certificate authority, used for expiry warnings. Empty registers an account without one.",
+          "default": ""
+        },
+        "acme_agree_tos": {
+          "type": "boolean",
+          "description": "Required when acme is true. Your agreement to the certificate authority's subscriber agreement — easywall does not agree to it on your behalf, so this has no default and must be set explicitly.",
+          "default": false
+        },
+        "acme_directory": {
+          "type": "string",
+          "description": "Overrides the ACME directory URL. Empty is Let's Encrypt production; point this at a staging endpoint while getting DNS and port 80 right.",
+          "default": "",
+          "examples": ["https://acme-staging-v02.api.letsencrypt.org/directory"]
         }
       }
     }

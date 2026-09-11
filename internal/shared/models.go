@@ -385,9 +385,46 @@ type CoreConfig struct {
 }
 
 // TLSConfig controls TLS certificate settings for the web server.
+//
+// Three sources of a certificate, and they are mutually exclusive: nothing set
+// means a self-signed pair easywall generates and renews in ssl_dir; CertFile
+// and KeyFile mean a pair the operator owns and easywall only reloads; ACME
+// means autocert fetches and renews one for Hostname.
 type TLSConfig struct {
 	CertFile string `toml:"cert"` // path to custom cert (empty = auto-generate)
 	KeyFile  string `toml:"key"`  // path to custom key (empty = auto-generate)
+
+	// Hostname is the name this installation is reached by. It has two
+	// consumers and it is one field on purpose: it is the domain ACME issues
+	// for, and it is the WebAuthn Relying Party ID. Two settings that must
+	// agree is one setting that will not.
+	//
+	// Empty is the normal case for an installation reached at
+	// https://192.168.1.10:12227, and it means both features are unavailable
+	// rather than misconfigured.
+	Hostname string `toml:"hostname"`
+
+	// ACME turns on certificate issuance through Let's Encrypt (or whatever
+	// ACMEDirectory names). HTTP-01 only, which means a listener on port 80 —
+	// see internal/web/acme.go.
+	ACME bool `toml:"acme"`
+
+	// ACMEEmail is optional and reaches the CA, which uses it for expiry
+	// warnings. Empty registers an account without one.
+	ACMEEmail string `toml:"acme_email"`
+
+	// ACMEAgreeTOS is the operator agreeing to the CA's subscriber agreement.
+	// Required, and deliberately not defaulted: autocert.AcceptTOS would make
+	// easywall accept a third party's legal terms for somebody who never read
+	// them.
+	ACMEAgreeTOS bool `toml:"acme_agree_tos"`
+
+	// ACMEDirectory overrides the directory URL. Empty is Let's Encrypt
+	// production. Its reason for existing is the Pebble integration test; an
+	// operator may also point it at the staging endpoint while getting the
+	// DNS and the port right, which is the friendlier way to hit the rate
+	// limit that exists for exactly that mistake.
+	ACMEDirectory string `toml:"acme_directory"`
 }
 
 // WebConfig is the full configuration for easywall-web.

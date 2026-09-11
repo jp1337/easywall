@@ -48,6 +48,7 @@ func backdatedCookie(t *testing.T, c *http.Cookie, key string, age time.Duration
 func TestSessionIsRefusedOnceItIsOlderThanItsLifetime(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	const key = "test-session-key-32bytes-padding!"
 
 	fresh := makeAuthCookie(t, s)
@@ -79,6 +80,7 @@ func TestSessionIsRefusedOnceItIsOlderThanItsLifetime(t *testing.T) {
 func TestLogoutSurvivesTheRevocationRecordExpiring(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	const key = "test-session-key-32bytes-padding!"
 
 	cookie := makeAuthCookie(t, s)

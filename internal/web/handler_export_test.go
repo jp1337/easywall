@@ -25,6 +25,7 @@ func TestHandleExport_RequiresAuth(t *testing.T) {
 func TestHandleExport_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	exportedRules := shared.Rules{
 		TCP: []shared.PortRule{{Port: "22", Description: "SSH"}},
@@ -52,6 +53,7 @@ func TestHandleExport_Success(t *testing.T) {
 func TestHandleExport_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdExportRules, errorRespFor("export failed"))
 
 	rec := doAuthRequest(t, s, "GET", "/export", nil)
@@ -69,6 +71,7 @@ func TestHandleImport_RequiresAuth(t *testing.T) {
 func TestHandleImport_NoFile(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	cookie := makeAuthCookie(t, s)
 	req := httptest.NewRequest("POST", "/import", strings.NewReader("no_file_field=true"))
@@ -82,6 +85,7 @@ func TestHandleImport_NoFile(t *testing.T) {
 func TestHandleImport_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdImportRules, shared.Response{Success: true})
 
 	var buf bytes.Buffer
@@ -111,6 +115,7 @@ func TestHandleImport_Success(t *testing.T) {
 func TestHandleImport_AcceptsAFileLargerThanTheGlobalBodyLimit(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdImportRules, shared.Response{Success: true})
 
 	blacklist := make([]string, 6000)
@@ -154,6 +159,7 @@ func TestHandleImport_AcceptsAFileLargerThanTheGlobalBodyLimit(t *testing.T) {
 func TestHandleImport_RejectsAnOversizedFileWithASizeMessage(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
@@ -182,6 +188,7 @@ func TestHandleImport_RejectsAnOversizedFileWithASizeMessage(t *testing.T) {
 func TestHandleImport_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdImportRules, errorRespFor("invalid rules"))
 
 	var buf bytes.Buffer

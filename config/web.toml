@@ -101,9 +101,12 @@ password = ""  # argon2id hash, set by the first-run wizard
 # recovery_codes holds the argon2id hashes of the eight one-time codes — never
 # the codes themselves, which are shown once and cannot be read back.
 #
-# Locked out with the phone gone and the codes gone? Empty both lines here and
-# restart easywall-web: the password alone signs you in again. That is the whole
-# way back, and it is the same file the password lives in on purpose.
+# Locked out with the phone gone and the codes gone? Three things to clear, not
+# two, and no longer all of them in this file: empty both lines below, delete
+# passkeys.json in data_dir (set at the top of this file — /var/lib/easywall by
+# default), then restart easywall-web. The password alone signs you in again.
+# A passkey left behind is a second factor of its own: it still sends you to
+# /login/verify, where the browser may refuse to offer it at all.
 totp_secret    = ""
 recovery_codes = []
 
@@ -111,4 +114,40 @@ recovery_codes = []
 # Leave empty to use an auto-generated self-signed certificate in ssl_dir.
 # For Let's Encrypt or custom certs, set paths here:
 cert = ""
-key  = ""
+key = ""
+
+# The name this installation is reached by, e.g. "firewall.example.org".
+#
+# Two things use it and it is one setting on purpose:
+#   - ACME below issues a certificate for it
+#   - passkeys use it as the WebAuthn Relying Party ID
+#
+# Leave it empty if you reach easywall at an address like
+# https://192.168.1.10:12227. Both features are then unavailable, and the
+# interface says so rather than failing at the moment you try.
+hostname = ""
+
+# Fetch and renew a certificate automatically (Let's Encrypt by default).
+#
+# Three things have to be true, and easywall does none of them for you:
+#   1. hostname above resolves to this host from the public internet
+#   2. this host answers on port 80 — the service unit needs
+#      AmbientCapabilities=CAP_NET_BIND_SERVICE, which the package sets
+#   3. port 80 is open in your own easywall rules. easywall will not open a
+#      port by itself; the System page tells you whether it is open.
+acme = false
+
+# Optional. The certificate authority sends expiry warnings here.
+acme_email = ""
+
+# Required when acme = true. Issuing a certificate means agreeing to the
+# certificate authority's subscriber agreement:
+#   https://letsencrypt.org/repository/
+# easywall does not agree to it for you.
+acme_agree_tos = false
+
+# Directory URL override. Empty is Let's Encrypt production. Point this at
+#   https://acme-staging-v02.api.letsencrypt.org/directory
+# while you are getting the DNS and the port right — production has a rate
+# limit that exists for exactly that mistake.
+acme_directory = ""

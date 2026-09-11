@@ -98,6 +98,25 @@ their presence alone says something forwarded this, even though what they say
 is never read. From a listed proxy they mark nothing at all: only
 `X-Forwarded-For` decides there, which is why step 1 sets exactly that header.
 
+## Passkeys do not work through this
+
+The example above has nginx on 443, forwarding to easywall's own
+`https://127.0.0.1:12227`. The browser sees port 443. easywall sees `:12227`
+— the only port it runs on. WebAuthn binds a passkey to the exact origin the
+browser used, so the two disagree and every ceremony fails.
+
+`X-Forwarded-Host` would tell easywall what the browser saw, and it is
+refused. `X-Forwarded-For` is only ever believed from a proxy on
+`trusted_proxies`; nothing scopes *which* proxy's `X-Forwarded-Host` to
+believe the same way, so this interface reads it from no one.
+
+Two ways out, both outside this page's scope. Point a browser at easywall
+directly on 443, with no proxy in front. `tls.acme` exists for exactly this as
+of this release, and removes the reason to run a proxy for the certificate
+alone. Or accept that passkeys are one more thing this configuration does not
+offer, the way `trusted_proxies` already is for the audit log and the login
+limiter. The password-plus-TOTP factor is unaffected either way.
+
 ## When it does not work
 
 | Symptom | Cause |
@@ -106,6 +125,7 @@ is never read. From a listed proxy they mark nothing at all: only
 | easywall refuses to start | An entry that is neither an address nor a CIDR network. The message names it |
 | The lockout warning on Apply is wrong | Same cause: the verdict is computed for the address easywall resolved |
 | It worked, then stopped | A container was recreated and took a new address. Fix the address, not the list |
+| The passkey card is enabled but every ceremony fails | The origin mismatch above — see *Passkeys do not work through this* |
 
 **Next:** [Configuration]({{ '/docs/configuration/' | relative_url }}) ·
 [Security]({{ '/docs/security/' | relative_url }})

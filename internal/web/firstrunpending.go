@@ -41,6 +41,13 @@ type pendingFirstRun struct {
 	PasswordHash string // argon2id, computed once in step 1
 	Secret       string // base32, unconfirmed
 	Issued       time.Time
+
+	// Failed is whether a submitted code has ever missed against this entry.
+	// It gates the recovery-code escape on the setup step: offered from the
+	// first render, a board whose clock happens to be fine would still see it
+	// and it would be the path of least resistance instead of the escape hatch
+	// it is. See firstRunPendingMarkFailed and handleFirstRunRecover.
+	Failed bool
 }
 
 // firstRunPending holds them, keyed by the id in the session.
@@ -97,6 +104,27 @@ func firstRunPendingLookup(id string) (pendingFirstRun, bool) {
 		return pendingFirstRun{}, false
 	}
 	return p, time.Since(p.Issued) <= firstRunPendingLifetime
+}
+
+// firstRunPendingMarkFailed records that a submitted code missed against id,
+// so the next render of the setup step offers the recovery-code escape.
+//
+// Guarded against reviving an entry already past its lifetime, the same way
+// firstRunPendingRefresh is: a request arriving on an id whose ten minutes
+// are already up should find nothing here, not get a second wind.
+func firstRunPendingMarkFailed(id string) {
+	if id == "" {
+		return
+	}
+	firstRunPending.mu.Lock()
+	defer firstRunPending.mu.Unlock()
+
+	p, ok := firstRunPending.at[id]
+	if !ok || time.Since(p.Issued) > firstRunPendingLifetime {
+		return
+	}
+	p.Failed = true
+	firstRunPending.at[id] = p
 }
 
 func firstRunPendingClear(id string) {

@@ -21,6 +21,7 @@ func TestHandleApplyGET_RequiresAuth(t *testing.T) {
 func TestHandleApplyGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Active:     true,
 		Acceptance: shared.AcceptancePending,
@@ -34,6 +35,7 @@ func TestHandleApplyGET_Success(t *testing.T) {
 func TestHandleApplyGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, errorRespFor("status error"))
 
 	rec := doAuthRequest(t, s, "GET", "/apply", nil)
@@ -51,6 +53,7 @@ func TestHandleApplyStart_RequiresAuth(t *testing.T) {
 func TestHandleApplyStart_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdApplyRules, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/apply/start", "")
@@ -60,6 +63,7 @@ func TestHandleApplyStart_Success(t *testing.T) {
 func TestHandleApplyStart_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdApplyRules, errorRespFor("apply failed"))
 
 	rec := doAuthFormRequest(t, s, "/apply/start", "")
@@ -77,6 +81,7 @@ func TestHandleApplyConfirm_RequiresAuth(t *testing.T) {
 func TestHandleApplyConfirm_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdAccept, successResp(shared.AcceptResult{Accepted: true}))
 
 	rec := doAuthFormRequest(t, s, "/apply/confirm", "")
@@ -90,6 +95,7 @@ func TestHandleApplyConfirm_Success(t *testing.T) {
 func TestHandleApplyConfirm_TooLateSaysSoInsteadOfClaimingSuccess(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdAccept, successResp(shared.AcceptResult{Accepted: false}))
 
 	rec := doAuthFormRequest(t, s, "/apply/confirm", "")
@@ -115,6 +121,7 @@ func TestHandleApplyConfirm_TooLateSaysSoInsteadOfClaimingSuccess(t *testing.T) 
 func TestHandleApplyConfirm_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdAccept, errorRespFor("accept error"))
 
 	rec := doAuthFormRequest(t, s, "/apply/confirm", "")
@@ -132,6 +139,7 @@ func TestHandleApplyStatus_RequiresAuth(t *testing.T) {
 func TestHandleApplyStatus_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Active:     true,
 		Acceptance: shared.AcceptancePending,
@@ -157,6 +165,7 @@ func TestHandleApplyStatus_Success(t *testing.T) {
 func TestHandleApplyStatus_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, errorRespFor("status unavailable"))
 
 	rec := doAuthRequest(t, s, "GET", "/apply/status", nil)
@@ -175,6 +184,7 @@ func TestHandleApplyStatus_CoreError(t *testing.T) {
 func TestHandleApplyStart_PanicEngagedSaysSoInsteadOfGenericFailure(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdApplyRules, errorRespFor(shared.ErrPanicEngagedText))
 
 	rec := doAuthFormRequest(t, s, "/apply/start", "")
@@ -199,6 +209,7 @@ func TestHandleApplyStart_PanicEngagedSaysSoInsteadOfGenericFailure(t *testing.T
 func TestHandleApplyGET_ListsWhatChanges(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Active: true, Acceptance: shared.AcceptanceIdle, HasPending: true,
@@ -234,6 +245,7 @@ func TestHandleApplyGET_ListsWhatChanges(t *testing.T) {
 func TestHandleApplyGET_TheVerdictNamesTheOperatorsOwnAddress(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
@@ -266,6 +278,7 @@ func TestHandleApplyGET_TheVerdictNamesTheOperatorsOwnAddress(t *testing.T) {
 func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Acceptance: shared.AcceptancePending, HasPending: false,
@@ -298,6 +311,7 @@ func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 func TestHandleApplyGET_BlockedVerdictSwapsTheButton(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
@@ -324,6 +338,7 @@ func TestHandleApplyGET_BlockedVerdictSwapsTheButton(t *testing.T) {
 func TestHandleApplyGET_AnUnrecordedSnapshotSaysSo(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
@@ -348,6 +363,7 @@ func TestHandleApplyGET_AnUnrecordedSnapshotSaysSo(t *testing.T) {
 func TestHandleApplyGET_UnreadableRulesSaysSoRatherThanVanishing(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules unavailable"))
@@ -365,6 +381,7 @@ func TestHandleApplyGET_UnreadableRulesSaysSoRatherThanVanishing(t *testing.T) {
 func TestHandleApplyGET_UnreadableOptionsSaysSoRatherThanVanishing(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{

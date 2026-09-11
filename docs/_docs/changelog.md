@@ -16,6 +16,223 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <details open markdown="1">
+<summary><strong>2.18.0</strong> · 2026-09-11 — A password alone is not enough</summary>
+
+easywall has had a second factor since 2.8, and it has been a checkbox. An
+operator who reads nothing and presses the button ends up with a firewall
+interface on the network behind one argon2id hash. After this release a second
+factor is a precondition for using the interface, on every installation but the
+public demo.
+
+Making something mandatory is only defensible if the good version of it is
+available. So the release also brings the two things standing between an
+ordinary installation and a passkey: a certificate a browser believes, and
+WebAuthn itself.
+
+### The mandate
+
+- **The upgrade locks nobody out.** `RequireSecondFactor` runs after
+  `RequireAuth`, never instead of it. The password still grants a session, and
+  an operator with no factor is then sent to `/password` — where enrolment
+  already lived — rather than refused at the login form. Until a factor exists,
+  that page, the enrolment routes, `/logout` and `/static/` are all that
+  answer. An operator whose only route to their host is this interface must
+  never be shut out of it by an upgrade; that is the direction 2.7 exists to
+  prevent. There is no *remind me later*, because the version of this with one
+  is the version nobody ever passes through.
+- **Demo mode is the one exemption.** The demo account belongs to nobody, and
+  the point of the demo is that every control can be pressed.
+- **Everyone is signed out exactly once.** `credentialFingerprint` goes
+  v2 → v3: it now covers the enrolled passkeys too, without which removing a
+  lost device's passkey would leave every session it had already opened
+  running. So every session in flight across the upgrade ends. One sign-in
+  after upgrading is this change, not a fault — the same thing the v1 → v2
+  change did in 2.8.
+- **The last factor cannot be removed.** `handle2FADisable` used to succeed
+  unconditionally, which under a mandate is the back door beside the locked
+  front one. One predicate now answers for both removal routes, because a rule
+  written twice is a rule whose copies come to disagree. Recovery codes
+  deliberately do not count toward it: they are what is left when both factors
+  are gone, not a factor.
+- **The wizard has no skip.** `handleFirstRunSkip` is deleted and
+  `/firstrun/skip` answers 404 — an unlinked route is still a route. The escape
+  it leaves behind is recovery codes, not a bypass. A server clock too far out
+  for any code to verify used to cost the account entirely; the wizard now
+  writes the account with the secret already on screen, plus eight codes. Fix
+  the clock afterwards and the authenticator already paired keeps working.
+- **Recovery codes are minted at the first factor, whichever it is**, and only
+  the first. An account whose single factor is a passkey on a lost phone must
+  not be an account with no way back, and re-minting at the second would
+  invalidate a printout the operator already holds.
+- **A password needs twelve characters, a digit and a symbol.** Twelve has been
+  the rule since the wizard existed and it accepted twelve lower-case letters —
+  a rule about effort rather than about strength. A symbol is any rune that is
+  neither a letter nor a digit, rather than a list of accepted punctuation. A
+  list rejects `§`, `€` and an en dash, which are no weaker. It also rejects a
+  space, which would punish a passphrase for being one. Counted in runes, since
+  `len()` would take six umlauts for twelve characters. Not configurable — a
+  minimum somebody can lower is not a minimum.
+
+### The certificate
+
+- **ACME, at the cost of no new dependency.** `autocert` was already in the
+  module graph, because `x/crypto` is direct for argon2. `certManager` gains it
+  as a third source beside the self-signed pair it generates and the pair an
+  operator supplies; `ensure()` and `maintain()` stay empty for it, because a
+  certificate a certificate authority issued is not easywall's to renew.
+- **HTTP-01 only.** TLS-ALPN-01 must be served on 443, which easywall does not
+  listen on and which is usually taken on a host with a domain pointed at it.
+  DNS-01 wants the DNS provider's API credentials in `web.toml`, and a token
+  that can take over the domain is not going in a config file. One challenge
+  type, one port.
+- **The challenge listener stays up**, not only during issuance — autocert
+  renews at a time it chooses, and a listener raised for the first issuance is
+  down for every renewal after it. Everything other than
+  `/.well-known/acme-challenge/` gets a 404, deliberately not autocert's own
+  handler, whose redirect points at `https://host/` on 443 where easywall is
+  not.
+- **Port 80 has to be open in easywall's own rules, and easywall will not open
+  it.** A firewall program that opens a port on its own initiative contradicts
+  the whole design. It looks instead, and says: `/system` reads the current
+  rule set and reports open, restricted, not covered, or unknown when the core
+  cannot be asked. Four states and not two, because a range can cover 80
+  without saying "80", and a covering rule's sources can still keep a
+  certificate authority out.
+- **easywall does not accept a certificate authority's terms for anybody.**
+  `acme = true` without `acme_agree_tos = true` is refused at startup, with the
+  setting named in the message. `acme` together with `cert`/`key` is refused in
+  the same shape `cert` without `key` already was: two answers to one question
+  is a bug waiting to be found in production.
+- **`AmbientCapabilities=CAP_NET_BIND_SERVICE`** on `easywall-web.service`,
+  granted by systemd at exec rather than acquired by the process, so it
+  composes with `NoNewPrivileges=yes`. It is a genuinely new option for a
+  compromised web process — any free port below 1024, for squatting or
+  phishing — and `threat-model.md` now says so. It opens no path to netlink.
+
+### Passkeys
+
+- **A passkey is the second step and never the first.** The ceremony sits at
+  `/login/verify` as an alternative to the code field, not at `/login`, so a
+  stolen authenticator is not a login to a firewall. A failed assertion pays
+  into the same attempt budget a wrong code does.
+- **Two conditions, and both must hold.** WebAuthn requires a registrable
+  domain name as its Relying Party ID and rejects a bare IP address. That is
+  `hostname` in `[tls]`, the same value ACME uses — two settings that must
+  agree are one setting that will not. And since Chrome 110, WebAuthn is
+  refused on any origin with a certificate error. That is every default
+  installation, because easywall generates its own self-signed pair. This is
+  why ACME travels in this release rather than a later one.
+- **The two screens answer an unmet condition differently, on purpose.** At
+  `/login/verify` the button is absent: a sign-in screen offering a control
+  that cannot work is a dead end for somebody who only wants in. On
+  `/password` the card is rendered with its button disabled, and names which
+  of the three things is in the way — no hostname, a certificate no browser
+  trusts, or the demo — because that is the page an operator goes to in order
+  to change it, and "unavailable" would not tell them what.
+- **Several passkeys, each with a name and an enrolment date**, held in
+  `passkeys.json` under `data_dir` rather than in `web.toml`: the signature
+  counter is written on every login, and a config file is something a human
+  edits.
+- **A cloned authenticator is refused.** go-webauthn reports `CloneWarning`
+  when an assertion's signature counter did not advance past what the
+  credential last reported. It was persisted and never read, so a cloned device
+  or a replayed response verified and was granted a session. It is now a
+  failed attempt and an audit event of its own, `passkey_clone_suspected`,
+  distinct from a plain verification failure. Authenticators that report a
+  counter of zero forever, which is most platform and synced passkeys, can
+  never trip it, so the fix costs the common case nothing. Four events are new
+  in all: `passkey_used`, `passkey_enrolled`, `passkey_removed` and that one.
+- **The same authenticator cannot be enrolled twice.** Registration was begun
+  with no exclusion list, so one physical key could become two named entries.
+  The mandate, and the rule that the last factor cannot be removed, would both
+  have rested on a number that overstated the real redundancy.
+
+### Fixed
+
+- **An account whose only factor was a passkey was signed in by the password
+  alone.** `handleLoginPOST` decided whether a second step existed by reading
+  the TOTP secret, which a passkey-only account does not have. It asks the
+  factor count now, the same predicate the gate uses.
+- **The documentation landing page rendered as unstyled prose at full page
+  width.** `.docs-landstrip`, `.docs-cardgrid` and `.docs-card` are in
+  `docs/index.md` and were in neither stylesheet. It is the first page a
+  stranger sees, and it survived two releases because
+  `TestTemplateClassesExistInStylesheet` read `web/templates/` and `app.js`
+  only. The stylesheet is the small half; widening the guard to `docs/` is the
+  half that stops the next one.
+- **`/system` had two buttons named `Save system settings`.** Each says which
+  section it saves, and the guard reads the rendered page rather than the
+  template, so a label moved into a partial is still caught.
+
+### Found by review, and fixed here
+
+Four parallel reviewers were pointed at this release. Two of the five findings
+predate it; they are fixed anyway, because both are about the second factor and
+this is the release that makes one mandatory.
+
+- **The attempt budget was not enforced.** `pendingLogin.Attempts` lived only in
+  the intermediate cookie, so three attempts bound a browser that sent back what
+  the server handed it — and nobody else. Measured: 200 guesses from one
+  password round. The count is now the server's, keyed by a random identifier
+  the cookie carries, and the passkey door shares it by construction rather than
+  by intent. A restart grants a fresh budget: forgetting costs an attacker one
+  more password round, and refusing would lock an operator out after a service
+  restart.
+- **Signing out could be undone.** Every save of a session re-signs the cookie
+  with a fresh timestamp, and three paths saved one they had not authenticated —
+  two flash helpers and `render` itself, which saves when it clears a flash. One
+  wrong password every nine minutes kept a revoked cookie alive until the
+  revocation record expired. `sessionForWrite` strips the identity first. The
+  threat model claimed this whole failure was closed in an earlier release; only
+  half of it was, and it now says so.
+- **An unreadable `passkeys.json` removed the mandate.** A corrupt store read as
+  "no passkeys", so a passkey-only account was signed in by the password alone —
+  a restored host without its `data_dir` was enough. A store that cannot be read
+  now counts as a factor, because the truth is unknown and the recovery codes
+  still work. An unparseable file is renamed aside rather than overwritten.
+- **A passkey ceremony is one-shot.** The cookie clear instructs the browser;
+  the server now remembers the spent challenge. The signature counter was no
+  backstop: go-webauthn exempts an authenticator reporting zero, which is most
+  platform passkeys, so for those the clone check had never fired.
+- **Enrolling a passkey asks for the password.** It was the one credential write
+  on that page that did not, so a stolen session could enrol a durable factor —
+  and the re-stamp that follows would have ended the real operator's session.
+
+### The proof
+
+- **The gate is walked, not listed.** `TestTheGateCannotBeWalkedPast`
+  enumerates every route chi actually registers inside
+  `RequireAuth`+`RequireSecondFactor`, 40 of them, plus `POST /logout` — and
+  fails if any one of the 41 answers without a factor. A test over a list
+  protects the list. The floor is measured, not copied: the plan had said 15,
+  and a floor written at 37 before the passkey routes existed went on passing
+  after three more were added, which is the shape this floor exists to catch.
+- **A certificate arrives from a real ACME server over a real challenge.** The
+  configuration tests prove that no certificate ever arrives; the failures that
+  matter are all at the wire. Pebble 2.7.0 and `pebble-challtestsrv` run as
+  containers inside the test's own network namespace, driving the real
+  `Start()` — which is how a nil `*tls.ClientHelloInfo` handed to autocert by
+  the certificate preflight was found before release rather than after.
+- **The passkey tests drive a real ceremony** with a virtual authenticator,
+  rather than asserting the shape of the options passed to the library.
+- **The gate is driven in a browser, not only asserted in Go.** `check:ui`
+  signs in against an instance with no factor, checks that `/dashboard`,
+  `/ports`, `/settings` and `/apply` all answer from `/password`, enrols, and
+  checks that they stop. It needs an instance of its own, because demo mode is
+  the gate's one exemption and the demo the rest of that script drives can
+  never show it.
+- **One test passed for the wrong reason, and the fix found a second thing.**
+  A recovery-code test asserted only that a session cookie came back, which the
+  flash cookie satisfied on its own. Pointing it at the shared helper turned it
+  red against correct code: that branch saves the session twice, and the
+  harness read the first `Set-Cookie` where a browser's jar keeps the last. The
+  operator was signed in the whole time; only the test disagreed.
+
+[See the code changes between 2.17.0 and 2.18.0](https://github.com/jp1337/easywall/compare/v2.17.0...v2.18.0)
+
+</details>
+
+<details markdown="1">
 <summary><strong>2.17.0</strong> · 2026-09-09 — It proves what it says</summary>
 
 For five releases `ct state established,related accept` matched no packet. All

@@ -121,6 +121,7 @@ func TestHandleIPListValidate_RequiresAuth(t *testing.T) {
 func TestHandleIPListValidate_AllValid(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/iplist/validate", "entries=192.168.1.0%2F24%0A2001%3Adb8%3A%3A1")
 	assertStatus(t, rec, http.StatusOK)
@@ -131,6 +132,7 @@ func TestHandleIPListValidate_AllValid(t *testing.T) {
 func TestHandleIPListValidate_WithErrors(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/iplist/validate", "entries=not-an-ip%0A192.168.1.1")
 	assertStatus(t, rec, http.StatusOK)

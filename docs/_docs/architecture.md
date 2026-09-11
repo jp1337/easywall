@@ -86,7 +86,7 @@ whole protocol was.
 | `GET_USAGE` | what each port rule has carried, keyed by rule id, and when the figures were read |
 | `GET_HEALTH` | whether the firewall is doing what it says — three facts evaluated in order, plus the last self-test's identity |
 | `PANIC` · `RESUME` | tear the table down and record it · end that and restore |
-| `LOG_EVENT` | one of nine login events, from a fixed enum, for the audit log |
+| `LOG_EVENT` | one of thirteen login events, from a fixed enum, for the audit log |
 
 Full list: [`internal/shared/protocol.go`](https://github.com/jp1337/easywall/blob/main/internal/shared/protocol.go).
 

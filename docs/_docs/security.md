@@ -23,6 +23,7 @@ holds no privilege worth stealing.
 | XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
 | Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime, and every session ends the moment the password changes |
 | Locking the admin out | The acceptance window rolls back on its own; if it already has and you are still shut out, `easywall-core panic` reaches the firewall from the console — see [Panic mode](#panic-mode) |
+| A clock that blocks the mandatory second factor | A board with no real-time clock, or one that is simply wrong, can make every code fail. Enrolling does not need console access to recover from that — see [If the clock is wrong](#if-the-clock-is-wrong) |
 | Known CVEs in dependencies | `govulncheck` on every pull request and weekly, plus CodeQL and `gosec` |
 | Dependency hijacking | Renovate raises every update, patch releases auto-merge only once CI is green, minor and major wait for a person; plus secret scanning and dependency review |
 | A spoofed source address | `X-Forwarded-For` is **not** trusted — see [behind a reverse proxy](#behind-a-reverse-proxy) |
@@ -32,6 +33,7 @@ holds no privilege worth stealing.
 | | |
 |---|---|
 | Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password |
+| Password floor | at least 12 characters, with a digit and a symbol — not configurable |
 | Default password | none. The first-run wizard is mandatory |
 | Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
 | Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
@@ -39,16 +41,81 @@ holds no privilege worth stealing.
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
 | Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/docs/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
-| Second factor | optional, per the single account — [TOTP and eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
+| Second factor | mandatory, per the single account — [TOTP or a passkey, plus eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
 
-With a second factor enrolled, the password step ends in a redirect rather than a
-session, and the code is checked at `/login/verify`. That step has no rate limit
-of its own and does not need one. One intermediate state allows three code
-attempts, and a new one costs a password round. Five password rounds are allowed
-per ten minutes per address, so **fifteen code attempts per ten minutes per
-address** against a target that rotates every thirty seconds.
-`TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` is that sentence as an
-executable claim.
+With a second factor enrolled, the password step ends in a redirect, not a
+session. The second step is checked at `/login/verify`, in either order: a
+typed code, a recovery code, or a passkey assertion. That step has no rate
+limit of its own and does not need one. One intermediate state allows three
+attempts against the code field **or** the passkey button — the two share one
+counter — and a new intermediate state costs a password round. Five password
+rounds are allowed per ten minutes per address, so **fifteen attempts per ten
+minutes per address**, code and passkey combined, against a target that rotates
+every thirty seconds.
+
+That count is the server's, held in memory against a random identifier the
+intermediate cookie carries. Until 2.18 it lived in the cookie itself, so the
+three bound a browser that kept sending back what the server handed it. A
+client replaying one frozen cookie went on guessing. Nothing is written back to
+that cookie now, so there is nothing for a client to decline to keep.
+
+A restart empties the table, and a half-finished login then starts again with
+the full three. That direction is deliberate: forgetting costs an attacker one
+extra password round, and those are limited to five per ten minutes. Refusing
+instead would lock an operator out of their own firewall after a service
+restart.
+
+Both halves are held by tests. Three attempts end the attempt whichever door
+they came through, and the sixteenth in ten minutes does not get through.
+
+### Passkeys are a second factor, never a replacement
+
+A passkey is offered at `/login/verify`, after the password, exactly where the
+code field already is — never instead of it, and never in place of the
+password step. `POST /login/passkey/begin` and `/finish` both refuse without a
+`pendingLogin` behind them, the same guard `/login/verify` itself opens with:
+a stolen authenticator is not a login on its own. A challenge answers once:
+the server remembers the ones it has spent, so a captured assertion resent with
+its cookies is refused. Where an authenticator reports a signature counter that
+is checked too, and one that did not advance is refused as
+`passkey_clone_suspected`. Either is a failed attempt and never a lockout,
+since TOTP, a recovery code and another passkey are all still there. Most
+platform passkeys report no counter at all, so that second check is an extra
+rather than the guarantee.
+
+Mandatory since 2.18 means an upgrade with only a password meets the same gate
+a fresh first run does. Every authenticated route redirects to `/password`
+until a factor — TOTP or a passkey — is enrolled. Nothing about a passkey
+being available changes that; TOTP alone still satisfies the gate.
+
+A passkey can be unavailable, and the interface says which of three reasons is
+in the way rather than showing a control that fails silently in the browser:
+
+| Reason | Why |
+|---|---|
+| The demo | Anyone can open it, and a passkey left there would stay |
+| No `tls.hostname` | WebAuthn's Relying Party ID must be a registrable domain; an installation reached by its bare IP address has none |
+| A self-signed certificate | No browser trusts the pair easywall generates itself by default, and a ceremony begun anyway fails in the browser with a `SecurityError` the operator cannot act on |
+
+The eight recovery codes are unaffected by all three, and are issued whichever
+factor came first. They are the way in when a passkey cannot be offered at all.
+TOTP is not: an account whose only factor is a passkey never had one.
+
+### If the clock is wrong
+
+A code that will never verify does not have to end an enrolment attempt. The
+most common cause is a board with no real-time clock, still at whatever it
+booted to until NTP catches up. After one failed code, both the first-run
+wizard and `/password` offer a second way through. An explicit
+acknowledgement stores the secret already shown on screen and issues eight
+recovery codes, and the account is usable immediately. Until the clock is
+fixed, one of the eight codes is the way in; once it is, the authenticator
+already paired works and normal sign-in works again.
+
+This is gated on being the first factor. An operator who already has one is
+not locked out by a failed code on `/password` and can simply leave the
+page. The escape exists only for the account that cannot otherwise be used
+at all.
 
 ## Panic mode
 
@@ -100,12 +167,12 @@ per source address in the kernel and are unaffected by any HTTP header.
 
 ## Transport
 
-HTTPS only, TLS 1.2+. No plaintext port is opened at all. Without a configured
-certificate easywall generates a self-signed **ECDSA P-256** one into `ssl_dir`.
-It replaces that certificate once it comes within 30 days of expiry — checked at
-startup, and twice a day while the service is running. The certificate is read per handshake rather than once at
-startup, so a renewal takes effect without a restart. That matters for a service that
-may well outlive its own one-year certificate.
+HTTPS only, TLS 1.2+. Without a configured certificate easywall generates a
+self-signed **ECDSA P-256** one into `ssl_dir`. It replaces that certificate
+once it comes within 30 days of expiry — checked at startup, and twice a day
+while the service is running. The certificate is read per handshake rather
+than once at startup, so a renewal takes effect without a restart. That
+matters for a service that may well outlive its own one-year certificate.
 
 A certificate you configure yourself is never overwritten. It is re-read when the file
 changes, so an ACME client renewing it in place needs no restart either.
@@ -115,6 +182,52 @@ changes, so an ACME client renewing it in place needs no restart either.
 cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 ```
+
+### The one exception: ACME's port 80
+
+No other plaintext port is opened, but `tls.acme = true` opens one. A
+certificate authority proves you control `tls.hostname` by connecting to port
+80 over plain HTTP and reading back a token (HTTP-01).
+
+easywall's listener answers that one path and nothing else — 404 for
+everything else. It is deliberately not a second web interface, and
+deliberately not autocert's own default, whose fallback redirects to
+`https://host/` where easywall is not listening.
+
+It runs for as long as the service does, not only while a certificate is first
+being issued. Renewal happens on autocert's own schedule, and a listener that
+only exists for the first issuance has silently stopped working by the time a
+renewal needs it.
+
+Three things have to be true before that listener can answer at all, and
+easywall does none of them for you:
+
+1. `tls.hostname` resolves to this host from the public internet.
+2. The service can bind port 80. The packaged systemd unit grants exactly
+   `AmbientCapabilities=CAP_NET_BIND_SERVICE` for this; a unit built by hand
+   needs the same line.
+3. **Port 80 is open in your own easywall rules.** easywall will not open a
+   port by itself — a firewall that opens ports on its own initiative is not
+   one you can reason about. So this is the one precondition on this list
+   that is actually your job.
+
+   The System page reports whether it is, in your *live* rules, restricted or
+   not. A rule for 80 whose `sources` excludes the public internet does not
+   let the certificate authority in, even though the port is technically "in
+   your rules".
+
+   The report does not see everything that decides reachability, though. A
+   blacklist entry, a custom rule, or IPv6 mode = `block` can each keep a
+   certificate authority out even when the row says open. Let's Encrypt
+   prefers IPv6 when an AAAA record exists, and the report reads the ports
+   table only.
+
+A bind failure on port 80 is fatal to the whole interface, not only to ACME.
+`Start()` refuses rather than run with a configuration it cannot honor — the
+same choice this project already makes for a missing certificate file or
+missing templates. If something else already holds port 80 — nginx in front,
+another service — free it or turn `tls.acme` off. Nothing here retries in the
+background or falls back to serving without it.
 
 ### The one place a string reaches a command
 
@@ -195,10 +308,11 @@ no identity yet. It names the process, not the person — see the
 | `rules_saved` · `rules_imported` | |
 | `options_saved` · `settings_saved` · `system_saved` | |
 
-> **Since 2.8, logins are in the audit log.** Nine events — signed in, sign-in
-> failed, second factor failed, a recovery code used, sign-in attempts blocked,
-> signed out, and the second factor switched on, off or regenerated.
-> See [the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
+> **Since 2.8, logins are in the audit log.** Thirteen events: signed in,
+> sign-in failed, second factor failed, a recovery code used, sign-in attempts
+> blocked, and signed out. A factor switched on, off or regenerated, a passkey
+> used, enrolled or removed, and a passkey whose counter did not advance.
+> See [the thirteen login events]({{ '/docs/features/audit-log/' | relative_url }}#the-thirteen-login-events).
 > None of them carries colour: a sign-in does not move the firewall.
 
 Reading it: [Audit log]({{ '/docs/features/audit-log/' | relative_url }}).

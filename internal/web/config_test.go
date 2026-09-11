@@ -152,6 +152,83 @@ func TestKeyPath_Custom(t *testing.T) {
 	}
 }
 
+// validTestConfig returns a config that passes Validate() as-is, so a test
+// only has to set the one field it cares about.
+func validTestConfig(t *testing.T) *Config {
+	t.Helper()
+	path := writeTempConfig(t, validConfigContent)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	return cfg
+}
+
+// TestACMEIsRefusedWithoutAgreedTerms asserts that easywall does not accept a
+// third party's legal terms on the operator's behalf.
+//
+// autocert has an AcceptTOS constant that makes this one line and silent.
+// Using it would mean easywall agreeing to Let's Encrypt's subscriber
+// agreement for somebody who never read it.
+func TestACMEIsRefusedWithoutAgreedTerms(t *testing.T) {
+	cfg := validTestConfig(t)
+	cfg.TLS.ACME = true
+	cfg.TLS.Hostname = "firewall.example.org"
+	cfg.TLS.ACMEAgreeTOS = false
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("acme = true with acme_agree_tos = false was accepted")
+	}
+	if !strings.Contains(err.Error(), "acme_agree_tos") {
+		t.Errorf("the error must name the setting the operator has to change, got: %v", err)
+	}
+}
+
+// TestACMENeedsAHostname asserts the domain is present. autocert's HostPolicy
+// with an empty whitelist issues for nothing and fails at the first handshake,
+// which is a runtime symptom for a startup mistake.
+func TestACMENeedsAHostname(t *testing.T) {
+	cfg := validTestConfig(t)
+	cfg.TLS.ACME = true
+	cfg.TLS.ACMEAgreeTOS = true
+	cfg.TLS.Hostname = ""
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("acme = true with no hostname was accepted")
+	}
+	if !strings.Contains(err.Error(), "tls.hostname") {
+		t.Errorf("the error must name tls.hostname, got: %v", err)
+	}
+}
+
+// TestACMEAndAManualCertificateAreTwoAnswersToOneQuestion mirrors the existing
+// refusal of tls.cert without tls.key, and for the same stated reason: two
+// definitions of one artefact is how the wrong one comes to be served.
+func TestACMEAndAManualCertificateAreTwoAnswersToOneQuestion(t *testing.T) {
+	cfg := validTestConfig(t)
+	cfg.TLS.ACME = true
+	cfg.TLS.ACMEAgreeTOS = true
+	cfg.TLS.Hostname = "firewall.example.org"
+	cfg.TLS.CertFile = "/etc/easywall/ssl/cert.pem"
+	cfg.TLS.KeyFile = "/etc/easywall/ssl/key.pem"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("acme = true together with tls.cert and tls.key was accepted")
+	}
+}
+
+// TestAHostnameWithoutACMEIsFine — the hostname is also the WebAuthn RP ID, so
+// an operator behind a reverse proxy sets it and never touches ACME.
+func TestAHostnameWithoutACMEIsFine(t *testing.T) {
+	cfg := validTestConfig(t)
+	cfg.TLS.Hostname = "firewall.example.org"
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("a hostname without acme was refused: %v", err)
+	}
+}
+
 func TestVersionCachePath(t *testing.T) {
 	path := writeTempConfig(t, validConfigContent)
 	cfg, _ := LoadConfig(path)

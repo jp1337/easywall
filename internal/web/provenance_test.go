@@ -61,6 +61,7 @@ func TestSystemPage_ProvenanceMarkerRendersEachState(t *testing.T) {
 	t.Run("no_variable_set", func(t *testing.T) {
 		fc := newFakeCore(t)
 		s := newTestServer(t, fc)
+		enrollFactor(t, s)
 
 		rec := doRequest(s, "GET", "/system", nil, makeAuthCookie(t, s))
 		body := rec.Body.String()
@@ -73,6 +74,7 @@ func TestSystemPage_ProvenanceMarkerRendersEachState(t *testing.T) {
 		t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 		fc := newFakeCore(t)
 		s := newTestServer(t, fc)
+		enrollFactor(t, s)
 		if err := s.cfg.SaveTelemetry(true); err != nil {
 			t.Fatalf("SaveTelemetry: %v", err)
 		}
@@ -94,6 +96,7 @@ func TestSystemPage_ProvenanceMarkerRendersEachState(t *testing.T) {
 		t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 		fc := newFakeCore(t)
 		s := newTestServer(t, fc)
+		enrollFactor(t, s)
 		if err := s.cfg.SaveTelemetry(false); err != nil {
 			t.Fatalf("SaveTelemetry: %v", err)
 		}

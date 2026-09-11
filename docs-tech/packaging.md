@@ -113,6 +113,34 @@ is load-bearing, and deleting it looks harmless.
 everything is writable and the list below it states a restriction that is not in
 force.
 
+## The web unit's one capability
+
+`easywall-web.service` runs `User=easywall`, not root, and its own port
+(12227) is above 1024 and needs nothing extra. When `tls.acme` is on, though,
+it also binds port 80 for the ACME HTTP-01 challenge listener — see
+`internal/web/acme.go` — and that needs exactly one capability:
+
+```ini
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+```
+
+Granted unconditionally, the same reasoning as `easywall-core.service`'s
+bounding set above: a unit that has to be hand-edited to turn a setting on
+fails with "permission denied" for whoever forgets, with nothing in that
+message pointing at a systemd file. `CapabilityBoundingSet` repeats the same
+single value so the grant is also a ceiling — nothing this process does can
+add a second capability to itself later.
+
+It composes with `NoNewPrivileges=yes` a few lines above it in the same unit:
+ambient capabilities are granted by systemd at exec, not acquired by the
+process through a setuid binary or a file capability, which is exactly what
+`NoNewPrivileges` forbids.
+
+`debian/rules` installs `systemd/easywall-web.service` verbatim — `grep -rn
+'easywall-web.service' debian/` finds no template, only the `install` line —
+so the two capability lines above are the only place this needs to land.
+
 ## The third unit, and the only `CAP_SYS_ADMIN` in the repository
 
 `easywall-selftest.service` is new in 2.17. It exists for one reason: the

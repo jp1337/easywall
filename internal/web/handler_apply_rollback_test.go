@@ -70,6 +70,7 @@ func TestApplyRollback_RollsBackAnOpenWindow(t *testing.T) {
 func TestApplyRollback_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdCancelAcceptance, errorRespFor("rollback error"))
 
 	rec := doAuthFormRequest(t, s, "/apply/rollback", "")

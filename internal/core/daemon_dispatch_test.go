@@ -637,3 +637,31 @@ func TestDispatch_LogEventKeepsTheEntryWhenTheAddressIsUnusable(t *testing.T) {
 		t.Errorf("user is %q, want web", entries[0].User)
 	}
 }
+
+// The core validates the passkey events too, not only the nine from 2.8 — an
+// event the web process sends that the core does not recognise is an audit
+// line that never arrives. EvPasskeyCloneSuspected specifically, since it is
+// the newest of the four and the one a fix could most easily add to
+// AllLoginEvents in protocol.go without also teaching the core about it —
+// the two live in the same file, but nothing enforces that a reader updates
+// both at once.
+func TestDispatch_LogEventAcceptsPasskeyCloneSuspected(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	defer d.Stop()
+
+	payload, _ := json.Marshal(shared.LogEventPayload{Event: shared.EvPasskeyCloneSuspected, Addr: "203.0.113.9"})
+	resp := d.dispatch(shared.Command{Type: shared.CmdLogEvent, Payload: payload})
+	if !resp.Success {
+		t.Fatalf("passkey_clone_suspected was refused: %s", resp.Error)
+	}
+
+	entries, err := readAuditLog(cfg.AuditLogPath(), 200)
+	if err != nil || len(entries) == 0 {
+		t.Fatalf("nothing was written (err %v)", err)
+	}
+	if entries[0].Action != string(shared.EvPasskeyCloneSuspected) {
+		t.Errorf("last entry is %q, want %q", entries[0].Action, shared.EvPasskeyCloneSuspected)
+	}
+}

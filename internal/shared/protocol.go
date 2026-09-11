@@ -162,9 +162,9 @@ var AllCommandTypes = []CommandType{
 	CmdGetHealth, CmdPanic, CmdResume, CmdLogEvent,
 }
 
-// LoginEvent is one of the nine things that can happen at the door. The type is
-// closed on purpose: the core refuses anything not in AllLoginEvents and writes
-// nothing, so the web process cannot compose a line of its own.
+// LoginEvent is one of the thirteen things that can happen at the door. The
+// type is closed on purpose: the core refuses anything not in AllLoginEvents
+// and writes nothing, so the web process cannot compose a line of its own.
 type LoginEvent string
 
 const (
@@ -177,6 +177,19 @@ const (
 	EvTOTPEnabled     LoginEvent = "totp_enabled"
 	EvTOTPDisabled    LoginEvent = "totp_disabled"
 	EvRecoveryRenewed LoginEvent = "recovery_codes_regenerated"
+	EvPasskeyUsed     LoginEvent = "passkey_used"
+	EvPasskeyEnrolled LoginEvent = "passkey_enrolled"
+	EvPasskeyRemoved  LoginEvent = "passkey_removed"
+
+	// EvPasskeyCloneSuspected is a passkey assertion that verified — the
+	// signature checks out — but whose signature counter did not advance past
+	// what this credential last reported. go-webauthn's own UpdateCounter
+	// calls that a CloneWarning and still returns success from ValidateLogin;
+	// this is the event that exists because that flag is otherwise stored and
+	// never read. Distinct from Ev2FAFailed on purpose: "the assertion did not
+	// verify" and "this credential's counter went backwards" are different
+	// facts, and an operator reading the log needs to tell them apart.
+	EvPasskeyCloneSuspected LoginEvent = "passkey_clone_suspected" // #nosec G101 -- an event name, not a credential; gosec's pattern matches "pass" inside "passkey"
 )
 
 // AllLoginEvents is the complete list, and it is what four guards hang off:
@@ -185,6 +198,8 @@ const (
 var AllLoginEvents = []LoginEvent{
 	EvLoginOK, EvLoginFailed, Ev2FAFailed, EvRecoveryUsed, EvRateLimited,
 	EvLogout, EvTOTPEnabled, EvTOTPDisabled, EvRecoveryRenewed,
+	EvPasskeyUsed, EvPasskeyEnrolled, EvPasskeyRemoved,
+	EvPasskeyCloneSuspected,
 }
 
 // ValidLoginEvent reports whether ev is one this protocol declares.

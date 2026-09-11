@@ -19,6 +19,7 @@ func TestHandleLog_RequiresAuth(t *testing.T) {
 func TestHandleLog_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{
 		{Time: "2026-04-27T10:00:00Z", Action: "rules_saved", RuleType: "tcp", User: "web"},
 	}))
@@ -30,6 +31,7 @@ func TestHandleLog_Success(t *testing.T) {
 func TestHandleLog_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, errorRespFor("unavailable"))
 
 	rec := doAuthRequest(t, s, "GET", "/log", nil)
@@ -47,6 +49,7 @@ func TestHandleLogFilter_RequiresAuth(t *testing.T) {
 func TestHandleLogFilter_Empty(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{}))
 
 	rec := doAuthRequest(t, s, "GET", "/log/filter?q=anything", nil)
@@ -59,6 +62,7 @@ func TestHandleLogFilter_Empty(t *testing.T) {
 func TestHandleLogFilter_NoQueryReturnsAll(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{
 		{Time: "t1", Action: "rules_saved", User: "web"},
 		{Time: "t2", Action: "options_saved", User: "alice"},
@@ -77,6 +81,7 @@ func TestHandleLogFilter_NoQueryReturnsAll(t *testing.T) {
 func TestHandleLogFilter_MatchByAction(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{
 		{Time: "t1", Action: "rules_saved", User: "web"},
 		{Time: "t2", Action: "options_saved", User: "alice"},
@@ -96,6 +101,7 @@ func TestHandleLogFilter_MatchByAction(t *testing.T) {
 func TestHandleLogFilter_MatchByUser(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{
 		{Time: "t1", Action: "rules_saved", User: "web"},
 		{Time: "t2", Action: "rules_saved", User: "alice"},
@@ -115,6 +121,7 @@ func TestHandleLogFilter_MatchByUser(t *testing.T) {
 func TestHandleLogFilter_CaseInsensitive(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, successResp([]shared.AuditLogEntry{
 		{Time: "t1", Action: "RULES_APPLIED", User: "web"},
 	}))
@@ -130,6 +137,7 @@ func TestHandleLogFilter_CaseInsensitive(t *testing.T) {
 func TestHandleLogFilter_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetLog, errorRespFor("unavailable"))
 
 	// Core failure should still return 200 + empty-state row, not 500.

@@ -28,6 +28,16 @@ services:
     #   modprobe nf_tables
     #
     # A host running nftables at all already has it.
+    #
+    # No NET_BIND_SERVICE: tls.acme's port-80 listener needs it, and it is not
+    # here on purpose. supervisord drops easywall-web to an unprivileged user
+    # with a plain setuid, not systemd's AmbientCapabilities, so the container
+    # having the capability would not be enough — the process would still lose
+    # it at that switch. Making it enough needs either a setcap binary, which
+    # no-new-privileges:true below refuses to honor at exec, or running
+    # easywall-web as root, which is the split this whole file exists to avoid.
+    # tls.acme is documented as unsupported on this path instead — see
+    # docs/_docs/installation/docker.md.
     network_mode: host
     cap_add:
       - NET_ADMIN

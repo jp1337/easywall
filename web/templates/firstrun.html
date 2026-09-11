@@ -129,14 +129,6 @@
                 </span>
                 <input type="checkbox" name="telemetry" class="toggle" {{if .Telemetry}}checked{{end}}>
               </label>
-
-              <label class="switch-row">
-                <span class="switch-text">
-                  <span class="switch-name">{{T "firstrun_totp_offer"}}</span>
-                  <span class="switch-desc">{{T "firstrun_totp_help"}}</span>
-                </span>
-                <input type="checkbox" name="want_totp" value="1" class="toggle" {{if .WantTOTP}}checked{{end}}>
-              </label>
             </div>
           </section>
           {{end}}
@@ -157,6 +149,7 @@
           </div>
         </div>
         <div class="card-pad">
+          <p class="field-help mb-3">{{T "firstrun_totp_help"}}</p>
           <div class="totp-setup">
             {{/* White plate in both themes: an inverted QR code is rejected by a good
                  share of scanners, and that is a defect only a dark-theme screenshot
@@ -178,17 +171,37 @@
                 </div>
                 <button type="submit" class="btn btn-primary">{{T "totp_confirm"}}</button>
               </form>
-
-              {{/* Not a small link. A clock this page cannot fix must never be able to
-                   prevent an account existing at all. */}}
-              <form method="POST" action="/firstrun/skip" class="mt-3">
-                <button type="submit" class="btn">{{T "firstrun_totp_skip"}}</button>
-                <p class="field-help mt-2">{{T "firstrun_totp_skip_help"}}</p>
-              </form>
             </div>
           </div>
         </div>
       </div>
+
+      {{/* Only after a code has actually missed once (.Failed) — offered from
+           the first render, this would be the path of least resistance
+           instead of the escape hatch it is. The checkbox is the deliberate
+           act handleFirstRunRecover requires; a submission missing it is
+           refused, same as one arriving before .Failed is true. */}}
+      {{if .Data.Setup.Failed}}
+      <div class="card mt-4">
+        <div class="section-head">
+          <div class="section-head-text">
+            <h2 class="section-title">{{T "firstrun_totp_recover_title"}}</h2>
+          </div>
+        </div>
+        <div class="card-pad">
+          <p>{{T "firstrun_totp_recover_help"}}</p>
+          <form method="POST" action="/firstrun/recover" class="mt-3">
+            <label class="switch-row">
+              <span class="switch-text">
+                <span class="switch-name">{{T "firstrun_totp_recover_ack"}}</span>
+              </span>
+              <input type="checkbox" name="ack" value="1" required class="toggle">
+            </label>
+            <button type="submit" class="btn mt-3">{{T "firstrun_totp_recover_submit"}}</button>
+          </form>
+        </div>
+      </div>
+      {{end}}
       {{end}}
 
       {{if .Data.Codes}}

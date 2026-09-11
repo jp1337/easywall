@@ -129,6 +129,22 @@ function readPasswordHash(configPath) {
 }
 
 /**
+ * The TOTP secret the wizard wrote, read back the same way readPasswordHash
+ * reads the hash. Unlike the password, this is plaintext in the config — it
+ * has to be, to compute a matching code — so no argon2 problem here either.
+ */
+function readTOTPSecret(configPath) {
+  let text;
+  try {
+    text = readFileSync(configPath, 'utf8');
+  } catch {
+    return null;
+  }
+  const m = text.match(/^\s*totp_secret\s*=\s*"([^"]*)"/m);
+  return m && m[1] ? m[1] : null;
+}
+
+/**
  * The floor of the acceptance window, read out of the Go source that defines
  * it rather than typed again here. models.go explains why the bound exists at
  * all — an HTML min="" is a hint to the browser and nothing more, the server
@@ -172,6 +188,11 @@ async function waitForPort(url, timeoutMs = 15000) {
  * registered at all, so the request 404s and the URL still says /firstrun. The
  * wizard also writes the credentials into the config file, so a second run
  * against the same config legitimately finds nothing to do.
+ *
+ * The wizard has no way past the TOTP step any more — Finish only reaches it,
+ * never the account — so this drives that step too: read the secret the page
+ * displays, compute a code for it, and confirm. The account this leaves
+ * behind always has a factor; signIn's /login/verify handling depends on that.
  */
 async function setUpAccount(page) {
   await page.goto(`${BASE}/firstrun`, { waitUntil: 'load' });
@@ -183,12 +204,28 @@ async function setUpAccount(page) {
   await page.fill('input[name=password]', PASS);
   await page.fill('input[name=password_confirm]', PASS);
   await Promise.all([
+    // Not waitForLoadState('load'): the page loaded by the goto() above is
+    // already at 'load', so that resolves immediately and races the click's
+    // own navigation — reading .totp-secret off the pre-submit DOM and
+    // reporting "the wizard refused its own valid input" for a submission
+    // that actually succeeded. This step 1 POST is a real document
+    // navigation, and waitForNavigation() is what actually waits for it.
     page.waitForNavigation(),
     page.click("form[action='/firstrun'] button[type=submit]"),
   ]);
-  if (page.url().includes('/firstrun')) {
+  const secretEl = await page.$('.totp-secret');
+  if (!secretEl) {
     const alert = await page.textContent('[role=alert]').catch(() => '(none)');
     throw new Error(`the first-run wizard refused its own valid input: ${alert}`);
+  }
+  const secret = (await secretEl.textContent()).trim();
+  await page.fill("form[action='/firstrun/confirm'] input[name=code]", totp(secret));
+  await Promise.all([
+    page.waitForLoadState('load'),
+    page.click("form[action='/firstrun/confirm'] button[type=submit]"),
+  ]);
+  if (!(await page.$('.recovery-code'))) {
+    throw new Error('firstrun/confirm did not create the account and show recovery codes');
   }
 }
 
@@ -225,46 +262,235 @@ async function signIn(page) {
       'This run did not get that far on its own — wait for the window to pass, or restart ' +
       'easywall-web, which holds the buckets in memory.');
   }
+
+  // The account setUpAccount just created always has a factor now, so a
+  // correct password lands on /login/verify, not /dashboard. Every account
+  // reachable through this script's wizard has one — a password alone no
+  // longer gets anyone past first run.
+  if (page.url().includes('/login/verify')) {
+    const secret = readTOTPSecret(webConfigPath());
+    if (!secret) {
+      throw new Error(`landed on /login/verify but could not read totp_secret out of ` +
+        `${webConfigPath()} to answer it`);
+    }
+    await page.fill('input[name=code]', totp(secret));
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/login/verify'] button[type=submit]"),
+    ]);
+  }
+
   if (page.url().includes('/login')) {
     throw new Error(`could not sign in (POST /login -> ${response.status()}): still at ${page.url()}`);
   }
 }
 
 /**
- * The whole enrolment, in a browser, against the demo — which shows the flow and
- * discards the final write. The TOTP maths is exercised end to end: the page's
- * own displayed key becomes a code here, and the server has to accept it.
+ * The whole enrolment, in a browser, against a demo instance — which shows
+ * the flow and discards the final write. The TOTP maths is exercised end to
+ * end: the page's own displayed key becomes a code here, and the server has
+ * to accept it.
+ *
+ * Its own throwaway instance, not the shared session every other check in
+ * this file reuses: that account now comes out of the wizard with a factor
+ * already confirmed — the wizard has no way to produce one without it — so
+ * "/password/2fa/begin" is not on its page any more; that form only renders
+ * while TOTPEnabled is false. This one is seeded directly with a password and
+ * no secret, the shape an account upgraded from before this mandate is in,
+ * so the "begin" form is there to test. The password hash is the shared
+ * account's own, read back exactly as checkVerifyPage reads it, so this needs
+ * no argon2 in JavaScript either.
  */
-async function checkEnrolmentFlow(page) {
-  await page.goto(`${BASE}/password`, { waitUntil: 'networkidle' });
-  await page.fill("form[action='/password/2fa/begin'] input[name=current_password]", PASS);
-  await Promise.all([
-    page.waitForLoadState('load'),
-    page.click("form[action='/password/2fa/begin'] button[type=submit]"),
-  ]);
-
-  const qr = await page.getAttribute('.qr-plate img', 'src');
-  if (!qr || !qr.startsWith('data:image/png;base64,')) {
-    fail('2fa setup', `the QR code is ${qr ? qr.slice(0, 40) : 'absent'}; the CSP allows data: URIs and nothing else`);
+async function checkEnrolmentFlow(browser) {
+  const configPath = webConfigPath();
+  const hash = readPasswordHash(configPath);
+  if (!hash) {
+    fail('2fa setup', `could not read the password hash out of ${configPath}; ` +
+      'set EASYWALL_CONFIG to the web.toml run 1 signed in against');
     return;
   }
 
-  const key = (await page.textContent('.totp-secret')).trim();
-  await page.fill("form[action='/password/2fa/confirm'] input[name=code]", totp(key));
-  await Promise.all([
-    page.waitForLoadState('load'),
-    page.click("form[action='/password/2fa/confirm'] button[type=submit]"),
-  ]);
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-enrol-'));
+  const port = 12231;
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `demo_mode = true`,
+    `session_key = "ui-check-enrol-session-key-32byte"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = ""`,
+    `recovery_codes = []`,
+    `update_check = false`,
+  ].join('\n'));
 
-  const codes = await page.locator('.recovery-code').count();
-  if (codes !== 8) {
-    fail('2fa setup', `${codes} recovery codes on the page after confirm, want 8`);
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/login`);
+
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await ctx.newPage();
+
+    await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/login'] button[type=submit]"),
+    ]);
+    if (page.url().includes('/login')) {
+      fail('2fa setup', `could not sign in to the throwaway instance, still at ${page.url()}`);
+      return;
+    }
+
+    await page.goto(`${base}/password`, { waitUntil: 'networkidle' });
+    await page.fill("form[action='/password/2fa/begin'] input[name=current_password]", PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/begin'] button[type=submit]"),
+    ]);
+
+    const qr = await page.getAttribute('.qr-plate img', 'src');
+    if (!qr || !qr.startsWith('data:image/png;base64,')) {
+      fail('2fa setup', `the QR code is ${qr ? qr.slice(0, 40) : 'absent'}; the CSP allows data: URIs and nothing else`);
+      return;
+    }
+
+    const key = (await page.textContent('.totp-secret')).trim();
+    await page.fill("form[action='/password/2fa/confirm'] input[name=code]", totp(key));
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/confirm'] button[type=submit]"),
+    ]);
+
+    const codes = await page.locator('.recovery-code').count();
+    if (codes !== 8) {
+      fail('2fa setup', `${codes} recovery codes on the page after confirm, want 8`);
+    }
+    const body = await page.textContent('body');
+    if (!/demo/i.test(body)) {
+      fail('2fa setup', 'the demo confirmed an enrolment without saying nothing was saved');
+    } else {
+      console.log('  ok   enrolment runs end to end and the demo says it saved nothing');
+    }
+
+    await ctx.close();
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
   }
-  const body = await page.textContent('body');
-  if (!/demo/i.test(body)) {
-    fail('2fa setup', 'the demo confirmed an enrolment without saying nothing was saved');
-  } else {
-    console.log('  ok   enrolment runs end to end and the demo says it saved nothing');
+}
+
+/**
+ * The gate: 2.18 makes a second factor mandatory, and this is the screen an
+ * operator meets the first time they sign in after the upgrade.
+ *
+ * It needs its own instance because demo_mode is the gate's one exemption, so
+ * the demo the rest of this script drives can never show it. Everything else is
+ * checkEnrolmentFlow's arrangement — a real password hash, no secret, no core.
+ *
+ * Three things are checked and the middle one is the point. Landing on
+ * /password after a one-step login is the redirect; being unable to leave it is
+ * the gate. A redirect an operator can walk around by typing a path is not a
+ * mandate, and the difference is invisible in a screenshot.
+ */
+async function checkTheGate(browser) {
+  const hash = readPasswordHash(webConfigPath());
+  if (!hash) {
+    fail('gate', 'could not read the password hash; set EASYWALL_CONFIG');
+    return;
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-gate-'));
+  const port = 12233;
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `demo_mode = false`,
+    `session_key = "ui-check-gate-session-key-32bytes"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = ""`,
+    `recovery_codes = []`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/login`);
+
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await ctx.newPage();
+
+    // One step, because there is no second factor to ask for yet. That is the
+    // upgrade path: the account is valid, the password is right, and the
+    // release still may not let it reach the firewall.
+    await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/login'] button[type=submit]"),
+    ]);
+
+    if (!page.url().endsWith('/password')) {
+      fail('gate', `signing in with no second factor landed on ${page.url()}, want /password`);
+      return;
+    }
+    // The string, not the class: .alert-warn is worn by every flash on this
+    // page, so a class check would pass on a page that never explains itself.
+    if (!(await page.locator("text=Set up a second factor to continue").count())) {
+      fail('gate', 'the enrolment page carries no callout saying why the operator is here');
+    }
+
+    // The gate, not the redirect. Every one of these is a path an operator
+    // could type, and the allowlist is an exact match rather than a prefix.
+    for (const path of ['/dashboard', '/ports', '/settings', '/apply']) {
+      await page.goto(`${base}${path}`, { waitUntil: 'load' });
+      if (!page.url().endsWith('/password')) {
+        fail('gate', `${path} was reachable with no second factor enrolled; it answered from ${page.url()}`);
+      }
+    }
+
+    await page.goto(`${base}/password`, { waitUntil: 'networkidle' });
+    await page.fill("form[action='/password/2fa/begin'] input[name=current_password]", PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/begin'] button[type=submit]"),
+    ]);
+    const key = (await page.textContent('.totp-secret')).trim();
+    await page.fill("form[action='/password/2fa/confirm'] input[name=code]", totp(key));
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/confirm'] button[type=submit]"),
+    ]);
+
+    // Deliberately still on /password: this response is the only one that
+    // carries the eight recovery codes, and redirecting off it would take them
+    // with it. What has to change is that the operator may now leave.
+    const codes = await page.locator('.recovery-code').count();
+    if (codes !== 8) {
+      fail('gate', `${codes} recovery codes after enrolling through the gate, want 8`);
+    }
+    await page.goto(`${base}/dashboard`, { waitUntil: 'load' });
+    if (!page.url().endsWith('/dashboard')) {
+      fail('gate', `enrolling did not open the gate; /dashboard answered from ${page.url()}`);
+    } else {
+      console.log('  ok   the gate holds every page until a factor is enrolled, then opens');
+    }
+
+    await ctx.close();
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -1280,7 +1506,8 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkAcceptanceWindow(p);
-  await checkEnrolmentFlow(p);
+  await checkEnrolmentFlow(browser);
+  await checkTheGate(browser);
   await checkVersionBadgeFitsTheVersion(p);
   await checkVerifyPage(browser);
   // Last, and deliberately: signing out revokes the session id every context
@@ -1449,11 +1676,23 @@ async function takeLoginScreenshot(browser, theme) {
  * discards the write (see handler_2fa.go's IsDemo branch) — correct there,
  * but the page it renders says "not saved" and greys itself out, unlike
  * every real enrolment. So this gets its own throwaway, non-demo instance,
- * the same shape as takeVerifyScreenshot: the wizard creates a plain
- * account (no 2FA yet), then /password's enrolment happens for real and
- * actually lands on "enabled".
+ * the same shape as takeVerifyScreenshot.
+ *
+ * Seeded directly with a password and no secret, rather than run through the
+ * wizard: the wizard has no way to produce that state any more — Finish only
+ * reaches a confirmed TOTP step, never a plain account — so this instead
+ * represents the account of an operator who set up before this release. The
+ * password hash is the shared account's own, read back the way
+ * takeVerifyScreenshot reads it, so this needs no argon2 in JavaScript either.
  */
 async function takeEnrolmentScreenshots(browser, theme) {
+  const configPath = webConfigPath();
+  const hash = readPasswordHash(configPath);
+  if (!hash) {
+    throw new Error(`could not read the password hash out of ${configPath}; ` +
+      'set EASYWALL_CONFIG to the web.toml run 1 signed in against');
+  }
+
   const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-2fa-'));
   const port = 12232;
   writeFileSync(join(dir, 'web.toml'), [
@@ -1463,25 +1702,20 @@ async function takeEnrolmentScreenshots(browser, theme) {
     `data_dir = "${dir}"`,
     `language = "en"`,
     `session_key = "ui-check-2fa-session-key-32bytes"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = ""`,
+    `recovery_codes = []`,
     `update_check = false`,
   ].join('\n'));
 
   const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
   try {
     const base = `https://127.0.0.1:${port}`;
-    await waitForPort(`${base}/firstrun`);
+    await waitForPort(`${base}/login`);
 
     const ctx = await screenshotContext(browser, theme);
     const page = await ctx.newPage();
-
-    await page.goto(`${base}/firstrun`, { waitUntil: 'load' });
-    await page.fill('input[name=username]', USER);
-    await page.fill('input[name=password]', PASS);
-    await page.fill('input[name=password_confirm]', PASS);
-    await Promise.all([
-      page.waitForLoadState('load'),
-      page.click("form[action='/firstrun'] button[type=submit]"),
-    ]);
 
     await page.goto(`${base}/login`, { waitUntil: 'load' });
     await page.fill('input[name=username]', USER);
@@ -1556,13 +1790,12 @@ async function takeWizardScreenshots(browser, theme) {
     await page.fill('input[name=username]', USER);
     await page.fill('input[name=password]', PASS);
     await page.fill('input[name=password_confirm]', PASS);
-    await page.check('input[name=want_totp]');
     await Promise.all([
       page.waitForLoadState('load'),
       page.click("form[action='/firstrun'] button[type=submit]"),
     ]);
     if (!(await page.$('.totp-secret'))) {
-      throw new Error('firstrun did not reach the TOTP setup step with want_totp checked');
+      throw new Error('firstrun did not reach the TOTP setup step; it is unconditional now');
     }
     await shoot(page, 'firstrun-2fa', theme);
 

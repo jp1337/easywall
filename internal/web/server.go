@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -99,7 +100,24 @@ type Server struct {
 	// replay remembers the last accepted TOTP step, so a code cannot be used
 	// twice inside its own thirty-second validity window.
 	replay *totpReplay
-	bundle *i18n.Bundle
+	// passkeys holds every enrolled passkey; see passkeystore.go. passkeyCount
+	// below reads its count, and Task 12/13 add and verify against it.
+	passkeys *passkeyStore
+	// passkeyPending carries the challenge between a registration ceremony's
+	// Begin and Finish steps; see handler_passkey.go. Separate from pending
+	// above for the same reason pending is separate from store: a different
+	// cookie path (/password, not /login) and a different lifetime, and mixing
+	// an unrelated ceremony's state into either existing cookie is exactly the
+	// kind of cross-purpose store newPendingStore's own comment warns against.
+	passkeyPending sessions.Store
+	// loginPasskeyPending carries the challenge between a login ceremony's Begin
+	// and Finish steps — the same shape as passkeyPending above, at a different
+	// path: Path /login, so it reaches /login/passkey/begin and /finish, and a
+	// different cookie name so a request is never ambiguous about which of the
+	// three in-progress states (this one, a half-finished enrolment, or the
+	// pendingLogin state itself) it is in the middle of.
+	loginPasskeyPending sessions.Store
+	bundle              *i18n.Bundle
 	// localeStatus is loaded once here, beside the bundle, rather than per
 	// request: whether a language has been reviewed cannot change without a
 	// restart, so reading status.json on every render would be waste. A code
@@ -111,6 +129,25 @@ type Server struct {
 	httpSrv      *http.Server
 	version      *shared.Checker
 	certs        *certManager
+
+	// acmeSrv is the HTTP-01 challenge listener on port 80, non-nil only while
+	// tls.acme is on and Start has run. See acme.go.
+	//
+	// atomic.Pointer, not a plain field: cmd/easywall-web runs Start() in its
+	// own goroutine and calls Stop() from the one that caught the signal —
+	// exactly the shape TestStartWithACMEConfiguredDoesNotPanic exercises —
+	// so the write in startACMEChallengeListener and the read in
+	// stopACMEChallengeListener are genuinely concurrent. -race found this
+	// one; a plain *http.Server did not fail in the wild only because the
+	// window between "Start assigns it" and "a signal arrives" is narrow, not
+	// because it was safe.
+	acmeSrv atomic.Pointer[http.Server]
+
+	// passkeyCount counts enrolled passkeys for factorCount. A function and
+	// not a *Config method, so newFactorTestServer's fixture can still set it
+	// directly to a fixed count without a passkey store behind it; NewServer
+	// points it at s.passkeys below.
+	passkeyCount func() int
 
 	// telemetry is nil in demo mode. The public demo is reset every few hours,
 	// which would give it a fresh identifier each time and manufacture several
@@ -189,7 +226,10 @@ func NewServer(cfg *Config) (*Server, error) {
 
 	// TLS certificate — generated on first start, and kept current from here on
 	// by the manager rather than only at process start.
-	certs := newCertManager(cfg)
+	certs, err := newCertManager(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("configure TLS certificate: %w", err)
+	}
 	if err := certs.ensure(); err != nil {
 		return nil, fmt.Errorf("generate TLS cert: %w", err)
 	}
@@ -225,16 +265,20 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	s := &Server{
-		cfg:          cfg,
-		client:       client,
-		store:        store,
-		pending:      pending,
-		replay:       newTOTPReplay(cfg.TOTPReplayPath()),
-		bundle:       bundle,
-		localeStatus: localeStatus,
-		version:      shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:        certs,
+		cfg:                 cfg,
+		client:              client,
+		store:               store,
+		pending:             pending,
+		replay:              newTOTPReplay(cfg.TOTPReplayPath()),
+		passkeys:            newPasskeyStore(cfg.PasskeysPath()),
+		passkeyPending:      newPasskeyPendingStore(cfg.SessionKey),
+		loginPasskeyPending: newLoginPasskeyPendingStore(cfg.SessionKey),
+		bundle:              bundle,
+		localeStatus:        localeStatus,
+		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:               certs,
 	}
+	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 
 	if !cfg.DemoMode {
 		s.telemetry = shared.NewReporter(cfg.TelemetryStatePath(), cfg.TelemetryEnabled)
@@ -317,8 +361,26 @@ func (s *Server) Start() error {
 	// Load the certificate before binding. Serving the port and failing every
 	// handshake looks, from the outside, like a broken network rather than a
 	// missing file; refusing to start says which.
-	if _, err := s.certs.GetCertificate(nil); err != nil {
-		return fmt.Errorf("TLS certificate: %w", err)
+	//
+	// Skipped when ACME is on: this checks a file easywall owns, and ACME owns
+	// none — autocert fetches per handshake, lazily, against the SNI a real
+	// client sends, from its own cache or the CA. Calling this with a nil
+	// *tls.ClientHelloInfo (there is no handshake yet to take one from) is not
+	// "no file to check", it is a nil pointer straight into
+	// autocert.Manager.GetCertificate, whose first statement reads
+	// hello.ServerName — a panic before startACMEChallengeListener below ever
+	// runs, on every host that turns ACME on.
+	if !s.certs.usesACME() {
+		if _, err := s.certs.GetCertificate(nil); err != nil {
+			return fmt.Errorf("TLS certificate: %w", err)
+		}
+	}
+
+	// Before the HTTPS listener: a certificate that needs ACME cannot be
+	// fetched at all without this, and refusing to start says so plainly
+	// instead of leaving renewal to fail silently sixty days from now.
+	if err := s.startACMEChallengeListener(); err != nil {
+		return err
 	}
 
 	slog.Info("easywall-web listening", "addr", s.cfg.BindAddr)
@@ -337,6 +399,7 @@ func (s *Server) Start() error {
 // Stop gracefully shuts down the server.
 func (s *Server) Stop() {
 	s.certs.close()
+	s.stopACMEChallengeListener()
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
 	}
@@ -406,6 +469,12 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		// arithmetic that makes the password step's limit cover it.
 		r.Get("/login/verify", s.handleLoginVerifyGET)
 		r.Post("/login/verify", s.handleLoginVerifyPOST)
+		// The second step's other way in: a passkey instead of a typed code.
+		// Both read pendingForRequest first, same guard as handleLoginVerifyPOST
+		// above, and a failed assertion pays into the same p.Attempts budget — see
+		// handleLoginPasskeyFinish.
+		r.Post("/login/passkey/begin", s.handleLoginPasskeyBegin)
+		r.Post("/login/passkey/finish", s.handleLoginPasskeyFinish)
 		// POST, so CrossOriginProtection covers it. It was a GET, and that
 		// middleware exempts safe methods by design — measured: a request
 		// carrying Origin: https://evil.example and Sec-Fetch-Site: cross-site
@@ -421,18 +490,19 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 			r.Get("/firstrun", s.handleFirstRunGET)
 			r.Post("/firstrun", s.handleFirstRunPOST)
 
-			// Inside this block on purpose: these write credentials, and they
+			// Inside this block on purpose: both write credentials, and they
 			// must stop existing the moment an account does. That is also why
 			// they are not in credentialWritingRoutes — the demo ships with a
 			// password set, so they are never registered there at all.
 			r.Post("/firstrun/confirm", s.handleFirstRunConfirm)
-			r.Post("/firstrun/skip", s.handleFirstRunSkip)
+			r.Post("/firstrun/recover", s.handleFirstRunRecover)
 		}
 	})
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(RequireAuth(s.store, s.currentCredential()))
+		r.Use(RequireSecondFactor(s.hasSecondFactor, s.client.IsDemo))
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -467,14 +537,24 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/password", s.handlePasswordGET)
 		r.Post("/password", s.handlePasswordPOST)
 
-		// All four POST, all inside this group, and therefore all under the
-		// existing http.NewCrossOriginProtection. begin, confirm and recovery
-		// render their result in place rather than redirecting to a GET, so a
-		// reload cannot mint a second secret and the eight codes have no URL.
+		// All five POST, all inside this group, and therefore all under the
+		// existing http.NewCrossOriginProtection. begin, confirm, recover and
+		// recovery render their result in place rather than redirecting to a
+		// GET, so a reload cannot mint a second secret and the eight codes have
+		// no URL.
 		r.Post("/password/2fa/begin", s.handle2FABegin)
 		r.Post("/password/2fa/confirm", s.handle2FAConfirm)
+		r.Post("/password/2fa/enrol-unverified", s.handle2FAEnrolUnverified)
 		r.Post("/password/2fa/disable", s.handle2FADisable)
 		r.Post("/password/2fa/recovery", s.handle2FARecovery)
+
+		// Passkeys, the stronger second factor 2.18 adds beside TOTP. begin and
+		// finish are the two halves of one registration ceremony — see
+		// handler_passkey.go — and both, like the 2fa/* routes above, render
+		// their result in place rather than redirecting to a GET.
+		r.Post("/password/passkey/begin", s.handlePasskeyBegin)
+		r.Post("/password/passkey/finish", s.handlePasskeyFinish)
+		r.Post("/password/passkey/remove", s.handlePasskeyRemove)
 
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
@@ -524,7 +604,9 @@ func staticCacheHeaders(next http.Handler) http.Handler {
 // function so callers see the value at the moment they ask rather than at wiring
 // time.
 func (s *Server) currentCredential() func() string {
-	return func() string { return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret()) }
+	return func() string {
+		return credentialFingerprint(s.cfg.PasswordHash(), s.cfg.TOTPSecret(), s.passkeys.fingerprintInput())
+	}
 }
 
 // clientAddr is who this request is from and whether that address stands in for
@@ -568,7 +650,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		return
 	}
 
-	sess, _ := s.store.Get(r, SessionName)
+	// sessionForWrite, not store.Get: this saves the session when it clears a
+	// flash, and that save re-signs the cookie. See its own comment.
+	sess := s.sessionForWrite(r)
 	flash, _ := sess.Values["flash"].(string)
 	flashN, _ := sess.Values["flash_n"].(int)
 	if flash != "" {
@@ -713,14 +797,14 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 
 // setFlash stores a one-time flash message in the session.
 func (s *Server) setFlash(w http.ResponseWriter, r *http.Request, msg string) {
-	sess, _ := s.store.Get(r, SessionName)
+	sess := s.sessionForWrite(r)
 	sess.Values["flash"] = msg
 	_ = sess.Save(r, w)
 }
 
 // setFlashN is setFlash with the one number a flash may carry.
 func (s *Server) setFlashN(w http.ResponseWriter, r *http.Request, msg string, n int) {
-	sess, _ := s.store.Get(r, SessionName)
+	sess := s.sessionForWrite(r)
 	sess.Values["flash"] = msg
 	sess.Values["flash_n"] = n
 	_ = sess.Save(r, w)
@@ -782,7 +866,7 @@ func loadTemplates(dir string) (*template.Template, error) {
 // write them. Anything unknown falls back to a humanised form of the identifier
 // itself, so a new action added in the core still renders sensibly before this
 // map catches up.
-var auditActionLabels = map[string]string{
+var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, not credentials; gosec's pattern matches "pass" inside the "passkey_*" keys
 	"apply_started":    "audit_apply_started",
 	"apply_accepted":   "audit_apply_accepted",
 	"apply_rolledback": "audit_apply_rolledback",
@@ -818,11 +902,11 @@ var auditActionLabels = map[string]string{
 	"rollback_skipped":       "audit_rollback_skipped",
 	"resume_restore_skipped": "audit_resume_restore_skipped",
 
-	// The nine login events, new in 2.8. Where there were none at all before:
-	// features/audit-log.md sent an operator to `journalctl -u easywall-web` for
-	// a failed login, which is not where anybody looks for "who has been at the
-	// door". None of them is in auditActionTones, deliberately — see the note
-	// there.
+	// Nine of these are login events new in 2.8. Where there were none at all
+	// before: features/audit-log.md sent an operator to
+	// `journalctl -u easywall-web` for a failed login, which is not where anybody
+	// looks for "who has been at the door". None of them is in auditActionTones,
+	// deliberately — see the note there.
 	"login_ok":                   "audit_login_ok",
 	"login_failed":               "audit_login_failed",
 	"login_2fa_failed":           "audit_login_2fa_failed",
@@ -832,6 +916,15 @@ var auditActionLabels = map[string]string{
 	"totp_enabled":               "audit_totp_enabled",
 	"totp_disabled":              "audit_totp_disabled",
 	"recovery_codes_regenerated": "audit_recovery_codes_regenerated",
+
+	// The four passkey events, new in 2.18. passkey_used is the login route's
+	// own success, alongside login_ok and login_recovery_used; enrolled and
+	// removed mirror totp_enabled/totp_disabled's own reasoning for a different
+	// factor, and clone_suspected is a refusal, not a state change.
+	"passkey_used":            "audit_passkey_used",
+	"passkey_enrolled":        "audit_passkey_enrolled",
+	"passkey_removed":         "audit_passkey_removed",
+	"passkey_clone_suspected": "audit_passkey_clone_suspected",
 
 	// The three 2.17 actions. selftest_passed and selftest_failed are written by
 	// `easywall-core selftest` — the console and the oneshot unit in front of the
@@ -922,7 +1015,7 @@ var auditActionTones = map[string]string{
 	// describes, and it must not be rendered in two colours depending on which
 	// code path reached it.
 	//
-	// None of the nine login events is here either, and for the same reason as
+	// None of the thirteen login events is here either, and for the same reason as
 	// apply_refused_panic and rollback_skipped above: a login does not change
 	// what the firewall is doing. It is read, not signalled. That 2.13 will push
 	// a notification on repeated login_failed is not a contradiction — a
@@ -1226,6 +1319,15 @@ var clientStringKeys = []string{
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
 	"count_filtered",
 	"totp_copy", "totp_copied", "totp_copy_failed",
+	// Reused from the server-side flash of the same name: the begin request
+	// failing in the browser (a 500, a dropped connection) is the same "that
+	// did not verify, try the same device again" situation the server's own
+	// flash describes when the credential response fails to verify.
+	"passkey_ceremony_failed",
+	// Reused as the custom validity message reportValidity() shows when the
+	// name field is empty — the same rule handlePasskeyFinish enforces on its
+	// own, stated once and asked in both places.
+	"passkey_name_required",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -1254,9 +1356,14 @@ func templateFuncs() template.FuncMap {
 		// A removal that worked, not a warning: the stored answer is gone and
 		// the environment is back in force, exactly as asked.
 		"provenance_reset_done": true,
+		// The second factor is now doing what it was set up to do, the same
+		// direction as the totp_enabled/totp_disabled pair above.
+		"passkey_added": true, "passkey_removed": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
+		// Same policy, the other two missing character classes.
+		"password_needs_digit": true, "password_needs_symbol": true,
 		"system_invalid_duration": true,
 		// A network the operator has to correct, not a failure of anything. Amber
 		// here and amber in app.js's toast map, which is the path this one
@@ -1270,10 +1377,11 @@ func templateFuncs() template.FuncMap {
 		// Neither is a failure of the system: the operator asked for the window
 		// to end early, and either it did or it had already closed on its own.
 		"rules_rolled_back": true, "rollback_too_late": true,
+		"passkey_added_no_codes": true,
 		// The important half worked: the account and the second factor exist,
 		// and the codes below are shown. Only the ports/IPv6 staging failed —
-		// amber, not the red firstrun_choices_failed would otherwise imply
-		// about a page that is about to show working recovery codes.
+		// amber, not red: red is for a failure with nothing to show for it,
+		// and this page is about to show working recovery codes.
 		"firstrun_done_choices_failed": true,
 		// The code was accepted and let the operator in; the disk is what
 		// failed. Amber, not red: signing in did work.
@@ -1285,6 +1393,26 @@ func templateFuncs() template.FuncMap {
 		"totp_clock_behind_one": true, "totp_clock_behind_many": true,
 		"totp_clock_ahead_one": true, "totp_clock_ahead_many": true,
 		"totp_setup_expired": true,
+		// Not a failure of anything: the operator's own account is fine as it
+		// stands. It is a rule about what may happen next, the same shape as
+		// password_mismatch and username_required above.
+		"factor_last": true,
+		// Same shape again: nothing is broken, there is just nothing yet to
+		// reissue codes for.
+		"totp_recovery_needs_factor": true,
+		// The same three shapes handle2FAConfirm's own clock/expiry keys carry,
+		// one level up: a ceremony that ran out the clock, or one whose
+		// signature did not check out — a wrong device, a stale challenge —
+		// is a rule about what may happen next, not a system failure. The
+		// card being switched off is the same shape as demo_readonly above.
+		"passkey_setup_expired": true, "passkey_ceremony_failed": true,
+		"passkey_no_hostname": true, "passkey_self_signed": true, "passkey_demo": true,
+		// Nothing was removed — the id named nothing this store still holds —
+		// which is a rule about the request, not a system failure.
+		"passkey_not_found": true,
+		// The operator's own account is fine as it stands; a name is missing
+		// or too long, the same shape as the password-policy messages above.
+		"passkey_name_required": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)

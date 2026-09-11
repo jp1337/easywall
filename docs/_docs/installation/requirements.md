@@ -37,8 +37,9 @@ are not in CI.
 | Port | Direction | Purpose |
 |---|---|---|
 | 12227/tcp | inbound | the web interface, HTTPS only |
+| 80/tcp | inbound | only when `tls.acme = true` — the HTTP-01 challenge a certificate authority uses to prove control of `tls.hostname`. Not opened by easywall's own rules; see [Security → Transport]({{ '/docs/security/' | relative_url }}#the-one-exception-acmes-port-80) |
 
-There is no plaintext port. The two processes talk over a Unix socket, not a port.
+No other plaintext port. The two processes talk over a Unix socket, not a port.
 
 ## Not required
 

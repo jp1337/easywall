@@ -39,8 +39,18 @@ ReadWritePaths=/var/lib/easywall /etc/easywall /run/easywall
 # the rest of /etc/easywall out of reach: the directory is root-owned, and only
 # web.toml and ssl/ belong to the easywall user.
 
-# Allow network binding on port 12227 (>1024, no special cap needed)
-# If binding on a privileged port, add: AmbientCapabilities=CAP_NET_BIND_SERVICE
+# Port 12227 needs no capability. Port 80 does, and easywall binds it when
+# tls.acme is on: a certificate authority looks for an HTTP-01 response there
+# and the port number is fixed by the ACME specification.
+#
+# Granted unconditionally rather than only when ACME is configured, because a
+# unit file that has to be edited to turn a setting on is a setting that fails
+# with "permission denied" for everyone who forgets. The capability permits
+# binding a low port and nothing else, and it composes with NoNewPrivileges:
+# ambient capabilities are granted by systemd at exec, not acquired by the
+# process.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target

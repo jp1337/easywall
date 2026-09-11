@@ -170,9 +170,9 @@ recovery_codes = ["$argon2id$hash1"]
 func TestCredentialFingerprint_CoversTheTOTPState(t *testing.T) {
 	hash := "$argon2id$v=19$m=65536,t=3,p=4$c2FsdA$aGFzaA"
 
-	off := credentialFingerprint(hash, "")
-	on := credentialFingerprint(hash, "JBSWY3DPEHPK3PXP")
-	other := credentialFingerprint(hash, "KRSXG5BAMFXG65DI")
+	off := credentialFingerprint(hash, "", "")
+	on := credentialFingerprint(hash, "JBSWY3DPEHPK3PXP", "")
+	other := credentialFingerprint(hash, "KRSXG5BAMFXG65DI", "")
 
 	if off == on {
 		t.Error("enabling a second factor did not change the fingerprint, so no other session ended")
@@ -180,12 +180,28 @@ func TestCredentialFingerprint_CoversTheTOTPState(t *testing.T) {
 	if on == other {
 		t.Error("two different secrets produce the same fingerprint")
 	}
-	if credentialFingerprint(hash, "") != off {
+	if credentialFingerprint(hash, "", "") != off {
 		t.Error("the fingerprint is not stable for the same inputs")
 	}
 	// And it must not be derivable back to either input.
 	if strings.Contains(off, hash) || strings.Contains(on, "JBSWY3DPEHPK3PXP") {
 		t.Error("the fingerprint carries its input")
+	}
+
+	// The passkey set added in 2.18 is the third input, on the same terms as
+	// the TOTP secret: enrolling or removing one changes the fingerprint, and
+	// the value carries no trace of the set itself.
+	noPasskeys := credentialFingerprint(hash, "", "")
+	onePasskey := credentialFingerprint(hash, "", "aabbcc")
+	twoPasskeys := credentialFingerprint(hash, "", "aabbcc\x00ddeeff")
+	if noPasskeys == onePasskey {
+		t.Error("enrolling a passkey did not change the fingerprint, so no other session ended")
+	}
+	if onePasskey == twoPasskeys {
+		t.Error("two different passkey sets produce the same fingerprint")
+	}
+	if strings.Contains(onePasskey, "aabbcc") {
+		t.Error("the fingerprint carries the passkey set")
 	}
 }
 

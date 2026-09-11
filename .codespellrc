@@ -73,8 +73,17 @@ ignore-words-list = rouge,iif,oder,unparseable
 # diff does not show. It happened once, between two commits of the same release,
 # because a comment was reflowed. Where the phrase is not load-bearing, say
 # "the French title for changing a password" instead of quoting it.
-ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe
+ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe|später unter Passwort|ohne zweiten Faktor
 
+# The two German phrases the wizard must never say, quoted verbatim in
+# internal/web/handler_firstrun_2fa_test.go's forbidden list: "später unter
+# Passwort" and "ohne zweiten Faktor". codespell reads `unter` as "under" and
+# `Faktor` as "Factor" — both far too common to put in ignore-words-list, so
+# they are scoped here like the two phrases above. These cannot be paraphrased
+# away: the strings ARE the assertion, which is the case the note at the foot
+# of this file exempts. locales/de.json is skipped wholesale and so never hit
+# this; a German string quoted inside a Go test is not covered by that skip.
+#
 # No entry for `nd` or `ba`. The brief that drafted this file believed they
 # were needed for "2nd" and a base32 TOTP example, but neither pattern
 # currently exists anywhere in the repo (searched: docs/, README.md,

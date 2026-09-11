@@ -65,7 +65,10 @@ func writeCertValidFor(t *testing.T, dir string, d time.Duration) *x509.Certific
 func selfSignedManager(t *testing.T, dir string) *certManager {
 	t.Helper()
 	cfg := &Config{WebConfig: shared.WebConfig{SSLDir: dir}}
-	m := newCertManager(cfg)
+	m, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
 	t.Cleanup(m.close)
 	return m
 }
@@ -146,7 +149,10 @@ func TestCertManager_ReloadsACertificateReplacedOnDisk(t *testing.T) {
 			KeyFile:  filepath.Join(dir, "key.pem"),
 		},
 	}}
-	m := newCertManager(cfg)
+	m, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
 	defer m.close()
 
 	before := servedSerial(t, m)
@@ -177,7 +183,10 @@ func TestCertManager_NeverOverwritesACustomCertificate(t *testing.T) {
 			KeyFile:  filepath.Join(dir, "key.pem"),
 		},
 	}}
-	m := newCertManager(cfg)
+	m, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
 	defer m.close()
 
 	if err := m.ensure(); err != nil {
@@ -216,7 +225,10 @@ func TestCertManager_FirstLoadFailureIsReported(t *testing.T) {
 			KeyFile:  filepath.Join(dir, "missing-key.pem"),
 		},
 	}}
-	m := newCertManager(cfg)
+	m, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
 	defer m.close()
 
 	if _, err := m.GetCertificate(nil); err == nil {

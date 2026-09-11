@@ -18,6 +18,7 @@ func TestHandleOptions_RequiresAuth(t *testing.T) {
 func TestHandleOptions_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{
 		SSHBruteForce: true,
 		ICMPFlood:     true,
@@ -31,6 +32,7 @@ func TestHandleOptions_Success(t *testing.T) {
 func TestHandleOptions_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetOptions, errorRespFor("options unavailable"))
 
 	rec := doAuthRequest(t, s, "GET", "/options", nil)
@@ -48,6 +50,7 @@ func TestHandleOptionsPOST_RequiresAuth(t *testing.T) {
 func TestHandleOptionsPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveOptions, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/options",
@@ -58,6 +61,7 @@ func TestHandleOptionsPOST_Success(t *testing.T) {
 func TestHandleOptionsPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveOptions, errorRespFor("save failed"))
 
 	rec := doAuthFormRequest(t, s, "/options", "")

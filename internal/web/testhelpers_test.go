@@ -286,16 +286,37 @@ key  = ""
 	bundle := testBundle(t)
 	tmpl := testTemplates(t)
 
-	s := &Server{
-		cfg:     cfg,
-		client:  client,
-		store:   store,
-		pending: pendingStore,
-		replay:  newTOTPReplay(dir + "/totp_replay.json"),
-		bundle:  bundle,
-		tmpl:    tmpl,
-		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+	// NewServer builds this before anything else and refuses to start without
+	// one; a Server with no certManager at all is not a smaller stand-in for a
+	// real one, it is a state production never reaches. Building it here is
+	// free — with tls.acme unset (the default in this fixture's config) it is
+	// just struct fields, no filesystem I/O.
+	certs, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
 	}
+
+	s := &Server{
+		cfg:                 cfg,
+		client:              client,
+		store:               store,
+		pending:             pendingStore,
+		replay:              newTOTPReplay(dir + "/totp_replay.json"),
+		passkeys:            newPasskeyStore(dir + "/passkeys.json"),
+		passkeyPending:      newPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		loginPasskeyPending: newLoginPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		bundle:              bundle,
+		tmpl:                tmpl,
+		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:               certs,
+	}
+	// Built the way production builds it (NewServer wires this the same way,
+	// right after the struct literal): a real, empty store rather than the
+	// bare "0" this used to be. credentialFingerprint reads
+	// s.passkeys.fingerprintInput() on every request from 2.18 on, and that
+	// call panics on a nil *passkeyStore — every server this package builds
+	// needs a real one now, not only the tests that enrol a passkey.
+	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
 	// s.events.
 	s.events = newAuditEvents(client, false)
@@ -349,16 +370,28 @@ key  = ""
 	bundle := testBundle(t)
 	tmpl := testTemplates(t)
 
-	s := &Server{
-		cfg:     cfg,
-		client:  client,
-		store:   store,
-		pending: pendingStore,
-		replay:  newTOTPReplay(dir + "/totp_replay.json"),
-		bundle:  bundle,
-		tmpl:    tmpl,
-		version: shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+	// See newTestServer's own certs construction: NewServer never leaves this
+	// nil, so neither does this fixture.
+	certs, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
 	}
+
+	s := &Server{
+		cfg:                 cfg,
+		client:              client,
+		store:               store,
+		pending:             pendingStore,
+		replay:              newTOTPReplay(dir + "/totp_replay.json"),
+		passkeys:            newPasskeyStore(dir + "/passkeys.json"),
+		passkeyPending:      newPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		loginPasskeyPending: newLoginPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		bundle:              bundle,
+		tmpl:                tmpl,
+		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:               certs,
+	}
+	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for
 	// s.events.
 	s.events = newAuditEvents(client, false)
@@ -383,7 +416,8 @@ func makeAuthCookie(t *testing.T, s *Server) *http.Cookie {
 		t.Fatalf("store.Get: %v", err)
 	}
 	sess.Values[SessionUserKey] = "admin"
-	sess.Values[SessionCredentialKey] = credentialFingerprint(s.cfg.Password, s.cfg.WebConfig.TOTPSecret)
+	sess.Values[SessionCredentialKey] = credentialFingerprint(
+		s.cfg.Password, s.cfg.WebConfig.TOTPSecret, s.passkeys.fingerprintInput())
 	sess.Values[SessionIDKey] = newSessionID()
 	if err := sess.Save(req, rec); err != nil {
 		t.Fatalf("sess.Save: %v", err)
@@ -553,4 +587,137 @@ func newDemoTestServer(t *testing.T) *Server {
 
 	s.router = s.buildRouter(s.cfg)
 	return s
+}
+
+// testPassword is the plaintext newTestServer hashes into cfg.Password, so any
+// helper built on it can authenticate without minting its own hash.
+const testPassword = "testpassword123!"
+
+// newFactorTestServer builds a Server carrying the given second factors, for
+// factorCount/mayRemoveFactor and the routes that call them.
+//
+// totp, when non-empty, is stored the way enrolment stores it (SaveTOTP), so
+// TOTPSecret() and TOTPEnabled() agree with it. passkeys sets s.passkeyCount
+// to a fixed count, decoupled from the real (and here always empty)
+// *passkeyStore behind it — a caller after "the gate sees N factors" and
+// nothing about a specific enrolled credential. A test that needs a real
+// enrolled passkey — the fingerprint changing, a specific credential being
+// removable — builds one through the actual ceremony instead; see
+// newPasskeyTestServer in handler_passkey_test.go.
+// demo reuses newDemoTestServer's own client swap, so IsDemo() agrees with
+// cfg.DemoMode exactly as production wires it.
+func newFactorTestServer(t *testing.T, totp string, passkeys int, demo bool) *Server {
+	t.Helper()
+	var s *Server
+	if demo {
+		s = newDemoTestServer(t)
+	} else {
+		s = newTestServer(t, newFakeCore(t))
+	}
+	if totp != "" {
+		if err := s.cfg.SaveTOTP(totp, nil); err != nil {
+			t.Fatalf("SaveTOTP: %v", err)
+		}
+	}
+	s.passkeyCount = func() int { return passkeys }
+	return s
+}
+
+// postAuthed performs an authenticated POST with form values and returns the
+// raw response, for tests that only need the status code and not a recorder.
+func (s *Server) postAuthed(t *testing.T, path string, form map[string]string) *http.Response {
+	t.Helper()
+	vals := url.Values{}
+	for k, v := range form {
+		vals.Set(k, v)
+	}
+	return s.postAuthedForm(t, path, vals.Encode())
+}
+
+// postAuthedJSON performs an authenticated POST carrying form values plus a
+// "credential" field holding the given raw JSON — the shape
+// handlePasskeyFinish reads a WebAuthn ceremony response from, since a real
+// form field and a JSON body cannot both be the request body at once.
+func (s *Server) postAuthedJSON(t *testing.T, path string, form map[string]string, credential string) *http.Response {
+	t.Helper()
+	vals := url.Values{}
+	for k, v := range form {
+		vals.Set(k, v)
+	}
+	vals.Set("credential", credential)
+	return s.postAuthedForm(t, path, vals.Encode())
+}
+
+// serverExtraCookies remembers, per Server used in a test, the last
+// non-session cookie a response set — the passkey registration challenge,
+// chiefly. postAuthed and postAuthedJSON each mint a fresh session cookie
+// through makeAuthCookie, which does not matter for who is signed in, but a
+// real browser talking to the same server across two requests would still be
+// holding whatever else the previous response set. Without this, a
+// two-request ceremony like passkey begin -> finish would need every test to
+// thread a cookie through by hand; this replays it the way a browser's own
+// cookie jar would, for exactly the one test that chains the two calls this
+// way — see TestAPasskeyCanBeEnrolledAndCounts.
+var (
+	serverExtraCookiesMu sync.Mutex
+	serverExtraCookies   = map[*Server][]*http.Cookie{}
+)
+
+// postAuthedForm is what postAuthed and postAuthedJSON share.
+func (s *Server) postAuthedForm(t *testing.T, path, formBody string) *http.Response {
+	t.Helper()
+	serverExtraCookiesMu.Lock()
+	extra := serverExtraCookies[s]
+	serverExtraCookiesMu.Unlock()
+
+	cookies := append([]*http.Cookie{makeAuthCookie(t, s)}, extra...)
+	resp := doFormRequest(s, "POST", path, formBody, cookies...).Result()
+
+	var carry []*http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name != SessionName {
+			carry = append(carry, c)
+		}
+	}
+	if carry != nil {
+		serverExtraCookiesMu.Lock()
+		serverExtraCookies[s] = carry
+		serverExtraCookiesMu.Unlock()
+		t.Cleanup(func() {
+			serverExtraCookiesMu.Lock()
+			delete(serverExtraCookies, s)
+			serverExtraCookiesMu.Unlock()
+		})
+	}
+	return resp
+}
+
+// doAuthed performs an authenticated request with no body and returns the raw
+// response, for TestTheGateCannotBeWalkedPast: it walks every route the
+// router registers under whatever method chi.Walk reports for it, and most of
+// those carry no form.
+func (s *Server) doAuthed(t *testing.T, method, path string) *http.Response {
+	t.Helper()
+	cookie := makeAuthCookie(t, s)
+	return doRequest(s, method, path, nil, cookie).Result()
+}
+
+// enrollFactor gives s a TOTP secret directly through cfg.SaveTOTP, the same
+// call SaveTOTP-based enrolment itself makes.
+//
+// RequireSecondFactor's arrival in this release means every test that drives
+// an ordinary authenticated route — /dashboard, /ports, /apply, and the rest —
+// through a server built by newTestServer now needs a factor enrolled or the
+// gate redirects it to /password before the handler under test ever runs.
+// This is that one line, named for what it does rather than repeated as the
+// three-line SaveTOTP-plus-error-check newFactorTestServer already carries for
+// the tests that need to control the exact factor count. Tests exercising
+// login, enrolment, or the factor count itself build their own factor state
+// instead — starting unenrolled, or with a specific count, is what they are
+// testing — and call newFactorTestServer or SaveTOTP directly rather than this.
+func enrollFactor(t *testing.T, s *Server) {
+	t.Helper()
+	if err := s.cfg.SaveTOTP("JBSWY3DPEHPK3PXP", nil); err != nil {
+		t.Fatalf("enrollFactor: SaveTOTP: %v", err)
+	}
 }

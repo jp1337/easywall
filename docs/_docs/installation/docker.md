@@ -173,6 +173,13 @@ cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 ```
 
+**`tls.acme` is not supported in this image.** The web process drops to an
+unprivileged user with no path to reacquire `CAP_NET_BIND_SERVICE`.
+`no-new-privileges:true` is deliberate hardening this project will not trade
+away for one feature. Run your own ACME client (certbot, or Let's Encrypt's
+own container) against the host and mount its output the way shown above
+instead.
+
 ## Updating
 
 ```bash
