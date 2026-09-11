@@ -306,3 +306,12 @@ panic button pointed the other way.
   or 22 if sshd is down — for squatting or phishing. It still opens no path to
   netlink, so the two-process split holds in the same kind, just not the same
   degree.
+- A stolen authenticator, exactly as much as a stolen phone with the
+  authenticator app already unlocked on it. A passkey narrows what a stolen
+  *password* buys — `/login/passkey/begin` and `/finish` both refuse without a
+  `pendingLogin` behind them, so the assertion alone opens nothing — but it does
+  not change what a stolen *second factor* buys, which was already true of a
+  code copied off an unlocked phone. What it does add: every assertion's
+  signature counter is checked against what that credential last reported, and
+  one that does not advance is refused (`passkey_clone_suspected`), not
+  granted with the fact merely logged. TOTP has no equivalent tell.

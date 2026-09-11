@@ -41,16 +41,48 @@ holds no privilege worth stealing.
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
 | Recovery | none by design — no mail, no outside service. [Clear the password line]({{ '/docs/installation/first-run/' | relative_url }}#if-you-lose-the-password) on the host |
-| Second factor | mandatory, per the single account — [TOTP and eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
+| Second factor | mandatory, per the single account — [TOTP or a passkey, plus eight recovery codes]({{ '/docs/features/two-factor/' | relative_url }}). Enabling or disabling one ends every other session, the same way a password change does |
 
-With a second factor enrolled, the password step ends in a redirect rather than a
-session, and the code is checked at `/login/verify`. That step has no rate limit
-of its own and does not need one. One intermediate state allows three code
-attempts, and a new one costs a password round. Five password rounds are allowed
-per ten minutes per address, so **fifteen code attempts per ten minutes per
-address** against a target that rotates every thirty seconds.
-`TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` is that sentence as an
-executable claim.
+With a second factor enrolled, the password step ends in a redirect, not a
+session. The second step is checked at `/login/verify`, in either order: a
+typed code, a recovery code, or a passkey assertion. That step has no rate
+limit of its own and does not need one. One intermediate state allows three
+attempts against the code field **or** the passkey button — the two share one
+counter — and a new intermediate state costs a password round. Five password
+rounds are allowed per ten minutes per address, so **fifteen attempts per ten
+minutes per address**, code and passkey combined, against a target that rotates
+every thirty seconds. `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough`
+and `TestTheSixteenthPasskeyAttemptDoesNotGetThrough` are that sentence as an
+executable claim, twice.
+
+### Passkeys are a second factor, never a replacement
+
+A passkey is offered at `/login/verify`, after the password, exactly where the
+code field already is — never instead of it, and never in place of the
+password step. `POST /login/passkey/begin` and `/finish` both refuse without a
+`pendingLogin` behind them, the same guard `/login/verify` itself opens with:
+a stolen authenticator is not a login on its own. Every assertion's signature
+counter is checked against what that credential last reported. One that did
+not advance is refused as `passkey_clone_suspected` — a failed attempt, never
+a lockout, since TOTP, a recovery code and another passkey are all still
+there. TOTP has no equivalent tell.
+
+Mandatory since 2.18 means an upgrade with only a password meets the same gate
+a fresh first run does. Every authenticated route redirects to `/password`
+until a factor — TOTP or a passkey — is enrolled. Nothing about a passkey
+being available changes that; TOTP alone still satisfies the gate.
+
+A passkey can be unavailable, and the interface says which of three reasons is
+in the way rather than showing a control that fails silently in the browser:
+
+| Reason | Why |
+|---|---|
+| The demo | Anyone can open it, and a passkey left there would stay |
+| No `tls.hostname` | WebAuthn's Relying Party ID must be a registrable domain; an installation reached by its bare IP address has none |
+| A self-signed certificate | No browser trusts the pair easywall generates itself by default, and a ceremony begun anyway fails in the browser with a `SecurityError` the operator cannot act on |
+
+TOTP and the eight recovery codes are unaffected by all three — they are the
+way in when a passkey cannot be offered at all.
 
 ### If the clock is wrong
 
@@ -259,10 +291,11 @@ no identity yet. It names the process, not the person — see the
 | `rules_saved` · `rules_imported` | |
 | `options_saved` · `settings_saved` · `system_saved` | |
 
-> **Since 2.8, logins are in the audit log.** Nine events — signed in, sign-in
-> failed, second factor failed, a recovery code used, sign-in attempts blocked,
-> signed out, and the second factor switched on, off or regenerated.
-> See [the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
+> **Since 2.8, logins are in the audit log.** Thirteen events: signed in,
+> sign-in failed, second factor failed, a recovery code used, sign-in attempts
+> blocked, and signed out. A factor switched on, off or regenerated, a passkey
+> used, enrolled or removed, and a passkey whose counter did not advance.
+> See [the thirteen login events]({{ '/docs/features/audit-log/' | relative_url }}#the-thirteen-login-events).
 > None of them carries colour: a sign-in does not move the firewall.
 
 Reading it: [Audit log]({{ '/docs/features/audit-log/' | relative_url }}).

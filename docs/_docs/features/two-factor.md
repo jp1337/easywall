@@ -112,7 +112,7 @@ link: this interface sends no mail and reaches no outside service.
 
 Every step above — enrolling, signing in with a code, using a recovery code,
 issuing new ones, a wrong code, or a factor switched off — is recorded. See
-[the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
+[the thirteen login events]({{ '/docs/features/audit-log/' | relative_url }}#the-thirteen-login-events).
 
 ---
 

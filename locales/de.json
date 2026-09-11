@@ -23,6 +23,7 @@
   {"id": "login_demo_notice", "translation": "Die Zugangsdaten stehen auf der Demo-Startseite. Beim Neustart des Servers wird der Zustand zurückgesetzt."},
 
   {"id": "verify_title",    "translation": "Zweiter Faktor"},
+  {"id": "passkey_login_button", "translation": "Passkey verwenden"},
   {"id": "verify_prompt",   "translation": "Code aus der App oder ein Wiederherstellungscode"},
   {"id": "verify_submit",   "translation": "Weiter"},
   {"id": "verify_cancel",   "translation": "Abbrechen und neu anmelden"},
@@ -260,6 +261,10 @@
   {"id": "audit_totp_enabled", "translation": "Zweiter Faktor aktiviert"},
   {"id": "audit_totp_disabled", "translation": "Zweiter Faktor deaktiviert"},
   {"id": "audit_recovery_codes_regenerated", "translation": "Neue Wiederherstellungscodes ausgestellt"},
+  {"id": "audit_passkey_used", "translation": "Mit Passkey angemeldet"},
+  {"id": "audit_passkey_enrolled", "translation": "Passkey hinzugefügt"},
+  {"id": "audit_passkey_removed", "translation": "Passkey entfernt"},
+  {"id": "audit_passkey_clone_suspected", "translation": "Passkey abgelehnt — Zähler nicht fortgeschritten"},
 
   {"id": "health_state_ok", "translation": "Aktiv"},
   {"id": "health_state_degraded", "translation": "Eingeschränkt"},

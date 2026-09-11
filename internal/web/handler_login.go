@@ -55,9 +55,13 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// With no second factor, this is the whole login and nothing has changed.
-	secret := s.cfg.TOTPSecret()
-	if secret == "" {
+	// With no second factor at all — no TOTP secret and no enrolled passkey —
+	// this is the whole login and nothing has changed. Checked through
+	// hasSecondFactor(), not TOTPSecret() alone: an account whose only factor
+	// is a passkey must reach the second step exactly as a TOTP-only account
+	// does, or the passkey it enrolled is never asked for at login and the
+	// mandate is satisfied in name only.
+	if !s.hasSecondFactor() {
 		s.grantSession(w, r, username)
 		s.recordLoginEvent(r, shared.EvLoginOK, 0)
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -70,7 +74,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	// whether this visitor is signed in — see the comment above sessionUser.
 	pending := pendingLogin{
 		User:     username,
-		CredFP:   credentialFingerprint(wantHash, secret, s.passkeys.fingerprintInput()),
+		CredFP:   credentialFingerprint(wantHash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput()),
 		IssuedAt: time.Now().Unix(),
 	}
 	if err := s.writePending(w, r, pending); err != nil {
@@ -102,12 +106,25 @@ func (s *Server) grantSession(w http.ResponseWriter, r *http.Request, username s
 	_ = sess.Save(r, w)
 }
 
+// loginVerifyPage is the data behind login_verify.html: whether to draw the
+// passkey button above the code field at all.
+type loginVerifyPage struct {
+	ShowPasskey bool
+}
+
 func (s *Server) handleLoginVerifyGET(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.pendingForRequest(r); !ok {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	s.render(w, r, "login_verify.html", "login", nil)
+	// Not instead of the code field — an operator whose phone is flat still
+	// needs it — and not drawn at all when there is nothing to offer: neither
+	// passkeyUnavailableReason's own three checks nor an empty enrolled set
+	// leaves an operator mid-login with a control that can only fail.
+	data := loginVerifyPage{
+		ShowPasskey: s.passkeyUnavailableReason() == "" && len(s.passkeys.all()) > 0,
+	}
+	s.render(w, r, "login_verify.html", "login", data)
 }
 
 // pendingForRequest returns the intermediate state, refusing one that no longer
@@ -179,7 +196,16 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 
 	// Everything else, including a six-digit code that did not match and a
 	// recovery-shaped value that is not one of the eight.
-	s.recordLoginEvent(r, shared.Ev2FAFailed, 0)
+	s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
+}
+
+// failVerifyAttempt is the second step's one budget, shared by both doors: a
+// wrong code here and a failed passkey assertion in handleLoginPasskeyFinish
+// both increment the same p.Attempts, or the passkey route would be a way
+// past the limit the code field is subject to. See
+// handleLoginVerifyPOST's own comment for the arithmetic this produces.
+func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pendingLogin, ev shared.LoginEvent) {
+	s.recordLoginEvent(r, ev, 0)
 	p.Attempts++
 	if p.Attempts >= pendingMaxAttempts {
 		// Back to /login without saying whether the password or the factor

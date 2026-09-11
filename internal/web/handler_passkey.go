@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -13,6 +14,8 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gorilla/sessions"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // Enrolling and removing passkeys.
@@ -55,6 +58,27 @@ const (
 	// is 22) and short enough that the card's layout does not have to plan
 	// for arbitrary length.
 	maxPasskeyNameLen = 64
+
+	// loginPasskeyPendingCookieName is the challenge cookie for the *login*
+	// ceremony Task 13 adds — a third cookie beside passkeyPendingCookieName
+	// (a half-finished enrolment, Path /password) and pendingCookieName (the
+	// half-finished login itself, Path /login, see pending2fa.go). Three
+	// different in-progress states, three different cookies, for the same
+	// reason passkeyPendingCookieName's own comment gives: a request must
+	// never be ambiguous about which ceremony it is in the middle of.
+	loginPasskeyPendingCookieName = "easywall_login_passkey" // #nosec G101 -- a cookie name, not a credential; gosec's pattern matches "pass" inside "passkey"
+
+	// loginPasskeyPendingLifetime is how long a login ceremony's challenge
+	// stays valid, in seconds. Short, unlike passkeyPendingLifetime above:
+	// enrolment waits on a human meeting a brand new device for the first
+	// time, but a login ceremony is against a device the operator already
+	// uses, and the whole exchange — click, touch, submit — happens inside
+	// one request. pendingLifetime (three minutes) is the outer bound this
+	// sits inside anyway: pendingForRequest refuses a stale login before this
+	// number would ever matter on its own.
+	loginPasskeyPendingLifetime = 60
+
+	loginPasskeyPendingDataKey = "d"
 )
 
 // newPasskeyPendingStore builds the store for the challenge between
@@ -134,6 +158,74 @@ func (s *Server) clearPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := sess.Save(r, w); err != nil {
 		slog.Warn("could not clear the passkey ceremony state", "error", err)
+	}
+}
+
+// newLoginPasskeyPendingStore builds the store for the challenge between a
+// login ceremony's Begin and Finish steps.
+//
+// The same shape as newPasskeyPendingStore above, at Path "/login" instead of
+// "/password" — see loginPasskeyPendingCookieName's own comment for why this
+// is a third cookie rather than either existing one.
+func newLoginPasskeyPendingStore(key string) *sessions.CookieStore {
+	store := sessions.NewCookieStore([]byte(key))
+	store.Options = &sessions.Options{
+		Path:     "/login",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	store.MaxAge(loginPasskeyPendingLifetime)
+	return store
+}
+
+// writeLoginPasskeyChallenge stores a login ceremony's SessionData for the
+// matching Finish call to read back. See writePasskeyChallenge above — same
+// reasoning, a different cookie.
+func (s *Server) writeLoginPasskeyChallenge(w http.ResponseWriter, r *http.Request, sd *webauthn.SessionData) error {
+	data, err := json.Marshal(sd)
+	if err != nil {
+		return fmt.Errorf("encode login passkey challenge: %w", err)
+	}
+	sess, _ := s.loginPasskeyPending.Get(r, loginPasskeyPendingCookieName)
+	sess.Values[loginPasskeyPendingDataKey] = string(data)
+	return sess.Save(r, w)
+}
+
+// readLoginPasskeyChallenge returns the login ceremony state the request
+// carries, or ok=false when there is none, it is expired, or it does not
+// parse.
+func (s *Server) readLoginPasskeyChallenge(r *http.Request) (*webauthn.SessionData, bool) {
+	sess, err := s.loginPasskeyPending.Get(r, loginPasskeyPendingCookieName)
+	if err != nil || sess.IsNew {
+		return nil, false
+	}
+	raw, ok := sess.Values[loginPasskeyPendingDataKey].(string)
+	if !ok || raw == "" {
+		return nil, false
+	}
+	var sd webauthn.SessionData
+	if err := json.Unmarshal([]byte(raw), &sd); err != nil {
+		return nil, false
+	}
+	return &sd, true
+}
+
+// clearLoginPasskeyChallenge ends the login ceremony state. Called once
+// Finish has read it, whether the assertion went on to verify or not — a
+// challenge is single use either way, the same rule clearPasskeyChallenge
+// enforces for enrolment.
+func (s *Server) clearLoginPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
+	sess, _ := s.loginPasskeyPending.Get(r, loginPasskeyPendingCookieName)
+	sess.Options = &sessions.Options{
+		Path:     "/login",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	if err := sess.Save(r, w); err != nil {
+		slog.Warn("could not clear the login passkey ceremony state", "error", err)
 	}
 }
 
@@ -363,6 +455,7 @@ func (s *Server) handlePasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	// do, or the operator who just enrolled would be thrown out of the very
 	// step the gate forced them into.
 	s.restampSession(w, r)
+	s.recordLoginEvent(r, shared.EvPasskeyEnrolled, 0)
 	s.setFlash(w, r, "passkey_added")
 
 	page := s.passwordPage(nil, plain)
@@ -433,6 +526,135 @@ func (s *Server) handlePasskeyRemove(w http.ResponseWriter, r *http.Request) {
 	// it ends now, including ones already open. Re-stamp ours so the operator
 	// who just removed it is not thrown out along with them.
 	s.restampSession(w, r)
+	s.recordLoginEvent(r, shared.EvPasskeyRemoved, 0)
 	s.setFlash(w, r, "passkey_removed")
 	http.Redirect(w, r, "/password", http.StatusSeeOther)
+}
+
+// handleLoginPasskeyBegin starts the login ceremony — the second step's other
+// way in, alongside the code field handleLoginVerifyPOST already serves.
+//
+// Gated on pendingForRequest first, the same guard handleLoginVerifyPOST
+// opens with: without a correct password behind it there is no pendingLogin,
+// and a passkey assertion on its own must not produce a session — otherwise a
+// stolen authenticator is a login to a firewall. Unlike handlePasskeyBegin
+// above, a missing or unavailable ceremony here costs nothing against the
+// shared attempt budget: nothing has been asserted yet for a wrong assertion
+// to be judged against.
+func (s *Server) handleLoginPasskeyBegin(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.pendingForRequest(r); !ok {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	if reason := s.passkeyUnavailableReason(); reason != "" {
+		http.Error(w, reason, http.StatusPreconditionFailed)
+		return
+	}
+	wa, err := s.webAuthn()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusPreconditionFailed)
+		return
+	}
+
+	// BeginLogin refuses a user with no credentials at all — the login page
+	// only shows the button once len(s.passkeys.all()) > 0, but a direct POST
+	// with none enrolled must fail the same way passkeyUnavailableReason's own
+	// checks do above: no ceremony to begin, not a wrong assertion.
+	assertion, session, err := wa.BeginLogin(s.passkeyUser())
+	if err != nil {
+		slog.Warn("could not begin a passkey login ceremony", "error", err)
+		http.Error(w, "internal error", http.StatusPreconditionFailed)
+		return
+	}
+	if err := s.writeLoginPasskeyChallenge(w, r, session); err != nil {
+		slog.Error("could not store the passkey login challenge", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(assertion); err != nil {
+		slog.Warn("could not write passkey login options", "error", err)
+	}
+}
+
+// handleLoginPasskeyFinish verifies the assertion and, on success, grants the
+// session the password step alone withheld.
+//
+// Every way this can fail past the pendingForRequest guard — an expired or
+// missing challenge, a response that will not parse, an assertion that does
+// not verify — is folded into the same s.failVerifyAttempt(w, r, p,
+// shared.Ev2FAFailed) the code field's own wrong-guess path uses in
+// handleLoginVerifyPOST. That is the whole point: one budget, shared, so
+// TestTheSixteenthPasskeyAttemptDoesNotGetThrough and
+// TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough are the same
+// arithmetic against two doors.
+func (s *Server) handleLoginPasskeyFinish(w http.ResponseWriter, r *http.Request) {
+	p, ok := s.pendingForRequest(r)
+	if !ok {
+		s.clearPending(w, r)
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	sd, ok := s.readLoginPasskeyChallenge(r)
+	// One-shot either way, same as clearPasskeyChallenge's own reasoning for
+	// enrolment: a challenge that failed to verify must not be checked again
+	// against a second, unrelated attempt.
+	s.clearLoginPasskeyChallenge(w, r)
+	if !ok {
+		s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
+		return
+	}
+
+	wa, err := s.webAuthn()
+	if err != nil {
+		s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
+		return
+	}
+
+	parsed, err := protocol.ParseCredentialRequestResponseBody(strings.NewReader(r.FormValue("credential")))
+	if err != nil {
+		slog.Warn("a passkey login response did not parse", "error", err)
+		s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
+		return
+	}
+
+	cred, err := wa.ValidateLogin(s.passkeyUser(), *sd, parsed)
+	if err != nil {
+		slog.Warn("a passkey login assertion did not verify", "error", err)
+		s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
+		return
+	}
+
+	// ValidateLogin can return success with CloneWarning set: go-webauthn's own
+	// UpdateCounter treats a signature counter that did not advance past what
+	// this credential last reported as a possible clone, but still returns no
+	// error — the assertion itself verified. Persisting that counter and doing
+	// nothing else is storing the one signal this whole mechanism exists to
+	// act on. Refused as a failed attempt, not granted: the operator still has
+	// every other way in (TOTP, a recovery code, another passkey) behind the
+	// same password step, so refusing this one credential is not a fourth way
+	// to be locked out. UpdateCounter itself does not advance SignCount on this
+	// path (webauthn/authenticator.go's own UpdateCounter returns before that
+	// assignment when it sets CloneWarning), so there is nothing to persist
+	// here — persisting it would just write back the value already stored.
+	if cred.Authenticator.CloneWarning {
+		slog.Warn("a passkey assertion verified but its signature counter did not advance; "+
+			"refusing it as a possible clone", "credential_id", hex.EncodeToString(cred.ID))
+		s.failVerifyAttempt(w, r, p, shared.EvPasskeyCloneSuspected)
+		return
+	}
+
+	// The authenticator's signature counter moved — persisted so the next
+	// login can tell a clone from the real device. updateCounter itself logs
+	// and swallows a write failure rather than returning one: the assertion
+	// that got here already verified, and this is bookkeeping for next time,
+	// not a condition of this login.
+	_ = s.passkeys.updateCounter(cred.ID, cred.Authenticator)
+
+	s.clearPending(w, r)
+	s.grantSession(w, r, p.User)
+	s.recordLoginEvent(r, shared.EvPasskeyUsed, 0)
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 }

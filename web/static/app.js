@@ -91,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Passkey enrolment ───────────────────────────────────────────────── */
   initPasskeyEnrol();
+
+  /* ── Passkey login ────────────────────────────────────── */
+  initPasskeyLogin();
 });
 
 /* ── List editor counter ──────────────────────────────────────────────────
@@ -858,6 +861,102 @@ function initPasskeyEnrol() {
     if (!credential) return;
 
     submitCredential(name, credential);
+  });
+}
+
+/* ── Passkey login ──────────────────────────────────────────────────────────
+   The second step's other door. navigator.credentials.get() needs the same
+   real user gesture initPasskeyEnrol's own comment explains, so the ceremony
+   runs inside this button's click handler; a completed assertion is handed to
+   the server as a plain form submission to /login/passkey/finish, and the
+   redirect it answers with — to /dashboard on success, back to /login/verify
+   with the same flash the code field's own failure uses otherwise — is what
+   the browser follows. There is nothing here to parse back out of a fetch
+   response. */
+function initPasskeyLogin() {
+  const btn = document.getElementById('passkey-login-btn');
+  if (!btn) return;
+
+  const errorBox = document.getElementById('passkey-login-error');
+
+  const b64urlToBuf = (s) => {
+    const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+    const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  };
+  const bufToB64url = (buf) => {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const submitAssertion = (credential) => {
+    const assertion = JSON.stringify({
+      id: credential.id,
+      rawId: bufToB64url(credential.rawId),
+      type: credential.type,
+      response: {
+        authenticatorData: bufToB64url(credential.response.authenticatorData),
+        clientDataJSON: bufToB64url(credential.response.clientDataJSON),
+        signature: bufToB64url(credential.response.signature),
+        userHandle: credential.response.userHandle ? bufToB64url(credential.response.userHandle) : null,
+      },
+      clientExtensionResults: credential.getClientExtensionResults
+        ? credential.getClientExtensionResults() : {},
+    });
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/login/passkey/finish';
+    form.hidden = true;
+    const credField = document.createElement('input');
+    credField.name = 'credential';
+    credField.value = assertion;
+    form.append(credField);
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  const showError = () => {
+    if (!errorBox) return;
+    errorBox.textContent = str('passkey_ceremony_failed');
+    errorBox.hidden = false;
+  };
+
+  btn.addEventListener('click', async () => {
+    let request;
+    try {
+      const beginResp = await fetch('/login/passkey/begin', { method: 'POST' });
+      if (!beginResp.ok) throw new Error('begin failed');
+      request = await beginResp.json();
+    } catch (e) {
+      // Same reasoning as initPasskeyEnrol's own catch: the button would not
+      // be on the page at all if the server had nothing to offer, so reaching
+      // here means a request that should have worked did not.
+      showError();
+      return;
+    }
+
+    const options = request.publicKey;
+    options.challenge = b64urlToBuf(options.challenge);
+    if (options.allowCredentials) {
+      options.allowCredentials = options.allowCredentials.map(
+        (c) => ({ ...c, id: b64urlToBuf(c.id) }));
+    }
+
+    let credential;
+    try {
+      credential = await navigator.credentials.get({ publicKey: options });
+    } catch (e) {
+      return; // Cancelled in the platform's own UI, or the authenticator
+               // refused — either way there is nothing to submit.
+    }
+    if (!credential) return;
+
+    submitAssertion(credential);
   });
 }
 

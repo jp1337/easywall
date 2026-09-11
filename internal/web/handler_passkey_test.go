@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/descope/virtualwebauthn"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // passkeyTestOption configures a Server built by newPasskeyTestServer, in the
@@ -93,6 +96,45 @@ func readBody(t *testing.T, resp *http.Response) string {
 	return string(data)
 }
 
+// sessionCookie returns the value of the session cookie a response set, or ""
+// if it set none — for asserting a route did *not* grant a session, which is
+// half of what the login passkey tests below have to prove.
+//
+// Only safe where the route under test never calls setFlash on the path being
+// checked: setFlash rides the very same SessionName cookie to carry a
+// one-time message to an otherwise-anonymous visitor, so its presence alone
+// is not proof of a grant wherever a flash could have set it too. Use
+// sessionGrantsAccess instead on any path that might.
+func sessionCookie(resp *http.Response) string {
+	for _, c := range resp.Cookies() {
+		if c.Name == SessionName {
+			return c.Value
+		}
+	}
+	return ""
+}
+
+// sessionGrantsAccess reports whether resp's session cookie actually
+// authenticates — sessionUser() returns a username — rather than merely being
+// present. Found necessary the hard way: a refused passkey assertion still
+// sets a SessionName cookie, because setFlash's "you were told verify_failed"
+// rides the same cookie as a real login does; a bare Cookies() scan cannot
+// tell the two apart.
+func sessionGrantsAccess(t *testing.T, s *Server, resp *http.Response) bool {
+	t.Helper()
+	val := sessionCookie(resp)
+	if val == "" {
+		return false
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: SessionName, Value: val})
+	sess, err := s.store.Get(req, SessionName)
+	if err != nil {
+		return false
+	}
+	return sessionUser(sess, s.currentCredential()) != ""
+}
+
 // signIn performs a full login and returns the session cookie it sets.
 // Returned as a pointer so a caller like enrolPasskeyWithCookie can update it
 // in place after a step that re-stamps the session, the way a browser's own
@@ -160,6 +202,18 @@ func (s *Server) getWithCookie(t *testing.T, path string, cookie *http.Cookie) *
 // credential's ID.
 func enrolPasskeyWithCookie(t *testing.T, s *Server, name string, cookie *http.Cookie) []byte {
 	t.Helper()
+	return enrolPasskeyCredential(t, s, name, cookie).ID
+}
+
+// enrolPasskeyCredential is enrolPasskeyWithCookie's own implementation,
+// factored out so a caller that also needs to drive a *login* assertion
+// against the same device afterwards — TestAPasskeyCompletesTheSecondStep,
+// chiefly — can get at the virtualwebauthn.Credential itself. The private key
+// lives there, not in anything the server ever hands back, so the ID alone
+// (what enrolPasskeyWithCookie's callers have needed until now) is not enough
+// to sign a second ceremony against the same enrolled device.
+func enrolPasskeyCredential(t *testing.T, s *Server, name string, cookie *http.Cookie) virtualwebauthn.Credential {
+	t.Helper()
 
 	begin := doRequest(s, "POST", "/password/passkey/begin", nil, cookie).Result()
 	if begin.StatusCode != http.StatusOK {
@@ -203,7 +257,7 @@ func enrolPasskeyWithCookie(t *testing.T, s *Server, name string, cookie *http.C
 			cookie.Value = c.Value
 		}
 	}
-	return cred.ID
+	return cred
 }
 
 // enrolPasskey enrols against a fresh, unrelated session — for the tests that
@@ -574,5 +628,394 @@ func TestRemovingAnUnknownPasskeyDoesNothing(t *testing.T) {
 	}
 	if flash, _ := sess.Values["flash"].(string); flash != "passkey_not_found" {
 		t.Errorf("flash = %q, want passkey_not_found — nothing was removed", flash)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Signing in with a passkey — the second step, never the first.
+// ---------------------------------------------------------------------------
+
+// TestSigningInWithAPasskeyNeedsThePasswordFirst is the whole shape of the
+// feature: a passkey is a second factor, never a replacement.
+//
+// Without the password step there is no pendingLogin, and a passkey assertion
+// on its own must not produce a session — otherwise a stolen authenticator is
+// a login to a firewall. Both routes are checked: begin, because that is the
+// one a real browser reaches with a click, and finish, because a request
+// built by hand or by a script can reach it directly and skip begin entirely.
+func TestSigningInWithAPasskeyNeedsThePasswordFirst(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	enrolPasskey(t, s, "the one")
+
+	// No password step: no pending cookie of any kind.
+	begin := doFormRequest(s, "POST", "/login/passkey/begin", "").Result()
+	if begin.StatusCode == 200 {
+		t.Fatal("a passkey ceremony began with no password step behind it")
+	}
+	if sessionCookie(begin) != "" {
+		t.Fatal("begin issued a session with no password step behind it")
+	}
+
+	finish := doFormRequest(s, "POST", "/login/passkey/finish", "credential=not-a-real-assertion").Result()
+	if sessionCookie(finish) != "" {
+		t.Fatal("finish issued a session with no password step behind it")
+	}
+	if finish.StatusCode != http.StatusSeeOther {
+		t.Fatalf("finish answered %d, want a redirect (to /login, with nothing consumed)", finish.StatusCode)
+	}
+}
+
+// TestAPasskeyCompletesTheSecondStep drives the real assertion: password,
+// then a virtual authenticator's response to /login/passkey/begin, verified by
+// /login/passkey/finish, and checks every part of what a completed login
+// promises — a session, the signature counter persisted, and nothing else
+// changed about the pending state that a wrong guess would have touched.
+func TestAPasskeyCompletesTheSecondStep(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	cred := enrolPasskeyCredential(t, s, "the one", makeAuthCookie(t, s))
+
+	// The password step. hasSecondFactor() must see the passkey even with no
+	// TOTP secret set — the fix handleLoginPOST needed — or this never leaves
+	// a pendingLogin behind for the passkey route to complete.
+	loginResp := doFormRequest(s, "POST", "/login",
+		url.Values{"username": {"admin"}, "password": {testPassword}}.Encode()).Result()
+	if loginResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login answered %d, want %d", loginResp.StatusCode, http.StatusSeeOther)
+	}
+	if sessionCookie(loginResp) != "" {
+		t.Fatal("the password step alone granted a session on a passkey-only account")
+	}
+	var pending *http.Cookie
+	for _, c := range loginResp.Cookies() {
+		if c.Name == pendingCookieName {
+			pending = c
+		}
+	}
+	if pending == nil {
+		t.Fatal("the password step set no pending cookie")
+	}
+
+	begin := doFormRequest(s, "POST", "/login/passkey/begin", "", pending).Result()
+	if begin.StatusCode != 200 {
+		t.Fatalf("begin answered %d: %s", begin.StatusCode, readBody(t, begin))
+	}
+	var challenge *http.Cookie
+	for _, c := range begin.Cookies() {
+		if c.Name == loginPasskeyPendingCookieName {
+			challenge = c
+		}
+	}
+	if challenge == nil {
+		t.Fatal("begin did not set the login passkey challenge cookie")
+	}
+
+	parsed, err := virtualwebauthn.ParseAssertionOptions(readBody(t, begin))
+	if err != nil {
+		t.Fatalf("parse the assertion options: %v", err)
+	}
+
+	// The authenticator's counter moved since enrolment — set by hand, since
+	// the virtual authenticator does not increment it on its own. This is what
+	// TestAPasskeyLoginPersistsTheSignatureCounter below checks was stored.
+	cred.Counter = 7
+	auth := virtualwebauthn.NewAuthenticator()
+	rp := virtualwebauthn.RelyingParty{
+		Name:   "easywall",
+		ID:     s.cfg.Hostname(),
+		Origin: s.publicOrigin(),
+	}
+	assertion := virtualwebauthn.CreateAssertionResponse(rp, auth, cred, *parsed)
+
+	finish := doFormRequest(s, "POST", "/login/passkey/finish",
+		url.Values{"credential": {assertion}}.Encode(), pending, challenge).Result()
+	if finish.StatusCode != http.StatusSeeOther {
+		t.Fatalf("finish answered %d: %s", finish.StatusCode, readBody(t, finish))
+	}
+	if loc := finish.Header.Get("Location"); loc != "/dashboard" {
+		t.Errorf("finish redirected to %q, want /dashboard", loc)
+	}
+	if sessionCookie(finish) == "" {
+		t.Fatal("a verified passkey assertion did not grant a session")
+	}
+
+	stored := s.passkeys.all()
+	if len(stored) != 1 {
+		t.Fatalf("%d passkeys stored, want 1", len(stored))
+	}
+	if got := stored[0].Credential.Authenticator.SignCount; got != 7 {
+		t.Errorf("stored signature counter = %d, want 7 — the login did not persist it", got)
+	}
+}
+
+// TestTheSixteenthPasskeyAttemptDoesNotGetThrough mirrors
+// TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough exactly, against the
+// other door: this is the outer arithmetic — pendingMaxAttempts per
+// intermediate state, a new one costing a password round, all of it capped by
+// LoginRateLimit at 5 password rounds per 10 minutes per address. No real
+// ceremony is driven here on purpose — the finish route fails before it would
+// even reach one (no challenge cookie is ever sent), which is the failure this
+// test wants: the point under test is the outer bound, not WebAuthn
+// verification itself, which TestAPasskeyCompletesTheSecondStep covers.
+//
+// This test alone does not prove p.Attempts is actually incremented — its own
+// twin on the code side does not either, verified by mutation below: with
+// `p.Attempts++` deleted, both this test and
+// TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough still pass, because
+// neither one reuses a single pendingLogin cookie past pendingMaxAttempts —
+// each outer round fetches a fresh one regardless of what the previous round's
+// server-side state was. TestThreePasskeyFailuresEndTheAttempt below is the
+// one that actually watches p.Attempts move, the passkey twin of
+// TestLoginVerify_ThreeWrongCodesEndTheAttempt, and it is the one the mutation
+// turns red.
+func TestTheSixteenthPasskeyAttemptDoesNotGetThrough(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	hash, _ := HashPassword(testPassword)
+	s.cfg.Password = hash
+	enrol(t, s)
+
+	const addr = "203.0.113.201:44444"
+	post := func(path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = addr // one address for the whole run, unlike doFormRequest
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+		rec := httptest.NewRecorder()
+		s.router.ServeHTTP(rec, req)
+		return rec
+	}
+
+	attempts := 0
+	for round := 1; round <= 6; round++ {
+		login := post("/login", "username=admin&password="+url.QueryEscape(testPassword))
+		if login.Code == http.StatusTooManyRequests {
+			if attempts != pendingMaxAttempts*5 {
+				t.Fatalf("the limiter refused password round %d after %d passkey attempts, want %d",
+					round, attempts, pendingMaxAttempts*5)
+			}
+			return
+		}
+		cookies := login.Result().Cookies()
+		for i := 0; i < pendingMaxAttempts; i++ {
+			rec := post("/login/passkey/finish", "credential=not-a-real-assertion", cookies...)
+			attempts++
+			if attempts > pendingMaxAttempts*5 {
+				t.Fatalf("passkey attempt %d got through; the second step's budget is not shared", attempts)
+			}
+			if c := rec.Result().Cookies(); len(c) > 0 {
+				cookies = c
+			}
+		}
+	}
+	t.Fatalf("six password rounds were allowed; the limiter is not bounding the passkey door "+
+		"(%d passkey attempts)", attempts)
+}
+
+// TestThreePasskeyFailuresEndTheAttempt is the passkey twin of
+// TestLoginVerify_ThreeWrongCodesEndTheAttempt: pendingMaxAttempts failed
+// assertions against the *same* pendingLogin cookie, and the last of them must
+// redirect to /login (the state cleared), not back to /login/verify (still
+// good for another try). This is the test that actually observes p.Attempts
+// move — TestTheSixteenthPasskeyAttemptDoesNotGetThrough's own comment
+// explains why counting outer rounds cannot.
+func TestThreePasskeyFailuresEndTheAttempt(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	hash, _ := HashPassword(testPassword)
+	s.cfg.Password = hash
+	enrol(t, s)
+
+	first := doFormRequest(s, "POST", "/login",
+		"username=admin&password="+url.QueryEscape(testPassword))
+	cookies := first.Result().Cookies()
+
+	for i := 1; i <= pendingMaxAttempts; i++ {
+		rec := doFormRequest(s, "POST", "/login/passkey/finish", "credential=not-a-real-assertion", cookies...)
+		want := "/login/verify"
+		if i == pendingMaxAttempts {
+			want = "/login"
+		}
+		if loc := rec.Header().Get("Location"); loc != want {
+			t.Fatalf("passkey failure %d redirected to %q, want %q", i, loc, want)
+		}
+		if c := rec.Result().Cookies(); len(c) > 0 {
+			cookies = c
+		}
+	}
+}
+
+// TestRecoveryCodeStillWorksWithAPasskeyEnrolled is the way back this release
+// has already fixed twice for the same reason: an operator whose authenticator
+// is lost still has to be able to sign in. The recovery codes here are minted
+// and saved directly, not through the passkey ceremony's own auto-mint, so the
+// plaintext is in hand to submit — see handlePasskeyFinish's own comment for
+// why enrolling with codes already present skips minting a second set.
+func TestRecoveryCodeStillWorksWithAPasskeyEnrolled(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	plain, hashes, err := newRecoveryCodes()
+	if err != nil {
+		t.Fatalf("newRecoveryCodes: %v", err)
+	}
+	if err := s.cfg.SaveRecoveryCodes(hashes); err != nil {
+		t.Fatalf("SaveRecoveryCodes: %v", err)
+	}
+	enrolPasskey(t, s, "the one")
+
+	loginResp := doFormRequest(s, "POST", "/login",
+		url.Values{"username": {"admin"}, "password": {testPassword}}.Encode()).Result()
+	if loginResp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("login answered %d", loginResp.StatusCode)
+	}
+	var pending *http.Cookie
+	for _, c := range loginResp.Cookies() {
+		if c.Name == pendingCookieName {
+			pending = c
+		}
+	}
+	if pending == nil {
+		t.Fatal("login set no pending cookie")
+	}
+
+	verify := doFormRequest(s, "POST", "/login/verify",
+		url.Values{"code": {plain[0]}}.Encode(), pending).Result()
+	if verify.StatusCode != http.StatusSeeOther {
+		t.Fatalf("verify answered %d: %s", verify.StatusCode, readBody(t, verify))
+	}
+	if sessionCookie(verify) == "" {
+		t.Fatal("a recovery code did not grant a session on an account with a passkey also enrolled")
+	}
+}
+
+// TestAPasskeyReplayedCounterIsRefused drives two real assertions from the
+// same virtual authenticator against the same enrolled credential, without
+// advancing the counter between them — exactly what a cloned authenticator, or
+// a captured response replayed outright, would produce. go-webauthn's own
+// ValidateLogin returns success either way; the counter not moving is the only
+// signal there is, in cred.Authenticator.CloneWarning, and this is the test
+// that watches easywall actually act on it: the second assertion must be
+// refused, must cost the shared attempt budget, and must write
+// passkey_clone_suspected rather than passkey_used.
+func TestAPasskeyReplayedCounterIsRefused(t *testing.T) {
+	fc := newFakeCore(t)
+	seen := make(chan shared.Command, 8)
+	fc.OnCommand(shared.CmdLogEvent, func(c shared.Command) { seen <- c })
+
+	s := newTestServer(t, fc)
+	s.cfg.TLS.Hostname = "firewall.example.org"
+	s.cfg.TLS.CertFile = "test-fixture-cert.pem"
+
+	cred := enrolPasskeyCredential(t, s, "the one", makeAuthCookie(t, s))
+
+	// Drain the enrolment's own event before the two logins below — otherwise
+	// it is the first thing the channel yields and is mistaken for the first
+	// login's.
+	select {
+	case cmd := <-seen:
+		var p shared.LogEventPayload
+		_ = json.Unmarshal(cmd.Payload, &p)
+		if p.Event != shared.EvPasskeyEnrolled {
+			t.Fatalf("enrolment recorded %q, want %q", p.Event, shared.EvPasskeyEnrolled)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no event recorded for the enrolment")
+	}
+
+	rp := virtualwebauthn.RelyingParty{
+		Name:   "easywall",
+		ID:     s.cfg.Hostname(),
+		Origin: s.publicOrigin(),
+	}
+	auth := virtualwebauthn.NewAuthenticator()
+
+	doLogin := func() *http.Response {
+		t.Helper()
+		loginResp := doFormRequest(s, "POST", "/login",
+			url.Values{"username": {"admin"}, "password": {testPassword}}.Encode()).Result()
+		if loginResp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("login answered %d", loginResp.StatusCode)
+		}
+		var pending *http.Cookie
+		for _, c := range loginResp.Cookies() {
+			if c.Name == pendingCookieName {
+				pending = c
+			}
+		}
+		if pending == nil {
+			t.Fatal("login set no pending cookie")
+		}
+
+		begin := doFormRequest(s, "POST", "/login/passkey/begin", "", pending).Result()
+		if begin.StatusCode != 200 {
+			t.Fatalf("begin answered %d: %s", begin.StatusCode, readBody(t, begin))
+		}
+		var challenge *http.Cookie
+		for _, c := range begin.Cookies() {
+			if c.Name == loginPasskeyPendingCookieName {
+				challenge = c
+			}
+		}
+		if challenge == nil {
+			t.Fatal("begin did not set the login passkey challenge cookie")
+		}
+		parsed, err := virtualwebauthn.ParseAssertionOptions(readBody(t, begin))
+		if err != nil {
+			t.Fatalf("parse the assertion options: %v", err)
+		}
+
+		assertion := virtualwebauthn.CreateAssertionResponse(rp, auth, cred, *parsed)
+		return doFormRequest(s, "POST", "/login/passkey/finish",
+			url.Values{"credential": {assertion}}.Encode(), pending, challenge).Result()
+	}
+
+	// First assertion: the counter advances from 0 (set at enrolment) to 5.
+	// Legitimate, and it must succeed and persist 5.
+	cred.Counter = 5
+	first := doLogin()
+	defer first.Body.Close()
+	if first.StatusCode != http.StatusSeeOther || !sessionGrantsAccess(t, s, first) {
+		t.Fatalf("the first, legitimate assertion did not grant a session (status %d)", first.StatusCode)
+	}
+	if got := s.passkeys.all()[0].Credential.Authenticator.SignCount; got != 5 {
+		t.Fatalf("stored counter after the first login = %d, want 5", got)
+	}
+
+	// Second assertion: the SAME counter value again, not advanced — a cloned
+	// authenticator that last saw 5 too, or the first response replayed
+	// outright. Must be refused, not granted.
+	second := doLogin()
+	defer second.Body.Close()
+	if sessionGrantsAccess(t, s, second) {
+		t.Fatal("a replayed/cloned counter granted a session")
+	}
+	if loc := second.Header.Get("Location"); loc != "/login/verify" {
+		t.Errorf("refused assertion redirected to %q, want /login/verify (one of pendingMaxAttempts, not the last)", loc)
+	}
+	if got := s.passkeys.all()[0].Credential.Authenticator.SignCount; got != 5 {
+		t.Errorf("stored counter after the refused replay = %d, want unchanged at 5", got)
+	}
+
+	// Drain the first login's own event (passkey_used) before checking the
+	// second's.
+	select {
+	case cmd := <-seen:
+		var p shared.LogEventPayload
+		_ = json.Unmarshal(cmd.Payload, &p)
+		if p.Event != shared.EvPasskeyUsed {
+			t.Fatalf("first login recorded %q, want %q", p.Event, shared.EvPasskeyUsed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no event recorded for the first, legitimate login")
+	}
+	select {
+	case cmd := <-seen:
+		var p shared.LogEventPayload
+		_ = json.Unmarshal(cmd.Payload, &p)
+		if p.Event != shared.EvPasskeyCloneSuspected {
+			t.Errorf("second login recorded %q, want %q", p.Event, shared.EvPasskeyCloneSuspected)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no event recorded for the replayed/cloned counter")
 	}
 }

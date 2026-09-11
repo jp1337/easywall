@@ -110,7 +110,14 @@ type Server struct {
 	// an unrelated ceremony's state into either existing cookie is exactly the
 	// kind of cross-purpose store newPendingStore's own comment warns against.
 	passkeyPending sessions.Store
-	bundle         *i18n.Bundle
+	// loginPasskeyPending carries the challenge between a login ceremony's Begin
+	// and Finish steps — the same shape as passkeyPending above, at a different
+	// path: Path /login, so it reaches /login/passkey/begin and /finish, and a
+	// different cookie name so a request is never ambiguous about which of the
+	// three in-progress states (this one, a half-finished enrolment, or the
+	// pendingLogin state itself) it is in the middle of.
+	loginPasskeyPending sessions.Store
+	bundle              *i18n.Bundle
 	// localeStatus is loaded once here, beside the bundle, rather than per
 	// request: whether a language has been reviewed cannot change without a
 	// restart, so reading status.json on every render would be waste. A code
@@ -258,17 +265,18 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	s := &Server{
-		cfg:            cfg,
-		client:         client,
-		store:          store,
-		pending:        pending,
-		replay:         newTOTPReplay(cfg.TOTPReplayPath()),
-		passkeys:       newPasskeyStore(cfg.PasskeysPath()),
-		passkeyPending: newPasskeyPendingStore(cfg.SessionKey),
-		bundle:         bundle,
-		localeStatus:   localeStatus,
-		version:        shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:          certs,
+		cfg:                 cfg,
+		client:              client,
+		store:               store,
+		pending:             pending,
+		replay:              newTOTPReplay(cfg.TOTPReplayPath()),
+		passkeys:            newPasskeyStore(cfg.PasskeysPath()),
+		passkeyPending:      newPasskeyPendingStore(cfg.SessionKey),
+		loginPasskeyPending: newLoginPasskeyPendingStore(cfg.SessionKey),
+		bundle:              bundle,
+		localeStatus:        localeStatus,
+		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:               certs,
 	}
 	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 
@@ -461,6 +469,12 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		// arithmetic that makes the password step's limit cover it.
 		r.Get("/login/verify", s.handleLoginVerifyGET)
 		r.Post("/login/verify", s.handleLoginVerifyPOST)
+		// The second step's other way in: a passkey instead of a typed code.
+		// Both read pendingForRequest first, same guard as handleLoginVerifyPOST
+		// above, and a failed assertion pays into the same p.Attempts budget — see
+		// handleLoginPasskeyFinish.
+		r.Post("/login/passkey/begin", s.handleLoginPasskeyBegin)
+		r.Post("/login/passkey/finish", s.handleLoginPasskeyFinish)
 		// POST, so CrossOriginProtection covers it. It was a GET, and that
 		// middleware exempts safe methods by design — measured: a request
 		// carrying Origin: https://evil.example and Sec-Fetch-Site: cross-site
@@ -850,7 +864,7 @@ func loadTemplates(dir string) (*template.Template, error) {
 // write them. Anything unknown falls back to a humanised form of the identifier
 // itself, so a new action added in the core still renders sensibly before this
 // map catches up.
-var auditActionLabels = map[string]string{
+var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, not credentials; gosec's pattern matches "pass" inside the "passkey_*" keys
 	"apply_started":    "audit_apply_started",
 	"apply_accepted":   "audit_apply_accepted",
 	"apply_rolledback": "audit_apply_rolledback",
@@ -886,11 +900,11 @@ var auditActionLabels = map[string]string{
 	"rollback_skipped":       "audit_rollback_skipped",
 	"resume_restore_skipped": "audit_resume_restore_skipped",
 
-	// The nine login events, new in 2.8. Where there were none at all before:
-	// features/audit-log.md sent an operator to `journalctl -u easywall-web` for
-	// a failed login, which is not where anybody looks for "who has been at the
-	// door". None of them is in auditActionTones, deliberately — see the note
-	// there.
+	// Nine of these are login events new in 2.8. Where there were none at all
+	// before: features/audit-log.md sent an operator to
+	// `journalctl -u easywall-web` for a failed login, which is not where anybody
+	// looks for "who has been at the door". None of them is in auditActionTones,
+	// deliberately — see the note there.
 	"login_ok":                   "audit_login_ok",
 	"login_failed":               "audit_login_failed",
 	"login_2fa_failed":           "audit_login_2fa_failed",
@@ -900,6 +914,14 @@ var auditActionLabels = map[string]string{
 	"totp_enabled":               "audit_totp_enabled",
 	"totp_disabled":              "audit_totp_disabled",
 	"recovery_codes_regenerated": "audit_recovery_codes_regenerated",
+
+	// The three passkey events, new in 2.18. passkey_used is the login route's
+	// own success, alongside login_ok and login_recovery_used; the other two
+	// mirror totp_enabled/totp_disabled's own reasoning for a different factor.
+	"passkey_used":            "audit_passkey_used",
+	"passkey_enrolled":        "audit_passkey_enrolled",
+	"passkey_removed":         "audit_passkey_removed",
+	"passkey_clone_suspected": "audit_passkey_clone_suspected",
 
 	// The three 2.17 actions. selftest_passed and selftest_failed are written by
 	// `easywall-core selftest` — the console and the oneshot unit in front of the
@@ -990,7 +1012,7 @@ var auditActionTones = map[string]string{
 	// describes, and it must not be rendered in two colours depending on which
 	// code path reached it.
 	//
-	// None of the nine login events is here either, and for the same reason as
+	// None of the thirteen login events is here either, and for the same reason as
 	// apply_refused_panic and rollback_skipped above: a login does not change
 	// what the firewall is doing. It is read, not signalled. That 2.13 will push
 	// a notification on repeated login_failed is not a contradiction — a

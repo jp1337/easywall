@@ -58,21 +58,25 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 > `/healthz` deliberately carries none of it: the endpoint is
 > unauthenticated, and the text names which claim failed and on which port.
 
-## The nine login events
+## The thirteen login events
 
 New in 2.8, where there were none at all: this page used to send you to
-`journalctl -u easywall-web` for a failed login.
+`journalctl -u easywall-web` for a failed login. 2.18 added the four
+`passkey_*` rows, when a passkey joined TOTP as a way through the second step.
 
 | Action | Reads as | When |
 |---|---|---|
 | `login_ok` | Signed in | A completed sign-in, both steps if a factor is enrolled |
 | `login_failed` | Sign-in failed | Wrong username or wrong password |
-| `login_2fa_failed` | Second factor failed | Wrong code, or a recovery code that is not one of the eight |
+| `login_2fa_failed` | Second factor failed | Wrong code, a recovery code that is not one of the eight, or a passkey assertion that did not verify |
 | `login_recovery_used` | Recovery code used | The detail says how many are left |
 | `login_ratelimited` | Sign-in attempts blocked | Five attempts inside ten minutes from one address |
 | `logout` | Signed out | The button, not a timeout |
 | `totp_enabled` · `totp_disabled` | Second factor switched on / off | From the password page |
 | `recovery_codes_regenerated` | New recovery codes issued | The eight previous ones stopped working at that moment |
+| `passkey_used` | Signed in with a passkey | The second step, completed with a passkey instead of a code |
+| `passkey_enrolled` · `passkey_removed` | Passkey added / removed | From the password page |
+| `passkey_clone_suspected` | Passkey refused — counter did not advance | The assertion verified, but its signature counter did not move past what this credential last reported — a possible cloned authenticator or a replayed response. Refused as a failed attempt, not signed in |
 
 **None of them carries colour**, and that is the same rule the table above
 states: colour means the firewall moved. A sign-in does not move it.

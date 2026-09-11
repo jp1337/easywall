@@ -297,17 +297,18 @@ key  = ""
 	}
 
 	s := &Server{
-		cfg:            cfg,
-		client:         client,
-		store:          store,
-		pending:        pendingStore,
-		replay:         newTOTPReplay(dir + "/totp_replay.json"),
-		passkeys:       newPasskeyStore(dir + "/passkeys.json"),
-		passkeyPending: newPasskeyPendingStore("test-session-key-32bytes-padding!"),
-		bundle:         bundle,
-		tmpl:           tmpl,
-		version:        shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:          certs,
+		cfg:                 cfg,
+		client:              client,
+		store:               store,
+		pending:             pendingStore,
+		replay:              newTOTPReplay(dir + "/totp_replay.json"),
+		passkeys:            newPasskeyStore(dir + "/passkeys.json"),
+		passkeyPending:      newPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		loginPasskeyPending: newLoginPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		bundle:              bundle,
+		tmpl:                tmpl,
+		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:               certs,
 	}
 	// Built the way production builds it (NewServer wires this the same way,
 	// right after the struct literal): a real, empty store rather than the
@@ -377,17 +378,18 @@ key  = ""
 	}
 
 	s := &Server{
-		cfg:            cfg,
-		client:         client,
-		store:          store,
-		pending:        pendingStore,
-		replay:         newTOTPReplay(dir + "/totp_replay.json"),
-		passkeys:       newPasskeyStore(dir + "/passkeys.json"),
-		passkeyPending: newPasskeyPendingStore("test-session-key-32bytes-padding!"),
-		bundle:         bundle,
-		tmpl:           tmpl,
-		version:        shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
-		certs:          certs,
+		cfg:                 cfg,
+		client:              client,
+		store:               store,
+		pending:             pendingStore,
+		replay:              newTOTPReplay(dir + "/totp_replay.json"),
+		passkeys:            newPasskeyStore(dir + "/passkeys.json"),
+		passkeyPending:      newPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		loginPasskeyPending: newLoginPasskeyPendingStore("test-session-key-32bytes-padding!"),
+		bundle:              bundle,
+		tmpl:                tmpl,
+		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
+		certs:               certs,
 	}
 	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for

@@ -23,6 +23,7 @@
   {"id": "login_demo_notice", "translation": "Credentials are on the demo landing page. State resets when the server restarts."},
 
   {"id": "verify_title",    "translation": "Second factor"},
+  {"id": "passkey_login_button", "translation": "Use a passkey"},
   {"id": "verify_prompt",   "translation": "Code from your app, or a recovery code"},
   {"id": "verify_submit",   "translation": "Continue"},
   {"id": "verify_cancel",   "translation": "Cancel and sign in again"},
@@ -260,6 +261,10 @@
   {"id": "audit_totp_enabled", "translation": "Second factor switched on"},
   {"id": "audit_totp_disabled", "translation": "Second factor switched off"},
   {"id": "audit_recovery_codes_regenerated", "translation": "New recovery codes issued"},
+  {"id": "audit_passkey_used", "translation": "Signed in with a passkey"},
+  {"id": "audit_passkey_enrolled", "translation": "Passkey added"},
+  {"id": "audit_passkey_removed", "translation": "Passkey removed"},
+  {"id": "audit_passkey_clone_suspected", "translation": "Passkey refused — counter did not advance"},
 
   {"id": "health_state_ok", "translation": "Active"},
   {"id": "health_state_degraded", "translation": "Degraded"},
