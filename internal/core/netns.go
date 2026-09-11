@@ -10,7 +10,9 @@ package core
 // interface, and a veth pair into a fresh namespace is the smallest thing that
 // arranges it.
 //
-// Everything here is netlink and pipes. The only program this file execs is
+// Everything here is netlink and pipes — plus one stdlib read of this host's
+// own interface list, in harnessCollision, which touches nothing privileged
+// and is why it is allowed. The only program this file execs is
 // /proc/self/exe, pinned by TestSelftestUsesNoExternalBinary, because the
 // alternative — unshare, nsenter, ip, ping, bash, timeout, which is what the
 // veth harness in nftables_forward_test.go uses — would put six external
