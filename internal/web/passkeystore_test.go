@@ -223,3 +223,28 @@ func TestACredentialRoundTripsFieldByField(t *testing.T) {
 		t.Errorf("Object = %v, want %v", gotCred.Attestation.Object, want.Attestation.Object)
 	}
 }
+
+// TestThePasskeyStoreFileModeIsPinned asserts 0600 on passkeys.json.
+//
+// The file holds credential IDs and public keys, not secrets, so 0644 would
+// leak nothing an attacker could authenticate with. It is pinned anyway for
+// the reason every other mode in this repository is: an operator who runs
+// ls -l on data_dir is asking a question, and the mode is the answer. A
+// silent 0644 makes that answer wrong.
+func TestThePasskeyStoreFileModeIsPinned(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "passkeys.json")
+	p := newPasskeyStore(path)
+	// add() is what persists — there is no bare save(); saveLocked() is called
+	// under the store's own lock by add, remove and updateCounter.
+	if err := p.add("YubiKey on the keyring", webauthn.Credential{ID: []byte("cred-1")}); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Errorf("passkeys.json is mode %04o, want 0600", got)
+	}
+}

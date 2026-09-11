@@ -280,3 +280,38 @@ password    = ""
 		t.Errorf("%d recovery hashes stored for an account with no factor", n)
 	}
 }
+
+// TestTheSessionFingerprintDomainSeparatorIsPinned holds the v3 separator by
+// its digest.
+//
+// Reverting "easywall-session-v3:" to "v2:" is invisible: the added passkey
+// input already changes every real digest, so no behavioural test notices the
+// separator itself. The bump is belt-and-braces — and the same was true of
+// v1 → v2 in 2.8, which was also unguarded, which is how this entry came to
+// be written twice.
+//
+// The two golden values were computed from the implementation at the commit
+// that added this test. A change to either the separator or the input order
+// changes them, which is the point: whoever changes the scheme updates this
+// test deliberately and says so in the changelog, as v1 → v2 was.
+func TestTheSessionFingerprintDomainSeparatorIsPinned(t *testing.T) {
+	tests := []struct {
+		name                         string
+		hash, totpSecret, passkeySet string
+		want                         string
+	}{
+		{"all three inputs present", "hash", "secret", "set", "quWtKv9akyc3XLZsq/fIUQ"},
+		{"password only", "hash", "", "", "k1HQR0C1DiDMEK0DnJXh0A"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := credentialFingerprint(tc.hash, tc.totpSecret, tc.passkeySet)
+			if got != tc.want {
+				t.Errorf("credentialFingerprint(%q, %q, %q) = %q, want %q — the domain "+
+					"separator or the input order changed; if that was deliberate it needs "+
+					"a changelog line, because every session in flight ends once",
+					tc.hash, tc.totpSecret, tc.passkeySet, got, tc.want)
+			}
+		})
+	}
+}

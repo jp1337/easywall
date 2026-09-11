@@ -1,6 +1,10 @@
 package web
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -188,26 +192,88 @@ func TestThePasswordPolicyIsAFloorAndNotAPreference(t *testing.T) {
 // and did not get: the comparison lived at handler_firstrun.go:126 and
 // handler_password.go:93, and two copies of a rule is how the second one comes
 // to disagree.
+//
+// It checks two shapes, because the first version checked only one and a 2.18
+// mutation proved which one mattered. Grepping for the identifier catches
+// `len(pw) < minPasswordLen`, which a careful author writes. It does not catch
+// `len(pw) < 12`, which is what a careless one writes — there is no identifier
+// left to find. The second half therefore parses instead of grepping, and
+// refuses a comparison between a len() call and the literal 11 or 12 anywhere
+// in the package outside auth.go.
+//
+// Both bounds, because `> 11` and `< 12` are the same rule spelled two ways.
 func TestTheRuleIsStatedOnce(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("*.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var offenders []string
+
+	var identifierOffenders, literalOffenders []string
 	for _, f := range files {
 		if strings.HasSuffix(f, "_test.go") || filepath.Base(f) == "auth.go" {
 			continue
 		}
+
 		body, err := os.ReadFile(f) // #nosec G304 -- globbing this package
 		if err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(string(body), "minPasswordLen") {
-			offenders = append(offenders, f)
+			identifierOffenders = append(identifierOffenders, f)
 		}
+
+		fset := token.NewFileSet()
+		file, err := parser.ParseFile(fset, f, body, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", f, err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			be, ok := n.(*ast.BinaryExpr)
+			if !ok {
+				return true
+			}
+			switch be.Op {
+			case token.LSS, token.LEQ, token.GTR, token.GEQ, token.EQL, token.NEQ:
+			default:
+				return true
+			}
+			if isLenCall(be.X) && isPasswordFloorLiteral(be.Y) ||
+				isLenCall(be.Y) && isPasswordFloorLiteral(be.X) {
+				literalOffenders = append(literalOffenders,
+					fmt.Sprintf("%s:%d", f, fset.Position(be.Pos()).Line))
+			}
+			return true
+		})
 	}
-	if len(offenders) > 0 {
+
+	if len(identifierOffenders) > 0 {
 		t.Errorf("minPasswordLen is compared outside auth.go, in %v — "+
-			"call passwordPolicyError instead", offenders)
+			"call passwordPolicyError instead", identifierOffenders)
 	}
+	if len(literalOffenders) > 0 {
+		t.Errorf("a password length is compared against a bare 11 or 12 at %v — "+
+			"that is the password floor restated without naming it, which is the "+
+			"copy this guard exists to stop. Call passwordPolicyError instead",
+			literalOffenders)
+	}
+}
+
+// isLenCall reports whether e is a call to the builtin len.
+func isLenCall(e ast.Expr) bool {
+	call, ok := e.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := call.Fun.(*ast.Ident)
+	return ok && ident.Name == "len"
+}
+
+// isPasswordFloorLiteral reports whether e is the integer 11 or 12 — the floor
+// itself, and the floor written as the value one below it.
+func isPasswordFloorLiteral(e ast.Expr) bool {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.INT {
+		return false
+	}
+	return lit.Value == "11" || lit.Value == "12"
 }
