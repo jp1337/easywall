@@ -50,6 +50,30 @@ source. See `TestTheTechnicalDocsAreNotPublished`.
 Found while making a second factor mandatory. Nothing here is a defect the
 release caused — those were fixed in it.
 
+## The mutations that stayed green
+
+A 75-mutation audit of this release's guards: 56 red, 19 green. No shipping
+defect — every green one is a place where the code can be broken without a test
+noticing. Six were closed before the release; the rest are here with their
+measurement, which is the part that saves the next person the work.
+
+| | |
+|---|---|
+| **The ACME serving path has no unit coverage at all** | `tlscert.go`. `GetCertificate` can stop consulting the autocert manager and fall through to the self-signed path, and `m.sslDir = ""` can be deleted — which makes easywall generate and periodically renew a self-signed certificate *alongside* the ACME one — with the whole suite green. Only `acme_integration_test.go` catches either, and that file is behind `//go:build integration` and a `CLONE_NEWNET` `TestMain`, so without `CAP_SYS_ADMIN` it exits 1 with **no message at all** (`FAIL … 0.004s`). Closing it: build a `certManager` with ACME on and assert `m.acme != nil && m.sslDir == ""`, and that a `hello` for the wrong SNI returns autocert's host-policy error rather than a self-signed certificate |
+| **No end-to-end passkey ceremony ever runs with a port in the origin** | `newPasskeyTestServer` pins `BindAddr = "127.0.0.1:443"`, and its comment says why: that is how an ordinary HTTPS installation reads. easywall's own default is `:12227`. `TestPublicOriginCarriesTheListeningPort` now holds the string, and `webAuthn()` passes `publicOrigin()` straight into `RPOrigins`, so the gap is narrow — but a ceremony that disagreed with it would still not fail here. Closing it: a `withBindAddr(":12227")` option on the shared fixture, used by one ceremony test |
+| **`TestTheRuleIsStatedOnce` catches the identifier, not the rule** | A second copy of the password floor written `len(pw) < 12` passes; written `len(pw) < minPasswordLen` it fails. The guard greps for the constant's name, so the one way of restating the rule that a careless author would actually use is the way it cannot see |
+| **`passkeys.json`'s file mode is unpinned** | `0600` → `0644` is silent. The file holds credential IDs and public keys, not secrets, which is why this is low — but this repository pins modes elsewhere, and an operator reading `ls -l` for reassurance gets it from the mode |
+| **The `v3:` domain separator is not pinned** | Reverting `credentialFingerprint` to `v2:` is invisible. The added passkey input already changes the digest, so the bump is belt-and-braces — and the same claim was made for v1 → v2 in 2.8 and guarded then either |
+| **`Prompt` could return false**, and **`newACMEManager`'s hostname re-check is unguarded** | `acme.go`. Both would fail every issuance; both are caught only by the integration test above, which is the one that cannot run locally. The config-level twins (`TestACMEIsRefusedWithoutAgreedTerms`, `TestACMENeedsAHostname`) do hold their half |
+| **`JustGated` is unobservable when no codes are minted** | `password.html` nests `{{if .JustGated}}` inside `{{if .Codes}}`, so a test can only see the flag through the codes block. A future change that set it without minting would be invisible to any HTTP-level test |
+
+Four more mutations were green and **behaviourally inert** — the mutation cannot
+change what the program does. Recorded so nobody re-runs them: the corrupt-store
+early return (a failed `json.Unmarshal` leaves the zero value anyway), the
+port-80 state computed without ACME (the template's own `{{if .ACMEEnabled}}` is
+the real guard, proven by its own red mutation), and the two renewal-loop
+short-circuits, which both hinge on `m.sslDir == ""`.
+
 ## Found in `invariants.md` itself, and older than this branch
 
 Noticed while adding this release's guards. Both are proven against `fbac69f`;
