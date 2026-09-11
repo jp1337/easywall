@@ -33,6 +33,10 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// GetHealth is not guaranteed to return quickly: both of its netlink reads
+	// take the nft mutex, and a slow custom-rules apply can hold this call for
+	// up to NftTimeout. See shared.CmdGetHealth for the honest scope and why
+	// the five-second protocol deadline is still the right one anyway.
 	res, err := s.client.GetHealth()
 	if err != nil {
 		// core_unreachable and not not_enforcing, and the distinction is the
