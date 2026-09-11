@@ -394,7 +394,10 @@ go test ./internal/web/ -run TestTheSessionFingerprintDomainSeparatorIsPinned 2>
 # Expected: FAIL, both subtests
 git checkout internal/web/auth.go
 
-sed -i '279s|data, 0600)|data, 0644) // MUTATION|' internal/web/passkeystore.go
+# No trailing "// MUTATION" comment here: the statement is
+# `if err := writeFileAtomic(p.path, data, 0600); err != nil {`, so a line
+# comment would swallow the `; err != nil {` and the package would not build.
+sed -i '279s|data, 0600)|data, 0644)|' internal/web/passkeystore.go
 go test ./internal/web/ -run TestThePasskeyStoreFileModeIsPinned 2>&1 | tail -4
 # Expected: FAIL — "passkeys.json is mode 0644, want 0600"
 git checkout internal/web/passkeystore.go
@@ -686,7 +689,10 @@ rather than adjusting the expectation.
 - [ ] **Step 4: Mutate `publicOrigin` and watch it go red**
 
 ```bash
-sed -i '105s|port != "443"|port != "443" \&\& false // MUTATION|' internal/web/handler_firstrun.go
+# Substituting the condition itself, with no trailing comment: line 105 is
+# `if port := s.webPort(); port != "" && port != "443" {`, so a line comment
+# would swallow the opening brace and the package would not build.
+sed -i '105s|port != "443"|false|' internal/web/handler_firstrun.go
 go test ./internal/web/ -run TestAPasskeyIsEnrolledOnEasywallsOwnDefaultPort 2>&1 | tail -4
 # Expected: FAIL — publicOrigin() drops the port
 git checkout internal/web/handler_firstrun.go
