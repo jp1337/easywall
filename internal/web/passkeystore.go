@@ -60,35 +60,70 @@ type passkeyStore struct {
 
 	mu       sync.Mutex
 	passkeys map[string]storedPasskey
+	// corrupt records that the file is *there* and could not be read or
+	// parsed — which is not the same fact as "no passkeys enrolled", and the
+	// difference is a whole login. See newPasskeyStore and factorCount.
+	corrupt bool
 }
 
-// newPasskeyStore reads whatever is on disk. A missing or unparseable file
-// means "no passkeys enrolled" rather than an error — the same direction
-// newTOTPReplay takes, and for the same reason: a file that will not parse
-// must never be the reason an operator cannot get into their firewall. The
-// worst this does is fail to offer a passkey that was in fact enrolled; it
-// never fails a login that would otherwise have succeeded.
+// newPasskeyStore reads whatever is on disk, and distinguishes two states that
+// leave an identical empty map behind them:
+//
+//   - The file is absent. That is every installation that has never enrolled a
+//     passkey, and it means what it says: no passkeys. Nothing is flagged and
+//     nothing about the login changes.
+//   - The file is present and will not read or parse. The enrolled set is
+//     *unknown*, and corrupt is set, for which factorCount counts one factor.
+//
+// The old rule — both states mean "no passkeys enrolled", the direction
+// newTOTPReplay takes — was half right. It never failed a login that would
+// otherwise have succeeded; it *passed* one that should have required a
+// factor. For an account whose only factor is a passkey, factorCount fell to
+// zero and handleLoginPOST granted a full session on the password alone, so a
+// host restored without /var/lib/easywall, a moved data_dir or a truncated
+// backup removed 2.18's whole mandate with one warning and no refusal.
+//
+// Counting it is not a lockout. It sends the login to the second step, where
+// the TOTP secret and the eight recovery codes — both in web.toml, neither
+// touched by whatever happened to this file — still open the door; every
+// account gets eight codes at its first factor, passkey or not. An operator
+// with neither has the remedy the release already documents, which names this
+// very file: delete passkeys.json and restart, and the password alone signs in
+// again.
 func newPasskeyStore(path string) *passkeyStore {
 	p := &passkeyStore{path: path, passkeys: map[string]storedPasskey{}}
 
 	data, err := os.ReadFile(path) // #nosec G304 -- built from data_dir in the process's own config
 	if err != nil {
 		if !os.IsNotExist(err) {
-			slog.Warn("could not read the passkey store; enrolled passkeys will not be offered "+
-				"until it can be read again", "path", path, "error", err)
+			p.corrupt = true
+			slog.Warn("the passkey store is there but cannot be read, so whether a passkey is "+
+				"enrolled is unknown; the login will ask for a second factor — a TOTP code or a "+
+				"recovery code — until it can be read again", "path", path, "error", err)
 		}
 		return p
 	}
 	var f passkeyStoreFile
 	if err := json.Unmarshal(data, &f); err != nil {
-		slog.Warn("the passkey store does not parse and is being ignored; enrolled passkeys will "+
-			"not be offered until it is repaired", "path", path, "error", err)
+		p.corrupt = true
+		slog.Warn("the passkey store does not parse, so whether a passkey is enrolled is unknown; "+
+			"the login will ask for a second factor — a TOTP code or a recovery code — until the "+
+			"file is repaired or deleted", "path", path, "error", err)
 		return p
 	}
 	for _, pk := range f.Passkeys {
 		p.passkeys[string(pk.ID)] = pk
 	}
 	return p
+}
+
+// isCorrupt reports that the file exists and its contents are unknown, so the
+// enrolled set cannot be trusted to be empty. factorCount is the only caller
+// that matters; everything else about the store is honestly empty.
+func (p *passkeyStore) isCorrupt() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.corrupt
 }
 
 // all returns every enrolled passkey, oldest enrolment first. The caller gets
@@ -210,6 +245,22 @@ func (p *passkeyStore) fingerprintInput() string {
 // ID so the file diffs sanely across saves instead of shuffling with map
 // iteration order. Called with mu held.
 func (p *passkeyStore) saveLocked() error {
+	// A file that did not parse is moved aside, never written over. Until this
+	// it was overwritten by the next save — an enrolment, typically — and
+	// whatever credentials the unreadable file held were gone for good, with
+	// nothing left to repair by hand. Renaming costs one inode and keeps the
+	// evidence; the flag clears with it, because once the bad file is out of
+	// the way the enrolled set is known again and the phantom factor
+	// factorCount counted must not outlive it.
+	if p.corrupt {
+		if err := os.Rename(p.path, p.path+".corrupt"); err != nil && !os.IsNotExist(err) {
+			slog.Error("could not move the unreadable passkey store aside, so it will not be "+
+				"written over either", "path", p.path, "error", err)
+			return err
+		}
+		p.corrupt = false
+	}
+
 	out := make([]storedPasskey, 0, len(p.passkeys))
 	for _, pk := range p.passkeys {
 		out = append(out, pk)

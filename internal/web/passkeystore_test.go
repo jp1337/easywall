@@ -35,8 +35,13 @@ func TestThePasskeyStoreSurvivesARestart(t *testing.T) {
 	}
 }
 
-// TestACorruptStoreIsEmptyAndNotAnError is totpreplay.go's rule, for the same
-// reason: a file that will not parse must not be a lockout.
+// TestACorruptStoreIsEmptyAndNotAnError is half of totpreplay.go's rule: a file
+// that will not parse is not an error and not a lockout, and the store it
+// leaves behind offers no passkey.
+//
+// Only half, because "offers no passkey" is not "the account has no second
+// factor" — that conflation signed a passkey-only account in on its password
+// alone. What the login does about it is passkeystore_corrupt_test.go.
 func TestACorruptStoreIsEmptyAndNotAnError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "passkeys.json")
 	if err := os.WriteFile(path, []byte("{not json"), 0600); err != nil {
