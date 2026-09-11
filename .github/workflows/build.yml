@@ -380,7 +380,7 @@ jobs:
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
             -v "${{ github.workspace }}/dist:/dist:ro" \
             ubuntu:24.04 \
-            bash -c "apt-get update -qq && apt-get install -y systemd systemd-sysv curl python3 && exec /sbin/init"
+            bash -c "apt-get -o Acquire::ForceIPv4=true update && apt-get -o Acquire::ForceIPv4=true install -y systemd systemd-sysv curl python3 && exec /sbin/init"
 
       # See the job-level comment: postinst only starts the services once
       # /run/systemd/system exists, which only happens once systemd is truly
@@ -396,14 +396,16 @@ jobs:
       # could not tell those apart. So both are named, the budget covers the
       # install, and a container that has already exited is not waited out for
       # three minutes to be told what its logs said immediately.
-      # 360, not 180. The container installs systemd itself — 71 packages on
-      # amd64 — and the wait is for apt to finish, not for a daemon to settle.
-      # On 2026-09-11 that crossed three minutes and the step failed three
-      # times in a row on amd64 while arm64 finished the same work in 1m47s;
-      # the giveaway is in the failing log, where apt reports "71 newly
-      # installed" *after* the last "waiting (180s)" line. So the install was
-      # working the whole time and the budget was the only thing that ran out.
-      # A too-short wait here reads exactly like a broken package.
+      # 360, not 180 — but the budget was never the real fault, and the first
+      # attempt at this on 2026-09-11 raised it on a misreading: an apt line
+      # from an *earlier step on the runner* was taken for the container's own.
+      # What the container actually printed in six minutes was nothing at all,
+      # which for `apt-get install -y` is impossible unless `apt-get update`
+      # never returned. Hence ForceIPv4 above and the dropped -qq: on these
+      # runners IPv6 to the archive blackholes, and -qq hid it. arm64 passed
+      # the identical recipe throughout, which is what pointed at the network
+      # rather than at the recipe. The wider budget stays because a cold pull
+      # plus a real install genuinely can exceed three minutes.
       - name: Assert systemd is actually running before installing anything
         run: |
           set -euo pipefail
