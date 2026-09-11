@@ -380,7 +380,7 @@ jobs:
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
             -v "${{ github.workspace }}/dist:/dist:ro" \
             ubuntu:24.04 \
-            bash -c "apt-get update -qq && apt-get install -y systemd systemd-sysv curl python3 && exec /sbin/init"
+            bash -c "apt-get -o Acquire::ForceIPv4=true update && apt-get -o Acquire::ForceIPv4=true install -y systemd systemd-sysv curl python3 && exec /sbin/init"
 
       # See the job-level comment: postinst only starts the services once
       # /run/systemd/system exists, which only happens once systemd is truly
@@ -396,11 +396,29 @@ jobs:
       # could not tell those apart. So both are named, the budget covers the
       # install, and a container that has already exited is not waited out for
       # three minutes to be told what its logs said immediately.
+      # Two faults, found one at a time on 2026-09-11, and each hid the other.
+      #
+      # IPv6 to the archive blackholes on the amd64 runners, so `apt-get update
+      # -qq` waited out its own timeout and printed nothing — `docker logs` was
+      # empty after six minutes, which for `apt-get install -y` is impossible
+      # unless update never returned. ForceIPv4 above fixes that half, and -qq
+      # is gone so the next stall says where it stopped.
+      #
+      # With the downloads flowing, the install still did not finish inside 360
+      # seconds: the last poll read `offline` — systemctl unpacked, /sbin/init
+      # not yet reached — while the container was visibly still unpacking. So
+      # the budget is too small as well. arm64 does the same work in 1m47s;
+      # this is the amd64 flavour being slow, not the recipe being wrong.
+      #
+      # 900 is a ceiling, not a cost. The loop breaks the moment systemd
+      # answers, so a healthy run pays nothing for the headroom — while a
+      # budget shorter than the install reads exactly like a broken package,
+      # and sends the next person bisecting something that was never broken.
       - name: Assert systemd is actually running before installing anything
         run: |
           set -euo pipefail
           state=""
-          for i in $(seq 1 180); do
+          for i in $(seq 1 900); do
             if [ "$(docker inspect -f '{{.State.Running}}' easywall-test 2>/dev/null || echo false)" != "true" ]; then
               echo "::error::the container exited before systemd came up — the install inside it failed"
               docker logs easywall-test --tail 100 || true
