@@ -148,13 +148,26 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 // one password round; those are capped at 5 per 10 minutes per address. That is
 // 15 code attempts per 10 minutes per address against a target that rotates
 // every 30 seconds, and without a valid cookie this route is a redirect that
-// costs nothing. Two pairs of tests hold the two halves apart, because one pair
-// cannot prove both. TestLoginVerify_ThreeWrongCodesEndTheAttempt and
-// TestThreePasskeyFailuresEndTheAttempt prove pendingMaxAttempts, the inner
-// budget the code field and the passkey button share.
-// TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough and
+// costs nothing.
+//
+// That arithmetic was false when it was written, and the correction is the
+// point of pendingattempts.go. The inner budget lived only in the cookie the
+// server handed back, so it bound a browser and not an attacker: one password
+// round, one frozen cookie, replayed — 200 guesses measured where 3 were
+// claimed, at a rate that covers roughly 9.5M of the 10^6 code space inside one
+// 180-second window. The count is now server-side, keyed by an id the cookie
+// carries, and readPending enforces it before any caller sees a pendingLogin.
+//
+// Three kinds of test hold the three halves apart, because none of them proves
+// another. TestLoginVerify_ThreeWrongCodesEndTheAttempt and
+// TestThreePasskeyFailuresEndTheAttempt prove pendingMaxAttempts for a
+// cooperating browser — the inner budget the code field and the passkey button
+// share. TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough and
 // TestTheSixteenthPasskeyAttemptDoesNotGetThrough take a fresh intermediate
 // state per round, so what they prove is the outer bound of 15.
+// TestPending_AFrozenCookieDoesNotBuyMoreAttempts and its passkey twin present
+// one unchanging cookie, which is the only shape that proves the inner budget
+// is the server's and not the client's.
 func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.pendingForRequest(r)
 	if !ok {
@@ -206,12 +219,15 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 
 // failVerifyAttempt is the second step's one budget, shared by both doors: a
 // wrong code here and a failed passkey assertion in handleLoginPasskeyFinish
-// both increment the same p.Attempts, or the passkey route would be a way
-// past the limit the code field is subject to. See
-// handleLoginVerifyPOST's own comment for the arithmetic this produces.
+// both charge the same intermediate state, or the passkey route would be a way
+// past the limit the code field is subject to. See handleLoginVerifyPOST's own
+// comment for the arithmetic this produces.
+//
+// The charge lands in the server's map, not in the response: nothing is written
+// back to the cookie, so there is nothing for a client to decline to keep.
 func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pendingLogin, ev shared.LoginEvent) {
 	s.recordLoginEvent(r, ev, 0)
-	p.Attempts++
+	p.Attempts = recordPendingAttempt(p.ID)
 	if p.Attempts >= pendingMaxAttempts {
 		// Back to /login without saying whether the password or the factor
 		// failed, and without ever saying how many attempts were left.
@@ -219,9 +235,6 @@ func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pen
 		s.setFlash(w, r, "login_again")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
-	}
-	if err := s.writePending(w, r, p); err != nil {
-		slog.Warn("could not record the failed attempt", "error", err)
 	}
 	s.setFlash(w, r, "verify_failed")
 	http.Redirect(w, r, "/login/verify", http.StatusSeeOther)

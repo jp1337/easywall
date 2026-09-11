@@ -144,6 +144,16 @@ func TestLoginVerify_ARecoveryCodeSignsInAndIsConsumed(t *testing.T) {
 
 // Three wrong codes and the pending state dies. The message does not say which
 // factor failed.
+//
+// This loop used to end each round with
+// `if c := rec.Result().Cookies(); len(c) > 0 { cookies = c }`, which modelled a
+// browser that keeps whatever the server hands back — and, because the count
+// then lived only in that cookie, a test that could not fail for an attacker who
+// does not. The one cookie the password step issued is now presented unchanged
+// every round, which is both the honest model and, since nothing rewrites the
+// pending cookie any more, the only one that works.
+// TestPending_AFrozenCookieDoesNotBuyMoreAttempts carries it past
+// pendingMaxAttempts.
 func TestLoginVerify_ThreeWrongCodesEndTheAttempt(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
@@ -162,9 +172,6 @@ func TestLoginVerify_ThreeWrongCodesEndTheAttempt(t *testing.T) {
 		}
 		if loc := rec.Header().Get("Location"); loc != want {
 			t.Fatalf("attempt %d redirected to %q, want %q", i, loc, want)
-		}
-		if c := rec.Result().Cookies(); len(c) > 0 {
-			cookies = c
 		}
 	}
 }
