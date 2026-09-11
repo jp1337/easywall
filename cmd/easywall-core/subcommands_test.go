@@ -675,6 +675,55 @@ func TestRunSubcommand_PanicWithoutADaemonWritesTheMarker(t *testing.T) {
 	}
 }
 
+// fakeTimeoutErr is a synthetic net.Error whose Timeout() is true, standing in
+// for what shared.SendCommand returns when CommandTimeout(CmdPanic) — 35 s —
+// elapses. Driving panicTimeoutReport with this avoids paying that 35 s in
+// every `go test ./cmd/...`: dialing a socket that never answers would take
+// the real deadline to reach the branch under test.
+type fakeTimeoutErr struct{}
+
+func (fakeTimeoutErr) Error() string   { return "i/o timeout" }
+func (fakeTimeoutErr) Timeout() bool   { return true }
+func (fakeTimeoutErr) Temporary() bool { return true }
+
+// TestPanicTimesOutAndSaysWhatTheMarkerHolds closes an entry carried since 2.7.
+//
+// daemonAbsent is false for a timeout, and that is deliberate: a slow daemon is
+// still a daemon, and two writers to the table would be worse than one slow
+// one. So a timeout reports "the core daemon is not answering" — while the
+// daemon has already put the marker on disk in the first millisecond, for the
+// same reason the no-daemon fallback below writes it first, and the teardown
+// lands moments later.
+//
+// The operator was told a failure for work that succeeded. The exit code stays
+// exitFailed, because the command did not complete as asked and claiming
+// success for an unconfirmed teardown is the opposite defect. What changes is
+// that the message reports what the marker says.
+func TestPanicTimesOutAndSaysWhatTheMarkerHolds(t *testing.T) {
+	cfgPath, dir := writeConfigDir(t, filepath.Join(t.TempDir(), "core.sock"))
+	cfg, err := core.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "panic"), nil, 0o600); err != nil {
+		t.Fatalf("write the panic marker: %v", err)
+	}
+
+	var stderr bytes.Buffer
+	code := panicTimeoutReport(cfg, fakeTimeoutErr{}, &stderr)
+
+	if code != exitFailed {
+		t.Errorf("exit code %d, want exitFailed — the command did not complete as asked", code)
+	}
+	out := stderr.String()
+	if !strings.Contains(out, "panic mode is recorded") {
+		t.Errorf("a timeout with the marker on disk does not say so:\n%s", out)
+	}
+	if !strings.Contains(out, "easywall-core status") {
+		t.Errorf("the operator is not told how to find out what actually happened:\n%s", out)
+	}
+}
+
 func TestRunSubcommand_ResumeWithoutADaemonClearsTheMarker(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "easywall.toml")
