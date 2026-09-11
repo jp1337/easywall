@@ -1707,6 +1707,17 @@ article.content-body mark.pagefind-highlight {
   padding: 1px 6px;
   border-radius: 4px;
   border: 1px solid var(--border);
+  /* break-word and not anywhere: a word breaks only when it cannot fit on a
+     line by itself. proxy_set_header is 16 characters and never breaks; a
+     56-character Go test name renders 462px at this size and cannot. The
+     carried entry measured that as a 92px overflow at a 390px viewport, on
+     the page that then carried the identifier; the identifier has since moved
+     to the generated changelog page, which is why the rule is written against
+     inline <code> generally rather than against a page. The entry rejected
+     overflow-wrap on the grounds that it would break every long identifier at
+     an arbitrary point — which is anywhere's behaviour and break-all's, not
+     this one's. */
+  overflow-wrap: break-word;
 }
 
 /* ── Code blocks ───────────────────────────────────────────────────────
@@ -1772,6 +1783,9 @@ article.content-body mark.pagefind-highlight {
   color: inherit;
   padding: 0;
   font-size: inherit;
+  /* A code block scrolls; it does not wrap. A broken command line is a command
+     somebody pastes wrong. */
+  overflow-wrap: normal;
 }
 
 /* Rouge syntax highlighting — minimal token theme */

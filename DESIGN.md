@@ -1442,6 +1442,12 @@ documentation page announces itself the way an application page does. `h2` and `
 inside an article stay Inter, because a long-form page set in mono headings throughout
 stops reading as prose and starts reading as a table.
 
+An inline `<code>` may break, and only when it cannot fit a line on its own:
+`overflow-wrap: break-word`. A code **block** never wraps — it scrolls. The
+distinction is that an identifier a reader retypes must not gain a line break
+they cannot see, and a 56-character Go test name must not push a phone-width
+page sideways.
+
 ## Do's and Don'ts
 
 ### Do
