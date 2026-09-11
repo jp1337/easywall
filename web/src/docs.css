@@ -553,10 +553,11 @@ html, body {
   [data-theme="easywall-light"] .icon-moon { display: block; }
   .theme-label { font-weight: 500; }
 
-  /* The edge was a hard-coded Aurora cyan, retired two palettes ago, with a
-     light-mode override that existed only to restate it in the other palette.
-     A version number is not a state; it is quiet metadata, and takes --border
-     in both themes with no override at all. */
+  /* The edge was a hard-coded rgba(34,211,238,…) — the Aurora cyan, retired
+     two palettes ago — with a light-mode override that existed only to
+     restate it in the other palette. A version number is not a state; it is
+     quiet metadata, and takes --border in both themes with no override at
+     all. */
   .sidebar-version {
     font-size: 0.7rem;
     font-family: var(--font-mono);
@@ -1053,8 +1054,9 @@ html, body {
   .docs-cta-credentials code {
     color: var(--text);
     background: var(--surface-2);
-    /* Was a hard-coded Aurora cyan, retired with that palette and left behind
-       here, so it was no longer related to either theme. */
+    /* Was a hard-coded rgba(34,211,238,…) — the Aurora cyan, retired with
+       that palette and left behind here, so it was no longer related to
+       either theme. */
     border: 1px solid var(--border);
     padding: 1px 6px;
     border-radius: 4px;
