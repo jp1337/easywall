@@ -28,6 +28,18 @@ func (s *Server) factorCount() int {
 		n++
 	}
 	n += s.passkeyCount()
+	// A passkeys.json that is present and will not read or parse is not an
+	// account with no passkeys — it is an account whose passkeys are unknown,
+	// and counting that as zero let the password alone sign in to a
+	// passkey-only account. One factor, not one per credential: nobody knows
+	// how many are in there. Nothing can answer it at the second step, which is
+	// exactly why it is safe to count: the TOTP secret and the eight recovery
+	// codes live in web.toml and are untouched by whatever happened to this
+	// file, so the door this phantom closes is not the door an operator gets
+	// back in through. See newPasskeyStore for the rest of the reasoning.
+	if s.passkeys != nil && s.passkeys.isCorrupt() {
+		n++
+	}
 	return n
 }
 
@@ -42,6 +54,16 @@ func (s *Server) hasSecondFactor() bool { return s.factorCount() > 0 }
 func (s *Server) mayRemoveFactor() bool {
 	if s.client.IsDemo() {
 		return true
+	}
+	// An unreadable passkeys.json is counted by factorCount, and that count
+	// must not license a removal: "TOTP plus a file nobody can read" would
+	// otherwise pass as two factors and let the operator switch TOTP off,
+	// leaving a real account behind a factor that cannot be presented and only
+	// the recovery codes to get in with. Refusing here locks nobody out — the
+	// factor it refuses to remove is the working one — and the refusal ends the
+	// moment the file is repaired, deleted, or written over by a new enrolment.
+	if s.passkeys != nil && s.passkeys.isCorrupt() {
+		return false
 	}
 	return s.factorCount() > 1
 }
