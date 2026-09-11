@@ -1403,11 +1403,11 @@ Closes *`GET_HEALTH` is documented as short-deadline because it is read-only, an
 | `Dockerfile:156` is `HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3` | Docker abandons the probe at **5 s** whatever the core's deadline is. A 35 s deadline would change nothing for the only documented consumer, and would make `/healthz` hold a request for 35 s for every other caller |
 | `internal/shared/protocol_test.go:15` is `TestCommandTimeoutKeepsGetHealthShort`, which **pins the 5 s deadline deliberately** | Moving the command would mean inverting a guard written on purpose in 2.17. Its own comment says a five-second poll that silently became thirty-five "would be invisible to every caller: this test is what turns that drift into a failure" |
 
-So the deadline is right and stays. What is wrong is that **three comments state a reason that is false**, and one of them is that guard test's — which makes it a test passing for the wrong reason, the class this repository hunts:
+So the deadline is right and stays. What is wrong is that **two comments state a reason that is false**, and a third place states nothing where it should, and one of them is that guard test's — which makes it a test passing for the wrong reason, the class this repository hunts:
 
 - `internal/shared/protocol.go:119-122` — *"Read-only — two netlink reads and one file read — so it keeps the short deadline"*
 - `internal/shared/protocol_test.go:8-9` — *"nothing that queues behind the nft mutex the way IMPORT_RULES and VALIDATE_CUSTOM do"*
-- `internal/web/handler_health.go` — the handler's own framing of read-only as non-blocking
+- `internal/web/handler_health.go` — **no such comment exists.** An earlier draft of this task listed one, taking the carried entry's framing for the file's own words; checked against `765d615`, the handler never claimed read-only implies non-blocking. So this is not a correction but an **addition**: put four lines above the `s.client.GetHealth()` call saying it can block on the nft mutex for up to `NftTimeout`, and pointing at `shared.CmdGetHealth` for the honest scope. That is where a reader of `/healthz` meets the fact
 
 **Both reads take the mutex:** `Enforcing()` at `internal/core/nftables.go:346-347` and `RuleCounters()` at `:415-416` both open with `m.mu.Lock()`, and `Apply` holds that lock across `applyCustomRules`' nft subprocess for up to `NftTimeout` (30 s). During a slow custom-rules apply, `/healthz` therefore answers 503 and Docker's third retry lands inside that window. **Nothing restarts on unhealthy**, so the measured cost is a wrong word in `docker ps`.
 
