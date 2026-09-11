@@ -1969,8 +1969,32 @@ article.content-body mark.pagefind-highlight {
   font-weight: 500;
 }
 
-/* Anchors land under the fixed mobile topbar without this. */
-.content-body :is(h2, h3)[id] { scroll-margin-top: 5rem; }
+/* The changelog's own version list: default.html's on-page contents correctly
+   drops every heading inside a <details>, and all thirty version headings are
+   inside one — so this page gets its own jump list, inline rather than in the
+   sidebar column. Same muted-link vocabulary as .docs-toc-item, wrapped as a
+   row instead of stacked as a list. */
+.changelog-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.changelog-versions a {
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: none;
+}
+
+.changelog-versions a:hover { color: var(--text); }
+
+/* Anchors land under the fixed mobile topbar without this. `details` is here
+   for the changelog's per-version sections, which carry an id but no heading. */
+.content-body :is(h2, h3, details)[id] { scroll-margin-top: 5rem; }
 
 /* A diagram scrolls rather than shrinks on a narrow screen. Fitting the widest
    flow chart into a phone meant scaling it to about a fifth, which left its
