@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -326,5 +327,62 @@ func TestValidateWebConfig_RejectsHalfConfiguredTLS(t *testing.T) {
 
 	if err := base().Validate(); err != nil {
 		t.Errorf("neither set means self-signed, which is valid: %v", err)
+	}
+}
+
+// TestCertManager_WithACMEGeneratesNothingItself asserts that an ACME
+// installation has no self-signed half.
+//
+// Deleting m.sslDir = "" from newCertManager is invisible to the whole suite:
+// easywall then generates a self-signed certificate and re-generates it every
+// 30 days, beside a CA-issued one it also serves. The operator sees a working
+// site and a renewal loop nobody asked for.
+func TestCertManager_WithACMEGeneratesNothingItself(t *testing.T) {
+	cfg := acmeTestConfig(t)
+
+	m, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
+	t.Cleanup(m.close)
+
+	if m.acme == nil {
+		t.Fatal("acme = true produced a manager with no autocert manager")
+	}
+	if m.sslDir != "" {
+		t.Errorf("sslDir is %q with ACME on — easywall will generate and renew a "+
+			"self-signed certificate beside the CA-issued one", m.sslDir)
+	}
+	if !m.usesACME() {
+		t.Error("usesACME() is false with an autocert manager present")
+	}
+}
+
+// TestCertManager_WithACMEServesFromAutocertNotSelfSigned asserts that the
+// serving path delegates.
+//
+// A GetCertificate that falls through to the self-signed branch serves a
+// certificate no browser believes, on an installation whose whole point is one
+// that browsers do. autocert's HostPolicy is what makes the wrong SNI fail, so
+// a handshake for a name nobody configured must return autocert's error rather
+// than a certificate.
+func TestCertManager_WithACMEServesFromAutocertNotSelfSigned(t *testing.T) {
+	cfg := acmeTestConfig(t)
+
+	m, err := newCertManager(cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
+	t.Cleanup(m.close)
+
+	hello := &tls.ClientHelloInfo{ServerName: "somebody-elses.example.com"}
+	cert, err := m.GetCertificate(hello)
+	if err == nil {
+		t.Fatalf("a handshake for an unconfigured name was answered with a certificate (%v); "+
+			"GetCertificate is not delegating to autocert", cert != nil)
+	}
+	if !strings.Contains(err.Error(), "somebody-elses.example.com") {
+		t.Errorf("the refusal does not name the host it refused, so it is not autocert's "+
+			"host policy talking: %v", err)
 	}
 }
