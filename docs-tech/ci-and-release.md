@@ -73,6 +73,18 @@ No npm in the package jobs: `web/static/style.css` is committed and the `assets`
 job already fails if it does not match its source. Rebuilding it here would also
 drag `@tailwindcss/oxide` for arm64 in for nothing.
 
+The `build-image` job's "The HEALTHCHECK notices either half dying" step brings
+the image up with a plain `docker run` and reads `.State.Health` through three
+transitions. That measures the **image's** `HEALTHCHECK` only. Until 2.19 that
+was also the only health check in the repository, so this step covered
+`docker-compose.yml` by construction — compose inherited the image's check
+because it declared none of its own. Since 2.19 compose carries its own
+`healthcheck:` block (§Task 19, the podman OCI problem), and this job does not
+run compose, so it no longer covers the compose path at all. That path is
+covered instead by `TestTheContainerHealthCheckHasOneDefinition`
+(`internal/shared/healthcheck_definition_test.go`), which asserts the two
+blocks agree field by field rather than by a container reaching `healthy`.
+
 ### `security.yml`
 
 `setup-go` runs **before** `codeql-action/init`, and the order is load-bearing:
