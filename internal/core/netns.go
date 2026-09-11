@@ -42,7 +42,10 @@ package core
 // working firewall — the one inversion foldClaims forbids. A timeout stays
 // "blocked" because a dropping chain can produce nothing else; a refusal, an
 // unreachable network and an ICMP error are the harness, and they now say so.
-// See peerVerdict, which mirrors inboundCrosses' classification on this side.
+// See peerVerdict, which asks inboundCrosses' question on this side and gets
+// the opposite answer for a refusal: that side dials a namespace where nothing
+// listens, so a RST is evidence a packet crossed; this side dials the router's
+// bound listener, so a RST means the harness never finished standing up.
 
 import (
 	"bufio"
