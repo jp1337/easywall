@@ -489,13 +489,51 @@ func proofExitCode(result shared.SelftestResult) int {
 	return exitOK
 }
 
+// panicTimeoutReport is runPanic's branch for a SendCommand error that is not
+// daemon-absence — extracted so it can be driven with a synthetic net.Error
+// timeout instead of a real 35 s dial against CommandTimeout(CmdPanic), which
+// is what a timeout on the panic socket actually takes.
+//
+// daemonAbsent is false for a timeout on purpose — a slow daemon is still a
+// daemon, and two writers to the table would be worse than one slow one. But
+// the daemon writes the marker before it touches the table, for the same
+// reason the no-daemon fallback below does, so by the time the deadline
+// expires the marker is on disk and the teardown is landing. Reporting only
+// "not answering" told an operator their firewall was still up when it very
+// likely was not.
+//
+// Read with PanicState and not PanicEngaged: the helper's default for an
+// unreadable marker is "engaged", which is the safe direction at a write that
+// would start filtering and the wrong one here, where it would claim a
+// teardown nobody can confirm.
+func panicTimeoutReport(cfg *core.Config, err error, stderr io.Writer) int {
+	_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
+		cfg.SocketPath, err)
+	engaged, known, _ := core.PanicState(cfg.PanicMarkerPath())
+	switch {
+	case known && engaged:
+		_, _ = fmt.Fprintf(stderr, "easywall-core: panic mode is recorded in %s, so the "+
+			"teardown was very likely started and may already be done. The rules will not "+
+			"come back on a restart. Run `easywall-core status` to see where it ended up.\n",
+			cfg.PanicMarkerPath())
+	case known && !engaged:
+		_, _ = fmt.Fprintf(stderr, "easywall-core: panic mode is NOT recorded in %s, so "+
+			"nothing was taken down. This machine is still filtering. Run "+
+			"`easywall-core status`, and try again once the daemon answers.\n",
+			cfg.PanicMarkerPath())
+	default:
+		_, _ = fmt.Fprintf(stderr, "easywall-core: and %s cannot be read, so whether panic "+
+			"mode was recorded is unknown. Run `easywall-core status`.\n",
+			cfg.PanicMarkerPath())
+	}
+	return exitFailed
+}
+
 func runPanic(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	resp, err := shared.SendCommand(cfg.SocketPath, shared.Command{Type: shared.CmdPanic})
 	if err != nil {
 		if !daemonAbsent(err) {
-			_, _ = fmt.Fprintf(stderr, "easywall-core: the core daemon is not answering on %s: %v\n",
-				cfg.SocketPath, err)
-			return exitFailed
+			return panicTimeoutReport(cfg, err, stderr)
 		}
 
 		// A refused socket means no daemon is accepting — not that nothing is
