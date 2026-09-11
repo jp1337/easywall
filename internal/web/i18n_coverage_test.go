@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -265,6 +266,16 @@ func assertAlertVariant(t *testing.T, body, want string) {
 	}
 }
 
+// classAttrTokens returns every class name inside every class="..." attribute
+// in the given markup, split on whitespace the same way the browser does.
+func classAttrTokens(body string) []string {
+	var tokens []string
+	for _, m := range regexp.MustCompile(`class="([^"{}]*)"`).FindAllStringSubmatch(body, -1) {
+		tokens = append(tokens, strings.Fields(m[1])...)
+	}
+	return tokens
+}
+
 // Every class any template names must exist in the built stylesheet. A template
 // referring to a class that was renamed or removed fails silently: the element
 // renders, just unstyled.
@@ -293,20 +304,17 @@ func TestTemplateClassesExistInStylesheet(t *testing.T) {
 		"f-src": true, "f-dst": true, "f-sources": true, "del-rule": true, "inline": true,
 	}
 
-	classRe := regexp.MustCompile(`class="([^"{}]*)"`)
 	missing := map[string][]string{}
 	for _, f := range files {
 		body, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range classRe.FindAllStringSubmatch(string(body), -1) {
-			for _, cls := range strings.Fields(m[1]) {
-				if cls == "" || ignore[cls] || defined[cls] {
-					continue
-				}
-				missing[cls] = append(missing[cls], filepath.Base(f))
+		for _, cls := range classAttrTokens(string(body)) {
+			if cls == "" || ignore[cls] || defined[cls] {
+				continue
 			}
+			missing[cls] = append(missing[cls], filepath.Base(f))
 		}
 	}
 	names := make([]string, 0, len(missing))
@@ -317,6 +325,77 @@ func TestTemplateClassesExistInStylesheet(t *testing.T) {
 	for _, cls := range names {
 		t.Errorf("class %q (%s) is not in web/static/style.css — renamed, removed, or a typo",
 			cls, missing[cls][0])
+	}
+}
+
+// TestDocsMarkupClassesExistInStylesheet is TestTemplateClassesExistInStylesheet
+// for the published site.
+//
+// The application templates have been guarded since 2.12; docs/ never was. The
+// landing page carried .docs-landstrip, .docs-cardgrid and .docs-card for two
+// releases while docs.css defined none of them, so the first page a stranger
+// sees rendered as unstyled prose — invisible in every diff, and caught by
+// nothing, because nothing in this suite looked at markup under docs/.
+func TestDocsMarkupClassesExistInStylesheet(t *testing.T) {
+	root := filepath.Dir(localesDir(t))
+	sheet, err := os.ReadFile(filepath.Join(root, "docs", "assets", "css", "style.css"))
+	if err != nil {
+		t.Fatalf("read the built docs stylesheet: %v", err)
+	}
+	// The bare name of every class or id selector, exact per token. A
+	// substring check would let .docs-cardgrid stand in for .docs-card, which
+	// sits right next to it in the compiled sheet — deleting .docs-card's own
+	// rule left the test green until this was a token set instead of a
+	// strings.Contains. A few elements (docs.css's Pagefind-specificity
+	// pattern) are ruled by #id rather than .class though the markup still
+	// carries the matching class name, so both selector kinds count.
+	defined := make(map[string]bool)
+	for _, m := range regexp.MustCompile(`[.#]((?:[A-Za-z0-9_-]|\\.)+)`).
+		FindAllStringSubmatch(string(sheet), -1) {
+		defined[strings.ReplaceAll(m[1], `\`, "")] = true
+	}
+
+	// Only the project's own classes. A Tailwind utility is generated on
+	// demand and proves nothing by being absent from a hand-written source.
+	const ownPrefix = "docs-"
+
+	var missing []string
+	err = filepath.WalkDir(filepath.Join(root, "docs"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// _site is the build output of the very files above it, and vendor/
+		// is Jekyll's bundle. Neither is a source.
+		if d.IsDir() && (d.Name() == "_site" || d.Name() == "vendor" || d.Name() == ".jekyll-cache") {
+			return fs.SkipDir
+		}
+		if d.IsDir() || (filepath.Ext(path) != ".md" && filepath.Ext(path) != ".html") {
+			return nil
+		}
+		body, err := os.ReadFile(path) // #nosec G304 -- walking a directory in this repository
+		if err != nil {
+			return err
+		}
+		for _, class := range classAttrTokens(string(body)) {
+			if !strings.HasPrefix(class, ownPrefix) {
+				continue
+			}
+			if !defined[class] {
+				rel, err := filepath.Rel(root, path)
+				if err != nil {
+					rel = path
+				}
+				missing = append(missing, rel+": ."+class)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk docs/: %v", err)
+	}
+	if len(missing) > 0 {
+		t.Errorf("markup under docs/ names %d class(es) the built stylesheet does not define:\n  %s",
+			len(missing), strings.Join(missing, "\n  "))
 	}
 }
 

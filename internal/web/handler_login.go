@@ -55,9 +55,13 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// With no second factor, this is the whole login and nothing has changed.
-	secret := s.cfg.TOTPSecret()
-	if secret == "" {
+	// With no second factor at all — no TOTP secret and no enrolled passkey —
+	// this is the whole login and nothing has changed. Checked through
+	// hasSecondFactor(), not TOTPSecret() alone: an account whose only factor
+	// is a passkey must reach the second step exactly as a TOTP-only account
+	// does, or the passkey it enrolled is never asked for at login and the
+	// mandate is satisfied in name only.
+	if !s.hasSecondFactor() {
 		s.grantSession(w, r, username)
 		s.recordLoginEvent(r, shared.EvLoginOK, 0)
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -70,7 +74,7 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	// whether this visitor is signed in — see the comment above sessionUser.
 	pending := pendingLogin{
 		User:     username,
-		CredFP:   credentialFingerprint(wantHash, secret),
+		CredFP:   credentialFingerprint(wantHash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput()),
 		IssuedAt: time.Now().Unix(),
 	}
 	if err := s.writePending(w, r, pending); err != nil {
@@ -90,7 +94,7 @@ func (s *Server) grantSession(w http.ResponseWriter, r *http.Request, username s
 	_, hash := s.cfg.Credentials()
 	sess, _ := s.store.Get(r, SessionName)
 	sess.Values[SessionUserKey] = username
-	sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret())
+	sess.Values[SessionCredentialKey] = credentialFingerprint(hash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput())
 	sess.Values[SessionIDKey] = newSessionID()
 	sess.Options = &sessions.Options{
 		Path:     "/",
@@ -102,12 +106,25 @@ func (s *Server) grantSession(w http.ResponseWriter, r *http.Request, username s
 	_ = sess.Save(r, w)
 }
 
+// loginVerifyPage is the data behind login_verify.html: whether to draw the
+// passkey button above the code field at all.
+type loginVerifyPage struct {
+	ShowPasskey bool
+}
+
 func (s *Server) handleLoginVerifyGET(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.pendingForRequest(r); !ok {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
-	s.render(w, r, "login_verify.html", "login", nil)
+	// Not instead of the code field — an operator whose phone is flat still
+	// needs it — and not drawn at all when there is nothing to offer: neither
+	// passkeyUnavailableReason's own three checks nor an empty enrolled set
+	// leaves an operator mid-login with a control that can only fail.
+	data := loginVerifyPage{
+		ShowPasskey: s.passkeyUnavailableReason() == "" && len(s.passkeys.all()) > 0,
+	}
+	s.render(w, r, "login_verify.html", "login", data)
 }
 
 // pendingForRequest returns the intermediate state, refusing one that no longer
@@ -118,7 +135,7 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 		return pendingLogin{}, false
 	}
 	_, hash := s.cfg.Credentials()
-	if p.CredFP != credentialFingerprint(hash, s.cfg.TOTPSecret()) {
+	if p.CredFP != credentialFingerprint(hash, s.cfg.TOTPSecret(), s.passkeys.fingerprintInput()) {
 		return pendingLogin{}, false
 	}
 	return p, true
@@ -131,8 +148,26 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 // one password round; those are capped at 5 per 10 minutes per address. That is
 // 15 code attempts per 10 minutes per address against a target that rotates
 // every 30 seconds, and without a valid cookie this route is a redirect that
-// costs nothing. TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough makes
-// that an executable claim rather than a paragraph.
+// costs nothing.
+//
+// That arithmetic was false when it was written, and the correction is the
+// point of pendingattempts.go. The inner budget lived only in the cookie the
+// server handed back, so it bound a browser and not an attacker: one password
+// round, one frozen cookie, replayed — 200 guesses measured where 3 were
+// claimed, at a rate that covers roughly 9.5M of the 10^6 code space inside one
+// 180-second window. The count is now server-side, keyed by an id the cookie
+// carries, and readPending enforces it before any caller sees a pendingLogin.
+//
+// Three kinds of test hold the three halves apart, because none of them proves
+// another. TestLoginVerify_ThreeWrongCodesEndTheAttempt and
+// TestThreePasskeyFailuresEndTheAttempt prove pendingMaxAttempts for a
+// cooperating browser — the inner budget the code field and the passkey button
+// share. TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough and
+// TestTheSixteenthPasskeyAttemptDoesNotGetThrough take a fresh intermediate
+// state per round, so what they prove is the outer bound of 15.
+// TestPending_AFrozenCookieDoesNotBuyMoreAttempts and its passkey twin present
+// one unchanging cookie, which is the only shape that proves the inner budget
+// is the server's and not the client's.
 func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.pendingForRequest(r)
 	if !ok {
@@ -179,8 +214,20 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 
 	// Everything else, including a six-digit code that did not match and a
 	// recovery-shaped value that is not one of the eight.
-	s.recordLoginEvent(r, shared.Ev2FAFailed, 0)
-	p.Attempts++
+	s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
+}
+
+// failVerifyAttempt is the second step's one budget, shared by both doors: a
+// wrong code here and a failed passkey assertion in handleLoginPasskeyFinish
+// both charge the same intermediate state, or the passkey route would be a way
+// past the limit the code field is subject to. See handleLoginVerifyPOST's own
+// comment for the arithmetic this produces.
+//
+// The charge lands in the server's map, not in the response: nothing is written
+// back to the cookie, so there is nothing for a client to decline to keep.
+func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pendingLogin, ev shared.LoginEvent) {
+	s.recordLoginEvent(r, ev, 0)
+	p.Attempts = recordPendingAttempt(p.ID)
 	if p.Attempts >= pendingMaxAttempts {
 		// Back to /login without saying whether the password or the factor
 		// failed, and without ever saying how many attempts were left.
@@ -188,9 +235,6 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 		s.setFlash(w, r, "login_again")
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
-	}
-	if err := s.writePending(w, r, p); err != nil {
-		slog.Warn("could not record the failed attempt", "error", err)
 	}
 	s.setFlash(w, r, "verify_failed")
 	http.Redirect(w, r, "/login/verify", http.StatusSeeOther)
@@ -205,8 +249,9 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 func (s *Server) acceptTOTP(code string) bool {
 	raw, err := decodeTOTPSecret(s.cfg.TOTPSecret())
 	if err != nil {
-		slog.Error("the stored TOTP secret cannot be used, so no code can match it; clear "+
-			"totp_secret in web.toml to sign in with the password alone", "reason", err)
+		slog.Error("the stored TOTP secret cannot be used, so no code can match it; to sign in "+
+			"with the password alone, clear totp_secret and recovery_codes in web.toml and "+
+			"delete passkeys.json in data_dir", "reason", err)
 		return false
 	}
 	step, _, ok := matchTOTP(raw, time.Now(), code, totpWindowLogin)

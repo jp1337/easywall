@@ -113,6 +113,7 @@ func TestParseIPList_ReturnsSliceNotNil(t *testing.T) {
 func TestHandleBlacklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var reached bool
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
@@ -142,6 +143,7 @@ func TestHandleBlacklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing
 func TestHandleWhitelistPOST_RejectedListKeepsTheText(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	var reached bool
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })

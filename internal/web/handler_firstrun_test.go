@@ -10,9 +10,29 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
+
+// completeWizard drives the whole wizard: step 1 with form, then a valid TOTP
+// code against the secret step 1 just generated. completeFirstRun's only
+// caller is handleFirstRunConfirm now, so this is the only way any of these
+// tests can reach a written account.
+func completeWizard(t *testing.T, s *Server, form string) *httptest.ResponseRecorder {
+	t.Helper()
+	step1 := doFormRequest(s, "POST", "/firstrun", form)
+	if step1.Code != http.StatusOK {
+		t.Fatalf("step 1 answered %d, want 200 with the setup step rendered", step1.Code)
+	}
+	cookies := step1.Result().Cookies()
+	raw, err := decodeTOTPSecret(firstRunPendingSecret(t, s, cookies))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return doFormRequest(s, "POST", "/firstrun/confirm",
+		"code="+totpAt(raw, stepAt(time.Now())), cookies...)
+}
 
 func TestHandleFirstRunGET_ShowsPage(t *testing.T) {
 	fc := newFakeCore(t)
@@ -70,12 +90,20 @@ func TestHandleFirstRunPOST_PasswordMismatch(t *testing.T) {
 	assertRedirect(t, rec, "/firstrun")
 }
 
+// A valid step 1 no longer creates the account: it moves the wizard to the
+// TOTP step. See TestFirstRun2FA_StepOneStoresNothing and
+// TestHandleFirstRunPOST_SavesCredentials for what happens on each side of
+// that step.
 func TestHandleFirstRunPOST_ValidSubmission(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
 	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123456!&password_confirm=ValidPassword123456!")
-	assertRedirect(t, rec, "/login")
+	assertStatus(t, rec, http.StatusOK)
+
+	if !s.cfg.IsFirstRun() {
+		t.Error("a valid step 1 submission created the account before a factor was confirmed")
+	}
 }
 
 func TestHandleFirstRunPOST_SavesCredentials(t *testing.T) {
@@ -86,8 +114,8 @@ func TestHandleFirstRunPOST_SavesCredentials(t *testing.T) {
 		t.Fatal("expected first-run mode")
 	}
 
-	rec := doFormRequest(s, "POST", "/firstrun", "username=myadmin&password=MySecurePassword123!&password_confirm=MySecurePassword123!")
-	assertRedirect(t, rec, "/login")
+	rec := completeWizard(t, s, "username=myadmin&password=MySecurePassword123!&password_confirm=MySecurePassword123!")
+	assertStatus(t, rec, http.StatusOK)
 
 	if s.cfg.Username != "myadmin" {
 		t.Errorf("expected username 'myadmin', got %q", s.cfg.Username)
@@ -107,14 +135,13 @@ func TestHandleFirstRunPOST_PasswordExactly12CharsIsAccepted(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	const pw = "exactly12chr" // 12 characters
+	const pw = "exactly12ch!" // 12 characters, with a digit and a symbol
 	if len(pw) != 12 {
 		t.Fatalf("the test password is %d characters, not 12", len(pw))
 	}
 
-	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password="+pw+"&password_confirm="+pw)
-	assertRedirect(t, rec, "/login")
+	rec := completeWizard(t, s, "username=admin&password="+pw+"&password_confirm="+pw)
+	assertStatus(t, rec, http.StatusOK)
 
 	if s.cfg.IsFirstRun() {
 		t.Error("credentials were not saved, so the account was not created")
@@ -142,16 +169,21 @@ func TestHandleFirstRunPOST_Password11Chars(t *testing.T) {
 	}
 }
 
-func TestHandleFirstRunPOST_SaveCredentialsError(t *testing.T) {
+// Step 1 no longer writes anything — the one write happens at confirm, once a
+// code is checked — so a disk that cannot be written to does not stop the
+// wizard from reaching the TOTP step. What happens when the disk really is
+// touched and fails is TestFirstRun2FA_ConfirmSurvivesAFailedWrite's case.
+func TestHandleFirstRunPOST_Step1DoesNotTouchDisk(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
-
-	// Make SaveCredentials fail by pointing configPath to an invalid location
 	s.cfg.configPath = "/nonexistent/path/web.toml"
 
 	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123456!&password_confirm=ValidPassword123456!")
-	// Should redirect back to /firstrun (save_error flash)
-	assertRedirect(t, rec, "/firstrun")
+	assertStatus(t, rec, http.StatusOK)
+
+	if !s.cfg.IsFirstRun() {
+		t.Error("step 1 must not create the account by itself")
+	}
 }
 
 // The wizard is the one moment an operator is already making decisions, so it
@@ -165,10 +197,10 @@ func TestHandleFirstRunPOST_StagesTheChoices(t *testing.T) {
 		Docker: shared.DockerConfig{Enabled: true, AllowBridgeNetworks: true},
 	}))
 
-	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1"+
+	rec := completeWizard(t, s,
+		"username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!"+
 			"&ssh_port=2222&open_web=on&ipv6_mode=block&telemetry=on")
-	assertRedirect(t, rec, "/login")
+	assertStatus(t, rec, http.StatusOK)
 
 	if s.cfg.IsFirstRun() {
 		t.Fatal("the account was not created")
@@ -202,8 +234,7 @@ func TestHandleFirstRunPOST_TelemetryIsOffUnlessTicked(t *testing.T) {
 	s := newFirstRunTestServer(t, fc)
 	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
 
-	doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1")
+	completeWizard(t, s, "username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!")
 
 	if s.cfg.TelemetryEnabled() {
 		t.Error("consent must never be assumed")
@@ -222,7 +253,7 @@ func TestHandleFirstRunPOST_RejectsAnImpossibleSSHPortBeforeCreatingTheAccount(t
 		s := newFirstRunTestServer(t, fc)
 
 		rec := doFormRequest(s, "POST", "/firstrun",
-			"username=admin&password=averysecurepass1&password_confirm=averysecurepass1&ssh_port="+port)
+			"username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port="+port)
 		assertRedirect(t, rec, "/firstrun")
 
 		if !s.cfg.IsFirstRun() {
@@ -247,8 +278,7 @@ func TestHandleFirstRunPOST_EmptySSHPortMeans22(t *testing.T) {
 		_ = json.Unmarshal(raw, &saved)
 	})
 
-	doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1&ssh_port=")
+	completeWizard(t, s, "username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port=")
 
 	if len(saved) == 0 || saved[0].Port != "22" {
 		t.Fatalf("expected port 22 staged first, got %+v", saved)
@@ -277,8 +307,7 @@ func TestHandleFirstRunPOST_StagesThePortThisInterfaceIsServedOn(t *testing.T) {
 		_ = json.Unmarshal(raw, &saved)
 	})
 
-	doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1&ssh_port=22")
+	completeWizard(t, s, "username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port=22")
 
 	_, want, err := net.SplitHostPort(s.cfg.BindAddr)
 	if err != nil {
@@ -307,7 +336,7 @@ func TestHandleFirstRunPOST_RejectedSubmissionKeepsTheAnswers(t *testing.T) {
 	s := newFirstRunTestServer(t, fc)
 
 	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=operator&password=averysecurepass1&password_confirm=mismatch"+
+		"username=operator&password=averysecurepass1!&password_confirm=mismatch"+
 			"&ssh_port=2222&open_web=on&ipv6_mode=block&telemetry=on")
 
 	back := doRequest(s, "GET", "/firstrun", nil, rec.Result().Cookies()...)
@@ -320,7 +349,7 @@ func TestHandleFirstRunPOST_RejectedSubmissionKeepsTheAnswers(t *testing.T) {
 	if !strings.Contains(body, `value="block" class="radio" checked`) {
 		t.Error("the re-rendered wizard lost the IPv6 choice")
 	}
-	if strings.Contains(body, "averysecurepass1") {
+	if strings.Contains(body, "averysecurepass1!") {
 		t.Error("the password came back in the page")
 	}
 }
@@ -332,14 +361,13 @@ func TestHandleFirstRunPOST_CreatesTheAccountEvenIfTheCoreIsDown(t *testing.T) {
 	s := newFirstRunTestServer(t, fc)
 	fc.SetDefaultResponse(errorRespFor("core unavailable"))
 
-	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1")
-	assertRedirect(t, rec, "/login")
+	rec := completeWizard(t, s, "username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!")
+	assertStatus(t, rec, http.StatusOK)
 
 	if s.cfg.IsFirstRun() {
 		t.Error("the account must be created even when the choices cannot be staged")
 	}
-	if !VerifyPassword("averysecurepass1", s.cfg.Password) {
+	if !VerifyPassword("averysecurepass1!", s.cfg.Password) {
 		t.Error("the stored hash does not verify")
 	}
 }
@@ -355,8 +383,7 @@ func TestHandleFirstRunPOST_StagesButNeverApplies(t *testing.T) {
 	var applied bool
 	fc.OnCommand(shared.CmdApplyRules, func(shared.Command) { applied = true })
 
-	doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password=averysecurepass1&password_confirm=averysecurepass1&ssh_port=22")
+	completeWizard(t, s, "username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port=22")
 
 	if applied {
 		t.Error("the wizard must not apply rules")
@@ -380,7 +407,7 @@ func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
 	// against a runner with 16 GB. Nothing here is testing the KDF. Hoisting it
 	// also makes the probe sharper, because the goroutines now converge on
 	// SaveFirstRun instead of arriving whenever their own hash finished.
-	hash, err := HashPassword("averysecurepass1")
+	hash, err := HashPassword("averysecurepass1!")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -22,6 +24,7 @@ func TestHandleSystemGET_RequiresAuth(t *testing.T) {
 func TestHandleSystemGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSystem, successResp(shared.SystemSettings{
 		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
 	}))
@@ -33,6 +36,7 @@ func TestHandleSystemGET_Success(t *testing.T) {
 func TestHandleSystemGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSystem, errorRespFor("core unavailable"))
 
 	rec := doAuthRequest(t, s, "GET", "/system", nil)
@@ -50,6 +54,7 @@ func TestHandleSystemPOST_RequiresAuth(t *testing.T) {
 func TestHandleSystemPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/system",
@@ -60,6 +65,7 @@ func TestHandleSystemPOST_Success(t *testing.T) {
 func TestHandleSystemPOST_InvalidDuration(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormRequest(t, s, "/system", "acceptance_duration=abc")
 	assertRedirect(t, rec, "/system")
@@ -74,6 +80,7 @@ func TestHandleSystemPOST_RejectsADurationOutsideTheAdvertisedRange(t *testing.T
 		t.Run(dur, func(t *testing.T) {
 			fc := newFakeCore(t)
 			s := newTestServer(t, fc)
+			enrollFactor(t, s)
 			fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
 
 			rec := doAuthFormRequest(t, s, "/system",
@@ -92,6 +99,7 @@ func TestHandleSystemPOST_AcceptsTheRangeBoundaries(t *testing.T) {
 		t.Run(dur, func(t *testing.T) {
 			fc := newFakeCore(t)
 			s := newTestServer(t, fc)
+			enrollFactor(t, s)
 			fc.SetResponse(shared.CmdSaveSystem, shared.Response{Success: true})
 
 			rec := doAuthFormRequest(t, s, "/system",
@@ -109,6 +117,7 @@ func TestHandleSystemPOST_AcceptsTheRangeBoundaries(t *testing.T) {
 func TestHandleSystemPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSystem, errorRespFor("save failed"))
 
 	rec := doAuthFormRequest(t, s, "/system", "acceptance_duration=120")
@@ -133,6 +142,7 @@ func doAuthFormHTMX(t *testing.T, s *Server, url, formBody string) *httptest.Res
 func TestHandleSystemPOST_HTMX_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormHTMX(t, s, "/system", "acceptance_enabled=on&acceptance_duration=60")
 	assertStatus(t, rec, http.StatusNoContent)
@@ -148,6 +158,7 @@ func TestHandleSystemPOST_HTMX_Success(t *testing.T) {
 func TestHandleSystemPOST_HTMX_InvalidDuration(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doAuthFormHTMX(t, s, "/system", "acceptance_duration=0")
 	assertStatus(t, rec, http.StatusOK)
@@ -163,6 +174,7 @@ func TestHandleSystemPOST_HTMX_InvalidDuration(t *testing.T) {
 func TestHandleSystemPOST_HTMX_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSystem, errorRespFor("save failed"))
 
 	rec := doAuthFormHTMX(t, s, "/system", "acceptance_duration=120")
@@ -181,6 +193,7 @@ func TestHandleSystemPOST_HTMX_CoreError(t *testing.T) {
 func TestHandleTelemetryPOST_WorksWithoutTheCore(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(true); err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +211,7 @@ func TestHandleTelemetryPOST_WorksWithoutTheCore(t *testing.T) {
 func TestHandleTelemetryPOST_RecordsConsent(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	doFormRequest(s, "POST", "/system/telemetry", "telemetry=on", makeAuthCookie(t, s))
 	if !s.cfg.TelemetryEnabled() {
@@ -222,6 +236,7 @@ func TestHandleTelemetryPOST_ResetRemovesTheStoredLine(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(false); err != nil {
 		t.Fatalf("SaveTelemetry: %v", err)
 	}
@@ -266,6 +281,7 @@ func TestHandleSystemGET_TelemetryResetIsNeverTheDefaultButton(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(false); err != nil {
 		t.Fatalf("SaveTelemetry: %v", err)
 	}
@@ -310,6 +326,7 @@ func TestHandleTelemetryPOST_HTMX_ResetUpdatesTheDOM(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_TELEMETRY", "true")
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	if err := s.cfg.SaveTelemetry(false); err != nil {
 		t.Fatalf("SaveTelemetry: %v", err)
 	}
@@ -361,6 +378,7 @@ func TestNewServer_DemoModeNeverCounts(t *testing.T) {
 func TestHandleSystemGET_NamesTheTelemetryEndpoint(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	rec := doRequest(s, "GET", "/system", nil, makeAuthCookie(t, s))
 	body := rec.Body.String()
@@ -369,5 +387,280 @@ func TestHandleSystemGET_NamesTheTelemetryEndpoint(t *testing.T) {
 	}
 	if !strings.Contains(body, `action="/system/telemetry"`) {
 		t.Error("the telemetry switch is not on its own form; a core outage would block it")
+	}
+}
+
+// TestTheSystemPageHasNoTwoButtonsWithOneName asserts that no visible button
+// label appears twice on /system.
+//
+// It rendered two buttons reading "Save system settings", one after the
+// acceptance window and one after the installation count, and nothing said
+// which section each belonged to. Written over the rendered page rather than
+// over the template so that a label moved into a partial is still caught.
+func TestTheSystemPageHasNoTwoButtonsWithOneName(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetSystem, successResp(shared.SystemSettings{
+		Acceptance: shared.AcceptanceConfig{Enabled: true, Duration: 120},
+	}))
+
+	rec := doRequest(s, "GET", "/system", nil, makeAuthCookie(t, s))
+	body := rec.Body.String()
+
+	labels := buttonLabels(body)
+	seen := map[string]int{}
+	for _, l := range labels {
+		seen[l]++
+	}
+	for label, n := range seen {
+		if n > 1 {
+			t.Errorf("the label %q appears on %d buttons; a reader cannot tell which section each saves", label, n)
+		}
+	}
+	if len(labels) < 2 {
+		t.Fatalf("expected at least two buttons on /system, found %d — the test is no longer looking at the right page", len(labels))
+	}
+}
+
+// buttonLabels returns the visible text of every <button> in html.
+func buttonLabels(html string) []string {
+	var out []string
+	re := regexp.MustCompile(`(?s)<button[^>]*>(.*?)</button>`)
+	tags := regexp.MustCompile(`<[^>]*>`)
+	for _, m := range re.FindAllStringSubmatch(html, -1) {
+		text := strings.TrimSpace(tags.ReplaceAllString(m[1], " "))
+		text = strings.Join(strings.Fields(text), " ")
+		if text != "" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+// ── ACME port-80 report ───────────────────────────────────────────────────
+
+// newACMESystemTestServer builds a Server the way newTestServer does, then
+// turns tls.acme on and attaches a real certManager for it: the four-state
+// port-80 report has nothing to say while usesACME() is false, and only a
+// certManager built from an ACME-on config answers true.
+func newACMESystemTestServer(t *testing.T, opts ...func(*fakeCore)) *Server {
+	t.Helper()
+	fc := newFakeCore(t)
+	for _, opt := range opts {
+		opt(fc)
+	}
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+
+	s.cfg.TLS.ACME = true
+	s.cfg.TLS.Hostname = "firewall.example.org"
+	s.cfg.TLS.ACMEAgreeTOS = true
+	certs, err := newCertManager(s.cfg)
+	if err != nil {
+		t.Fatalf("newCertManager: %v", err)
+	}
+	s.certs = certs
+	return s
+}
+
+// withPortRules configures the fake core's GetRules response with the given
+// rules as the *live* TCP set (RulesState.Current) — port80Reachability reads
+// Current, not Staged, because the question is whether a certificate
+// authority can reach the host right now.
+func withPortRules(rules ...shared.PortRule) func(*fakeCore) {
+	return func(fc *fakeCore) {
+		fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+			Current: shared.Rules{TCP: rules},
+		}))
+	}
+}
+
+// withTCPPorts is withPortRules for the common case: one rule per port, no
+// Sources restriction.
+func withTCPPorts(ports ...string) func(*fakeCore) {
+	rules := make([]shared.PortRule, len(ports))
+	for i, p := range ports {
+		rules[i] = shared.PortRule{Port: p}
+	}
+	return withPortRules(rules...)
+}
+
+// withCoreUnreachable closes the fake core's listener before the server ever
+// gets a chance to dial it — the same shape TestHandleTelemetryPOST_WorksWithoutTheCore
+// uses, so a request meets a real dial failure rather than a canned error.
+func withCoreUnreachable() func(*fakeCore) {
+	return func(fc *fakeCore) { fc.listener.Close() }
+}
+
+// getAuthedBody performs an authenticated GET and returns the response body,
+// for tests that only care about what rendered.
+func (s *Server) getAuthedBody(t *testing.T, path string) string {
+	t.Helper()
+	return doAuthRequest(t, s, http.MethodGet, path, nil).Body.String()
+}
+
+// translated returns the English translation of a message id, using the
+// package's shared test bundle — so a test can assert against the rendered
+// sentence rather than the raw id, the same text an operator actually reads.
+func translated(t *testing.T, id string) string {
+	t.Helper()
+	loc := i18n.NewLocalizer(testBundle(t), "en")
+	return T(loc, id)
+}
+
+// assertNoRuleWriteReachesTheCore registers an observer on the fake core that
+// fails t the instant any rule-mutating command arrives during the request
+// under test — port80Reachability is supposed to be read-only.
+//
+// Replaces an earlier version of this check that re-read GET_RULES after the
+// request and looked for port 80 in the *canned* Staged response — which
+// cannot fail no matter what port80Reachability does, because the fake core
+// always answers GET_RULES with the same fixed response regardless of any
+// write sent to it; nothing in the fake replays a write into its own read
+// path. Proven vacuous: inserting a real SaveRules call into
+// port80Reachability and rerunning left the old assertion green. This
+// version watches the wire instead of re-reading a fixture, and does fail
+// under that same mutation — see the "closed" subtest below.
+func assertNoRuleWriteReachesTheCore(t *testing.T) func(*fakeCore) {
+	t.Helper()
+	return func(fc *fakeCore) {
+		for _, cmd := range []shared.CommandType{shared.CmdSaveRules, shared.CmdApplyRules, shared.CmdImportRules} {
+			fc.OnCommand(cmd, func(shared.Command) {
+				t.Errorf("the GET that only asks whether port 80 is reachable sent a %s to the core — "+
+					"easywall must never write rules on its own initiative", cmd)
+			})
+		}
+	}
+}
+
+// TestTheSystemPageReportsWhetherPortEightyIsOpen asserts easywall measures
+// rather than asserts, and does not open the port itself.
+//
+// ACME needs port 80 reachable. easywall is the firewall in front of it, so
+// the operator has to open it — and a firewall program that opens ports on
+// its own initiative contradicts the whole design. What it can do is look and
+// say.
+//
+// Four states, because that is what the truth has: a rule (single value or
+// range) may or may not cover port 80, and a covering rule's Sources may or
+// may not restrict who reaches it. Matching "80" alone would call a rule of
+// 79:81 "not covered" and send an operator to add a rule they already have;
+// ignoring Sources would call a rule restricted to 10.0.0.0/8 "open" to a
+// certificate authority that reaches them from the public internet. Neither
+// is the honest answer.
+func TestTheSystemPageReportsWhetherPortEightyIsOpen(t *testing.T) {
+	t.Run("closed", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withTCPPorts("22", "12227"), assertNoRuleWriteReachesTheCore(t))
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, "acme_port_closed") && !strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("port 80 is not in the rule set and the page did not say so")
+		}
+		// assertNoRuleWriteReachesTheCore above fails the test itself if
+		// easywall staged port 80 on its own initiative.
+	})
+
+	t.Run("open", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withTCPPorts("22", "80", "12227"))
+		body := s.getAuthedBody(t, "/system")
+		if strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("port 80 is in the rule set and the page said it was closed")
+		}
+		if !strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("an unrestricted rule for 80 did not render as open")
+		}
+	})
+
+	// A range containing 80 admits it exactly as a bare "80" does. Reporting
+	// this "not covered" would send the operator to add a rule they already
+	// have — the mistake the plan this task replaced would have made.
+	t.Run("open via range", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withPortRules(shared.PortRule{Port: "79:81"}))
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("a range covering 80 did not render as open")
+		}
+	})
+
+	// A range that does not reach 80 must not be confused with one that does.
+	t.Run("range does not cover 80", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withPortRules(shared.PortRule{Port: "8000:9000"}))
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("a range that does not reach 80 did not render as not covered")
+		}
+	})
+
+	// A rule for 80 restricted to specific sources does not let a certificate
+	// authority on the public internet in. Calling that "open" is the false
+	// reassurance in the other direction — the second thing the plan this
+	// task replaced would have missed entirely.
+	t.Run("restricted", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withPortRules(
+			shared.PortRule{Port: "80", Sources: []string{"10.0.0.0/8"}}))
+		body := s.getAuthedBody(t, "/system")
+		if strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("a rule restricted to a private network rendered as open to anyone")
+		}
+		if strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("a rule that does cover 80 rendered as not covered at all")
+		}
+		if !strings.Contains(body, translated(t, "acme_port_restricted")) {
+			t.Error("a restricted rule for 80 did not say so")
+		}
+	})
+
+	t.Run("no rules at all", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withTCPPorts())
+		body := s.getAuthedBody(t, "/system")
+		if !strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("an empty rule set did not render as not covered")
+		}
+	})
+
+	// A port value this parser cannot read must not take the page down — this
+	// is a status row about a rule the core already accepted in some shape.
+	// Two shapes: no colon at all, and a colon with a non-numeric half — the
+	// second is the one that reaches the range parser's own error path rather
+	// than being turned away before it.
+	for _, malformed := range []string{"not-a-port", "abc:def"} {
+		t.Run("malformed port value/"+malformed, func(t *testing.T) {
+			s := newACMESystemTestServer(t, withPortRules(shared.PortRule{Port: malformed}))
+			body := s.getAuthedBody(t, "/system")
+			if !strings.Contains(body, translated(t, "acme_port_closed")) {
+				t.Errorf("port value %q did not render as not covered", malformed)
+			}
+		})
+	}
+
+	// The core cannot be asked at all. Reported as unknown, never folded into
+	// "not covered" — an operator whose core is down must not be told their
+	// firewall is blocking a port when nothing was actually asked.
+	t.Run("unknown", func(t *testing.T) {
+		s := newACMESystemTestServer(t, withCoreUnreachable())
+		body := s.getAuthedBody(t, "/system")
+		if strings.Contains(body, translated(t, "acme_port_closed")) {
+			t.Error("an unreachable core rendered as not covered instead of unknown")
+		}
+		if strings.Contains(body, translated(t, "acme_port_open")) {
+			t.Error("an unreachable core rendered as open")
+		}
+		if !strings.Contains(body, translated(t, "acme_port_unknown")) {
+			t.Error("an unreachable core did not render as unknown")
+		}
+	})
+}
+
+// TestTheSystemPageHasNoPortEightyReportWithoutACME asserts the row is
+// invisible on every installation that has not turned ACME on — which is
+// most of them — rather than showing a report about a feature that is off.
+func TestTheSystemPageHasNoPortEightyReportWithoutACME(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+
+	body := s.getAuthedBody(t, "/system")
+	if strings.Contains(body, translated(t, "acme_port_label")) {
+		t.Error("the port-80 report is shown even though ACME is off")
 	}
 }

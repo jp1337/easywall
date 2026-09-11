@@ -112,6 +112,8 @@ The background is in [dependencies](dependencies.md).
 | `TestClientStringsCoverWhatAppJSAsksFor` | text `app.js` builds has its key in `clientStringKeys` |
 | `TestClientStringsCarryNoMarkupAppJSCannotRender` | a string inlined for `app.js` has no `` ` `` or `*` — it escapes them, so the markers would be shown literally |
 | `TestTemplateClassesExistInStylesheet` | a template does not name a class Tailwind no longer generates |
+| `TestDocsMarkupClassesExistInStylesheet` | the same check for the published site: every `docs-*` class in markup under `docs/` is a selector in the **built** `docs/assets/css/style.css`. The guard above reads `web/templates/` and `app.js`, so nothing in this suite had ever looked at the site's own markup — the documentation landing page named `.docs-landstrip`, `.docs-cardgrid` and `.docs-card` while `docs.css` defined none of them, and for two releases the first page a stranger sees rendered as unstyled prose at full width. Token-exact rather than a substring: `.docs-cardgrid` stood in for `.docs-card`, and deleting the latter's rule left it green |
+| `TestTheSystemPageHasNoTwoButtonsWithOneName` | no visible button label appears twice on the rendered `/system`. Two of them read *Save system settings*, one under the acceptance window and one under the installation count, with nothing saying which section each belonged to. Written over the rendered page, so a label moved into a partial is still caught |
 | `TestStatTileRowsComeFromTheGrid`, `TestStatTileSpanMatchesItsChildren` | the dashboard tiles take their four rows from the grid above them, and the row count in the stylesheet equals the children in the markup. French was what exposed the need: "Règles personnalisées" wraps where "Custom rules" does not, and two numbers of six sat 20px below the other four. The fix costs English and German nothing, which is why its absence is invisible to everyone who would notice |
 | `TestDocsStylesheetKeepsLoadBearingRules`, `…CodeBlockHasASingleFrame`, `…InlineCodeIsNotThemeScoped` | the documentation site's stylesheet after a Tailwind rebuild. `.sr-only` is in that list and is written nowhere in `web/src/docs.css` — it exists only because `docs/_includes/search.html` uses the class and the `@source` scan reaches that file, so renaming either one un-hides the search field's label on all 26 pages |
 | `TestVersionedStaticAssetsCarryTheReleaseInTheirURL`, `TestStaticFilesSayHowLongTheyMayBeKept` | an upgrade actually changes the stylesheet URL |
@@ -174,6 +176,7 @@ where the page looks right on the machine that has the old file cached.
 | `TestStartRefusesToServeWithoutTemplates` | the web process refuses to bind if its templates are missing | it started, reported healthy, and answered `503` on every request, with one `WARN` line at startup as the only clue |
 | `TestSessionIsRefusedOnceItIsOlderThanItsLifetime` | the server enforces the same lifetime the browser is told | `NewCookieStore` set the codec's max age from its own default; assigning `Options` afterwards changed only what the browser saw. Cookies were valid for thirty days while the browser dropped them after ten minutes |
 | `TestLogoutSurvivesTheRevocationRecordExpiring` | a logged-out cookie stays refused | the revocation record was swept "because the cookie has expired by then". It had not: replaying it eleven minutes after signing out signed you back in |
+| `TestAFlashCannotResurrectALoggedOutSession`, `TestClearingAFlashCannotResurrectALoggedOutSession` | no path that has not authenticated a session re-signs it — `sessionForWrite` strips a revoked `user` and `sid` before `setFlash`, `setFlashN` and `render`'s flash clear | the row above was half a fix. Saving a session re-signs its cookie, and all three paths saved the one the *request* presented: a revoked cookie posted to `/login` with a deliberately wrong password came back with the same `user`, the same `sid` and its age at zero. One wrong login every few minutes outlasts the revocation record, and no retention closes it because the refresh resets the cookie's age too. The second test needs no login attempt at all — a cookie caught carrying a flash is re-signed by the page that renders it |
 | `TestSigningOutIsNotReachableWithASafeMethod`, `…RefusesACrossOriginPost` | `/logout` is a `POST`, so `CrossOriginProtection` covers it | it was a `GET`, which that middleware exempts by design — any page the operator had open could end their session with an `<img>` tag |
 | `TestCoreWritesItsFilesForRootOnly` | the audit log and the last-apply marker are `0600` | |
 | `TestShippedConfigsMatchTheStructsTheyConfigure` | `config/*.toml` — what the package installs — still parses | `config/easywall.toml` shipped the obsolete `ipv6.enabled` a release after `mode` replaced it |
@@ -222,12 +225,31 @@ where the page looks right on the machine that has the old file cached.
 | `TestEveryLoginEventIsLabelledDocumentedAndTranslated` / `TestNoLoginEventIsColoured` | an event that renders as raw snake_case, and colour drifting away from "what the firewall is doing" |
 | `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough` | the roadmap's requirement that the second step be bounded, as arithmetic that runs |
 | `TestConfig_TOTPKeysSurviveTheSaveRoundTrip` | `mergeConfig` silently falling back to the encoder and taking three kilobytes of comments with it |
-| `TestFirstRun2FA_SkipCreatesTheAccountWithoutAFactor` | the wizard's setup step must always offer a way past it that still creates the account. easywall runs on single-board computers with no RTC, which come up at the epoch until NTP lands; TOTP cannot verify against a clock like that. Without this branch an optional feature becomes a way of bricking the wizard on a machine that is already reachable from the network |
+| `TestFirstRun2FA_RecoverAfterAFailedCodeCreatesTheAccountWithTheFactor`, `…ADiagnosedSkewAlsoUnlocksTheEscape`, `…RecoverIsNotReachableBeforeAFailedCode` | the wizard's way out of a clock it cannot use. easywall runs on single-board computers with no RTC, which come up at the epoch until NTP lands; TOTP cannot verify against a clock like that. Until 2.18 the answer was a Skip button and an optional factor, and 2.18 deleted both — so what now stands between a wrong clock and no account at all is the escape: after a code that cannot verify, an acknowledged `POST /firstrun/recover` writes the account **with the secret already on screen** plus eight recovery codes, so the authenticator just paired works the moment the clock is fixed. Three tests because each half was its own way to lose it — the stored secret is compared against the one the page showed rather than merely being non-empty; the diagnosed-skew branch (inside the ±5-minute enrolment window, outside the ±30-second login one) told the operator the truth about their clock and then never marked the pending entry failed, so the escape stayed shut on precisely the clock it exists for; and the route does nothing before a code has failed, or it stops being an escape and becomes the path everyone takes |
 
 Worth writing down beside the last one, though nothing tests it: `keyLineRe`
 matches one line, so a hand-written multi-line `recovery_codes` array makes the
 merge give up and re-encode. Comments are lost, nothing is corrupted, and that
 is the path's designed behaviour rather than a bug the round-trip test missed.
+
+## A password alone is not enough
+
+2.18 makes the second factor a precondition for using the interface rather than
+an offer. A mandate is only as real as the narrowest way around it, and every
+row here is one of those ways.
+
+| Test | Protects | The incident |
+|---|---|---|
+| `TestTheGateCannotBeWalkedPast` | an authenticated session with no factor reaches no route but the ten enrolment needs — walked out of the chi router, not read off a list | a list-shaped test protects the list. This one's floor was wrong inside this very branch: written at 37, raised to 38, and then three `/password/passkey/*` routes landed — so it went on passing at 38 while the real count was 41. It is 41 now: the 40 in the `RequireAuth`+`RequireSecondFactor` group, plus `POST /logout`, which sits in the public group deliberately, because a way out must never need the factor it is gating. The discriminator is the gate's own `X-Easywall-Gate` header and not "did this land on `/password`" — the enrolment routes redirect there on any ordinary validation failure, and without the header every one of those reads as a blocked route |
+| `TestTheLastFactorCannotBeRemoved`, `TestTheLastPasskeyCannotBeRemoved` | one predicate, `mayRemoveFactor`, decides both removal routes, so an operator with one factor cannot switch it off | the page the gate lands an operator on is a page they can leave by pressing the same button again. The passkey half had no test watching the predicate *refuse*: `TestRemovingAPasskeyEndsSessions` enrols TOTP so that the removal is allowed, so it can only ever observe the gate agreeing to act |
+| `TestBeginRegistrationExcludesEnrolledCredentials` | the registration ceremony excludes credentials already enrolled — asserted by the excluded id, not by the list being non-empty | the mandate rests on a count. One physical authenticator enrolled twice under two names makes `factorCount` report two independent factors when there is one, and `mayRemoveFactor` then permits removing "one of two" |
+| `TestTheWizardHasNoWayPastTheSecondFactor`, `TestTheWizardDoesNotPromiseALaterThatDoesNotExist` | `/firstrun/skip` answers 404 — the route is gone, not unlinked — and no `firstrun_*` string in either locale still offers to defer | an unlinked route is a route. And six strings survived the commit that made the factor mandatory, in both locales, each of them true until that moment: nothing in this suite reads copy for whether it is still true, so the wizard went on promising a later that no longer existed with everything green |
+| `TestThePasswordPolicyIsAFloorAndNotAPreference` | twelve characters with a digit and a symbol, the **first** unmet rule reported rather than all three, counted in runes, and a space or a non-ASCII mark counting as a symbol | it pins a decision rather than an implementation: easywall already required 12 and the request during this release was 8. Lowering a floor in the release that made the second factor mandatory is the wrong direction, and unpinned that reads as a stray constant somebody may tidy |
+| `TestPending_AFrozenCookieDoesNotBuyMoreAttempts`, `TestPending_ACorrectCodeIsRefusedOnceTheBudgetIsSpent` | the second step's three attempts are counted on the server against the id the pending cookie carries, and a spent state is refused *before* the guess is checked | the count lived in that cookie and nowhere else, so it bound a browser and not an attacker: 200 guesses measured out of one password round where 3 were claimed. Every test that was supposed to hold the budget ended its round by taking the cookie the server handed back — a cooperating browser, the one client the bug does not affect. Then the tests written for the fix repeated the shape one level up: the first four all submitted *wrong* codes, so the redirect was identical whether or not the budget was enforced, and all four were green against a build that was still a brute force. Only a **genuine** code against a spent state separates "counted" from "counted and acted on" |
+| `TestAnUnreadablePasskeyStoreStillDemandsASecondFactor`, `TestAnUnreadableStoreDoesNotLicenseRemovingTheWorkingFactor`, `TestAnUnreadableStoreIsMovedAsideNotOverwritten` | a `passkeys.json` that is present and will not read counts as one factor, licenses no removal, and is moved aside rather than written over | 2.18 split where a factor lives — the TOTP secret in `web.toml`, the credentials in `data_dir` — and the store read "absent" and "unparseable" as the same fact. For an account whose only factor was a passkey, a host restored without `/var/lib/easywall` or a truncated backup dropped `factorCount()` to zero, and the password alone opened the dashboard with one `slog.Warn` as the entire record. The phantom must not cut the other way either: it licenses no removal, or "TOTP plus a file nobody can read" passes as two factors and the working one can be switched off. `TestNoPasskeyFileAtAllIsUnchanged` holds the other edge — an installation that never enrolled one is not gated by it |
+| `TestAReplayedPasskeyAssertionIsRefused`, `TestAReplayedPasskeyEnrolmentIsRefused` | a challenge answers once; `spendChallenge` remembers the spent ones, checked before `ValidateLogin` and before `CreateCredential` | both ceremonies ended by clearing their cookie with `MaxAge: -1`, which instructs a browser and nothing else, so a party holding its own copies resubmitted identical bytes and was granted a session twice. The clone check is no backstop, and the test is built so it cannot be mistaken for one: it sets `cred.Counter = 0` deliberately, because `go-webauthn`'s `UpdateCounter` exempts `authDataCount == 0 && SignCount == 0` — what most platform passkeys report on every assertion — so the replay verifies with `CloneWarning` unset |
+| `TestPasskeyEnrolmentNeedsTheCurrentPassword` | `POST /password/passkey/begin` re-asks for the current password, like every other credential write on that page | it was the one that did not, and enrolment is the write that matters most: `handlePasskeyFinish` restamps the enrolling session with the new credential fingerprint and ends every other one, so a stolen cookie or an unlocked browser added its own factor and signed the operator out. The reasoning the route carried answered CSRF, and CSRF only |
+| `TestTheRuleIsStatedOnce` | no non-test source in `internal/web` outside `auth.go` names `minPasswordLen` | the comparison sat at two call sites, `handler_firstrun.go` and `handler_password.go`, which is how the second copy comes to disagree with the first. Derived from the package's own sources, so a third caller written next release fails here instead of joining them |
 
 ## A port rule can now name who may reach it
 
@@ -284,7 +306,7 @@ firewall active.
 | `TestHealthResultCarriesNoRuleDetail` | a sentinel planted in `SelftestStamp.Detail` appears nowhere in the marshalled reply, and `selftest` has exactly four keys | `/healthz` is unauthenticated by necessity and the detail names a port number. The first version forbade the substrings `12227` and `port` — see below |
 | `TestAnUnreadableStampWarnsOnceAndNotPerPoll` | a `selftest.json` that stays broken is one journal line, not one per health poll | `Health()` reads the stamp on every `GET_HEALTH` and the endpoint is deliberately uncached because Docker asks every ten seconds, so a corrupt stamp warned every 10 s indefinitely and never healed — only `cmd/easywall-core` writes the file. The deferral said "Read and Stale are called once per process", which `Health()` makes false. The count and not the presence: one warning is right, the second through hundredth are what make the journal useless |
 | `TestEveryHealthStateHasBothLocales`, `TestEveryHealthReasonIsListed`, `TestEveryHealthReasonHasBothLocales`, `TestEverySelftestResultHasBothLocales` | every state, reason and proof result the code can produce is listed and translated in both locales | a reason added to `computeHealth` and not to `AllHealthReasons` reaches a page with no translation, and nothing says so. The reverse direction is a dead locale key |
-| `TestTheHealthClassesAreInTheStylesheet` | every class the health rendering asks for is in the **built** stylesheet | `TestEveryTemplateClassIsInTheStylesheet` cannot see the status dot: its regex skips any `class` attribute holding a template action, and the dot is `class="hero-dot {{healthTone …}}"`. A green `npm run build:css` is not proof a rule shipped, and that has cost this repository a release already |
+| `TestTheHealthClassesAreInTheStylesheet` | every class the health rendering asks for is in the **built** stylesheet | `TestTemplateClassesExistInStylesheet` cannot see the status dot: its regex skips any `class` attribute holding a template action, and the dot is `class="hero-dot {{healthTone …}}"`. A green `npm run build:css` is not proof a rule shipped, and that has cost this repository a release already |
 | `TestEverySubcommandIsRunnable`, `TestUsageNamesEverySubcommand`, `TestASubcommandWithNoFunctionIsRefused` | the subcommand table, its usage text and its dispatch are one list | dispatch ended in `default: return runResume(...)`. With three commands that was terse; with five it means a command added to the list and forgotten in the switch silently runs `resume` — which puts the rules back on a machine somebody deliberately unfiltered |
 | `TestCommandTimeoutKeepsGetHealthShort` | `GET_HEALTH` stays in `CommandTimeout`'s default branch | it is two netlink reads and one file read, so it queues behind nothing. Moved into the long branch beside `PANIC` it becomes a thirty-five-second poll, invisible to every caller |
 | `TestHealthzIgnoresForwardingHeaders`, `TestHealthzIsLoopbackOnlyByDefault`, `TestHealthzAnEmptyListClosesItEvenToLoopback` | `health_allow` is matched against the TCP peer and never a forwarding header | 2.13's `resolveClient` walk exists so the audit log can record who signed in. Reused here, anything behind a trusted proxy reads the endpoint by writing `X-Forwarded-For: 127.0.0.1` |
@@ -394,6 +416,55 @@ did not work in the image at all, `podman build` exits 0 while producing
 `HealthCheck: null`, and `make docker` built nothing because the target shared
 its name with the `docker/` directory and was missing from `.PHONY`. All three
 were found by trying to measure rather than to assert.
+
+## A certificate really arrives
+
+| Test | Protects | What happened without it |
+|---|---|---|
+| `TestIntegration_ACertificateArrivesOverHTTP01` | ACME issuance works over the wire — a real order, a real HTTP-01 challenge fetched by a real CA, a certificate that verifies for the configured host and is cached to survive a restart — reached through the real `Start()`, not `newACMEManager` and `GetCertificate` called by hand | Prospective, not historical: nothing has shipped this to a real host yet. It exists because everything else asserting ACME's shape had already been green while the wiring was completely broken once — `TestStartWithACMEConfiguredDoesNotPanic`'s own comment (`acme_test.go`) is the record of that Critical, a nil `*tls.ClientHelloInfo` straight into `autocert.Manager.GetCertificate` before the challenge listener ever opened. A unit test can assert that `newACMEManager` builds the right shape, or that a handler answers correctly in isolation; none of them can tell you Pebble's own HTTP-01 request ever reached a live listener, or that the issued leaf verifies for the name that was configured. This is the one test in the repository that asks Pebble instead |
+
+Runs behind the `integration` tag, alongside the core's nftables suite, and
+shares its gate: `EASYWALL_REQUIRE_SELFTEST` turns "no container runtime here"
+from a skip into a failure in CI, for the same reason `skipOrFailUnprovable`
+exists in `internal/core` — a run that proved nothing must not report the same
+green tick as a run that proved the certificate arrived. Pebble and
+`pebble-challtestsrv` run as containers with `--network host`, sharing the
+same network namespace `TestMain`'s own `CLONE_NEWNET` already put the suite
+in, which is also why `podman` is required rather than `docker`: podman forks
+its container directly from the calling process, so `--network host` lands in
+that namespace; `docker` talks to a system-wide daemon outside it. Pinned to
+Pebble `2.7.0`, matching the version `golang.org/x/crypto/acme`'s own
+`pebble_test.go` is written against — current Pebble's `FinalizeOrder` no
+longer sets a `Location` header the client's `CreateOrderCert` relies on to
+poll, a version mismatch this task found by reproducing the identical failure
+against the bare `acme.Client`, bypassing `autocert.Manager` entirely.
+
+The test also replaces the manager's `HostPolicy` after `NewServer`, and that
+is Pebble's own asymmetry, not production's: `GetCertificate` reads
+`hello.ServerName` off the TLS SNI, which never carries a port, but
+`autocert.Manager.HTTPHandler` checks the *HTTP* request's `r.Host` — and
+Pebble's own `va.go` builds every HTTP-01 validation URL with
+`net.JoinHostPort(identifier, portString)`, port included even at 80, where a
+real client (and RFC 7230) would omit it. `autocert.HostWhitelist` does an
+exact match with no port-stripping, so it would refuse every request Pebble
+makes, on any port — this is a gap in Pebble's own test harness, not
+production's, which is why the replacement policy lives in the integration
+test and not in `newACMEManager`. Production's own construction of
+`HostPolicy` is untouched and covered on its own by
+`TestACMEManagerIssuesOnlyForTheConfiguredHost`.
+
+Verified by breaking it three ways, all with real output, not by argument:
+pointing the manager's `HostPolicy` at a different name, which fails in under
+a second with the CA refusing the wrong host before Pebble is ever asked to
+validate anything; serving the challenge on the wrong path prefix, which
+fails at issuance once every challenge type has been tried and none
+validated; and restoring Task 9's Critical — the `usesACME()` guard removed
+from `Start()`'s preflight — which reproduces the exact panic that guard was
+added to prevent, inside this same test, confirming it would have caught
+that regression on day one. Also verified that `PEBBLE_VA_ALWAYS_VALID=1` —
+which must never be set here — makes even the second, broken case pass,
+which is exactly why leaving it unset is load-bearing rather than
+incidental.
 
 ## The technical documentation stays unpublished
 

@@ -18,6 +18,7 @@ func TestHandleSettingsGET_RequiresAuth(t *testing.T) {
 func TestHandleSettingsGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{
 		IPv6:   shared.IPv6Config{Enabled: true},
 		Docker: shared.DockerConfig{Enabled: false},
@@ -30,6 +31,7 @@ func TestHandleSettingsGET_Success(t *testing.T) {
 func TestHandleSettingsGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetSettings, errorRespFor("core unavailable"))
 
 	rec := doAuthRequest(t, s, "GET", "/settings", nil)
@@ -47,6 +49,7 @@ func TestHandleSettingsPOST_RequiresAuth(t *testing.T) {
 func TestHandleSettingsPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSettings, shared.Response{Success: true})
 
 	rec := doAuthFormRequest(t, s, "/settings",
@@ -57,6 +60,7 @@ func TestHandleSettingsPOST_Success(t *testing.T) {
 func TestHandleSettingsPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveSettings, errorRespFor("save failed"))
 
 	rec := doAuthFormRequest(t, s, "/settings", "")

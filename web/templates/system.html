@@ -63,7 +63,7 @@
           <div class="save-bar">
             <button type="submit" class="btn btn-primary">
               <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-              {{T "system_save"}}
+              {{T "system_save_acceptance"}}
             </button>
           </div>
         </form>
@@ -103,7 +103,7 @@
           <div class="save-bar">
             <button type="submit" class="btn btn-primary">
               <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-              {{T "system_save"}}
+              {{T "system_save_counting"}}
             </button>
           </div>
         </form>
@@ -126,6 +126,42 @@
             <p>{{T "system_timeout_body"}}</p>
             <p>{{T "system_timeout_note"}}</p>
           </div>
+
+          {{if .ACMEEnabled}}
+          {{/* Reported, never opened: easywall does not open a port on its own
+               initiative, and this row exists so an operator does not have to
+               find that out by watching a renewal fail. See
+               port80Reachability's comment in handler_system.go for the four
+               states and why coverage alone is not the same question as
+               reachability. */}}
+          <div class="aside-card">
+            <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+              {{T "acme_port_label"}}
+            </h2>
+            {{/* status-dot-wrap: unlike every other status-dot in the
+                 interface, these labels are full sentences that wrap onto
+                 several lines in this column's width — see the class's own
+                 comment in app.css for why that needs a different layout,
+                 not just a different alignment value.
+
+                 static: this row reports a configuration fact, not
+                 something happening while you watch it — unlike "Active" on
+                 the dashboard, nothing here is ongoing, so the dot does not
+                 pulse. */}}
+            <p>
+              {{if not .Port80Known}}
+              <span class="status-dot status-dot-wrap inactive static">{{T "acme_port_unknown"}}</span>
+              {{else if eq .Port80State "open"}}
+              <span class="status-dot status-dot-wrap active static">{{T "acme_port_open"}}</span>
+              {{else if eq .Port80State "restricted"}}
+              <span class="status-dot status-dot-wrap pending static">{{T "acme_port_restricted"}}</span>
+              {{else}}
+              <span class="status-dot status-dot-wrap error static">{{T "acme_port_closed"}}</span>
+              {{end}}
+            </p>
+          </div>
+          {{end}}
         </div>
     </div>
     {{end}}

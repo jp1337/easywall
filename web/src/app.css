@@ -1497,11 +1497,12 @@ body {
     line-height: 0;
   }
   .totp-setup { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
-  /* The text column's default flex-basis is its own max-content, which is
-     firstrun_totp_skip_help — the longest line on the page. That pushed the
-     basis past whatever space was left beside the QR plate and wrapped the
-     whole column beneath it, even at 1600px where there was room to spare.
-     A basis that can shrink below max-content lets it share the line instead. */
+  /* The text column's default flex-basis is its own max-content. A long help
+     line here — this page's longest strings are locale-dependent, and German
+     runs longer than English — pushes the basis past whatever space is left
+     beside the QR plate and wraps the whole column beneath it, even at 1600px
+     where there is room to spare. A basis that can shrink below max-content
+     lets it share the line instead. */
   .totp-setup > div:last-child { flex: 1 1 260px; min-width: 0; }
   .totp-secret {
     font-family: var(--font-data);
@@ -1965,6 +1966,36 @@ body {
 
   .status-dot.inactive { color: var(--color-ink-subtle); }
   .status-dot.inactive::before { background: var(--color-ink-subtle); }
+
+  /* .status-dot-wrap: every dashboard and apply-page dot is a two-word
+     label that never wraps, which is why inline-flex's align-items: center
+     has never been wrong before. 2.18's port-80 report puts a full sentence
+     in the same class — "restricted" runs to four lines at typical column
+     widths — and centring against the whole wrapped block lands the dot
+     level with line three, not beside line one where a status dot belongs.
+     Neither obvious flex fix works: align-items: baseline does not resolve
+     to the first line for a bare text node (there is no box for the
+     baseline to measure against), and flex-start moves the dot to the top
+     of the flex item's own box, not to the middle of line one specifically.
+
+     This switches the dot back to plain inline layout instead of coaxing
+     flexbox into it. In normal inline flow, an inline-block dot placed
+     before a run of text only ever affects the one line box it appears in —
+     the first one — which is exactly "beside the first line" with no
+     font-metric arithmetic required, and every line the text wraps to after
+     it starts flush left with no dot left to align against.
+
+     Added alongside .status-dot, never in place of it — an element still
+     carries both classes, so every colour rule above still applies
+     unchanged. Kept as a separate modifier rather than a change to
+     .status-dot itself: every existing dot is a label that never wraps and
+     has no reason to pay for a layout mode it does not need. */
+  .status-dot-wrap { display: inline; }
+  .status-dot-wrap::before {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 7px;
+  }
 
   .status-dot.error { color: var(--color-state-crit-on-wash); }
   .status-dot.error::before {
@@ -2839,10 +2870,22 @@ body {
     color: var(--color-state-warn);
   }
 
-  /* Two "still happening" indicators side by side is one too many, and the
-     digits say it more precisely. DESIGN.md's Motion section permits both
-     loops; permitting is not requiring. Amended in 2.14. */
-  .status-dot.pending.static::before { animation: none; }
+  /* .static turns off a dot's pulse for a state that is not "in progress".
+     First reason: two "still happening" indicators side by side (a countdown
+     and a pulsing dot) is one too many, and the digits already say it more
+     precisely — DESIGN.md's Motion section permits both loops; permitting is
+     not requiring. Amended in 2.14.
+
+     Extended to .active in 2.18: "Active" on the dashboard means live and
+     filtering, which is ongoing and the pulse is right there, but a
+     status-dot can also report a fact about *configuration* rather than
+     about something happening now — 2.18's port-80 row is a fixed answer
+     about the rule set, not a process running while you watch. Nothing is
+     "still happening" for that state either. */
+  .status-dot.pending.static::before,
+  .status-dot.active.static::before {
+    animation: none;
+  }
 
   /* ── Validation results ───────────────────────────────────────────────────
      The per-line list inside a validation alert. Was four Tailwind utilities

@@ -19,6 +19,7 @@ func dashboardWithHealth(t *testing.T, res shared.HealthResult) string {
 	t.Helper()
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
 		Active:     true,
 		Acceptance: shared.AcceptanceIdle,
@@ -229,6 +230,7 @@ func TestTheSelftestFactIsAbsentWhenNothingHasBeenProven(t *testing.T) {
 func TestTheDashboardFallsBackWhenTheCoreCannotAnswerAboutHealth(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{Active: true}))
 	fc.SetResponse(shared.CmdGetHealth, errorRespFor("unknown command: GET_HEALTH"))
 

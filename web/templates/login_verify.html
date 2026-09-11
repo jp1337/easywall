@@ -12,6 +12,10 @@
   <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+  {{/* The auth pages otherwise carry none of this — app.js's own top comment
+       says so — but the passkey button below runs on this one, and str()
+       falls back to a raw key with nothing to fall back to it with. */}}
+  <script nonce="{{.Nonce}}">window.easywallStrings = {{.Strings}};</script>
 </head>
 <body>
 <div class="auth-page">
@@ -29,6 +33,13 @@
         {{flashIcon .Flash}}
         <span>{{T .Flash (dict "N" .FlashN)}}</span>
       </div>
+      {{end}}
+
+      {{if .Data.ShowPasskey}}
+      <button type="button" id="passkey-login-btn" class="btn w-full mb-3">
+        {{T "passkey_login_button"}}
+      </button>
+      <div role="alert" class="alert alert-crit mb-3" id="passkey-login-error" hidden></div>
       {{end}}
 
       <form method="POST" action="/login/verify" class="flex flex-col gap-3">

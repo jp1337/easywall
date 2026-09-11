@@ -88,6 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Copy recovery codes ─────────────────────────────────────────────── */
   initRecoveryCopy();
+
+  /* ── Passkey enrolment ───────────────────────────────────────────────── */
+  initPasskeyEnrol();
+
+  /* ── Passkey login ────────────────────────────────────── */
+  initPasskeyLogin();
 });
 
 /* ── List editor counter ──────────────────────────────────────────────────
@@ -115,9 +121,31 @@ function initListCounter(inputId, outId, one, many) {
    Listens for custom events that the server fires via the HX-Trigger
    response header. Shows a small auto-dismissing alert in the toast
    container at the bottom-right of the page. */
-function initHtmxToast() {
+// showToast draws one auto-dismissing alert in the toast container. Shared
+// by the HTMX HX-Trigger listener below and by anything else — the passkey
+// ceremony, chiefly — that needs to tell the operator something failed with
+// no page navigation of its own to carry a flash on.
+function showToast(text, kind) {
   const container = document.getElementById('toast-container');
   if (!container) return;
+  // Map to the alert variants the stylesheet actually defines. There is no
+  // informational variant by design — only firewall state carries colour.
+  const variant = { success: 'alert-ok', error: 'alert-crit', warning: 'alert-warn' }[kind] || '';
+  const el = document.createElement('div');
+  el.setAttribute('role', 'alert');
+  el.className = `alert ${variant} toast-item`.replace(/\s+/g, ' ').trim();
+  el.innerHTML = `<span>${esc(text)}</span>`;
+  container.appendChild(el);
+  // Auto-dismiss after 2.5 seconds. The fade lives in CSS (.is-leaving) —
+  // setting .style.* here would violate style-src 'self'.
+  setTimeout(() => {
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), 300);
+  }, 2500);
+}
+
+function initHtmxToast() {
+  if (!document.getElementById('toast-container')) return;
 
   // Keys match the flashKey values the server sends. The text comes from the
   // locale so a toast is in the same language as the page that raised it.
@@ -135,21 +163,7 @@ function initHtmxToast() {
 
   const show = (key, kind) => {
     const msg = messages[key] || { text: key, kind: kind || 'info' };
-    const k = msg.kind || kind || 'info';
-    // Map to the alert variants the stylesheet actually defines. There is no
-    // informational variant by design — only firewall state carries colour.
-    const variant = { success: 'alert-ok', error: 'alert-crit', warning: 'alert-warn' }[k] || '';
-    const el = document.createElement('div');
-    el.setAttribute('role', 'alert');
-    el.className = `alert ${variant} toast-item`.replace(/\s+/g, ' ').trim();
-    el.innerHTML = `<span>${esc(msg.text)}</span>`;
-    container.appendChild(el);
-    // Auto-dismiss after 2.5 seconds. The fade lives in CSS (.is-leaving) —
-    // setting .style.* here would violate style-src 'self'.
-    setTimeout(() => {
-      el.classList.add('is-leaving');
-      setTimeout(() => el.remove(), 300);
-    }, 2500);
+    showToast(msg.text, msg.kind || kind || 'info');
   };
 
   // We parse the HX-Trigger header manually in htmx:afterRequest. HTMX's
@@ -738,6 +752,236 @@ function initRecoveryCopy() {
       btn.textContent = str('totp_copy_failed');
       setTimeout(() => { btn.textContent = str('totp_copy'); }, 4000);
     });
+  });
+}
+
+/* ── Passkey enrolment ─────────────────────────────────────────────────────
+   navigator.credentials.create() must run from a real user gesture, so the
+   whole ceremony happens inside this button's click handler rather than a
+   form submission — /password/passkey/begin and /finish are POSTs from here,
+   not from a <form>. The result is then handed to the server the same way
+   every other card here writes: a plain form submission, so the response is
+   the whole re-rendered page — recovery codes included, on the one response
+   that ever carries them — and there is nothing here to parse back out of a
+   fetch response or patch into the DOM. */
+function initPasskeyEnrol() {
+  const btn = document.getElementById('passkey-add-btn');
+  const nameInput = document.getElementById('passkey-name');
+  const pwInput = document.getElementById('passkey-password');
+  if (!btn || !nameInput || !pwInput) return;
+
+  const b64urlToBuf = (s) => {
+    const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+    const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  };
+  const bufToB64url = (buf) => {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const submitCredential = (name, credential) => {
+    const attestation = JSON.stringify({
+      id: credential.id,
+      rawId: bufToB64url(credential.rawId),
+      type: credential.type,
+      response: {
+        attestationObject: bufToB64url(credential.response.attestationObject),
+        clientDataJSON: bufToB64url(credential.response.clientDataJSON),
+      },
+      clientExtensionResults: credential.getClientExtensionResults
+        ? credential.getClientExtensionResults() : {},
+    });
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/password/passkey/finish';
+    form.hidden = true;
+    const nameField = document.createElement('input');
+    nameField.name = 'name';
+    nameField.value = name;
+    const credField = document.createElement('input');
+    credField.name = 'credential';
+    credField.value = attestation;
+    form.append(nameField, credField);
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  btn.addEventListener('click', async () => {
+    // No window.prompt(): it blocks the tab it runs in — including this
+    // script and, were this run under it, npm run check:ui's own click —
+    // and after enough dialogs Chrome can suppress it permanently, at which
+    // point it returns null forever and the button goes silently dead. A
+    // required, in-page field cannot do either. reportValidity() shows the
+    // browser's own inline message (not a blocking dialog) and focuses the
+    // field; it returns false and does nothing else, so a bare `return`
+    // here is correct.
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameInput.setCustomValidity(str('passkey_name_required'));
+      nameInput.reportValidity();
+      nameInput.setCustomValidity('');
+      return;
+    }
+    // Enrolling a passkey is a credential write, and every other one on this
+    // page re-asks for the password. The field is `required`, so this is the
+    // browser's own inline message rather than a second way to say it.
+    if (!pwInput.value) {
+      pwInput.reportValidity();
+      return;
+    }
+
+    let creation;
+    try {
+      const beginResp = await fetch('/password/passkey/begin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ current_password: pwInput.value }),
+        // redirect: 'manual' is load-bearing, not tidiness. A wrong password
+        // answers 303 to /password with the password_wrong flash waiting in
+        // the session. Let fetch follow it and *fetch* renders that page —
+        // which consumes the flash, because render() deletes it on the way
+        // out — so the navigation below then lands on a page with nothing to
+        // say and the click reads as dead. Found in a browser; no Go test can
+        // see it. Unfollowed, the response is opaque (status 0) and the flash
+        // is still there for the real navigation to show.
+        redirect: 'manual',
+      });
+      if (beginResp.type === 'opaqueredirect') {
+        window.location.assign('/password');
+        return;
+      }
+      if (!beginResp.ok) throw new Error('begin failed');
+      creation = await beginResp.json();
+    } catch (e) {
+      // Not the same case the disabled button already covers: the card names
+      // *that* reason before this click handler ever runs. Reaching here
+      // means the button was enabled and the request still failed — a 500,
+      // a dropped connection — and a silent return would read as a dead
+      // click with no explanation at all.
+      showToast(str('passkey_ceremony_failed'), 'error');
+      return;
+    }
+
+    const options = creation.publicKey;
+    options.challenge = b64urlToBuf(options.challenge);
+    options.user.id = b64urlToBuf(options.user.id);
+    if (options.excludeCredentials) {
+      options.excludeCredentials = options.excludeCredentials.map(
+        (c) => ({ ...c, id: b64urlToBuf(c.id) }));
+    }
+
+    let credential;
+    try {
+      credential = await navigator.credentials.create({ publicKey: options });
+    } catch (e) {
+      return; // Cancelled in the platform's own UI, or the authenticator
+               // refused — either way there is nothing to submit.
+    }
+    if (!credential) return;
+
+    submitCredential(name, credential);
+  });
+}
+
+/* ── Passkey login ──────────────────────────────────────────────────────────
+   The second step's other door. navigator.credentials.get() needs the same
+   real user gesture initPasskeyEnrol's own comment explains, so the ceremony
+   runs inside this button's click handler; a completed assertion is handed to
+   the server as a plain form submission to /login/passkey/finish, and the
+   redirect it answers with — to /dashboard on success, back to /login/verify
+   with the same flash the code field's own failure uses otherwise — is what
+   the browser follows. There is nothing here to parse back out of a fetch
+   response. */
+function initPasskeyLogin() {
+  const btn = document.getElementById('passkey-login-btn');
+  if (!btn) return;
+
+  const errorBox = document.getElementById('passkey-login-error');
+
+  const b64urlToBuf = (s) => {
+    const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+    const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  };
+  const bufToB64url = (buf) => {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
+  const submitAssertion = (credential) => {
+    const assertion = JSON.stringify({
+      id: credential.id,
+      rawId: bufToB64url(credential.rawId),
+      type: credential.type,
+      response: {
+        authenticatorData: bufToB64url(credential.response.authenticatorData),
+        clientDataJSON: bufToB64url(credential.response.clientDataJSON),
+        signature: bufToB64url(credential.response.signature),
+        userHandle: credential.response.userHandle ? bufToB64url(credential.response.userHandle) : null,
+      },
+      clientExtensionResults: credential.getClientExtensionResults
+        ? credential.getClientExtensionResults() : {},
+    });
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/login/passkey/finish';
+    form.hidden = true;
+    const credField = document.createElement('input');
+    credField.name = 'credential';
+    credField.value = assertion;
+    form.append(credField);
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  const showError = () => {
+    if (!errorBox) return;
+    errorBox.textContent = str('passkey_ceremony_failed');
+    errorBox.hidden = false;
+  };
+
+  btn.addEventListener('click', async () => {
+    let request;
+    try {
+      const beginResp = await fetch('/login/passkey/begin', { method: 'POST' });
+      if (!beginResp.ok) throw new Error('begin failed');
+      request = await beginResp.json();
+    } catch (e) {
+      // Same reasoning as initPasskeyEnrol's own catch: the button would not
+      // be on the page at all if the server had nothing to offer, so reaching
+      // here means a request that should have worked did not.
+      showError();
+      return;
+    }
+
+    const options = request.publicKey;
+    options.challenge = b64urlToBuf(options.challenge);
+    if (options.allowCredentials) {
+      options.allowCredentials = options.allowCredentials.map(
+        (c) => ({ ...c, id: b64urlToBuf(c.id) }));
+    }
+
+    let credential;
+    try {
+      credential = await navigator.credentials.get({ publicKey: options });
+    } catch (e) {
+      return; // Cancelled in the platform's own UI, or the authenticator
+               // refused — either way there is nothing to submit.
+    }
+    if (!credential) return;
+
+    submitAssertion(credential);
   });
 }
 

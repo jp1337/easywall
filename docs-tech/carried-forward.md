@@ -45,6 +45,32 @@ whole subject is not doing that — the rule is amended here, in the open.
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
 
+# From 2.18
+
+Found while making a second factor mandatory. Nothing here is a defect the
+release caused — those were fixed in it.
+
+## Found in `invariants.md` itself, and older than this branch
+
+Noticed while adding this release's guards. Both are proven against `fbac69f`;
+the third was a plain error and is fixed rather than carried.
+
+| | |
+|---|---|
+| **Six rows lose their incident text to the renderer** | The table whose header is `\| Test \| Protects \|` declares two columns, and its last six rows (`TestTheSearchOverridesAreOutsideTheCascadeLayer` through `TestScreenshotsGrowTheWindowInsteadOfCapturingBeyondIt`) carry a third cell. Markdown drops it. The dropped column is the *incident* — the reason this file exists — so six entries read as a bare assertion in the rendered view while the source still holds the story. Identical at `fbac69f`, where the same six rows already had the extra cell. Closing it is an editorial decision, not an edit: either the table becomes three columns like the sections below it, or six incidents are folded into the Protects cell. Whoever picks it up should read the source, not the render, or they will think the text is missing |
+| **`TestRulesIsEmptyCountsEveryField` is listed twice** | Once in *The rules say what they mean*, where it belongs, and once at the end of the colour section, where it has nothing to do with colour. Both rows at `fbac69f`. Deleting one means deciding which, and the colour-section copy may be there because somebody wanted it beside a neighbour — so it is a judgement, not a duplicate to sweep |
+
+## Decided in this pass, so it is not rediscovered
+
+- **`/system` gets no screenshot, so ACME has no figure.** The implementation
+  plan's Task 14 listed `/system` among the pages to re-shoot. It has never had
+  one: `DEFAULT_SCREENSHOT_PAGES` omits it deliberately, and no page under
+  `docs/_docs` references such a file. ACME is documented in prose on six pages,
+  all of them reference or how-to pages whose other settings carry no figures
+  either. Adding one for ACME alone would be the odd one out, so the plan's line
+  was an error rather than an instruction. Checked both ways: 18 figure bases are
+  referenced, all 18 exist, and no screenshot in the directory is an orphan.
+
 # From 2.17
 
 Found while building the health check and the three proof layers, each proven
@@ -84,7 +110,7 @@ the ordinary path measured honest; in the first, honest by accident.
 | **`podman build` silently drops `HEALTHCHECK`, and the documented compose path builds locally** | OCI is podman's default image format and has no healthcheck field, so a build **exits 0** while producing `HealthCheck: null`. `docker-compose.yml` carries a `build:` section and the documented path is `docker compose up -d`, so a podman operator following the documentation gets no health check and no error. `docker.md` now names `--format docker`, which is a workaround rather than a fix. The two real fixes: publish an image as the documented path, or accept a compose-level `healthcheck:` and give up the single-definition rule. Ready-to-lift text is in `task-11-report.md`, fix round 3 §1 |
 | **`ui-check.mjs` does not derive its URL from the config it already reads** | `ui-check.mjs:48` is `process.env.EASYWALL_URL \|\| 'https://127.0.0.1:12227'`. It has an override; what it lacks is deriving the URL from the `web.toml` it already parses for the password hash — so `EASYWALL_DEMO_ADDR` moves the server and `check:ui` keeps driving 12227. **The incident:** Task 14's first run reported *"UI checks passed"* against a pre-existing `easywall-web` on that port, having never loaded the stylesheet it was checking, in the check this repository trusts most. Byte-identical to `b723422` |
 | **`check:ui` is not re-runnable against a live demo server** | The ports-catalogue check fails on a second run because run 1's rows are still there. Already carried from the `check:ui` race fix and independently rediscovered here, which is the argument for naming it in `local-review.md`'s traps table beside the rate limiter |
-| **All 34 remaining screenshots read `v2.15.1`** | `docs/assets/img/screens/` holds 36 PNGs. 2.16 re-took every one of them — `c496769` touches 36 files — against a demo server built from an older tag, so the version chip reads a release two behind. The two dashboard shots are re-taken in this release against a binary built from this branch; a full re-take moves 34 files for one chip and belongs in its own change |
+| ~~**All 34 remaining screenshots read `v2.15.1`**~~ | **Closed 2026-09-11.** All 36 re-taken in one run, against `bin/easywall-web` built with `make build VERSION=v2.18.0`, and every chip now reads `v2.18.0`. The entry reasoned that a full re-take was a change of its own; that was true when it was written and stopped being true when `--screenshots` with no arguments grew `takeFullScreenshotSet`. Taking the whole set costs one command and nothing extra, so the 34 were never a separate change — only a separate invocation |
 | **`/ports` collapses its aside at every width, and the reasoning is width-blind** | `app.css:790-802` records the decision — the aside is *"worth having, but not worth this table's row width"* — so it collapses unconditionally rather than below 1570px like every other page. From **2.15**, when *Last used* made it a six-column table; `ports.html` is byte-identical to `b723422`. **Measured at 1920px: the five fixed columns need 796px and `Description` absorbs 830px of slack.** A 320px rail would leave `Description` 510px, against a longest real value of *"PostgreSQL — replication peer"*. The budget was genuinely tight at 1570 and is not tight at 1920. Not a bug and not this release's; the measurement is the part worth keeping |
 
 # From 2.16
@@ -99,7 +125,6 @@ branch existed.
 | **`DESIGN.md`'s `module-active` is modelled as a border, and the code paints a shadow** | The token entry carries `borderColor`; `web/src/app.css` marks an enabled module with `box-shadow: inset 2px 0 0`, the same device as the active nav item. Predates 2.16 — the entry said `borderColor: {colors.accent}` before this release only swapped the token. Which of the two is right is a design decision, and it is the kind that should be made once and written down rather than discovered again |
 | **`DESIGN.md` counts the protection toggles twice, differently** | *Why `control-edge` is separate* and *Toggles and checkboxes* both say **eleven**; *Protection modules* says **fourteen**. Predates 2.16 and survived it because the release only touched the colour in those paragraphs. One of the two numbers is wrong and the file argues from both |
 | **Prose in `docs/` leaks into the published stylesheet, not just prose in templates** | The existing entry below records this for template comments. It reaches further: `@source "../../docs/**/*.{html,md}"` scans the generated changelog page, so an ordinary English word that happens to be a Tailwind utility is compiled into the site's CSS. Measured on this release — writing *"a ring with no border change"* in the changelog added `.ring`, and 1,650 bytes, to `docs/assets/css/style.css`. The stylesheet is still correct and CI reproduces it exactly; what it is not is minimal, and the cause is invisible in the diff |
-| **The three landing-page wrappers are still unstyled** | `docs/index.md` carries `.docs-landstrip`, `.docs-cardgrid` and `.docs-card`; `docs.css` defines none of them and Tailwind generates none, so the section renders as unstyled prose. `TestTemplateClassesExistInStylesheet` covers `web/templates/` and `app.js` only — nothing in the suite looks at markup under `docs/`, which is why this survived a release that rewrote the docs stylesheet |
 
 # From the check:ui race fix
 
@@ -114,7 +139,6 @@ the hotfix branch existed, and unrelated to the two defects it fixes.
 
 | | |
 |---|---|
-| **The landing page names three classes the stylesheet does not define** | `docs/index.md` carries `.docs-landstrip`, `.docs-cardgrid` and `.docs-card`; `web/src/docs.css` defines none of them, and Tailwind generates none. The section renders as unstyled prose. `TestTemplateClassesExistInStylesheet` covers `web/templates/` and `app.js` only, so nothing in the suite looks at markup under `docs/`. Belongs with 2.16, which is already rewriting `docs.css` |
 | ~~**`docs/installation/docker.md` tells a remote operator to open `https://localhost:12227`**~~ | **Closed 2026-09-09.** The first-run flow is rewritten around a remote host rather than corrected in one sentence: commands on the server, browser on your own machine, `https://<server>:12227`, and the three things to expect on that first page — the certificate warning, nothing filtered yet, and a container that reads `unhealthy` until the first apply. The page also names what is *not* easywall when the page will not load, which is the question a loopback instruction was hiding |
 
 # From 2.15

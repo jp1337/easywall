@@ -243,6 +243,7 @@ func TestHandleLoginPOST_WrongUsernameCostsTheSameAsWrongPassword(t *testing.T) 
 func TestHandleLogout_EndsTheSessionForACookieStillHeld(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 	cookie := makeAuthCookie(t, s)
 
 	if before := doRequest(s, "GET", "/dashboard", nil, cookie); before.Code != http.StatusOK {
@@ -265,6 +266,7 @@ func TestHandleLogout_EndsTheSessionForACookieStillHeld(t *testing.T) {
 func TestHandleLogout_LeavesOtherSessionsAlone(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
+	enrollFactor(t, s)
 
 	laptop := makeAuthCookie(t, s)
 	phone := makeAuthCookie(t, s)

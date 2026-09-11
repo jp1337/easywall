@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Second Factor
-description: TOTP and eight one-time recovery codes for the single account — and the way back if you lose both.
+description: TOTP, passkeys and eight one-time recovery codes for the single account — and the way back when every factor is gone.
 ---
 
 # Second Factor
@@ -12,13 +12,13 @@ A stolen password alone no longer opens the firewall.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/password" ext="png"
-     alt="The Password page before a second factor is enrolled: the change-password form, and a Second factor card marked Off with a single button to start setup." %}
-  <figcaption>Everyone starts here — Off, with one button. Nothing below this card exists until step 1 is entered.</figcaption>
+     alt="The whole Password page with no factor enrolled: the change-password form, a Second factor card marked Off, and a Passkeys card reading No passkeys enrolled yet." %}
+  <figcaption>Everyone starts here — both cards empty. Either one satisfies the requirement; neither is a step toward the other.</figcaption>
 </figure>
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-setup" ext="png"
-     alt="The second-factor setup card on the Password page: a QR code and a typed key on the left, a field for the six-digit confirmation code on the right, and the server's own clock printed beneath the QR code." %}
+     alt="The Password page during setup, under an amber Set up a second factor to continue banner: a QR code, the typed key, the server's own clock, and a field for the six-digit code." %}
   <figcaption>Nothing is saved until the code in step 3 is entered — a phone that never scanned this screen leaves no trace.</figcaption>
 </figure>
 
@@ -32,11 +32,30 @@ On the **Password** page, under **Second factor**:
 
 It can also be switched on during the first run, before this page exists to switch it on from — see [First Run]({{ '/docs/installation/first-run/' | relative_url }}).
 
+## Passkeys
+
+The other second factor: a device instead of six digits, and nothing to type.
+**Password → Passkeys → Add a passkey**, as many as you like — losing one phone
+should not lose the account. Name it and re-enter your password: enrolling a
+factor is a credential change, and every one of them on that page asks.
+
+Two things have to be true first. If either is not, there is no button to press
+— the card says which one is in the way instead of failing in the browser:
+
+| Precondition | Why |
+|---|---|
+| `hostname` in [`[tls]`]({{ '/docs/configuration/' | relative_url }}#tls) | WebAuthn's Relying Party ID must be a registrable name. An installation reached at `https://192.168.1.10:12227` has none |
+| A certificate the browser trusts | Chrome refuses WebAuthn outright on a certificate error, and the pair easywall generates for itself is one. ACME, in that same `[tls]` table, fixes it |
+
+A passkey satisfies the requirement on its own. That is also the trap in [the
+way back](#the-way-back): it is a third place a factor lives, and not the file
+the other two are in.
+
 ## The eight codes
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-codes" ext="png"
-     alt="Eight one-time recovery codes shown once after setup succeeds, with a notice that they will not be shown again." %}
+     alt="The Password page after setup: the Second factor card now On with 8 of 8 codes left, and a Recovery codes card showing all eight, once." %}
   <figcaption>This screen shows all eight; reloading afterward reveals only how many are left, never the codes.</figcaption>
 </figure>
 
@@ -55,14 +74,14 @@ invalidates every old one, at any time — not only after losing the phone.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-verify" ext="png"
-     alt="The second-step sign-in page: a single field for a six-digit code or a recovery code, with no indication of whether the earlier password was correct." %}
+     alt="The second-step sign-in page with no passkey enrolled: one field for a six-digit or recovery code, and no sign of whether the password was right." %}
   <figcaption>Three wrong codes return you to the sign-in form — with no hint which one you got wrong.</figcaption>
 </figure>
 
 | Step | What happens |
 |---|---|
 | 1 | Username and password, as before |
-| 2 | Six digits from your authenticator app — **or** one of the eight recovery codes, in the same field |
+| 2 | Six digits from your authenticator app, **or** one of the eight recovery codes in the same field — **or** the passkey button, when one is enrolled and offerable |
 
 Three wrong codes and you are back at the sign-in form. Nothing tells you whether
 the password or the code was the problem, and nothing counts down for you.
@@ -98,21 +117,24 @@ Use a recovery code. It signs you in once and is then gone. The interface says
 how many are left. **Password → Second factor → New codes** issues eight
 fresh ones and invalidates every old one.
 
-### If you lose both
+### If you lose every factor
 
-Edit `web.toml` on the host — the same file the password lives in:
+Three things hold a second factor, not two, and they are not all in one file.
+Clearing only the first two leaves the passkey standing, and `/login/verify`
+still asks for it:
 
-```toml
-totp_secret    = ""
-recovery_codes = []
-```
+| Clear | Where |
+|---|---|
+| `totp_secret    = ""` | `web.toml` on the host |
+| `recovery_codes = []` | `web.toml` on the host |
+| delete `passkeys.json` | your `data_dir` — `/var/lib/easywall` unless you changed it |
 
 Restart `easywall-web`. The password alone signs you in again. There is no reset
 link: this interface sends no mail and reaches no outside service.
 
 Every step above — enrolling, signing in with a code, using a recovery code,
 issuing new ones, a wrong code, or a factor switched off — is recorded. See
-[the nine login events]({{ '/docs/features/audit-log/' | relative_url }}#the-nine-login-events).
+[the thirteen login events]({{ '/docs/features/audit-log/' | relative_url }}#the-thirteen-login-events).
 
 ---
 

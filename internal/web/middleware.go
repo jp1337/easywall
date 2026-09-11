@@ -95,6 +95,60 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 	}
 }
 
+// RequireSecondFactor sends an authenticated operator with no second factor to
+// the page where they enrol one, and lets nothing else through.
+//
+// It runs after RequireAuth, never instead of it: the session is real, the
+// operator is who they say they are, and what is missing is the factor. That
+// ordering is why an upgrade cannot lock anyone out — handleLoginPOST still
+// grants the session when no factor is enrolled, and this redirects afterwards.
+// A gate that refused the login would strand an operator whose only route to
+// the host is this interface, which is the direction 2.7 exists to prevent.
+//
+// hasFactor and isDemo are callbacks rather than a *Server for the reason
+// LoginRateLimit's resolve is: a middleware that reaches for Config is a
+// middleware that cannot be tested without one.
+//
+// There is no deferral. A gate with a "remind me later" is a gate nobody
+// passes through, and the operators who most need the factor are exactly the
+// ones who would press it.
+func RequireSecondFactor(hasFactor func() bool, isDemo func() bool) func(http.Handler) http.Handler {
+	// The routes enrolment itself needs. Exact matches, not a prefix: a prefix
+	// of "/password" would also admit anything a later release mounts below it,
+	// and the gate would widen without anyone deciding that it should.
+	allowed := map[string]bool{
+		"/password":                      true,
+		"/password/2fa/begin":            true,
+		"/password/2fa/confirm":          true,
+		"/password/2fa/enrol-unverified": true,
+		"/password/2fa/disable":          true,
+		"/password/2fa/recovery":         true,
+		"/password/passkey/begin":        true,
+		"/password/passkey/finish":       true,
+		"/password/passkey/remove":       true,
+		"/logout":                        true,
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isDemo() || hasFactor() || allowed[r.URL.Path] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			// The enrolment routes themselves also redirect to /password on a
+			// wrong or missing current_password, an expired setup, and other
+			// ordinary validation failures — same status, same target, for a
+			// completely different reason. This header is how
+			// TestTheGateCannotBeWalkedPast tells "the gate stopped this
+			// request" apart from "the handler it reached sent it back here",
+			// without which the walk cannot tell an enrolment route working
+			// as designed from one the gate incorrectly blocked.
+			w.Header().Set("X-Easywall-Gate", "second-factor-required")
+			http.Redirect(w, r, "/password", http.StatusSeeOther)
+		})
+	}
+}
+
 // loginLimiter holds per-IP rate limiters for the login endpoint.
 var loginLimiter = struct {
 	mu      sync.Mutex

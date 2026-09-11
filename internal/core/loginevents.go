@@ -42,7 +42,7 @@ type writeAuditFunc func(action, ruleType, detail, user string)
 // required to reach it, no rate limiter of its own), and the web handler
 // only skips recording when a request carries no session at all — a replayed
 // or still-valid session cookie posted in a loop still reaches this path once
-// per request. Successes and the three enrolment events stay immediate:
+// per request. Successes and the five enrolment events stay immediate:
 // nothing unauthenticated can produce them, so there is no burst to fold.
 //
 // Debouncing does not mean silent: the first line of any burst is still

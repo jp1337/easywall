@@ -108,7 +108,7 @@ func TestTheNewAuditActionsAreLabelled(t *testing.T) {
 // its own network namespace, and the firewall on this machine goes on filtering
 // exactly as it did a second earlier. The news reaches an operator as
 // health_degraded, which is on this list, and as a degraded dashboard. Same
-// distinction server.go already draws for the nine login events — a notification
+// distinction server.go already draws for the thirteen login events — a notification
 // is not a colour, and neither is a failed proof.
 func TestOnlyFirewallStatesCarryATone(t *testing.T) {
 	want := map[string]string{

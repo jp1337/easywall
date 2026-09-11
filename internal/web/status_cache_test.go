@@ -21,6 +21,7 @@ import (
 // the core.
 func TestStatusForRender_IsCachedForAboutTwoSeconds(t *testing.T) {
 	srv, calls := newTestServerCountingStatusCalls(t)
+	enrollFactor(t, srv)
 
 	// /ports, not /dashboard: the dashboard handler itself calls GetStatus
 	// directly for its own tiles, uncached by design (see statusForRender's

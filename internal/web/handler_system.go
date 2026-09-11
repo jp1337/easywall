@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -12,6 +13,18 @@ type systemData struct {
 	Settings  *shared.SystemSettings
 	CoreErr   string
 	Telemetry bool
+
+	// ACMEEnabled gates the port-80 status row: it means nothing to an
+	// operator who is not using ACME, and the report below has nothing to say
+	// when usesACME() is false.
+	ACMEEnabled bool
+
+	// Port80State is one of port80Open, port80Restricted or
+	// port80NotCovered, carried as a plain string so the template's {{eq}}
+	// compares against a string literal rather than a named type. Meaningless
+	// when Port80Known is false.
+	Port80State string
+	Port80Known bool
 
 	// TelemetryEndpoint is shown on the page. "A random identifier and the
 	// version" is only a checkable claim if the operator can also see where it
@@ -30,6 +43,12 @@ func (s *Server) handleSystemGET(w http.ResponseWriter, r *http.Request) {
 		Telemetry:         s.cfg.TelemetryEnabled(),
 		TelemetryEndpoint: shared.TelemetryEndpoint,
 		TelemetryProv:     s.provenanceFor("telemetry"),
+		ACMEEnabled:       s.certs.usesACME(),
+	}
+	if data.ACMEEnabled {
+		state, known := s.port80Reachability()
+		data.Port80State = string(state)
+		data.Port80Known = known
 	}
 
 	settings, err := s.client.GetSystem()
@@ -133,4 +152,98 @@ func (s *Server) handleTelemetryPOST(w http.ResponseWriter, r *http.Request) {
 	// nothing.
 	slog.Info("telemetry setting changed", "enabled", enabled)
 	s.respondPartialSave(w, r, "/system", "system_saved")
+}
+
+// port80State is what easywall's own rules say about the port ACME needs —
+// see port80Reachability for why "open" and "closed" are not enough.
+type port80State string
+
+const (
+	// port80Open: a rule covers 80 — a single value or a range — and its
+	// Sources is empty, so anything, including a certificate authority on the
+	// public internet, may reach it.
+	port80Open port80State = "open"
+
+	// port80Restricted: a rule covers 80, but its Sources narrows who may use
+	// it. easywall does not know the certificate authority's addresses — they
+	// are not fixed, and easywall does not track them — so this is the honest
+	// answer rather than a guess in either direction.
+	port80Restricted port80State = "restricted"
+
+	// port80NotCovered: no rule admits port 80. Also what a port value this
+	// parser cannot read reports as — see portRuleCovers80.
+	port80NotCovered port80State = "not_covered"
+)
+
+// port80Reachability reports what easywall's own rules say about the port
+// ACME needs — never what easywall opened, because it opens nothing on port
+// 80 by itself. A firewall program that opens ports on its own initiative is
+// not one an operator can reason about; what it can do is look, and say.
+//
+// known is false when the core could not be asked at all. An unanswered
+// question is reported as unanswered, never folded into "not covered": an
+// operator whose core is down must not be told their firewall is blocking a
+// port when nothing was actually asked. state is the zero value in that case
+// and the caller must check known first.
+//
+// A rule "covers" 80 by single value or by range containment — 79:81 admits
+// 80 exactly as a bare "80" does, and reporting a covering range as "not
+// covered" would send the operator to add a rule they already have. Coverage
+// alone is not the whole answer, though: PortRule.Sources can restrict even a
+// covering rule to addresses that do not include the certificate authority.
+// Every rule is checked for the open case — an empty Sources — before any
+// rule is allowed to answer restricted, because one unrestricted covering
+// rule makes the port open even if a second, narrower rule also covers it.
+//
+// Reads the *live* rule set (state.Current), not what is staged for the next
+// apply: the question is whether a certificate authority can reach this host
+// right now, and an unapplied change has not touched the kernel yet.
+//
+// Only the ports table, deliberately. Rules.Custom, a blacklist entry, or
+// IPv6Mode = block can each still keep a certificate authority out even when
+// this reports open — Let's Encrypt prefers IPv6 where an AAAA record
+// exists — and this function does not try to read custom rules to check.
+// Say what is not checked rather than guess at it.
+func (s *Server) port80Reachability() (state port80State, known bool) {
+	rules, err := s.client.GetRules()
+	if err != nil {
+		return "", false
+	}
+	restricted := false
+	for _, p := range rules.Current.TCP {
+		if !portRuleCovers80(p.Port) {
+			continue
+		}
+		if len(p.Sources) == 0 {
+			return port80Open, true
+		}
+		restricted = true
+	}
+	if restricted {
+		return port80Restricted, true
+	}
+	return port80NotCovered, true
+}
+
+// portRuleCovers80 reports whether a PortRule.Port value — a single port or a
+// "low:high" range — admits port 80.
+//
+// A value this parser cannot read is treated as not covering it, never as an
+// error or a panic: this is a status row, and a rule the core already
+// accepted in some shape this parser does not recognise must not take the
+// page down over it.
+func portRuleCovers80(port string) bool {
+	if port == "80" {
+		return true
+	}
+	low, high, ok := strings.Cut(port, ":")
+	if !ok {
+		return false
+	}
+	lo, errLo := strconv.Atoi(low)
+	hi, errHi := strconv.Atoi(high)
+	if errLo != nil || errHi != nil {
+		return false
+	}
+	return lo <= 80 && 80 <= hi
 }
