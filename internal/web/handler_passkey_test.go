@@ -513,6 +513,42 @@ func TestPasskeyFinishRefusesAnOverLongName(t *testing.T) {
 	}
 }
 
+// TestPasskeyFinishAcceptsANameAtTheBound is the other side of the same
+// comparison, and the one that makes the rune count observable at all.
+//
+// TestPasskeyFinishRefusesAnOverLongName's fixture is 65 runes *and* 130
+// bytes, so a byte-counting implementation rejects it for the wrong reason and
+// stays green; nothing there distinguishes `>` from `>=` either. Exactly
+// maxPasskeyNameLen runes of a two-byte character is 64 characters and 128
+// bytes — the largest name the rule allows, and one len() calls twice too
+// long. It must be stored, under that exact name: a bound that rejects here
+// costs the operator the naming they were told to use, and one counting bytes
+// halves the limit for anybody not writing ASCII.
+//
+// Modelled on passwordPolicyError's umlaut cases, which catch their own
+// byte/rune mutation the same way.
+func TestPasskeyFinishAcceptsANameAtTheBound(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+
+	name := strings.Repeat("\u00e9", maxPasskeyNameLen)
+	if utf8.RuneCountInString(name) != maxPasskeyNameLen || len(name) != 2*maxPasskeyNameLen {
+		t.Fatalf("the fixture is %d runes in %d bytes, want %d runes in %d bytes — "+
+			"it cannot tell a rune count from a byte count otherwise",
+			utf8.RuneCountInString(name), len(name), maxPasskeyNameLen, 2*maxPasskeyNameLen)
+	}
+
+	enrolPasskey(t, s, name)
+
+	stored := s.passkeys.all()
+	if len(stored) != 1 {
+		t.Fatalf("%d passkeys stored, want 1 — a name of exactly %d runes was refused",
+			len(stored), maxPasskeyNameLen)
+	}
+	if stored[0].Name != name {
+		t.Errorf("stored name = %q, want the %d-rune name that was submitted", stored[0].Name, maxPasskeyNameLen)
+	}
+}
+
 // TestEnrollingAPasskeyMintsRecoveryCodesWhenItIsTheFirstFactor.
 //
 // Recovery codes were minted only on the TOTP path, because that was the only
@@ -574,6 +610,48 @@ func TestRemovingAPasskeyEndsSessions(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != 303 {
 		t.Error("a session open before the passkey was removed still works")
+	}
+}
+
+// TestRemovingAPasskeyReStampsTheActingSession is the counterpart
+// TestEnrollingReStampsTheActingSession had on the enrolment side and removal
+// did not.
+//
+// Removal changes the fingerprint just as enrolment does, so without the
+// re-stamp the operator who pressed Remove is signed out by their own click —
+// and TestRemovingAPasskeyEndsSessions cannot see it: it only ever checks the
+// *other* session, which is supposed to die. Deleting restampSession from
+// handlePasskeyRemove left the whole suite green.
+//
+// The cookie is re-read from the response the way enrolPasskeyWithCookie does
+// it, because that is what a browser's cookie jar does: the session lives in
+// the cookie's own value, so a re-stamp is only observable by carrying the new
+// one forward.
+func TestRemovingAPasskeyReStampsTheActingSession(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"),
+		withTOTP("JBSWY3DPEHPK3PXP")) // a second factor, so removal is allowed at all
+	acting := s.signIn(t)
+	id := enrolPasskeyWithCookie(t, s, "the lost one", acting)
+
+	remove := doFormRequest(s, "POST", "/password/passkey/remove", url.Values{
+		"id":               {base64.RawURLEncoding.EncodeToString(id)},
+		"current_password": {testPassword},
+	}.Encode(), acting).Result()
+	remove.Body.Close()
+	if remove.StatusCode != http.StatusSeeOther {
+		t.Fatalf("remove answered %d, want %d", remove.StatusCode, http.StatusSeeOther)
+	}
+	for _, c := range remove.Cookies() {
+		if c.Name == SessionName {
+			acting.Value = c.Value
+		}
+	}
+
+	resp := s.getWithCookie(t, "/dashboard", acting)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("the session that removed the passkey answered %d on /dashboard, want 200 — "+
+			"the operator was signed out by their own click", resp.StatusCode)
 	}
 }
 

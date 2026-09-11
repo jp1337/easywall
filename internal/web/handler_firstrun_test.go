@@ -444,3 +444,41 @@ func TestSaveFirstRun_SecondSetupCannotTakeOverTheAccount(t *testing.T) {
 		t.Errorf("the account changed hands: %q became %q", user, after)
 	}
 }
+
+// TestPublicOriginCarriesTheListeningPort.
+//
+// publicOrigin is the WebAuthn RPOrigins value, and a browser compares it
+// against the origin it actually loaded — so an origin missing the port makes
+// every ceremony fail with a mismatch no Go test would ever see. Untested
+// before this: every passkey fixture pins BindAddr to :443 on purpose, which
+// is the one configuration where the port branch is dead, while easywall's own
+// default bind is :12227. Deleting the branch left the whole suite green.
+//
+// The malformed row is what webPort does, not a guess: net.SplitHostPort
+// errors on an address with no colon, webPort logs and returns "", and the
+// origin then carries no port — the same shape as :443, which is the right
+// failure mode for an origin that cannot be computed.
+func TestPublicOriginCarriesTheListeningPort(t *testing.T) {
+	tests := []struct {
+		name     string
+		bindAddr string
+		want     string
+	}{
+		{"the https default is left off", "127.0.0.1:443", "https://firewall.example.org"},
+		{"easywall's own default port is named", ":12227", "https://firewall.example.org:12227"},
+		{"a non-default port on an interface", "127.0.0.1:8443", "https://firewall.example.org:8443"},
+		{"IPv6 brackets are not mistaken for the port", "[::]:12227", "https://firewall.example.org:12227"},
+		{"an address with no port at all", "127.0.0.1", "https://firewall.example.org"},
+		{"an unparsable address", "not-an-address", "https://firewall.example.org"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Server{cfg: &Config{}}
+			s.cfg.TLS.Hostname = "firewall.example.org"
+			s.cfg.BindAddr = tc.bindAddr
+			if got := s.publicOrigin(); got != tc.want {
+				t.Errorf("publicOrigin() with bind_addr %q = %q, want %q", tc.bindAddr, got, tc.want)
+			}
+		})
+	}
+}

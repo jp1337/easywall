@@ -151,6 +151,49 @@ func TestEnrol_ConfirmDoesNotReMintCodesWhenItIsNotTheFirstFactor(t *testing.T) 
 	}
 }
 
+// TestEnrol_ConfirmMintsNothingForASecondFactorWithNoCodesStored separates the
+// two halves of `wasFirstFactor && len(hashes) == 0`.
+//
+// The sibling above sets both a passkey and a stored set of codes, so
+// len(hashes) == 0 is false on its own and carries the whole assertion:
+// wasFirstFactor := true leaves it green. Here a passkey is enrolled and
+// nothing is stored, so only wasFirstFactor can hold the branch shut — and
+// with it JustGated, which decides whether this response also offers a way
+// past a gate the operator never came through.
+func TestEnrol_ConfirmMintsNothingForASecondFactorWithNoCodesStored(t *testing.T) {
+	s := serverWithPassword(t)
+	if err := s.passkeys.add("already enrolled", webauthn.Credential{ID: []byte("existing-cred")}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(s.cfg.RecoveryCodes()); n != 0 {
+		t.Fatalf("%d recovery codes stored before the fixture starts; this test needs none", n)
+	}
+
+	_, cookie := beginEnrolment(t, s)
+	secret := s.pendingSecretFor(t, cookie)
+	raw, _ := decodeTOTPSecret(secret)
+
+	rec := doFormRequest(s, "POST", "/password/2fa/confirm", "code="+totpAt(raw, stepAt(time.Now())), cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm answered %d, want 200", rec.Code)
+	}
+	if !s.cfg.TOTPEnabled() {
+		t.Fatal("a correct code did not enable the factor")
+	}
+	if got := s.cfg.RecoveryCodes(); len(got) != 0 {
+		t.Errorf("%d recovery codes were minted for a second factor: %v — the passkey already satisfied the mandate, "+
+			"and a printout the operator may hold must not be invalidated by pairing TOTP beside it", len(got), got)
+	}
+	// JustGated is only observable through the one element it adds: the link
+	// onward, inside the block that shows the codes. No codes, no block — so
+	// the assertion is that neither is here. A wasFirstFactor that is wrongly
+	// true mints the codes, which renders both.
+	if body := rec.Body.String(); strings.Contains(body, "recovery-code") || strings.Contains(body, "&rarr;") {
+		t.Error("the codes block or its JustGated link was rendered; nothing was minted and the operator " +
+			"did not arrive through the gate")
+	}
+}
+
 // The clock is the largest support risk and no security risk. A code that is
 // right but far out gets a diagnosis with a sign and a magnitude, and nothing is
 // stored.

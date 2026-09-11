@@ -611,9 +611,13 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	// (including the bare "/", whose entire handler is
 	// a redirect to the gated /dashboard, and which the gate intercepts
 	// before that handler ever runs), plus POST /logout, which isGatedRoute
-	// does not exclude (it sits in the public group but is listed in
-	// `allowed` above, on purpose — a way out must never need the factor it
-	// is gating). A floor copied from the plan (15) would have passed while
+	// does not exclude. /logout is listed in `allowed` above only so this
+	// walk does not demand a gate header from it: server.go registers it in
+	// the public group, so RequireSecondFactor never runs on it and it can
+	// answer no other way. Nothing here proves the middleware's own
+	// "/logout" entry does anything — that is
+	// TestTheGateAllowlistIsExactAndNotAPrefix's job, which calls the
+	// middleware directly. A floor copied from the plan (15) would have passed while
 	// missing most of the actual group; a floor above the real count would
 	// fail on every run for no reason.
 	if checked < 41 {
@@ -654,6 +658,73 @@ func TestTheGateOpensAsSoonAsAFactorExists(t *testing.T) {
 			defer resp.Body.Close()
 			if resp.StatusCode != 200 {
 				t.Errorf("/dashboard answered %d with %s enrolled", resp.StatusCode, tc.name)
+			}
+		})
+	}
+}
+
+// TestTheGateAllowlistIsExactAndNotAPrefix drives RequireSecondFactor directly,
+// over a handler of this test's own, instead of through the router.
+//
+// Through the router the map's entries are only as load-bearing as the routes
+// that happen to be registered, and two of them were not load-bearing at all:
+// no route today distinguishes an exact match from a prefix one, so widening
+// allowed[r.URL.Path] to strings.HasPrefix left the whole suite green; and
+// "/logout" sits in server.go's public group, so the middleware never sees it
+// and deleting that entry changed nothing either. Here the middleware is the
+// whole subject — every entry is asserted on its own terms, and a path no
+// route registers can be asked about.
+func TestTheGateAllowlistIsExactAndNotAPrefix(t *testing.T) {
+	no := func() bool { return false }
+	gate := RequireSecondFactor(no, no)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	for _, tc := range []struct {
+		path  string
+		gated bool
+	}{
+		// Enrolment needs every one of these, and /logout is here for the
+		// reason the map lists it: whatever group a way out is registered in
+		// today, it must never need the factor it is gating.
+		{"/password", false},
+		{"/password/2fa/begin", false},
+		{"/password/2fa/confirm", false},
+		{"/password/2fa/enrol-unverified", false},
+		{"/password/2fa/disable", false},
+		{"/password/2fa/recovery", false},
+		{"/password/passkey/begin", false},
+		{"/password/passkey/finish", false},
+		{"/password/passkey/remove", false},
+		{"/logout", false},
+		// Exactly what a prefix match would admit, and the reason the map's
+		// comment says exact: anything a later release mounts below an allowed
+		// path, and anything that merely starts with one.
+		{"/password/2fa/begin/extra", true},
+		{"/password/", true},
+		{"/passwordless", true},
+		{"/logout/everywhere", true},
+		// And an ordinary page, the case the gate exists for.
+		{"/dashboard", true},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			gate.ServeHTTP(rec, httptest.NewRequest("GET", tc.path, nil))
+
+			gated := rec.Header().Get("X-Easywall-Gate") != ""
+			if gated != tc.gated {
+				t.Fatalf("gated = %v, want %v (status %d, Location %q)",
+					gated, tc.gated, rec.Code, rec.Header().Get("Location"))
+			}
+			if tc.gated {
+				if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/password" {
+					t.Errorf("gated request answered %d to %q, want 303 to /password",
+						rec.Code, rec.Header().Get("Location"))
+				}
+				return
+			}
+			if rec.Code != http.StatusTeapot {
+				t.Errorf("answered %d; the request did not reach the handler behind the gate", rec.Code)
 			}
 		})
 	}
