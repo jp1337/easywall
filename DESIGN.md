@@ -1501,9 +1501,9 @@ stops reading as prose and starts reading as a table.
   the baked raster favicon, the OG image and the documentation's copy stay `#0f7bab`.
   They already differed before 2.16, and re-rendering the raster set and the OG image was
   not in this release's scope.
-- **`.callout-info` on the documentation site still hard-codes a sky blue** —
-  `rgba(56,189,248,…)` in dark, `rgba(2,132,199,…)` in light. It is not a token and it
-  predates this release, so 2.16 neither introduced nor removed it. It is worth naming
-  because it is now the only blue left on the site: the closest surviving thing to the
-  accent that was just removed, sitting in the one place — an informational callout —
-  where this system says colour does not belong.
+- **`.callout-info`'s blue stays.** *Info* is a state, and *colour means state* does not
+  forbid a state from having a colour — so the callout set (info / warning / success)
+  keeps its blue, amber and green washes. What was wrong was that all three washes and
+  edges were literals rather than tokens: `--callout-info-wash` / `-edge`,
+  `--callout-warning-wash` / `-edge` and `--callout-success-wash` / `-edge`, declared
+  alongside the rest of the palette, now carry them.

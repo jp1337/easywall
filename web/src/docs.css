@@ -96,6 +96,18 @@
   --code-number:  #e5a54b;
   --code-builtin: #a2aab8;
   --code-error:   #f2555a;
+
+  /* Callout washes. Three semantic states, each a wash and an edge, and each
+     was a pair of rgba() literals in the rule itself until 2.19. The blue is
+     not an exception to "colour means state" — info *is* a state — but a
+     literal is invisible to every guard that greps for token names, which is
+     what TestNoRetiredHueSurvives exists to catch one palette later. */
+  --callout-info-wash:    rgba(56,189,248,0.08);
+  --callout-info-edge:    rgba(56,189,248,0.25);
+  --callout-warning-wash: rgba(245,158,11,0.08);
+  --callout-warning-edge: rgba(245,158,11,0.30);
+  --callout-success-wash: rgba(16,185,129,0.08);
+  --callout-success-edge: rgba(16,185,129,0.25);
 }
 
 [data-theme="easywall-light"] {
@@ -123,6 +135,13 @@
   --code-number:  #88590c;
   --code-builtin: #5a6270;
   --code-error:   #ba2832;
+
+  --callout-info-wash:    rgba(2,132,199,0.06);
+  --callout-info-edge:    rgba(2,132,199,0.30);
+  --callout-warning-wash: rgba(217,119,6,0.06);
+  --callout-warning-edge: rgba(217,119,6,0.30);
+  --callout-success-wash: rgba(5,150,105,0.06);
+  --callout-success-edge: rgba(5,150,105,0.30);
 }
 
 /* ── Body / Fonts ──────────────────────────────────────────────────────
@@ -1111,38 +1130,20 @@ html, body {
   .callout-content code { font-size: 0.8rem; }
 
   .callout-info {
-    background: rgba(56,189,248,0.08);
-    border-color: rgba(56,189,248,0.25);
-    color: var(--code-builtin);
-  }
-
-  [data-theme="easywall-light"] .callout-info {
-    background: rgba(2,132,199,0.06);
-    border-color: rgba(2,132,199,0.30);
+    background: var(--callout-info-wash);
+    border-color: var(--callout-info-edge);
     color: var(--code-builtin);
   }
 
   .callout-warning {
-    background: rgba(245,158,11,0.08);
-    border-color: rgba(245,158,11,0.30);
-    color: var(--code-number);
-  }
-
-  [data-theme="easywall-light"] .callout-warning {
-    background: rgba(217,119,6,0.06);
-    border-color: rgba(217,119,6,0.30);
+    background: var(--callout-warning-wash);
+    border-color: var(--callout-warning-edge);
     color: var(--code-number);
   }
 
   .callout-success {
-    background: rgba(16,185,129,0.08);
-    border-color: rgba(16,185,129,0.25);
-    color: var(--code-string);
-  }
-
-  [data-theme="easywall-light"] .callout-success {
-    background: rgba(5,150,105,0.06);
-    border-color: rgba(5,150,105,0.30);
+    background: var(--callout-success-wash);
+    border-color: var(--callout-success-edge);
     color: var(--code-string);
   }
 
