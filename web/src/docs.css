@@ -1790,14 +1790,24 @@ article.content-body mark.pagefind-highlight {
 
 /* Rouge syntax highlighting — minimal token theme */
 .highlight .c, .highlight .c1, .highlight .cm { color: var(--text-subtle); font-style: italic; }
-.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: var(--code-keyword); font-weight: 500; }
-.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb { color: var(--code-string); }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr,
+.highlight .kc { color: var(--code-keyword); font-weight: 500; }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb,
+.highlight .se, .highlight .si, .highlight .sh { color: var(--code-string); }
 .highlight .n, .highlight .nx, .highlight .nv { color: var(--text); }
 .highlight .nf, .highlight .nc { color: var(--code-keyword); }
-.highlight .nb, .highlight .bp { color: var(--code-builtin); }
-.highlight .o, .highlight .ow { color: var(--text-muted); }
+.highlight .nb, .highlight .bp, .highlight .no { color: var(--code-builtin); }
+.highlight .o, .highlight .ow, .highlight .p { color: var(--text-muted); }
 .highlight .mi, .highlight .mf, .highlight .il { color: var(--code-number); }
 .highlight .err { color: var(--code-error); }
+
+/* The name on the left of a configuration line: a TOML or YAML key (.nl, 64
+   occurrences), an nginx directive or YAML tag (.nt, 75), an attribute (.na).
+   All three were unstyled, so in the configuration reference a key rendered in
+   body-text colour beside a coloured value — the page disagreeing with its own
+   subject. One role, one token, and the same token a function name already
+   uses, because "the thing being named" is what they have in common. */
+.highlight .nl, .highlight .nt, .highlight .na { color: var(--code-keyword); }
 
 /* ── Copy buttons ─────────────────────────────────────────────────────
    Positioned against .highlighter-rouge, which is the element carrying the
