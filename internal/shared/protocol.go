@@ -116,8 +116,25 @@ const (
 	// CmdGetHealth returns whether this firewall is doing what it says: three
 	// facts, evaluated in order, plus the identity of the last self-test.
 	//
-	// Read-only — two netlink reads and one file read — so it keeps the short
-	// deadline. No audit entry: reading a counter is not an event, which is
+	// It keeps the short deadline, and *not* because it is non-blocking. Both
+	// of its netlink reads take the nft mutex — NftablesManager.Enforcing and
+	// RuleCounters each open with m.mu.Lock() — and Apply holds that lock
+	// across applyCustomRules' nft subprocess for up to NftTimeout. The
+	// deadline is short anyway, for the consumer: Dockerfile's HEALTHCHECK is
+	// --timeout=5s, so docker abandons the probe at five seconds whatever this
+	// says, and a longer deadline would only make every other caller wait.
+	//
+	// The honest scope: during a slow custom-rules apply, /healthz answers 503
+	// and the image's --interval=10s --retries=3 reaches its third failure
+	// inside that window. Nothing restarts on unhealthy, so the cost is a
+	// wrong word in `docker ps` — see features/health.md, which says so to
+	// operators. CmdGetUsage avoids this by never touching netlink at all;
+	// GET_HEALTH cannot, because whether the kernel is enforcing is the
+	// question it exists to answer. Closing it properly needs a second source
+	// of truth — a cached snapshot the way Server.statusForRender does it —
+	// which is a decision about what GET_HEALTH is, not a fix to a wrong line.
+	//
+	// No audit entry: reading a counter is not an event, which is
 	// CmdGetStatus's and CmdGetUsage's reasoning already.
 	//
 	// The reply carries no rule detail and no counter values. It is rendered by
