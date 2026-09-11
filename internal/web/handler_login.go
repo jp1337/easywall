@@ -148,8 +148,13 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 // one password round; those are capped at 5 per 10 minutes per address. That is
 // 15 code attempts per 10 minutes per address against a target that rotates
 // every 30 seconds, and without a valid cookie this route is a redirect that
-// costs nothing. TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough makes
-// that an executable claim rather than a paragraph.
+// costs nothing. Two pairs of tests hold the two halves apart, because one pair
+// cannot prove both. TestLoginVerify_ThreeWrongCodesEndTheAttempt and
+// TestThreePasskeyFailuresEndTheAttempt prove pendingMaxAttempts, the inner
+// budget the code field and the passkey button share.
+// TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough and
+// TestTheSixteenthPasskeyAttemptDoesNotGetThrough take a fresh intermediate
+// state per round, so what they prove is the outer bound of 15.
 func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.pendingForRequest(r)
 	if !ok {

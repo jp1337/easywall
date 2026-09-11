@@ -76,7 +76,12 @@ New in 2.8, where there were none at all: this page used to send you to
 | `recovery_codes_regenerated` | New recovery codes issued | The eight previous ones stopped working at that moment |
 | `passkey_used` | Signed in with a passkey | The second step, completed with a passkey instead of a code |
 | `passkey_enrolled` · `passkey_removed` | Passkey added / removed | From the password page |
-| `passkey_clone_suspected` | Passkey refused — counter did not advance | The assertion verified, but its signature counter did not move past what this credential last reported — a possible cloned authenticator or a replayed response. Refused as a failed attempt, not signed in |
+| `passkey_clone_suspected` | Passkey refused — counter did not advance | Refused as a failed attempt, not signed in |
+
+**`passkey_clone_suspected` means the assertion verified and was refused
+anyway.** Its signature counter did not move past what that credential last
+reported, which is what a cloned authenticator or a replayed response looks
+like. The attempt is charged to the same budget a wrong code is.
 
 **None of them carries colour**, and that is the same rule the table above
 states: colour means the firewall moved. A sign-in does not move it.

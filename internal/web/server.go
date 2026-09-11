@@ -915,9 +915,10 @@ var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, 
 	"totp_disabled":              "audit_totp_disabled",
 	"recovery_codes_regenerated": "audit_recovery_codes_regenerated",
 
-	// The three passkey events, new in 2.18. passkey_used is the login route's
-	// own success, alongside login_ok and login_recovery_used; the other two
-	// mirror totp_enabled/totp_disabled's own reasoning for a different factor.
+	// The four passkey events, new in 2.18. passkey_used is the login route's
+	// own success, alongside login_ok and login_recovery_used; enrolled and
+	// removed mirror totp_enabled/totp_disabled's own reasoning for a different
+	// factor, and clone_suspected is a refusal, not a state change.
 	"passkey_used":            "audit_passkey_used",
 	"passkey_enrolled":        "audit_passkey_enrolled",
 	"passkey_removed":         "audit_passkey_removed",

@@ -105,13 +105,20 @@ func readBody(t *testing.T, resp *http.Response) string {
 // one-time message to an otherwise-anonymous visitor, so its presence alone
 // is not proof of a grant wherever a flash could have set it too. Use
 // sessionGrantsAccess instead on any path that might.
+// The last match wins, not the first: a browser's cookie jar applies Set-Cookie
+// headers in order, so a response that saves the session twice leaves the jar
+// holding the second value. handleLoginVerifyPOST's recovery branch does exactly
+// that — setFlashN("recovery_left") saves, then grantSession saves again — and
+// reading the first header there reports the flash-only cookie, which carries no
+// user. That made a correct login look like a refusal.
 func sessionCookie(resp *http.Response) string {
+	val := ""
 	for _, c := range resp.Cookies() {
 		if c.Name == SessionName {
-			return c.Value
+			val = c.Value
 		}
 	}
-	return ""
+	return val
 }
 
 // sessionGrantsAccess reports whether resp's session cookie actually
@@ -883,7 +890,7 @@ func TestRecoveryCodeStillWorksWithAPasskeyEnrolled(t *testing.T) {
 	if verify.StatusCode != http.StatusSeeOther {
 		t.Fatalf("verify answered %d: %s", verify.StatusCode, readBody(t, verify))
 	}
-	if sessionCookie(verify) == "" {
+	if !sessionGrantsAccess(t, s, verify) {
 		t.Fatal("a recovery code did not grant a session on an account with a passkey also enrolled")
 	}
 }

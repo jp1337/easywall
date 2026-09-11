@@ -51,9 +51,13 @@ attempts against the code field **or** the passkey button — the two share one
 counter — and a new intermediate state costs a password round. Five password
 rounds are allowed per ten minutes per address, so **fifteen attempts per ten
 minutes per address**, code and passkey combined, against a target that rotates
-every thirty seconds. `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough`
-and `TestTheSixteenthPasskeyAttemptDoesNotGetThrough` are that sentence as an
-executable claim, twice.
+every thirty seconds.
+
+Two pairs of tests carry that sentence, one half each.
+`TestLoginVerify_ThreeWrongCodesEndTheAttempt` and
+`TestThreePasskeyFailuresEndTheAttempt` prove the shared counter: three
+attempts, either door. `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough`
+and `TestTheSixteenthPasskeyAttemptDoesNotGetThrough` prove the fifteen.
 
 ### Passkeys are a second factor, never a replacement
 
