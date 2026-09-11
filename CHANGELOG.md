@@ -159,10 +159,11 @@ WebAuthn itself.
 
 - **The gate is walked, not listed.** `TestTheGateCannotBeWalkedPast`
   enumerates every route chi actually registers inside
-  `RequireAuth`+`RequireSecondFactor`, 37 of them, plus `POST /logout` — and
-  fails if any one of the 38 answers without a factor. A test over a list protects the list.
-  The floor was measured against this branch rather than copied from the plan,
-  which had said 15.
+  `RequireAuth`+`RequireSecondFactor`, 40 of them, plus `POST /logout` — and
+  fails if any one of the 41 answers without a factor. A test over a list
+  protects the list. The floor is measured, not copied: the plan had said 15,
+  and a floor written at 37 before the passkey routes existed went on passing
+  after three more were added, which is the shape this floor exists to catch.
 - **A certificate arrives from a real ACME server over a real challenge.** The
   configuration tests prove that no certificate ever arrives; the failures that
   matter are all at the wire. Pebble 2.7.0 and `pebble-challtestsrv` run as

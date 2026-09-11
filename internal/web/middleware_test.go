@@ -605,9 +605,10 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk the router: %v", err)
 	}
-	// 38 gated routes: the 37 routes chi registers inside the
-	// RequireAuth+RequireSecondFactor group as of Task 16's own
-	// /password/2fa/enrol-unverified (including the bare "/", whose entire handler is
+	// 41 gated routes: the 40 routes chi registers inside the
+	// RequireAuth+RequireSecondFactor group — Task 16's own
+	// /password/2fa/enrol-unverified and the three /password/passkey/* routes
+	// (including the bare "/", whose entire handler is
 	// a redirect to the gated /dashboard, and which the gate intercepts
 	// before that handler ever runs), plus POST /logout, which isGatedRoute
 	// does not exclude (it sits in the public group but is listed in
@@ -615,7 +616,7 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	// is gating). A floor copied from the plan (15) would have passed while
 	// missing most of the actual group; a floor above the real count would
 	// fail on every run for no reason.
-	if checked < 38 {
+	if checked < 41 {
 		t.Fatalf("only %d gated routes were walked; the walk is not finding the authenticated group", checked)
 	}
 }

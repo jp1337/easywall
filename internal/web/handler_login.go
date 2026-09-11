@@ -236,8 +236,9 @@ func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pen
 func (s *Server) acceptTOTP(code string) bool {
 	raw, err := decodeTOTPSecret(s.cfg.TOTPSecret())
 	if err != nil {
-		slog.Error("the stored TOTP secret cannot be used, so no code can match it; clear "+
-			"totp_secret in web.toml to sign in with the password alone", "reason", err)
+		slog.Error("the stored TOTP secret cannot be used, so no code can match it; to sign in "+
+			"with the password alone, clear totp_secret and recovery_codes in web.toml and "+
+			"delete passkeys.json in data_dir", "reason", err)
 		return false
 	}
 	step, _, ok := matchTOTP(raw, time.Now(), code, totpWindowLogin)

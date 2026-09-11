@@ -459,7 +459,7 @@
   {"id": "password_storage_title", "translation": "Comment il est stocké"},
   {"id": "password_storage_body", "translation": "Haché avec Argon2id et un sel propre à chaque mot de passe. La valeur en clair n'est écrite nulle part, ce qui veut aussi dire qu'elle ne peut pas être récupérée — seulement remplacée."},
   {"id": "password_lost_title", "translation": "Si vous le perdez"},
-  {"id": "password_lost_body", "translation": "Il n'y a pas de lien de réinitialisation — cette interface n'envoie aucun courriel et ne joint aucun service extérieur. Récupérer veut dire modifier la configuration web sur l'hôte lui-même : la ligne `password`, ainsi que `totp_secret` et `recovery_codes` si un deuxième facteur est enrôlé. {}"},
+  {"id": "password_lost_body", "translation": "Il n'y a pas de lien de réinitialisation — cette interface n'envoie aucun courriel et ne joint aucun service extérieur. Récupérer veut dire modifier la configuration web sur l'hôte lui-même : la ligne `password`, ainsi que — si un facteur est enrôlé — `totp_secret`, `recovery_codes` et le fichier `passkeys.json` dans le répertoire de données. {}"},
   {"id": "totp_read_more", "translation": "En savoir plus sur le deuxième facteur"},
 
   {"id": "totp_card_title",   "translation": "Deuxième facteur"},

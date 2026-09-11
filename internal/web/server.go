@@ -1375,6 +1375,7 @@ func templateFuncs() template.FuncMap {
 		// Neither is a failure of the system: the operator asked for the window
 		// to end early, and either it did or it had already closed on its own.
 		"rules_rolled_back": true, "rollback_too_late": true,
+		"passkey_added_no_codes": true,
 		// The important half worked: the account and the second factor exist,
 		// and the codes below are shown. Only the ports/IPv6 staging failed —
 		// amber, not red: red is for a failure with nothing to show for it,

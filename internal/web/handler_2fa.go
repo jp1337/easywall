@@ -114,8 +114,10 @@ func (s *Server) sessionID(r *http.Request) string {
 	return id
 }
 
-// checkCurrentPassword is the gate on all four routes — the same rule the page
-// already applies to changing the password.
+// checkCurrentPassword is the gate on the four routes that change which factors
+// exist — enrol, disable and re-mint here, and passkey enrolment in
+// handler_passkey.go — the same rule the page already applies to changing the
+// password.
 func (s *Server) checkCurrentPassword(r *http.Request) bool {
 	_, hash := s.cfg.Credentials()
 	return VerifyPassword(r.FormValue("current_password"), hash)

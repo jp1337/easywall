@@ -53,11 +53,8 @@ rounds are allowed per ten minutes per address, so **fifteen attempts per ten
 minutes per address**, code and passkey combined, against a target that rotates
 every thirty seconds.
 
-Two pairs of tests carry that sentence, one half each.
-`TestLoginVerify_ThreeWrongCodesEndTheAttempt` and
-`TestThreePasskeyFailuresEndTheAttempt` prove the shared counter: three
-attempts, either door. `TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough`
-and `TestTheSixteenthPasskeyAttemptDoesNotGetThrough` prove the fifteen.
+Both halves are held by tests. Three attempts end the attempt whichever door
+they came through, and the sixteenth in ten minutes does not get through.
 
 ### Passkeys are a second factor, never a replacement
 
@@ -85,8 +82,9 @@ in the way rather than showing a control that fails silently in the browser:
 | No `tls.hostname` | WebAuthn's Relying Party ID must be a registrable domain; an installation reached by its bare IP address has none |
 | A self-signed certificate | No browser trusts the pair easywall generates itself by default, and a ceremony begun anyway fails in the browser with a `SecurityError` the operator cannot act on |
 
-TOTP and the eight recovery codes are unaffected by all three — they are the
-way in when a passkey cannot be offered at all.
+The eight recovery codes are unaffected by all three, and are issued whichever
+factor came first. They are the way in when a passkey cannot be offered at all.
+TOTP is not: an account whose only factor is a passkey never had one.
 
 ### If the clock is wrong
 

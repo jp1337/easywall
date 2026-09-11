@@ -547,7 +547,7 @@
   {"id": "password_storage_title", "translation": "How it is stored"},
   {"id": "password_storage_body", "translation": "Hashed with Argon2id and a per-password salt. The plain value is never written anywhere, which also means it cannot be recovered — only replaced."},
   {"id": "password_lost_title", "translation": "If you lose it"},
-  {"id": "password_lost_body", "translation": "There is no reset link — this interface sends no mail and reaches no outside service. Recovery means editing the web config on the host itself: the `password` line, and `totp_secret` and `recovery_codes` if a second factor is enrolled. {}"},
+  {"id": "password_lost_body", "translation": "There is no reset link — this interface sends no mail and reaches no outside service. Recovery means editing the web config on the host itself: the `password` line, and — if a factor is enrolled — `totp_secret`, `recovery_codes`, and the `passkeys.json` file in your data directory. {}"},
   {"id": "totp_read_more", "translation": "More about the second factor"},
 
   {"id": "gate_title", "translation": "Set up a second factor to continue"},
@@ -597,6 +597,7 @@
   {"id": "passkey_remove",       "translation": "Remove"},
   {"id": "passkey_name_label",   "translation": "What should this one be called?"},
   {"id": "passkey_name_required", "translation": "Give this passkey a name — up to 64 characters — so you can tell it apart from another one later."},
+  {"id": "passkey_added_no_codes", "translation": "Passkey added, but the recovery codes could not be written. Press New codes below — without them a lost device is a lost account."},
   {"id": "passkey_added",        "translation": "Passkey added."},
   {"id": "passkey_removed",      "translation": "Passkey removed."},
   {"id": "passkey_not_found",    "translation": "That passkey no longer exists — maybe it was already removed."},

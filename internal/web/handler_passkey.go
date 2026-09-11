@@ -437,13 +437,24 @@ func (s *Server) handlePasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	// same belt-and-suspenders handle2FAConfirm's identical line carries: it
 	// changes nothing for the ordinary case wasFirstFactor already covers,
 	// and costs nothing when it doesn't fire.
+	//
+	// handle2FAConfirm aborts with internal_error on the identical failure.
+	// This path cannot: the credential is already in passkeys.json, so an
+	// abort would leave the operator an enrolled factor and an error page
+	// saying nothing was saved. Instead the flash at the foot of this function
+	// changes, because the failure is silent in exactly the wrong direction —
+	// every other first-factor enrolment shows eight codes, so an operator who
+	// is shown none has no reason to think anything went wrong.
 	var plain []string
+	codesMissing := false
 	if wasFirstFactor && len(s.cfg.RecoveryCodes()) == 0 {
 		p, hashes, err := newRecoveryCodes()
 		if err != nil {
 			slog.Error("could not generate recovery codes", "error", err)
+			codesMissing = true
 		} else if err := s.cfg.SaveRecoveryCodes(hashes); err != nil {
 			slog.Error("could not store recovery codes", "error", err)
+			codesMissing = true
 		} else {
 			plain = p
 		}
@@ -456,7 +467,11 @@ func (s *Server) handlePasskeyFinish(w http.ResponseWriter, r *http.Request) {
 	// step the gate forced them into.
 	s.restampSession(w, r)
 	s.recordLoginEvent(r, shared.EvPasskeyEnrolled, 0)
-	s.setFlash(w, r, "passkey_added")
+	if codesMissing {
+		s.setFlash(w, r, "passkey_added_no_codes")
+	} else {
+		s.setFlash(w, r, "passkey_added")
+	}
 
 	page := s.passwordPage(nil, plain)
 	page.JustGated = wasFirstFactor

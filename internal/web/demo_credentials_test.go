@@ -50,7 +50,7 @@ var credentialWritingRoutes = []struct {
 // everybody else out — including anyone holding the published demo password —
 // until the process restarted.
 //
-// The four /password/2fa/* routes never touch the password hash at all — they
+// The five /password/2fa/* routes never touch the password hash at all — they
 // write totp_secret and recovery_codes — so a check of PasswordHash() alone
 // would pass here whether or not their own demo guard existed, which is not a
 // test of them. TOTPSecret and RecoveryCodes are checked for the same reason

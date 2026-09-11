@@ -547,7 +547,7 @@
   {"id": "password_storage_title", "translation": "Wie es gespeichert wird"},
   {"id": "password_storage_body", "translation": "Gehasht mit Argon2id und einem eigenen Salt je Passwort. Der Klartext wird nirgends gespeichert — er lässt sich daher nicht wiederherstellen, nur ersetzen."},
   {"id": "password_lost_title", "translation": "Wenn es verloren geht"},
-  {"id": "password_lost_body", "translation": "Es gibt keinen Zurücksetzen-Link — diese Oberfläche versendet keine Mail und erreicht keinen externen Dienst. Wiederherstellen heißt: die Web-Konfiguration auf dem Host selbst bearbeiten — die Zeile `password`, sowie `totp_secret` und `recovery_codes`, falls ein zweiter Faktor eingerichtet ist. {}"},
+  {"id": "password_lost_body", "translation": "Es gibt keinen Zurücksetzen-Link — diese Oberfläche versendet keine Mail und erreicht keinen externen Dienst. Wiederherstellen heißt: die Web-Konfiguration auf dem Host selbst bearbeiten — die Zeile `password`, sowie — falls ein Faktor eingerichtet ist — `totp_secret`, `recovery_codes` und die Datei `passkeys.json` im Datenverzeichnis. {}"},
   {"id": "totp_read_more", "translation": "Mehr zum zweiten Faktor"},
 
   {"id": "gate_title", "translation": "Zum Fortfahren einen zweiten Faktor einrichten"},
@@ -597,6 +597,7 @@
   {"id": "passkey_remove",       "translation": "Entfernen"},
   {"id": "passkey_name_label",   "translation": "Wie soll dieser heißen?"},
   {"id": "passkey_name_required", "translation": "Geben Sie diesem Passkey einen Namen — bis zu 64 Zeichen —, damit Sie ihn später von einem anderen unterscheiden können."},
+  {"id": "passkey_added_no_codes", "translation": "Passkey hinzugefügt, aber die Wiederherstellungscodes konnten nicht geschrieben werden. Bitte unten auf „Neue Codes“ — ohne sie ist ein verlorenes Gerät ein verlorenes Konto."},
   {"id": "passkey_added",        "translation": "Passkey hinzugefügt."},
   {"id": "passkey_removed",      "translation": "Passkey entfernt."},
   {"id": "passkey_not_found",    "translation": "Dieser Passkey existiert nicht mehr — möglicherweise wurde er bereits entfernt."},

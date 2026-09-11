@@ -66,7 +66,7 @@
     },
     "totp_secret": {
       "type": "string",
-      "description": "Base32 shared secret for the account's second factor, written by the interface. Empty means no factor is enrolled. Clear this and recovery_codes to sign in with the password alone.",
+      "description": "Base32 shared secret for the account's second factor, written by the interface. Empty means no factor is enrolled. Clear this, recovery_codes and <data_dir>/passkeys.json to sign in with the password alone.",
       "default": ""
     },
     "recovery_codes": {
@@ -104,7 +104,7 @@
     },
     "tls": {
       "type": "object",
-      "description": "Custom TLS certificate settings. Leave both fields empty to use an auto-generated self-signed certificate; set both to use your own. Setting only one is rejected at startup.",
+      "description": "TLS settings. Leave cert and key empty to use an auto-generated self-signed certificate; set both to use your own, or set acme to have one issued. Setting only one of cert/key is rejected at startup, as is acme together with either.",
       "additionalProperties": false,
       "dependencies": {
         "cert": ["key"],

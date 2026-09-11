@@ -96,7 +96,7 @@ is still recorded while the memory is not something a stranger chooses.
 
 **The username is never recorded**, on a failed sign-in or a successful one. It
 would be foreign text in the record, and with exactly one account it says
-nothing. The `user` column says `web` for all nine.
+nothing. The `user` column says `web` for all thirteen.
 
 ## The columns
 

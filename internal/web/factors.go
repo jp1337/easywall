@@ -11,10 +11,12 @@ package web
 // factorCount returns the number of enrolled second factors.
 //
 // TOTP is one or zero; there is a single secret. Passkeys are however many are
-// enrolled, because losing a phone should not lose the account. passkeyCount
-// is a function rather than a *Config method because the passkey store does
-// not exist yet; a later task points it at that store's own count and nothing
-// here changes.
+// enrolled, because losing a phone should not lose the account. passkeyCount is
+// a function rather than a *Config method because the two live in different
+// files — the secret in web.toml, the credentials in passkeys.json under
+// data_dir — and server.go wires it to the store's own count. That split is
+// also why clearing web.toml is no longer the whole way out of a lockout; the
+// operator-facing places that say so name passkeys.json too.
 //
 // Recovery codes are deliberately not counted. They are what is left when both
 // factors are gone — a way back in, not a factor. Counting them would let an

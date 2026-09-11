@@ -101,9 +101,12 @@ password = ""  # argon2id hash, set by the first-run wizard
 # recovery_codes holds the argon2id hashes of the eight one-time codes — never
 # the codes themselves, which are shown once and cannot be read back.
 #
-# Locked out with the phone gone and the codes gone? Empty both lines here and
-# restart easywall-web: the password alone signs you in again. That is the whole
-# way back, and it is the same file the password lives in on purpose.
+# Locked out with the phone gone and the codes gone? Three things to clear, not
+# two, and no longer all of them in this file: empty both lines below, delete
+# passkeys.json in data_dir (set at the top of this file — /var/lib/easywall by
+# default), then restart easywall-web. The password alone signs you in again.
+# A passkey left behind is a second factor of its own: it still sends you to
+# /login/verify, where the browser may refuse to offer it at all.
 totp_secret    = ""
 recovery_codes = []
 
