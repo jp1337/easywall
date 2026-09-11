@@ -2415,17 +2415,40 @@ In `internal/shared`, beside the other workflow guards:
 // It asserts two things, because either one alone permits the old state: the
 // unfiltered workflow runs it, and the path-filtered one does not.
 func TestTheSpellingGateRunsWhereItIsConfigured(t *testing.T) {
+	// An actual invocation, not a mention. A whole-file Contains for "codespell"
+	// is satisfied by this task's OWN Step 2 comment, which names the tool six
+	// times — so disabling the step would leave the guard green. That is the
+	// failure healthcheck_definition_test.go's comment warns about in this same
+	// package: "a checker satisfied by the sentence describing the thing it
+	// checks". Measured: the Step 5 mutation did not fail until this was fixed.
 	testWF := repoFile(t, ".github", "workflows", "test.yml")
-	if !strings.Contains(testWF, "codespell") {
+	runsCodespell := false
+	for _, line := range strings.Split(testWF, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if strings.Contains(trimmed, "run:") && strings.Contains(trimmed, "codespell") {
+			runsCodespell = true
+			break
+		}
+	}
+	if !runsCodespell {
 		t.Error("test.yml does not run codespell. It is the workflow with no path filter, " +
 			"which is what makes a repo-wide dictionary actually cover the repository")
 	}
+
+	// docs.yml legitimately names ".codespellrc" in its trigger paths — a pull
+	// request touching only the config should still build the docs — so the
+	// search excludes that filename and looks for an invocation.
 	docsWF := repoFile(t, ".github", "workflows", "docs.yml")
 	for _, line := range strings.Split(docsWF, "\n") {
-		if strings.Contains(line, "codespell") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(line, "codespell") && !strings.Contains(line, ".codespellrc") &&
+			!strings.HasPrefix(trimmed, "#") {
 			t.Errorf("docs.yml runs codespell again (%q) — it is path-filtered, so this copy "+
 				"covers less than the configuration claims, and two copies disagree the "+
-				"moment one is changed", strings.TrimSpace(line))
+				"moment one is changed", trimmed)
 		}
 	}
 }
