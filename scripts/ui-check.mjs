@@ -797,14 +797,25 @@ async function checkPortsRowAgreesWithServer(page) {
   await page.click('#catalogue-btn');
   await page.click('.catalogue-item[data-service="pihole"]');
 
-  const shape = () => page.$eval('#rules-tbody tr[data-service="pihole"]', tr => ({
-    trClasses: tr.className,
-    cells: [...tr.querySelectorAll('td')].map(td => ({
-      classes: td.className,
-      label: td.getAttribute('data-label'),
-      chip: td.querySelector('.chip')?.textContent.trim() ?? null,
-    })),
-  }));
+  // The *last* matching row, not the first: on a demo server kept up across
+  // invocations, an earlier run's Pi-hole rows are still there, rendered
+  // ahead of whatever this run just appended (app.js's tbody.appendChild —
+  // the same fact checkPortsCatalogue's delta count relies on). $eval takes
+  // the first DOM match, so it would pick that stale row both before and
+  // after the save below, compare it against itself, and pass — the same
+  // "check:ui is not re-runnable" defect the count fix closed, just failing
+  // toward green instead of red. Do not "simplify" this back to $eval.
+  const shape = () => page.$$eval('#rules-tbody tr[data-service="pihole"]', trs => {
+    const tr = trs[trs.length - 1];
+    return {
+      trClasses: tr.className,
+      cells: [...tr.querySelectorAll('td')].map(td => ({
+        classes: td.className,
+        label: td.getAttribute('data-label'),
+        chip: td.querySelector('.chip')?.textContent.trim() ?? null,
+      })),
+    };
+  });
 
   let clientShape;
   try {
