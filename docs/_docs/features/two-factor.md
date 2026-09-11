@@ -18,7 +18,7 @@ A stolen password alone no longer opens the firewall.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/two-factor-setup" ext="png"
-     alt="The second-factor setup card on the Password page: a QR code and a typed key on the left, a field for the six-digit confirmation code on the right, and the server's own clock printed beneath the QR code." %}
+     alt="The second-factor setup card on the Password page: a QR code on the left, and on the right the typed key, the server's own clock, and a field for the six-digit confirmation code with a Confirm button." %}
   <figcaption>Nothing is saved until the code in step 3 is entered — a phone that never scanned this screen leaves no trace.</figcaption>
 </figure>
 

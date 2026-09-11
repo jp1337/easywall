@@ -31,7 +31,7 @@ recovery codes shown once.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/firstrun-2fa" ext="png"
-     alt="The first-run wizard's setup step: a QR code on a white plate, the typed key and the server's own clock on the left, and a field for the six-digit confirmation code with a Confirm button on the right." %}
+     alt="The first-run wizard's setup step: a QR code on a white plate on the left, and on the right the typed key, the server's own clock, and a field for the six-digit confirmation code with a Confirm button." %}
   <figcaption>Nothing is saved until the code is confirmed. There is no way past this step without one.</figcaption>
 </figure>
 

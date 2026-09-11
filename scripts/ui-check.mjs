@@ -386,6 +386,115 @@ async function checkEnrolmentFlow(browser) {
 }
 
 /**
+ * The gate: 2.18 makes a second factor mandatory, and this is the screen an
+ * operator meets the first time they sign in after the upgrade.
+ *
+ * It needs its own instance because demo_mode is the gate's one exemption, so
+ * the demo the rest of this script drives can never show it. Everything else is
+ * checkEnrolmentFlow's arrangement — a real password hash, no secret, no core.
+ *
+ * Three things are checked and the middle one is the point. Landing on
+ * /password after a one-step login is the redirect; being unable to leave it is
+ * the gate. A redirect an operator can walk around by typing a path is not a
+ * mandate, and the difference is invisible in a screenshot.
+ */
+async function checkTheGate(browser) {
+  const hash = readPasswordHash(webConfigPath());
+  if (!hash) {
+    fail('gate', 'could not read the password hash; set EASYWALL_CONFIG');
+    return;
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-gate-'));
+  const port = 12233;
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `demo_mode = false`,
+    `session_key = "ui-check-gate-session-key-32bytes"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = ""`,
+    `recovery_codes = []`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/login`);
+
+    const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
+    const page = await ctx.newPage();
+
+    // One step, because there is no second factor to ask for yet. That is the
+    // upgrade path: the account is valid, the password is right, and the
+    // release still may not let it reach the firewall.
+    await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/login'] button[type=submit]"),
+    ]);
+
+    if (!page.url().endsWith('/password')) {
+      fail('gate', `signing in with no second factor landed on ${page.url()}, want /password`);
+      return;
+    }
+    // The string, not the class: .alert-warn is worn by every flash on this
+    // page, so a class check would pass on a page that never explains itself.
+    if (!(await page.locator("text=Set up a second factor to continue").count())) {
+      fail('gate', 'the enrolment page carries no callout saying why the operator is here');
+    }
+
+    // The gate, not the redirect. Every one of these is a path an operator
+    // could type, and the allowlist is an exact match rather than a prefix.
+    for (const path of ['/dashboard', '/ports', '/settings', '/apply']) {
+      await page.goto(`${base}${path}`, { waitUntil: 'load' });
+      if (!page.url().endsWith('/password')) {
+        fail('gate', `${path} was reachable with no second factor enrolled; it answered from ${page.url()}`);
+      }
+    }
+
+    await page.goto(`${base}/password`, { waitUntil: 'networkidle' });
+    await page.fill("form[action='/password/2fa/begin'] input[name=current_password]", PASS);
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/begin'] button[type=submit]"),
+    ]);
+    const key = (await page.textContent('.totp-secret')).trim();
+    await page.fill("form[action='/password/2fa/confirm'] input[name=code]", totp(key));
+    await Promise.all([
+      page.waitForLoadState('load'),
+      page.click("form[action='/password/2fa/confirm'] button[type=submit]"),
+    ]);
+
+    // Deliberately still on /password: this response is the only one that
+    // carries the eight recovery codes, and redirecting off it would take them
+    // with it. What has to change is that the operator may now leave.
+    const codes = await page.locator('.recovery-code').count();
+    if (codes !== 8) {
+      fail('gate', `${codes} recovery codes after enrolling through the gate, want 8`);
+    }
+    await page.goto(`${base}/dashboard`, { waitUntil: 'load' });
+    if (!page.url().endsWith('/dashboard')) {
+      fail('gate', `enrolling did not open the gate; /dashboard answered from ${page.url()}`);
+    } else {
+      console.log('  ok   the gate holds every page until a factor is enrolled, then opens');
+    }
+
+    await ctx.close();
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
  * The verify page cannot be reached against the demo — no secret is ever stored
  * there — and it is the page a half-locked-out human meets first. So: a second
  * instance with prepared state.
@@ -1398,6 +1507,7 @@ async function runChecks(browser, session) {
   await checkApplyPreview(p);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
+  await checkTheGate(browser);
   await checkVersionBadgeFitsTheVersion(p);
   await checkVerifyPage(browser);
   // Last, and deliberately: signing out revokes the session id every context
