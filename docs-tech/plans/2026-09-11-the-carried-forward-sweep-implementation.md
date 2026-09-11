@@ -1163,6 +1163,13 @@ func TestPeerVerdictNeverCallsAHarnessFaultAVerdict(t *testing.T) {
 		{"an unreachable network is the harness", syscall.ENETUNREACH, "failed"},
 		{"an unreachable host is the harness", syscall.EHOSTUNREACH, "failed"},
 		{"anything nobody thought of is the harness", errors.New("something else"), "failed"},
+		// The only case that can falsify the one-line assertion below. The four
+		// above all return single-line Error() strings — "connection refused",
+		// "network is unreachable", "no route to host", "something else" — so
+		// deleting peerVerdict's strings.Fields/Join flattening would leave them
+		// all green. An assertion nothing can break is the failure class this
+		// whole branch exists to close.
+		{"a multi-line error is flattened to one line", errors.New("dial failed:\nconnection reset"), "failed"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
