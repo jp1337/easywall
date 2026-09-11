@@ -115,7 +115,18 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 func RequireSecondFactor(hasFactor func() bool, isDemo func() bool) func(http.Handler) http.Handler {
 	// The routes enrolment itself needs. Exact matches, not a prefix: a prefix
 	// of "/password" would also admit anything a later release mounts below it,
-	// and the gate would widen without anyone deciding that it should.
+	// and the gate would widen without anyone deciding that it should. Nothing
+	// the router registers today tells the two apart, so
+	// TestTheGateAllowlistIsExactAndNotAPrefix drives this middleware directly
+	// and asks about paths no route has — without it, the sentence above is a
+	// description of a guarantee nothing holds.
+	//
+	// "/logout" is the one entry the router does not exercise: server.go
+	// registers POST /logout in the public group, which RequireSecondFactor is
+	// not mounted on, so the gate never meets it and this entry is inert today.
+	// It stays because a way out must never need the factor it is gating, and
+	// the day /logout moves inside the authenticated group is not the day to
+	// rediscover that. Same test holds it.
 	allowed := map[string]bool{
 		"/password":                      true,
 		"/password/2fa/begin":            true,
