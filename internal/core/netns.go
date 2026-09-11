@@ -178,6 +178,65 @@ var (
 	harnessPeerAddr   = netip.MustParseAddr("10.77.9.2")
 )
 
+// ErrHarnessRangeInUse is the sentinel for "this host already uses what the
+// harness needs", which — like ErrNamespaceUnavailable — is a statement about
+// the host and not about the firewall.
+//
+// Callers report "unprovable" with the detail, never "failed". A self-test
+// that called an operator's own 10.77.9.0/24 LAN a broken firewall would be
+// the exact inversion this release's peer-side fix also closes.
+var ErrHarnessRangeInUse = errors.New("the self-test's address range or interface name is already in use on this host")
+
+// harnessCollision reports what on this host stands in the harness's way, or
+// "" when nothing does.
+//
+// Two things are checked and one deliberately is not:
+//
+//	the range   an interface other than ewst-r holding an address inside
+//	            10.77.9.0/24 — an operator whose LAN is that range
+//	ewst-p      a host interface with the peer's name, which would make
+//	            createVethPair fail EEXIST rather than ErrNamespaceUnavailable
+//	ewst-r      NOT checked. wire() deletes it unconditionally and must: a
+//	            previous run's router end outlives its own namespace by about
+//	            110 ms, and a check here would break the case that deletion
+//	            was written for. See wire's own comment.
+//
+// The interface list and the address accessor are parameters so this is
+// testable without touching the host.
+func harnessCollision(ifaces []net.Interface, addrsOf func(net.Interface) ([]net.Addr, error)) (string, error) {
+	harnessNet := netip.PrefixFrom(harnessRouterAddr, harnessPrefix).Masked()
+	for _, iface := range ifaces {
+		if iface.Name == harnessPeerIf {
+			return fmt.Sprintf("a host interface is already called %s", harnessPeerIf), nil
+		}
+		if iface.Name == harnessRouterIf {
+			continue
+		}
+		addrs, err := addrsOf(iface)
+		if err != nil {
+			// Not fatal: an interface that will not report its addresses is not
+			// evidence of a collision, and refusing the self-test over it would
+			// trade a false "unprovable" for a real measurement.
+			continue
+		}
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			ip, ok := netip.AddrFromSlice(ipnet.IP)
+			if !ok {
+				continue
+			}
+			if harnessNet.Contains(ip.Unmap()) {
+				return fmt.Sprintf("%s holds %s, inside the harness range %s",
+					iface.Name, ip.Unmap(), harnessNet), nil
+			}
+		}
+	}
+	return "", nil
+}
+
 // Harness is a peer process in its own network namespace, wired to this one by
 // a veth pair.
 type Harness struct {
@@ -319,6 +378,24 @@ func (h *Harness) wire() error {
 	// Naming the links per-pid instead would not have been enough. The old
 	// router link still holds 10.77.9.1/24, and addAddress is Create|Excl too,
 	// so a uniquely named interface would simply collide one step later.
+
+	// Before anything is created: does this host already use what the harness
+	// needs? Nothing checked, and the failure was not a clean "unprovable" —
+	// createVethPair's EEXIST does not satisfy errors.Is(err,
+	// ErrNamespaceUnavailable), so an operator whose LAN is 10.77.9.0/24 was
+	// told the harness was broken. Measured before this check: the ordinary
+	// case was honest anyway, reporting unprovable with an accurate detail 2 of
+	// 2 runs against a live host table — so this hardens an honest path rather
+	// than fixing a dishonest one.
+	ifaces, err := net.Interfaces()
+	if err == nil { // a host that will not list its interfaces is not evidence of a collision
+		if hit, cerr := harnessCollision(ifaces, func(i net.Interface) ([]net.Addr, error) {
+			return i.Addrs()
+		}); cerr == nil && hit != "" {
+			return fmt.Errorf("%w: %s", ErrHarnessRangeInUse, hit)
+		}
+	}
+
 	if err := deleteLink(local, harnessRouterIf); err != nil {
 		return fmt.Errorf("clearing a leftover %s: %w", harnessRouterIf, err)
 	}
