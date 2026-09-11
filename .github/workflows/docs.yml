@@ -48,12 +48,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # codespell is a typo-only dictionary — near-zero false positives on
-      # nftables, conntrack and argon2id, where hunspell floods. Configuration,
-      # and the reasoning for every skip and every ignored word, is in
-      # .codespellrc. First, because it needs no Ruby, no Node and no build.
-      - name: Spelling
-        run: pipx run codespell
+      # Spelling moved to test.yml's `assets` job in 2.19. It ran here and this
+      # workflow is path-filtered, so a repo-wide dictionary was only ever
+      # applied to docs/**, CHANGELOG.md, .github/actions/** and this file.
+      # Do not add it back: two copies would disagree the moment one is
+      # changed, and TestTheSpellingGateRunsWhereItIsConfigured is what keeps
+      # this comment honest.
 
       - uses: actions/setup-node@v7
         with:

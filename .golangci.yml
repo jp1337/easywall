@@ -33,9 +33,16 @@ linters:
         - mosquitto
 
     gosec:
+      # G115 is deliberately NOT excluded. It was, and the exclusion meant the
+      # only path on which an integer narrowing reached a human was standalone
+      # gosec in security.yml — which applies none of these exclusions — on a
+      # check run after the branch was already pushed. 2.18's netns.go:382
+      # converted a pid to uint32 with no bound and passed Lint from the line
+      # being written through three reviews. Measured when it was removed: zero
+      # findings in production code, because all four sites this exclusion's
+      # comment defended already carry their own #nosec with a bound beside it.
       excludes:
         - G104  # Errors unhandled — test cleanup code; not safety-relevant
-        - G115  # int→uint conversions safe for rate-limit and length values
         - G117  # SessionKey field in TOML config — TOML config files are always operator-managed (alert #46 dismissed)
         - G120  # MaxBytesReader applied globally in MaxBodySize middleware (server.go)
         - G301  # Directory permissions: test code uses 0755 for temp dirs; not a production issue
