@@ -25,6 +25,8 @@ package core
 //	parent -> child   "dial 10.77.9.1 12227 2000\n" address, port, milliseconds
 //	child -> parent   "open\n" | "blocked\n"        the verdict
 //	child -> parent   "unparsed\n"                  not a verdict; see below
+//	child -> parent   "failed <reason>\n"           not a verdict: the dial
+//	                                                could not be made at all
 //	parent -> child   (pipe closed)                 child exits
 //
 // "unparsed" exists because "I could not read your line" and "the firewall
@@ -33,6 +35,14 @@ package core
 // whose subject is not lying about the firewall's state cannot have a parse
 // failure spelling itself as a verdict. Dial's default branch turns it into an
 // error, which is what it is.
+//
+// "failed" exists for the same reason one layer down, and it is reachable.
+// Every dial error used to come back as "blocked", so a harness that broke
+// between a claim's control and its measurement recorded `failed` against a
+// working firewall — the one inversion foldClaims forbids. A timeout stays
+// "blocked" because a dropping chain can produce nothing else; a refusal, an
+// unreachable network and an ICMP error are the harness, and they now say so.
+// See peerVerdict, which mirrors inboundCrosses' classification on this side.
 
 import (
 	"bufio"
@@ -45,6 +55,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -78,14 +89,62 @@ func RunPeer(stdin io.Reader, stdout io.Writer) int {
 		}
 		d := net.Dialer{Timeout: time.Duration(ms) * time.Millisecond}
 		conn, err := d.Dial("tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
-		if err != nil {
-			_, _ = fmt.Fprintln(stdout, "blocked")
-			continue
+		if err == nil {
+			_ = conn.Close()
 		}
-		_ = conn.Close()
-		_, _ = fmt.Fprintln(stdout, "open")
+		_, _ = fmt.Fprintln(stdout, peerVerdict(err))
 	}
 	return 0
+}
+
+// peerVerdict maps a dial error to the one word the parent reads.
+//
+// It does NOT mirror inboundCrosses, and the difference is the point. That
+// side dials a namespace where **nothing listens**, so ECONNREFUSED is a
+// verdict — positive evidence a packet crossed, which is why it returns
+// (true, nil). This side dials the router, where the harness's own listener
+// **is** bound: a refusal there means the SYN arrived and nobody answered,
+// which is the harness failing to set itself up, not the firewall deciding
+// anything. Same rule, opposite conclusion, because the two dials face
+// different ends of the wire.
+//
+// So: a timeout is `blocked`, because a dropping chain can produce nothing
+// else. Everything else — a refusal, an unreachable network, an ICMP error
+// the kernel turned into EHOSTUNREACH — is the harness. Reporting any of them
+// as a verdict lets a broken harness record `failed` against a working
+// firewall, which foldClaims' own doc comment forbids.
+//
+// The reason travels back so the parent can say what happened rather than
+// "not a verdict". It is flattened to one line because the pipe protocol is
+// one line each way, by design: a hung peer is then a read deadline rather
+// than a parser.
+func peerVerdict(err error) string {
+	if err == nil {
+		return "open"
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return "blocked"
+	}
+	return "failed " + strings.Join(strings.Fields(err.Error()), " ")
+}
+
+// interpretPeerLine turns the peer's line into a verdict or an error.
+//
+// Split out of Harness.Dial so both ends of the protocol are testable without
+// a namespace: the classification is the part that has been wrong, and it
+// needs no kernel to check.
+func interpretPeerLine(line string) (bool, error) {
+	switch {
+	case line == "open":
+		return true, nil
+	case line == "blocked":
+		return false, nil
+	case strings.HasPrefix(line, "failed "):
+		return false, fmt.Errorf("the peer could not dial: %s", strings.TrimPrefix(line, "failed "))
+	default:
+		return false, fmt.Errorf("the peer answered %q, which is not a verdict", line)
+	}
 }
 
 // ErrNamespaceUnavailable is the sentinel for "this host will not let us build
@@ -347,14 +406,7 @@ func (h *Harness) Dial(addr netip.Addr, port uint16, timeout time.Duration) (boo
 	if err != nil {
 		return false, fmt.Errorf("reading the peer's verdict: %w", err)
 	}
-	switch line {
-	case "open":
-		return true, nil
-	case "blocked":
-		return false, nil
-	default:
-		return false, fmt.Errorf("the peer answered %q, which is not a verdict", line)
-	}
+	return interpretPeerLine(line)
 }
 
 func (h *Harness) readLine(timeout time.Duration) (string, error) {
