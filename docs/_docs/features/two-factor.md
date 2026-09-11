@@ -36,7 +36,8 @@ It can also be switched on during the first run, before this page exists to swit
 
 The other second factor: a device instead of six digits, and nothing to type.
 **Password → Passkeys → Add a passkey**, as many as you like — losing one phone
-should not lose the account.
+should not lose the account. Name it and re-enter your password: enrolling a
+factor is a credential change, and every one of them on that page asks.
 
 Two things have to be true first. If either is not, there is no button to press
 — the card says which one is in the way instead of failing in the browser:

@@ -34,6 +34,23 @@ with a cookie 29 days old, and 200 again after the logout record had been swept.
 
 `store.MaxAge()` sets both halves. Write that, never `Options.MaxAge`.
 
+**That closed the cookie-age half and only that half**, and this page claimed the
+whole failure closed for three releases. The retention rests on a second
+assumption — that nothing refreshes a cookie the server has not authenticated —
+and three paths did: `setFlash`, `setFlashN` and `render` clearing a flash each
+saved the session the *request* presented, re-signing `user` and `sid` with the
+clock back at zero. A revoked cookie posted to `POST /login` with a deliberately
+wrong password came back working, and one such request every few minutes stays
+inside the login rate limit. No retention closes that, because the refresh
+resets the cookie's own age too.
+
+`sessionForWrite` in `sessionrevoke.go` drops `user` and `sid` before those
+three saves when the session's id is revoked. **State it as an invariant rather
+than an observation: a path that saves a session it has not authenticated goes
+through `sessionForWrite`, or the retention above stops being true.** Everything
+behind `RequireAuth` is exempt by construction — a revoked session never reaches
+those paths at all. Reproduced against `fbac69f`, so it predates the branch.
+
 Signing out is a `POST` for a related reason. `CrossOriginProtection` checks the
 `Origin` and `Sec-Fetch-Site` headers of **unsafe methods only** — `GET`, `HEAD`
 and `OPTIONS` are exempt, because a safe method is not supposed to change
@@ -311,7 +328,13 @@ panic button pointed the other way.
   *password* buys — `/login/passkey/begin` and `/finish` both refuse without a
   `pendingLogin` behind them, so the assertion alone opens nothing — but it does
   not change what a stolen *second factor* buys, which was already true of a
-  code copied off an unlocked phone. What it does add: every assertion's
-  signature counter is checked against what that credential last reported, and
-  one that does not advance is refused (`passkey_clone_suspected`), not
-  granted with the fact merely logged. TOTP has no equivalent tell.
+  code copied off an unlocked phone. What it does add: a challenge answers
+  once. `spendChallenge` in `passkeyreplay.go` remembers the spent ones, and
+  that is what refuses a captured assertion resent with its cookies — clearing
+  the ceremony cookie with `MaxAge: -1` instructs a browser and nobody else.
+  The signature counter is checked too, and one that did not advance is refused
+  (`passkey_clone_suspected`) rather than granted with the fact merely logged —
+  but it is no backstop for the replay: `go-webauthn`'s `UpdateCounter` exempts
+  `authDataCount == 0 && SignCount == 0`, which is what iCloud Keychain and most
+  platform passkeys report on *every* assertion, so for those the check has
+  never fired and cannot. TOTP has no equivalent tell either way.

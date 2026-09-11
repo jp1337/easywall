@@ -26,6 +26,12 @@ const SessionIDKey = "sid"
 // on its own age and there is nothing left to remember. The set therefore stays
 // as small as the number of logouts in the last ten minutes.
 //
+// That retention is only sound because nothing can renew the cookie's age. It
+// could: any Save of a session re-signs it with a fresh timestamp, and three
+// paths save one they have not authenticated. sessionForWrite below is what
+// holds it, and a fourth such path added without it puts this comment back to
+// being wrong. See threat-model.md, which states it as an invariant.
+//
 // A restart clears it. That is a real gap and a narrow one: it needs a logout,
 // a restart, and a reuse of the same cookie, all inside one session lifetime.
 // Closing it properly means server-side sessions, which is a different design

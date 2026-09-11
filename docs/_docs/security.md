@@ -53,6 +53,18 @@ rounds are allowed per ten minutes per address, so **fifteen attempts per ten
 minutes per address**, code and passkey combined, against a target that rotates
 every thirty seconds.
 
+That count is the server's, held in memory against a random identifier the
+intermediate cookie carries. Until 2.18 it lived in the cookie itself, so the
+three bound a browser that kept sending back what the server handed it. A
+client replaying one frozen cookie went on guessing. Nothing is written back to
+that cookie now, so there is nothing for a client to decline to keep.
+
+A restart empties the table, and a half-finished login then starts again with
+the full three. That direction is deliberate: forgetting costs an attacker one
+extra password round, and those are limited to five per ten minutes. Refusing
+instead would lock an operator out of their own firewall after a service
+restart.
+
 Both halves are held by tests. Three attempts end the attempt whichever door
 they came through, and the sixteenth in ten minutes does not get through.
 
@@ -62,11 +74,14 @@ A passkey is offered at `/login/verify`, after the password, exactly where the
 code field already is — never instead of it, and never in place of the
 password step. `POST /login/passkey/begin` and `/finish` both refuse without a
 `pendingLogin` behind them, the same guard `/login/verify` itself opens with:
-a stolen authenticator is not a login on its own. Every assertion's signature
-counter is checked against what that credential last reported. One that did
-not advance is refused as `passkey_clone_suspected` — a failed attempt, never
-a lockout, since TOTP, a recovery code and another passkey are all still
-there. TOTP has no equivalent tell.
+a stolen authenticator is not a login on its own. A challenge answers once:
+the server remembers the ones it has spent, so a captured assertion resent with
+its cookies is refused. Where an authenticator reports a signature counter that
+is checked too, and one that did not advance is refused as
+`passkey_clone_suspected`. Either is a failed attempt and never a lockout,
+since TOTP, a recovery code and another passkey are all still there. Most
+platform passkeys report no counter at all, so that second check is an extra
+rather than the guarantee.
 
 Mandatory since 2.18 means an upgrade with only a password meets the same gate
 a fresh first run does. Every authenticated route redirects to `/password`

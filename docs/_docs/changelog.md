@@ -164,6 +164,40 @@ WebAuthn itself.
   section it saves, and the guard reads the rendered page rather than the
   template, so a label moved into a partial is still caught.
 
+### Found by review, and fixed here
+
+Four parallel reviewers were pointed at this release. Two of the five findings
+predate it; they are fixed anyway, because both are about the second factor and
+this is the release that makes one mandatory.
+
+- **The attempt budget was not enforced.** `pendingLogin.Attempts` lived only in
+  the intermediate cookie, so three attempts bound a browser that sent back what
+  the server handed it — and nobody else. Measured: 200 guesses from one
+  password round. The count is now the server's, keyed by a random identifier
+  the cookie carries, and the passkey door shares it by construction rather than
+  by intent. A restart grants a fresh budget: forgetting costs an attacker one
+  more password round, and refusing would lock an operator out after a service
+  restart.
+- **Signing out could be undone.** Every save of a session re-signs the cookie
+  with a fresh timestamp, and three paths saved one they had not authenticated —
+  two flash helpers and `render` itself, which saves when it clears a flash. One
+  wrong password every nine minutes kept a revoked cookie alive until the
+  revocation record expired. `sessionForWrite` strips the identity first. The
+  threat model claimed this whole failure was closed in an earlier release; only
+  half of it was, and it now says so.
+- **An unreadable `passkeys.json` removed the mandate.** A corrupt store read as
+  "no passkeys", so a passkey-only account was signed in by the password alone —
+  a restored host without its `data_dir` was enough. A store that cannot be read
+  now counts as a factor, because the truth is unknown and the recovery codes
+  still work. An unparseable file is renamed aside rather than overwritten.
+- **A passkey ceremony is one-shot.** The cookie clear instructs the browser;
+  the server now remembers the spent challenge. The signature counter was no
+  backstop: go-webauthn exempts an authenticator reporting zero, which is most
+  platform passkeys, so for those the clone check had never fired.
+- **Enrolling a passkey asks for the password.** It was the one credential write
+  on that page that did not, so a stolen session could enrol a durable factor —
+  and the re-stamp that follows would have ended the real operator's session.
+
 ### The proof
 
 - **The gate is walked, not listed.** `TestTheGateCannotBeWalkedPast`

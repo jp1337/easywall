@@ -767,7 +767,8 @@ function initRecoveryCopy() {
 function initPasskeyEnrol() {
   const btn = document.getElementById('passkey-add-btn');
   const nameInput = document.getElementById('passkey-name');
-  if (!btn || !nameInput) return;
+  const pwInput = document.getElementById('passkey-password');
+  if (!btn || !nameInput || !pwInput) return;
 
   const b64urlToBuf = (s) => {
     const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
@@ -827,10 +828,34 @@ function initPasskeyEnrol() {
       nameInput.setCustomValidity('');
       return;
     }
+    // Enrolling a passkey is a credential write, and every other one on this
+    // page re-asks for the password. The field is `required`, so this is the
+    // browser's own inline message rather than a second way to say it.
+    if (!pwInput.value) {
+      pwInput.reportValidity();
+      return;
+    }
 
     let creation;
     try {
-      const beginResp = await fetch('/password/passkey/begin', { method: 'POST' });
+      const beginResp = await fetch('/password/passkey/begin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ current_password: pwInput.value }),
+        // redirect: 'manual' is load-bearing, not tidiness. A wrong password
+        // answers 303 to /password with the password_wrong flash waiting in
+        // the session. Let fetch follow it and *fetch* renders that page —
+        // which consumes the flash, because render() deletes it on the way
+        // out — so the navigation below then lands on a page with nothing to
+        // say and the click reads as dead. Found in a browser; no Go test can
+        // see it. Unfollowed, the response is opaque (status 0) and the flash
+        // is still there for the real navigation to show.
+        redirect: 'manual',
+      });
+      if (beginResp.type === 'opaqueredirect') {
+        window.location.assign('/password');
+        return;
+      }
       if (!beginResp.ok) throw new Error('begin failed');
       creation = await beginResp.json();
     } catch (e) {
