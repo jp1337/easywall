@@ -19,6 +19,14 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
+// currentPassword is the form body every /password/passkey/begin call now
+// carries: the route is gated on the current password, the same way
+// /password/2fa/begin is. Sent even by the tests that expect a refusal for
+// some other reason — a begin refused because no password was supplied would
+// satisfy their assertions while proving nothing about the check each one is
+// actually named after.
+var currentPassword = map[string]string{"current_password": testPassword}
+
 // passkeyTestOption configures a Server built by newPasskeyTestServer, in the
 // same functional-option shape the rest of Go's ecosystem uses for optional
 // constructor arguments — there is no natural zero value for "a hostname" or
@@ -222,7 +230,8 @@ func enrolPasskeyWithCookie(t *testing.T, s *Server, name string, cookie *http.C
 func enrolPasskeyCredential(t *testing.T, s *Server, name string, cookie *http.Cookie) virtualwebauthn.Credential {
 	t.Helper()
 
-	begin := doRequest(s, "POST", "/password/passkey/begin", nil, cookie).Result()
+	begin := doFormRequest(s, "POST", "/password/passkey/begin",
+		url.Values{"current_password": {testPassword}}.Encode(), cookie).Result()
 	if begin.StatusCode != http.StatusOK {
 		t.Fatalf("begin answered %d", begin.StatusCode)
 	}
@@ -288,10 +297,11 @@ func TestPasskeysAreRefusedWithoutAHostname(t *testing.T) {
 		t.Errorf("reason = %q, want passkey_no_hostname — the operator needs to know which of the three things to change", got)
 	}
 
-	resp := s.postAuthed(t, "/password/passkey/begin", nil)
+	resp := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		t.Error("the registration ceremony started with no Relying Party ID")
+	if resp.StatusCode != http.StatusPreconditionFailed {
+		t.Errorf("begin answered %d, want %d — with a correct password supplied, the "+
+			"missing Relying Party ID must be what refuses it", resp.StatusCode, http.StatusPreconditionFailed)
 	}
 }
 
@@ -303,10 +313,11 @@ func TestPasskeysAreRefusedInDemoMode(t *testing.T) {
 	if got := s.passkeyUnavailableReason(); got != "passkey_demo" {
 		t.Errorf("reason = %q, want passkey_demo", got)
 	}
-	resp := s.postAuthed(t, "/password/passkey/begin", nil)
+	resp := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		t.Error("a registration ceremony started in the demo")
+	if resp.StatusCode != http.StatusPreconditionFailed {
+		t.Errorf("begin answered %d, want %d — with a correct password supplied, the demo "+
+			"must be what refuses it", resp.StatusCode, http.StatusPreconditionFailed)
 	}
 }
 
@@ -323,10 +334,11 @@ func TestPasskeysAreRefusedOnASelfSignedCertificate(t *testing.T) {
 		t.Errorf("reason = %q, want passkey_self_signed", got)
 	}
 
-	resp := s.postAuthed(t, "/password/passkey/begin", nil)
+	resp := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		t.Error("the registration ceremony started on a self-signed certificate")
+	if resp.StatusCode != http.StatusPreconditionFailed {
+		t.Errorf("begin answered %d, want %d — with a correct password supplied, the "+
+			"self-signed certificate must be what refuses it", resp.StatusCode, http.StatusPreconditionFailed)
 	}
 }
 
@@ -342,7 +354,7 @@ func TestAPasskeyCanBeEnrolledAndCounts(t *testing.T) {
 	}
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	begin := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	if begin.StatusCode != 200 {
 		t.Fatalf("begin answered %d", begin.StatusCode)
 	}
@@ -400,7 +412,7 @@ func TestBeginRegistrationExcludesEnrolledCredentials(t *testing.T) {
 	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
 	id := enrolPasskey(t, s, "already enrolled")
 
-	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	begin := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	defer begin.Body.Close()
 	if begin.StatusCode != 200 {
 		t.Fatalf("begin answered %d", begin.StatusCode)
@@ -440,7 +452,7 @@ func TestPasskeyFinishRefusesAnEmptyName(t *testing.T) {
 	}
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	begin := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	defer begin.Body.Close()
 	if begin.StatusCode != 200 {
 		t.Fatalf("begin answered %d", begin.StatusCode)
@@ -481,7 +493,7 @@ func TestPasskeyFinishRefusesAnOverLongName(t *testing.T) {
 	}
 	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
 
-	begin := s.postAuthed(t, "/password/passkey/begin", nil)
+	begin := s.postAuthed(t, "/password/passkey/begin", currentPassword)
 	defer begin.Body.Close()
 	if begin.StatusCode != 200 {
 		t.Fatalf("begin answered %d", begin.StatusCode)
@@ -1024,5 +1036,292 @@ func TestAPasskeyReplayedCounterIsRefused(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no event recorded for the replayed/cloned counter")
+	}
+}
+
+// TestPasskeyEnrolmentNeedsTheCurrentPassword — /password/passkey/begin was the
+// one credential write on this page a session alone could perform. Every other
+// control here (POST /password, /password/2fa/begin, /2fa/disable,
+// /2fa/recovery, /passkey/remove) re-asks for the password, because a session
+// is not proof that the operator is the one holding it: a stolen cookie or an
+// unlocked browser is enough. Enrolling a passkey through it plants a durable
+// second factor, and handlePasskeyFinish's restampSession then stamps the
+// thief's session with the new fingerprint and ends the real operator's.
+//
+// Asserted three ways, because a redirect alone would be satisfied by a route
+// that refused for any reason at all: the flash names the password, no
+// challenge cookie is issued (which is what makes Finish unreachable), and
+// nothing reaches the store.
+func TestPasskeyEnrolmentNeedsTheCurrentPassword(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+
+	for _, tc := range []struct {
+		name string
+		form map[string]string
+	}{
+		{"no password at all", nil},
+		{"the wrong password", map[string]string{"current_password": "not-the-password"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := s.postAuthed(t, "/password/passkey/begin", tc.form)
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusSeeOther {
+				t.Fatalf("begin answered %d, want %d — a session alone started a registration ceremony",
+					resp.StatusCode, http.StatusSeeOther)
+			}
+			if loc := resp.Header.Get("Location"); loc != "/password" {
+				t.Errorf("begin redirected to %q, want /password", loc)
+			}
+			for _, c := range resp.Cookies() {
+				if c.Name == passkeyPendingCookieName && c.MaxAge >= 0 && c.Value != "" {
+					t.Error("a refused begin still issued a challenge cookie — finish would inherit no gate at all")
+				}
+			}
+			if got := flashFrom(t, s, resp); got != "password_wrong" {
+				t.Errorf("flash = %q, want password_wrong", got)
+			}
+			if n := len(s.passkeys.all()); n != 0 {
+				t.Errorf("%d passkeys stored, want 0", n)
+			}
+		})
+	}
+
+	// The same route, the right password: the gate refuses the session that
+	// cannot prove itself and nothing else. Without this the test above would
+	// still pass against a handler that refused every caller.
+	ok := s.postAuthed(t, "/password/passkey/begin", currentPassword)
+	defer ok.Body.Close()
+	if ok.StatusCode != http.StatusOK {
+		t.Fatalf("begin with the correct password answered %d, want 200", ok.StatusCode)
+	}
+}
+
+// flashFrom reads the one-time message a response set, by replaying its session
+// cookie into the store the same way the next render would.
+func flashFrom(t *testing.T, s *Server, resp *http.Response) string {
+	t.Helper()
+	val := sessionCookie(resp)
+	if val == "" {
+		return ""
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: SessionName, Value: val})
+	sess, err := s.store.Get(req, SessionName)
+	if err != nil {
+		return ""
+	}
+	msg, _ := sess.Values["flash"].(string)
+	return msg
+}
+
+// TestAReplayedPasskeyAssertionIsRefused — the same assertion bytes, with the
+// same retained easywall_pending and easywall_login_passkey cookies, submitted
+// twice.
+//
+// Both cookies are cleared with MaxAge: -1, which instructs a browser and
+// nobody else; pendingLogin is entirely cookie-borne, so a party holding its
+// own copies simply sends them again. The clone check is not a backstop here
+// and this test is built so that it cannot be mistaken for one: the credential's
+// counter stays at 0, which is exactly what iCloud Keychain and most platform
+// authenticators report on every assertion, and go-webauthn's UpdateCounter
+// deliberately exempts authDataCount == 0 && SignCount == 0 from the
+// CloneWarning it would otherwise raise. So the second submission verifies
+// cleanly and the only thing that can refuse it is the server remembering that
+// it already spent that challenge.
+//
+// TestAPasskeyReplayedCounterIsRefused above is the other half of the pair: a
+// *fresh* challenge signed by a device whose counter did not move. This one is
+// the identical response, sent twice.
+func TestAReplayedPasskeyAssertionIsRefused(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	cred := enrolPasskeyCredential(t, s, "the one", makeAuthCookie(t, s))
+	cred.Counter = 0 // a platform passkey: zero on every assertion, forever
+
+	login := doFormRequest(s, "POST", "/login",
+		url.Values{"username": {"admin"}, "password": {testPassword}}.Encode()).Result()
+	defer login.Body.Close()
+	var pending *http.Cookie
+	for _, c := range login.Cookies() {
+		if c.Name == pendingCookieName {
+			pending = c
+		}
+	}
+	if pending == nil {
+		t.Fatal("the password step set no pending cookie")
+	}
+
+	begin := doFormRequest(s, "POST", "/login/passkey/begin", "", pending).Result()
+	if begin.StatusCode != http.StatusOK {
+		t.Fatalf("begin answered %d", begin.StatusCode)
+	}
+	var challenge *http.Cookie
+	for _, c := range begin.Cookies() {
+		if c.Name == loginPasskeyPendingCookieName {
+			challenge = c
+		}
+	}
+	if challenge == nil {
+		t.Fatal("begin did not set the login passkey challenge cookie")
+	}
+	parsed, err := virtualwebauthn.ParseAssertionOptions(readBody(t, begin))
+	if err != nil {
+		t.Fatalf("parse the assertion options: %v", err)
+	}
+	assertion := virtualwebauthn.CreateAssertionResponse(rpFor(s), virtualwebauthn.NewAuthenticator(), cred, *parsed)
+
+	// Identical bytes, identical cookies, twice — what a captured exchange
+	// gives a replayer, with nothing recomputed between the two.
+	send := func() *http.Response {
+		t.Helper()
+		return doFormRequest(s, "POST", "/login/passkey/finish",
+			url.Values{"credential": {assertion}}.Encode(), pending, challenge).Result()
+	}
+
+	first := send()
+	defer first.Body.Close()
+	if !sessionGrantsAccess(t, s, first) {
+		t.Fatalf("the first, legitimate assertion did not grant a session (status %d, %s)",
+			first.StatusCode, first.Header.Get("Location"))
+	}
+
+	second := send()
+	defer second.Body.Close()
+	if sessionGrantsAccess(t, s, second) {
+		t.Fatal("the identical assertion was replayed and granted a session a second time")
+	}
+	if loc := second.Header.Get("Location"); loc != "/login/verify" {
+		t.Errorf("the replay redirected to %q, want /login/verify — it must cost an attempt, "+
+			"not merely fail quietly", loc)
+	}
+}
+
+// TestAReplayedPasskeyEnrolmentIsRefused — the enrolment half of the same
+// hole. handlePasskeyFinish's challenge cookie is cleared the same
+// browser-only way, so the same retained pair enrols the same credential
+// twice: two entries, one device, and factorCount() then reads 2 where
+// mayRemoveFactor has one real device to protect. Refused on the second
+// submission because the challenge is already spent.
+func TestAReplayedPasskeyEnrolmentIsRefused(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	cookie := makeAuthCookie(t, s)
+
+	begin := doFormRequest(s, "POST", "/password/passkey/begin",
+		url.Values{"current_password": {testPassword}}.Encode(), cookie).Result()
+	if begin.StatusCode != http.StatusOK {
+		t.Fatalf("begin answered %d", begin.StatusCode)
+	}
+	var challenge *http.Cookie
+	for _, c := range begin.Cookies() {
+		if c.Name == passkeyPendingCookieName {
+			challenge = c
+		}
+	}
+	if challenge == nil {
+		t.Fatal("begin did not set the passkey challenge cookie")
+	}
+	parsed, err := virtualwebauthn.ParseAttestationOptions(readBody(t, begin))
+	if err != nil {
+		t.Fatalf("parse the creation options: %v", err)
+	}
+	attestation := virtualwebauthn.CreateAttestationResponse(
+		rpFor(s), virtualwebauthn.NewAuthenticator(), virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2), *parsed)
+
+	vals := url.Values{"name": {"the one"}, "credential": {attestation}}.Encode()
+	first := doFormRequest(s, "POST", "/password/passkey/finish", vals, cookie, challenge).Result()
+	defer first.Body.Close()
+	if first.StatusCode != http.StatusOK {
+		t.Fatalf("the first enrolment answered %d", first.StatusCode)
+	}
+	if n := len(s.passkeys.all()); n != 1 {
+		t.Fatalf("%d passkeys stored after the first enrolment, want 1", n)
+	}
+
+	// handlePasskeyFinish re-stamps the session, so the replayer holds the
+	// cookie the first response set — a browser's own jar would. Without this
+	// the second request is simply unauthenticated and the test would pass on
+	// the wrong refusal entirely.
+	for _, c := range first.Cookies() {
+		if c.Name == SessionName {
+			cookie.Value = c.Value
+		}
+	}
+	second := doFormRequest(s, "POST", "/password/passkey/finish", vals, cookie, challenge).Result()
+	defer second.Body.Close()
+	if n := len(s.passkeys.all()); n != 1 {
+		t.Errorf("%d passkeys stored after replaying the identical enrolment, want 1", n)
+	}
+	if loc := second.Header.Get("Location"); loc != "/password" {
+		t.Errorf("the replayed enrolment answered %d / %q, want a redirect to /password",
+			second.StatusCode, loc)
+	}
+}
+
+// rpFor builds the RelyingParty a virtual authenticator signs against, from
+// the fixture's own configuration rather than from repeated literals — the
+// three fields have to agree with what webAuthn() built or every ceremony
+// fails for a reason that has nothing to do with the test.
+func rpFor(s *Server) virtualwebauthn.RelyingParty {
+	return virtualwebauthn.RelyingParty{
+		Name:   "easywall",
+		ID:     s.cfg.Hostname(),
+		Origin: s.publicOrigin(),
+	}
+}
+
+// TestASpentChallengeIsForgottenAfterItsTTL — the map must not grow without
+// bound, and an entry past its lifetime must not linger: the cookie carrying
+// that challenge stopped being accepted at the same moment.
+func TestASpentChallengeIsForgottenAfterItsTTL(t *testing.T) {
+	if !spendChallenge("a-challenge-nobody-else-uses", time.Minute) {
+		t.Fatal("a fresh challenge was reported as already spent")
+	}
+	if spendChallenge("a-challenge-nobody-else-uses", time.Minute) {
+		t.Fatal("the same challenge was accepted twice inside its own TTL")
+	}
+
+	// A second entry, given a TTL that has run out by the time anything looks
+	// at it again.
+	if !spendChallenge("a-short-lived-challenge", time.Millisecond) {
+		t.Fatal("a fresh challenge was reported as already spent")
+	}
+	time.Sleep(3 * time.Millisecond)
+	// The sweep rides on the next insert, so one unrelated call runs it.
+	spendChallenge("an-unrelated-challenge", time.Minute)
+	spentChallenges.mu.Lock()
+	_, still := spentChallenges.at["a-short-lived-challenge"]
+	spentChallenges.mu.Unlock()
+	if still {
+		t.Error("an expired entry was still held — the map grows without bound")
+	}
+}
+
+// TestAnUnknownChallengeIsUnspent — the fail-open direction, and the one this
+// must never get wrong. The map is in memory: a restart empties it, and every
+// challenge a running process had spent becomes unknown again. Unknown has to
+// mean unspent, never "refuse", or a restart mid-ceremony would be a fifth way
+// to be locked out of a firewall.
+func TestAnUnknownChallengeIsUnspent(t *testing.T) {
+	if !spendChallenge("never-seen-by-this-process", time.Minute) {
+		t.Error("a challenge this process has no record of was treated as spent — " +
+			"a restart would refuse logins it has no reason to refuse")
+	}
+}
+
+// TestThePasskeyCardCarriesACurrentPasswordField — the other half of the gate
+// handlePasskeyBegin now applies. A server-side check with no field in front of
+// it is a dead button, and nothing else in the tree would notice: npm run
+// check:ui drives the demo, where passkeyUnavailableReason disables this card
+// before the field is ever rendered.
+func TestThePasskeyCardCarriesACurrentPasswordField(t *testing.T) {
+	s := newPasskeyTestServer(t, withHostname("firewall.example.org"))
+	body := doRequest(s, "GET", "/password", nil, makeAuthCookie(t, s)).Body.String()
+
+	if !strings.Contains(body, `id="passkey-name"`) {
+		t.Fatal("the passkey enrolment card did not render at all — the fixture is wrong, not the template")
+	}
+	if !strings.Contains(body, `id="passkey-password" name="current_password"`) {
+		t.Error(`the enrolment card has no current_password field; ` +
+			`/password/passkey/begin refuses without one, so the button cannot work`)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -144,9 +145,13 @@ func (s *Server) readPasskeyChallenge(r *http.Request) (*webauthn.SessionData, b
 	return &sd, true
 }
 
-// clearPasskeyChallenge ends the ceremony state. Called once Finish has read
-// it, whether the ceremony went on to succeed or not — a challenge is single
-// use either way.
+// clearPasskeyChallenge ends the ceremony state in the browser. Called once
+// Finish has read it, whether the ceremony went on to succeed or not.
+//
+// This is only half of making a challenge single use, and the half a replayer
+// never sees: MaxAge: -1 tells a browser to drop the cookie and says nothing
+// to anybody who kept a copy. spendChallenge in passkeyreplay.go is the other
+// half, and the one that actually holds.
 func (s *Server) clearPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	sess, _ := s.passkeyPending.Get(r, passkeyPendingCookieName)
 	sess.Options = &sessions.Options{
@@ -211,10 +216,11 @@ func (s *Server) readLoginPasskeyChallenge(r *http.Request) (*webauthn.SessionDa
 	return &sd, true
 }
 
-// clearLoginPasskeyChallenge ends the login ceremony state. Called once
-// Finish has read it, whether the assertion went on to verify or not — a
-// challenge is single use either way, the same rule clearPasskeyChallenge
-// enforces for enrolment.
+// clearLoginPasskeyChallenge ends the login ceremony state in the browser.
+// Called once Finish has read it, whether the assertion went on to verify or
+// not — and, exactly as clearPasskeyChallenge's own comment says for
+// enrolment, this is the half that only instructs a browser. spendChallenge is
+// what makes the challenge single use against somebody who kept the cookie.
 func (s *Server) clearLoginPasskeyChallenge(w http.ResponseWriter, r *http.Request) {
 	sess, _ := s.loginPasskeyPending.Get(r, loginPasskeyPendingCookieName)
 	sess.Options = &sessions.Options{
@@ -316,10 +322,22 @@ func (s *Server) passkeyUser() passkeyUser {
 // handlePasskeyBegin starts a registration ceremony and hands the browser the
 // options to feed into navigator.credentials.create().
 //
-// Gated on availability alone, not on the current password: nothing is
-// written until Finish, and Finish's own signature verification — not a
-// password re-check — is what a forged request cannot get past.
+// Gated on the current password, exactly as handle2FABegin is. The reasoning
+// this replaces — that a forged request cannot get past Finish's own signature
+// verification — answered CSRF and only CSRF. It did not answer the case every
+// other route on this page defends against: a session that is already in the
+// wrong hands, a stolen cookie or an unlocked browser, which needs no forgery
+// at all. Without this, that session enrols a durable second factor of its
+// own, and handlePasskeyFinish's restampSession then stamps *it* with the new
+// fingerprint and ends the legitimate operator's. Finish inherits the gate
+// through the challenge only a gated Begin can issue, the way handle2FAConfirm
+// inherits handle2FABegin's.
 func (s *Server) handlePasskeyBegin(w http.ResponseWriter, r *http.Request) {
+	if !s.checkCurrentPassword(r) {
+		s.setFlash(w, r, "password_wrong")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
 	if reason := s.passkeyUnavailableReason(); reason != "" {
 		http.Error(w, reason, http.StatusPreconditionFailed)
 		return
@@ -385,9 +403,18 @@ func (s *Server) handlePasskeyFinish(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/password", http.StatusSeeOther)
 		return
 	}
-	// One-shot either way: a failed ceremony does not leave a challenge behind
-	// for a second, unrelated attempt to be checked against.
+	// One-shot on the server, not only in the browser. The clear below tells a
+	// browser to drop the cookie; spendChallenge is what stops the same
+	// challenge being presented again by somebody who kept their own copy of
+	// it. Both run whether the ceremony goes on to verify or not — a failed
+	// attempt consumes the challenge too, so it cannot be checked a second
+	// time against an unrelated one.
 	s.clearPasskeyChallenge(w, r)
+	if !spendChallenge(sd.Challenge, passkeyPendingLifetime*time.Second) {
+		s.setFlash(w, r, "passkey_setup_expired")
+		http.Redirect(w, r, "/password", http.StatusSeeOther)
+		return
+	}
 
 	// Required, not defaulted: the brief's own justification for allowing more
 	// than one passkey is that "the one I lost" has to be findable, and a
@@ -613,11 +640,16 @@ func (s *Server) handleLoginPasskeyFinish(w http.ResponseWriter, r *http.Request
 	}
 
 	sd, ok := s.readLoginPasskeyChallenge(r)
-	// One-shot either way, same as clearPasskeyChallenge's own reasoning for
-	// enrolment: a challenge that failed to verify must not be checked again
-	// against a second, unrelated attempt.
+	// One-shot on the server, not only in the browser — the same pairing
+	// handlePasskeyFinish uses for enrolment, and here it is load-bearing
+	// rather than tidy. The clone check below is no fallback: go-webauthn's
+	// UpdateCounter exempts an authenticator that reports a zero counter, which
+	// is what platform passkeys report on every assertion, so a captured
+	// response replayed with its cookies verifies and CloneWarning stays false.
+	// spendChallenge is checked before ValidateLogin for that reason, and a
+	// failed attempt consumes the challenge just as a verified one does.
 	s.clearLoginPasskeyChallenge(w, r)
-	if !ok {
+	if !ok || !spendChallenge(sd.Challenge, loginPasskeyPendingLifetime*time.Second) {
 		s.failVerifyAttempt(w, r, p, shared.Ev2FAFailed)
 		return
 	}
