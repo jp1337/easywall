@@ -50,6 +50,16 @@ source. See `TestTheTechnicalDocsAreNotPublished`.
 Found while making a second factor mandatory. Nothing here is a defect the
 release caused — those were fixed in it.
 
+## Found in `invariants.md` itself, and older than this branch
+
+Noticed while adding this release's guards. Both are proven against `fbac69f`;
+the third was a plain error and is fixed rather than carried.
+
+| | |
+|---|---|
+| **Six rows lose their incident text to the renderer** | The table whose header is `\| Test \| Protects \|` declares two columns, and its last six rows (`TestTheSearchOverridesAreOutsideTheCascadeLayer` through `TestScreenshotsGrowTheWindowInsteadOfCapturingBeyondIt`) carry a third cell. Markdown drops it. The dropped column is the *incident* — the reason this file exists — so six entries read as a bare assertion in the rendered view while the source still holds the story. Identical at `fbac69f`, where the same six rows already had the extra cell. Closing it is an editorial decision, not an edit: either the table becomes three columns like the sections below it, or six incidents are folded into the Protects cell. Whoever picks it up should read the source, not the render, or they will think the text is missing |
+| **`TestRulesIsEmptyCountsEveryField` is listed twice** | Once in *The rules say what they mean*, where it belongs, and once at the end of the colour section, where it has nothing to do with colour. Both rows at `fbac69f`. Deleting one means deciding which, and the colour-section copy may be there because somebody wanted it beside a neighbour — so it is a judgement, not a duplicate to sweep |
+
 ## Decided in this pass, so it is not rediscovered
 
 - **`/system` gets no screenshot, so ACME has no figure.** The implementation
