@@ -51,9 +51,11 @@ deliberately cannot.
 
 ## The health check
 
-The image carries a `HEALTHCHECK` that fetches `/healthz` every ten seconds.
-`docker-compose.yml` declares no block of its own and inherits it, so there is
-one definition and nothing to keep in step.
+The image carries a `HEALTHCHECK` that fetches `/healthz` every ten seconds, and
+`docker-compose.yml` carries the same check under `healthcheck:`. Since 2.19
+there are two definitions rather than one, because podman's default image
+format has no place to put the first — see [Podman](#podman) below. A test
+keeps them identical.
 
 ```bash
 docker compose ps                     # healthy / unhealthy
@@ -76,16 +78,21 @@ Two consequences worth knowing before you meet them:
 
 ## Podman
 
-Two flags and nothing else, but the first one is not optional:
+**`podman compose up -d` needs nothing extra.** `docker-compose.yml` declares its
+own `healthcheck:` block since 2.19, so the container gets one whether or not the
+image does.
+
+**A plain `podman build` + `podman run` still needs `--format docker`:**
 
 ```bash
 podman build --format docker -t easywall .
+podman run -d --network host --cap-add NET_ADMIN easywall
 ```
 
-**Without `--format docker` the image carries no health check and the build still
-succeeds.** OCI is podman's default image format and has no healthcheck field, so
-`podman build` exits `0` and leaves `HealthCheck: null`. `podman compose build`
-takes the same flag. Check what you got:
+**Without it, the image carries no health check and the build still succeeds.**
+OCI is podman's default image format and has no healthcheck field, so
+`podman build` exits `0` and leaves `HealthCheck: null`. A plain `podman run`
+has no compose file to fall back on here. Check what you got:
 
 ```bash
 podman image inspect --format '{% raw %}{{ .HealthCheck }}{% endraw %}' easywall
