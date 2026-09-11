@@ -243,7 +243,7 @@
   {"id": "audit_system_saved", "translation": "Systemeinstellungen gespeichert"},
   {"id": "audit_boot_enforced", "translation": "Regeln beim Start wiederhergestellt"},
   {"id": "audit_boot_not_configured", "translation": "Filtert nicht — noch nichts konfiguriert"},
-  {"id": "audit_boot_enforce_failed", "translation": "Regeln konnten nicht wiederhergestellt werden"},
+  {"id": "audit_boot_enforce_failed", "translation": "Regeln nicht wiederhergestellt"},
   {"id": "audit_panic_engaged", "translation": "Notfallmodus aktiviert"},
   {"id": "audit_panic_resumed", "translation": "Notfallmodus beendet"},
   {"id": "audit_apply_refused_panic", "translation": "Anwenden abgelehnt — Notfallmodus ist aktiv"},
