@@ -396,11 +396,19 @@ jobs:
       # could not tell those apart. So both are named, the budget covers the
       # install, and a container that has already exited is not waited out for
       # three minutes to be told what its logs said immediately.
+      # 360, not 180. The container installs systemd itself — 71 packages on
+      # amd64 — and the wait is for apt to finish, not for a daemon to settle.
+      # On 2026-09-11 that crossed three minutes and the step failed three
+      # times in a row on amd64 while arm64 finished the same work in 1m47s;
+      # the giveaway is in the failing log, where apt reports "71 newly
+      # installed" *after* the last "waiting (180s)" line. So the install was
+      # working the whole time and the budget was the only thing that ran out.
+      # A too-short wait here reads exactly like a broken package.
       - name: Assert systemd is actually running before installing anything
         run: |
           set -euo pipefail
           state=""
-          for i in $(seq 1 180); do
+          for i in $(seq 1 360); do
             if [ "$(docker inspect -f '{{.State.Running}}' easywall-test 2>/dev/null || echo false)" != "true" ]; then
               echo "::error::the container exited before systemd came up — the install inside it failed"
               docker logs easywall-test --tail 100 || true
