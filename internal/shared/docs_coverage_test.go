@@ -163,6 +163,29 @@ func TestTheTechnicalDocsAreNotPublished(t *testing.T) {
 	}
 }
 
+// TestTheMarkHasOneGeometry keeps the two copies of the mark identical.
+//
+// DESIGN.md calls web/static/icon.svg "the single source of geometry", and
+// docs/assets/img/icon.svg is a byte-identical copy of it — which quietly
+// contradicts that. Jekyll serves the site from docs/ and the application
+// serves its own assets from web/static/, so one file cannot be in both
+// places without a build step; a build step is a thing somebody has to
+// remember to run, and this is a thing that fails when they do not.
+//
+// Nothing had drifted when this was written. That is the argument for the
+// test, not against it: a mark that differs by two pixels between the
+// application and its documentation is exactly the defect nobody notices.
+func TestTheMarkHasOneGeometry(t *testing.T) {
+	app := repoFile(t, "web", "static", "icon.svg")
+	site := repoFile(t, "docs", "assets", "img", "icon.svg")
+	if app != site {
+		t.Errorf("web/static/icon.svg and docs/assets/img/icon.svg differ.\n"+
+			"  DESIGN.md calls the first the single source of geometry, so the second is "+
+			"a copy of it — update both, or the application and its documentation show "+
+			"two different marks.\n  app: %d bytes, site: %d bytes", len(app), len(site))
+	}
+}
+
 // AllCommandTypes is the root of three guards — it is what the dispatch test
 // iterates to verify handlers exist, and what the docs guard iterates to verify
 // documentation. If an entry is deleted from this list, all three guards stop

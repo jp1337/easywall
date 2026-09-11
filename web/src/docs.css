@@ -96,6 +96,18 @@
   --code-number:  #e5a54b;
   --code-builtin: #a2aab8;
   --code-error:   #f2555a;
+
+  /* Callout washes. Three semantic states, each a wash and an edge, and each
+     was a pair of rgba() literals in the rule itself until 2.19. The blue is
+     not an exception to "colour means state" — info *is* a state — but a
+     literal is invisible to every guard that greps for token names, which is
+     what TestNoRetiredHueSurvives exists to catch one palette later. */
+  --callout-info-wash:    rgba(56,189,248,0.08);
+  --callout-info-edge:    rgba(56,189,248,0.25);
+  --callout-warning-wash: rgba(245,158,11,0.08);
+  --callout-warning-edge: rgba(245,158,11,0.30);
+  --callout-success-wash: rgba(16,185,129,0.08);
+  --callout-success-edge: rgba(16,185,129,0.25);
 }
 
 [data-theme="easywall-light"] {
@@ -123,6 +135,13 @@
   --code-number:  #88590c;
   --code-builtin: #5a6270;
   --code-error:   #ba2832;
+
+  --callout-info-wash:    rgba(2,132,199,0.06);
+  --callout-info-edge:    rgba(2,132,199,0.30);
+  --callout-warning-wash: rgba(217,119,6,0.06);
+  --callout-warning-edge: rgba(217,119,6,0.30);
+  --callout-success-wash: rgba(5,150,105,0.06);
+  --callout-success-edge: rgba(5,150,105,0.30);
 }
 
 /* ── Body / Fonts ──────────────────────────────────────────────────────
@@ -534,10 +553,11 @@ html, body {
   [data-theme="easywall-light"] .icon-moon { display: block; }
   .theme-label { font-weight: 500; }
 
-  /* The edge was a hard-coded Aurora cyan, retired two palettes ago, with a
-     light-mode override that existed only to restate it in the other palette.
-     A version number is not a state; it is quiet metadata, and takes --border
-     in both themes with no override at all. */
+  /* The edge was a hard-coded rgba(34,211,238,…) — the Aurora cyan, retired
+     two palettes ago — with a light-mode override that existed only to
+     restate it in the other palette. A version number is not a state; it is
+     quiet metadata, and takes --border in both themes with no override at
+     all. */
   .sidebar-version {
     font-size: 0.7rem;
     font-family: var(--font-mono);
@@ -1034,8 +1054,9 @@ html, body {
   .docs-cta-credentials code {
     color: var(--text);
     background: var(--surface-2);
-    /* Was a hard-coded Aurora cyan, retired with that palette and left behind
-       here, so it was no longer related to either theme. */
+    /* Was a hard-coded rgba(34,211,238,…) — the Aurora cyan, retired with
+       that palette and left behind here, so it was no longer related to
+       either theme. */
     border: 1px solid var(--border);
     padding: 1px 6px;
     border-radius: 4px;
@@ -1111,38 +1132,20 @@ html, body {
   .callout-content code { font-size: 0.8rem; }
 
   .callout-info {
-    background: rgba(56,189,248,0.08);
-    border-color: rgba(56,189,248,0.25);
-    color: var(--code-builtin);
-  }
-
-  [data-theme="easywall-light"] .callout-info {
-    background: rgba(2,132,199,0.06);
-    border-color: rgba(2,132,199,0.30);
+    background: var(--callout-info-wash);
+    border-color: var(--callout-info-edge);
     color: var(--code-builtin);
   }
 
   .callout-warning {
-    background: rgba(245,158,11,0.08);
-    border-color: rgba(245,158,11,0.30);
-    color: var(--code-number);
-  }
-
-  [data-theme="easywall-light"] .callout-warning {
-    background: rgba(217,119,6,0.06);
-    border-color: rgba(217,119,6,0.30);
+    background: var(--callout-warning-wash);
+    border-color: var(--callout-warning-edge);
     color: var(--code-number);
   }
 
   .callout-success {
-    background: rgba(16,185,129,0.08);
-    border-color: rgba(16,185,129,0.25);
-    color: var(--code-string);
-  }
-
-  [data-theme="easywall-light"] .callout-success {
-    background: rgba(5,150,105,0.06);
-    border-color: rgba(5,150,105,0.30);
+    background: var(--callout-success-wash);
+    border-color: var(--callout-success-edge);
     color: var(--code-string);
   }
 
@@ -1706,6 +1709,17 @@ article.content-body mark.pagefind-highlight {
   padding: 1px 6px;
   border-radius: 4px;
   border: 1px solid var(--border);
+  /* break-word and not anywhere: a word breaks only when it cannot fit on a
+     line by itself. proxy_set_header is 16 characters and never breaks; a
+     56-character Go test name renders 462px at this size and cannot. The
+     carried entry measured that as a 92px overflow at a 390px viewport, on
+     the page that then carried the identifier; the identifier has since moved
+     to the generated changelog page, which is why the rule is written against
+     inline <code> generally rather than against a page. The entry rejected
+     overflow-wrap on the grounds that it would break every long identifier at
+     an arbitrary point — which is anywhere's behaviour and break-all's, not
+     this one's. */
+  overflow-wrap: break-word;
 }
 
 /* ── Code blocks ───────────────────────────────────────────────────────
@@ -1771,18 +1785,31 @@ article.content-body mark.pagefind-highlight {
   color: inherit;
   padding: 0;
   font-size: inherit;
+  /* A code block scrolls; it does not wrap. A broken command line is a command
+     somebody pastes wrong. */
+  overflow-wrap: normal;
 }
 
 /* Rouge syntax highlighting — minimal token theme */
 .highlight .c, .highlight .c1, .highlight .cm { color: var(--text-subtle); font-style: italic; }
-.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr { color: var(--code-keyword); font-weight: 500; }
-.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb { color: var(--code-string); }
+.highlight .k, .highlight .kd, .highlight .kn, .highlight .kp, .highlight .kr,
+.highlight .kc { color: var(--code-keyword); font-weight: 500; }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sb,
+.highlight .se, .highlight .si, .highlight .sh { color: var(--code-string); }
 .highlight .n, .highlight .nx, .highlight .nv { color: var(--text); }
 .highlight .nf, .highlight .nc { color: var(--code-keyword); }
-.highlight .nb, .highlight .bp { color: var(--code-builtin); }
-.highlight .o, .highlight .ow { color: var(--text-muted); }
+.highlight .nb, .highlight .bp, .highlight .no { color: var(--code-builtin); }
+.highlight .o, .highlight .ow, .highlight .p { color: var(--text-muted); }
 .highlight .mi, .highlight .mf, .highlight .il { color: var(--code-number); }
 .highlight .err { color: var(--code-error); }
+
+/* The name on the left of a configuration line: a TOML or YAML key (.nl, 64
+   occurrences), an nginx directive or YAML tag (.nt, 75), an attribute (.na).
+   All three were unstyled, so in the configuration reference a key rendered in
+   body-text colour beside a coloured value — the page disagreeing with its own
+   subject. One role, one token, and the same token a function name already
+   uses, because "the thing being named" is what they have in common. */
+.highlight .nl, .highlight .nt, .highlight .na { color: var(--code-keyword); }
 
 /* ── Copy buttons ─────────────────────────────────────────────────────
    Positioned against .highlighter-rouge, which is the element carrying the

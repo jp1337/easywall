@@ -1383,7 +1383,13 @@ why it could never sit on a light surface and why it dissolved into grey below a
 
 ### Where the colour comes from
 
-`web/static/icon.svg` is the single source of geometry. It is applied three ways:
+`web/static/icon.svg` is the source of the mark's geometry.
+`docs/assets/img/icon.svg` is a byte-identical copy, because Jekyll serves the
+site out of `docs/` and the application serves its own assets out of
+`web/static/`. `TestTheMarkHasOneGeometry` keeps the two identical, so the
+copy cannot drift into a second mark.
+
+`web/static/icon.svg` is applied three ways:
 
 | Context | Mechanism | Colour |
 |---|---|---|
@@ -1441,6 +1447,12 @@ application's `link` uses, for the same reason. `h1` takes the mono display voic
 documentation page announces itself the way an application page does. `h2` and `h3`
 inside an article stay Inter, because a long-form page set in mono headings throughout
 stops reading as prose and starts reading as a table.
+
+An inline `<code>` may break, and only when it cannot fit a line on its own:
+`overflow-wrap: break-word`. A code **block** never wraps — it scrolls. The
+distinction is that an identifier a reader retypes must not gain a line break
+they cannot see, and a 56-character Go test name must not push a phone-width
+page sideways.
 
 ## Do's and Don'ts
 
@@ -1501,9 +1513,9 @@ stops reading as prose and starts reading as a table.
   the baked raster favicon, the OG image and the documentation's copy stay `#0f7bab`.
   They already differed before 2.16, and re-rendering the raster set and the OG image was
   not in this release's scope.
-- **`.callout-info` on the documentation site still hard-codes a sky blue** —
-  `rgba(56,189,248,…)` in dark, `rgba(2,132,199,…)` in light. It is not a token and it
-  predates this release, so 2.16 neither introduced nor removed it. It is worth naming
-  because it is now the only blue left on the site: the closest surviving thing to the
-  accent that was just removed, sitting in the one place — an informational callout —
-  where this system says colour does not belong.
+- **`.callout-info`'s blue stays.** *Info* is a state, and *colour means state* does not
+  forbid a state from having a colour — so the callout set (info / warning / success)
+  keeps its blue, amber and green washes. What was wrong was that all three washes and
+  edges were literals rather than tokens: `--callout-info-wash` / `-edge`,
+  `--callout-warning-wash` / `-edge` and `--callout-success-wash` / `-edge`, declared
+  alongside the rest of the palette, now carry them.
