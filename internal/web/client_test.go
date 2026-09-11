@@ -576,3 +576,58 @@ func TestCoreClient_GetLog_SendError(t *testing.T) {
 		t.Error("expected error when socket doesn't exist")
 	}
 }
+
+// TestTheClientReportsAReplyThatIsNotItsPayload covers the gap between "the
+// core said no" and "the core said something else".
+//
+// !resp.Success is already covered at wire level. This is the other half: a
+// reply that parses as a frame and not as the payload — Success true, Data
+// valid JSON of the wrong shape. Each method must return an error naming what
+// it could not parse, because the caller's fallback depends on knowing the
+// difference between a core that refused and a core that answered nonsense.
+func TestTheClientReportsAReplyThatIsNotItsPayload(t *testing.T) {
+	tests := []struct {
+		name    string
+		cmd     shared.CommandType
+		call    func(*CoreClient) error
+		wantMsg string
+	}{
+		{
+			name:    "health",
+			cmd:     shared.CmdGetHealth,
+			call:    func(c *CoreClient) error { _, err := c.GetHealth(); return err },
+			wantMsg: "parse health",
+		},
+		{
+			name:    "usage",
+			cmd:     shared.CmdGetUsage,
+			call:    func(c *CoreClient) error { _, err := c.GetUsage(); return err },
+			wantMsg: "parse usage",
+		},
+		{
+			name:    "applied config",
+			cmd:     shared.CmdGetAppliedConfig,
+			call:    func(c *CoreClient) error { _, err := c.GetAppliedConfig(); return err },
+			wantMsg: "parse applied config",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := newFakeCore(t)
+			// Valid JSON, wrong shape: an array where a struct is expected.
+			fc.SetResponse(tc.cmd, shared.Response{
+				Success: true,
+				Data:    json.RawMessage(`["not", "an", "object"]`),
+			})
+			c := NewCoreClient(fc.socketPath)
+
+			err := tc.call(c)
+			if err == nil {
+				t.Fatal("a reply that is not the payload was accepted as one")
+			}
+			if !strings.Contains(err.Error(), tc.wantMsg) {
+				t.Errorf("the error does not say what could not be parsed: %v", err)
+			}
+		})
+	}
+}
