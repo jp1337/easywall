@@ -733,6 +733,19 @@ async function checkForwardingRowEdgesLineUp(page) {
  */
 async function checkPortsCatalogue(page) {
   await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+
+  // What is already there. A demo server that has been up across two
+  // invocations still holds run 1's rows, and asserting an absolute count then
+  // reported "picking Pi-hole added 4 TCP rows, expected 2" — which reads as a
+  // real regression and costs a bisect. CI never sees it: every run there
+  // starts a fresh easywall-web.
+  //
+  // Tolerated rather than reset. A check that deletes rules a maintainer was
+  // looking at is a bigger surprise than one that counts the difference.
+  const countPihole = () => page.$$eval('#rules-tbody tr[data-idx]',
+    trs => trs.filter(tr => tr.dataset.service === 'pihole').length);
+  const before = await countPihole();
+
   await page.click('#catalogue-btn');
   await page.click('.catalogue-item[data-service="pihole"]');
 
@@ -743,12 +756,24 @@ async function checkPortsCatalogue(page) {
       service: tr.dataset.service,
     })));
   const added = rows.filter(r => r.service === 'pihole');
-  if (added.length !== 2) {
-    fail('ports catalogue', `picking Pi-hole added ${added.length} TCP rows, expected 2 (80, 53)`);
+  if (added.length - before !== 2) {
+    fail('ports catalogue',
+      `picking Pi-hole added ${added.length - before} TCP rows, expected 2 (80, 53)` +
+      (before ? ` — ${before} were already there from an earlier run` : ''));
     return;
   }
-  if (!added[0].sources.includes('fc00::/7')) {
-    fail('ports catalogue', `the private suggestion did not reach the field: "${added[0].sources}"`);
+  // Measured, not assumed: the catalogue appends — web/static/app.js:255, :293
+  // and :442 all use tbody.appendChild — so this run's rows are the last two.
+  // Selected by their ports as well, because position alone would silently
+  // check an earlier run's row if that ever changes.
+  const fresh = added.slice(before);
+  const ports = fresh.map(r => r.port).sort();
+  if (ports.join(',') !== '53,80') {
+    fail('ports catalogue', `the two rows this run added are ports ${ports.join(', ')}, expected 53 and 80`);
+    return;
+  }
+  if (!fresh[0].sources.includes('fc00::/7')) {
+    fail('ports catalogue', `the private suggestion did not reach the field: "${fresh[0].sources}"`);
   }
 
   const payload = await page.$eval('#rules-json', el => el.value);
