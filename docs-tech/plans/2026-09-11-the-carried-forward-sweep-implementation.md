@@ -1334,7 +1334,10 @@ Add `strings` to the imports if it is not already there.
 // working firewall — the one inversion foldClaims forbids. A timeout stays
 // "blocked" because a dropping chain can produce nothing else; a refusal, an
 // unreachable network and an ICMP error are the harness, and they now say so.
-// See peerVerdict, which mirrors inboundCrosses' classification on this side.
+// See peerVerdict, which asks inboundCrosses' question on this side and gets
+// the opposite answer for a refusal: that side dials a namespace where nothing
+// listens, so a RST is evidence a packet crossed; this side dials the router's
+// bound listener, so a RST means the harness never finished standing up.
 ```
 
 - [ ] **Step 5: Run everything and prove the mutation**
@@ -1798,6 +1801,28 @@ func TestARangeCollisionIsUnprovableAndNotAFailure(t *testing.T) {
 	// the sentinel's errors.Is behaviour and the prover gains its own case.
 }
 ```
+
+- [ ] **Step 4a: Mutate, and watch the guard go red**
+
+The other tasks in this plan name their mutation; this one did not, which was an
+omission rather than a judgement. Two are worth running:
+
+```bash
+# 1. The check stops finding anything
+sed -i 's|^	harnessNet := netip.PrefixFrom|	return "", nil // MUTATION\n	harnessNet := netip.PrefixFrom|' internal/core/netns.go
+go test ./internal/core/ -run TestHarnessCollisionNamesWhatItFound 2>&1 | tail -5
+# Expected: FAIL on both colliding subtests — "a collision was not reported"
+git checkout HEAD -- internal/core/netns.go   # safe: Task 8 and Task 10 are already committed
+
+# 2. ewst-r stops being exempt, which would break the case wire()'s deletion exists for
+sed -i 's|^		if iface.Name == harnessRouterIf {|		if false { // MUTATION|' internal/core/netns.go
+go test ./internal/core/ -run TestHarnessCollisionNamesWhatItFound 2>&1 | tail -5
+# Expected: FAIL on "the harness's own router end is not a collision"
+git checkout HEAD -- internal/core/netns.go
+```
+
+Neither `sed` appends a comment to a statement that continues on the same line —
+see the two in this plan that did, and did not build.
 
 - [ ] **Step 5: Run everything**
 
