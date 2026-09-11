@@ -650,7 +650,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		return
 	}
 
-	sess, _ := s.store.Get(r, SessionName)
+	// sessionForWrite, not store.Get: this saves the session when it clears a
+	// flash, and that save re-signs the cookie. See its own comment.
+	sess := s.sessionForWrite(r)
 	flash, _ := sess.Values["flash"].(string)
 	flashN, _ := sess.Values["flash_n"].(int)
 	if flash != "" {
@@ -795,14 +797,14 @@ func (s *Server) renderPartial(w http.ResponseWriter, r *http.Request, name stri
 
 // setFlash stores a one-time flash message in the session.
 func (s *Server) setFlash(w http.ResponseWriter, r *http.Request, msg string) {
-	sess, _ := s.store.Get(r, SessionName)
+	sess := s.sessionForWrite(r)
 	sess.Values["flash"] = msg
 	_ = sess.Save(r, w)
 }
 
 // setFlashN is setFlash with the one number a flash may carry.
 func (s *Server) setFlashN(w http.ResponseWriter, r *http.Request, msg string, n int) {
-	sess, _ := s.store.Get(r, SessionName)
+	sess := s.sessionForWrite(r)
 	sess.Values["flash"] = msg
 	sess.Values["flash_n"] = n
 	_ = sess.Save(r, w)
