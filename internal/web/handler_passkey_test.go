@@ -827,6 +827,12 @@ func TestTheSixteenthPasskeyAttemptDoesNotGetThrough(t *testing.T) {
 // good for another try). This is the test that actually observes p.Attempts
 // move — TestTheSixteenthPasskeyAttemptDoesNotGetThrough's own comment
 // explains why counting outer rounds cannot.
+//
+// The cookie the password step issued is presented unchanged every round. It
+// used to be replaced with whatever the response carried, which modelled a
+// cooperating browser and could not fail for an attacker; see
+// TestLoginVerify_ThreeWrongCodesEndTheAttempt and
+// TestPending_AFrozenCookieDoesNotBuyMoreAttempts.
 func TestThreePasskeyFailuresEndTheAttempt(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
@@ -846,9 +852,6 @@ func TestThreePasskeyFailuresEndTheAttempt(t *testing.T) {
 		}
 		if loc := rec.Header().Get("Location"); loc != want {
 			t.Fatalf("passkey failure %d redirected to %q, want %q", i, loc, want)
-		}
-		if c := rec.Result().Cookies(); len(c) > 0 {
-			cookies = c
 		}
 	}
 }
