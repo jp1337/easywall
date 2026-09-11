@@ -1,3 +1,51 @@
+easywall (2.18.0) unstable; urgency=medium
+
+  * Feat: a second factor is mandatory. An operator with none is sent to the
+    enrolment page after signing in, not refused at the login form, so an
+    upgrade locks nobody out. Demo mode is the one exemption. There is no
+    "remind me later", because the version of this with one is the version
+    nobody ever passes through.
+  * Feat: passkeys, as a second step and never a first. Several per account,
+    each named and dated, in passkeys.json under data_dir. Two conditions must
+    hold or the button is absent rather than broken: a registrable hostname in
+    [tls], and a certificate the browser trusts.
+  * Feat: ACME via Let's Encrypt, at the cost of no new dependency. HTTP-01
+    only. easywall never accepts a certificate authority's terms on the
+    operator's behalf, and never opens port 80 itself — it reads the rule set
+    and reports open, restricted, not covered, or unknown.
+  * Feat: a password needs twelve characters, a digit and a symbol. A symbol is
+    any rune that is neither letter nor digit, so a passphrase with a space
+    qualifies. Not configurable.
+  * Fix: an account whose only factor was a passkey was signed in by the
+    password alone. handleLoginPOST decided whether a second step existed by
+    reading the TOTP secret, which such an account does not have.
+  * Fix: the second-factor attempt budget was held in the client's own cookie,
+    so three attempts bound only a browser that sent back what the server gave
+    it. Measured at 200 guesses from one password round. It is now the
+    server's.
+  * Fix: signing out could be undone. Any save of a session re-signed its
+    cookie with a fresh timestamp, and three paths saved one they had not
+    authenticated, so a wrong password every nine minutes kept a revoked cookie
+    alive until the revocation record expired.
+  * Fix: an unreadable passkeys.json removed the mandate — a corrupt store read
+    as "no passkeys", and the password alone signed in. It now counts as a
+    factor, because the truth is unknown and the recovery codes still work.
+  * Fix: a passkey assertion could be replayed. The signature counter was no
+    backstop: go-webauthn exempts an authenticator reporting zero, which is
+    most platform passkeys.
+  * Fix: enrolling a passkey did not ask for the current password, the only
+    credential write on that page that did not.
+  * Fix: the documentation's last-resort recovery was wrong. Clearing
+    totp_secret and recovery_codes left an enrolled passkey standing as a
+    factor while destroying the eight codes. All five places now name
+    passkeys.json as the third thing to clear.
+  * Fix: an account whose only factor was a passkey could neither see how many
+    recovery codes remained nor mint new ones. They have their own card now —
+    they belong to the account, not to TOTP.
+  * Fix: the documentation landing page rendered as unstyled prose at full page
+    width for two releases. The guard read web/templates/ and app.js only.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Fri, 11 Sep 2026 14:03:00 +0200
 easywall (2.17.0) unstable; urgency=medium
 
   * Fix: all three conntrack masks are native-endian. For five releases the
