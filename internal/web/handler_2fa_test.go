@@ -194,6 +194,47 @@ func TestEnrol_ConfirmMintsNothingForASecondFactorWithNoCodesStored(t *testing.T
 	}
 }
 
+// TestTheWayOnwardDoesNotDependOnCodesBeingMinted asserts that JustGated is
+// observable on its own.
+//
+// The link used to live inside the recovery-codes card, so it rendered only
+// when codes were minted too. Two consequences: no test could see the flag by
+// itself — the sibling test above says so in its own comment — and an operator
+// whose gate opened without codes would have been left on this page with no
+// way forward.
+//
+// No handler produces that state today: both setters (handle2FAConfirm's
+// success path and handle2FAEnrolUnverified) mint codes in the same breath.
+// The template is therefore rendered directly, which is the honest way to
+// assert a state the handlers cannot currently reach and a future change can.
+func TestTheWayOnwardDoesNotDependOnCodesBeingMinted(t *testing.T) {
+	s := serverWithPassword(t)
+
+	page := s.passwordPage(nil, nil) // no setup, no codes
+	page.JustGated = true
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/password", nil)
+	s.render(rec, req, "password.html", "password", page)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("render answered %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "recovery-code") {
+		t.Fatal("the codes block rendered with no codes — the fixture is wrong, not the template")
+	}
+	// The arrow, not href="/dashboard": base.html:93 carries that link in the
+	// sidebar of every page, so asserting it would pass with or without the
+	// un-nesting — a test green for the wrong reason, in the task whose whole
+	// subject is a flag nothing can observe. &rarr; appears nowhere else on
+	// this page, which is why the sibling test uses it as its discriminator.
+	if !strings.Contains(body, "&rarr;") {
+		t.Error("the gate opened with no recovery codes and the page offers no way onward; " +
+			"JustGated is unobservable without Codes")
+	}
+}
+
 // The clock is the largest support risk and no security risk. A code that is
 // right but far out gets a diagnosis with a sign and a magnitude, and nothing is
 // stored.
