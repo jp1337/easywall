@@ -1383,7 +1383,13 @@ why it could never sit on a light surface and why it dissolved into grey below a
 
 ### Where the colour comes from
 
-`web/static/icon.svg` is the single source of geometry. It is applied three ways:
+`web/static/icon.svg` is the source of the mark's geometry.
+`docs/assets/img/icon.svg` is a byte-identical copy, because Jekyll serves the
+site out of `docs/` and the application serves its own assets out of
+`web/static/`. `TestTheMarkHasOneGeometry` keeps the two identical, so the
+copy cannot drift into a second mark.
+
+`web/static/icon.svg` is applied three ways:
 
 | Context | Mechanism | Colour |
 |---|---|---|
