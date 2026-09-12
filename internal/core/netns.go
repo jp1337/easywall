@@ -190,6 +190,10 @@ func peerRoute(ifaces []string) string {
 		paths = append(paths, "/proc/sys/net/ipv4/conf/"+name+"/proxy_arp")
 	}
 	for _, p := range paths {
+		// #nosec G306 -- every path here is a /proc/sys knob that already exists,
+		// and os.WriteFile applies a mode only when it creates a file. The kernel
+		// owns these and gives them 0644; the argument is never reached. Lowering
+		// it to satisfy a scanner would describe a file easywall does not create.
 		if err := os.WriteFile(p, []byte("1"), 0o644); err != nil {
 			return "failed " + strings.Join(strings.Fields(err.Error()), " ")
 		}
