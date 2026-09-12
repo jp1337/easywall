@@ -483,6 +483,10 @@ func (f *Firewall) apply(user string) error {
 	// nothing red under `go test ./internal/...`. What is covered is the
 	// function — TestAuditBuildFindings pins the entry, its detail and the
 	// omission when there is nothing to report.
+	//
+	// Closing the call site itself needs a finding to exist during a real
+	// apply, which needs a deliberately broken builder — a mutation, not a
+	// test that could live in this package. Left this way rather than chased.
 	auditBuildFindings(f.cfg.AuditLogPath(), f.nft.LastFindings(), user)
 
 	// The kernel has the rules; record the configuration that went in with them.
