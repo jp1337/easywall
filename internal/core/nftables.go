@@ -1022,8 +1022,13 @@ func IsReservedRuleID(id string) bool {
 // outbound connection.
 //
 // **Only the input chain's copy is tagged.** There are two callers: Apply adds
-// this to the input chain, and addForwardExceptions adds it to the forward
-// chain so a reply is not re-tested against the routed networks. Tagging both
+// this to the input chain, and buildForwardChain adds it at the top of the
+// forward chain — so that a reply is not re-tested against the routed networks,
+// and, since 2.19, so that nothing below it can deny one. A container's
+// outbound connection comes back with the bridge address as its *destination*
+// once conntrack has undone Docker's masquerade, which is exactly what
+// addForwardPortRules' deny matches; behind that deny, every container on the
+// host loses the network at the next apply. Tagging both
 // would put one id on two different rules, and a reader that summed them would
 // report input and forward traffic as one figure. RuleCounters filters to the
 // input chain and would not notice, but an id that is unique only because its

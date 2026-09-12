@@ -35,6 +35,37 @@ func TestFilteredPublishedPortsNeedsDockerEnabled(t *testing.T) {
 	}
 }
 
+// A value nothing recognises stops the daemon with the key and the two answers
+// named. It used to read as "open": FiltersPublishedPorts compares against one
+// constant, so "filter" — the word ipv6.mode takes, and the obvious thing to
+// type here — filtered nothing while the operator believed it did. This
+// release's own defect class, in this release's own key.
+//
+// The builder stays lenient, and TestDockerConfig_AnUnknownValueIsOpen holds
+// that: a typo must never *close* every published port on a host. Refusing here
+// closes nothing — it stops a daemon that has not started, or refuses a reload
+// and keeps the running configuration.
+func TestAnUnrecognisedPublishedPortsValueStopsTheDaemon(t *testing.T) {
+	cfg, err := LoadConfig(writeCoreConfig(t,
+		"[docker]\nenabled = true\npublished_ports = \"filter\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate accepted a published_ports value nothing recognises; the operator " +
+			"would believe filtering is on and nothing would say otherwise")
+	}
+	if !strings.Contains(err.Error(), "docker.published_ports") {
+		t.Errorf("the message does not name the key: %v", err)
+	}
+	for _, value := range []string{"open", "filtered"} {
+		if !strings.Contains(err.Error(), value) {
+			t.Errorf("the message does not offer %q: %v", value, err)
+		}
+	}
+}
+
 // And the two legitimate arrangements still start. The second is the one that
 // matters: "enabled, but no bridge detected yet" is a transient a container
 // host passes through on every boot, it is settled at apply rather than at

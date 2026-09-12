@@ -30,9 +30,16 @@ func TestDockerConfig_FilteredIsRead(t *testing.T) {
 	}
 }
 
-// Anything else is open, and says so once in the log rather than silently. A
-// typo that quietly filters nothing is the same class of lie as a rule that
-// reports itself enforced and is not.
+// Anything else is open *at the builder*, which is the last line of defence and
+// the safe direction: a typo must never close every published port on a host,
+// which would be 2.5.0 with a spelling mistake in front of it.
+//
+// It is no longer how such a value reaches the builder. Since 2.19 the core
+// config refuses an unrecognised published_ports by name — see
+// TestAnUnrecognisedPublishedPortsValueStopsTheDaemon — because a typo that
+// quietly filters nothing is the same class of lie as a rule that reports
+// itself enforced and is not. Refusing at validation closes nothing; it stops a
+// daemon that has not started. Both facts, one each side of the boundary.
 func TestDockerConfig_AnUnknownValueIsOpen(t *testing.T) {
 	var c DockerConfig
 	//nolint:misspell // the misspelling is the test: a typo must read as "open".

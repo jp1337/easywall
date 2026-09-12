@@ -204,6 +204,24 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	// A value nothing recognises is refused rather than read as "open".
+	// FiltersPublishedPorts compares against one constant, so
+	// published_ports = "filter" — the word ipv6.mode takes, and the obvious
+	// thing to type — filters nothing while the operator believes it does. This
+	// release's own defect class, in this release's own key.
+	//
+	// The leniency the builder keeps is about *rendering*: a typo must never
+	// close every published port on a host, which would be 2.5.0 with a spelling
+	// mistake in front of it. Refusing here closes nothing. It stops a daemon
+	// that has not started, or refuses a SIGHUP reload and keeps the running
+	// configuration — the safe direction both times.
+	switch c.Docker.PublishedPorts {
+	case "", shared.PublishedPortsOpen, shared.PublishedPortsFiltered:
+	default:
+		return fmt.Errorf("docker.published_ports must be %q or %q, got %q",
+			shared.PublishedPortsOpen, shared.PublishedPortsFiltered, c.Docker.PublishedPorts)
+	}
+
 	// Filtering published container ports on a host that manages no container
 	// networks is a contradiction, not a preference: with docker.enabled = false
 	// nothing detects a bridge, so the forward chain would be asked to filter
