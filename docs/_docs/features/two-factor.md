@@ -129,8 +129,11 @@ still asks for it:
 | `recovery_codes = []` | `web.toml` on the host |
 | delete `passkeys.json` | your `data_dir` — `/var/lib/easywall` unless you changed it |
 
-Restart `easywall-web`. The password alone signs you in again. There is no reset
-link: this interface sends no mail and reaches no outside service.
+Restart `easywall-web`. The password alone signs you in again — onto
+**Password → Second factor**, where you enrol a new one before the rest of the
+interface opens. Clearing all three is the way back in, not a way to run
+without a factor. There is no reset link: this interface sends no mail and
+reaches no outside service.
 
 Every step above — enrolling, signing in with a code, using a recovery code,
 issuing new ones, a wrong code, or a factor switched off — is recorded. See
