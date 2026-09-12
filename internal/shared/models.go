@@ -1,9 +1,6 @@
 package shared
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
 
 // PortScope is the chain a port rule is evaluated in.
 //
@@ -820,19 +817,6 @@ type FirewallStatus struct {
 	// confirmation" to an operator who had just ended it by hand — on the screen
 	// whose whole argument is that it says what is true.
 	AcceptanceReason string `json:"acceptance_reason"`
-}
-
-// MarshalJSON normalizes an explicit host scope to the empty string before
-// encoding. ScopeHost and "" are the same rule to FiltersHost/FiltersForwarded,
-// so a rule is never written back carrying the redundant explicit spelling —
-// omitempty then drops it exactly as it drops an untouched rule's scope.
-func (r PortRule) MarshalJSON() ([]byte, error) {
-	type alias PortRule
-	a := alias(r)
-	if a.Scope == ScopeHost {
-		a.Scope = ""
-	}
-	return json.Marshal(a)
 }
 
 // FiltersHost reports whether this rule belongs in the input chain.

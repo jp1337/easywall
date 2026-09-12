@@ -25,15 +25,27 @@ func TestPortRule_AnAbsentScopeIsAHostRule(t *testing.T) {
 	}
 }
 
-// omitempty, for the same reason ID has it: a file written before this release
-// stays byte-identical until something touches it.
-func TestPortRule_AHostScopeIsNotWrittenBack(t *testing.T) {
-	out, err := json.Marshal(PortRule{Port: "22", Description: "SSH", Scope: ScopeHost})
+// omitempty, for the same reason ID has it: a rules.json written before 2.19
+// has no scope key, and must come back out exactly as it went in until
+// something touches it. Asserted as a whole round trip rather than as one
+// field, because byte-identity of the file is the actual promise.
+//
+// An explicitly written "scope":"host" is kept as written. Normalising it away
+// would need a custom marshaller on the struct every rule flows through, to buy
+// a property nothing requires — and an operator's file is not ours to tidy.
+func TestPortRule_AnUntouchedRuleRoundTripsUnchanged(t *testing.T) {
+	const in = `{"port":"22","description":"SSH","ssh":true}`
+
+	var r PortRule
+	if err := json.Unmarshal([]byte(in), &r); err != nil {
+		t.Fatal(err)
+	}
+	out, err := json.Marshal(r)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(out) != `{"port":"22","description":"SSH","ssh":false}` {
-		t.Errorf("an explicit host scope was written back: %s", out)
+	if string(out) != in {
+		t.Errorf("a rule written before 2.19 did not survive a round trip:\n in: %s\nout: %s", in, out)
 	}
 }
 
