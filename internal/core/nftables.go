@@ -1472,24 +1472,41 @@ func (m *NftablesManager) addICMPFloodProtection(t *nftables.Table, c *nftables.
 	}, over)
 }
 
+// sshMeteredPorts is which ports the SSH limiter meters, and it is a question
+// about the input chain: addSSHBruteForce writes into it, so only a rule that
+// reaches it may name a port here.
+//
+// Scope was the gap. A rule with scope = "forwarded" and ssh = true never
+// reaches the input chain, so metering its port rate-limits a port the host
+// does not open — inert on its own. The fallback below is what makes it worse
+// than inert: one such rule fills the list, the list is no longer empty, and
+// the default protection on port 22 silently goes away. An operator flagging
+// SSH on a forwarded rule would lose brute-force protection on their real SSH
+// port, which is the opposite of what the flag asks for. FiltersHost is the
+// same question every other input-chain consumer of .TCP asks; this one was
+// missed.
+func sshMeteredPorts(rules shared.Rules) []string {
+	var ports []string
+	for _, rule := range rules.TCP {
+		if rule.SSH && rule.FiltersHost() {
+			ports = append(ports, rule.Port)
+		}
+	}
+
+	// Also protect port 22 by default if no explicit SSH rule exists
+	if len(ports) == 0 {
+		return []string{"22"}
+	}
+	return ports
+}
+
 func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain, rules shared.Rules, opts shared.FirewallOptions) {
 	limit := opts.SSHBruteForceConnectionLimit
 	if limit <= 0 {
 		limit = 5
 	}
 
-	// Find SSH ports from the TCP rules
-	var sshPorts []string
-	for _, rule := range rules.TCP {
-		if rule.SSH {
-			sshPorts = append(sshPorts, rule.Port)
-		}
-	}
-
-	// Also protect port 22 by default if no explicit SSH rule exists
-	if len(sshPorts) == 0 {
-		sshPorts = []string{"22"}
-	}
+	sshPorts := sshMeteredPorts(rules)
 
 	sshChain := m.conn.AddChain(&nftables.Chain{
 		Name:  "sshbrute",
