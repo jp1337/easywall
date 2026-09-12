@@ -171,6 +171,14 @@ npm run build:diagrams   # docs/assets/diagrams/     — one SVG per theme
 `npx @google/design.md lint DESIGN.md` validates the design system itself; some
 warnings are expected and are explained inside the file.
 
+**A word in an HTML comment can become a CSS rule.** Tailwind scans templates
+for class-like tokens and does not understand `<!-- -->`, so writing *"it has
+to be absolute"* in `password.html` compiles `.absolute` into
+`web/static/style.css`. The bytes are harmless; the diff is not — *generated
+assets are current* then fails on the **next** pull request, which did not
+write the comment. Rebuild and commit both stylesheets whenever you change a
+template comment, or keep utility-shaped words out of comments.
+
 ## Documentation
 
 There are two kinds, and they are kept apart on purpose.
