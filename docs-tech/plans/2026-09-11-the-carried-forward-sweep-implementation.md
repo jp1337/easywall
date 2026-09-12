@@ -1159,7 +1159,12 @@ func TestPeerVerdictNeverCallsAHarnessFaultAVerdict(t *testing.T) {
 		// where it is positive evidence: there, nothing listens in the peer
 		// namespace; here, the router's listener is bound, so a RST means the
 		// harness did not finish standing itself up.
-		{"a refusal against a bound listener is a harness fault", syscall.ECONNREFUSED, "failed"},
+		// CORRECTED 2026-09-12, after CI: this case shipped as "failed" and broke
+		// TestIntegration_HarnessCarriesAPacket, whose negative control dials a
+		// deliberately closed port and requires "blocked" — its own comment says
+		// "a port nobody is listening on has to come back blocked". A refusal is a
+		// verdict: the SYN reached a TCP stack and was answered. See commit cafcb1b.
+		{"a refusal against a bound listener is blocked, not a harness fault", syscall.ECONNREFUSED, "blocked"},
 		{"an unreachable network is the harness", syscall.ENETUNREACH, "failed"},
 		{"an unreachable host is the harness", syscall.EHOSTUNREACH, "failed"},
 		{"anything nobody thought of is the harness", errors.New("something else"), "failed"},
@@ -1344,7 +1349,10 @@ Add `strings` to the imports if it is not already there.
 // See peerVerdict, which asks inboundCrosses' question on this side and gets
 // the opposite answer for a refusal: that side dials a namespace where nothing
 // listens, so a RST is evidence a packet crossed; this side dials the router's
-// bound listener, so a RST means the harness never finished standing up.
+// bound listener, so a RST is the same evidence — a stack answered — and the
+// answer to Dial's question is "not open". CORRECTED 2026-09-12: this comment
+// shipped claiming a RST meant the harness never stood up, which broke the
+// harness's own negative control against a deliberately closed port.
 ```
 
 - [ ] **Step 5: Run everything and prove the mutation**
