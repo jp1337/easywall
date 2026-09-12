@@ -1193,13 +1193,23 @@ body {
     resize: vertical;
   }
 
-  /* .input-cell too, not only .input: the arrow is drawn inside the control's
-     own box, so without the reserved 28px it sits on top of the last characters
-     of a long option. The forwarding page's protocol select has carried the
-     same shape since 2.13 with only "tcp"/"udp" in it, which is short enough
-     that nothing showed. */
-  select.input,
-  select.input-cell { cursor: pointer; padding-right: 28px; }
+  /* .input keeps its 28px of padding-right; .input-cell deliberately does not,
+     and that difference is what 2.19's Scope column cost to learn.
+     The engine reserves room for the arrow beside the text on its own. Measured
+     by cloning the control with one option in it and width:auto — the width
+     Chromium itself says it needs — a select needs its option's text plus 38px:
+     22px of the engine's own and this stylesheet's 8px either side. Adding 28px
+     on top made the control want 20px more than its contents do, and the German
+     Scope option was exactly 8px short of that: "Weitergeleitet" needed 144px
+     in a 136px control and rendered as "Weitergeleite". Without it, 124px in
+     136, and the arrow does not touch the text — confirmed in a screenshot of
+     the control, because the arithmetic here had already been wrong twice and a
+     <select> truncates with no ellipsis, no wrap and no scrollbar to show it.
+     check:ui now measures this the same way; see checkNoSelectClipsItsOwnOption.
+     .input keeps the padding because it is the full-size field on the settings
+     pages, where 28px is a spacing choice and not a clipping one. */
+  select.input { cursor: pointer; padding-right: 28px; }
+  select.input-cell { cursor: pointer; }
 
   .field { display: flex; flex-direction: column; gap: 5px; }
 
@@ -3356,6 +3366,15 @@ body {
      and a filtered-out row would stay on screen. */
   .table-reflow tr[hidden] { display: none; }
 
+  /* overflow-wrap: anywhere, because German compounds do not break on their
+     own. Found by giving check:ui a German pass: /log at 390px rendered
+     "Netzwerkeinstellungen gespeichert" in a cell holding 62% of 358px, the
+     word did not wrap, and the table came out 382px inside a 360px wrap —
+     measured identical against the pre-branch stylesheet, so this is a defect
+     the new coverage found rather than one 2.19 caused. It is the card layout's
+     own premise: a row that is a block cannot ask for width the phone does not
+     have, and anywhere is the only value that breaks a word with no break
+     opportunity in it. */
   .table-reflow td {
     display: flex;
     align-items: center;
@@ -3365,6 +3384,7 @@ body {
     padding: 5px 12px;
     border-bottom: 0;
     text-align: left;
+    overflow-wrap: anywhere;
   }
 
   /* The column head travels with the value as its label. */
@@ -3405,6 +3425,13 @@ body {
      touch screen to reveal it — and a container this narrow is a phone or a
      squeezed card either way. */
   .table-reflow .row-action { opacity: 1; }
+
+  /* .log-action is a nowrap chip, which is right in a table row and wrong on a
+     phone: "Netzwerkeinstellungen gespeichert" is 33 characters, and a chip
+     that cannot wrap made the /log table 382px wide inside a 360px wrap at
+     390px — a container overflow, in German, on the page whose rows are
+     otherwise the simplest in the app. A two-line pill is the smaller cost. */
+  .table-reflow .log-action { white-space: normal; }
 }
 
 @media (max-width: 900px) {
