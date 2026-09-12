@@ -1,3 +1,30 @@
+easywall (2.19.0) unstable; urgency=medium
+
+  * Feat: a port rule can name traffic this host forwards to a container, not
+    only traffic addressed to it. A published container port is routed, not
+    received, so it crosses the forward chain and never input — on a measured
+    host that meant four of fourteen open ports reached easywall's rules. A
+    rule now carries a scope: host, forwarded, or both.
+  * Feat: [docker] published_ports, "open" by default and unchanged from 2.18.
+    Under "filtered" the forward chain gains the forwarded accepts and the deny
+    that gives them meaning, ordered before the CIDR exceptions — because a
+    rule rendered after them can never refuse anything.
+  * Feat: a forwarded rule's kernel counter is read. RuleCounters walked the
+    input chain alone, so such a rule reported "never used" for ever while
+    carrying a host's entire mail service.
+  * Fix: the SSH brute-force limiter metered ports from every rule regardless
+    of scope, and its empty-list fallback then suppressed the default port-22
+    protection. A forwarded SSH rule silently turned the limiter off.
+  * Fix: a forwarded accept naming no source carried no address-family test in
+    an inet table, so it matched forwarded IPv6 that 2.18's policy drop refused.
+  * Security: lodash-es is pinned above GHSA-r5fr-rjxr-66jc and
+    GHSA-f23m-r3pf-42rh, both of which arrived with mermaid 12. Build-time only;
+    no npm package reaches a shipped artefact.
+  * check:ui can now see a select truncating and reads German, which closed the
+    carried-forward entry about its English-only sweep.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Sat, 12 Sep 2026 18:30:00 +0200
+
 easywall (2.18.0) unstable; urgency=medium
 
   * Feat: a second factor is mandatory. An operator with none is sent to the

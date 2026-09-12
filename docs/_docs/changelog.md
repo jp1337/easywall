@@ -16,7 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
-  <a href="#Unreleased">Unreleased</a>
+  <a href="#2.19.0">2.19.0</a>
   <a href="#2.18.0">2.18.0</a>
   <a href="#2.17.0">2.17.0</a>
   <a href="#2.16.0">2.16.0</a>
@@ -67,8 +67,8 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="Unreleased" markdown="1">
-<summary><strong>Unreleased</strong> — What it passes on, it also filters</summary>
+<details open id="2.19.0" markdown="1">
+<summary><strong>2.19.0</strong> · 2026-09-12 — What it passes on, it also filters</summary>
 
 A published container port is routed to the container, not addressed to the
 host, so it crosses the `forward` chain and never `input`. On a measured host
@@ -143,7 +143,7 @@ nothing about it. A port rule can now name that traffic.
   this code ran is rendering the documentation diagrams. Those render
   byte-identically afterwards, which `check:diagrams` asserts by digest.
 
-[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.18.0...HEAD)
+[See the code changes between 2.18.0 and 2.19.0](https://github.com/jp1337/easywall/compare/v2.18.0...v2.19.0)
 
 </details>
 
