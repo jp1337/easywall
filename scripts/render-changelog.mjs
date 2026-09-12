@@ -152,7 +152,19 @@ function render(versions, compareLinks) {
   out.push('    var t = document.getElementById(location.hash.slice(1));');
   out.push('    if (t && t.tagName === \'DETAILS\') t.open = true;');
   out.push('  }');
-  out.push('  openTarget();');
+  // Not a bare openTarget() at parse time: this script is emitted above the
+  // version sections, so getElementById finds nothing then and the call
+  // silently does nothing. Measured 2026-09-12 — loading
+  // /docs/changelog/#2.15.0 left that section closed, while clicking the same
+  // link inside the page worked, because only the hashchange half ever ran.
+  // An arriving link is the case this exists for: default.html filters these
+  // headings out of the site contents precisely so nothing scrolls to
+  // something invisible.
+  out.push("  if (document.readyState === 'loading') {");
+  out.push("    addEventListener('DOMContentLoaded', openTarget);");
+  out.push('  } else {');
+  out.push('    openTarget();');
+  out.push('  }');
   out.push('  addEventListener(\'hashchange\', openTarget);');
   out.push('</script>');
   out.push('');
