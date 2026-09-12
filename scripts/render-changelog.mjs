@@ -140,13 +140,15 @@ function render(versions, compareLinks) {
   }
   out.push('</nav>');
   out.push('');
-  // Modern browsers open an ancestor <details> when navigating to a fragment
-  // inside it (HTML's "revealing algorithm"), which would make this script
-  // unnecessary on any browser that implements it — unverified here, no
-  // browser available in this environment. Kept anyway: it is three lines,
-  // idempotent on a browser that already does this natively, and the
-  // alternative on one that does not is exactly the "scrolls to something
-  // invisible" failure default.html's own TOC filter exists to avoid.
+  // HTML's "revealing algorithm" would make this script unnecessary on a
+  // browser that opens an ancestor <details> itself when navigating to a
+  // fragment inside it. Measured 2026-09-12 (commit 0f6f648), by rendering:
+  // it does not, in the browser tested — loading /docs/changelog/#2.15.0
+  // left that section closed, which is exactly the failure this script
+  // exists to prevent. Kept: it is three lines, idempotent on a browser that
+  // ever does open it natively, and the alternative on one that does not is
+  // the "scrolls to something invisible" failure default.html's own TOC
+  // filter exists to avoid.
   out.push('<script>');
   out.push('  function openTarget() {');
   out.push('    var t = document.getElementById(location.hash.slice(1));');
