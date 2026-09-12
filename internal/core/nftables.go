@@ -698,17 +698,9 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		dockerCIDRs = append(dockerCIDRs, docker.CustomNetworks...)
 	}
 
-	// What may cross the forward chain: the Docker networks, always — the
-	// coexistence above reaches no container otherwise, and that must not depend
-	// on a key nobody has set yet — plus whatever routing.networks names. Under
-	// "open" the policy already accepts and these rules would be dead weight.
-	if routing.Mode != shared.RoutingOpen {
-		forwardCIDRs := dockerCIDRs
-		if routing.Mode == shared.RoutingNetworks {
-			forwardCIDRs = append(append([]string(nil), dockerCIDRs...), routing.Networks...)
-		}
-		m.addForwardExceptions(table, forwardChain, forwardCIDRs)
-	}
+	// The whole forward chain, in one call, because its order is the correctness
+	// of 2.19 and nothing here can be unit-tested. See buildForwardChain.
+	m.buildForwardChain(table, forwardChain, state.Current, docker, routing, dockerCIDRs)
 
 	// Optional protection modules
 	if opts.PortScan {
@@ -1855,6 +1847,19 @@ var (
 // prints `ip daddr 172.17.0.2` rather than the same thing anded with
 // 255.255.255.255. An operator checking a firewall reads that output.
 func cidrMatch(entry string, pos addrPos) []expr.Any {
+	return cidrMatchOp(entry, pos, expr.CmpOpEq)
+}
+
+// cidrMatchNegated is cidrMatch inverted: an address *outside* the network.
+//
+// Only the address comparison flips. The family test in front of it stays an
+// equality — negating that would match every packet of the other family, which
+// in an inet table is half the traffic on the host.
+func cidrMatchNegated(entry string, pos addrPos) []expr.Any {
+	return cidrMatchOp(entry, pos, expr.CmpOpNeq)
+}
+
+func cidrMatchOp(entry string, pos addrPos, op expr.CmpOp) []expr.Any {
 	if shared.IsListComment(entry) {
 		return nil
 	}
@@ -1903,7 +1908,7 @@ func cidrMatch(entry string, pos addrPos) []expr.Any {
 			Xor:            make([]byte, length),
 		})
 	}
-	return append(exprs, &expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: addr})
+	return append(exprs, &expr.Cmp{Op: op, Register: 1, Data: addr})
 }
 
 // addForwardExceptions lets the Docker networks the operator has allowed cross
@@ -1937,10 +1942,33 @@ func cidrMatch(entry string, pos addrPos) []expr.Any {
 // routing.mode at its default, nothing is added and the chain still drops,
 // which is the correct default for a host that does not route.
 //
-// cidrs is the Docker networks plus, under routing.mode = "networks", the
-// networks named there. The two are deliberately one list: they are the same
-// statement — "this host routes for these" — arrived at by two routes.
-func (m *NftablesManager) addForwardExceptions(t *nftables.Table, c *nftables.Chain, cidrs []string) {
+// matches comes from forwardExceptionMatches, over the Docker networks plus,
+// under routing.mode = "networks", the networks named there. The two are
+// deliberately one list: they are the same statement — "this host routes for
+// these" — arrived at by two routes.
+//
+// The established accept that used to open this function is now added by
+// buildForwardChain, ahead of the default-deny 2.19 introduced. It has to
+// precede a rule that can say no, and this one can only say yes.
+func (m *NftablesManager) addForwardExceptions(t *nftables.Table, c *nftables.Chain, matches [][]expr.Any) {
+	for _, match := range matches {
+		m.adder.AddRule(&nftables.Rule{
+			Table: t,
+			Chain: c,
+			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictAccept}),
+		})
+	}
+}
+
+// forwardExceptionMatches builds the address tests addForwardExceptions turns
+// into accepts, and returns nothing for a list that names no usable network.
+//
+// It is separate from the adding because buildForwardChain has to know whether
+// anything will be added here before it adds the rule that comes first: with no
+// network allowed to cross, 2.18 put nothing at all in this chain, and an
+// established accept on its own would be a new rule on every host that does not
+// route.
+func forwardExceptionMatches(cidrs []string) [][]expr.Any {
 	var matches [][]expr.Any
 	for _, cidr := range cidrs {
 		for _, pos := range []addrPos{posSrcAddr, posDstAddr} {
@@ -1949,19 +1977,111 @@ func (m *NftablesManager) addForwardExceptions(t *nftables.Table, c *nftables.Ch
 			}
 		}
 	}
-	if len(matches) == 0 {
+	return matches
+}
+
+// buildForwardChain writes every rule in the forward chain, in the one order
+// that makes them mean anything.
+//
+// It exists as a function rather than as a run of calls inside Apply because the
+// order is the correctness of this release and Apply cannot be unit-tested — it
+// needs a netlink connection. TestForwardChain_PortRulesComeBeforeTheExceptions
+// drives this directly through the recording adder, and it is the only thing
+// standing between this release and the defect it was written to fix.
+//
+//	ct state established,related     accept   ← replies, before anything can deny one
+//	<forwarded port rules>           accept   ← only under published_ports = "filtered"
+//	dst in bridge, src not in bridge drop     ← likewise; the rule that gives them meaning
+//	<bridge / routing CIDR matches>  accept
+//	                                 policy drop
+//
+// With docker.published_ports at its default the middle two render nothing and
+// this is byte-for-byte the chain 2.18 built.
+func (m *NftablesManager) buildForwardChain(
+	t *nftables.Table, c *nftables.Chain, rules shared.Rules,
+	docker shared.DockerConfig, routing shared.RoutingConfig, dockerCIDRs []string,
+) {
+	// What may cross: the Docker networks, always — the coexistence above
+	// reaches no container otherwise, and that must not depend on a key nobody
+	// has set yet — plus whatever routing.networks names. Under "open" the
+	// policy already accepts and these would be dead weight.
+	var exceptions [][]expr.Any
+	if routing.Mode != shared.RoutingOpen {
+		forwardCIDRs := dockerCIDRs
+		if routing.Mode == shared.RoutingNetworks {
+			forwardCIDRs = append(append([]string(nil), dockerCIDRs...), routing.Networks...)
+		}
+		exceptions = forwardExceptionMatches(forwardCIDRs)
+	}
+
+	// A forwarded deny is not dead weight under "open": it is the only thing in
+	// this chain that says no, and dropping it because another key is set is
+	// exactly the silent no-op this release exists to end.
+	if !docker.FiltersPublishedPorts() && len(exceptions) == 0 {
 		return
 	}
 
-	// Return traffic first, so a reply is not re-tested against the networks:
-	// a connection out of a container to the internet comes back with neither
-	// address inside the bridge range once Docker has un-NATed it.
+	// Return traffic first, so a reply is not re-tested against the networks —
+	// and, since 2.19, so that nothing below can deny one. A container's
+	// outbound connection comes back with the bridge address as its
+	// *destination* once conntrack has undone Docker's masquerade, which is
+	// exactly what the deny below matches. Behind that deny, every container on
+	// the host loses the network at the next apply — and the acceptance window
+	// cannot see it, because SSH arrives on input.
 	m.addEstablishedAccept(t, c)
-	for _, match := range matches {
+	m.addForwardPortRules(t, c, rules, docker, dockerCIDRs)
+	m.addForwardExceptions(t, c, exceptions)
+}
+
+// addForwardPortRules renders the rules that let a named port reach a container,
+// and the deny that gives them meaning.
+//
+// It does nothing at all unless docker.published_ports is "filtered". That is
+// not a convenience: the deny below closes every published port that has no
+// forwarded rule, and arriving switched on would take every container host's
+// services off the network at its next apply — 2.5.0 with a different cause.
+//
+// ct state is deliberately not tested here. buildForwardChain adds the
+// established accept at the top of this chain, so anything reaching these rules
+// is new or invalid already, and a second state test would be a second place for
+// the two to disagree.
+func (m *NftablesManager) addForwardPortRules(
+	t *nftables.Table, c *nftables.Chain, rules shared.Rules,
+	docker shared.DockerConfig, cidrs []string,
+) {
+	if !docker.FiltersPublishedPorts() {
+		return
+	}
+
+	for _, proto := range []struct {
+		name  string
+		rules []shared.PortRule
+	}{{"tcp", rules.TCP}, {"udp", rules.UDP}} {
+		for _, rule := range proto.rules {
+			if !rule.FiltersForwarded() {
+				continue
+			}
+			for _, r := range portAcceptRules(t, c, proto.name, rule) {
+				m.adder.AddRule(r)
+			}
+		}
+	}
+
+	// The deny, once per bridge network, after the accepts and before the
+	// exceptions. A container's outbound traffic has its *source* in the bridge
+	// range and container-to-container has both ends inside, so neither matches;
+	// only traffic arriving from outside for a container address does, which is
+	// exactly a published port.
+	for _, cidr := range cidrs {
+		dst := cidrMatch(cidr, posDstAddr)
+		src := cidrMatchNegated(cidr, posSrcAddr)
+		if dst == nil || src == nil {
+			continue
+		}
+		exprs := append(append([]expr.Any(nil), dst...), src...)
 		m.adder.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictAccept}),
+			Table: t, Chain: c,
+			Exprs: append(exprs, &expr.Counter{}, &expr.Verdict{Kind: expr.VerdictDrop}),
 		})
 	}
 }
