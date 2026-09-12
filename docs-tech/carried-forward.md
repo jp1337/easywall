@@ -22,9 +22,10 @@ entry carries enough context to act on. Three of the entries' own premises
 did not survive measurement and are corrected above rather than quietly
 closed. Two proposed contract changes were declined with a measurement, which
 is also a ruling. **Forty-three closed, one opened:** the sweep itself found
-that `check:ui` never exercises the German interface, and a pre-existing
-overflow had gone unseen because of it — found by this work rather than made
-by it, which is exactly what the entry below is for. Pretending it does not
+that `check:ui`'s layout/overflow sweep runs in English only, and a
+pre-existing overflow had gone unseen because of it — found by this work
+rather than made by it, which is exactly what the entry below is for.
+Pretending it does not
 exist to leave the file at zero would be the dishonesty this sweep exists to
 end. See `docs-tech/specs/2026-09-11-the-carried-forward-sweep.md`.
 
@@ -67,7 +68,7 @@ neither caused by this work nor closable in it.
 
 | | |
 |---|---|
-| **`check:ui` never switches the interface to German, so a pre-existing overflow in it went unseen for releases** | Found while rendering the fix for `audit_boot_enforce_failed`'s own German label (below). Independent of it: `audit_settings_saved`'s existing, untouched German translation, *"Netzwerkeinstellungen gespeichert"*, alone measures **381px against a 360px `.table-wrap` at 390px — 21px over** — rendered against the real DOM, both themes, 2026-09-11. **The string is not the finding.** `npm run check:ui` drives 13 pages × 5 widths × 2 themes and zero languages: it never switches the interface to German, so a German-only overflow — this one, or any other still sitting behind it — has no path to failing red. That is why a 21px overflow in a label nobody touched survived every release since it was translated. Closing it needs `check:ui` to drive a language switch, which is new scope this sweep did not have |
+| **`check:ui`'s layout/overflow sweep runs in English only, so a German-only overflow has no path to failing red** | Found while rendering the fix for `audit_boot_enforce_failed`'s own German label (below). Independent of it: `audit_settings_saved`'s existing, untouched German translation, *"Netzwerkeinstellungen gespeichert"*, alone measures **381px against a 360px `.table-wrap` at 390px — 21px over** — rendered against the real DOM, both themes, 2026-09-11. **The string is not the finding.** `npm run check:ui` drives 13 pages × 5 widths × 2 themes for the layout/overflow sweep, and that sweep never switches the interface to German (a separate check does exercise `de`, but only its own POST/cookie behaviour, not the width sweep) — so a German-only overflow, this one or any other still sitting behind it, has no path to failing red. That is why a 21px overflow in a label nobody touched survived every release since it was translated. Closing it needs the layout sweep itself to run in German too, which is new scope this sweep did not have |
 
 ## The mutations that stayed green
 
