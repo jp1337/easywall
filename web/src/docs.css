@@ -18,6 +18,11 @@
 @import "tailwindcss" source(none);
 
 @source "../../docs/**/*.{html,md}";
+/* Not the changelog: it is generated from CHANGELOG.md, its prose may not be
+   edited to suit a scanner, and Tailwind reads class-like tokens out of
+   ordinary English. Measured — "a ring with no border change" in a changelog
+   entry compiled `.ring` and 1,650 bytes into the published stylesheet. */
+@source not "../../docs/_docs/changelog.md";
 
 /* Self-hosted, same subsets the application ships. Paths are relative to the
    compiled stylesheet at docs/assets/css/, so they survive the GitHub Pages
