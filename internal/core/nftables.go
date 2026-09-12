@@ -2173,6 +2173,7 @@ func (m *NftablesManager) addForwardPortRules(
 				continue
 			}
 			for _, r := range portAcceptRules(t, c, proto.name, rule) {
+				r.Exprs = forwardFamilyPin(r.Exprs)
 				m.adder.AddRule(r)
 			}
 		}
@@ -2199,6 +2200,33 @@ func (m *NftablesManager) addForwardPortRules(
 			Exprs: append(exprs, &expr.Counter{}, &expr.Verdict{Kind: expr.VerdictDrop}),
 		})
 	}
+}
+
+// forwardFamilyPin pins a forwarded port accept to IPv4 unless it already names
+// an address family.
+//
+// portAcceptRules builds a rule with no sources as `meta l4proto tcp dport N
+// accept` and no address test at all, which in an inet table is both families.
+// In the input chain that is right: ipv6.Mode has already had its say above it,
+// and an open port is open on the addresses the host answers to. In the forward
+// chain it is not. The deny this accept is paired with comes from
+// detectDockerBridges, which returns IPv4 CIDRs only, so an unpinned accept
+// opens the named port for forwarded *IPv6* to anything the host routes — far
+// past the containers the rule is about, and traffic 2.18's policy drop
+// refused. The deny cannot take it back: it is IPv4-only, and it sits below.
+//
+// A rule that already carries a family test got it from cidrMatch over a source
+// the operator named, and keeps it. Naming an address is naming a family.
+func forwardFamilyPin(exprs []expr.Any) []expr.Any {
+	if len(exprs) > 1 {
+		if meta, ok := exprs[0].(*expr.Meta); ok && meta.Key == expr.MetaKeyNFPROTO {
+			return exprs
+		}
+	}
+	return append([]expr.Any{
+		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+	}, exprs...)
 }
 
 func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, cidr string) {

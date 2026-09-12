@@ -30,7 +30,11 @@ nothing about it. A port rule can now name that traffic.
   and a `forwarded` port rule is what opens one. Without that deny the feature
   would be decoration: `addForwardExceptions` accepts any packet with a source
   *or* destination inside an allowed bridge CIDR, and after Docker's DNAT an
-  inbound packet to a published port already has one.
+  inbound packet to a published port already has one. A forwarded accept that
+  names no source is pinned to IPv4: the table is `inet`, so a rule testing only
+  a port matches both families, and the deny beside it is built from bridge
+  detection, which is IPv4-only. Unpinned it would open the port for forwarded
+  IPv6 to anything the host routes.
 - **The ports page says when a forwarded rule is inert.** A rule written for
   the forward chain while `published_ports` is `"open"` is never consulted, and
   a rule that enforces nothing must not look like one that does.

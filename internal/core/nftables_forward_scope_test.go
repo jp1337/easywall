@@ -7,6 +7,7 @@ import (
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"github.com/jp1337/easywall/internal/shared"
+	"golang.org/x/sys/unix"
 )
 
 // buildForward drives buildForwardChain through the recording adder and returns
@@ -416,4 +417,55 @@ func ruleTestsCtState(r *nftables.Rule) bool {
 		}
 	}
 	return false
+}
+
+// A forwarded accept with no sources must still name an address family.
+//
+// The table is inet, so a rule that tests only `meta l4proto` and a port
+// matches IPv4 and IPv6 alike. The deny it is paired with is built from
+// detectDockerBridges, which returns IPv4 CIDRs only — so an unpinned accept
+// opens the port for forwarded IPv6 to anything the host routes, well past the
+// containers the rule is about, with nothing below able to refuse it. 2.18's
+// policy drop refused exactly that traffic.
+//
+// A rule naming a source already carries the family test cidrMatch put there,
+// and must not carry a second one: `meta nfproto ipv4` twice in one line of
+// `nft list ruleset` is output an operator has to read past.
+func TestForwardChain_TheAcceptNamesAnAddressFamily(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		sources []string
+		want    byte
+	}{
+		{"from anywhere", nil, unix.NFPROTO_IPV4},
+		{"from a named IPv4 source", []string{"203.0.113.0/24"}, unix.NFPROTO_IPV4},
+		{"from a named IPv6 source", []string{"2001:db8::/32"}, unix.NFPROTO_IPV6},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
+				shared.Rules{TCP: []shared.PortRule{
+					{Port: "25", Scope: shared.ScopeForwarded, Sources: tc.sources},
+				}},
+				[]string{"172.17.0.0/16"})
+
+			accept := rules[indexOfDport(t, rules, 25)]
+			var families []byte
+			for i, e := range accept.Exprs {
+				meta, ok := e.(*expr.Meta)
+				if !ok || meta.Key != expr.MetaKeyNFPROTO {
+					continue
+				}
+				cmp, ok := accept.Exprs[i+1].(*expr.Cmp)
+				if !ok || len(cmp.Data) != 1 {
+					t.Fatalf("the family test is not followed by a one-byte comparison")
+				}
+				families = append(families, cmp.Data[0])
+			}
+			if len(families) != 1 || families[0] != tc.want {
+				t.Errorf("the accept tests nfproto %v, want exactly [%d] — an accept that "+
+					"names no family opens the port for forwarded IPv6 as well, and the "+
+					"deny beside it is IPv4-only", families, tc.want)
+			}
+		})
+	}
 }
