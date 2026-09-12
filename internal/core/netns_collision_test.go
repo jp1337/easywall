@@ -1,9 +1,8 @@
 package core
 
 import (
-	"errors"
-	"fmt"
 	"net"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -95,21 +94,66 @@ func TestHarnessCollisionNamesWhatItFound(t *testing.T) {
 	}
 }
 
-// TestARangeCollisionIsUnprovableAndNotAFailure pins the classification.
+// TestWireChecksCollisionBeforeDeletingTheOldLink pins Task 10's actual
+// deliverable: the host-collision check has to run, over live interfaces,
+// before wire() deletes anything.
 //
-// A sentinel nothing checks is a comment. This asserts the caller treats a
-// collision the way it treats an absent namespace: unprovable with a detail,
-// never a verdict about the firewall.
+// The test this replaced, TestARangeCollisionIsUnprovableAndNotAFailure,
+// asserted only that errors.Is(err, ErrHarnessRangeInUse) survives
+// fmt.Errorf's %w — a property of the standard library, not of this
+// package. Proven by mutation, twice: replacing the whole collision block in
+// wire() (the net.Interfaces() call, the harnessCollision call, and the
+// ErrHarnessRangeInUse return) with `_ = harnessCollision` left both
+// collision tests in this file green and the package building. The ordering
+// itself had no guard at all.
 //
-// foldClaims (selftest.go) does not switch on ErrNamespaceUnavailable
-// specifically — every error from a prover, wrapped or not, becomes
-// "unprovable" via a bare `err != nil` check. So ErrHarnessRangeInUse needs no
-// classification of its own; this test just pins that it survives wrapping,
-// which is what errors.Is(err, ErrNamespaceUnavailable) relies on elsewhere in
-// this file's own tests.
-func TestARangeCollisionIsUnprovableAndNotAFailure(t *testing.T) {
-	err := fmt.Errorf("%w: eth0 holds 10.77.9.40, inside the harness range 10.77.9.0/24", ErrHarnessRangeInUse)
-	if !errors.Is(err, ErrHarnessRangeInUse) {
-		t.Fatal("the sentinel does not survive wrapping")
+// Reads the source of Harness.wire and compares byte offsets, the same idiom
+// TestDaemonStart_SourceRestoresBeforeItListens (daemon_source_order_test.go)
+// uses for an order a runtime test cannot reach without a real network
+// namespace: net.Interfaces() has to run before harnessCollision reads its
+// result, and harnessCollision has to run before deleteLink removes the
+// leftover router link — an operator whose LAN already holds the harness
+// range must see "unprovable" before that host interface is touched, not
+// after.
+func TestWireChecksCollisionBeforeDeletingTheOldLink(t *testing.T) {
+	body := funcBody(t, coreSource(t, "netns.go"), "netns.go", "func (h *Harness) wire() error {")
+
+	interfaces := regexp.MustCompile(`net\.Interfaces\(\)`)
+	collision := regexp.MustCompile(`harnessCollision\(`)
+	del := regexp.MustCompile(`deleteLink\(local, harnessRouterIf\)`)
+
+	interfacesAt := interfaces.FindAllStringIndex(body, -1)
+	collisionAt := collision.FindAllStringIndex(body, -1)
+	delAt := del.FindAllStringIndex(body, -1)
+
+	// Nothing went unparsed. Any of these matching zero times means the call
+	// was renamed, moved out of wire, or wrapped in something this test
+	// cannot see — in which case the test has stopped guarding anything and
+	// has to say so rather than pass on an empty match.
+	if len(interfacesAt) != 1 {
+		t.Fatalf("want exactly one net.Interfaces() call in Harness.wire, found %d; "+
+			"this guard compares against a single call and cannot tell which one "+
+			"gathers the interfaces the collision check reads", len(interfacesAt))
+	}
+	if len(collisionAt) != 1 {
+		t.Fatalf("want exactly one harnessCollision( call in Harness.wire, found %d; "+
+			"the collision check was renamed, duplicated, or removed, and this guard "+
+			"no longer pins its position", len(collisionAt))
+	}
+	if len(delAt) != 1 {
+		t.Fatalf("want exactly one deleteLink(local, harnessRouterIf) call in Harness.wire, "+
+			"found %d; the leftover-link cleanup was renamed or moved, and this guard no "+
+			"longer pins the order against it", len(delAt))
+	}
+
+	if interfacesAt[0][0] > collisionAt[0][0] {
+		t.Error("Harness.wire calls harnessCollision before net.Interfaces() gathers what it " +
+			"reads; the check would run over stale or zero-value data")
+	}
+	if collisionAt[0][0] > delAt[0][0] {
+		t.Error("Harness.wire deletes the leftover router link before checking for a host " +
+			"collision. An operator whose LAN already holds the harness range would have " +
+			"that host interface deleted before the self-test ever reports anything, instead " +
+			"of failing \"unprovable\" first")
 	}
 }
