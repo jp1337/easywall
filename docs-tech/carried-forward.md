@@ -124,7 +124,7 @@ branch head.
 
 | | |
 |---|---|
-| ~~**Four `TestIntegration_Forward_*` tests skip in a container**~~ | **Closed 2026-09-11.** `EASYWALL_REQUIRE_FORWARD` makes the skip a failure where the precondition is supposed to hold, matching `EASYWALL_REQUIRE_SELFTEST` added for the same class in 2.17. CI cannot report a pass for four tests that never ran |
+| ~~**Four `TestIntegration_Forward_*` tests skip in a container**~~ | **Closed 2026-09-11.** `EASYWALL_REQUIRE_SELFTEST` makes the skip a failure where the precondition is supposed to hold — reused rather than given a variable of its own, so its scope now exceeds its name: it gates the four forward tests as well as the self-test provers it was named for. CI cannot report a pass for four tests that never ran |
 | ~~**`CoreClient.GetHealth`, `GetUsage` and `GetAppliedConfig` have no test for a *malformed* reply**~~ | **Closed 2026-09-11.** Three tests through `fakeCore`, a real Unix socket listener, cover the reply that parses as a frame and not as the payload — the half `!resp.Success` did not reach |
 
 ## Contract holes this release introduced, carried with a stated reason
