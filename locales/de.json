@@ -104,7 +104,7 @@
   {"id": "ports_last_used",  "translation": "Zuletzt benutzt"},
   {"id": "ports_scope",           "translation": "Geltungsbereich"},
   {"id": "ports_scope_host",      "translation": "Dieser Host"},
-  {"id": "ports_scope_forwarded", "translation": "An einen Container weitergeleitet"},
+  {"id": "ports_scope_forwarded", "translation": "Weitergeleitet"},
   {"id": "ports_scope_both",      "translation": "Beides"},
   {"id": "ports_scope_help",      "translation": "Wo die Regel geprüft wird. Ein veröffentlichter Container-Port kommt weitergeleitet an, nicht an diesen Host adressiert — eine Regel dafür braucht deshalb den weitergeleiteten Geltungsbereich."},
   {"id": "ports_scope_inactive",  "translation": "Weitergeleitete Regeln bewirken nichts, solange veröffentlichte Ports nicht gefiltert werden. Setze published_ports in easywall.toml."},

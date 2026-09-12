@@ -1806,24 +1806,44 @@ body {
      table-layout: auto redistributes this rather than honouring it literally,
      so the number was reached by measuring the rendered input, not by adding
      up padding on paper. */
-  /* UNMEASURED. Every other width in this block was reached by rendering the
-     column and reading it back, which is what DESIGN.md now requires; this one
-     was added without a browser and is arithmetic on paper — the thing the
-     comments above record being wrong three times. The number to beat is the
-     closed <select> showing its longest option in full: "An einen Container
-     weitergeleitet", 33 characters of 13px UI text (~200px) plus 8px of left
-     padding and the 28px the arrow is given below. 15rem/240px is that sum with
-     nothing spare. Measure it, in German, before trusting it.
+  /* 12rem, derived from a measurement of this column rather than from the
+     arithmetic that got it wrong once already.
 
-     Two numbers elsewhere in this file are sized against the ports table and
-     therefore move with this column, and neither has been re-measured either:
-     the @container (max-width: 940px) reflow threshold, which is "919px is the
-     minimum .table-wrap width that shows every field on /ports without
-     clipping" plus a 21px margin, and the @media (max-width: 1650px) rule that
-     drops the aside so .col-flex can still show the catalogue's longest
-     description. Whatever this column takes comes off .col-flex, so both
-     thresholds rise by roughly the rendered width of this one. */
-  .col-scope   { width: 15rem; }
+     The first version of this rule was 15rem and paper-only, and the render
+     found it clipping in *English*: at a 1920px viewport the declared 240px
+     rendered a 210px cell, a 178px select, and 142px of usable text after the
+     8px left padding and the 28px the arrow is given below — against 155px for
+     "Forwarded to a container" and 205px for "An einen Container
+     weitergeleitet", which rendered as "An einen Container" with no ellipsis to
+     say a word was missing. The select already filled its cell exactly, so the
+     only way to widen it was to take the width off the other six columns, and
+     both numbers that would have moved are measured ones (see below).
+
+     The labels were shortened instead: the column is *named* Scope, and the
+     aside card beside it carries the sentence. The longest option is now
+     "Weitergeleitet", 85px in the select's own font. Working back through the
+     same chain the render measured:
+
+         usable text = cell − 32 (cell padding) − 8 (left) − 28 (arrow)
+         cell        ≈ 0.875 × declared   (measured here, and the same ratio
+                                           .col-sources and .col-used show:
+                                           400→350, 160→140)
+
+     needing 85px of text means a cell of at least 153px, so at least 175px
+     declared. 12rem/192px renders ≈168px, ≈100px of usable text, ≈15px clear of
+     the longest option — headroom on purpose, because table-layout: auto
+     compresses a column below its declared width when the table is tight and a
+     <select> answers that by truncating silently. The ratio is an observation at
+     one viewport, not a law: confirm it at 1920 and again in the narrow band.
+
+     Two measured numbers elsewhere in this file are sized against the ports
+     table and move with this column, both in the direction this change helps:
+     the @container (max-width: 940px) reflow threshold ("919px is the minimum
+     .table-wrap width that shows every field on /ports without clipping" plus a
+     21px margin), and the @media (max-width: 1650px) rule that drops the aside
+     while .col-flex can still show the catalogue's longest description with 1px
+     to spare. Whatever this column takes comes off .col-flex. */
+  .col-scope   { width: 12rem; }
   .col-sources { width: 25rem; }
   /* The longest string lastUsed can produce, in either language, is not
      "vor 59 Minuten" (14 characters) as an earlier version of this comment
