@@ -92,8 +92,9 @@ func TestEstablishedRuleIsTaggedAndCounted(t *testing.T) {
 	}
 
 	// The forward chain gets the same rule and must not get the same id.
-	// addForwardExceptions adds it there so a reply is not re-tested against the
-	// routed networks, and one id on two rules is a figure that sums two chains
+	// buildForwardChain adds it at the top of that chain so a reply is neither
+	// re-tested against the routed networks nor caught by 2.19's deny, and one
+	// id on two rules is a figure that sums two chains
 	// under one name the moment anything reads counters more widely than
 	// RuleCounters does. Untagged is not an oversight — see addEstablishedAccept.
 	fwd := &recordingConn{}

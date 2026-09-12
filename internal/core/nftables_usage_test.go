@@ -94,22 +94,26 @@ func TestPortAcceptRules_TheCounterSitsAfterTheMatch(t *testing.T) {
 
 // This is a source-read guard, not a behavioural one: it proves that the
 // chain-name comparison inside RuleCounters is written against inputChainName
-// (the same constant every addPortAccept call site passes as inputChain), and
-// that RuleCounters' body mentions none of the other chain names. It cannot
-// prove RuleCounters actually reads only rules from the input chain at
-// runtime — grep sees source text, not behaviour, and a comparison could
-// still be wrong in a way no substring check catches. That proof is
-// behavioural and belongs to a real kernel: Task 17 points RuleCounters at
-// the forward chain and asserts the counters it reads are wrong, which is
-// the mutation this guard cannot perform on its own.
-func TestCollectionReadsTheInputChain(t *testing.T) {
+// and forwardChainName (the same constants addPortAccept and
+// addForwardPortRules's call sites use), and that RuleCounters' body mentions
+// none of the other chain names as a literal. It cannot prove RuleCounters
+// actually reads only rules from these two chains at runtime — grep sees
+// source text, not behaviour, and a comparison could still be wrong in a way
+// no substring check catches. That proof is behavioural and belongs to a real
+// kernel: the integration tests in nftables_counters_test.go point RuleCounters
+// at a rule that renders only in the forward chain and assert its counter is
+// read, which is the mutation this guard cannot perform on its own.
+func TestCollectionReadsInputAndForwardChains(t *testing.T) {
 	if inputChainName != "input" {
 		t.Fatalf("inputChainName = %q; the kernel's base input chain is called \"input\"", inputChainName)
+	}
+	if forwardChainName != "forward" {
+		t.Fatalf("forwardChainName = %q; the kernel's base forward chain is called \"forward\"", forwardChainName)
 	}
 
 	src := coreSource(t, "nftables.go")
 
-	// Every port rule goes into the chain the collector reads.
+	// Every host-scoped port rule goes into the chain the collector reads.
 	calls := indexesOf(src, "m.addPortAccept(")
 	if len(calls) != 2 {
 		t.Fatalf("found %d calls to m.addPortAccept, want 2 (tcp and udp); a third call site "+
@@ -124,21 +128,28 @@ func TestCollectionReadsTheInputChain(t *testing.T) {
 		}
 	}
 
-	// And the collector's chain filter compares against that same constant.
-	// Asserting on the comparison expression itself, not merely on
-	// inputChainName appearing somewhere in the body — the constant also
-	// appears in the "read the %s chain" error message, so a body that
-	// compares against a drifted-away literal while still mentioning
-	// inputChainName in that error string would pass a bare-token check.
+	// And the collector's chain filter compares against both constants.
+	// Asserting on the comparison expressions themselves, not merely on the
+	// constants appearing somewhere in the body — inputChainName also appears
+	// in the doc comment and forwardChainName in the "read the %s chain" error
+	// path indirectly through ch.Name, so a body that compared against a
+	// drifted-away literal while still mentioning the constants elsewhere
+	// would pass a bare-token check.
 	body := funcBody(t, src, "nftables.go", "func (m *NftablesManager) RuleCounters(")
 	if !strings.Contains(body, "Name != inputChainName") {
 		t.Error("RuleCounters' chain filter does not compare against inputChainName; it is reading " +
 			"some other chain, or a literal of its own that could drift away from the one " +
 			"addPortAccept writes to")
 	}
+	if !strings.Contains(body, "Name != forwardChainName") {
+		t.Error("RuleCounters' chain filter does not compare against forwardChainName; a rule " +
+			"rendered only into the forward chain would never have its counter read")
+	}
 	for _, other := range []string{`"forward"`, `"output"`, `"prerouting"`, `"sshbrute"`} {
 		if strings.Contains(body, other) {
-			t.Errorf("RuleCounters mentions %s; the port counters live in the input chain alone", other)
+			t.Errorf("RuleCounters mentions the literal %s; chain names belong in "+
+				"inputChainName/forwardChainName so they cannot drift away from what "+
+				"the rule builders write to", other)
 		}
 	}
 }
