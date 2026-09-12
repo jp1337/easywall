@@ -58,7 +58,11 @@ which is the file GitHub and the release tooling read.
     var t = document.getElementById(location.hash.slice(1));
     if (t && t.tagName === 'DETAILS') t.open = true;
   }
-  openTarget();
+  if (document.readyState === 'loading') {
+    addEventListener('DOMContentLoaded', openTarget);
+  } else {
+    openTarget();
+  }
   addEventListener('hashchange', openTarget);
 </script>
 
