@@ -776,11 +776,28 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addWhitelistRule(table, inputChain, ip)
 	}
 
-	// Open TCP / UDP ports
+	// Open TCP / UDP ports.
+	//
+	// FiltersHost and FiltersForwarded are the two halves of one decision — a
+	// rule's scope says which chain or chains it belongs in, and this is the
+	// input chain's half of asking it. Skipping this the way
+	// addForwardPortRules already asks FiltersForwarded was the gap: without
+	// it, every rule reached the input chain regardless of scope, so a
+	// scope = "forwarded" rule meant for a container was also opened on the
+	// host directly — the opposite of what the operator asked for, and
+	// invisible in the diff because the forward chain still looked right. A
+	// rule reaching neither chain, or both when it asked for one, is a rule
+	// whose behaviour does not match what the interface shows for it.
 	for _, rule := range state.Current.TCP {
+		if !rule.FiltersHost() {
+			continue
+		}
 		m.addPortAccept(table, inputChain, "tcp", rule)
 	}
 	for _, rule := range state.Current.UDP {
+		if !rule.FiltersHost() {
+			continue
+		}
 		m.addPortAccept(table, inputChain, "udp", rule)
 	}
 
