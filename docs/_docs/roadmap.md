@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Seventeen releases, ordered by exposure — proof and comprehension first now the holes are closed, then maintenance, then reach.
+description: Eighteen releases, ordered by exposure — proof and comprehension first now the holes are closed, then maintenance, then reach.
 ---
 
 # Roadmap
@@ -18,31 +18,83 @@ understand what you are doing, then lets you maintain it, then reaches further:
 
 ```
 Prove it works           2.17  It proves what it says
+                         2.19  What it passes on, it also filters
 
 Prove who you are        2.18  A password alone is not enough
 
 Understand what you do   2.14  The window shows that it is running
-                          2.15  You can see it working
-                          2.19  When something happens, you hear about it
-                          2.20  What it counts can be asked for
+                         2.15  You can see it working
+                         2.20  When something happens, you hear about it
+                         2.21  What it counts can be asked for
 
-Be able to maintain it   2.21  Every entry has a why and an until
-                          2.22  Whoever knocks gets locked out
-                          2.23  Other people's lists, and countries
+Be able to maintain it   2.22  Every entry has a why and an until
+                         2.23  Whoever knocks gets locked out
+                         2.24  Other people's lists, and countries
 
-Reach further            2.24  One package, four formats
-                          2.25  Moving off the firewall already running
-                          2.26  Updates arrive on their own
-                          2.27  Every rule knows its interface
-                          2.28  Outbound traffic
-                          2.29  With a keyboard and with a screen reader
-                          2.30  Eight languages
-                          3.0   Reachable from outside
+Reach further            2.25  One package, four formats
+                         2.26  Moving off the firewall already running
+                         2.27  Updates arrive on their own
+                         2.28  Every rule knows its interface
+                         2.29  Outbound traffic
+                         2.30  With a keyboard and with a screen reader
+                         2.31  Eight languages
+                         3.0   Reachable from outside
 ```
 
 One theme per release, sayable in one sentence — the changelog heading then
 writes itself. A model change travels with the feature that justifies it, never
 earlier as an end in itself and never twice.
+
+> **Amended after 2.18.** One release was inserted and everything from the old
+> 2.19 down moved one place. **The numbers in the amendments below this one are
+> the numbers as they stood when each was written**; they are a record and are
+> not being rewritten. This table is the mapping:
+>
+> | was | is | | was | is |
+> |---|---|---|---|---|
+> | 2.19 | 2.20 | | 2.25 | 2.26 |
+> | 2.20 | 2.21 | | 2.26 | 2.27 |
+> | 2.21 | 2.22 | | 2.27 | 2.28 |
+> | 2.22 | 2.23 | | 2.28 | 2.29 |
+> | 2.23 | 2.24 | | 2.29 | 2.30 |
+> | 2.24 | 2.25 | | 2.30 | 2.31 |
+>
+> **3.0 keeps its number**, for the reason the 2.12 amendment gives.
+>
+> **2.19 — What it passes on, it also filters** joins the group 2.17 made, and
+> takes the head of the list. The ordering principle is exposure, and this is the
+> widest gap the list has carried since the conntrack defect. Docker publishes a
+> port by writing a DNAT rule. The packet is then *routed* rather than *received*,
+> and the input chain never sees it — which is where every port rule and every
+> custom rule lands. On a host whose services are containers, easywall filters
+> what is addressed to the host and nothing else.
+>
+> It was found by measuring a host rather than by reading the code. Of the
+> fourteen ports one real server's cloud firewall allows, **four** reach easywall's
+> input chain; the other ten belong to `dockerd`. `features/docker.md` has always
+> said so. Its option 1 puts inbound to published ports in Docker's hands, and
+> option 2 was measured and found to cost the masquerade easywall cannot supply.
+> The documentation is honest; the interface is not. And the interface is what an
+> operator reads before deciding what else they can switch off. That is 2.17's
+> defect class, pointed at a whole direction of traffic.
+>
+> **Not folded into 2.28 — *Every rule knows its interface*.** That entry adds a
+> dimension to the rule model; this one adds a *hook*. They meet there, and would
+> be tempting to take together. Taking them together puts the release that closes
+> a hole behind the release that adds an axis.
+>
+> **The IPv4-only bridge detection travels with it.** `internal/core/docker.go`
+> collects bridge CIDRs from IPv4 addresses alone and says so in its own comment.
+> The table it writes into is `inet`, so the forward chain's drop reaches IPv6
+> that the exemption does not. Today a Docker network with IPv6 has to be named
+> in `custom_networks` by hand. The release that teaches that chain to filter is
+> the release that meets this.
+>
+> **One stale cross-reference is corrected rather than carried.** The row for
+> *Updates arrive on their own* read "After 2.22". That number has meant *Whoever
+> knocks gets locked out* for two renumberings, and the sentence is about the
+> packaging release. It now reads 2.25. Corrected in the table because the table
+> is the live document; the amendments keep their own numbers, as ever.
 
 > **Amended after 2.17.** One release was inserted at the head, one was deleted
 > from the middle, and one lost a clause. **The numbers in the amendments below
@@ -171,18 +223,19 @@ earlier as an end in itself and never twice.
 | **2.15** | **You can see it working** — every rule carries a kernel counter and a date, kept across applies | An open port nobody uses is the most common avoidable exposure on a hobby server, and nobody finds it because nobody goes looking |
 | **2.17** | **It proves what it says** — a health check for Docker, systemd and monitoring, and a proof that convicts a rule which enforces nothing | For five releases `ct state established,related accept` matched no packet, the invalid-packet drop and the SSH meter reported themselves enabled and enforced nothing, and every surface said the firewall was active. It was found because an operator's VPS went unreachable and they pasted the ruleset into Discord. This is the machinery that would have caught it, at three depths, and the health check the project has never had |
 | **2.18** | **A password alone is not enough** — a second factor becomes a precondition for using the interface, with passkeys as the stronger one and ACME so a browser will accept them | The factor has existed since 2.8 as a checkbox, and `handleFirstRunSkip` existed so it can be declined. Making it mandatory is only defensible if the good version is available, and two things stood in the way of that: WebAuthn rejects a bare IP as its Relying Party ID, and since Chrome 110 it also refuses any origin with a certificate error — which is every default easywall installation. ACME removes the second. The demo is the one exemption |
-| **2.19** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
-| **2.20** | **What it counts can be asked for** — a metrics endpoint | The kernel counters have existed since 2.15 and live only in the interface, so an operator with Grafana cannot see the thing the release was for. Its own entry rather than folded into 2.19, because a scrape format is a second public interface with a compatibility promise — the reasoning that makes 3.0 a major |
-| **2.21** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
-| **2.22** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |
-| **2.23** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
-| **2.24** | **One package, four formats** — `.deb`, `.rpm`, Arch and Alpine from one description, with `debian/` replaced by an nfpm manifest rather than joined by one | `requirements.md` says of Arch, Fedora and openSUSE that they *should work but are not in CI*: they get a tarball and write the service units themselves. `release.yml` refuses a second packaging definition in as many words — *two definitions of one artefact is how a package comes to contain no binaries* — and only a replacement honours that. The nine paths with their owners and modes are declared once and **proven by four install-verify jobs, not asserted**. Alpine is taken deliberately, knowing it means OpenRC and therefore a second init class to keep tested |
-| **2.25** | **Moving off the firewall already running** — read `nft list ruleset` and ufw's rules, and offer them as a staged set | The only entry on this list that removes an *adoption* barrier rather than adding a feature. Whoever already has a firewall copies it out by hand today. After the packaging, because an operator installs first and migrates second |
-| **2.26** | **Updates arrive on their own** — a signed APT and RPM repository, so `apt upgrade` and `dnf upgrade` find easywall | The documented install is `wget` and `dpkg -i`, so an operator learns about 2.16 only because the interface says so and installs it by hand. After 2.22, because a repository serves finished packages and not the other way round. It is also this project's first promise that means **operation** rather than code: a signing key to keep for years, and a URL that must not move |
-| **2.27** | **Every rule knows its interface** — a rule can name the interface it applies to | The ports page says of itself that every rule *applies to all interfaces*, so a host with a LAN and an uplink cannot express what it means. Before outbound rather than with it: `oifname` is the same dimension, and the rule model should gain it once and be used twice |
-| **2.28** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
-| **2.29** | **With a keyboard and with a screen reader** — one audited pass over every template | `aria-live` appears exactly **once** in the whole interface and `prefers-reduced-motion` three times. Not a feature; catching up, the way 2.16 was. Before the eight languages on purpose — both passes touch every template, and doing this second means re-checking eight locales |
-| **2.30** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
+| **2.19** | **What it passes on, it also filters** — a port rule can name traffic this host forwards to a container, not only traffic addressed to the host | easywall has owned a `forward` chain at the forward hook since 2.5, and a drop there beats an accept another table has already made — the mechanism is not what is missing. The words for it are. The only two ways to open that chain, `allow_bridge_networks` and `routing.networks`, are whole-CIDR: neither can say *port 25 to the mail container, nothing else*, and custom rules cannot help because they are appended to `input`. On a host whose services **are** containers that leaves the dashboard reporting **Active** over the handful of rules it does enforce, while every published port is filtered by somebody else |
+| **2.20** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
+| **2.21** | **What it counts can be asked for** — a metrics endpoint | The kernel counters have existed since 2.15 and live only in the interface, so an operator with Grafana cannot see the thing the release was for. Its own entry rather than folded into 2.20, because a scrape format is a second public interface with a compatibility promise — the reasoning that makes 3.0 a major |
+| **2.22** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
+| **2.23** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |
+| **2.24** | **Other people's lists, and countries** — curated blocklists and country zones, each switched on individually, all off by default | The web process downloads, never the core. A feed is consulted after the whitelist, unlike your own blacklist — ten thousand entries from someone else's hand should not be able to lock you out of your own address |
+| **2.25** | **One package, four formats** — `.deb`, `.rpm`, Arch and Alpine from one description, with `debian/` replaced by an nfpm manifest rather than joined by one | `requirements.md` says of Arch, Fedora and openSUSE that they *should work but are not in CI*: they get a tarball and write the service units themselves. `release.yml` refuses a second packaging definition in as many words — *two definitions of one artefact is how a package comes to contain no binaries* — and only a replacement honours that. The nine paths with their owners and modes are declared once and **proven by four install-verify jobs, not asserted**. Alpine is taken deliberately, knowing it means OpenRC and therefore a second init class to keep tested |
+| **2.26** | **Moving off the firewall already running** — read `nft list ruleset` and ufw's rules, and offer them as a staged set | The only entry on this list that removes an *adoption* barrier rather than adding a feature. Whoever already has a firewall copies it out by hand today. After the packaging, because an operator installs first and migrates second |
+| **2.27** | **Updates arrive on their own** — a signed APT and RPM repository, so `apt upgrade` and `dnf upgrade` find easywall | The documented install is `wget` and `dpkg -i`, so an operator learns about 2.16 only because the interface says so and installs it by hand. After 2.25, because a repository serves finished packages and not the other way round. It is also this project's first promise that means **operation** rather than code: a signing key to keep for years, and a URL that must not move |
+| **2.28** | **Every rule knows its interface** — a rule can name the interface it applies to | The ports page says of itself that every rule *applies to all interfaces*, so a host with a LAN and an uplink cannot express what it means. Before outbound rather than with it: `oifname` is the same dimension, and the rule model should gain it once and be used twice |
+| **2.29** | **Outbound traffic** — what the server may send out becomes configurable, `open` (today's behaviour) or `allowlist` | The output chain has policy `ACCEPT` and not one rule today. Highest lockout risk on this list; gets its own acceptance-window round and its own veth proof |
+| **2.30** | **With a keyboard and with a screen reader** — one audited pass over every template | `aria-live` appears exactly **once** in the whole interface and `prefers-reduced-motion` three times. Not a feature; catching up, the way 2.16 was. Before the eight languages on purpose — both passes touch every template, and doing this second means re-checking eight locales |
+| **2.31** | **Eight languages** — Spanish, Portuguese (BR), Italian, Dutch, Polish, Russian, Chinese (Simplified), Japanese | One pass, once the string set is stable. No RTL: that is a design-system change, not a translation |
 | **3.0** | **Reachable from outside** — a REST API with token auth | A major version because an API is a second public interface and a compatibility promise easywall has not made before |
 
 ## Deliberately excluded
@@ -190,7 +243,7 @@ earlier as an end in itself and never twice.
 | | |
 |---|---|
 | SMTP notifications | Credentials in `web.toml`, foreign mail servers, deliverability — ntfy reaches the same phone without any of it |
-| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.22) |
+| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.23) |
 | Zones, on the firewalld model | easywall runs on hosts with one uplink; what zones would be for is covered by `routing.mode` |
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
