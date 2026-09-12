@@ -1813,6 +1813,13 @@ body {
      where that comment says it goes — to .col-flex — and it is what let the
      Scope column exist without the description losing room it had before. */
   .col-toggle  { width: 94px; max-width: 94px; white-space: normal; }
+  /* The override above never took: `.table th` is one class plus one type and
+     beats a bare `.col-toggle`, so the header stayed nowrap. Harmless while
+     the column was free to grow to its 122px max-content; the moment 2.19's
+     max-width pinned it at 94px the 90px string overflowed a 62px content box
+     and ran into the Scope header beside it — rendered, at 1700px, in the
+     screenshot this page ships. Specificity, not a second width. */
+  .table th.col-toggle { white-space: normal; }
   /* 25rem/400px so the catalogue's own default — "10.0.0.0/8, 172.16.0.0/12,
      192.168.0.0/16, fc00::/7", 307px of content — fits at 1600px without
      clipping fc00::/7, the range that exists so IPv6 does not lock anyone out.
