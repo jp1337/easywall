@@ -23,6 +23,10 @@ import (
 // coverage needs a real *nftables.Conn and lives under the integration tag
 // instead — see TestIntegration_ConcurrentApplyAndReset_TableStaysCoherent in
 // nftables_mutex_integration_test.go.
+//
+// `make test` therefore cannot notice `mu sync.Mutex` being deleted from the
+// struct — but that blindness is bounded rather than total: CI's
+// `test-integration` job does run the file above, on every pull request.
 func TestNftablesManager_ApplyDoesNotSelfDeadlock(t *testing.T) {
 	m := &NftablesManager{} // conn is nil
 

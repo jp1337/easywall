@@ -399,3 +399,48 @@ acme_agree_tos = true
 		t.Fatal("Start() did not return after Stop()")
 	}
 }
+
+// TestACMEManagerNeedsAHostname is the manager-level twin of
+// TestACMENeedsAHostname, which asserts the config refusal.
+//
+// Both halves are needed for the same reason TestACMEManagerRefusesWithoutAgreedTerms
+// gives for the terms: the config refuses to start, and this asserts the
+// manager would also refuse if it were ever built from a config that got past
+// that. An autocert.Manager with no HostPolicy answers any SNI by asking the CA
+// for a certificate for it.
+func TestACMEManagerNeedsAHostname(t *testing.T) {
+	cfg := validTestConfig(t)
+	cfg.TLS.ACME = true
+	cfg.TLS.ACMEAgreeTOS = true
+	cfg.TLS.Hostname = ""
+
+	if _, err := newACMEManager(cfg); err == nil {
+		t.Fatal("a manager was built with no hostname; autocert would answer any SNI")
+	}
+}
+
+// TestACMEManagerReportsTheOperatorsAgreement asserts Prompt returns true.
+//
+// It is one line in acme.go and it decides whether any certificate is ever
+// issued: autocert calls Prompt with the subscriber agreement's URL and
+// abandons the order if it returns false. A Prompt that returned false would
+// fail every issuance on every installation, and today only the integration
+// test — the one that cannot run without CAP_SYS_ADMIN — would notice.
+//
+// The reason it is written as a closure rather than autocert.AcceptTOS is in
+// newACMEManager's own comment: easywall reports the operator's agreement,
+// recorded in acme_agree_tos, rather than making it on their behalf.
+func TestACMEManagerReportsTheOperatorsAgreement(t *testing.T) {
+	cfg := acmeTestConfig(t)
+
+	m, err := newACMEManager(cfg)
+	if err != nil {
+		t.Fatalf("newACMEManager: %v", err)
+	}
+	if m.Prompt == nil {
+		t.Fatal("Prompt is nil; autocert refuses every order without one")
+	}
+	if !m.Prompt("https://letsencrypt.org/documents/LE-SA-v1.5-February-24-2025.pdf") {
+		t.Error("Prompt returned false — every certificate order on every installation fails")
+	}
+}

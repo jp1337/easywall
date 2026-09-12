@@ -63,6 +63,8 @@ func TestLogExprs_RateLimitDefaultsWhenUnset(t *testing.T) {
 		if lim == nil {
 			t.Fatalf("no limit expression for input %d", tc.given)
 		}
+		// #nosec G115 -- tc.want is one of this table's fixed literals (60 or
+		// 30); known at compile time and never negative.
 		if lim.Rate != uint64(tc.want) {
 			t.Errorf("limit for %d = %d, want %d", tc.given, lim.Rate, tc.want)
 		}

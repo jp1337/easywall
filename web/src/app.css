@@ -759,7 +759,7 @@ body {
   .page-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 
   /* ── Content grid: work column + context column ──────────────────────────
-     Most pages here carry few rows — eight ports, four forwards, eleven
+     Most pages here carry few rows — eight ports, four forwards, fourteen
      switches. Run that alone across a 1360px canvas and the columns stretch
      absurdly: rendering showed "SSH (admin)" in a 950px-wide cell. The width is
      not the problem; having nothing to put in it is. The aside carries the
@@ -787,19 +787,47 @@ body {
     .page-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
-  /* /ports only. Every page with an aside shares .page-grid/.aside-stack and
-     collapses at the shared 1570px above — moving that breakpoint would
-     relayout the dashboard, blacklist, custom rules and everything else that
-     has never needed it, for a problem that is specific to this one table's
-     own six-column budget. .page-grid-ports carries the same "two classes
-     beat one" idiom .table-reflow already uses on .table: it always wins the
-     cascade over the shared rule (0,0,2,0 beats 0,0,1,0), at every width, so
-     it needs no media query of its own to track if 1570 ever moves. Ports'
-     own aside (port syntax, SSH protection, sources) is worth having, but not
-     worth this table's row width — it collapses under the table
-     unconditionally rather than only below 1570px, the same as every other
-     page still does. */
-  .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
+  /* /ports only, and no longer unconditional.
+     The 2.15 decision was that ports' own aside (port syntax, SSH protection,
+     sources) is "worth having, but not worth this table's row width", and it
+     collapsed at every width. That reasoning was width-blind — it never asked
+     what happens above 1570px.
+     1650px below is MEASURED, against the running demo at 2026-09-12, and it
+     could not have been derived. Every fixed column here is only ever a hint
+     to table-layout: auto, which redistributes from rendered content rather
+     than honouring a declaration — measured at a 1920px viewport, .col-sources
+     renders 350px against a declared 25rem/400px and .col-used 140px against a
+     declared 10rem/160px, while .col-toggle and .col-actions each render a
+     little over theirs. The comments at :1790 and :1804 record the same effect
+     from the other side, and the shared 1570px breakpoint's own first estimate
+     (~1500px, two comments up) was wrong by sixty-odd pixels for exactly this
+     reason. An earlier version of this comment tried the sum anyway and got it
+     wrong twice over: three of the five columns, and this rule's own 16px gap
+     ignored.
+
+     What was measured: the width at which .col-flex can no longer show
+     "PostgreSQL — replication peer" — the longest description the catalogue
+     produces — on one line, with the 320px aside and its 16px gap present.
+     That string needs 205px inside the field. The field gets 206px at a
+     1650px viewport and 196px at 1640, so the handoff is 1650 exactly:
+
+         viewport   1920   1700   1660   1650   1640   1600
+         .col-flex   510    290    250    240    230    190
+         field has   476    256    216    206    196    156     (needs 205)
+         clipped      no     no     no     no    YES    YES
+
+     max-width is inclusive, which puts the collapse on the correct side of the
+     boundary: at 1650 and below the aside moves under the table and the
+     description has the full row; at 1651 and above it has 207px, which fits.
+     .page-grid-ports still carries the "two classes beat one" idiom
+     .table-reflow uses on .table (0,0,2,0 beats 0,0,1,0): inside this query
+     it wins the cascade only below the threshold, so above it the shared
+     .page-grid rule's own two-column layout applies uncontested — the double
+     class still matters, just now only within the query's range rather than
+     at every width. */
+  @media (max-width: 1650px) {
+    .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
+  }
 
   .page-grid > * { min-width: 0; }
 

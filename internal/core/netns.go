@@ -10,7 +10,9 @@ package core
 // interface, and a veth pair into a fresh namespace is the smallest thing that
 // arranges it.
 //
-// Everything here is netlink and pipes. The only program this file execs is
+// Everything here is netlink and pipes — plus one stdlib read of this host's
+// own interface list, in harnessCollision, which touches nothing privileged
+// and is why it is allowed. The only program this file execs is
 // /proc/self/exe, pinned by TestSelftestUsesNoExternalBinary, because the
 // alternative — unshare, nsenter, ip, ping, bash, timeout, which is what the
 // veth harness in nftables_forward_test.go uses — would put six external
@@ -25,6 +27,8 @@ package core
 //	parent -> child   "dial 10.77.9.1 12227 2000\n" address, port, milliseconds
 //	child -> parent   "open\n" | "blocked\n"        the verdict
 //	child -> parent   "unparsed\n"                  not a verdict; see below
+//	child -> parent   "failed <reason>\n"           not a verdict: the dial
+//	                                                could not be made at all
 //	parent -> child   (pipe closed)                 child exits
 //
 // "unparsed" exists because "I could not read your line" and "the firewall
@@ -33,6 +37,20 @@ package core
 // whose subject is not lying about the firewall's state cannot have a parse
 // failure spelling itself as a verdict. Dial's default branch turns it into an
 // error, which is what it is.
+//
+// "failed" exists for the same reason one layer down, and it is reachable.
+// Every dial error used to come back as "blocked", so a harness that broke
+// between a claim's control and its measurement recorded `failed` against a
+// working firewall — the one inversion foldClaims forbids. A timeout or a
+// refusal both stay "blocked": a dropping chain can produce nothing but a
+// timeout, and a refusal means a TCP stack answered the SYN and declined it —
+// both are the negative answer to "is the port open", not a harness fault. An
+// unreachable network and an ICMP error are the harness, and they now say so.
+// See peerVerdict, which asks inboundCrosses' question on this side and gets
+// the same answer for a refusal: that side dials a namespace where nothing
+// listens, so a RST is evidence a packet crossed; this side dials the
+// harness's own bound listener, so a RST is the same evidence — a stack
+// answered — and Dial reports it as "not open" rather than a fault.
 
 import (
 	"bufio"
@@ -45,6 +63,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -78,14 +97,67 @@ func RunPeer(stdin io.Reader, stdout io.Writer) int {
 		}
 		d := net.Dialer{Timeout: time.Duration(ms) * time.Millisecond}
 		conn, err := d.Dial("tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
-		if err != nil {
-			_, _ = fmt.Fprintln(stdout, "blocked")
-			continue
+		if err == nil {
+			_ = conn.Close()
 		}
-		_ = conn.Close()
-		_, _ = fmt.Fprintln(stdout, "open")
+		_, _ = fmt.Fprintln(stdout, peerVerdict(err))
 	}
 	return 0
+}
+
+// peerVerdict maps a dial error to the one word the parent reads.
+//
+// It answers the same question inboundCrosses asks on the other side of the
+// wire — "did the SYN reach a TCP stack and get an answer" — and ECONNREFUSED
+// answers yes on both sides. inboundCrosses dials a namespace where nothing
+// listens, so a RST there is positive evidence a packet crossed. This side
+// dials the harness's own bound listener, so a RST means the SYN reached that
+// stack and was refused — which is a verdict too, just the negative one
+// Dial's question ("is the port open") calls for. A refusal is therefore
+// `blocked`, the same word a dropping chain produces, because to Dial's
+// caller the two are indistinguishable: the port did not open.
+//
+// So: a timeout or a refusal is `blocked` — the two ways a dial can come back
+// negative without the harness having failed. Everything else — an
+// unreachable network, a bind failure, an ICMP error the kernel turned into
+// EHOSTUNREACH — is the harness, because none of those mean a stack answered.
+// Reporting any of them as a verdict lets a broken harness record `failed`
+// against a working firewall, which foldClaims' own doc comment forbids.
+//
+// The reason travels back so the parent can say what happened rather than
+// "not a verdict". It is flattened to one line because the pipe protocol is
+// one line each way, by design: a hung peer is then a read deadline rather
+// than a parser.
+func peerVerdict(err error) string {
+	if err == nil {
+		return "open"
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return "blocked"
+	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return "blocked"
+	}
+	return "failed " + strings.Join(strings.Fields(err.Error()), " ")
+}
+
+// interpretPeerLine turns the peer's line into a verdict or an error.
+//
+// Split out of Harness.Dial so both ends of the protocol are testable without
+// a namespace: the classification is the part that has been wrong, and it
+// needs no kernel to check.
+func interpretPeerLine(line string) (bool, error) {
+	switch {
+	case line == "open":
+		return true, nil
+	case line == "blocked":
+		return false, nil
+	case strings.HasPrefix(line, "failed "):
+		return false, fmt.Errorf("the peer could not dial: %s", strings.TrimPrefix(line, "failed "))
+	default:
+		return false, fmt.Errorf("the peer answered %q, which is not a verdict", line)
+	}
 }
 
 // ErrNamespaceUnavailable is the sentinel for "this host will not let us build
@@ -118,6 +190,65 @@ var (
 	harnessRouterAddr = netip.MustParseAddr("10.77.9.1")
 	harnessPeerAddr   = netip.MustParseAddr("10.77.9.2")
 )
+
+// ErrHarnessRangeInUse is the sentinel for "this host already uses what the
+// harness needs", which — like ErrNamespaceUnavailable — is a statement about
+// the host and not about the firewall.
+//
+// Callers report "unprovable" with the detail, never "failed". A self-test
+// that called an operator's own 10.77.9.0/24 LAN a broken firewall would be
+// the exact inversion this release's peer-side fix also closes.
+var ErrHarnessRangeInUse = errors.New("the self-test's address range or interface name is already in use on this host")
+
+// harnessCollision reports what on this host stands in the harness's way, or
+// "" when nothing does.
+//
+// Two things are checked and one deliberately is not:
+//
+//	the range   an interface other than ewst-r holding an address inside
+//	            10.77.9.0/24 — an operator whose LAN is that range
+//	ewst-p      a host interface with the peer's name, which would make
+//	            createVethPair fail EEXIST rather than ErrNamespaceUnavailable
+//	ewst-r      NOT checked. wire() deletes it unconditionally and must: a
+//	            previous run's router end outlives its own namespace by about
+//	            110 ms, and a check here would break the case that deletion
+//	            was written for. See wire's own comment.
+//
+// The interface list and the address accessor are parameters so this is
+// testable without touching the host.
+func harnessCollision(ifaces []net.Interface, addrsOf func(net.Interface) ([]net.Addr, error)) (string, error) {
+	harnessNet := netip.PrefixFrom(harnessRouterAddr, harnessPrefix).Masked()
+	for _, iface := range ifaces {
+		if iface.Name == harnessPeerIf {
+			return fmt.Sprintf("a host interface is already called %s", harnessPeerIf), nil
+		}
+		if iface.Name == harnessRouterIf {
+			continue
+		}
+		addrs, err := addrsOf(iface)
+		if err != nil {
+			// Not fatal: an interface that will not report its addresses is not
+			// evidence of a collision, and refusing the self-test over it would
+			// trade a false "unprovable" for a real measurement.
+			continue
+		}
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			ip, ok := netip.AddrFromSlice(ipnet.IP)
+			if !ok {
+				continue
+			}
+			if harnessNet.Contains(ip.Unmap()) {
+				return fmt.Sprintf("%s holds %s, inside the harness range %s",
+					iface.Name, ip.Unmap(), harnessNet), nil
+			}
+		}
+	}
+	return "", nil
+}
 
 // Harness is a peer process in its own network namespace, wired to this one by
 // a veth pair.
@@ -260,6 +391,24 @@ func (h *Harness) wire() error {
 	// Naming the links per-pid instead would not have been enough. The old
 	// router link still holds 10.77.9.1/24, and addAddress is Create|Excl too,
 	// so a uniquely named interface would simply collide one step later.
+
+	// Before anything is created: does this host already use what the harness
+	// needs? Nothing checked, and the failure was not a clean "unprovable" —
+	// createVethPair's EEXIST does not satisfy errors.Is(err,
+	// ErrNamespaceUnavailable), so an operator whose LAN is 10.77.9.0/24 was
+	// told the harness was broken. Measured before this check: the ordinary
+	// case was honest anyway, reporting unprovable with an accurate detail 2 of
+	// 2 runs against a live host table — so this hardens an honest path rather
+	// than fixing a dishonest one.
+	ifaces, err := net.Interfaces()
+	if err == nil { // a host that will not list its interfaces is not evidence of a collision
+		if hit, cerr := harnessCollision(ifaces, func(i net.Interface) ([]net.Addr, error) {
+			return i.Addrs()
+		}); cerr == nil && hit != "" {
+			return fmt.Errorf("%w: %s", ErrHarnessRangeInUse, hit)
+		}
+	}
+
 	if err := deleteLink(local, harnessRouterIf); err != nil {
 		return fmt.Errorf("clearing a leftover %s: %w", harnessRouterIf, err)
 	}
@@ -347,14 +496,7 @@ func (h *Harness) Dial(addr netip.Addr, port uint16, timeout time.Duration) (boo
 	if err != nil {
 		return false, fmt.Errorf("reading the peer's verdict: %w", err)
 	}
-	switch line {
-	case "open":
-		return true, nil
-	case "blocked":
-		return false, nil
-	default:
-		return false, fmt.Errorf("the peer answered %q, which is not a verdict", line)
-	}
+	return interpretPeerLine(line)
 }
 
 func (h *Harness) readLine(timeout time.Duration) (string, error) {

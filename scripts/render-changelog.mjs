@@ -81,8 +81,12 @@ const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&
 // the same rule that left a link rendering as literal brackets in a
 // <figcaption> at installation/first-run.md:89. Inline code is the one thing a
 // headline is likely to want, so it is converted here rather than forbidden.
+function versionLabel(v) {
+  return v.version === 'unreleased' ? 'Unreleased' : v.version;
+}
+
 function summary(v, text) {
-  const label = v.version === 'unreleased' ? 'Unreleased' : v.version;
+  const label = versionLabel(v);
   return `<strong>${esc(label)}</strong>${v.date ? ' · ' + esc(v.date) : ''} — ` +
          esc(text).replace(/`([^`]+)`/g, '<code>$1</code>');
 }
@@ -125,12 +129,56 @@ function render(versions, compareLinks) {
     ''
   ];
 
+  // default.html's on-page contents deliberately drops every heading inside a
+  // <details> — a heading the reader cannot see is worse than no entry — and
+  // every version heading here is inside one. That is right everywhere else,
+  // so this page gets its own list instead of loosening the rule: the id on
+  // each anchor below is the same id each <details> gets, a few lines down.
+  out.push('<nav class="changelog-versions" aria-label="Versions">');
+  for (const v of versions) {
+    out.push(`  <a href="#${esc(v.version)}">${esc(versionLabel(v))}</a>`);
+  }
+  out.push('</nav>');
+  out.push('');
+  // HTML's "revealing algorithm" would make this script unnecessary on a
+  // browser that opens an ancestor <details> itself when navigating to a
+  // fragment inside it. Measured 2026-09-12 (commit 0f6f648), by rendering:
+  // it does not, in the browser tested — loading /docs/changelog/#2.15.0
+  // left that section closed, which is exactly the failure this script
+  // exists to prevent. Kept: it is three lines, idempotent on a browser that
+  // ever does open it natively, and the alternative on one that does not is
+  // the "scrolls to something invisible" failure default.html's own TOC
+  // filter exists to avoid.
+  out.push('<script>');
+  out.push('  function openTarget() {');
+  out.push('    var t = document.getElementById(location.hash.slice(1));');
+  out.push('    if (t && t.tagName === \'DETAILS\') t.open = true;');
+  out.push('  }');
+  // Not a bare openTarget() at parse time: this script is emitted above the
+  // version sections, so getElementById finds nothing then and the call
+  // silently does nothing. Measured 2026-09-12 — loading
+  // /docs/changelog/#2.15.0 left that section closed, while clicking the same
+  // link inside the page worked, because only the hashchange half ever ran.
+  // An arriving link is the case this exists for: default.html filters these
+  // headings out of the site contents precisely so nothing scrolls to
+  // something invisible.
+  out.push("  if (document.readyState === 'loading') {");
+  out.push("    addEventListener('DOMContentLoaded', openTarget);");
+  out.push('  } else {');
+  out.push('    openTarget();');
+  out.push('  }');
+  out.push('  addEventListener(\'hashchange\', openTarget);');
+  out.push('</script>');
+  out.push('');
+
   versions.forEach((v, i) => {
     const h = headline(v);
     // markdown="1" is kramdown's own attribute and it is what makes the body
     // render at all: without it everything between the tags is raw HTML and
     // the release notes arrive as one paragraph of asterisks and hyphens.
-    out.push(`<details${i === 0 ? ' open' : ''} markdown="1">`);
+    // The id matches the nav link above it — no other id scheme existed to
+    // reuse, so this is where one is introduced.
+    out.push(`<details${i === 0 ? ' open' : ''} id="${esc(v.version)}" markdown="1">`);
     out.push(`<summary>${summary(v, h.text)}</summary>`);
     out.push('');
     out.push(h.body.join('\n').replace(/^\n+/, '').replace(/\n+$/, ''));

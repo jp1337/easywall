@@ -87,13 +87,29 @@ func TestNoRetiredHueSurvives(t *testing.T) {
 			t.Fatalf("read %s: %v", path, err)
 		}
 		name := filepath.Base(filepath.Dir(path)) + "/" + filepath.Base(path)
-		body := strings.ReplaceAll(string(raw), " ", "")
 
-		for _, hue := range retired {
-			if strings.Contains(body, hue.literal) {
-				t.Errorf("%s still carries rgba(%s,…) — %s\n"+
-					"  a grep over token names cannot see a literal; this is the half "+
-					"that keeps the palette honest", name, hue.literal, hue.was)
+		for i, line := range strings.Split(string(raw), "\n") {
+			// A comment may name the hue it replaced — that is how the
+			// reasoning survives, and it is the rule TestNoAccentTokenSurvives
+			// already states one function up. This test did not honour it, so
+			// the two comments that recorded *which* cyan went were reworded to
+			// describe it instead of spelling it, and stopped being greppable.
+			// A declaration still may not. A single-line /* … */ comment is
+			// caught by the leading "/*"; a trailing comment on a declaration
+			// line is not, and must not be — a literal in a declaration with a
+			// comment after it is still a declaration.
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*") ||
+				strings.HasPrefix(trimmed, "//") {
+				continue
+			}
+			flat := strings.ReplaceAll(line, " ", "")
+			for _, hue := range retired {
+				if strings.Contains(flat, hue.literal) {
+					t.Errorf("%s:%d still carries rgba(%s,…) — %s\n"+
+						"  a grep over token names cannot see a literal; this is the half "+
+						"that keeps the palette honest", name, i+1, hue.literal, hue.was)
+				}
 			}
 		}
 	}
