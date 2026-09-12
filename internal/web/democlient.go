@@ -102,6 +102,13 @@ func (d *demoState) seed() {
 			// visitor having to open the picker.
 			{Port: "5432", Description: "PostgreSQL — replication peer",
 				Sources: shared.SuggestedSources(shared.SuggestPrivate), Service: "postgresql"},
+			// 2.19's own headline, on the page it lives on: a port a container
+			// publishes arrives forwarded, so the rule for it is not an input
+			// rule. The demo's [docker] leaves published_ports open, which is
+			// the default, so /ports also shows what an inert forwarded rule
+			// looks like — the state the release exists to make visible.
+			{Port: "9000", Description: "MinIO — published by a container",
+				Scope: shared.ScopeForwarded},
 		},
 		UDP: []shared.PortRule{
 			{Port: "53", Description: "DNS — authoritative"},

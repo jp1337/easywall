@@ -25,6 +25,12 @@
 
       <div class="page-grid page-grid-ports">
         <div>
+          {{if .ForwardedInert}}
+          <div role="status" id="scope-inert" class="alert alert-warn mb-4">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            {{T "ports_scope_inactive"}}
+          </div>
+          {{end}}
           <div class="card">
             <div class="toolbar">
               <div class="search">
@@ -56,6 +62,7 @@
                   <tr>
                     <th class="col-port">{{T "ports_port"}}</th>
                     <th class="col-toggle">{{T "ports_ssh"}}</th>
+                    <th class="col-scope">{{T "ports_scope"}}</th>
                     <th class="col-sources">{{T "ports_sources"}}</th>
                     <th class="col-flex">{{T "ports_description"}}</th>
                     <th class="col-used">{{T "ports_last_used"}}</th>
@@ -67,6 +74,13 @@
                   <tr data-idx="{{$i}}" data-id="{{$r.ID}}"{{with $r.Service}} data-service="{{.}}"{{end}}>
                     <td data-label="{{T "ports_port"}}"><input class="f-port input-cell input-cell-data" type="text" value="{{$r.Port}}" placeholder="{{T "ports_port_hint"}}" aria-label="{{T "ports_port"}}"></td>
                     <td data-label="{{T "ports_ssh"}}"><input class="f-ssh checkbox" type="checkbox" {{if $r.SSH}}checked{{end}} aria-label="{{T "ports_ssh"}}"></td>
+                    <td data-label="{{T "ports_scope"}}">
+                      <select class="f-scope input-cell" aria-label="{{T "ports_scope"}}">
+                        <option value="host"{{if and $r.FiltersHost (not $r.FiltersForwarded)}} selected{{end}}>{{T "ports_scope_host"}}</option>
+                        <option value="forwarded"{{if and $r.FiltersForwarded (not $r.FiltersHost)}} selected{{end}}>{{T "ports_scope_forwarded"}}</option>
+                        <option value="both"{{if and $r.FiltersHost $r.FiltersForwarded}} selected{{end}}>{{T "ports_scope_both"}}</option>
+                      </select>
+                    </td>
                     <td class="cell-wide" data-label="{{T "ports_sources"}}"><input class="f-sources input-cell" type="text" value="{{join $r.Sources ", "}}" placeholder="{{T "ports_sources_hint"}}" aria-label="{{T "ports_sources"}}"></td>
                     <td class="cell-wide" data-label="{{T "ports_description"}}">
                       <input class="f-desc input-cell" type="text" value="{{$r.Description}}" placeholder="{{T "ports_desc_hint"}}" aria-label="{{T "ports_description"}}">
@@ -115,6 +129,14 @@
 
           <div class="aside-card">
             <h2 class="aside-title">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clip-rule="evenodd"/></svg>
+              {{T "ports_scope"}}
+            </h2>
+            <p>{{T "ports_scope_help"}}</p>
+          </div>
+
+          <div class="aside-card">
+            <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
               {{T "ports_ssh_card_title"}}
             </h2>
@@ -132,6 +154,17 @@
           </div>
         </div>
       </div>
+
+      <!-- The scope options, once, for the rows app.js builds in the browser.
+           Same idea as the column labels it reads out of <thead>: a row added
+           client-side is then in the interface's own language without shipping
+           the three strings into every page's client string blob, and the list
+           cannot drift from the one the server renders. -->
+      <template id="scope-options">
+        <option value="host">{{T "ports_scope_host"}}</option>
+        <option value="forwarded">{{T "ports_scope_forwarded"}}</option>
+        <option value="both">{{T "ports_scope_both"}}</option>
+      </template>
 
       <dialog id="catalogue-dialog" class="dialog">
         <div class="dialog-head">

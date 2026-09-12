@@ -2,6 +2,25 @@ package shared
 
 import "time"
 
+// PortScope is the chain a port rule is evaluated in.
+//
+// The zero value is the host chain, which is what every rule written before
+// 2.19 means. It is spelled as an empty string rather than as ScopeHost so that
+// omitempty keeps such a file byte-identical until it is touched — the promise
+// ID made in 2.15 and Sources made in 2.11, kept the same way.
+type PortScope string
+
+const (
+	// ScopeHost: traffic addressed to this machine. Today's behaviour.
+	ScopeHost PortScope = "host"
+	// ScopeForwarded: traffic this machine passes on — a published container
+	// port, which Docker has already DNAT'd by the time the forward chain sees
+	// it. Only meaningful under docker.published_ports = "filtered".
+	ScopeForwarded PortScope = "forwarded"
+	// ScopeBoth: the same port, wherever it arrives.
+	ScopeBoth PortScope = "both"
+)
+
 // PortRule represents a TCP or UDP port to be opened.
 type PortRule struct {
 	// ID identifies this rule across applies, edits and reorderings. Usage
@@ -16,6 +35,9 @@ type PortRule struct {
 	Port        string `json:"port"`        // single port "80" or range "8000:9000"
 	Description string `json:"description"` // human-readable label
 	SSH         bool   `json:"ssh"`         // route through SSH brute-force chain
+
+	// Scope is which chain this rule is evaluated in. Empty means host.
+	Scope PortScope `json:"scope,omitempty"`
 
 	// Sources restricts who may reach the port. Empty means anywhere, which is
 	// what every rule written before 2.11 means and what the field must go on
@@ -369,6 +391,28 @@ type DockerConfig struct {
 	Enabled             bool     `toml:"enabled"`               // auto-detect Docker bridges
 	AllowBridgeNetworks bool     `toml:"allow_bridge_networks"` // whitelist detected bridge networks
 	CustomNetworks      []string `toml:"custom_networks"`       // additional networks to whitelist
+
+	// PublishedPorts decides what happens to traffic this host forwards to a
+	// container. "open" is Docker's business, which is what it has always been;
+	// "filtered" means only a forwarded port rule lets anything in.
+	//
+	// Anything unrecognised reads as "open". The safe direction is the one that
+	// leaves containers reachable: a typo that silently closed every published
+	// port would be 2.5.0 with a spelling mistake in front of it.
+	PublishedPorts string `toml:"published_ports"`
+}
+
+const (
+	// PublishedPortsOpen: Docker decides who reaches a published port.
+	PublishedPortsOpen = "open"
+	// PublishedPortsFiltered: only a forwarded port rule lets anything in.
+	PublishedPortsFiltered = "filtered"
+)
+
+// FiltersPublishedPorts reports whether the forward chain takes verdicts on
+// traffic arriving from outside for a container address.
+func (d DockerConfig) FiltersPublishedPorts() bool {
+	return d.PublishedPorts == PublishedPortsFiltered
 }
 
 // CoreConfig is the full configuration for easywall-core.
@@ -773,4 +817,17 @@ type FirewallStatus struct {
 	// confirmation" to an operator who had just ended it by hand — on the screen
 	// whose whole argument is that it says what is true.
 	AcceptanceReason string `json:"acceptance_reason"`
+}
+
+// FiltersHost reports whether this rule belongs in the input chain.
+//
+// Asked rather than compared, in both the rule builder and the interface, so
+// that "what does an empty scope mean" has one answer in one place.
+func (r PortRule) FiltersHost() bool {
+	return r.Scope == "" || r.Scope == ScopeHost || r.Scope == ScopeBoth
+}
+
+// FiltersForwarded reports whether this rule belongs in the forward chain.
+func (r PortRule) FiltersForwarded() bool {
+	return r.Scope == ScopeForwarded || r.Scope == ScopeBoth
 }

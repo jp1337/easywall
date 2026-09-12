@@ -22,6 +22,39 @@ type portsData struct {
 	// second.
 	Usage      map[string]shared.RuleUsage
 	UsageKnown bool
+
+	// ForwardedInert is true when a rule on this page is written for the
+	// forward chain and the core is not taking verdicts there — published_ports
+	// is "open", so Docker decides who reaches a published port and the rule is
+	// never consulted. A rule that does nothing has to say so.
+	ForwardedInert bool
+}
+
+// forwardedInert answers whether any rule on the page is waiting on a key that
+// is switched off.
+//
+// The core is asked only when the answer could change what is rendered: on the
+// overwhelming majority of hosts no rule is forwarded, and GET_SETTINGS would
+// be a round trip whose result the page could not use. An unreadable answer
+// says nothing rather than "your rule is inert" — the usage counters take the
+// same line, and a warning nobody can act on is worse than no warning.
+func (s *Server) forwardedInert(rules []shared.PortRule) bool {
+	forwarded := false
+	for _, r := range rules {
+		if r.FiltersForwarded() {
+			forwarded = true
+			break
+		}
+	}
+	if !forwarded {
+		return false
+	}
+	nets, err := s.client.GetSettings()
+	if err != nil {
+		slog.Debug("could not read the docker settings for the ports page", "error", err)
+		return false
+	}
+	return !nets.Docker.FiltersPublishedPorts()
 }
 
 // portUsage asks the core for the counters. A failure is logged and reported as
@@ -100,7 +133,8 @@ func (s *Server) handlePortsGET(w http.ResponseWriter, r *http.Request) {
 	usage, usageKnown := s.portUsage()
 	s.render(w, r, "ports.html", "ports", &portsData{
 		RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType),
-		Usage: usage, UsageKnown: usageKnown})
+		Usage: usage, UsageKnown: usageKnown,
+		ForwardedInert: s.forwardedInert(rules)})
 }
 
 func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +177,8 @@ func (s *Server) handlePortsPOST(w http.ResponseWriter, r *http.Request) {
 		usage, usageKnown := s.portUsage()
 		s.render(w, r, "ports.html", "ports", &portsData{
 			RuleType: ruleType, Rules: rules, Catalogue: catalogueFor(ruleType),
-			Usage: usage, UsageKnown: usageKnown})
+			Usage: usage, UsageKnown: usageKnown,
+			ForwardedInert: s.forwardedInert(rules)})
 		return
 	}
 

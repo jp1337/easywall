@@ -7,11 +7,12 @@ description: Which ports accept inbound connections, and why marking your SSH po
 # Port Rules
 
 Ports that accept inbound connections on every interface. TCP and UDP are separate
-tabs; a rule is a port, an optional SSH mark, and a description for your own benefit.
+tabs; a rule is a port, a scope, an optional SSH mark, and a description for your
+own benefit.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/ports" ext="png"
-     alt="The port rules page: TCP and UDP tabs, a filter box, a table of ports with an SSH protection checkbox and description, and context cards explaining port syntax and SSH protection." %}
+     alt="The port rules page: TCP and UDP tabs, a filter box, and a table of ports with an SSH checkbox, a Scope selector, sources and a description, above context cards." %}
   <figcaption>Filtering narrows what is already on the page, so unsaved edits survive it.</figcaption>
 </figure>
 
@@ -23,6 +24,33 @@ tabs; a rule is a port, an optional SSH mark, and a description for your own ben
 | Range | `8000:9000` | 8000 to 9000, inclusive |
 
 1–65535, ranges ascending.
+
+## Scope: where the rule is checked
+
+Traffic addressed to this host arrives on a different chain from traffic this host
+passes on to a container. **Scope** says which one a rule is written for.
+
+| Scope | The rule covers | Chain |
+|---|---|---|
+| **This host** | connections to this machine's own addresses — the default, and what every rule written before 2.19 means | `input` |
+| **Forwarded** | connections this machine passes on, which is what a published container port is | `forward` |
+| **Both** | the same port, wherever it arrives | both |
+
+> **A forwarded rule does nothing until `published_ports` is `filtered`.** At the
+> key's default Docker decides who reaches a published port, and easywall takes no
+> verdict there. This page warns above the table when that is the case, rather than
+> leaving a rule that enforces nothing looking like one that does. The key lives in
+> `easywall.toml`, and
+> [Docker Coexistence]({{ '/docs/features/docker/' | relative_url }}) says what
+> switching it on closes.
+
+> **A forwarded rule names a port, not a container.** Two containers publishing
+> 8080 on different addresses are one rule and one verdict. Splitting them needs a
+> destination the rule cannot yet carry.
+
+**Sources** works the same in either scope, and so does the last-used counter. SSH
+protection does not: the brute-force chain is an `input` module, so the mark is
+only meaningful on a rule this host receives.
 
 ## Who may reach it
 
@@ -155,4 +183,5 @@ Saving stages. Deleting stages too — the rule keeps working until you
 | Port listed, still blocked | Not applied yet | Go to **Apply rules** |
 | Blocked despite being open | The source is on the [blacklist]({{ '/docs/features/blacklist/' | relative_url }}), which is checked first | |
 | SSH drops right after Apply | That is the design — do nothing and the old rules come back | |
+| A published container port is refused | The rule's scope is *This host*, so it was written for the wrong chain | Set it to *Forwarded* and check `published_ports` |
 | Your own SSH is rate-limited | You hit your own brute-force budget | Wait a minute, or raise `ssh_brute_force_connection_limit`. The whitelist does **not** help: modules run before it |

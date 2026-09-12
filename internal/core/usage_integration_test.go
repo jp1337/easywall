@@ -96,7 +96,7 @@ func TestIntegration_TheCounterMovesWhenAPortIsUsed(t *testing.T) {
 	if !ok {
 		t.Fatalf("the collector has nothing for rule id %s. Either the kernel rule carries "+
 			"no comment, or the counter is not being read off the input chain — the two "+
-			"halves TestCollectionReadsTheInputChain pins textually and this test pins "+
+			"halves TestCollectionReadsInputAndForwardChains pins textually and this test pins "+
 			"against a kernel", rule.ID)
 	}
 	if got.Packets == 0 {

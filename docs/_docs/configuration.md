@@ -130,6 +130,15 @@ with static addressing that genuinely need neither.
 | `enabled` | bool | `false` | Auto-detect Docker bridge interfaces and whitelist them |
 | `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
 | `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
+| `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port |
+
+> **`published_ports` has no control in the interface, deliberately.** One press
+> could take every container on this host off the network. The acceptance window
+> cannot catch that: it proves your own connection, and yours arrives on the
+> `input` chain. Edit it here, apply once, and read
+> [Docker Coexistence]({{ '/docs/features/docker/' | relative_url }}) first.
+> `filtered` is refused at startup and on `SIGHUP` when `enabled = false`, and
+> so is any value that is neither `open` nor `filtered`.
 
 See [Docker Coexistence]({{ '/docs/features/docker/' | relative_url }}) for the full setup guide.
 

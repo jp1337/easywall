@@ -258,3 +258,25 @@ func TestValidateRules_PortSources(t *testing.T) {
 		})
 	}
 }
+
+// Refused by name rather than coerced to the default. A scope nobody recognises
+// is a typo in a hand-edited rules.json, and silently treating it as "host"
+// would leave a forwarded rule reporting itself enforced while filtering the
+// wrong chain — which is the failure this release exists to end.
+func TestValidateRules_RejectsAnUnknownScope(t *testing.T) {
+	err := ValidateRules(Rules{TCP: []PortRule{{Port: "25", Scope: "forwarded-ish"}}})
+	if err == nil {
+		t.Fatal("an unknown scope was accepted")
+	}
+	if !strings.Contains(err.Error(), "forwarded-ish") {
+		t.Errorf("the error does not name the bad value: %v", err)
+	}
+}
+
+func TestValidateRules_AcceptsEveryKnownScope(t *testing.T) {
+	for _, s := range []PortScope{"", ScopeHost, ScopeForwarded, ScopeBoth} {
+		if err := ValidateRules(Rules{TCP: []PortRule{{Port: "25", Scope: s}}}); err != nil {
+			t.Errorf("scope %q was rejected: %v", s, err)
+		}
+	}
+}

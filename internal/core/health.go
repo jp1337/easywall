@@ -255,10 +255,10 @@ func (f *Firewall) Health() shared.HealthResult {
 	// sum, or it would be indistinguishable from a port an operator opened.
 	//
 	// Only the input chain's copy of the established rule is tagged, and
-	// RuleCounters reads the input chain only, so there is exactly one of it.
-	// addForwardExceptions adds an untagged copy to the forward chain
-	// specifically so that a reader here cannot sum input and forward traffic
-	// into one figure.
+	// RuleCounters reads both chains, so there is still exactly one of it.
+	// buildForwardChain adds an untagged copy to the forward chain specifically
+	// so that a reader here cannot sum input and forward traffic into one
+	// figure.
 	var established, ports uint64
 	for id, c := range counters {
 		if id == ReservedIDEstablished {

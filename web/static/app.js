@@ -213,6 +213,10 @@ function initRuleEditor() {
       const port = tr.querySelector('.f-port')?.value.trim() ?? '';
       const desc = tr.querySelector('.f-desc')?.value.trim() ?? '';
       const ssh  = tr.querySelector('.f-ssh')?.checked ?? false;
+      // "host" is what every rule written before 2.19 means, and the field is
+      // omitempty on the other side: sending it would rewrite the scope line
+      // into every rule in the file the first time anyone pressed Save.
+      const scope = tr.querySelector('.f-scope')?.value ?? '';
       // One comma-separated field, split here and nowhere else. Empty entries
       // are dropped so "10.0.0.0/8, " is not a rule with a blank source, and an
       // empty field stays an empty list — which is what "anywhere" is.
@@ -229,6 +233,7 @@ function initRuleEditor() {
       if (id) rule.id = id;
       if (sources.length) rule.sources = sources;
       if (service) rule.service = service;
+      if (scope && scope !== 'host') rule.scope = scope;
       return rule;
     }).filter(r => r.port !== '' || r.description !== '' || r.ssh || r.sources || r.service);
     hidden.value = JSON.stringify(rules);
@@ -351,6 +356,13 @@ function initRuleFilter() {
 // looks nothing like the rest of the table (and loses its labels on mobile).
 // The labels are read out of the table header rather than written here, so a
 // row added client-side is labelled in the interface's own language.
+// The three <option>s the server rendered into ports.html, so a row built here
+// carries the same list in the same language. Empty on any page without that
+// template, which leaves an empty select rather than a wrong one.
+function scopeOptions() {
+  return document.getElementById('scope-options')?.innerHTML ?? '';
+}
+
 function ruleRowHTML(idx, r, labels) {
   const L = labels || [];
   return `
@@ -359,14 +371,17 @@ function ruleRowHTML(idx, r, labels) {
     <td data-label="${esc(L[1] ?? '')}">
       <input class="f-ssh checkbox" type="checkbox" ${r.ssh ? 'checked' : ''} aria-label="${esc(L[1] ?? '')}">
     </td>
-    <td class="cell-wide" data-label="${esc(L[2] ?? '')}"><input class="f-sources input-cell" type="text" value="${esc((r.sources || []).join(', '))}"
-         placeholder="${esc(str('ports_sources_hint'))}" aria-label="${esc(L[2] ?? '')}"></td>
-    <td class="cell-wide" data-label="${esc(L[3] ?? '')}">
+    <td data-label="${esc(L[2] ?? '')}">
+      <select class="f-scope input-cell" aria-label="${esc(L[2] ?? '')}">${scopeOptions()}</select>
+    </td>
+    <td class="cell-wide" data-label="${esc(L[3] ?? '')}"><input class="f-sources input-cell" type="text" value="${esc((r.sources || []).join(', '))}"
+         placeholder="${esc(str('ports_sources_hint'))}" aria-label="${esc(L[3] ?? '')}"></td>
+    <td class="cell-wide" data-label="${esc(L[4] ?? '')}">
       <input class="f-desc input-cell" type="text" value="${esc(r.description)}"
-         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[3] ?? '')}">
+         placeholder="${esc(str('ports_desc_hint'))}" aria-label="${esc(L[4] ?? '')}">
       ${r.serviceName ? `<span class="chip">${esc(r.serviceName)}</span>` : ''}
     </td>
-    <td class="col-used text-ink-subtle" data-label="${esc(L[4] ?? '')}">&mdash;</td>
+    <td class="col-used text-ink-subtle" data-label="${esc(L[5] ?? '')}">&mdash;</td>
     <td>
       <button type="button" class="btn-icon btn-icon-danger del-rule row-action" title="${esc(str('action_remove_rule'))}">
         <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd"

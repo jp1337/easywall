@@ -203,6 +203,41 @@ func (c *Config) Validate() error {
 	if err := checkNetworkLists(c.Docker.CustomNetworks, c.Routing.Networks); err != nil {
 		return err
 	}
+
+	// A value nothing recognises is refused rather than read as "open".
+	// FiltersPublishedPorts compares against one constant, so
+	// published_ports = "filter" — the word ipv6.mode takes, and the obvious
+	// thing to type — filters nothing while the operator believes it does. This
+	// release's own defect class, in this release's own key.
+	//
+	// The leniency the builder keeps is about *rendering*: a typo must never
+	// close every published port on a host, which would be 2.5.0 with a spelling
+	// mistake in front of it. Refusing here closes nothing. It stops a daemon
+	// that has not started, or refuses a SIGHUP reload and keeps the running
+	// configuration — the safe direction both times.
+	switch c.Docker.PublishedPorts {
+	case "", shared.PublishedPortsOpen, shared.PublishedPortsFiltered:
+	default:
+		return fmt.Errorf("docker.published_ports must be %q or %q, got %q",
+			shared.PublishedPortsOpen, shared.PublishedPortsFiltered, c.Docker.PublishedPorts)
+	}
+
+	// Filtering published container ports on a host that manages no container
+	// networks is a contradiction, not a preference: with docker.enabled = false
+	// nothing detects a bridge, so the forward chain would be asked to filter
+	// traffic to addresses it has been told not to look for. Refused by name and
+	// in the same register as a custom_networks entry that is not a CIDR — a
+	// value that cannot be interpreted stops the daemon with the key named.
+	//
+	// Only the static contradiction is refused here. "enabled, but no bridge
+	// detected" is a legitimate transient — a host whose containers have not
+	// started — and it is handled at apply, in addForwardPortRules.
+	if c.Docker.FiltersPublishedPorts() && !c.Docker.Enabled {
+		return fmt.Errorf("docker.published_ports = %q needs docker.enabled = true: "+
+			"there are no container networks to filter traffic to. Set docker.enabled = true, "+
+			"or docker.published_ports = %q",
+			shared.PublishedPortsFiltered, shared.PublishedPortsOpen)
+	}
 	return nil
 }
 

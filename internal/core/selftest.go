@@ -1,6 +1,6 @@
 package core
 
-// Layer C: four claims about the table easywall builds, proven with a real
+// Layer C: five claims about the table easywall builds, proven with a real
 // packet against a real kernel, inside a namespace of this proof's own.
 //
 // It builds its own table in its own namespace — the peer's, reached through
@@ -49,6 +49,14 @@ package core
 //	                          produces no packet at all and the dial times out.
 //	                          "Refused" is therefore positive evidence that the
 //	                          packet crossed the veth and cleared the chain.
+//	claim 5  router -> container  the same measurement one namespace further in,
+//	                          and the only one that reads a *forward* chain. A
+//	                          packet addressed to the peer never reaches the
+//	                          forward hook, so the third namespace is not a
+//	                          nicety: without it there is nothing 2.19's rules
+//	                          could be measured against. Harness.AddContainerLeg
+//	                          builds it; nothing listens there either, so the
+//	                          RST-or-timeout reading above carries over intact.
 //
 // The consequence worth knowing about claim 1: its control case needs an
 // inbound TCP connection to be accepted on *this* side, and on a host whose own
@@ -66,6 +74,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"syscall"
 	"time"
@@ -84,6 +93,14 @@ const (
 
 	// Never opened by anything. Claim 3's subject and claim 2's discriminator.
 	selftestClosedPort = 12233
+
+	// Claim 5's pair, on the container behind the peer. Mail and POP3 by
+	// number, because a published container port is what this claim is about
+	// and those are what a container host publishes. Nothing binds them —
+	// the container answers a SYN it receives with a RST, which is the
+	// evidence — so they collide with nothing the suite listens on.
+	selftestForwardedPort   = 25
+	selftestUnforwardedPort = 110
 
 	// How long a probe waits. A packet the chain accepts is answered in
 	// microseconds — a listener's SYN-ACK or the peer stack's RST — so this
@@ -107,13 +124,24 @@ func RunSelftest() shared.SelftestStamp {
 		Kernel:  KernelRelease(),
 		At:      time.Now().UTC(),
 	}
-	stamp.Result, stamp.Detail = foldClaims([]selftestClaim{
+	stamp.Result, stamp.Detail = foldClaims(selftestClaims())
+	return stamp
+}
+
+// selftestClaims is the list, as a function so that a test can assert about it.
+//
+// A claim that is not in this slice is a prover nobody ever runs, and a list
+// inside a function body cannot be checked for one. The same move
+// buildForwardChain made, for the same reason.
+func selftestClaims() []selftestClaim {
+	return []selftestClaim{
 		{"a reply on an established connection passes", proveEstablishedPasses},
 		{"an open port accepts a connection", proveOpenPortAccepts},
 		{"a closed port does not", proveClosedPortRefuses},
 		{"a blacklisted address does not reach an open port", proveBlacklistWins},
-	})
-	return stamp
+		{"a forwarded rule opens one container port and the deny closes the rest",
+			proveForwardedPortFiltered},
+	}
 }
 
 // foldClaims runs every claim and folds the answers into the one result and the
@@ -231,8 +259,8 @@ func withProof(fn func(p *proof) (bool, string, error)) (bool, string, error) {
 // apply writes one table into the peer's namespace. Nothing else on this host
 // is touched: the manager's every netlink socket is opened on the peer's
 // namespace descriptor.
-func (p *proof) apply(rules shared.Rules, opts shared.FirewallOptions) error {
-	if err := p.m.Apply(shared.RulesState{Current: rules}, opts, shared.NetworkSettings{}); err != nil {
+func (p *proof) apply(rules shared.Rules, opts shared.FirewallOptions, net shared.NetworkSettings) error {
+	if err := p.m.Apply(shared.RulesState{Current: rules}, opts, net); err != nil {
 		return fmt.Errorf("applying the proof's own table inside the namespace: %w", err)
 	}
 	return nil
@@ -266,8 +294,22 @@ func (p *proof) peerReachesRouter() (bool, error) {
 // nil error would mean something in the namespace answered a SYN, which also
 // means it crossed.
 func (p *proof) inboundCrosses(port uint16) (bool, error) {
+	return crossesTo(p.h.PeerAddr(), port)
+}
+
+// containerCrosses asks the same question one namespace further in: the packet
+// has to be *forwarded* by the peer to be answered at all, so this reads the
+// forward chain where inboundCrosses reads the input chain.
+func (p *proof) containerCrosses(port uint16) (bool, error) {
+	return crossesTo(p.h.ContainerAddr(), port)
+}
+
+// crossesTo is the measurement both of them make, and the integration suite
+// makes it too — one definition of "the SYN got through", so a test and a
+// prover cannot disagree about what a timeout means.
+func crossesTo(target netip.Addr, port uint16) (bool, error) {
 	d := net.Dialer{Timeout: selftestProbeTimeout}
-	addr := net.JoinHostPort(p.h.PeerAddr().String(), strconv.Itoa(int(port)))
+	addr := net.JoinHostPort(target.String(), strconv.Itoa(int(port)))
 	conn, err := d.Dial("tcp", addr)
 	if err == nil {
 		_ = conn.Close()
@@ -314,7 +356,7 @@ func proveEstablishedPasses() (bool, string, error) {
 				p.h.RouterAddr(), selftestListenPort)
 		}
 
-		if err := p.apply(shared.Rules{}, shared.FirewallOptions{}); err != nil {
+		if err := p.apply(shared.Rules{}, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 			return false, "", err
 		}
 
@@ -362,7 +404,7 @@ func proveOpenPortAccepts() (bool, string, error) {
 			Port:        strconv.Itoa(selftestOpenPort),
 			Description: "the self-test's open port",
 		}}}
-		if err := p.apply(rules, shared.FirewallOptions{}); err != nil {
+		if err := p.apply(rules, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 			return false, "", err
 		}
 
@@ -405,7 +447,7 @@ func proveClosedPortRefuses() (bool, string, error) {
 			Port:        strconv.Itoa(selftestOpenPort),
 			Description: "the self-test's open port",
 		}}}
-		if err := p.apply(rules, shared.FirewallOptions{}); err != nil {
+		if err := p.apply(rules, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 			return false, "", err
 		}
 
@@ -451,7 +493,7 @@ func proveBlacklistWins() (bool, string, error) {
 			Port:        strconv.Itoa(selftestOpenPort),
 			Description: "the self-test's open port",
 		}}}
-		if err := p.apply(open, shared.FirewallOptions{}); err != nil {
+		if err := p.apply(open, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 			return false, "", err
 		}
 		crossed, err := p.inboundCrosses(selftestOpenPort)
@@ -469,7 +511,7 @@ func proveBlacklistWins() (bool, string, error) {
 
 		blocked := open
 		blocked.Blacklist = []string{p.h.RouterAddr().String()}
-		if err := p.apply(blocked, shared.FirewallOptions{}); err != nil {
+		if err := p.apply(blocked, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 			return false, "", err
 		}
 		crossed, err = p.inboundCrosses(selftestOpenPort)
@@ -479,6 +521,98 @@ func proveBlacklistWins() (bool, string, error) {
 		if crossed {
 			return false, fmt.Sprintf("%s is on the blacklist and still reached open port %d",
 				p.h.RouterAddr(), selftestOpenPort), nil
+		}
+		return true, "", nil
+	})
+}
+
+// proveForwardedPortFiltered is the 2.19 claim, and the only one measured in a
+// forward chain.
+//
+// The four above ask what reaches *this host*. This one asks what the host
+// passes on to a container — a different chain, a different hook, and a
+// question the acceptance window structurally cannot answer: the operator's own
+// SSH session arrives on input and stays up no matter what the forward chain
+// does to every container on the box.
+//
+// The shape is the one addForwardPortRules renders. Under
+// docker.published_ports = "filtered" a forwarded rule opens one port and the
+// deny closes the rest, and the deny has to sit *between* the forwarded accepts
+// and the bridge exceptions — the exceptions accept any packet with either end
+// inside the bridge range, so a deny behind them can never say no to anything.
+// That defect leaves the interface reporting a port as filtered while the
+// kernel forwards it, which is this release's own subject reproduced by its
+// feature, and it is invisible in `nft list ruleset` unless the reader already
+// knows the order matters.
+//
+// Both probes are made twice. The control runs against the same namespace with
+// no table in it at all: both ports have to be answered there, or a silence
+// afterwards would be the harness, the peer's routing or the container, and
+// none of those is a finding about the rules. That is the same discipline
+// proveClosedPortRefuses uses one namespace out.
+//
+// The container's own outbound path is deliberately not measured here. It is
+// the other half of the same rule — the established accept in front of the
+// deny, without which every container on an upgrading host loses the network —
+// and it is proven in forward_scope_integration_test.go, where a listener can
+// be bound on this side and a real handshake completed. A prover that needs a
+// listener inside the harness would need a second protocol verb for it, in the
+// privileged path, to re-measure what the integration suite already measures.
+func proveForwardedPortFiltered() (bool, string, error) {
+	return withProof(func(p *proof) (bool, string, error) {
+		if err := p.h.AddContainerLeg(); err != nil {
+			return false, "", err
+		}
+
+		for _, port := range []uint16{selftestForwardedPort, selftestUnforwardedPort} {
+			crossed, err := p.containerCrosses(port)
+			if err != nil {
+				return false, "", err
+			}
+			if !crossed {
+				return false, "", fmt.Errorf("control refused: with no table in the namespace at "+
+					"all, a connection to the container at %s:%d went unanswered, so the peer is "+
+					"not forwarding and a silence with the table applied would say nothing about "+
+					"the forward chain. This claim cannot be settled on this host",
+					p.h.ContainerAddr(), port)
+			}
+		}
+
+		docker := shared.DockerConfig{
+			Enabled:        true,
+			CustomNetworks: []string{p.h.BridgeCIDR()},
+			PublishedPorts: shared.PublishedPortsFiltered,
+		}
+		rules := shared.Rules{TCP: []shared.PortRule{{
+			Port:        strconv.Itoa(selftestForwardedPort),
+			Scope:       shared.ScopeForwarded,
+			Description: "the self-test's published container port",
+		}}}
+		if err := p.apply(rules, shared.FirewallOptions{},
+			shared.NetworkSettings{Docker: docker}); err != nil {
+			return false, "", err
+		}
+
+		crossed, err := p.containerCrosses(selftestForwardedPort)
+		if err != nil {
+			return false, "", err
+		}
+		if !crossed {
+			return false, fmt.Sprintf("port %d has a forwarded rule and nothing reached the "+
+				"container at %s: the accept that opens it opened nothing, and every published "+
+				"port on this host is shut",
+				selftestForwardedPort, p.h.ContainerAddr()), nil
+		}
+
+		crossed, err = p.containerCrosses(selftestUnforwardedPort)
+		if err != nil {
+			return false, "", err
+		}
+		if crossed {
+			return false, fmt.Sprintf("port %d has no forwarded rule and reached the container at "+
+				"%s anyway: the deny is not denying, which on a real host means every published "+
+				"port is open while the interface reports them filtered",
+				selftestUnforwardedPort, p.h.ContainerAddr()), nil
 		}
 		return true, "", nil
 	})

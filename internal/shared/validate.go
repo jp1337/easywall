@@ -135,6 +135,12 @@ func validatePortRule(r PortRule) error {
 		return err
 	}
 
+	switch r.Scope {
+	case "", ScopeHost, ScopeForwarded, ScopeBoth:
+	default:
+		return fmt.Errorf("unknown scope %q: use host, forwarded or both", r.Scope)
+	}
+
 	// The source restriction is an address list like every other one in this
 	// file: comments and blank spacers are part of what the operator typed and
 	// are skipped rather than refused, exactly as cidrMatch skips them when it

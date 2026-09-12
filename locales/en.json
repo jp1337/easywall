@@ -102,6 +102,12 @@
   {"id": "ports_add",        "translation": "Add port"},
   {"id": "ports_save",       "translation": "Save changes"},
   {"id": "ports_last_used",  "translation": "Last used"},
+  {"id": "ports_scope",           "translation": "Scope"},
+  {"id": "ports_scope_host",      "translation": "This host"},
+  {"id": "ports_scope_forwarded", "translation": "Forwarded"},
+  {"id": "ports_scope_both",      "translation": "Both"},
+  {"id": "ports_scope_help",      "translation": "Where the rule is checked. A published container port arrives forwarded, not addressed to this host — so a rule for it needs the forwarded scope."},
+  {"id": "ports_scope_inactive",  "translation": "Forwarded rules do nothing until published ports are filtered. Set published_ports in easywall.toml."},
 
   {"id": "blacklist_title",  "translation": "Blacklist"},
   {"id": "blacklist_hint",   "translation": "Enter one IP address or CIDR range per line."},

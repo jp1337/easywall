@@ -1247,6 +1247,87 @@ async function checkNoInputClipsItsOwnValue(page, where, path) {
     fail(`input overflow [${where}]`, `${path} — "${c.label}" value "${c.value}" needs ` +
       `${c.scrollWidth}px, only ${c.clientWidth}px visible`);
   }
+  await checkNoSelectClipsItsOwnOption(page, where, path);
+}
+
+/**
+ * And every <select> in one must show the option it has chosen.
+ *
+ * The check above cannot: a <select> is a replaced element, its scrollWidth is
+ * its clientWidth whatever the option says, and it answers a box too narrow by
+ * truncating the label with no ellipsis, no wrap and no scrollbar. 2.19's Scope
+ * column reached review twice with a clipped German option — once showing
+ * "An einen Container" for "An einen Container weitergeleitet", once
+ * "Weitergeleite" for "Weitergeleitet" — with this suite green both times.
+ *
+ * Nor can it be predicted: the arithmetic that missed the second one measured
+ * the option's text in the select's own computed font, in a hidden <span>, and
+ * said 15px clear. A native select does not lay its label out in the box that
+ * arithmetic describes — the control reserves room of its own beside the text,
+ * and how much is the engine's business, not the stylesheet's.
+ *
+ * So this asks the engine. The select is cloned with one option left in it and
+ * `width: auto` — the width that engine needs to render that option in full;
+ * if the real control is narrower, the label on screen is not all of it. Same
+ * clone, same classes, same cascade; the only difference is that nothing is
+ * constraining the width.
+ *
+ * Every option, not the selected one. Which option a row happens to carry is
+ * the demo's data, and the widest one is a click away for any operator: a Scope
+ * column that cannot show "Weitergeleitet" is broken on a page where every rule
+ * currently says "Dieser Host". That is also what keeps this honest without the
+ * seed having to carry a forwarded rule — the first run's wizard replaces the
+ * demo's rules with its own two, and a check that only measured what was on the
+ * page would have gone quiet exactly there.
+ *
+ * A 1px tolerance, for the same reason the container check has one: sub-pixel
+ * layout rounds, and a check that fires on half a pixel gets switched off.
+ */
+async function checkNoSelectClipsItsOwnOption(page, where, path) {
+  const clipped = await page.evaluate(() => {
+    const out = [];
+    const seen = new Set();
+    for (const el of document.querySelectorAll('.table-reflow select')) {
+      const has = el.getBoundingClientRect().width;
+      let worst = null;
+      for (const option of [...el.options]) {
+        // The index is read before the clone is pruned: removing an option
+        // renumbers the ones after it, and comparing against a live index
+        // while mutating the collection empties the clone instead of
+        // narrowing it — which measures the minimum width of a select with
+        // no options at all, and passes everything.
+        const keep = option.index;
+        const clone = el.cloneNode(true);
+        [...clone.options].forEach((o, i) => { if (i !== keep) o.remove(); });
+        Object.assign(clone.style, {
+          position: 'absolute', left: '-10000px', top: '0',
+          width: 'auto', minWidth: '0', maxWidth: 'none',
+        });
+        document.body.appendChild(clone);
+        const needs = clone.getBoundingClientRect().width;
+        clone.remove();
+        if (!worst || needs > worst.needs) {
+          worst = { needs, option: option.textContent.trim() };
+        }
+      }
+      if (!worst || worst.needs - has <= 1) continue;
+      const label = el.getAttribute('aria-label') || el.className;
+      // One row's worth: every rule row carries the same control, and thirty
+      // identical failures is a wall of text nobody reads to the end of.
+      const key = `${label}|${worst.option}|${Math.round(has)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        label, option: worst.option,
+        needs: Math.round(worst.needs), has: Math.round(has),
+      });
+    }
+    return out;
+  });
+  for (const c of clipped) {
+    fail(`select overflow [${where}]`, `${path} — "${c.label}" option "${c.option}" needs ` +
+      `${c.needs}px, the control is ${c.has}px`);
+  }
 }
 
 /**
@@ -1477,6 +1558,41 @@ async function checkContainersDoNotOverflow(page, where, path) {
   }
 }
 
+/**
+ * The same overflow questions, asked in German.
+ *
+ * Every width above is swept in English, and German is the language this
+ * interface is longest in: "Netzwerkeinstellungen gespeichert" against "Network
+ * settings saved", "Weitergeleitet" against "Forwarded", "Geltungsbereich"
+ * against "Scope". A column that fits in English and not in German is a defect
+ * in half the shipped locales, and until 2.19 nothing here had ever rendered
+ * one. The first run of this pass found two: the Scope select truncating its
+ * own German option, which this release caused, and /log's action chip — a
+ * nowrap pill — making that table 382px wide inside a 360px wrap at 390px,
+ * which it had been doing since long before this branch.
+ *
+ * One theme, because none of these three measurements is a colour, and every
+ * width, because that is where the last one hid. The health checks themselves
+ * (console errors, failed requests) are not repeated: those do not change with
+ * the Accept-Language a cookie sets.
+ */
+async function checkGermanFits(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  await ctx.addCookies([{ name: 'easywall_lang', value: 'de', url: BASE }]);
+  for (const width of WIDTHS) {
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width, height: 1000 });
+    for (const path of PAGES) {
+      await page.goto(BASE + path, { waitUntil: 'networkidle' });
+      await checkNoInputClipsItsOwnValue(page, `de ${width}px`, path);
+      await checkContainersDoNotOverflow(page, `de ${width}px`, path);
+    }
+    await page.close();
+    console.log(`  ok   ${PAGES.length} pages fit German at ${width}px`);
+  }
+  await ctx.close();
+}
+
 /** Every page renders without complaint, and without scrolling sideways. */
 async function checkPageHealth(ctx, theme, width) {
   const page = await ctx.newPage();
@@ -1565,6 +1681,8 @@ async function runChecks(browser, session) {
       await ctx.close();
     }
   }
+
+  await checkGermanFits(browser, session);
 
   const ctx = await browser.newContext({
     ignoreHTTPSErrors: true,

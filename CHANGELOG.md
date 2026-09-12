@@ -5,6 +5,71 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**What it passes on, it also filters.**
+
+A published container port is routed to the container, not addressed to the
+host, so it crosses the `forward` chain and never `input`. On a measured host
+that meant four of fourteen open ports reached easywall's rules and ten were
+filtered by somebody else, with the dashboard reporting *Active* and saying
+nothing about it. A port rule can now name that traffic.
+
+### Added
+
+- **A port rule carries a scope.** `host` — the default, and what every rule
+  written before this release means — is traffic addressed to this machine.
+  `forwarded` is traffic this machine passes on, which is what a published
+  container port is. `both` is the same port wherever it arrives. On the ports
+  page it is a **Scope** column beside SSH, and `rules.json` gains no key until
+  a rule is given a scope, so an existing file stays byte-identical.
+- **`docker.published_ports`**, `"open"` or `"filtered"`. `"open"` is what
+  easywall has always done: Docker decides who reaches a published port. Under
+  `"filtered"`, and only then, the forward chain gains a default-deny for
+  traffic whose destination is a container address and whose source is not —
+  and a `forwarded` port rule is what opens one. Without that deny the feature
+  would be decoration: `addForwardExceptions` accepts any packet with a source
+  *or* destination inside an allowed bridge CIDR, and after Docker's DNAT an
+  inbound packet to a published port already has one. A forwarded accept that
+  names no source is pinned to IPv4: the table is `inet`, so a rule testing only
+  a port matches both families, and the deny beside it is built from bridge
+  detection, which is IPv4-only. Unpinned it would open the port for forwarded
+  IPv6 to anything the host routes.
+- **The ports page says when a forwarded rule is inert.** A rule written for
+  the forward chain while `published_ports` is `"open"` is never consulted, and
+  a rule that enforces nothing must not look like one that does.
+- **A `selftest` case for the ordering.** Forwarded rules render before the
+  bridge exceptions; rendered after them they could never deny anything, which
+  is 2.17's defect class reproduced by the release meant to end it. It is
+  proven in a private netns rather than reasoned about, and again against a
+  real bridge in the integration suite.
+
+### Changed
+
+- **`published_ports = "filtered"` is deliberately not in the interface.** It
+  is the one switch that can take every container on a host off the network in
+  a single press, and the 120-second acceptance window cannot catch that: the
+  window proves the operator's own connection, and that arrives on the `input`
+  chain. It is edited in `easywall.toml`, documented on the Docker page, and
+  the ports page only warns.
+- **Two contradictions are refused rather than guessed at.** A
+  `published_ports` value that is neither `open` nor `filtered` stops the
+  daemon by name, on start and on `SIGHUP`, instead of quietly reading as open;
+  and `"filtered"` with `docker.enabled = false` is refused as the
+  contradiction it is.
+- **`"filtered"` with no container network detected renders nothing.** The
+  forward chain is left exactly as the previous release left it, with one
+  warning saying why. A deny with no exceptions beside it would close the
+  host's container traffic entirely.
+- **A `routing.networks` peer no longer reaches published container ports under
+  `"filtered"`.** The deny is evaluated before the CIDR exceptions, by design —
+  a peer allowed there still needs a forwarded port rule. Documented on the
+  Docker page, because an operator with `routing.networks` set meets it as an
+  outage.
+- **`check:ui`'s layout and overflow sweep now runs in German as well.** The
+  Scope column's German option truncated in a rendered select twice while every
+  gate stayed green.
+
 ## [2.18.0] — 2026-09-11
 
 **A password alone is not enough.**
@@ -1929,6 +1994,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
 [unreleased]: https://github.com/jp1337/easywall/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.18.0...HEAD
 [2.18.0]: https://github.com/jp1337/easywall/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/jp1337/easywall/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/jp1337/easywall/compare/v2.15.1...v2.16.0

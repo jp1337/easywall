@@ -10,6 +10,12 @@ package core
 // interface, and a veth pair into a fresh namespace is the smallest thing that
 // arranges it.
 //
+// A *third* namespace is optional, and AddContainerLeg builds it: a packet
+// addressed to the peer is delivered locally there and never reaches the
+// forward hook, so the rules 2.19 added to the forward chain cannot be
+// measured with two namespaces either. The container sits behind the peer,
+// inside a subnet of the same range, and the peer routes between them.
+//
 // Everything here is netlink and pipes — plus one stdlib read of this host's
 // own interface list, in harnessCollision, which touches nothing privileged
 // and is why it is allowed. The only program this file execs is
@@ -29,6 +35,8 @@ package core
 //	child -> parent   "unparsed\n"                  not a verdict; see below
 //	child -> parent   "failed <reason>\n"           not a verdict: the dial
 //	                                                could not be made at all
+//	parent -> child   "route ewst-p ewst-b\n"       forward, and proxy-ARP these
+//	child -> parent   "routing\n" | "failed <r>\n"  see peerRoute
 //	parent -> child   (pipe closed)                 child exits
 //
 // "unparsed" exists because "I could not read your line" and "the firewall
@@ -78,18 +86,26 @@ import (
 const PeerEnvVar = "EASYWALL_SELFTEST_PEER"
 
 // RunPeer is the child. It is already inside the new namespace when this runs —
-// Cloneflags did that before exec — so it configures nothing and only dials
-// what it is told to. The parent owns every netlink write, including the ones
-// that land inside this namespace, which it reaches through /proc/<pid>/ns/net.
+// Cloneflags did that before exec — so it creates nothing and only dials what
+// it is told to. The parent owns every netlink write, including the ones that
+// land inside this namespace, which it reaches through /proc/<pid>/ns/net.
+//
+// The one thing the child does to its own namespace is peerRoute, because a
+// sysctl is the one setting /proc/<pid>/ does not expose to the parent at all.
 func RunPeer(stdin io.Reader, stdout io.Writer) int {
 	if _, err := fmt.Fprintln(stdout, "ready"); err != nil {
 		return 1
 	}
 	sc := bufio.NewScanner(stdin)
 	for sc.Scan() {
+		line := sc.Text()
+		if strings.HasPrefix(line, "route ") {
+			_, _ = fmt.Fprintln(stdout, peerRoute(strings.Fields(line)[1:]))
+			continue
+		}
 		var addr string
 		var port, ms int
-		if n, _ := fmt.Sscanf(sc.Text(), "dial %s %d %d", &addr, &port, &ms); n != 3 {
+		if n, _ := fmt.Sscanf(line, "dial %s %d %d", &addr, &port, &ms); n != 3 {
 			// Not "blocked": nothing was dialled, so there is no verdict to
 			// report and the parent must not read one.
 			_, _ = fmt.Fprintln(stdout, "unparsed")
@@ -142,6 +158,49 @@ func peerVerdict(err error) string {
 	return "failed " + strings.Join(strings.Fields(err.Error()), " ")
 }
 
+// peerRoute turns this namespace into a router, which is what a container host
+// is and what the forward chain needs before it is reached at all.
+//
+// It runs in the child rather than in the parent because /proc/sys/net is the
+// *reading* task's network namespace: there is no /proc/<pid>/ path by which
+// the parent could write the peer's ip_forward, and setns in a privileged
+// daemon to write one byte would be a new mechanism for a sysctl.
+//
+// proxy_arp on both interfaces is what saves a route on either side. The
+// harness's three namespaces all live inside 10.77.9.0/24 — the range
+// harnessCollision already guards — with the bridge as the more specific
+// 10.77.9.128/25 behind this namespace. Each outer namespace therefore has the
+// far side on-link through its own connected route and ARPs for it, and this
+// namespace answers because its route to the target leaves by the *other*
+// interface. Nothing is added to the operator's routing table, on a host where
+// the outer namespace is the real one.
+//
+// Names are refused unless they are bare interface names. The parent is the
+// only writer on this pipe, but a path assembled from a pipe inside the
+// process that holds CAP_NET_ADMIN does not get to rely on that.
+func peerRoute(ifaces []string) string {
+	if len(ifaces) == 0 {
+		return "failed no interface was named"
+	}
+	paths := []string{"/proc/sys/net/ipv4/ip_forward"}
+	for _, name := range ifaces {
+		if name == "" || strings.ContainsAny(name, "/.") {
+			return "failed " + name + " is not an interface name"
+		}
+		paths = append(paths, "/proc/sys/net/ipv4/conf/"+name+"/proxy_arp")
+	}
+	for _, p := range paths {
+		// #nosec G306 -- every path here is a /proc/sys knob that already exists,
+		// and os.WriteFile applies a mode only when it creates a file. The kernel
+		// owns these and gives them 0644; the argument is never reached. Lowering
+		// it to satisfy a scanner would describe a file easywall does not create.
+		if err := os.WriteFile(p, []byte("1"), 0o644); err != nil {
+			return "failed " + strings.Join(strings.Fields(err.Error()), " ")
+		}
+	}
+	return "routing"
+}
+
 // interpretPeerLine turns the peer's line into a verdict or an error.
 //
 // Split out of Harness.Dial so both ends of the protocol are testable without
@@ -175,6 +234,17 @@ const (
 	harnessPeerIf   = "ewst-p"
 	harnessPrefix   = 24
 
+	// The container leg, built only by AddContainerLeg. Both interfaces live
+	// inside namespaces this harness owns and never appear in the outer one,
+	// so neither needs a collision check.
+	harnessBridgeIf     = "ewst-b"
+	harnessContainerIf  = "ewst-c"
+	harnessBridgePrefix = 25
+
+	// harnessBridgeCIDR is what the self-test hands to docker.custom_networks:
+	// the range the forward chain's deny is written over.
+	harnessBridgeCIDR = "10.77.9.128/25"
+
 	// vethInfoPeer is VETH_INFO_PEER from linux/veth.h. golang.org/x/sys/unix
 	// exports every other constant this file needs but not this one, and adding
 	// a dependency for a single 1 is not a trade worth making.
@@ -189,6 +259,18 @@ const (
 var (
 	harnessRouterAddr = netip.MustParseAddr("10.77.9.1")
 	harnessPeerAddr   = netip.MustParseAddr("10.77.9.2")
+
+	// The container leg. The bridge is a *subnet of the harness range* on
+	// purpose, so that everything AddContainerLeg builds is already covered by
+	// harnessCollision and no second range has to be checked — and so that a
+	// production host never has a route or an address added outside the one
+	// /24 this harness has always claimed. The prefixes are the second half of
+	// that trick: /25 on the peer's side is more specific than its own
+	// 10.77.9.0/24, so the peer routes .130 out of the bridge and .1 out of the
+	// veth, while /24 on the container's side puts the outer namespace on-link
+	// for it. peerRoute's proxy ARP supplies the rest.
+	harnessBridgeAddr    = netip.MustParseAddr("10.77.9.129")
+	harnessContainerAddr = netip.MustParseAddr("10.77.9.130")
 )
 
 // ErrHarnessRangeInUse is the sentinel for "this host already uses what the
@@ -250,9 +332,13 @@ func harnessCollision(ifaces []net.Interface, addrsOf func(net.Interface) ([]net
 	return "", nil
 }
 
-// Harness is a peer process in its own network namespace, wired to this one by
-// a veth pair.
-type Harness struct {
+// peerProc is one child process in a network namespace of its own, the two
+// pipes that reach it, and the descriptor that namespace is opened on.
+//
+// Two of them make the forward harness — the peer that holds the table under
+// test and the container behind it — and everything both need is here rather
+// than twice: the one-line protocol, the read deadline, the teardown.
+type peerProc struct {
 	child  *exec.Cmd
 	stdin  *os.File
 	out    *os.File // kept as the concrete type, for SetReadDeadline
@@ -262,6 +348,17 @@ type Harness struct {
 	// whole life because the self-test hands it to nftables.WithNetNSFd, which
 	// dups nothing and expects the fd to still be there at Apply time.
 	netnsFd int
+}
+
+// Harness is a peer process in its own network namespace, wired to this one by
+// a veth pair — and, once AddContainerLeg has been called, a third namespace
+// behind the peer that can only be reached by forwarding.
+type Harness struct {
+	*peerProc
+
+	// container is the third namespace. Nil unless AddContainerLeg built it:
+	// four of the five claims measure an input chain and pay nothing for it.
+	container *peerProc
 
 	// peerConn writes netlink inside the child's namespace. Opened on netnsFd,
 	// closed by Close.
@@ -320,6 +417,24 @@ var startPeer = func() (*exec.Cmd, *os.File, *os.File, error) {
 // gets a nil *Harness with that error, so there is nothing half-built to use by
 // mistake.
 func NewHarness() (*Harness, error) {
+	p, err := newPeerProc()
+	if err != nil {
+		return nil, err
+	}
+	h := &Harness{peerProc: p}
+	if err := h.wire(); err != nil {
+		h.Close()
+		return nil, err
+	}
+	return h, nil
+}
+
+// newPeerProc starts one child in a namespace of its own and waits for it to
+// say so. Nothing is wired here: the caller decides what the namespace is for.
+//
+// A half-built peer is torn down before the error is returned, so a caller that
+// gets one never has to close anything.
+func newPeerProc() (*peerProc, error) {
 	cmd, parentIn, parentOut, err := startPeer()
 	if err != nil {
 		if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
@@ -328,7 +443,7 @@ func NewHarness() (*Harness, error) {
 		return nil, fmt.Errorf("starting the harness peer: %w", err)
 	}
 
-	h := &Harness{
+	p := &peerProc{
 		child:   cmd,
 		stdin:   parentIn,
 		out:     parentOut,
@@ -339,8 +454,8 @@ func NewHarness() (*Harness, error) {
 	// Anything but "ready" is the same refusal as a start error that wraps
 	// EPERM: the kernel let us clone and then something else stopped the peer
 	// from running, and either way there is no harness to measure in.
-	if line, err := h.readLine(harnessReadyTimeout); err != nil || line != "ready" {
-		h.Close()
+	if line, err := p.readLine(harnessReadyTimeout); err != nil || line != "ready" {
+		p.close()
 		if err != nil {
 			return nil, fmt.Errorf("%w: the peer never reported ready: %v",
 				ErrNamespaceUnavailable, err)
@@ -349,11 +464,14 @@ func NewHarness() (*Harness, error) {
 			ErrNamespaceUnavailable, line)
 	}
 
-	if err := h.wire(); err != nil {
-		h.Close()
-		return nil, err
+	fd, err := unix.Open("/proc/"+strconv.Itoa(cmd.Process.Pid)+"/ns/net",
+		unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		p.close()
+		return nil, fmt.Errorf("%w: opening the peer's netns: %v", ErrNamespaceUnavailable, err)
 	}
-	return h, nil
+	p.netnsFd = fd
+	return p, nil
 }
 
 // wire builds the pair and configures both ends. Every netlink message is a
@@ -361,12 +479,6 @@ func NewHarness() (*Harness, error) {
 // ip-address(8) rather than against this sequence.
 func (h *Harness) wire() error {
 	pid := h.child.Process.Pid
-
-	fd, err := unix.Open("/proc/"+strconv.Itoa(pid)+"/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return fmt.Errorf("%w: opening the peer's netns: %v", ErrNamespaceUnavailable, err)
-	}
-	h.netnsFd = fd
 
 	local, err := netlink.Dial(unix.NETLINK_ROUTE, nil)
 	if err != nil {
@@ -451,21 +563,35 @@ func (h *Harness) Close() {
 		_ = h.peerConn.Close()
 		h.peerConn = nil
 	}
-	if h.netnsFd >= 0 {
-		_ = unix.Close(h.netnsFd)
-		h.netnsFd = -1
+	// The container before the peer: its veth pair lives in the peer's
+	// namespace, which stops existing when the peer does.
+	if h.container != nil {
+		h.container.close()
+		h.container = nil
+	}
+	if h.peerProc != nil {
+		h.close() // the promoted peerProc.close, not this one
+	}
+}
+
+// close tears down one child. Safe on a half-built one, which is how
+// newPeerProc unwinds.
+func (p *peerProc) close() {
+	if p.netnsFd >= 0 {
+		_ = unix.Close(p.netnsFd)
+		p.netnsFd = -1
 	}
 	// Closing stdin is what tells a live peer to exit; the kill is for one that
 	// is wedged somewhere else.
-	if h.stdin != nil {
-		_ = h.stdin.Close()
+	if p.stdin != nil {
+		_ = p.stdin.Close()
 	}
-	if h.child != nil && h.child.Process != nil {
-		_ = h.child.Process.Kill()
-		_, _ = h.child.Process.Wait()
+	if p.child != nil && p.child.Process != nil {
+		_ = p.child.Process.Kill()
+		_, _ = p.child.Process.Wait()
 	}
-	if h.out != nil {
-		_ = h.out.Close()
+	if p.out != nil {
+		_ = p.out.Close()
 	}
 }
 
@@ -489,27 +615,121 @@ func (h *Harness) NetNSFd() int { return h.netnsFd }
 // nil error is a verdict; an error means the harness itself failed and the
 // verdict is unknown, which callers must not read as "blocked".
 func (h *Harness) Dial(addr netip.Addr, port uint16, timeout time.Duration) (bool, error) {
-	if _, err := fmt.Fprintf(h.stdin, "dial %s %d %d\n", addr, port, timeout.Milliseconds()); err != nil {
+	return h.dial(addr, port, timeout)
+}
+
+// DialFromContainer is the same question asked from behind the peer, and it is
+// the one direction nothing else in this package can ask.
+//
+// A container's own outbound connection is what the forward chain's deny is
+// most dangerous to: the reply comes back with the bridge address as its
+// *destination* and a source outside it, which is the deny's exact shape. Only
+// a connection opened from inside the container produces that packet, so only
+// this call can prove the established accept is still in front of it.
+func (h *Harness) DialFromContainer(addr netip.Addr, port uint16, timeout time.Duration) (bool, error) {
+	if h.container == nil {
+		return false, errors.New("there is no container leg; call AddContainerLeg first")
+	}
+	return h.container.dial(addr, port, timeout)
+}
+
+func (p *peerProc) dial(addr netip.Addr, port uint16, timeout time.Duration) (bool, error) {
+	if _, err := fmt.Fprintf(p.stdin, "dial %s %d %d\n", addr, port, timeout.Milliseconds()); err != nil {
 		return false, fmt.Errorf("asking the peer to dial: %w", err)
 	}
-	line, err := h.readLine(timeout + 2*time.Second)
+	line, err := p.readLine(timeout + 2*time.Second)
 	if err != nil {
 		return false, fmt.Errorf("reading the peer's verdict: %w", err)
 	}
 	return interpretPeerLine(line)
 }
 
-func (h *Harness) readLine(timeout time.Duration) (string, error) {
-	if err := h.out.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+func (p *peerProc) readLine(timeout time.Duration) (string, error) {
+	if err := p.out.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 		return "", fmt.Errorf("setting the peer read deadline: %w", err)
 	}
-	if !h.stdout.Scan() {
-		if err := h.stdout.Err(); err != nil {
+	if !p.stdout.Scan() {
+		if err := p.stdout.Err(); err != nil {
 			return "", err
 		}
 		return "", errors.New("the peer closed its pipe")
 	}
-	return h.stdout.Text(), nil
+	return p.stdout.Text(), nil
+}
+
+// ContainerAddr is the address behind the peer: inside the bridge range, and
+// reachable from here only if the peer's forward chain lets a packet through.
+func (h *Harness) ContainerAddr() netip.Addr { return harnessContainerAddr }
+
+// BridgeCIDR is the range to hand to docker.custom_networks, so that the table
+// under test writes its deny over the network the container is actually on.
+func (h *Harness) BridgeCIDR() string { return harnessBridgeCIDR }
+
+// AddContainerLeg puts a third namespace behind the peer and makes the peer
+// route between the two.
+//
+// This is what turns the harness from something that measures an *input* chain
+// into something that measures a *forward* chain, and the distinction is the
+// whole of 2.19: a packet addressed to this namespace never reaches the forward
+// hook, so a two-namespace harness cannot say anything about the rules that
+// decide a published container port. Traffic from the outer namespace to
+// ContainerAddr is forwarded by the peer and nothing else — one hop, one
+// verdict, no DNAT to arrange, because the address the deny matches is the
+// container's own either way.
+//
+// Idempotent, so a prover that calls it twice gets one leg. Errors are the
+// harness and never a finding: every one of them means this claim cannot be
+// settled here.
+func (h *Harness) AddContainerLeg() error {
+	if h.container != nil {
+		return nil
+	}
+	c, err := newPeerProc()
+	if err != nil {
+		return err
+	}
+	h.container = c // owned by Close from here, however the rest of this goes
+
+	// Created from inside the peer's namespace, with the far end handed
+	// straight to the container's — the same single message the outer pair
+	// uses, one namespace further in.
+	if err := createVethPair(h.peerConn, harnessBridgeIf, harnessContainerIf,
+		c.child.Process.Pid); err != nil {
+		return fmt.Errorf("creating the bridge pair inside the peer: %w", err)
+	}
+
+	cConn, err := netlink.Dial(unix.NETLINK_ROUTE, &netlink.Config{NetNS: c.netnsFd})
+	if err != nil {
+		return fmt.Errorf("rtnetlink inside the container's namespace: %w", err)
+	}
+	defer func() { _ = cConn.Close() }()
+
+	// The two prefixes differ deliberately; see harnessBridgeAddr's comment.
+	if err := addAddress(h.peerConn, harnessBridgeIf, harnessBridgeAddr, harnessBridgePrefix); err != nil {
+		return fmt.Errorf("addressing the bridge side: %w", err)
+	}
+	if err := addAddress(cConn, harnessContainerIf, harnessContainerAddr, harnessPrefix); err != nil {
+		return fmt.Errorf("addressing the container: %w", err)
+	}
+	if err := setLinkUp(h.peerConn, harnessBridgeIf); err != nil {
+		return fmt.Errorf("bringing the bridge side up: %w", err)
+	}
+	if err := setLinkUp(cConn, harnessContainerIf); err != nil {
+		return fmt.Errorf("bringing the container up: %w", err)
+	}
+
+	if _, err := fmt.Fprintf(h.stdin, "route %s %s\n", harnessPeerIf, harnessBridgeIf); err != nil {
+		return fmt.Errorf("asking the peer to route: %w", err)
+	}
+	line, err := h.readLine(harnessReadyTimeout)
+	if err != nil {
+		return fmt.Errorf("reading the peer's answer to route: %w", err)
+	}
+	if line != "routing" {
+		return fmt.Errorf("%w: the peer could not become a router: %s",
+			ErrNamespaceUnavailable, strings.TrimPrefix(line, "failed "))
+	}
+	return nil
 }
 
 // createVethPair sends one RTM_NEWLINK carrying the whole pair, with the peer's

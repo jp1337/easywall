@@ -93,7 +93,11 @@ interface configures what the firewall does.
   limit, `[ipv6]`, `[docker]`, `[routing]`, `acceptance.duration` — are written
   by the interface. A variable overriding one of these would be undone the next
   time the container restarts and rereads `easywall.toml`, silently, with the
-  interface having reported the change as saved.
+  interface having reported the change as saved. `docker.published_ports` is the
+  one key the interface does not write either, for the reason
+  [Docker Coexistence]({{ '/docs/features/docker/' | relative_url }}) gives. It is
+  still not a variable: a container that came up with it set would close every
+  published port before anyone could look.
 - **Credentials, the session key, the TOTP secret, the recovery codes** —
   `username`, `password`, `session_key`, `totp_secret`, `recovery_codes` — are
   secrets, and an environment variable is not one. It is visible to

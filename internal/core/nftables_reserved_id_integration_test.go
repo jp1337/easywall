@@ -67,7 +67,7 @@ func TestIntegration_RuleCountersReportsTheReservedEstablishedID(t *testing.T) {
 // The reserved id names one rule in the table, not two.
 //
 // addEstablishedAccept has two callers — the input chain, and the forward chain
-// from addForwardExceptions — so tagging unconditionally put one id on two rules
+// from buildForwardChain — so tagging unconditionally put one id on two rules
 // that count different traffic. RuleCounters filters to the input chain and
 // would never have shown it; a metrics endpoint or outbound rules, both on the
 // roadmap, would each have summed the two under one name.
@@ -76,7 +76,7 @@ func TestIntegration_RuleCountersReportsTheReservedEstablishedID(t *testing.T) {
 // the claim is about the table: whatever chain a later release adds this rule
 // to, exactly one copy may carry the id.
 //
-// routing.mode has to be set to something that routes, or addForwardExceptions
+// routing.mode has to be set to something that routes, or buildForwardChain
 // returns before it adds anything and this test would pass on an empty forward
 // chain — which is why the forward rule's presence is a t.Fatalf below rather
 // than a skip. 192.0.2.0/24 needs no interface to exist.
@@ -97,7 +97,7 @@ func TestIntegration_TheReservedEstablishedIDNamesExactlyOneRule(t *testing.T) {
 	if got := strings.Count(rs, comment); got != 1 {
 		t.Errorf("%s occurs %d times in the table, want exactly 1\n"+
 			"  two rules under one id sum traffic from two chains as one figure; the forward "+
-			"copy addForwardExceptions adds must stay untagged\n--- ruleset ---\n%s",
+			"copy buildForwardChain adds must stay untagged\n--- ruleset ---\n%s",
 			comment, got, rs)
 	}
 

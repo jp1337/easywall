@@ -73,7 +73,15 @@ ignore-words-list = rouge,iif,oder,unparseable
 # diff does not show. It happened once, between two commits of the same release,
 # because a comment was reflowed. Where the phrase is not load-bearing, say
 # "the French title for changing a password" instead of quoting it.
-ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe|später unter Passwort|ohne zweiten Faktor
+ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe|später unter Passwort|ohne zweiten Faktor|published_ports = "filterd"
+
+# `published_ports = "filterd"` is a fixture, not a mistake. It is the typo an
+# operator makes, quoted verbatim in internal/shared/config_docker_test.go so
+# that TestDockerConfig_AnUnknownValueIsOpen can assert an unrecognised value
+# reads as "open" rather than silently closing every published port. The string
+# IS the assertion, which is the case the note at the foot of this file exempts,
+# so it is scoped to the whole `key = "value"` phrase rather than put in
+# ignore-words-list — a bare `filterd` anywhere else is still caught.
 
 # The two German phrases the wizard must never say, quoted verbatim in
 # internal/web/handler_firstrun_2fa_test.go's forbidden list: "später unter
