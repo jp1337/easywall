@@ -13,7 +13,7 @@ import (
 // skip reason and moves on, the job exits 0, and nothing distinguishes "the four
 // claims were proven against a real kernel" from "nothing was measured". Worse
 // than a skip, measured: with every prover skipping,
-// TestIntegration_SelftestProvesTheRemainingThreeClaims reports `--- PASS`,
+// TestIntegration_SelftestProvesTheRemainingFourClaims reports `--- PASS`,
 // because a parent test whose subtests all skip is not itself skipped.
 //
 // **What this actually covers, and what it does not.** The obvious hazard — the

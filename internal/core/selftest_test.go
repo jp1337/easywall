@@ -142,8 +142,26 @@ func TestSelftestStampAlwaysCarriesVersionKernelAndTime(t *testing.T) {
 	// Every claim is attempted, not only the first. That is what makes the
 	// order of the list stop mattering, and a fold that returned early would
 	// show up here as a single call.
-	if calls != 4 {
-		t.Errorf("startPeer was called %d times, want 4; every claim has to be attempted or the "+
-			"order of the list decides the outcome again", calls)
+	if calls != len(selftestClaims()) {
+		t.Errorf("startPeer was called %d times, want %d; every claim has to be attempted or the "+
+			"order of the list decides the outcome again", calls, len(selftestClaims()))
 	}
+}
+
+// The claim list is what RunSelftest folds, and a claim that is not in it is a
+// proof nobody ever runs. Asserted by description because that is what an
+// operator reads in the stamp, and because a prover reachable only from a test
+// is exactly the shape this release exists to remove: a surface that reports a
+// verdict nothing ever took.
+func TestRunSelftest_ClaimsTheForwardedPortCase(t *testing.T) {
+	want := "a forwarded rule opens one container port and the deny closes the rest"
+	for _, c := range selftestClaims() {
+		if c.name == want {
+			if c.prove == nil {
+				t.Fatalf("the forwarded-port claim is in the list with no prover behind it")
+			}
+			return
+		}
+	}
+	t.Fatalf("the forwarded-port claim is missing from the selftest")
 }

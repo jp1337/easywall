@@ -9,7 +9,7 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// Layer C. Four claims about the table easywall builds, measured with a real
+// Layer C. Five claims about the table easywall builds, measured with a real
 // packet in a namespace of C's own. The host's real table is never touched.
 //
 // The skip is not a formality. easywall-core.service grants CAP_NET_ADMIN and
@@ -19,7 +19,7 @@ import (
 // firewall. Run this suite without --cap-add=SYS_ADMIN and read the skip
 // message: a green run that silently proved nothing is the failure mode this
 // release exists to remove.
-func TestIntegration_SelftestProvesTheFourClaims(t *testing.T) {
+func TestIntegration_SelftestProvesTheFiveClaims(t *testing.T) {
 	stamp := RunSelftest()
 	if stamp.Result == shared.SelftestUnprovable {
 		skipOrFailUnprovable(t, stamp.Detail)
@@ -66,7 +66,7 @@ func TestIntegration_SelftestProvesEstablishedPasses(t *testing.T) {
 // Each remaining claim on its own, for the same reason: the mutation table in
 // the brief names a prover per mutation, and a stamp that stops at the first
 // false claim would report only the first of them.
-func TestIntegration_SelftestProvesTheRemainingThreeClaims(t *testing.T) {
+func TestIntegration_SelftestProvesTheRemainingFourClaims(t *testing.T) {
 	for _, c := range []struct {
 		name  string
 		prove func() (bool, string, error)
@@ -74,6 +74,8 @@ func TestIntegration_SelftestProvesTheRemainingThreeClaims(t *testing.T) {
 		{"an open port accepts a connection", proveOpenPortAccepts},
 		{"a closed port does not", proveClosedPortRefuses},
 		{"a blacklisted address does not reach an open port", proveBlacklistWins},
+		{"a forwarded rule opens one container port and the deny closes the rest",
+			proveForwardedPortFiltered},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			ok, detail, err := c.prove()
