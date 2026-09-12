@@ -1011,8 +1011,26 @@ problem. Having nothing to put in it was.
 Rule and settings pages therefore run a two-column `page-grid`: the work column, and a 320px
 context column carrying what an operator editing firewall rules wants at hand anyway — the
 syntax a field accepts, what a list does, what happens on save, which setting elsewhere this
-one depends on. Below 1180px the context column drops beneath the work column. Content still
+one depends on. Below 1570px the context column drops beneath the work column. Content still
 runs full width; it simply has something to say across it.
+
+**Amended 2026-09-12.** Two corrections, both measured against the built stylesheet rather
+than remembered. The breakpoint above read 1180px and has been 1570px since the shared
+`.page-grid` rule was last measured — a number this file carried for three releases without
+anything checking it.
+
+And **/ports is now an exception: its context column sits beneath the table at every width.**
+2.19 gives a port rule a Scope column, and seven columns leave the table no room for a 320px
+aside beside it. Measured on the running demo at 1700px with the aside present: the
+description field had 88px for a 147px value, and it would take a 1805px viewport for the
+catalogue's longest description to fit. The published screenshots are taken at 1700px, and
+`TestScreenshotsAreTakenAboveTheTwoColumnBreakpoint` refuses any `.page-grid` breakpoint at
+or above that width — so an aside that only works above 1805px is an aside that is wrong in
+every figure in `docs/`. 2.15 reached the same conclusion for /ports without the measurement
+("worth having, but not worth this table's row width"); the carried-forward sweep restored
+the two-column layout above 1650px; this is the third decision and the first with a number
+attached. The rule stays the general one — a context column is worth a third of the width —
+and /ports is where a wide table outvotes it.
 
 ## Elevation & Depth
 

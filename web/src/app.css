@@ -787,47 +787,39 @@ body {
     .page-grid { grid-template-columns: minmax(0, 1fr); }
   }
 
-  /* /ports only, and no longer unconditional.
-     The 2.15 decision was that ports' own aside (port syntax, SSH protection,
-     sources) is "worth having, but not worth this table's row width", and it
-     collapsed at every width. That reasoning was width-blind — it never asked
-     what happens above 1570px.
-     1650px below is MEASURED, against the running demo at 2026-09-12, and it
-     could not have been derived. Every fixed column here is only ever a hint
-     to table-layout: auto, which redistributes from rendered content rather
-     than honouring a declaration — measured at a 1920px viewport, .col-sources
-     renders 350px against a declared 25rem/400px and .col-used 140px against a
-     declared 10rem/160px, while .col-toggle and .col-actions each render a
-     little over theirs. The comments at :1790 and :1804 record the same effect
-     from the other side, and the shared 1570px breakpoint's own first estimate
-     (~1500px, two comments up) was wrong by sixty-odd pixels for exactly this
-     reason. An earlier version of this comment tried the sum anyway and got it
-     wrong twice over: three of the five columns, and this rule's own 16px gap
-     ignored.
+  /* /ports only, and unconditional again from 2.19.
 
-     What was measured: the width at which .col-flex can no longer show
-     "PostgreSQL — replication peer" — the longest description the catalogue
-     produces — on one line, with the 320px aside and its 16px gap present.
-     That string needs 205px inside the field. The field gets 206px at a
-     1650px viewport and 196px at 1640, so the handoff is 1650 exactly:
+     History, because this rule has now been decided three times. 2.15
+     collapsed the aside at every width: ports' own aside (port syntax, SSH
+     protection, sources) is "worth having, but not worth this table's row
+     width". The carried-forward sweep called that width-blind and gave the
+     aside back above a measured 1650px, where .col-flex could still show
+     "PostgreSQL — replication peer" — the catalogue's longest description — in
+     206px against the 205px it needs.
 
-         viewport   1920   1700   1660   1650   1640   1600
-         .col-flex   510    290    250    240    230    190
-         field has   476    256    216    206    196    156     (needs 205)
-         clipped      no     no     no     no    YES    YES
+     2.19 adds a seventh column, and 2.15's reasoning comes back with a number
+     behind it. Measured on the running demo with the Scope column present: in
+     the two-column band .table-wrap is viewport - 622, the six columns that
+     are not the description render 940px together, and the description field
+     is therefore viewport - 1612. At 1700px that is 88px for a 147px value —
+     a rule description clipped to a third of itself. The aside would have to
+     stay away until 1805px for the longest description to fit beside it.
 
-     max-width is inclusive, which puts the collapse on the correct side of the
-     boundary: at 1650 and below the aside moves under the table and the
-     description has the full row; at 1651 and above it has 207px, which fits.
-     .page-grid-ports still carries the "two classes beat one" idiom
-     .table-reflow uses on .table (0,0,2,0 beats 0,0,1,0): inside this query
-     it wins the cascade only below the threshold, so above it the shared
-     .page-grid rule's own two-column layout applies uncontested — the double
-     class still matters, just now only within the query's range rather than
-     at every width. */
-  @media (max-width: 1650px) {
-    .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
-  }
+     1805 is not available. scripts/ui-check.mjs takes every published
+     screenshot at 1700px, and TestScreenshotsAreTakenAboveTheTwoColumnBreakpoint
+     fails any `.page-grid` breakpoint at or above that width — for the reason
+     its own comment gives: between the breakpoint and the viewport, every
+     figure in docs/ shows the collapsed fallback instead of the layout the
+     design is about. So the choice measured out as: an aside beside a table
+     whose description is clipped at the exact width the screenshots are taken,
+     or the aside under the table. 2.15 was right, and it is right for a
+     stronger reason now — the column it was weighing against is 168px wider.
+
+     The aside is not lost; it moves under the table, where it is still the
+     first thing below the rules. The "two classes beat one" idiom
+     (0,0,2,0 over .page-grid's 0,0,1,0) is what makes this hold at every
+     width, including above .page-grid's own 1570px. */
+  .page-grid.page-grid-ports { grid-template-columns: minmax(0, 1fr); }
 
   .page-grid > * { min-width: 0; }
 
@@ -1201,7 +1193,23 @@ body {
     resize: vertical;
   }
 
+  /* .input keeps its 28px of padding-right; .input-cell deliberately does not,
+     and that difference is what 2.19's Scope column cost to learn.
+     The engine reserves room for the arrow beside the text on its own. Measured
+     by cloning the control with one option in it and width:auto — the width
+     Chromium itself says it needs — a select needs its option's text plus 38px:
+     22px of the engine's own and this stylesheet's 8px either side. Adding 28px
+     on top made the control want 20px more than its contents do, and the German
+     Scope option was exactly 8px short of that: "Weitergeleitet" needed 144px
+     in a 136px control and rendered as "Weitergeleite". Without it, 124px in
+     136, and the arrow does not touch the text — confirmed in a screenshot of
+     the control, because the arithmetic here had already been wrong twice and a
+     <select> truncates with no ellipsis, no wrap and no scrollbar to show it.
+     check:ui now measures this the same way; see checkNoSelectClipsItsOwnOption.
+     .input keeps the padding because it is the full-size field on the settings
+     pages, where 28px is a spacing choice and not a clipping one. */
   select.input { cursor: pointer; padding-right: 28px; }
+  select.input-cell { cursor: pointer; }
 
   .field { display: flex; flex-direction: column; gap: 5px; }
 
@@ -1793,13 +1801,48 @@ body {
      longest unbreakable word ("protection") still fits, not a guess. Every
      pixel given back goes to .col-flex, the column actually holding the
      page's longest free text. */
-  .col-toggle  { width: 94px; white-space: normal; }
+  /* max-width, added in 2.19, is what makes the 94px above true. `width` on a
+     table cell is a hint that loses to the column's max-content, and this
+     header's max-content is "SSH protection" unwrapped — 90px of text plus
+     32px of padding. Measured on the running demo at 1440px: the column
+     rendered 122px in English and 103px in German for a single 16px checkbox,
+     and never wrapped, because auto layout only compresses to min-content
+     under pressure it did not feel. max-width forces the wrap the comment
+     above always assumed, at both 94px exactly: "SSH" / "protection" is 62px
+     of the 62px available, "SSH-" / "Schutz" 43px. The 28px that buys goes
+     where that comment says it goes — to .col-flex — and it is what let the
+     Scope column exist without the description losing room it had before. */
+  .col-toggle  { width: 94px; max-width: 94px; white-space: normal; }
   /* 25rem/400px so the catalogue's own default — "10.0.0.0/8, 172.16.0.0/12,
      192.168.0.0/16, fc00::/7", 307px of content — fits at 1600px without
      clipping fc00::/7, the range that exists so IPv6 does not lock anyone out.
      table-layout: auto redistributes this rather than honouring it literally,
      so the number was reached by measuring the rendered input, not by adding
      up padding on paper. */
+  /* 12rem. Measured on the running demo, twice, because the first two numbers
+     here were not.
+
+     15rem was arithmetic and clipped in English as well as German: 142px of
+     usable text against 155px for "Forwarded to a container". The labels were
+     shortened — the column is named Scope and the aside card beside it carries
+     the sentence — and the widest option is now "Weitergeleitet", 86px.
+
+     The chain, measured at 1440px: the cell renders 0.875 of what is declared
+     here (192 → 168, and .col-sources 400 → 350, .col-used 160 → 140 beside
+     it), and the select inside it loses 32px of cell padding, 8px of its own
+     left padding, the 28px reserved for the arrow below, and 2px of border.
+     12rem therefore gives 98px of usable text and 12px of clearance over the
+     German option, in every layout the table appears in — the declared width
+     governs a <select> completely, because .input-cell makes it width: 100%
+     and it contributes no max-content of its own to argue with.
+
+     That last property is also the trap: a <select> answers a column too
+     narrow for it by truncating, with no ellipsis and no wrap. Measured at
+     11rem the German option was 2px short and looked exactly like a correct
+     control. Nothing in the build would have caught it — check:ui inspects
+     inputs, not selects — so this number is the only thing standing between
+     an operator and a rule whose scope reads "An einen Container". */
+  .col-scope   { width: 12rem; }
   .col-sources { width: 25rem; }
   /* The longest string lastUsed can produce, in either language, is not
      "vor 59 Minuten" (14 characters) as an earlier version of this comment
@@ -2438,6 +2481,22 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  /* On /ports the aside is under the table at every width now (see
+     .page-grid-ports above), so these four cards have the whole row rather
+     than a 320px column — and four short paragraphs stretched across 1634px at
+     a 1920px viewport is exactly the "columns stretch absurdly" failure
+     DESIGN.md's Content grid section opens with. auto-fit puts them side by
+     side while each still has 280px and stacks them when it does not, which is
+     the column behaviour they had, without a second breakpoint to keep in
+     agreement with the first. Measured, all four cards: 400px at a 1920px
+     viewport, 320px at 1600, 280px at 1440, two rows of 302px at 900, one
+     column of 362px at 390. */
+  .page-grid-ports .aside-stack {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: start;
   }
 
   .aside-card {
@@ -3254,7 +3313,20 @@ body {
    without clipping, measured against the demo's own data (48 fields across
    its seeded rows plus the catalogue's Pi-hole row — the longest Sources and
    Description values in the app): clean from 919px, one field clipped by 1px
-   at 918. 940px leaves that a 21px margin. */
+   at 918. 940px leaves that a 21px margin.
+
+   2.19's seventh column does not fit under that number, and 940 is kept
+   anyway. Measured: with the Scope column the table needs about 1183px of its
+   own width for the catalogue's longest description, so between .table-wrap
+   940 and that — a 1226px to 1423px viewport — the description clips where it
+   did not before. Raising this threshold is what it looks like it needs, and
+   the repository's own gates refuse it: at 1205 the forwarding row check fails
+   (check:ui drives /forwarding at Playwright's default 1280px viewport, where
+   .table-wrap is 994px, and forwarding's four columns become cards for no
+   reason). The threshold is shared by every .table-wrap on purpose — see the
+   paragraph above — so the fix for /ports alone is a named container and a
+   second copy of this block, which is a decision worth more than a comment.
+   Until then this band is the one place the Scope column is not free. */
 @container (max-width: 940px) {
   /* The inset the cards want, taken out of the container rather than added to
      the rows — part of the box instead of added to it. */
@@ -3294,6 +3366,15 @@ body {
      and a filtered-out row would stay on screen. */
   .table-reflow tr[hidden] { display: none; }
 
+  /* overflow-wrap: anywhere, because German compounds do not break on their
+     own. Found by giving check:ui a German pass: /log at 390px rendered
+     "Netzwerkeinstellungen gespeichert" in a cell holding 62% of 358px, the
+     word did not wrap, and the table came out 382px inside a 360px wrap —
+     measured identical against the pre-branch stylesheet, so this is a defect
+     the new coverage found rather than one 2.19 caused. It is the card layout's
+     own premise: a row that is a block cannot ask for width the phone does not
+     have, and anywhere is the only value that breaks a word with no break
+     opportunity in it. */
   .table-reflow td {
     display: flex;
     align-items: center;
@@ -3303,6 +3384,7 @@ body {
     padding: 5px 12px;
     border-bottom: 0;
     text-align: left;
+    overflow-wrap: anywhere;
   }
 
   /* The column head travels with the value as its label. */
@@ -3343,6 +3425,13 @@ body {
      touch screen to reveal it — and a container this narrow is a phone or a
      squeezed card either way. */
   .table-reflow .row-action { opacity: 1; }
+
+  /* .log-action is a nowrap chip, which is right in a table row and wrong on a
+     phone: "Netzwerkeinstellungen gespeichert" is 33 characters, and a chip
+     that cannot wrap made the /log table 382px wide inside a 360px wrap at
+     390px — a container overflow, in German, on the page whose rows are
+     otherwise the simplest in the app. A two-line pill is the smaller cost. */
+  .table-reflow .log-action { white-space: normal; }
 }
 
 @media (max-width: 900px) {
