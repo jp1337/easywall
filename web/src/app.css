@@ -759,7 +759,7 @@ body {
   .page-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 
   /* ── Content grid: work column + context column ──────────────────────────
-     Most pages here carry few rows — eight ports, four forwards, eleven
+     Most pages here carry few rows — eight ports, four forwards, fourteen
      switches. Run that alone across a 1360px canvas and the columns stretch
      absurdly: rendering showed "SSH (admin)" in a 950px-wide cell. The width is
      not the problem; having nothing to put in it is. The aside carries the
