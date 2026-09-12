@@ -131,6 +131,18 @@ nothing about it. A port rule can now name that traffic.
   Scope column's German option truncated in a rendered select twice while every
   gate stayed green.
 
+### Security
+
+- **`lodash-es` is pinned above its code-injection advisory.** mermaid 12 brought
+  `chevrotain` 11.1.2, which resolves `lodash-es` 4.17.23 — GHSA-r5fr-rjxr-66jc,
+  code injection through `_.template`, and GHSA-f23m-r3pf-42rh, prototype
+  pollution in `_.unset` and `_.omit`. An `overrides` entry takes 4.18.1, which
+  `dagre-d3-es` in the same tree already resolved to, so the version is one the
+  build was carrying anyway. **Build-time only**: neither the container nor the
+  `.deb` contains `node_modules`, and `htmx.min.js` is vendored — the one place
+  this code ran is rendering the documentation diagrams. Those render
+  byte-identically afterwards, which `check:diagrams` asserts by digest.
+
 [See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.18.0...HEAD)
 
 </details>
