@@ -1636,14 +1636,19 @@ async function seedPortsScreenshot(page) {
 
 // The shape every published screenshot is taken in.
 //
-// 1600 rather than the 1440 this used from 2.11 to 2.13: `.page-grid` drops its
-// 320px context column below 1570px, so at 1440 every screenshot in docs/ showed
-// the collapsed single-column fallback — the aside cards stacked under the table
-// instead of beside it, on ports, blacklist, forwarding, custom and options
-// alike. 1440 is still exercised, by WIDTHS above, where squeezing the layout is
-// the whole point. A screenshot is documentation, and documents the layout the
-// design is actually about.
-const SHOT_VIEWPORT = { width: 1600, height: 900 };
+// 1700, not the 1600 this used before the carried-forward sweep restored
+// /ports' two-column aside: `.page-grid-ports` collapses at its own 1650px
+// breakpoint, 80px above `.page-grid`'s plain 1570px, so 1600 sat between the
+// two and every figure of /ports still showed the single-column fallback.
+// 1600 itself replaced the 1440 this used from 2.11 to 2.13, for the same
+// reason one breakpoint lower: `.page-grid` drops its 320px context column
+// below 1570px, so at 1440 every screenshot in docs/ showed the collapsed
+// layout — the aside cards stacked under the table instead of beside it, on
+// ports, blacklist, forwarding, custom and options alike. 1440 is still
+// exercised, by WIDTHS above, where squeezing the layout is the whole point.
+// A screenshot is documentation, and documents the layout the design is
+// actually about.
+const SHOT_VIEWPORT = { width: 1700, height: 900 };
 
 /**
  * Screenshot one page into docs/assets/img/screens/<name>-<theme>.png.
@@ -1672,7 +1677,7 @@ async function shoot(page, name, theme) {
   console.log(`  wrote ${out}`);
 }
 
-/** A themed, 1600x900@1.5x context — every screenshot in the set uses this shape. */
+/** A themed, 1700x900@1.5x context — every screenshot in the set uses this shape. */
 async function screenshotContext(browser, theme, extra = {}) {
   const ctx = await browser.newContext({
     ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
