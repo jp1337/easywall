@@ -1743,6 +1743,12 @@ body {
      re-derived when .page-grid's own breakpoint changes. */
   .table-wrap { overflow-x: auto; container-type: inline-size; }
 
+  /* /ports carries one more column than any other table here and therefore
+     needs the card layout sooner. Naming its own container is what lets the
+     second @container below address it alone; the unnamed query still matches
+     it too, which is harmless because the two blocks are the same rules. */
+  .page-grid-ports .table-wrap { container-name: ports-table; }
+
   .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
   /* Sentence case at 12px, not 10px uppercase mono. A column head is language,
@@ -3438,6 +3444,95 @@ body {
      that cannot wrap made the /log table 382px wide inside a 360px wrap at
      390px — a container overflow, in German, on the page whose rows are
      otherwise the simplest in the app. A two-line pill is the smaller cost. */
+  .table-reflow .log-action { white-space: normal; }
+}
+
+/* The same block again, for /ports only, at the width /ports actually needs.
+   Not a second design: the identical card layout, reached earlier, because a
+   seven-column table runs out of room before a four-column one does. 2.19's
+   Scope column took 168px and no column had it to give back — the six that are
+   not the description render 940px together, and the description's longest
+   value, "MinIO — published by a container" at 228px, needs a 278px cell.
+   Measured on scripts/demo-server.sh's own seed with the catalogue's Pi-hole
+   row added, the way check:ui measures: .table-wrap 1200 clips it by 2px, 1202
+   is clean. 1223 leaves that the same ~21px margin 940 leaves 919.
+
+   A named container rather than a higher shared threshold. The shared number is
+   the one the paragraph above this rule defends — each table reflowing against
+   its own width — and raising it to 1223 was measured turning /forwarding and
+   /log into cards at widths where four columns are perfectly comfortable, and
+   failing check:ui's own forwarding-row check at Playwright's default 1280px
+   viewport. The cost is this copy, which must stay identical to the block above
+   it: TestThePortsReflowIsTheSharedReflow compares the two in the built
+   stylesheet, so a declaration added to one and not the other fails the build
+   rather than shipping two card layouts that disagree. */
+@container ports-table (max-width: 1223px) {
+  .table-wrap { padding-inline: 10px; }
+
+  .table-reflow thead { display: none; }
+
+  .table-reflow,
+  .table-reflow tbody,
+  .table-reflow tr,
+  .table-reflow td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-reflow tr {
+    margin: 10px 0;
+    padding: 4px 0;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-lg);
+  }
+
+  .table-reflow tbody tr:hover { background: var(--color-surface-raised); }
+
+  .table-reflow tr[hidden] { display: none; }
+
+  .table-reflow td {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: auto;
+    min-height: 34px;
+    padding: 5px 12px;
+    border-bottom: 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .table-reflow td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    font-size: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  .table-reflow td:not([data-label]) { justify-content: flex-end; }
+  .table-reflow td:not([data-label])::before { content: none; }
+
+  .table-reflow td.cell-wide {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .table-reflow td.cell-wide::before { flex: none; }
+
+  .table-reflow td > .input,
+  .table-reflow td > .input-cell {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+
+  .table-reflow td > .flow { flex: 1; min-width: 0; }
+  .table-reflow .flow > .input-cell { flex: 1; min-width: 0; width: auto; }
+
+  .table-reflow .row-action { opacity: 1; }
+
   .table-reflow .log-action { white-space: normal; }
 }
 
