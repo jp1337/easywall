@@ -39,11 +39,17 @@ var (
 const (
 	tableName = "easywall"
 
-	// inputChainName is the base input chain, and the one place port rules are
+	// inputChainName is the base input chain, where a host-scoped port rule is
 	// written. The usage collector reads it by this name — see RuleCounters and
-	// TestCollectionReadsTheInputChain, which is what keeps the two from
+	// TestCollectionReadsInputAndForwardChains, which is what keeps the two from
 	// drifting apart into a collector that reads a chain nothing writes.
 	inputChainName = "input"
+
+	// forwardChainName is the base forward chain, where a forwarded-scope port
+	// rule is written instead — see buildForwardChain. RuleCounters reads this
+	// chain too, for the same reason it reads inputChainName: a rule that
+	// renders here and nowhere else must still have its counter read somewhere.
+	forwardChainName = "forward"
 
 	// nftables chain priorities
 	prioFilter = 0
@@ -395,19 +401,30 @@ type RuleCounter struct {
 	Bytes   uint64
 }
 
-// RuleCounters reads the packet counters off the input chain and sums them by
-// rule id.
+// RuleCounters reads the packet counters off the input and forward chains and
+// sums them by rule id.
 //
 // One UI rule with three sources is three kernel rules — addPortAccept builds
 // one per source — so the figure for that port is their sum, and the id in each
 // rule's comment is what makes summing them possible. A rule with no comment is
 // skipped: the module rules, the blacklist, the whitelist and the Docker
-// exceptions all carry no id and are not what this counts.
+// exceptions all carry no id and are not what this counts. A scope = "both"
+// rule is the same arithmetic one chain wider: one kernel rule per chain, same
+// id, summed the same way — the rule is one rule, and the packets it accepted
+// are the packets it accepted, wherever they crossed.
 //
-// The input chain and nothing else. addPortAccept writes there and nowhere
-// else, and TestCollectionReadsTheInputChain pins both halves of that so the
-// collector cannot quietly start reading a chain nothing writes into — which
-// would report "never" for every port for ever, with no error anywhere.
+// Only these two chains. addPortAccept and addForwardPortRules write there and
+// nowhere else, and TestCollectionReadsInputAndForwardChains pins both halves
+// of that so the collector cannot quietly start reading a chain nothing writes
+// into — which would report "never" for every port for ever, with no error
+// anywhere.
+//
+// addEstablishedAccept tags only the input chain's copy of the established-
+// accept rule, precisely so that this function does not sum input and forward
+// traffic under the one reserved id — see its doc comment. That the forward
+// chain is now read here as well makes that decision load-bearing rather than
+// moot: before this, a forward copy tagged by mistake went unread anyway; now
+// it would double count.
 //
 // A missing table is an empty map and no error. Panic mode deletes the table on
 // purpose, and a collector that treated that as a failure would log one line
@@ -441,12 +458,15 @@ func (m *NftablesManager) RuleCounters() (map[string]RuleCounter, error) {
 	out := map[string]RuleCounter{}
 	for _, ch := range chains {
 		if ch.Table == nil || ch.Table.Name != tableName ||
-			ch.Table.Family != nftables.TableFamilyINet || ch.Name != inputChainName {
+			ch.Table.Family != nftables.TableFamilyINet {
+			continue
+		}
+		if ch.Name != inputChainName && ch.Name != forwardChainName {
 			continue
 		}
 		rules, err := m.conn.GetRules(table, ch)
 		if err != nil {
-			return nil, fmt.Errorf("read the %s chain: %w", inputChainName, err)
+			return nil, fmt.Errorf("read the %s chain: %w", ch.Name, err)
 		}
 		for _, r := range rules {
 			id, ok := idFromUserData(r.UserData)
@@ -661,7 +681,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		forwardPolicy = policyAccept()
 	}
 	forwardChain := m.conn.AddChain(&nftables.Chain{
-		Name:     "forward",
+		Name:     forwardChainName,
 		Table:    table,
 		Type:     nftables.ChainTypeFilter,
 		Hooknum:  nftables.ChainHookForward,
@@ -1029,12 +1049,13 @@ func IsReservedRuleID(id string) bool {
 // once conntrack has undone Docker's masquerade, which is exactly what
 // addForwardPortRules' deny matches; behind that deny, every container on the
 // host loses the network at the next apply. Tagging both
-// would put one id on two different rules, and a reader that summed them would
-// report input and forward traffic as one figure. RuleCounters filters to the
-// input chain and would not notice, but an id that is unique only because its
-// one reader happens to filter is unique by luck — a metrics endpoint or
-// outbound rules would each break it silently, which is the class of defect
-// this release exists to prevent.
+// would put one id on two different rules, and RuleCounters — which reads both
+// the input and the forward chain — would sum them and report input and
+// forward traffic as one figure. An id that is unique only because its one
+// reader happens to filter to a chain nothing forward-scoped ever reached is
+// unique by luck, and today RuleCounters does reach the forward chain: a
+// metrics endpoint or outbound rules would each break it silently otherwise,
+// which is the class of defect this release exists to prevent.
 //
 // So do not add the tag to the forward copy for symmetry. Untagged puts it in
 // exactly the category it belongs to, beside the module rules, the blacklist,
