@@ -41,13 +41,16 @@ package core
 // "failed" exists for the same reason one layer down, and it is reachable.
 // Every dial error used to come back as "blocked", so a harness that broke
 // between a claim's control and its measurement recorded `failed` against a
-// working firewall — the one inversion foldClaims forbids. A timeout stays
-// "blocked" because a dropping chain can produce nothing else; a refusal, an
+// working firewall — the one inversion foldClaims forbids. A timeout or a
+// refusal both stay "blocked": a dropping chain can produce nothing but a
+// timeout, and a refusal means a TCP stack answered the SYN and declined it —
+// both are the negative answer to "is the port open", not a harness fault. An
 // unreachable network and an ICMP error are the harness, and they now say so.
 // See peerVerdict, which asks inboundCrosses' question on this side and gets
-// the opposite answer for a refusal: that side dials a namespace where nothing
-// listens, so a RST is evidence a packet crossed; this side dials the router's
-// bound listener, so a RST means the harness never finished standing up.
+// the same answer for a refusal: that side dials a namespace where nothing
+// listens, so a RST is evidence a packet crossed; this side dials the
+// harness's own bound listener, so a RST is the same evidence — a stack
+// answered — and Dial reports it as "not open" rather than a fault.
 
 import (
 	"bufio"
@@ -104,20 +107,22 @@ func RunPeer(stdin io.Reader, stdout io.Writer) int {
 
 // peerVerdict maps a dial error to the one word the parent reads.
 //
-// It does NOT mirror inboundCrosses, and the difference is the point. That
-// side dials a namespace where **nothing listens**, so ECONNREFUSED is a
-// verdict — positive evidence a packet crossed, which is why it returns
-// (true, nil). This side dials the router, where the harness's own listener
-// **is** bound: a refusal there means the SYN arrived and nobody answered,
-// which is the harness failing to set itself up, not the firewall deciding
-// anything. Same rule, opposite conclusion, because the two dials face
-// different ends of the wire.
+// It answers the same question inboundCrosses asks on the other side of the
+// wire — "did the SYN reach a TCP stack and get an answer" — and ECONNREFUSED
+// answers yes on both sides. inboundCrosses dials a namespace where nothing
+// listens, so a RST there is positive evidence a packet crossed. This side
+// dials the harness's own bound listener, so a RST means the SYN reached that
+// stack and was refused — which is a verdict too, just the negative one
+// Dial's question ("is the port open") calls for. A refusal is therefore
+// `blocked`, the same word a dropping chain produces, because to Dial's
+// caller the two are indistinguishable: the port did not open.
 //
-// So: a timeout is `blocked`, because a dropping chain can produce nothing
-// else. Everything else — a refusal, an unreachable network, an ICMP error
-// the kernel turned into EHOSTUNREACH — is the harness. Reporting any of them
-// as a verdict lets a broken harness record `failed` against a working
-// firewall, which foldClaims' own doc comment forbids.
+// So: a timeout or a refusal is `blocked` — the two ways a dial can come back
+// negative without the harness having failed. Everything else — an
+// unreachable network, a bind failure, an ICMP error the kernel turned into
+// EHOSTUNREACH — is the harness, because none of those mean a stack answered.
+// Reporting any of them as a verdict lets a broken harness record `failed`
+// against a working firewall, which foldClaims' own doc comment forbids.
 //
 // The reason travels back so the parent can say what happened rather than
 // "not a verdict". It is flattened to one line because the pipe protocol is
@@ -126,6 +131,9 @@ func RunPeer(stdin io.Reader, stdout io.Writer) int {
 func peerVerdict(err error) string {
 	if err == nil {
 		return "open"
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return "blocked"
 	}
 	var ne net.Error
 	if errors.As(err, &ne) && ne.Timeout() {

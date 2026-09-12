@@ -29,11 +29,14 @@ func TestPeerVerdictNeverCallsAHarnessFaultAVerdict(t *testing.T) {
 	}{
 		{"a completed handshake is open", nil, "open"},
 		{"a timeout is the only thing a dropping chain produces", timeoutError{}, "blocked"},
-		// A refusal is a harness fault on THIS side, unlike inboundCrosses,
-		// where it is positive evidence: there, nothing listens in the peer
-		// namespace; here, the router's listener is bound, so a RST means the
-		// harness did not finish standing itself up.
-		{"a refusal against a bound listener is a harness fault", syscall.ECONNREFUSED, "failed"},
+		// A refusal is blocked, not a harness fault — the negative control in
+		// netns_integration_test.go dials a closed port on the router and
+		// requires exactly this answer. inboundCrosses asks the same question
+		// ("did a TCP stack answer the SYN") on the other side and gets the
+		// same "yes": there it means a packet crossed into an empty
+		// namespace; here it means the harness's own bound listener declined
+		// it. Either way a stack answered, so it is a verdict, not a fault.
+		{"a refusal against a bound listener is blocked, not a harness fault", syscall.ECONNREFUSED, "blocked"},
 		{"an unreachable network is the harness", syscall.ENETUNREACH, "failed"},
 		{"an unreachable host is the harness", syscall.EHOSTUNREACH, "failed"},
 		{"anything nobody thought of is the harness", errors.New("something else"), "failed"},
