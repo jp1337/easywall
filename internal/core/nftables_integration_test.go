@@ -688,7 +688,7 @@ func TestIntegration_Apply_SSHBruteForce_MetersAPortRange(t *testing.T) {
 }
 
 // A Docker network with padding survives shared.ValidateNetworkList (which
-// trims before parsing) and addForwardExceptions' cidrMatch (which also
+// trims before parsing) and forwardExceptionMatches' cidrMatch (which also
 // trims), so it reaches the kernel with a forward exception — but
 // addCIDRAccept did not trim, so the same list got no input accept. Half of
 // what the operator asked for, with nothing said. Reachable only through a

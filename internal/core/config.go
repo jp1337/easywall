@@ -203,6 +203,23 @@ func (c *Config) Validate() error {
 	if err := checkNetworkLists(c.Docker.CustomNetworks, c.Routing.Networks); err != nil {
 		return err
 	}
+
+	// Filtering published container ports on a host that manages no container
+	// networks is a contradiction, not a preference: with docker.enabled = false
+	// nothing detects a bridge, so the forward chain would be asked to filter
+	// traffic to addresses it has been told not to look for. Refused by name and
+	// in the same register as a custom_networks entry that is not a CIDR — a
+	// value that cannot be interpreted stops the daemon with the key named.
+	//
+	// Only the static contradiction is refused here. "enabled, but no bridge
+	// detected" is a legitimate transient — a host whose containers have not
+	// started — and it is handled at apply, in addForwardPortRules.
+	if c.Docker.FiltersPublishedPorts() && !c.Docker.Enabled {
+		return fmt.Errorf("docker.published_ports = %q needs docker.enabled = true: "+
+			"there are no container networks to filter traffic to. Set docker.enabled = true, "+
+			"or docker.published_ports = %q",
+			shared.PublishedPortsFiltered, shared.PublishedPortsOpen)
+	}
 	return nil
 }
 

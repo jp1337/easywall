@@ -68,14 +68,20 @@ func indexOfVerdict(t *testing.T, rules []*nftables.Rule, kind expr.VerdictKind,
 }
 
 // indexOfCIDRAccept returns the position of the first bridge/routing exception:
-// an accept that tests an address against one of the allowed networks. Found by
-// what it is rather than as "the next accept after the deny", so that a chain
-// built in the wrong order reports the order rather than a missing rule.
+// an accept that tests an address against one of the allowed networks and says
+// nothing about a port. Found by what it is rather than as "the next accept
+// after the deny", so that a chain built in the wrong order reports the order
+// rather than a missing rule.
+//
+// The port clause is not decoration. portAcceptRules builds a rule's sources
+// with the same cidrMatch, so a forwarded rule naming one is an accept
+// comparing an address too — and the landmark would move to the rule whose
+// position is under test.
 func indexOfCIDRAccept(t *testing.T, rules []*nftables.Rule) int {
 	t.Helper()
 	for i, r := range rules {
 		k, ok := ruleVerdict(r)
-		if !ok || k != expr.VerdictAccept {
+		if !ok || k != expr.VerdictAccept || ruleTestsTransportPort(r) {
 			continue
 		}
 		if ruleComparesAddr(r, posSrcAddr, expr.CmpOpEq) || ruleComparesAddr(r, posDstAddr, expr.CmpOpEq) {
@@ -92,21 +98,33 @@ func indexOfCIDRAccept(t *testing.T, rules []*nftables.Rule) int {
 // inbound packet to a published port has one. A test that only asserted "the
 // rule is present" would pass on a ruleset that enforces nothing, which is the
 // exact shape of the defect 2.17 was built to convict.
+// A rule that names sources is the same rule with a CIDR match in front of it,
+// which is the shape that can be confused with the exception it has to precede.
 func TestForwardChain_PortRulesComeBeforeTheExceptions(t *testing.T) {
-	rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
-		shared.Rules{TCP: []shared.PortRule{
-			{Port: "25", Description: "SMTP", Scope: shared.ScopeForwarded},
-		}},
-		[]string{"172.17.0.0/16"})
+	for _, tc := range []struct {
+		name    string
+		sources []string
+	}{
+		{"from anywhere", nil},
+		{"from a named source", []string{"203.0.113.0/24"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
+				shared.Rules{TCP: []shared.PortRule{
+					{Port: "25", Description: "SMTP", Scope: shared.ScopeForwarded, Sources: tc.sources},
+				}},
+				[]string{"172.17.0.0/16"})
 
-	accept := indexOfDport(t, rules, 25)
-	deny := indexOfVerdict(t, rules, expr.VerdictDrop, accept)
-	exception := indexOfCIDRAccept(t, rules)
+			accept := indexOfDport(t, rules, 25)
+			deny := indexOfVerdict(t, rules, expr.VerdictDrop, accept)
+			exception := indexOfCIDRAccept(t, rules)
 
-	if accept >= deny || deny >= exception {
-		t.Fatalf("order is accept=%d deny=%d exception=%d; the port rule and the "+
-			"deny must both precede the exception, or neither can refuse anything",
-			accept, deny, exception)
+			if accept >= deny || deny >= exception {
+				t.Fatalf("order is accept=%d deny=%d exception=%d; the port rule and the "+
+					"deny must both precede the exception, or neither can refuse anything",
+					accept, deny, exception)
+			}
+		})
 	}
 }
 
@@ -155,6 +173,20 @@ func TestForwardChain_TheDenyTestsBothDirections(t *testing.T) {
 		t.Error("the deny does not exclude sources inside the bridge range, so it " +
 			"would drop every container's outbound traffic")
 	}
+
+	// The family test comes with each cidrMatch and the rule needs one.
+	// `meta nfproto ipv4` printed twice in one line of `nft list ruleset` is
+	// output an operator has to read past, and that output is the reason
+	// cidrMatch omits a /32 mask.
+	var family int
+	for _, e := range deny.Exprs {
+		if meta, ok := e.(*expr.Meta); ok && meta.Key == expr.MetaKeyNFPROTO {
+			family++
+		}
+	}
+	if family != 1 {
+		t.Errorf("the deny tests the address family %d times, want 1", family)
+	}
 }
 
 // published_ports = "open" is the default, and a host upgrading to 2.19 must get
@@ -194,17 +226,66 @@ func TestForwardChain_ScopeDecidesWhatLandsHere(t *testing.T) {
 		{shared.ScopeBoth, true},
 	} {
 		rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
-			shared.Rules{TCP: []shared.PortRule{{Port: "25", Scope: tc.scope}}},
+			shared.Rules{TCP: []shared.PortRule{
+				{Port: "25", Scope: tc.scope},
+				// A range travels the same road and is rendered by different
+				// expressions. Nothing else in this file would notice a forward
+				// chain that carried single ports and dropped ranges.
+				{Port: "8000:9000", Scope: tc.scope},
+			}},
 			[]string{"172.17.0.0/16"})
-		got := false
-		for _, r := range rules {
-			if ruleMatchesDport(r, 25) {
-				got = true
+		for _, port := range []uint16{25, 8080} {
+			got := false
+			for _, r := range rules {
+				if ruleMatchesDport(r, port) {
+					got = true
+				}
+			}
+			if got != tc.present {
+				t.Errorf("scope %q: port %d in the forward chain = %v, want %v",
+					tc.scope, port, got, tc.present)
 			}
 		}
-		if got != tc.present {
-			t.Errorf("scope %q: port 25 in the forward chain = %v, want %v",
-				tc.scope, got, tc.present)
+	}
+}
+
+// docker.published_ports = "filtered" with no container network detected must
+// render nothing at all — not the accepts on their own. The deny is one per
+// bridge network, so with no network there is none, and accepts without it open
+// in the forward chain exactly the ports 2.18 kept shut while the interface
+// reports them enforced. That is this release's own thesis, reproduced by the
+// feature.
+//
+// It is not a configuration error: detection runs at apply, and a host whose
+// containers have not started yet legitimately arrives here with none. Config
+// refuses only the static contradiction — filtered with docker.enabled = false.
+// Both routing modes, because they reach the guard by different doors. Under
+// "closed" the chain renders nothing at all and never calls the port builder;
+// under "networks" it renders the routing exceptions, so the port builder *is*
+// called with an empty bridge list — a host with routing.networks set whose
+// containers have not started yet, and the only path on which the accepts could
+// still escape without their deny.
+func TestForwardChain_FilteredWithNoBridgeRendersNothing(t *testing.T) {
+	rules := shared.Rules{TCP: []shared.PortRule{{Port: "25", Scope: shared.ScopeForwarded}}}
+
+	for _, routing := range []shared.RoutingConfig{
+		{Mode: shared.RoutingClosed},
+		{Mode: shared.RoutingNetworks, Networks: []string{"10.8.0.0/24"}},
+	} {
+		filtered := buildForward(t, filteredDocker(), routing, rules, nil)
+		open := buildForward(t, openDocker(), routing, rules, nil)
+
+		if len(filtered) != len(open) {
+			t.Errorf("routing.mode=%q: with no container network, filtered rendered %d rules "+
+				"and open rendered %d; they must be the same chain, because the deny that "+
+				"gives the accepts meaning cannot render without a network to name",
+				routing.Mode, len(filtered), len(open))
+		}
+		for i, r := range filtered {
+			if ruleMatchesDport(r, 25) {
+				t.Errorf("routing.mode=%q: rule %d opens port 25 in the forward chain with "+
+					"no deny anywhere in it", routing.Mode, i)
+			}
 		}
 	}
 }
@@ -229,10 +310,15 @@ func TestForwardChain_RoutingOpenStillRendersTheForwardedRules(t *testing.T) {
 
 // --- predicates over a built rule -------------------------------------------
 
-// ruleMatchesDport reports whether the rule carries an equality test on the L4
-// destination port. The payload load has to be found first: the same two bytes
-// at a different offset are a source port, and the same comparison against a
+// ruleMatchesDport reports whether the rule's L4 destination port test covers
+// the given port. The payload load has to be found first: the same two bytes at
+// a different offset are a source port, and the same comparison against a
 // network offset is an address.
+//
+// Ranges count. buildPortExprs emits gte/lte for "8000:9000" and a predicate
+// that only understood the single-port equality would report every range rule
+// as absent — so a forward chain that silently dropped ranges would pass every
+// test in this file.
 func ruleMatchesDport(r *nftables.Rule, port uint16) bool {
 	want := portBytes(int(port))
 	for i, e := range r.Exprs {
@@ -243,8 +329,37 @@ func ruleMatchesDport(r *nftables.Rule, port uint16) bool {
 		if i+1 >= len(r.Exprs) {
 			return false
 		}
-		c, isCmp := r.Exprs[i+1].(*expr.Cmp)
-		if isCmp && c.Op == expr.CmpOpEq && bytes.Equal(c.Data, want) {
+		first, isCmp := r.Exprs[i+1].(*expr.Cmp)
+		if !isCmp {
+			continue
+		}
+		switch first.Op {
+		case expr.CmpOpEq:
+			if bytes.Equal(first.Data, want) {
+				return true
+			}
+		case expr.CmpOpGte:
+			// Both bounds are two bytes, most significant first — the wire order
+			// portBytes packs — so the bytewise comparison is the numeric one.
+			if i+2 >= len(r.Exprs) {
+				continue
+			}
+			second, ok := r.Exprs[i+2].(*expr.Cmp)
+			if ok && second.Op == expr.CmpOpLte &&
+				bytes.Compare(want, first.Data) >= 0 && bytes.Compare(want, second.Data) <= 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ruleTestsTransportPort reports whether the rule looks at an L4 port at all.
+// It is what separates a CIDR exception from a port rule that names sources:
+// both are accepts comparing an address against a network.
+func ruleTestsTransportPort(r *nftables.Rule) bool {
+	for _, e := range r.Exprs {
+		if p, ok := e.(*expr.Payload); ok && p.Base == expr.PayloadBaseTransportHeader {
 			return true
 		}
 	}

@@ -1859,6 +1859,24 @@ func cidrMatchNegated(entry string, pos addrPos) []expr.Any {
 	return cidrMatchOp(entry, pos, expr.CmpOpNeq)
 }
 
+// withoutFamilyTest drops the leading `meta nfproto` comparison from a
+// cidrMatch, for the second and later matches in one rule: the family has
+// already been established by the first, and both come from the same entry.
+// Type-checked rather than sliced blind, so a change to cidrMatch's shape
+// leaves the match intact instead of beheading it.
+func withoutFamilyTest(match []expr.Any) []expr.Any {
+	if len(match) < 2 {
+		return match
+	}
+	if _, isMeta := match[0].(*expr.Meta); !isMeta {
+		return match
+	}
+	if _, isCmp := match[1].(*expr.Cmp); !isCmp {
+		return match
+	}
+	return match[2:]
+}
+
 func cidrMatchOp(entry string, pos addrPos, op expr.CmpOp) []expr.Any {
 	if shared.IsListComment(entry) {
 		return nil
@@ -2017,7 +2035,13 @@ func (m *NftablesManager) buildForwardChain(
 	// A forwarded deny is not dead weight under "open": it is the only thing in
 	// this chain that says no, and dropping it because another key is set is
 	// exactly the silent no-op this release exists to end.
-	if !docker.FiltersPublishedPorts() && len(exceptions) == 0 {
+	//
+	// The question is whether addForwardPortRules will render anything, not
+	// whether it was asked to. Filtering with no container network detected
+	// renders nothing — see there — and an established accept on its own would
+	// be a new rule in a chain 2.18 left empty, accepting forwarded traffic that
+	// 2.18's policy dropped.
+	if !forwardPortRulesRender(docker, dockerCIDRs) && len(exceptions) == 0 {
 		return
 	}
 
@@ -2031,6 +2055,15 @@ func (m *NftablesManager) buildForwardChain(
 	m.addEstablishedAccept(t, c)
 	m.addForwardPortRules(t, c, rules, docker, dockerCIDRs)
 	m.addForwardExceptions(t, c, exceptions)
+}
+
+// forwardPortRulesRender is the question buildForwardChain has to answer before
+// it adds the rule that comes first: will addForwardPortRules put anything in
+// this chain? It is deliberately the conjunction of that function's two guards
+// and not a third opinion — the two must agree, and three mutations hold them
+// together: deleting either guard, or widening this, turns a different test red.
+func forwardPortRulesRender(docker shared.DockerConfig, cidrs []string) bool {
+	return docker.FiltersPublishedPorts() && len(cidrs) > 0
 }
 
 // addForwardPortRules renders the rules that let a named port reach a container,
@@ -2050,6 +2083,24 @@ func (m *NftablesManager) addForwardPortRules(
 	docker shared.DockerConfig, cidrs []string,
 ) {
 	if !docker.FiltersPublishedPorts() {
+		return
+	}
+
+	// No container network was detected or configured, so there is no deny to
+	// render — the loop at the foot of this function has nothing to iterate.
+	// The accepts alone would open, in the forward chain, ports 2.18 kept shut,
+	// and the interface would report them enforced: this release's own thesis,
+	// reproduced by the feature. Rendering nothing leaves the chain
+	// byte-identical to 2.18, which is the safe direction to fail in.
+	//
+	// Not a config error, which is why Validate does not cover this one:
+	// detection runs here, at apply, not at load. A host whose containers have
+	// not started yet legitimately has docker.enabled = true and no bridge, and
+	// reconcileDockerBridges re-applies when one appears.
+	if len(cidrs) == 0 {
+		slog.Warn("docker.published_ports is \"filtered\" but no container network was found; " +
+			"the forwarded port rules are not in the ruleset. They render as soon as a bridge " +
+			"network is detected, or as soon as docker.custom_networks names one")
 		return
 	}
 
@@ -2078,7 +2129,11 @@ func (m *NftablesManager) addForwardPortRules(
 		if dst == nil || src == nil {
 			continue
 		}
-		exprs := append(append([]expr.Any(nil), dst...), src...)
+		// The family test travels with each match, and one rule needs it once:
+		// `meta nfproto ipv4` printed twice in the same line of
+		// `nft list ruleset` is output an operator has to read past, and
+		// cidrMatch's own comment is about that output.
+		exprs := append(append([]expr.Any(nil), dst...), withoutFamilyTest(src)...)
 		m.adder.AddRule(&nftables.Rule{
 			Table: t, Chain: c,
 			Exprs: append(exprs, &expr.Counter{}, &expr.Verdict{Kind: expr.VerdictDrop}),
