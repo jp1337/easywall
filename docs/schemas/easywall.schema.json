@@ -112,6 +112,12 @@
             "examples": ["172.20.0.0/16", "192.168.100.0/24"]
           },
           "default": []
+        },
+        "published_ports": {
+          "type": "string",
+          "description": "What happens to traffic this host forwards to a container. \"open\": Docker decides who reaches a published port \u2014 what easywall has always done. \"filtered\": the forward chain denies inbound traffic to a container address unless a port rule with scope \"forwarded\" opens it. \"filtered\" requires enabled = true, and the interface has no control for this key.",
+          "enum": ["open", "filtered"],
+          "default": "open"
         }
       }
     },

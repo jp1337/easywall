@@ -72,7 +72,7 @@ against without either: a throwaway netns is flushed when the container exits,
 not the host's.
 
 ```bash
-podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN --security-opt unmask=ALL \
+podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN --cap-add=NET_RAW --security-opt unmask=ALL \
   -v "$PWD:/src:Z" -w /src docker.io/library/golang:1.27 \
   sh -c 'apt-get update -qq && apt-get install -y -qq nftables iproute2 iputils-ping >/dev/null && \
          go test -tags integration ./internal/core/... -v'

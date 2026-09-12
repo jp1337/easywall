@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#Unreleased">Unreleased</a>
   <a href="#2.18.0">2.18.0</a>
   <a href="#2.17.0">2.17.0</a>
   <a href="#2.16.0">2.16.0</a>
@@ -66,7 +67,71 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.18.0" markdown="1">
+<details open id="Unreleased" markdown="1">
+<summary><strong>Unreleased</strong> — What it passes on, it also filters</summary>
+
+A published container port is routed to the container, not addressed to the
+host, so it crosses the `forward` chain and never `input`. On a measured host
+that meant four of fourteen open ports reached easywall's rules and ten were
+filtered by somebody else, with the dashboard reporting *Active* and saying
+nothing about it. A port rule can now name that traffic.
+
+### Added
+
+- **A port rule carries a scope.** `host` — the default, and what every rule
+  written before this release means — is traffic addressed to this machine.
+  `forwarded` is traffic this machine passes on, which is what a published
+  container port is. `both` is the same port wherever it arrives. On the ports
+  page it is a **Scope** column beside SSH, and `rules.json` gains no key until
+  a rule is given a scope, so an existing file stays byte-identical.
+- **`docker.published_ports`**, `"open"` or `"filtered"`. `"open"` is what
+  easywall has always done: Docker decides who reaches a published port. Under
+  `"filtered"`, and only then, the forward chain gains a default-deny for
+  traffic whose destination is a container address and whose source is not —
+  and a `forwarded` port rule is what opens one. Without that deny the feature
+  would be decoration: `addForwardExceptions` accepts any packet with a source
+  *or* destination inside an allowed bridge CIDR, and after Docker's DNAT an
+  inbound packet to a published port already has one.
+- **The ports page says when a forwarded rule is inert.** A rule written for
+  the forward chain while `published_ports` is `"open"` is never consulted, and
+  a rule that enforces nothing must not look like one that does.
+- **A `selftest` case for the ordering.** Forwarded rules render before the
+  bridge exceptions; rendered after them they could never deny anything, which
+  is 2.17's defect class reproduced by the release meant to end it. It is
+  proven in a private netns rather than reasoned about, and again against a
+  real bridge in the integration suite.
+
+### Changed
+
+- **`published_ports = "filtered"` is deliberately not in the interface.** It
+  is the one switch that can take every container on a host off the network in
+  a single press, and the 120-second acceptance window cannot catch that: the
+  window proves the operator's own connection, and that arrives on the `input`
+  chain. It is edited in `easywall.toml`, documented on the Docker page, and
+  the ports page only warns.
+- **Two contradictions are refused rather than guessed at.** A
+  `published_ports` value that is neither `open` nor `filtered` stops the
+  daemon by name, on start and on `SIGHUP`, instead of quietly reading as open;
+  and `"filtered"` with `docker.enabled = false` is refused as the
+  contradiction it is.
+- **`"filtered"` with no container network detected renders nothing.** The
+  forward chain is left exactly as the previous release left it, with one
+  warning saying why. A deny with no exceptions beside it would close the
+  host's container traffic entirely.
+- **A `routing.networks` peer no longer reaches published container ports under
+  `"filtered"`.** The deny is evaluated before the CIDR exceptions, by design —
+  a peer allowed there still needs a forwarded port rule. Documented on the
+  Docker page, because an operator with `routing.networks` set meets it as an
+  outage.
+- **`check:ui`'s layout and overflow sweep now runs in German as well.** The
+  Scope column's German option truncated in a rendered select twice while every
+  gate stayed green.
+
+[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.18.0...HEAD)
+
+</details>
+
+<details id="2.18.0" markdown="1">
 <summary><strong>2.18.0</strong> · 2026-09-11 — A password alone is not enough</summary>
 
 easywall has had a second factor since 2.8, and it has been a checkbox. An
