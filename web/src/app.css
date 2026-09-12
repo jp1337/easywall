@@ -1201,7 +1201,13 @@ body {
     resize: vertical;
   }
 
-  select.input { cursor: pointer; padding-right: 28px; }
+  /* .input-cell too, not only .input: the arrow is drawn inside the control's
+     own box, so without the reserved 28px it sits on top of the last characters
+     of a long option. The forwarding page's protocol select has carried the
+     same shape since 2.13 with only "tcp"/"udp" in it, which is short enough
+     that nothing showed. */
+  select.input,
+  select.input-cell { cursor: pointer; padding-right: 28px; }
 
   .field { display: flex; flex-direction: column; gap: 5px; }
 
@@ -1800,6 +1806,24 @@ body {
      table-layout: auto redistributes this rather than honouring it literally,
      so the number was reached by measuring the rendered input, not by adding
      up padding on paper. */
+  /* UNMEASURED. Every other width in this block was reached by rendering the
+     column and reading it back, which is what DESIGN.md now requires; this one
+     was added without a browser and is arithmetic on paper — the thing the
+     comments above record being wrong three times. The number to beat is the
+     closed <select> showing its longest option in full: "An einen Container
+     weitergeleitet", 33 characters of 13px UI text (~200px) plus 8px of left
+     padding and the 28px the arrow is given below. 15rem/240px is that sum with
+     nothing spare. Measure it, in German, before trusting it.
+
+     Two numbers elsewhere in this file are sized against the ports table and
+     therefore move with this column, and neither has been re-measured either:
+     the @container (max-width: 940px) reflow threshold, which is "919px is the
+     minimum .table-wrap width that shows every field on /ports without
+     clipping" plus a 21px margin, and the @media (max-width: 1650px) rule that
+     drops the aside so .col-flex can still show the catalogue's longest
+     description. Whatever this column takes comes off .col-flex, so both
+     thresholds rise by roughly the rendered width of this one. */
+  .col-scope   { width: 15rem; }
   .col-sources { width: 25rem; }
   /* The longest string lastUsed can produce, in either language, is not
      "vor 59 Minuten" (14 characters) as an earlier version of this comment
