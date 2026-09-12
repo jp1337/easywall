@@ -35,6 +35,7 @@ func TestDockerConfig_FilteredIsRead(t *testing.T) {
 // reports itself enforced and is not.
 func TestDockerConfig_AnUnknownValueIsOpen(t *testing.T) {
 	var c DockerConfig
+	//nolint:misspell // the misspelling is the test: a typo must read as "open".
 	if _, err := toml.Decode(`published_ports = "filterd"`+"\n", &c); err != nil {
 		t.Fatal(err)
 	}
