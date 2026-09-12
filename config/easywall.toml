@@ -28,9 +28,22 @@ icmp_allow_router_advertisement   = true
 icmp_allow_neighbor_advertisement = true
 
 [docker]
-enabled              = false  # set to true to auto-detect Docker bridge networks
+enabled               = false  # set to true to auto-detect Docker bridge networks
 allow_bridge_networks = true
-custom_networks      = []
+custom_networks       = []
+
+# What happens to traffic this host forwards to a container.
+#
+#   open      Docker decides who reaches a published port — what easywall has
+#             always done, and the default
+#   filtered  only a port rule with scope = "forwarded" lets anything in
+#
+# "filtered" is what makes easywall the only firewall on a container host.
+# Switching it on closes every published port that has no forwarded rule, so
+# write the rules first and apply once: the acceptance window will not catch
+# this, because it proves your own connection and yours arrives on the input
+# chain.
+published_ports       = "open"
 
 # ─── Routed traffic ─────────────────────────────────────────────────────────
 # What happens to traffic this host passes on rather than receives — between two

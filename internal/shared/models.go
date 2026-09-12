@@ -394,6 +394,28 @@ type DockerConfig struct {
 	Enabled             bool     `toml:"enabled"`               // auto-detect Docker bridges
 	AllowBridgeNetworks bool     `toml:"allow_bridge_networks"` // whitelist detected bridge networks
 	CustomNetworks      []string `toml:"custom_networks"`       // additional networks to whitelist
+
+	// PublishedPorts decides what happens to traffic this host forwards to a
+	// container. "open" is Docker's business, which is what it has always been;
+	// "filtered" means only a forwarded port rule lets anything in.
+	//
+	// Anything unrecognised reads as "open". The safe direction is the one that
+	// leaves containers reachable: a typo that silently closed every published
+	// port would be 2.5.0 with a spelling mistake in front of it.
+	PublishedPorts string `toml:"published_ports"`
+}
+
+const (
+	// PublishedPortsOpen: Docker decides who reaches a published port.
+	PublishedPortsOpen = "open"
+	// PublishedPortsFiltered: only a forwarded port rule lets anything in.
+	PublishedPortsFiltered = "filtered"
+)
+
+// FiltersPublishedPorts reports whether the forward chain takes verdicts on
+// traffic arriving from outside for a container address.
+func (d DockerConfig) FiltersPublishedPorts() bool {
+	return d.PublishedPorts == PublishedPortsFiltered
 }
 
 // CoreConfig is the full configuration for easywall-core.
