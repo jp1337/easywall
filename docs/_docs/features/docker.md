@@ -77,6 +77,7 @@ provider firewall was doing for you.
 | The [ports page]({{ '/docs/features/ports/' | relative_url }}) reads it instead | A forwarded rule is marked inert there while `published_ports` is `open`. It warns; it does not offer to change the key |
 | `filtered` needs `enabled = true` | The combination is refused at startup and on `SIGHUP`, by name, rather than accepted and ignored |
 | No detected bridge network means nothing is rendered | The `forward` chain is left exactly as it was, with one warning in the log. A deny with no exceptions beside it would close the host's container traffic entirely |
+| The ports page cannot see that state | It marks a forwarded rule inert while `published_ports` is `open`, because that key is one it can read. Whether a bridge was detected is known only in the core, so a forwarded rule under `filtered` with no bridge reads as enforced on that page while nothing is rendered. The log warning is the signal; check it after an apply |
 | Container-to-container and outbound are untouched | The deny matches only traffic whose destination is a container address and whose source is not |
 | A `routing.networks` peer loses reach to published ports | The deny is evaluated before those CIDR exceptions, so a peer you allowed there still needs a forwarded port rule. Expect this as an outage if `routing.networks` is set |
 | IPv6 is unaffected, before and after | Bridge detection is IPv4-only, so inbound IPv6 to a published container port already meets the drop policy. Use `custom_networks` |
