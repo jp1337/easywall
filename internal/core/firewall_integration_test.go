@@ -717,6 +717,13 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 // With a stub NftablesManager this cannot be exercised at all: nft.Apply
 // fails immediately and the code never reaches the kernel-write step whose
 // ordering relative to acceptance.Start is exactly what this test is about.
+//
+// Load-sensitive by construction, and not closable: the gap it polls for is a
+// handful of instructions, and under container CPU contention the scheduler
+// widens it wide enough for the poll loop above to catch a sample in the
+// middle of it. Seen once in roughly 15 runs. That is not a flake to retry
+// away — it is this test truly observing a real, unavoidable transient state,
+// the same one an operator's own Status() call could land inside.
 func TestIntegration_TheWindowIsOpenWhileTheRulesAreLive(t *testing.T) {
 	fw := newTestFirewallWithRealNft(t)
 	fw.cfg.Acceptance.Duration = 3

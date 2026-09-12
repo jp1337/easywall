@@ -81,6 +81,9 @@ func TestMatchTOTP_WindowIsOneStepEitherSide(t *testing.T) {
 	cur := stepAt(now)
 
 	for _, d := range []int{-1, 0, 1} {
+		// #nosec G115 -- cur is stepAt() of a fixed test timestamp and d is
+		// bounded to {-1,0,1} by the loop above; the sum stays far from the
+		// uint64 ceiling and never goes negative here.
 		code := totpAt(secret, uint64(int64(cur)+int64(d)))
 		step, offset, ok := matchTOTP(secret, now, code, totpWindowLogin)
 		if !ok {
@@ -89,11 +92,15 @@ func TestMatchTOTP_WindowIsOneStepEitherSide(t *testing.T) {
 		if offset != d {
 			t.Errorf("offset %d reported as %d", d, offset)
 		}
+		// #nosec G115 -- same bounded conversion as above, d still in {-1,0,1}.
 		if step != uint64(int64(cur)+int64(d)) {
+			// #nosec G115 -- repeats the same bounded conversion, for the failure message.
 			t.Errorf("step for offset %d is %d, want %d", d, step, uint64(int64(cur)+int64(d)))
 		}
 	}
 	for _, d := range []int{-2, 2, 5} {
+		// #nosec G115 -- d is bounded to {-2,2,5} by the loop above; still
+		// nowhere near the uint64 ceiling.
 		code := totpAt(secret, uint64(int64(cur)+int64(d)))
 		if _, _, ok := matchTOTP(secret, now, code, totpWindowLogin); ok {
 			t.Errorf("offset %d was accepted; the login window is ±1", d)
@@ -108,6 +115,7 @@ func TestMatchTOTP_EnrolmentWindowReportsSignAndMagnitude(t *testing.T) {
 	now := time.Unix(1234567890, 0).UTC()
 	cur := stepAt(now)
 
+	// #nosec G115 -- cur plus the fixed literal 8; both known at compile time.
 	code := totpAt(secret, uint64(int64(cur)+8)) // the app is 4 minutes ahead of us
 	_, offset, ok := matchTOTP(secret, now, code, totpWindowEnrol)
 	if !ok {

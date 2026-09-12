@@ -45,7 +45,6 @@ import { spawn } from 'node:child_process';
 import https from 'node:https';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const BASE = process.env.EASYWALL_URL || 'https://127.0.0.1:12227';
 // "admin" matches every release screenshot before this script existed —
 // screenshot mode reuses the same account the health/regression checks sign
 // in with, so the shots this produces read as the same operator throughout
@@ -143,6 +142,43 @@ function readTOTPSecret(configPath) {
   const m = text.match(/^\s*totp_secret\s*=\s*"([^"]*)"/m);
   return m && m[1] ? m[1] : null;
 }
+
+/**
+ * The base URL the running instance is actually listening on.
+ *
+ * Read from the same web.toml readPasswordHash and readTOTPSecret already
+ * parse, because the alternative is what shipped: a hard-coded 12227 beside a
+ * config the script was holding open. EASYWALL_DEMO_ADDR moves the demo
+ * server, and check:ui went on driving the old port — which reported "UI
+ * checks passed" against a pre-existing easywall-web, having never loaded the
+ * stylesheet under test, in the check this repository trusts most.
+ *
+ * A bind_addr with no host means every interface; 127.0.0.1 is the address to
+ * dial then, not an empty host. "[::]:12227" is the same case with brackets.
+ */
+function readBindAddr(configPath) {
+  let text;
+  try {
+    text = readFileSync(configPath, 'utf8');
+  } catch {
+    return null;
+  }
+  const m = text.match(/^\s*bind_addr\s*=\s*"([^"]*)"/m);
+  if (!m || !m[1]) return null;
+  const raw = m[1].trim();
+  const port = raw.slice(raw.lastIndexOf(':') + 1);
+  if (!/^\d+$/.test(port)) return null;
+  let host = raw.slice(0, raw.lastIndexOf(':'));
+  if (host === '' || host === '[::]' || host === '0.0.0.0' || host === '::') host = '127.0.0.1';
+  return `https://${host}:${port}`;
+}
+
+const CONFIG_PATH = webConfigPath();
+// EASYWALL_URL first — a run against something the config does not describe is
+// a legitimate thing to want. Then the config, which is the fix for this line's
+// own history. The literal last, so a tree with no config still runs.
+const BASE = process.env.EASYWALL_URL || readBindAddr(CONFIG_PATH) || 'https://127.0.0.1:12227';
+console.log(`check:ui → ${BASE}  (config: ${CONFIG_PATH})`);
 
 /**
  * The floor of the acceptance window, read out of the Go source that defines
@@ -268,10 +304,10 @@ async function signIn(page) {
   // reachable through this script's wizard has one — a password alone no
   // longer gets anyone past first run.
   if (page.url().includes('/login/verify')) {
-    const secret = readTOTPSecret(webConfigPath());
+    const secret = readTOTPSecret(CONFIG_PATH);
     if (!secret) {
       throw new Error(`landed on /login/verify but could not read totp_secret out of ` +
-        `${webConfigPath()} to answer it`);
+        `${CONFIG_PATH} to answer it`);
     }
     await page.fill('input[name=code]', totp(secret));
     await Promise.all([
@@ -302,7 +338,7 @@ async function signIn(page) {
  * no argon2 in JavaScript either.
  */
 async function checkEnrolmentFlow(browser) {
-  const configPath = webConfigPath();
+  const configPath = CONFIG_PATH;
   const hash = readPasswordHash(configPath);
   if (!hash) {
     fail('2fa setup', `could not read the password hash out of ${configPath}; ` +
@@ -399,7 +435,7 @@ async function checkEnrolmentFlow(browser) {
  * mandate, and the difference is invisible in a screenshot.
  */
 async function checkTheGate(browser) {
-  const hash = readPasswordHash(webConfigPath());
+  const hash = readPasswordHash(CONFIG_PATH);
   if (!hash) {
     fail('gate', 'could not read the password hash; set EASYWALL_CONFIG');
     return;
@@ -511,7 +547,7 @@ async function checkVerifyPage(browser) {
   // this needs no argon2 in JavaScript and no environment variable. An
   // env-gated skip would be a check that never runs anywhere but on the machine
   // of whoever set the variable — which is the same as not having the check.
-  const configPath = webConfigPath();
+  const configPath = CONFIG_PATH;
   const hash = readPasswordHash(configPath);
   if (!hash) {
     fail('second step', `could not read the password hash out of ${configPath}; ` +
@@ -697,6 +733,19 @@ async function checkForwardingRowEdgesLineUp(page) {
  */
 async function checkPortsCatalogue(page) {
   await page.goto(`${BASE}/ports?type=tcp`, { waitUntil: 'networkidle' });
+
+  // What is already there. A demo server that has been up across two
+  // invocations still holds run 1's rows, and asserting an absolute count then
+  // reported "picking Pi-hole added 4 TCP rows, expected 2" — which reads as a
+  // real regression and costs a bisect. CI never sees it: every run there
+  // starts a fresh easywall-web.
+  //
+  // Tolerated rather than reset. A check that deletes rules a maintainer was
+  // looking at is a bigger surprise than one that counts the difference.
+  const countPihole = () => page.$$eval('#rules-tbody tr[data-idx]',
+    trs => trs.filter(tr => tr.dataset.service === 'pihole').length);
+  const before = await countPihole();
+
   await page.click('#catalogue-btn');
   await page.click('.catalogue-item[data-service="pihole"]');
 
@@ -707,12 +756,24 @@ async function checkPortsCatalogue(page) {
       service: tr.dataset.service,
     })));
   const added = rows.filter(r => r.service === 'pihole');
-  if (added.length !== 2) {
-    fail('ports catalogue', `picking Pi-hole added ${added.length} TCP rows, expected 2 (80, 53)`);
+  if (added.length - before !== 2) {
+    fail('ports catalogue',
+      `picking Pi-hole added ${added.length - before} TCP rows, expected 2 (80, 53)` +
+      (before ? ` — ${before} were already there from an earlier run` : ''));
     return;
   }
-  if (!added[0].sources.includes('fc00::/7')) {
-    fail('ports catalogue', `the private suggestion did not reach the field: "${added[0].sources}"`);
+  // Measured, not assumed: the catalogue appends — web/static/app.js:255, :293
+  // and :442 all use tbody.appendChild — so this run's rows are the last two.
+  // Selected by their ports as well, because position alone would silently
+  // check an earlier run's row if that ever changes.
+  const fresh = added.slice(before);
+  const ports = fresh.map(r => r.port).sort();
+  if (ports.join(',') !== '53,80') {
+    fail('ports catalogue', `the two rows this run added are ports ${ports.join(', ')}, expected 53 and 80`);
+    return;
+  }
+  if (!fresh[0].sources.includes('fc00::/7')) {
+    fail('ports catalogue', `the private suggestion did not reach the field: "${fresh[0].sources}"`);
   }
 
   const payload = await page.$eval('#rules-json', el => el.value);
@@ -736,14 +797,25 @@ async function checkPortsRowAgreesWithServer(page) {
   await page.click('#catalogue-btn');
   await page.click('.catalogue-item[data-service="pihole"]');
 
-  const shape = () => page.$eval('#rules-tbody tr[data-service="pihole"]', tr => ({
-    trClasses: tr.className,
-    cells: [...tr.querySelectorAll('td')].map(td => ({
-      classes: td.className,
-      label: td.getAttribute('data-label'),
-      chip: td.querySelector('.chip')?.textContent.trim() ?? null,
-    })),
-  }));
+  // The *last* matching row, not the first: on a demo server kept up across
+  // invocations, an earlier run's Pi-hole rows are still there, rendered
+  // ahead of whatever this run just appended (app.js's tbody.appendChild —
+  // the same fact checkPortsCatalogue's delta count relies on). $eval takes
+  // the first DOM match, so it would pick that stale row both before and
+  // after the save below, compare it against itself, and pass — the same
+  // "check:ui is not re-runnable" defect the count fix closed, just failing
+  // toward green instead of red. Do not "simplify" this back to $eval.
+  const shape = () => page.$$eval('#rules-tbody tr[data-service="pihole"]', trs => {
+    const tr = trs[trs.length - 1];
+    return {
+      trClasses: tr.className,
+      cells: [...tr.querySelectorAll('td')].map(td => ({
+        classes: td.className,
+        label: td.getAttribute('data-label'),
+        chip: td.querySelector('.chip')?.textContent.trim() ?? null,
+      })),
+    };
+  });
 
   let clientShape;
   try {
@@ -1564,14 +1636,19 @@ async function seedPortsScreenshot(page) {
 
 // The shape every published screenshot is taken in.
 //
-// 1600 rather than the 1440 this used from 2.11 to 2.13: `.page-grid` drops its
-// 320px context column below 1570px, so at 1440 every screenshot in docs/ showed
-// the collapsed single-column fallback — the aside cards stacked under the table
-// instead of beside it, on ports, blacklist, forwarding, custom and options
-// alike. 1440 is still exercised, by WIDTHS above, where squeezing the layout is
-// the whole point. A screenshot is documentation, and documents the layout the
-// design is actually about.
-const SHOT_VIEWPORT = { width: 1600, height: 900 };
+// 1700, not the 1600 this used before the carried-forward sweep restored
+// /ports' two-column aside: `.page-grid-ports` collapses at its own 1650px
+// breakpoint, 80px above `.page-grid`'s plain 1570px, so 1600 sat between the
+// two and every figure of /ports still showed the single-column fallback.
+// 1600 itself replaced the 1440 this used from 2.11 to 2.13, for the same
+// reason one breakpoint lower: `.page-grid` drops its 320px context column
+// below 1570px, so at 1440 every screenshot in docs/ showed the collapsed
+// layout — the aside cards stacked under the table instead of beside it, on
+// ports, blacklist, forwarding, custom and options alike. 1440 is still
+// exercised, by WIDTHS above, where squeezing the layout is the whole point.
+// A screenshot is documentation, and documents the layout the design is
+// actually about.
+const SHOT_VIEWPORT = { width: 1700, height: 900 };
 
 /**
  * Screenshot one page into docs/assets/img/screens/<name>-<theme>.png.
@@ -1600,7 +1677,7 @@ async function shoot(page, name, theme) {
   console.log(`  wrote ${out}`);
 }
 
-/** A themed, 1600x900@1.5x context — every screenshot in the set uses this shape. */
+/** A themed, 1700x900@1.5x context — every screenshot in the set uses this shape. */
 async function screenshotContext(browser, theme, extra = {}) {
   const ctx = await browser.newContext({
     ignoreHTTPSErrors: true, viewport: { ...SHOT_VIEWPORT },
@@ -1686,7 +1763,7 @@ async function takeLoginScreenshot(browser, theme) {
  * takeVerifyScreenshot reads it, so this needs no argon2 in JavaScript either.
  */
 async function takeEnrolmentScreenshots(browser, theme) {
-  const configPath = webConfigPath();
+  const configPath = CONFIG_PATH;
   const hash = readPasswordHash(configPath);
   if (!hash) {
     throw new Error(`could not read the password hash out of ${configPath}; ` +
@@ -1829,7 +1906,7 @@ async function takeWizardScreenshots(browser, theme) {
  * leaving two-factor-verify-*.png stale and silently wrong about why.
  */
 async function takeVerifyScreenshot(browser, theme) {
-  const configPath = webConfigPath();
+  const configPath = CONFIG_PATH;
   const hash = readPasswordHash(configPath);
   if (!hash) {
     console.log(`  skip two-factor-verify-${theme}.png: could not read the password hash ` +

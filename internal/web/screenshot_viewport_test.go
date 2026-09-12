@@ -30,22 +30,37 @@ func repoScript(t *testing.T, name string) string {
 // design is about. Nothing failed; the screenshots were simply of the wrong
 // thing, in the repository, for three releases.
 //
+// `.page-grid-ports` collapses at its own, higher breakpoint (1650px, above
+// `.page-grid`'s 1570px) — the two-column aside the carried-forward sweep
+// restored on /ports. A regex anchored to the bare `.page-grid{` rule alone
+// is blind to that: it stayed green while the screenshot viewport sat between
+// the two breakpoints, and every figure of /ports would have shown the
+// single-column fallback with no test noticing. So this reads every
+// `.page-grid`-family single-column media query in the built stylesheet and
+// checks the viewport against the largest of them, not just the first.
+//
 // Both numbers are load-bearing and neither is near the other's file, which is
-// exactly how they drifted: lowering the breakpoint is a stylesheet decision and
+// exactly how they drifted: lowering a breakpoint is a stylesheet decision and
 // changing the viewport is a script decision, and either one alone re-creates
 // the defect.
 func TestScreenshotsAreTakenAboveTheTwoColumnBreakpoint(t *testing.T) {
 	css := appStylesheet(t)
 
-	m := regexp.MustCompile(`@media \(max-width:(\d+)px\)\{\.page-grid\{grid-template-columns:minmax\(0,1fr\)\}`).
-		FindStringSubmatch(css)
-	if m == nil {
+	ms := regexp.MustCompile(`@media \(max-width:(\d+)px\)\{\.page-grid[\w.-]*\{grid-template-columns:minmax\(0,1fr\)\}`).
+		FindAllStringSubmatch(css, -1)
+	if ms == nil {
 		t.Fatal("no `.page-grid` single-column media query in the built stylesheet; " +
 			"this test can no longer tell what width the context column needs")
 	}
-	breakpoint, err := strconv.Atoi(m[1])
-	if err != nil {
-		t.Fatalf("unreadable breakpoint %q: %v", m[1], err)
+	breakpoint := 0
+	for _, m := range ms {
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			t.Fatalf("unreadable breakpoint %q: %v", m[1], err)
+		}
+		if n > breakpoint {
+			breakpoint = n
+		}
 	}
 
 	script := repoScript(t, "ui-check.mjs")

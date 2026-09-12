@@ -43,11 +43,22 @@ import (
 // without a single test going red.
 const requireSelftestEnv = "EASYWALL_REQUIRE_SELFTEST"
 
-// skipOrFailUnprovable is the one place a self-test prover is allowed to give up
-// on a host that cannot build the harness. On a developer's machine it skips,
+// skipOrFailUnprovable is the one place a test is allowed to give up on a host
+// that cannot build what it measures in. On a developer's machine it skips,
 // which is right — rootless `unshare -n` is refused on plenty of them, and the
 // three-state result exists precisely so that "cannot prove" does not read as
 // "broken firewall". In CI it fails.
+//
+// Its scope is wider than the environment variable's name. It started with the
+// self-test provers and now also covers the four TestIntegration_Forward_*
+// tests, whose shared precondition — the two sides reaching each other before
+// any firewall exists — produced the same green-for-nothing tick for the same
+// reason. Reusing the variable rather than adding EASYWALL_REQUIRE_FORWARD
+// beside it was deliberate: the variable's job is "a skip in this job is a
+// failure", which is exactly what both callers want, and a second variable
+// would need a second wiring in test.yml and a second guard keeping the two
+// spellings the same. If the name is ever made to match the scope, it has to
+// change in test.yml, build.yml and TestTheCIProofGateIsStillWiredUp together.
 func skipOrFailUnprovable(t *testing.T, reason string) {
 	t.Helper()
 	if os.Getenv(requireSelftestEnv) != "" {

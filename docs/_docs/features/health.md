@@ -49,6 +49,12 @@ monitoring system is asking a different question.
 The one route on the web process that answers without a session, because an
 orchestrator holds none.
 
+`/healthz` reads the kernel, so it waits for an apply that is in progress. A
+custom-rules apply can hold that for up to 30 seconds. The endpoint answers
+503 during it, and the container's health check reaches its third failure
+inside that window. Nothing restarts: an unhealthy container is a label, not
+an action.
+
 ```bash
 curl -sk https://127.0.0.1:12227/healthz
 ```

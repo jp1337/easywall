@@ -52,6 +52,21 @@ func withHostname(host string) passkeyTestOption {
 	}
 }
 
+// withBindAddr overrides the fixture's :443 with a real listening address, so
+// publicOrigin() names a port and the ceremony has to agree with it.
+//
+// The fixture's default stays :443 deliberately — see newPasskeyTestServer's
+// comment — because that is how an ordinary HTTPS installation reads. easywall's
+// own default is :12227, and until this option existed no end-to-end ceremony
+// ran with a port in the origin at all: webAuthn() passes publicOrigin()
+// straight into RPOrigins, so a ceremony that disagreed with the port would
+// have failed on a real installation and passed here.
+func withBindAddr(addr string) passkeyTestOption {
+	return func(s *Server) {
+		s.cfg.BindAddr = addr
+	}
+}
+
 // withTOTP enrols a TOTP secret the way SaveTOTP itself does, for the tests
 // that need a second factor already in place — TestRemovingAPasskeyEndsSessions
 // removes the *only* passkey and needs another factor for mayRemoveFactor to
@@ -383,6 +398,80 @@ func TestAPasskeyCanBeEnrolledAndCounts(t *testing.T) {
 	// credential id the authenticator generated, under the name submitted —
 	// not merely a count. factorCount()==1 alone would pass just as well for
 	// a record holding the wrong id or a name nobody typed.
+	stored := s.passkeys.all()
+	if len(stored) != 1 {
+		t.Fatalf("%d passkeys stored, want 1", len(stored))
+	}
+	if stored[0].Name != "YubiKey on the keyring" {
+		t.Errorf("stored name = %q, want %q", stored[0].Name, "YubiKey on the keyring")
+	}
+	if !bytes.Equal(stored[0].ID, cred.ID) {
+		t.Errorf("stored credential id = %x, want the one the ceremony produced (%x)", stored[0].ID, cred.ID)
+	}
+}
+
+// TestAPasskeyIsEnrolledOnEasywallsOwnDefaultPort runs the enrolment ceremony
+// on :12227 rather than the fixture's :443.
+//
+// Every other ceremony test runs on :443, where publicOrigin() names no port —
+// which is how an ordinary HTTPS installation reads, and is not how an ordinary
+// *easywall* installation reads. The origin is part of what a browser signs
+// over, so a ceremony that agreed with the RP ID and disagreed with the port
+// would pass the whole suite and fail on every default install.
+func TestAPasskeyIsEnrolledOnEasywallsOwnDefaultPort(t *testing.T) {
+	s := newPasskeyTestServer(t,
+		withHostname("firewall.example.org"),
+		withBindAddr(":12227"),
+	)
+
+	if got := s.publicOrigin(); got != "https://firewall.example.org:12227" {
+		t.Fatalf("publicOrigin() = %q — the fixture is not on the port this test exists for", got)
+	}
+	wa, err := s.webAuthn()
+	if err != nil {
+		t.Fatalf("webAuthn: %v", err)
+	}
+	if wa.Config.RPID != "firewall.example.org" {
+		t.Errorf("RPID = %q, want the bare hostname — the port belongs to the origin, not the RP ID",
+			wa.Config.RPID)
+	}
+	if len(wa.Config.RPOrigins) != 1 || wa.Config.RPOrigins[0] != "https://firewall.example.org:12227" {
+		t.Errorf("RPOrigins = %v, want exactly [https://firewall.example.org:12227]", wa.Config.RPOrigins)
+	}
+
+	auth := virtualwebauthn.NewAuthenticator()
+	rp := virtualwebauthn.RelyingParty{
+		Name:   "easywall",
+		ID:     "firewall.example.org",
+		Origin: "https://firewall.example.org:12227",
+	}
+	cred := virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
+
+	begin := s.postAuthed(t, "/password/passkey/begin", currentPassword)
+	if begin.StatusCode != 200 {
+		t.Fatalf("begin answered %d", begin.StatusCode)
+	}
+	options := readBody(t, begin)
+
+	parsed, err := virtualwebauthn.ParseAttestationOptions(options)
+	if err != nil {
+		t.Fatalf("parse the creation options: %v", err)
+	}
+	attestation := virtualwebauthn.CreateAttestationResponse(rp, auth, cred, *parsed)
+
+	finish := s.postAuthedJSON(t, "/password/passkey/finish",
+		map[string]string{"name": "YubiKey on the keyring"}, attestation)
+	if finish.StatusCode != 200 {
+		t.Fatalf("finish answered %d: %s", finish.StatusCode, readBody(t, finish))
+	}
+
+	if n := s.factorCount(); n != 1 {
+		t.Errorf("factorCount() = %d after enrolling one passkey, want 1", n)
+	}
+	if !s.hasSecondFactor() {
+		t.Error("the gate is still closed after a passkey was enrolled")
+	}
+
 	stored := s.passkeys.all()
 	if len(stored) != 1 {
 		t.Fatalf("%d passkeys stored, want 1", len(stored))

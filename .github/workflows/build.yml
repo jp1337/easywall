@@ -131,12 +131,16 @@ jobs:
       # itself computed. Three states, and the middle one is the recorded
       # incident.
       #
-      # This covers docker-compose.yml as well, by construction rather than by
-      # coincidence: that file declares no `healthcheck:` block, so compose
-      # inherits the image's — the one measured here is the only one there is.
-      # The moment somebody adds a block back to the compose file, this step
-      # stops covering it, which is one of the reasons the comment there asks
-      # them not to.
+      # This covered docker-compose.yml too, by construction rather than by
+      # coincidence, until 2.19: that file declared no `healthcheck:` block, so
+      # compose inherited the image's — the one measured here was the only one
+      # there was. Since 2.19, docker-compose.yml carries its own healthcheck:
+      # block (podman's OCI format has no healthcheck field, so `podman build`
+      # dropped it silently — see carried-forward.md), and this job does not
+      # run compose, so it measures the image's check only. The compose block
+      # is covered instead by TestTheContainerHealthCheckHasOneDefinition
+      # (internal/shared), which asserts the two agree field by field rather
+      # than by a container reaching healthy. See docs-tech/ci-and-release.md.
       #
       # Its own network namespace, not the host's. docker-compose.yml shares the
       # host's because nftables must reach host tables, and doing that here would

@@ -83,7 +83,7 @@ equivalent button in the interface.
 | `audit_panic_engaged` | Panic mode engaged |
 | `audit_panic_resumed` | Panic mode ended |
 | `audit_apply_refused_panic` | Apply refused — panic mode is engaged |
-| `audit_rollback_skipped` | Rollback skipped — panic mode is engaged |
+| `audit_rollback_skipped` | Stored, not written — panic |
 | `audit_resume_restore_skipped` | Resume could not restore the rules |
 
 ## The second factor and recovery codes

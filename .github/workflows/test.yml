@@ -184,6 +184,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # codespell is a typo-only dictionary — near-zero false positives on
+      # nftables, conntrack and argon2id, where hunspell floods. Configuration,
+      # and the reasoning for every skip and every ignored word, is in
+      # .codespellrc. First, because it needs no Ruby, no Node and no build.
+      #
+      # Here and not in docs.yml, where it lived until 2.19: .codespellrc is
+      # written repo-wide and codespell runs repo-wide, but docs.yml triggers on
+      # docs/**, CHANGELOG.md and three other paths — so a typo in README.md,
+      # DESIGN.md, locales/en.json or internal/**/*.go was never checked. This
+      # workflow has no path filter, which is the whole reason it is the right
+      # home.
+      #
+      # No paths on the command line, deliberately: explicit paths bypass the
+      # skip list's ./-prefixed entries in .codespellrc, so the repo-wide
+      # invocation is the correct one as well as the shorter one.
+      - name: Spelling
+        run: pipx run codespell
+
       - uses: actions/setup-node@v7
         with:
           node-version: "24"

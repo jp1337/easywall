@@ -15,7 +15,58 @@ until you open them. This page is generated from
 [CHANGELOG.md](https://github.com/jp1337/easywall/blob/main/CHANGELOG.md),
 which is the file GitHub and the release tooling read.
 
-<details open markdown="1">
+<nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.18.0">2.18.0</a>
+  <a href="#2.17.0">2.17.0</a>
+  <a href="#2.16.0">2.16.0</a>
+  <a href="#2.15.1">2.15.1</a>
+  <a href="#2.15.0">2.15.0</a>
+  <a href="#2.14.0">2.14.0</a>
+  <a href="#2.13.0">2.13.0</a>
+  <a href="#2.12.0">2.12.0</a>
+  <a href="#2.11.0">2.11.0</a>
+  <a href="#2.10.0">2.10.0</a>
+  <a href="#2.9.0">2.9.0</a>
+  <a href="#2.8.0">2.8.0</a>
+  <a href="#2.7.0">2.7.0</a>
+  <a href="#2.6.0">2.6.0</a>
+  <a href="#2.5.1">2.5.1</a>
+  <a href="#2.5.0">2.5.0</a>
+  <a href="#2.4.2">2.4.2</a>
+  <a href="#2.4.1">2.4.1</a>
+  <a href="#2.4.0">2.4.0</a>
+  <a href="#2.3.0">2.3.0</a>
+  <a href="#2.2.0">2.2.0</a>
+  <a href="#2.1.0">2.1.0</a>
+  <a href="#2.0.0">2.0.0</a>
+  <a href="#0.3.1">0.3.1</a>
+  <a href="#0.3.0">0.3.0</a>
+  <a href="#0.2.4">0.2.4</a>
+  <a href="#0.2.3">0.2.3</a>
+  <a href="#0.2.2">0.2.2</a>
+  <a href="#0.2.1">0.2.1</a>
+  <a href="#0.2.0">0.2.0</a>
+  <a href="#0.1.0">0.1.0</a>
+  <a href="#0.0.4">0.0.4</a>
+  <a href="#0.0.3">0.0.3</a>
+  <a href="#0.0.2">0.0.2</a>
+  <a href="#0.0.1">0.0.1</a>
+</nav>
+
+<script>
+  function openTarget() {
+    var t = document.getElementById(location.hash.slice(1));
+    if (t && t.tagName === 'DETAILS') t.open = true;
+  }
+  if (document.readyState === 'loading') {
+    addEventListener('DOMContentLoaded', openTarget);
+  } else {
+    openTarget();
+  }
+  addEventListener('hashchange', openTarget);
+</script>
+
+<details open id="2.18.0" markdown="1">
 <summary><strong>2.18.0</strong> · 2026-09-11 — A password alone is not enough</summary>
 
 easywall has had a second factor since 2.8, and it has been a checkbox. An
@@ -232,7 +283,7 @@ this is the release that makes one mandatory.
 
 </details>
 
-<details markdown="1">
+<details id="2.17.0" markdown="1">
 <summary><strong>2.17.0</strong> · 2026-09-09 — It proves what it says</summary>
 
 For five releases `ct state established,related accept` matched no packet. All
@@ -361,7 +412,7 @@ monitoring system can each read.
 
 </details>
 
-<details markdown="1">
+<details id="2.16.0" markdown="1">
 <summary><strong>2.16.0</strong> · 2026-09-08 — The interface looks like a firewall</summary>
 
 Colour stops decorating and starts meaning something. After this release the only
@@ -464,7 +515,7 @@ than by reading:
 
 </details>
 
-<details markdown="1">
+<details id="2.15.1" markdown="1">
 <summary><strong>2.15.1</strong> · 2026-09-07 — Two ways a new installation could lock you out of its own host</summary>
 
 Reported from Discord: a VPS unreachable immediately after
@@ -530,7 +581,7 @@ table; they simply never fired.
 
 </details>
 
-<details markdown="1">
+<details id="2.15.0" markdown="1">
 <summary><strong>2.15.0</strong> · 2026-09-07 — You can see it working</summary>
 
 An open port nobody uses is the most common avoidable exposure on a hobby
@@ -625,7 +676,7 @@ And one more, shipped in 2.14 and found here:
 
 </details>
 
-<details markdown="1">
+<details id="2.14.0" markdown="1">
 <summary><strong>2.14.0</strong> · 2026-09-02 — The window shows that it is running</summary>
 
 Every apply reverts itself after 120 seconds unless it is confirmed — and for
@@ -707,7 +758,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.13.0" markdown="1">
 <summary><strong>2.13.0</strong> · 2026-08-28 — Behind a proxy, easywall knows who you are</summary>
 
 ### Added
@@ -749,7 +800,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.12.0" markdown="1">
 <summary><strong>2.12.0</strong> · 2026-08-28 — The configuration comes from outside, and the page says so</summary>
 
 ### Added
@@ -807,7 +858,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.11.0" markdown="1">
 <summary><strong>2.11.0</strong> · 2026-08-27 — A rule names a service and who may reach it</summary>
 
 ### Added
@@ -864,7 +915,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.10.0" markdown="1">
 <summary><strong>2.10.0</strong> · 2026-08-27 — What changes is on the screen</summary>
 
 ### Added
@@ -962,7 +1013,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.9.0" markdown="1">
 <summary><strong>2.9.0</strong> · 2026-08-21 — The interface speaks French, and both binaries read their environment</summary>
 
 ### Added
@@ -1071,7 +1122,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.8.0" markdown="1">
 <summary><strong>2.8.0</strong> · 2026-08-20 — A stolen password alone no longer opens the firewall</summary>
 
 ### Added
@@ -1203,7 +1254,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.7.0" markdown="1">
 <summary><strong>2.7.0</strong> · 2026-08-18 — The firewall survives a reboot</summary>
 
 ### Fixed
@@ -1232,7 +1283,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.6.0" markdown="1">
 <summary><strong>2.6.0</strong> · 2026-08-16 — <code>--write-config</code>, the flag the documentation had been promising</summary>
 
 ### Added
@@ -1340,7 +1391,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.5.1" markdown="1">
 <summary><strong>2.5.1</strong> · 2026-08-12 — The documented Debian install command was a 404</summary>
 
 ### Fixed
@@ -1352,7 +1403,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.5.0" markdown="1">
 <summary><strong>2.5.0</strong> · 2026-08-11 — Every switch on the options page reaches the firewall</summary>
 
 ### Fixed
@@ -1511,7 +1562,7 @@ now* sits beside *Confirm* rather than being described in a sentence.
 
 </details>
 
-<details markdown="1">
+<details id="2.4.2" markdown="1">
 <summary><strong>2.4.2</strong> · 2026-08-09 — The documentation site stops drawing boxes inside boxes</summary>
 
 ### Fixed
@@ -1553,7 +1604,7 @@ Documentation site — layout and content:
 
 </details>
 
-<details markdown="1">
+<details id="2.4.1" markdown="1">
 <summary><strong>2.4.1</strong> · 2026-08-04 — The documentation site has a dark mode</summary>
 
 ### Fixed
@@ -1588,7 +1639,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="2.4.0" markdown="1">
 <summary><strong>2.4.0</strong> · 2026-08-03 — A public demo, running the whole interface against nothing</summary>
 
 ### Added
@@ -1628,7 +1679,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="2.3.0" markdown="1">
 <summary><strong>2.3.0</strong> · 2026-05-03 — The interface is built from a component library instead of by hand</summary>
 
 ### Added
@@ -1651,7 +1702,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="2.2.0" markdown="1">
 <summary><strong>2.2.0</strong> · 2026-04-28 — The audit log is readable from the interface</summary>
 
 ### Added
@@ -1664,7 +1715,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="2.1.0" markdown="1">
 <summary><strong>2.1.0</strong> · 2026-04-27 — The protection modules are editable from the interface</summary>
 
 ### Added
@@ -1694,7 +1745,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="2.0.0" markdown="1">
 <summary><strong>2.0.0</strong> · 2026-04-26 — easywall is Go, end to end</summary>
 
 ### Added
@@ -1728,7 +1779,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.3.1" markdown="1">
 <summary><strong>0.3.1</strong> · 2021-02-17 — A shell flag that broke the installer on older systems</summary>
 
 ### Changed
@@ -1739,7 +1790,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.3.0" markdown="1">
 <summary><strong>0.3.0</strong> · 2020-09-30 — A port can say what it is for</summary>
 
 ### Added
@@ -1767,7 +1818,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.2.4" markdown="1">
 <summary><strong>0.2.4</strong> · 2020-09-06 — The demo page's security headers are checked</summary>
 
 ### Added
@@ -1790,7 +1841,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.2.3" markdown="1">
 <summary><strong>0.2.3</strong> · 2020-08-28 — The installation works</summary>
 
 ### Changed
@@ -1803,7 +1854,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.2.2" markdown="1">
 <summary><strong>0.2.2</strong> · 2020-08-24 — The readme explains the thing it is the readme for</summary>
 
 ### Added
@@ -1822,7 +1873,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.2.1" markdown="1">
 <summary><strong>0.2.1</strong> · 2020-08-22 — easywall installs from a Debian package</summary>
 
 ### Added
@@ -1850,7 +1901,7 @@ Also now stated rather than omitted: the audit log's `detail` column is empty fo
 
 </details>
 
-<details markdown="1">
+<details id="0.2.0" markdown="1">
 <summary><strong>0.2.0</strong> · 2020-07-20 — The project can be sponsored</summary>
 
 ### Added
@@ -1910,7 +1961,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 </details>
 
-<details markdown="1">
+<details id="0.1.0" markdown="1">
 <summary><strong>0.1.0</strong> · 2020-06-21 — Almost every line is covered by a unit test</summary>
 
 ### Added
@@ -1940,7 +1991,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 </details>
 
-<details markdown="1">
+<details id="0.0.4" markdown="1">
 <summary><strong>0.0.4</strong> · 2019-10-04 — Custom iptables rules can be applied</summary>
 
 ### Added
@@ -1962,7 +2013,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 </details>
 
-<details markdown="1">
+<details id="0.0.3" markdown="1">
 <summary><strong>0.0.3</strong> · 2019-06-30 — A web interface, on Flask</summary>
 
 ### Added
@@ -1988,7 +2039,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 </details>
 
-<details markdown="1">
+<details id="0.0.2" markdown="1">
 <summary><strong>0.0.2</strong> · 2019-06-08 — The Python rewrite takes over from master</summary>
 
 ### Added
@@ -2007,7 +2058,7 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 
 </details>
 
-<details markdown="1">
+<details id="0.0.1" markdown="1">
 <summary><strong>0.0.1</strong> · 2019-04-24 — Two parts: one running as root, one not</summary>
 
 ### Added
