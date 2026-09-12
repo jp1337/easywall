@@ -414,9 +414,23 @@ func TestAuditBuildFindings(t *testing.T) {
 // naming firewall.go and restore.go made it blind to a third writer of the
 // table. A builder in a sibling file is exactly as invisible to layer B.
 //
-// What it still does not see is carried in carried-forward.md: `cn := m.conn`
-// followed by `cn.AddRule(…)` has no `.conn.AddRule` selector left to match,
-// and refusing it needs type resolution rather than syntax.
+// What this does NOT catch, measured rather than assumed: a local copy of the
+// connection. `cn := m.conn` followed by `cn.AddRule(…)` passes, because there
+// is no `.conn.AddRule` selector left to match. Refusing that needs type
+// resolution rather than syntax — go/types and a full package load, which is a
+// different kind of guard and a much slower test.
+//
+// It was carried in carried-forward.md until 2026-09-11, when that file was
+// emptied; the ruling lives here now, which is where a reader of the guard
+// meets it.
+//
+// Left alone deliberately, and not for lack of time. The shape this exists to
+// catch is a copy-paste from pre-c4dab40 history, which writes `m.conn.AddRule`
+// and is caught in any file of the package. A local alias is not what anybody
+// writes by accident; it is what somebody writes to get around a guard, and a
+// guard is not a defence against its own author. invariants.md states this
+// scope as the selector rather than as the intent, so nothing in the repository
+// claims more than the syntax actually delivers.
 func TestEveryRuleIsAddedThroughTheRecordingAdder(t *testing.T) {
 	recorders := 0
 	for file, src := range coreSources(t) {
