@@ -535,7 +535,14 @@ components:
   module-active:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    borderColor: "{colors.select-edge}"
+    # Amended 2026-09-11: this read borderColor: "{colors.select-edge}" and the
+    # code has never painted a border here. app.css marks an enabled module with
+    # box-shadow: inset 2px 0 0 — the same device as the active nav item, which
+    # is why an operator reads the two as the same kind of "this one is on".
+    # 2.16 only swapped the token in this entry and left the property, so the
+    # mismatch predates it. The code is right: consistency with a shipped
+    # pattern beats a token entry nobody implemented.
+    edgeShadow: "inset 2px 0 0 {colors.select-edge}"
     typography: "{typography.body}"
     rounded: "{rounded.xl}"
   module-params:
@@ -742,8 +749,8 @@ this, because an unchecked checkbox and an off toggle are only recognisable by t
 
 Measured with `rule-strong`, the off-state toggle track reached **1.6:1** and the unchecked
 checkbox border **1.7:1** — comfortably illegible. `control-edge` is tuned to clear 3:1 in
-both themes. This matters more here than in most products: the options page carries eleven
-protection-module toggles, and an operator has to be able to see at a glance which
+both themes. This matters more here than in most products: the options page carries
+fourteen protection-module toggles, and an operator has to be able to see at a glance which
 protections are *off*. A page where only the enabled toggles are visible is worse than no
 page at all, because it reads as "everything is fine".
 
@@ -995,7 +1002,7 @@ the label above it, because 62% of a phone's width is not a usable measure for p
 
 ### Content grid
 
-Most pages here carry few rows — eight ports, four forwards, eleven switches. Run that alone
+Most pages here carry few rows — eight ports, four forwards, fourteen switches. Run that alone
 across a 1360px canvas and the columns stretch absurdly; rendering showed `SSH (admin)`
 sitting in a 950px-wide cell. The earlier conclusion — that the fix was to cap the page —
 was wrong twice over: a cap left a dead band down the right, and the width was never the
@@ -1154,6 +1161,10 @@ A firewall protection is either on or off and may carry its own parameters. As r
 long list — which is how it was first built — fourteen of them took 1700px of scroll and
 answered none of the page's actual question: *which protections are active right now.*
 
+**Fourteen cards, eleven with parameters.** Both numbers appear in this file and they count
+different things; `options.html` renders fourteen `class="module"` cards and eleven
+`class="module-params"` blocks. *Eleven toggles* was wrong in three places until 2026-09-11.
+
 Each is a card in an `auto-fill` grid at `minmax(330px, 1fr)`. Name and switch in the header,
 one line saying what the module does, and parameters below a hairline **inside the card** —
 not on a darker band underneath it, which read as a detached second row. An active module
@@ -1269,11 +1280,11 @@ grouping is unusable, and the grouping is what makes the protection modules scan
 
 ### Toggles and checkboxes
 
-The protection modules are the largest cluster of controls in the product — eleven toggles
-on one page. A toggle means "this protection is on"; it is the only place besides the
-primary button where `action-fill` appears as a fill, and that is deliberate: an operator
-scanning the options page should be able to see at a glance how much protection is
-enabled.
+The protection modules are the largest cluster of controls in the product — fourteen toggles
+on one page, eleven of which carry their own parameters. A toggle means "this protection is
+on"; it is the only place besides the primary button where `action-fill` appears as a fill,
+and that is deliberate: an operator scanning the options page should be able to see at a
+glance how much protection is enabled.
 
 Checkboxes are for selection, toggles are for state. Never use a toggle for something that
 only takes effect after pressing Save — the toggle's own animation promises immediacy.
