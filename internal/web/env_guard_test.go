@@ -12,13 +12,23 @@ import (
 // like any other installation, and the precedence inversion means an operator's
 // answer in the interface beats the variable rather than the other way round.
 //
-// The five below are different in kind. Four are secrets and one is the hash
+// The eleven below are different in kind. Four are secrets, one is the hash
 // they authenticate against, and an environment variable is not a place for
 // either: it is visible in `docker inspect`, to anything reading
 // /proc/<pid>/environ, and in whatever log somebody pastes into an issue.
 // web.toml is 0600; the environment of a running container is not.
+//
+// notify_url joins them for the same reason it lives in this file rather than
+// anywhere else: an ntfy topic is readable by whoever knows it, so the URL is
+// a credential. The other five notification keys are not secrets — they are
+// here because no environment variable names them either. A switch split off
+// from the URL it qualifies, settable from a different place with different
+// precedence, buys nothing: the interface writes all six together, and the
+// Notifications page is where an operator changes them.
 var secretManagedKeys = []string{
 	"session_key", "username", "password", "totp_secret", "recovery_codes",
+	"notify_kind", "notify_url", "notify_on_rolled_back", "notify_on_accepted",
+	"notify_on_panic", "notify_on_failed_logins",
 }
 
 func TestNoEnvVarTargetsAManagedKey(t *testing.T) {

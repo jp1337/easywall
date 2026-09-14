@@ -75,6 +75,38 @@
       "description": "Argon2id hashes of the eight one-time recovery codes — never the codes themselves. Written by the interface; one entry is removed each time a code is used.",
       "default": []
     },
+    "notify_kind": {
+      "type": "string",
+      "enum": ["", "webhook", "ntfy"],
+      "description": "Notification transport: \"webhook\" posts JSON to notify_url, \"ntfy\" pushes to an ntfy topic. Empty \u2014 the default \u2014 is off. Configurable under Notifications in the interface.",
+      "default": ""
+    },
+    "notify_url": {
+      "type": "string",
+      "description": "Where the notification is posted. Treat it as a credential: an ntfy topic is readable by anyone who knows it. Redirects are refused, so a destination that follows one cannot be pointed at a third party by whoever controls its DNS.",
+      "default": "",
+      "examples": ["https://ntfy.sh/your-private-topic"]
+    },
+    "notify_on_rolled_back": {
+      "type": "boolean",
+      "description": "Notify when an apply was not confirmed within the acceptance window and undid itself.",
+      "default": false
+    },
+    "notify_on_accepted": {
+      "type": "boolean",
+      "description": "Notify when an apply was confirmed.",
+      "default": false
+    },
+    "notify_on_panic": {
+      "type": "boolean",
+      "description": "Notify when panic mode engaged or ended.",
+      "default": false
+    },
+    "notify_on_failed_logins": {
+      "type": "boolean",
+      "description": "Notify on repeated failed sign-in attempts from one address.",
+      "default": false
+    },
     "trusted_proxies": {
       "type": "array",
       "items": { "type": "string" },
