@@ -586,3 +586,80 @@ func TestSameManagedValuesLooksAtTheNotificationKeys(t *testing.T) {
 		})
 	}
 }
+
+// TestSaveNotificationsRollsBackAFailedWrite covers the half of SaveNotifications
+// that only runs when the disk says no. Every other Save* in config.go restores
+// the previous values when saveLocked fails; without that, the process is left
+// asserting settings the file does not have — and the caller rebuilds the live
+// notifier from these fields the moment SaveNotifications returns, so a failed
+// write would produce a notifier posting to a URL that was never persisted,
+// with the next restart reading the old one back and posting somewhere else.
+//
+// saveLocked has two write paths and both have to be closed for it to fail:
+// an unwritable directory alone is not enough, because it falls back to
+// rewriting the file in place — that is exactly what
+// TestConfigSave_WorksWithoutWriteAccessToTheDirectory holds it to. So the
+// directory is 0500 and the file 0400.
+func TestSaveNotificationsRollsBackAFailedWrite(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root ignores file permissions")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "web.toml")
+	shipped, err := os.ReadFile("../../config/web.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, shipped, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A first save that must succeed: it is the state the failed one has to
+	// roll back to, and a rollback to the zero value would prove nothing.
+	if err := cfg.SaveNotifications("ntfy", "https://ntfy.example/kept", true, true, false, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Neither path out: no temp file in the directory, no rewrite of the file.
+	if err := os.Chmod(path, 0400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(dir, 0700)
+		_ = os.Chmod(path, 0600)
+	})
+
+	if err := cfg.SaveNotifications("webhook", "https://elsewhere.example/lost", false, false, true, true); err == nil {
+		t.Fatal("the write was supposed to fail; the rest of this test proves nothing if it succeeded")
+	}
+
+	// Every one of the six, in both structs, back as it was.
+	for _, c := range []struct {
+		name string
+		got  shared.WebConfig
+	}{{"live", cfg.WebConfig}, {"file", cfg.fileConfig}} {
+		if c.got.NotifyKind != "ntfy" || c.got.NotifyURL != "https://ntfy.example/kept" {
+			t.Errorf("%s: kind/url kept the failed write: %q %q", c.name, c.got.NotifyKind, c.got.NotifyURL)
+		}
+		if !c.got.NotifyOnRolledBack || !c.got.NotifyOnAccepted ||
+			c.got.NotifyOnPanic || c.got.NotifyOnFailedLogins {
+			t.Errorf("%s: switches kept the failed write: %+v", c.name, c.got)
+		}
+	}
+
+	// And the file still says what the successful save put there.
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(raw, []byte(`"https://ntfy.example/kept"`)) {
+		t.Errorf("the file lost the value the successful save wrote:\n%s", raw)
+	}
+}

@@ -620,16 +620,41 @@ func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 // rewrite what root loads — the one thing the two-process split exists to
 // prevent. web.toml itself belongs to the web user, so an in-place rewrite
 // SaveNotifications stores the notification settings and writes web.toml.
+//
+// Rolled back on a failed write like every other Save* here, and for a sharper
+// reason than most: the caller rebuilds the live notifier from these fields the
+// moment this returns. Left in place after a failed write, the process would be
+// posting to a URL that is not in the file — and the next restart would read
+// the old one back and quietly start posting somewhere else.
 func (c *Config) SaveNotifications(kind, url string, rolledBack, accepted, panicMode, failedLogins bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	prev, prevFile := c.WebConfig, c.fileConfig
 	c.NotifyKind, c.NotifyURL = kind, url
 	c.NotifyOnRolledBack, c.NotifyOnAccepted = rolledBack, accepted
 	c.NotifyOnPanic, c.NotifyOnFailedLogins = panicMode, failedLogins
 	c.fileConfig.NotifyKind, c.fileConfig.NotifyURL = kind, url
 	c.fileConfig.NotifyOnRolledBack, c.fileConfig.NotifyOnAccepted = rolledBack, accepted
 	c.fileConfig.NotifyOnPanic, c.fileConfig.NotifyOnFailedLogins = panicMode, failedLogins
-	return c.saveLocked()
+	if err := c.saveLocked(); err != nil {
+		c.restoreNotifications(prev, prevFile)
+		return err
+	}
+	return nil
+}
+
+// restoreNotifications puts the six notification fields back as they were,
+// touching nothing else in either struct: a concurrent SaveTelemetry cannot
+// have run — c.mu is held — but a wholesale `c.WebConfig = prev` would still
+// undo whatever else changed between the snapshot and here if this function
+// ever grows. Six fields, named, is the assignment that stays correct.
+func (c *Config) restoreNotifications(prev, prevFile shared.WebConfig) {
+	c.NotifyKind, c.NotifyURL = prev.NotifyKind, prev.NotifyURL
+	c.NotifyOnRolledBack, c.NotifyOnAccepted = prev.NotifyOnRolledBack, prev.NotifyOnAccepted
+	c.NotifyOnPanic, c.NotifyOnFailedLogins = prev.NotifyOnPanic, prev.NotifyOnFailedLogins
+	c.fileConfig.NotifyKind, c.fileConfig.NotifyURL = prevFile.NotifyKind, prevFile.NotifyURL
+	c.fileConfig.NotifyOnRolledBack, c.fileConfig.NotifyOnAccepted = prevFile.NotifyOnRolledBack, prevFile.NotifyOnAccepted
+	c.fileConfig.NotifyOnPanic, c.fileConfig.NotifyOnFailedLogins = prevFile.NotifyOnPanic, prevFile.NotifyOnFailedLogins
 }
 
 // works and nothing else in that directory is reachable.
