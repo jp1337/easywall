@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"time"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // notifyTimeout bounds one delivery. A var so a test can prove the bound
@@ -115,5 +119,103 @@ func ntfyPriority(severity string) string {
 		return "4"
 	default:
 		return "3"
+	}
+}
+
+// notifyTick is how often the notifier asks for the firewall's state.
+//
+// Fifteen seconds, through the 2-second status cache, so it adds no socket
+// traffic of its own. It does not need to be faster: accepted and rolled_back
+// are terminal states that persist, so a tick that lands after the acceptance
+// window closed still finds the outcome.
+//
+// A var, not a const, so a test can drive the loop without waiting fifteen
+// seconds per transition — the same reason notifyTimeout is one.
+var notifyTick = 15 * time.Second
+
+// rebuildNotifier builds the client from the configuration in force, or clears
+// it. Called at construction and again after a settings change, so a new
+// address takes effect without a restart.
+//
+// nil in demo mode whatever is configured: the public demo is a page anyone on
+// the internet can open, and it makes no outbound request.
+func (s *Server) rebuildNotifier() {
+	kind, url := s.cfg.NotifyDestination()
+	var n *notifier
+	if !s.cfg.DemoMode && kind != "" && url != "" {
+		host, _ := os.Hostname()
+		n = newNotifier(kind, url, host, shared.CurrentVersion)
+	}
+	s.notifyMu.Lock()
+	s.notify = n
+	s.notifyMu.Unlock()
+}
+
+// currentNotifier returns the notifier in force, or nil. The one way to read
+// s.notify: the settings page can replace it while this goroutine is posting.
+func (s *Server) currentNotifier() *notifier {
+	s.notifyMu.RLock()
+	defer s.notifyMu.RUnlock()
+	return s.notify
+}
+
+// runNotifier polls the firewall's state and posts what the operator asked for.
+func (s *Server) runNotifier(stop <-chan struct{}) {
+	ticker := time.NewTicker(notifyTick)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			// statusForRender() returns nil when the core cannot be reached, and
+			// observe already reads nil as "unknown". Passed straight through:
+			// a second guard here would make one of the two dead.
+			for _, n := range s.notifySeen.observe(s.statusForRender()) {
+				s.dispatchNotification(n)
+			}
+		}
+	}
+}
+
+// notifyEnabledFor reports whether the operator asked to hear about this event.
+// The switch itself is on Config, under the lock that guards the six fields.
+func (s *Server) notifyEnabledFor(event string) bool { return s.cfg.NotifyEnabled(event) }
+
+// notifyLoginFailure is auditEvents' burst hook. It sees the address the request
+// actually came from — Record calls it before demo mode blanks the recorded one.
+//
+// The delivery goes to its own goroutine because this runs on the login path,
+// and a sign-in must not wait out a 10-second POST to somebody's webhook.
+func (s *Server) notifyLoginFailure(ev shared.LoginEvent, addr string) {
+	if n := s.notifyBurst.record(ev, addr, time.Now()); n != nil {
+		go s.dispatchNotification(*n)
+	}
+}
+
+// dispatchNotification sends one notification, if it is switched on, and records
+// what happened for the page to show.
+//
+// One retry and no more. A queue is not promised — see the spec's section 8 —
+// and a retry loop against an endpoint that is down is a way to be the problem.
+func (s *Server) dispatchNotification(n Notification) {
+	notify := s.currentNotifier()
+	if notify == nil || !s.notifyEnabledFor(n.Event) {
+		return
+	}
+	err := notify.send(n)
+	if err != nil {
+		err = notify.send(n) // the one retry
+	}
+	s.notifyLastMu.Lock()
+	s.notifyLastAt = time.Now()
+	s.notifyLastErr = ""
+	if err != nil {
+		s.notifyLastErr = err.Error()
+	}
+	s.notifyLastMu.Unlock()
+	if err != nil {
+		slog.Warn("could not deliver a notification; it is not queued and will not be retried again",
+			"event", n.Event, "error", err)
 	}
 }

@@ -15,11 +15,27 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/nicksnyder/go-i18n/v2/i18n"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
+
+// waitUntil polls cond until it holds or the deadline passes. For the notifier,
+// whose work happens on its own goroutine's schedule rather than on the
+// request's.
+func waitUntil(t *testing.T, within time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("condition did not hold within %v", within)
+}
 
 // fakeCore is a minimal Unix socket server that returns canned responses.
 type fakeCore struct {

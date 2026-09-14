@@ -633,6 +633,35 @@ func (c *Config) SaveNotifications(kind, url string, rolledBack, accepted, panic
 	return nil
 }
 
+// NotifyDestination returns the kind and URL the notifier posts to.
+//
+// Under the lock, like every other accessor here, and for a new reason: from
+// 2.20 these fields are read by a goroutine that is not serving a request —
+// runNotifier — while the settings page writes them from one that is.
+func (c *Config) NotifyDestination() (string, string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.NotifyKind, c.NotifyURL
+}
+
+// NotifyEnabled reports whether the operator asked to hear about this event.
+// An unknown event is not a switch anyone can have turned on, so it is off.
+func (c *Config) NotifyEnabled(event string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	switch event {
+	case "rolled_back":
+		return c.NotifyOnRolledBack
+	case "accepted":
+		return c.NotifyOnAccepted
+	case "panic":
+		return c.NotifyOnPanic
+	case "failed_logins":
+		return c.NotifyOnFailedLogins
+	}
+	return false
+}
+
 // restoreNotifications puts the six notification fields back as they were,
 // touching nothing else in either struct: a concurrent SaveTelemetry cannot
 // have run — c.mu is held — but a wholesale `c.WebConfig = prev` would still
