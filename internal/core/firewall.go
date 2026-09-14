@@ -637,7 +637,28 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		f.collectUsageBeforeWrite()
 
 		opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
-		applyErr := f.nft.Apply(previous, opts, nets)
+		var applyErr error
+		if !f.everConfigured(previous) {
+			// Nothing has ever been applied here, so "back to where you were"
+			// is "not filtering" — not an empty rule set at policy drop, which
+			// closes SSH and the web interface with it. restore.go:98 already
+			// refuses to enforce an empty set at boot for exactly this reason;
+			// this is the same refusal on the path that runs when an operator
+			// is already in trouble.
+			//
+			// An operator who deliberately applied an empty set is unaffected:
+			// that installation has a last-apply marker, so everConfigured is
+			// true and the rules below are restored as before.
+			slog.Warn("the acceptance window closed on the first apply this installation " +
+				"has ever made; taking the table down rather than enforcing an empty " +
+				"rule set, which would close SSH and the web interface with it")
+			WriteAuditLog(f.cfg.AuditLogPath(), "boot_not_configured", "all",
+				"the first apply was not confirmed; the table was taken down and this "+
+					"host is not filtering — open the interface and apply again", user)
+			applyErr = f.nft.Reset()
+		} else {
+			applyErr = f.nft.Apply(previous, opts, nets)
+		}
 		if applyErr != nil {
 			slog.Error("rollback nftables failed", "error", applyErr)
 			failures = append(failures, "nftables: "+applyErr.Error())

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"sort"
 	"strings"
 	"testing"
 )
@@ -97,7 +98,10 @@ func TestTheUsageTickerIsWiredIntoTheDaemon(t *testing.T) {
 //
 // What it cannot see is the same short list the panic guard names: a call kept
 // textually and wrapped in `if false`, and the call order beyond "before the
-// write" / "after the write".
+// write" / "after the write". Nor does it know that two writes in one function
+// are exclusive branches rather than a sequence — it only insists the collect
+// precedes the first and the baseline reset follows the last, which holds either
+// way.
 func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 	const collect = "f.collectUsageBeforeWrite("
 	const reset = "f.resetUsageBaselines("
@@ -128,7 +132,9 @@ func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 		{"firewall.go", "func (f *Firewall) rollback(", 1, 1,
 			"every unconfirmed apply ends here, and this write flushes the table just " +
 				"like an apply's does — the traffic of the acceptance window is in those " +
-				"counters and nowhere else"},
+				"counters and nowhere else. Two writes, one collect: the branches are " +
+				"exclusive, Reset on the first apply this installation has ever made and " +
+				"Apply on every later one"},
 		{"restore.go", "func (f *Firewall) RestoreCurrent(", 1, 1,
 			"a restore is not only a boot: RESUME and the Docker-bridge reconciler both " +
 				"reach it on a machine that has been filtering for weeks"},
@@ -157,12 +163,20 @@ func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 			writeAt = append(writeAt, at...)
 			record(s.file, w, len(at))
 		}
-		if len(writeAt) != 1 {
-			t.Errorf("%s: %s contains %d calls that destroy the kernel counters, want "+
-				"exactly 1; this guard compares against a single write and cannot tell "+
-				"which one the bookkeeping belongs to", s.file, s.sig, len(writeAt))
+		// A site may hold more than one write when they are branches of the same
+		// decision — rollback picks Reset or Apply depending on whether this
+		// installation has ever been configured — so the bookkeeping is pinned
+		// against the outermost of them: the collect must precede the earliest
+		// write, and the baseline reset must follow the latest. One write is the
+		// common case and falls out of the same comparison.
+		if len(writeAt) == 0 {
+			t.Errorf("%s: %s contains no call that destroys the kernel counters; this "+
+				"guard is asserting bookkeeping around a write that is no longer there",
+				s.file, s.sig)
 			continue
 		}
+		sort.Ints(writeAt)
+		firstWrite, lastWrite := writeAt[0], writeAt[len(writeAt)-1]
 
 		collects := indexesOf(body, collect)
 		resets := indexesOf(body, reset)
@@ -180,13 +194,13 @@ func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 				s.file, s.sig, reset, len(resets), s.wantResets, s.why)
 		}
 		for _, at := range collects {
-			if at > writeAt[0] {
+			if at > firstWrite {
 				t.Errorf("%s: %s books the counters after the write that destroys them; "+
 					"read before, or there is nothing left to read", s.file, s.sig)
 			}
 		}
 		for _, at := range resets {
-			if at < writeAt[0] {
+			if at < lastWrite {
 				t.Errorf("%s: %s resets the baselines before the kernel write. nft.Apply "+
 					"returns before touching the table when validation refuses, and a "+
 					"baseline zeroed there re-books the whole lifetime of every live rule "+
