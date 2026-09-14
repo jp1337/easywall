@@ -56,7 +56,7 @@ const PASS = 'ui-check-password-2026';
 const PAGES = [
   '/dashboard', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
   '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
-  '/log', '/apply',
+  '/notify', '/log', '/apply',
 ];
 
 const failures = [];

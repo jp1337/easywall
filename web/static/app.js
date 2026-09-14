@@ -159,6 +159,10 @@ function initHtmxToast() {
     settings_invalid_network: { text: str('settings_invalid_network'), kind: 'warning' },
     options_invalid_limit:    { text: str('options_invalid_limit'), kind: 'warning' },
     provenance_reset_done:    { text: str('provenance_reset_done'), kind: 'success' },
+    notify_saved:             { text: str('notify_saved'), kind: 'success' },
+    notify_kind_invalid:      { text: str('notify_kind_invalid'), kind: 'warning' },
+    notify_url_invalid:       { text: str('notify_url_invalid'), kind: 'warning' },
+    notify_url_required:      { text: str('notify_url_required'), kind: 'warning' },
   };
 
   const show = (key, kind) => {

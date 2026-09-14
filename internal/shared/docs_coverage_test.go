@@ -47,6 +47,7 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/settings":     "_docs/features/system-settings.md",
 		"/system":       "_docs/features/system-settings.md",
 		"/log":          "_docs/features/audit-log.md",
+		"/notify":       "_docs/features/notifications.md",
 		"/export":       "_docs/features/export-import.md",
 	}
 
