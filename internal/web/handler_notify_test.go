@@ -167,3 +167,32 @@ func TestEveryNotifyOutcomeIsRegisteredEverywhereItIsShown(t *testing.T) {
 		}
 	}
 }
+
+// TestTheDemoNeverBuildsANotifier is the other half of the two demo-mode
+// guards this page carries: TestDemoModeBuildsNoNotifier (notifyrun_test.go)
+// proves rebuildNotifier(), TestPasswordDemoRefusesTheTestButton-style tests
+// prove the button; this one proves the page tells a visitor why before they
+// press anything.
+func TestTheDemoNeverBuildsANotifier(t *testing.T) {
+	s := newDemoTestServer(t)
+	if err := s.cfg.SaveNotifications("webhook", "https://example.invalid/hook", true, true, true, true); err != nil {
+		t.Fatal(err)
+	}
+	s.rebuildNotifier()
+	// currentNotifier(), never a bare s.notify read — Task 5 put the field
+	// behind notifyMu and -race found the bare version.
+	if s.currentNotifier() != nil {
+		t.Fatal("demo mode built a notifier; the public demo must make no outbound request")
+	}
+	// And the page says so rather than looking broken. data-testid, not the
+	// English copy: this assertion must not break when the wording is edited.
+	// Not a bare `strings.Contains(body, "demo")` either — the topbar's own
+	// demo-chip (base.html, present on every authenticated demo page) puts the
+	// substring "demo" in the markup via its `demo-chip` class regardless of
+	// whether this page explains anything, which is exactly the kind of
+	// vacuous assertion the mutation check below catches.
+	body := doRequest(s, "GET", "/notify", nil, makeAuthCookie(t, s)).Body.String()
+	if !strings.Contains(body, `data-testid="notify-demo-banner"`) {
+		t.Error("the demo page does not carry the demo callout")
+	}
+}
