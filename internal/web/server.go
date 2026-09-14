@@ -604,6 +604,9 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Post("/system", s.handleSystemPOST)
 		r.Post("/system/telemetry", s.handleTelemetryPOST)
 
+		r.Get("/notify", s.handleNotifyGET)
+		r.Post("/notify", s.handleNotifyPOST)
+
 		r.Get("/log", s.handleLog)
 		r.Get("/log/filter", s.handleLogFilter)
 

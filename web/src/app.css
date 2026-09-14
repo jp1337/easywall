@@ -1268,6 +1268,12 @@ body {
     color: var(--color-ink);
   }
 
+  /* .field-inline's nowrap is what keeps a dense caption — "max conn 5" — on
+     one line beside its control. A checkbox in a fieldset carries a full
+     sentence instead, and at 390px "Wiederholte fehlgeschlagene Anmeldungen"
+     would run past the card rather than wrap inside it. */
+  .fieldset .field-inline > span { white-space: normal; }
+
   /* ── Toggle ────────────────────────────────────────────────────────────────
      The off state uses control-edge, not rule-strong: WCAG 1.4.11 wants 3:1
      for the outline of an interactive control, and an operator scanning the
