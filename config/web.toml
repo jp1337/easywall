@@ -125,9 +125,10 @@ recovery_codes = []
 #
 # This is the one request whose destination easywall does not name at all. The
 # update check and the installation count are fixed, and the certificate
-# authority is a default you can replace; this one is yours from the start. The URL is a credential — an ntfy
-# topic is readable by anyone who knows it — which is why it lives in this file
-# at 0600 beside session_key and totp_secret.
+# authority is a default you can replace; this one is yours from the start.
+#
+# The URL is a credential — an ntfy topic is readable by anyone who knows it —
+# which is why it lives in this file at 0600 beside session_key and totp_secret.
 #
 # Redirects are refused: a destination that follows one can be pointed at a
 # third party by whoever controls its DNS.

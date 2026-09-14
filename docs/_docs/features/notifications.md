@@ -45,27 +45,30 @@ Nothing is sent for a trigger you leave unticked. The four take effect when you 
 
 ### The three the firewall raises
 
-easywall reads its own status every 15 seconds, through the cache the dashboard
-already fills, so the triggers cost no extra traffic. Confirmed and rolled back are
-states that stay, not instants that pass. A read landing after the 120-second window
-closed still finds the outcome, so nothing here races that window.
+easywall reads its own status every 15 seconds. That is one socket round trip to
+the daemon on this host, and nothing to the network. The tick is longer than the
+status cache holds, so each one is a real ask rather than a free read. Confirmed
+and rolled back are states that stay, not instants that pass. A read landing after
+the 120-second window closed still finds the outcome, so nothing races that window.
 
 A rollback carries the reason it happened, and the two reasons are not flattened
 into one: a window that expired is not a window an operator ended.
 
 ### The one about sign-ins
 
-Five is not a number chosen here. It is where the sign-in rate limiter itself starts
-refusing, so the message arrives at the moment easywall begins turning that address
-away. The address then stays quiet for fifteen minutes — the second hour of one
-attack is not news — and every other address keeps its own count.
+Five is not a number chosen here: it is the rate limiter's own ceiling, so the
+message is worth the same as easywall refusing that address. The same count, not
+the same moment: the limiter is a token bucket that refills, and this is a fixed
+five-minute window. Five failures spread over four minutes notify while the limiter
+still has tokens. The address then stays quiet for fifteen minutes, because the
+second hour of one attack is not news. Every other address keeps its own count.
 
 ## Prove it arrives
 
-**Send a test** posts one notification now, to the address in the field. A
-notification you cannot prove is not a notification. Under the triggers the page
-then shows when easywall last sent something, or what went wrong the last time it
-tried.
+**Send a test** posts one notification now, to the address in the field, whatever
+the four switches say. A test that stayed silent because a trigger is off would
+prove nothing about the endpoint. Under the triggers the page then shows when
+easywall last sent something, or what went wrong the last time it tried.
 
 The public demo sends nothing, and says so before you press the button.
 
@@ -86,8 +89,18 @@ The public demo sends nothing, and says so before you press the button.
 }
 ```
 
-`event` is one of `rolled_back`, `accepted`, `panic` or `failed_logins`, and
-`severity` one of `info`, `warning` or `critical`. `time` is UTC.
+`severity` is one of `info`, `warning` or `critical`, and `time` is UTC. `event` is
+one of **five** values:
+
+| `event` | Raised by |
+|---|---|
+| `test` | **Send a test** — the first one your receiver will ever see, and the one it gets with every switch off |
+| `rolled_back` · `accepted` | the acceptance window, either way it ended |
+| `panic` | panic mode, on either edge |
+| `failed_logins` | the sign-in threshold |
+
+A receiver written as a four-way switch over the triggers drops `test`, which is
+the message the button exists to produce.
 
 ### ntfy
 

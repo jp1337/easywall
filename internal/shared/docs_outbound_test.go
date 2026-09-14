@@ -21,9 +21,9 @@ import (
 // remembered both pages.
 //
 // Three sources have to agree here, and the third is what makes this more than
-// a spell-check: the code. Every file under internal/ that reaches out is named
-// below with the row it documents, so a new request cannot be added without
-// either extending both pages or saying here why it is not on them.
+// a spell-check: the code. Every file under internal/ and cmd/ that reaches out
+// is named below with the row it documents, so a new request cannot be added
+// without either extending both pages or saying here why it is not on them.
 //
 // It found two defects on the branch that added it. 2.20's notification was on
 // the configuration page and not on the security page, which still said **two**
@@ -38,14 +38,31 @@ import (
 // matches above a table missing a row is the exact shape of what shipped, and a
 // guard that read only the sentence would have passed on it — measured: it did,
 // on a mutation that deleted the ACME row and left the word "Four" standing.
+//
+// The marker list and the walk are both wider than today's code needs, for the
+// same reason. The first version matched http.NewRequest alone and walked
+// internal/ alone — true of every existing call site by coincidence, not by
+// rule. A review added http.Get to internal/core/daemon.go, http.Post beside
+// it, and http.NewRequest to cmd/easywall-web/main.go, and all three were
+// silent. http.Get is the most idiomatic way in Go to make exactly the request
+// this guard exists to notice. Nothing under cmd/ reaches out today, so walking
+// it costs nothing and closes the other half.
 func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	root := repoRootDir(t)
 
-	// What makes a file reach out. http.NewRequest is easywall building the
-	// request itself; the autocert import is easywall handing that job to
+	// What makes a file reach out. The four http.* forms are easywall building
+	// the request itself; the autocert import is easywall handing that job to
 	// x/crypto, which is the same thing from the host's point of view and is
 	// exactly what both pages missed for two releases.
-	markers := []string{"http.NewRequest(", "acme/autocert"}
+	markers := []string{
+		"http.NewRequest(", "http.Get(", "http.Post(", "http.Head(",
+		"acme/autocert",
+	}
+
+	// Both binaries' trees, not only the library. A request added to a main
+	// package is a request all the same, and the first version of this test
+	// could not see one.
+	trees := []string{"internal", "cmd"}
 
 	type row struct {
 		name string // how a failure message names it
@@ -69,28 +86,30 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	}
 
 	var found []string
-	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		for _, marker := range markers {
-			if strings.Contains(string(raw), marker) {
-				rel, _ := filepath.Rel(root, path)
-				found = append(found, filepath.ToSlash(rel))
-				break
+	for _, tree := range trees {
+		err := filepath.WalkDir(filepath.Join(root, tree), func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
 			}
+			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, marker := range markers {
+				if strings.Contains(string(raw), marker) {
+					rel, _ := filepath.Rel(root, path)
+					found = append(found, filepath.ToSlash(rel))
+					break
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s/: %v", tree, err)
 		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk internal/: %v", err)
 	}
 	sort.Strings(found)
 
@@ -152,7 +171,7 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 			continue
 		}
 		if got := body[m[0][2]:m[0][3]]; got != want {
-			t.Errorf("%s says %q outbound requests; internal/ makes %d (%s)",
+			t.Errorf("%s says %q outbound requests; the tree makes %d (%s)",
 				page, got, len(rows), strings.Join(names, ", "))
 		}
 		table := tableAfter(body[m[0][1]:])

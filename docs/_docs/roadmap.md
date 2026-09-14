@@ -60,8 +60,9 @@ earlier as an end in itself and never twice.
 > A log is a record and a queue is a queue. Reading the first as the second is
 > what forces the deduplication problem, and that one cannot be solved without
 > changing the audit line format. So the notifier reads the status every fifteen
-> seconds instead, through the cache the interface already fills, and the web
-> process raises its own failed-login events. The core still opens nothing.
+> seconds instead: one socket round trip per tick, none of it to the network. The
+> web process raises its own failed-login events, and the core still opens
+> nothing.
 
 > **Amended after 2.18.** One release was inserted and everything from the old
 > 2.19 down moved one place. **The numbers in the amendments below this one are

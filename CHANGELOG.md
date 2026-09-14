@@ -56,8 +56,11 @@ moves, and the core still never opens a connection outward.
   timestamps have second granularity and no sequence number, and the web process
   never opens that `0600` file anyway. A record read as a queue cannot say which
   of two entries in one second it has already sent. The notifier reads
-  `GET_STATUS` every 15 seconds instead, through the 2-second cache the interface
-  already fills, and raises its own failed-login events. `accepted` and
+  `GET_STATUS` every 15 seconds instead — one socket round trip on this host per
+  tick, nothing to the network — and raises its own failed-login events. The
+  status cache is 2 seconds and the tick is 15, so a claim in the spec that this
+  "adds no socket traffic of its own" was wrong and had reached the published
+  page before a review did the arithmetic. `accepted` and
   `rolled_back` are terminal states that persist, so nothing races the
   120-second window.
 - **Redirects are refused, and nothing is queued.** A destination that answers

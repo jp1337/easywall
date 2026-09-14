@@ -279,16 +279,21 @@ Four, and this is the whole list.
 | Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
 | Notifications | **an address you choose** | when one of four things happens | the event, its detail, this host's name and the version | **off** until you set an address |
-| A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
+| A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, your agreement to the authority's subscriber terms, the public half of an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
 
 The first three are not on the path of a page. On a host with no route out they
 simply fail, and nothing else changes. The exact request the count makes is printed
 verbatim under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
 **The certificate is not one of those.** It is on the path of every page, because
-it is what serves them: a host that cannot reach the authority is a host whose
-interface cannot answer. The inbound half of that exchange, and the port 80 bind
-that is fatal when it fails, are [above](#the-one-exception-acmes-port-80).
+it is what serves them. A host that cannot reach the authority goes on answering
+while the certificate cached in `<ssl_dir>/acme` is still valid — weeks, normally.
+It stops when there is nothing valid left to serve, and the first issuance is the
+unforgiving one: there is no cache yet. The inbound half of that exchange, and the port 80 bind that is
+fatal when it fails, are [above](#the-one-exception-acmes-port-80).
+
+The private half of the account key never leaves the host. What goes out is its
+public half, signing each request.
 
 > **The notification is the one easywall cannot name at all.** `api.github.com`
 > and `telemetry.wdkro.de` are fixed, and the certificate authority is a default
