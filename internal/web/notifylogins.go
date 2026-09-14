@@ -19,8 +19,16 @@ const (
 	// not a log: the second hour of the same attack is not news.
 	burstQuiet = 15 * time.Minute
 	// burstMaxAddrs bounds the table, because the number of distinct addresses
-	// is a number a stranger chooses. The core's loginEvents makes the same
-	// argument at 1024.
+	// is a number a stranger chooses — the same argument internal/core's
+	// loginEvents makes at the same 1024, but not the same mechanism: that one
+	// bounds concurrently open windows, ages them out with a five-second
+	// sweep goroutine, and folds whatever does not fit into one aggregate
+	// "from more than N addresses" line. This table has no goroutine (the
+	// lifecycle to stop one belongs to whatever wires notification delivery
+	// together, not to this file) and no aggregate fallback: a new address
+	// arriving at the ceiling instead evicts every bucket that is dead — see
+	// (*burstBucket).deadAt — and is refused only if the table is still full
+	// once that is done.
 	burstMaxAddrs = 1024
 )
 
@@ -37,6 +45,18 @@ type burstBucket struct {
 	firedAt time.Time
 }
 
+// deadAt reports whether the bucket holds no state a later call for this
+// address still needs: if it never fired, its accumulation window has
+// closed; if it did fire, its quiet period has also closed. A bucket that is
+// still counting toward the threshold, or still keeping its address quiet
+// after firing, is live and must not be evicted.
+func (bucket *burstBucket) deadAt(now time.Time) bool {
+	if !bucket.firedAt.IsZero() {
+		return now.Sub(bucket.firedAt) >= burstQuiet
+	}
+	return now.Sub(bucket.opened) > burstWindow
+}
+
 // loginBurst decides which failed-login activity is worth a notification.
 type loginBurst struct {
 	mu      sync.Mutex
@@ -45,6 +65,19 @@ type loginBurst struct {
 
 func newLoginBurst() *loginBurst {
 	return &loginBurst{buckets: make(map[string]*burstBucket)}
+}
+
+// evictDeadLocked drops every bucket that no longer holds live state, only
+// called once the table is at its ceiling and only ever run against the
+// (bounded) table itself, not per request — so the O(n) scan happens
+// exactly when hitting the ceiling requires it, not on every call. b.mu must
+// be held.
+func (b *loginBurst) evictDeadLocked(now time.Time) {
+	for addr, bucket := range b.buckets {
+		if bucket.deadAt(now) {
+			delete(b.buckets, addr)
+		}
+	}
 }
 
 // record takes one login event and returns a Notification when this address has
@@ -60,7 +93,10 @@ func (b *loginBurst) record(ev shared.LoginEvent, addr string, now time.Time) *N
 	bucket, ok := b.buckets[addr]
 	if !ok {
 		if len(b.buckets) >= burstMaxAddrs {
-			return nil
+			b.evictDeadLocked(now)
+		}
+		if len(b.buckets) >= burstMaxAddrs {
+			return nil // still full after evicting; a genuinely new address is refused
 		}
 		bucket = &burstBucket{opened: now}
 		b.buckets[addr] = bucket
