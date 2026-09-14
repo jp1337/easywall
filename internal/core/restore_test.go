@@ -504,7 +504,14 @@ func lockedMarkerFirewall(t *testing.T) (*Firewall, *Config) {
 func TestRollback_ProceedsWhenTheMarkerCannotBeRead(t *testing.T) {
 	fw, cfg := lockedMarkerFirewall(t)
 
-	fw.rollback(shared.RulesState{}, "web")
+	// A host that has been filtering, not a fresh installation: this test is
+	// about the *post-write* panic check, and on an installation where nothing
+	// has ever been applied the rollback takes the first-apply branch and tears
+	// the table down deliberately — a different write, with a boot_enforce_failed
+	// of its own when it fails, which the teardown assertion at the end of this
+	// test would read as the undo it exists to forbid.
+	previous := shared.RulesState{Current: shared.Rules{TCP: []shared.PortRule{{Port: "22"}}}}
+	fw.rollback(previous, "web")
 
 	for _, e := range auditEntries(t, cfg) {
 		if e.Action == "rollback_skipped" {
@@ -784,5 +791,52 @@ func TestEverConfigured_TakesEitherSignal(t *testing.T) {
 	fw.setLastApply(time.Now())
 	if !fw.everConfigured(state) {
 		t.Error("a last-apply marker means somebody applied something, empty or not")
+	}
+}
+
+// The first-apply rollback records what its teardown did, not what it intended.
+//
+// The entry is the line an operator reads to find out what the rollback left
+// behind, and on this path a failed Reset() is the worst outcome there is: the
+// host sits at policy drop with no port open. An entry written before the
+// teardown, or written unconditionally of it, says "the table was taken down and
+// this host is not filtering" about a machine that is filtering an empty set —
+// the same defect the panic branch a few lines above it in rollback records
+// having been fixed once already.
+//
+// newTestFirewall's NftablesManager has a nil netlink connection, so Reset()
+// fails for real rather than through a seam invented for this test.
+func TestRollback_FirstApplyTeardownFailureIsReportedHonestly(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	// A fresh installation: nothing in Current, no last-apply marker.
+	if fw.everConfigured(shared.RulesState{}) {
+		t.Fatal("the fixture is not a fresh installation, so this test proves nothing")
+	}
+
+	fw.rollback(shared.RulesState{}, "web")
+
+	var got *shared.AuditLogEntry
+	entries := auditEntries(t, cfg)
+	for i, e := range entries {
+		if e.Action == "boot_not_configured" {
+			t.Errorf("the teardown failed, and this entry claims it succeeded: %q", e.Detail)
+		}
+		if e.Action == "boot_enforce_failed" {
+			got = &entries[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("want a boot_enforce_failed entry for a teardown that could not be "+
+			"carried out, got %v", auditActions(t, cfg))
+	}
+	if !strings.Contains(got.Detail, "could not be taken down") ||
+		!strings.Contains(got.Detail, "policy drop") {
+		t.Errorf("the entry must say the teardown failed and what that leaves the host in, "+
+			"got %q", got.Detail)
+	}
+	if strings.Contains(got.Detail, "this host is not filtering") {
+		t.Errorf("the entry asserts a teardown that did not happen: %q", got.Detail)
 	}
 }

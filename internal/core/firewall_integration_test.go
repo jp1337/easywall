@@ -877,3 +877,117 @@ func TestIntegration_StopDuringTheGapBeforeTheWindowOpens(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// The first-apply rollback lockout
+// ---------------------------------------------------------------------------
+
+// The window's promise is "if you do not confirm, you get back to where you
+// were". On a first apply, where you were is "not filtering" — and until 2.20
+// this path enforced an empty rule set at policy drop instead, which closes SSH
+// and the web interface with it. That is the opposite of the promise, on the
+// one apply an operator has least reason to trust.
+//
+// Against a real kernel and not a mock on purpose: a mock would assert the call
+// we chose to make, and the question is what the machine is left holding.
+func TestIntegration_AnUnconfirmedFirstApplyLeavesTheHostUnfiltered(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = 10 // the minimum; the test cancels rather than waits
+
+	// A fresh installation is the whole premise: nothing applied, no marker.
+	state, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fw.everConfigured(state) {
+		t.Fatal("the fixture is not a fresh installation, so this test proves nothing")
+	}
+
+	// The first apply this installation has ever made, and nobody confirms it.
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "22"}}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		fw.acceptance.Cancel() // stands in for "nobody confirmed"
+	}()
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	// The assertion this whole task exists for. Enforcing() returns a plain
+	// bool — there is no error to check.
+	if fw.nft.Enforcing() {
+		t.Fatalf("after an unconfirmed FIRST apply the machine is still filtering; "+
+			"the table holds:\n%s", ruleset(t))
+	}
+
+	// And the record says so. The teardown succeeded here — against a real
+	// kernel, which is the only place it can — so the honest entry is the
+	// neutral one; TestRollback_FirstApplyTeardownFailureIsReportedHonestly
+	// covers the other side, where it does not.
+	var said bool
+	for _, e := range auditEntries(t, fw.cfg) {
+		if e.Action == "boot_enforce_failed" {
+			t.Errorf("the teardown succeeded and this entry reports it as failed: %q", e.Detail)
+		}
+		if e.Action == "boot_not_configured" && strings.Contains(e.Detail, "not filtering") {
+			said = true
+		}
+	}
+	if !said {
+		t.Errorf("the audit log does not record that this host was left unfiltered, which "+
+			"is the entry an operator reads to find out what the rollback did; got %v",
+			auditActions(t, fw.cfg))
+	}
+}
+
+// The other half, and it must keep working: a *second* apply that is not
+// confirmed still restores the previous rules rather than tearing the table
+// down. Without this, the fix above could be written as an unconditional Reset
+// and stay green.
+func TestIntegration_AnUnconfirmedLaterApplyStillRestoresThePreviousRules(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = 10
+
+	// One confirmed apply, so this installation is configured.
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "22"}}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		fw.Accept()
+	}()
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	// A second apply that nobody confirms.
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "22"}, {Port: "8443"}}); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for fw.acceptance.Status() != shared.AcceptancePending {
+			time.Sleep(5 * time.Millisecond)
+		}
+		fw.acceptance.Cancel()
+	}()
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("second apply: %v", err)
+	}
+
+	if !fw.nft.Enforcing() {
+		t.Fatal("a later rollback took the table down; it must restore the previous rules")
+	}
+	rs := ruleset(t)
+	mustAcceptPort(t, "tcp dport 22", "the previous rule is enforced again")
+	mustNotContain(t, rs, "tcp dport 8443", "the rolled-back rule must be gone")
+}
