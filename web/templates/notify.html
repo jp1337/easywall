@@ -6,6 +6,19 @@
   <div class="content">
     {{template "flash" .}}
 
+    {{/* Read before the button is pressed: the test button already refuses
+         with notify_demo_no_send (handleNotifyTest), so this reuses that same
+         key rather than minting a second sentence that says the same thing.
+         .alert, not a colour variant — app.css has no informational colour,
+         and this is the same neutral shape login.html's own demo notice
+         uses. */}}
+    {{if .Demo}}
+    <div role="status" class="alert mb-4" data-testid="notify-demo-banner">
+      <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
+      <span><strong>{{T "demo_label"}}</strong> — {{T "notify_demo_no_send"}}</span>
+    </div>
+    {{end}}
+
     <div class="page-header">
       <div class="page-header-text">
         <h1 class="page-title">{{T "notify_title"}}</h1>
