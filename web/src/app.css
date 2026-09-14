@@ -1271,7 +1271,14 @@ body {
   /* .field-inline's nowrap is what keeps a dense caption — "max conn 5" — on
      one line beside its control. A checkbox in a fieldset carries a full
      sentence instead, and at 390px "Wiederholte fehlgeschlagene Anmeldungen"
-     would run past the card rather than wrap inside it. */
+     would run past the card rather than wrap inside it.
+     align-items goes with it: centred is right for the one-line caption the
+     class was written for, and wrong the moment the label wraps — the box
+     floats into the middle of two lines instead of marking the first. The
+     1.5px is the difference between a 16px box and the 19.5px line box beside
+     it, so flex-start still reads as aligned rather than as high. */
+  .fieldset .field-inline { align-items: flex-start; }
+  .fieldset .field-inline > .checkbox { margin-top: 1.5px; }
   .fieldset .field-inline > span { white-space: normal; }
 
   /* ── Toggle ────────────────────────────────────────────────────────────────

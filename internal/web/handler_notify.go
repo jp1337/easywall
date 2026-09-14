@@ -78,6 +78,15 @@ func (s *Server) handleNotifyPOST(w http.ResponseWriter, r *http.Request) {
 		s.respondPartialError(w, r, "/notify", "notify_url_invalid")
 		return
 	}
+	// A destination with no address is notifications configured to fire at
+	// nothing: newNotifier refuses to build without both halves, so the four
+	// triggers would sit there ticked and silent with the page reporting a
+	// successful save. "Nothing" is how you turn this off, and it is the first
+	// option in the list.
+	if kind != "" && raw == "" {
+		s.respondPartialError(w, r, "/notify", "notify_url_required")
+		return
+	}
 	if err := s.cfg.SaveNotifications(kind, raw,
 		r.FormValue("on_rolled_back") != "", r.FormValue("on_accepted") != "",
 		r.FormValue("on_panic") != "", r.FormValue("on_failed_logins") != ""); err != nil {

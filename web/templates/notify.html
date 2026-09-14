@@ -14,7 +14,9 @@
     </div>
 
     {{with .Data}}
-    <form method="POST" action="/notify"
+    <div class="page-grid">
+      <div>
+      <form method="POST" action="/notify"
           hx-post="/notify"
           hx-swap="none">
       <div class="card">
@@ -84,7 +86,38 @@
           {{T "notify_save"}}
         </button>
       </div>
-    </form>
+      </form>
+      </div>
+
+      {{/* What section 8 of the spec says this feature does not promise, beside
+           the form that configures it rather than in a page nobody opens
+           first. The aside-card shape is /system's and /password's. */}}
+      <div class="aside-stack">
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+            {{T "notify_aside_secret_title"}}
+          </h2>
+          <p>{{T "notify_aside_secret_body"}}</p>
+        </div>
+
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            {{T "notify_aside_redirect_title"}}
+          </h2>
+          <p>{{T "notify_aside_redirect_body"}}</p>
+        </div>
+
+        <div class="aside-card">
+          <h2 class="aside-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h3.5a.75.75 0 000-1.5h-2.75V5z" clip-rule="evenodd"/></svg>
+            {{T "notify_aside_queue_title"}}
+          </h2>
+          <p>{{T "notify_aside_queue_body"}}</p>
+        </div>
+      </div>
+    </div>
     {{end}}
   </div>
 </div>
