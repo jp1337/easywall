@@ -162,6 +162,33 @@ type Server struct {
 	eventsStop chan struct{}
 	eventsOnce sync.Once
 
+	// notify posts to the operator's webhook or ntfy topic. nil when no kind is
+	// configured and in demo mode — the public demo makes no outbound request.
+	//
+	// Guarded by notifyMu, and never read directly: rebuildNotifier writes it on
+	// a request goroutine (the settings page saves, then rebuilds) while
+	// runNotifier and the login tap read it on theirs. Use currentNotifier().
+	notifyMu   sync.RWMutex
+	notify     *notifier
+	notifyStop chan struct{}
+	notifyOnce sync.Once
+	// notifySeen, not notifyState: a field with the same name as its type
+	// compiles but reads badly at every use site. Touched only by runNotifier's
+	// goroutine, so it needs no lock of its own.
+	notifySeen  notifyState
+	notifyBurst *loginBurst
+	// notifyLast records the outcome of the most recent delivery, for the page
+	// to show. A notification that fails silently is worse than none.
+	//
+	// In memory, so it resets on restart — this answers spec § 10.3. A file in
+	// data_dir would survive, and would then show an operator a delivery that
+	// happened under a configuration that may no longer exist. What the line is
+	// for is "is my endpoint working right now", and a process that has just
+	// started has not tried yet and should say so.
+	notifyLastMu  sync.Mutex
+	notifyLastAt  time.Time
+	notifyLastErr string
+
 	// statusMu, statusCached and statusAt hold one GET_STATUS for a moment, so
 	// the panic banner and the acceptance chip — which every authenticated
 	// render draws — do not each pay a socket round trip.
@@ -185,7 +212,11 @@ type Server struct {
 // chip. Two seconds, matching the apply page's own poll interval: the chip ticks
 // locally between polls and takes the server's number as the correction, so a
 // number up to two seconds stale is corrected before it can drift further.
-const statusTTL = 2 * time.Second
+//
+// A var, not a const: a test driving the notifier through statusForRender()
+// would otherwise wait two seconds per transition, and this cache exists for
+// render latency rather than as a contract anything depends on.
+var statusTTL = 2 * time.Second
 
 // statusForRender returns the status for the banner and the chip, from cache
 // when it is fresh. nil when the core could not be reached — render treats that
@@ -288,6 +319,11 @@ func NewServer(cfg *Config) (*Server, error) {
 	s.events = newAuditEvents(client, cfg.DemoMode)
 	s.eventsStop = make(chan struct{})
 
+	s.notifyBurst = newLoginBurst()
+	s.events.onBurst = s.notifyLoginFailure
+	s.rebuildNotifier()
+	s.notifyStop = make(chan struct{})
+
 	// Non-fatal here so tests can build a Server without the asset tree; Start()
 	// refuses to serve without it.
 	tmpl, err := loadTemplates(cfg.TemplatesDir())
@@ -389,6 +425,7 @@ func (s *Server) Start() error {
 		go s.telemetry.Run(s.telemetryStop)
 	}
 	go s.events.run(s.eventsStop)
+	go s.runNotifier(s.notifyStop)
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
 	if err := s.httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTPS server: %w", err)
@@ -417,6 +454,13 @@ func (s *Server) Stop() {
 	// returns, so nothing more is enqueued after this point.
 	if s.eventsStop != nil {
 		s.eventsOnce.Do(func() { close(s.eventsStop) })
+	}
+
+	// After Shutdown for the same reason as eventsStop above: a rollback that
+	// happens while the grace period is running is exactly the event an
+	// operator wants, and stopping the poller first would drop it.
+	if s.notifyStop != nil {
+		s.notifyOnce.Do(func() { close(s.notifyStop) })
 	}
 }
 
