@@ -56,8 +56,9 @@ health_allow = ["127.0.0.1/8", "::1/128"]
 # ─── Update check ───────────────────────────────────────────────────────────
 # The dashboard asks github.com once a day whether a newer release exists. It
 # never delays a page: the answer comes from a cache on disk. Set to false to
-# remove it entirely. This is one of the two requests easywall can make; the
-# other is the installation count below, which is off unless you switch it on.
+# remove it entirely. This is one of the three requests easywall can make; the
+# others are the installation count below and a notification, both off unless
+# you switch them on. Only the notification goes somewhere easywall does not name.
 update_check = true
 
 # ─── Counting installations ─────────────────────────────────────────────────

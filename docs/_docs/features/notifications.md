@@ -10,6 +10,12 @@ easywall can tell you that something happened instead of waiting for you to open
 dashboard. **Notifications** in the sidebar holds the whole setting: one destination,
 four triggers, one Save button.
 
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/notify" ext="png"
+     alt="The notifications page: a Send to selector, an address field, four trigger checkboxes, and Save notifications beside a Send a test button." %}
+  <figcaption>Nothing leaves this host until an address is set and a trigger is ticked.</figcaption>
+</figure>
+
 ## Set a destination
 
 | Send to | Address |
@@ -27,15 +33,90 @@ address is refused before it reaches the configuration file.
 
 ## Choose what you hear about
 
-| Trigger | Sent when |
-|---|---|
-| **An apply undid itself** | The acceptance window closed with no confirmation and the rules rolled back |
-| **An apply was confirmed** | You confirmed inside the window and the rules are live |
-| **Panic mode started or ended** | The firewall was opened, or closed again |
-| **Repeated failed sign-ins** | Sign-ins to the web interface keep failing |
+| Trigger | Sent when | Carries |
+|---|---|---|
+| **An apply undid itself** | the window closed unconfirmed, or you ended it by hand | which of the two it was |
+| **An apply was confirmed** | you confirmed inside the window and the rules are live | the event, nothing more |
+| **Panic mode started or ended** | on either edge, including `easywall-core panic` at the console | which edge, in words |
+| **Repeated failed sign-ins** | five failures from one address inside five minutes | the count and the address |
 
 Nothing is sent for a trigger you leave unticked. The four take effect when you press
 **Save notifications**, not while you are ticking them.
 
-Under the triggers, the page shows when easywall last sent something — or what went
-wrong the last time it tried.
+### The three the firewall raises
+
+easywall reads its own status every 15 seconds, through the cache the dashboard
+already fills, so the triggers cost no extra traffic. Confirmed and rolled back are
+states that stay, not instants that pass. A read landing after the 120-second window
+closed still finds the outcome, so nothing here races that window.
+
+A rollback carries the reason it happened, and the two reasons are not flattened
+into one: a window that expired is not a window an operator ended.
+
+### The one about sign-ins
+
+Five is not a number chosen here. It is where the sign-in rate limiter itself starts
+refusing, so the message arrives at the moment easywall begins turning that address
+away. The address then stays quiet for fifteen minutes — the second hour of one
+attack is not news — and every other address keeps its own count.
+
+## Prove it arrives
+
+**Send a test** posts one notification now, to the address in the field. A
+notification you cannot prove is not a notification. Under the triggers the page
+then shows when easywall last sent something, or what went wrong the last time it
+tried.
+
+The public demo sends nothing, and says so before you press the button.
+
+## What arrives
+
+### A webhook
+
+`POST`, with a JSON body:
+
+```json
+{
+  "event": "rolled_back",
+  "severity": "warning",
+  "detail": "timeout",
+  "host": "gateway",
+  "version": "2.20.0",
+  "time": "2026-09-15T14:25:43Z"
+}
+```
+
+`event` is one of `rolled_back`, `accepted`, `panic` or `failed_logins`, and
+`severity` one of `info`, `warning` or `critical`. `time` is UTC.
+
+### ntfy
+
+`POST`, `text/plain`. The body is the `detail` above; the rest travels in headers:
+
+| Header | Value |
+|---|---|
+| `Title` | this host's name, then the event |
+| `Priority` | `3` for info, `4` for warning, `5` for critical |
+| `Tags` | the event name |
+
+ntfy has five priorities and easywall uses three. Nothing it has to say is worth
+ntfy's lowest, and the highest is kept for the event that means this host is not
+filtering.
+
+## What is not promised
+
+There is no queue and no delivery guarantee. A delivery that fails is tried once
+more and then dropped, with a line in the journal saying so. If the host has no
+route out when the rollback happens, that notification is gone.
+
+The audit log is the record; a notification is a convenience. Reading it as a
+second record is the one way this feature can mislead you. So the page says what
+it last managed to send, rather than implying every attempt landed.
+
+> **Redirects are refused.** A destination that answers with one is never
+> followed. Otherwise whoever controls its DNS could point your notifications at
+> somebody else.
+
+This is the third request easywall makes, and the only one whose destination it
+does not name. The other two are listed under
+[Security]({{ '/docs/security/' | relative_url }}#every-request-that-goes-out).

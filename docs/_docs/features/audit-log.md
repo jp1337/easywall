@@ -29,7 +29,7 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 | 🔴 | `apply_failed` | Apply failed | The rules could not be pushed to the kernel |
 | 🔴 | `rollback_failed` | Rollback failed | The worst outcome there is: the new rules did not take **and** the old ones did not come back |
 | 🟢 | `boot_enforced` | Rules restored at startup | The stored rules were back in the kernel before anything else started |
-| 🟠 | `boot_not_configured` | Not filtering — nothing configured yet | The daemon started on a host where nothing has ever been applied, and left the machine exactly as it found it. Enforcing the empty rule set a new installation ships with would close every port, including SSH and the interface whose first-run wizard is the only thing that opens them. Filtering starts at your first apply, which has the acceptance window to undo it. Also written when a first apply is not confirmed: the window takes the table down rather than restore you to that same empty set |
+| 🟠 | `boot_not_configured` | Not filtering — nothing configured yet | The daemon started on a host nothing has ever been applied to, and left it as it found it |
 | 🔴 | `boot_enforce_failed` | Rules could not be restored | The machine came up and is not filtering — nothing on this list is worse. Also written when the panic marker cannot be read at all, when panic mode was engaged from the console while the restore was still writing, and whenever a panic teardown itself failed and the machine may still be filtering behind a marker that says it is not. The detail says which |
 | 🔴 | `panic_engaged` | Panic mode engaged | A human at the console took the firewall down on purpose. Deliberate does not make it neutral: the machine is unfiltered either way |
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
@@ -47,6 +47,14 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 > few lines away. Only the 12 actions above describe what the firewall is
 > actually doing, however consequential an event feels. The count here read
 > 10 against a table of 11 until 2.17 corrected it.
+
+> **`boot_not_configured` is amber because nothing is filtering, not because
+> something went wrong.** A new installation ships an empty rule set, and
+> enforcing it would close every port. SSH included — and the interface whose
+> first-run wizard is the only thing that opens them. Filtering starts at your
+> first apply, which has the acceptance window to undo it. The same entry is
+> written when a first apply is *not* confirmed: the window takes the table back
+> down rather than return you to that empty set.
 
 > **`selftest_passed` and `selftest_failed` are neutral too.** The self-test
 > proves easywall's rule builder against this kernel inside a network namespace

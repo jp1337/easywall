@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.0] — 2026-09-15
+
+**When something happens, you hear about it.**
+
+A rollback at three in the morning was something you found out about by opening
+the dashboard. easywall now posts to a webhook or an ntfy topic when the firewall
+moves, and the core still never opens a connection outward.
+
+### Added
+
+- **Notifications, its own page in the interface.** One destination — a webhook
+  or an ntfy topic — and four triggers, each settable on its own and every one of
+  them off until switched on. The address is refused unless it starts with
+  `http://` or `https://`, and it lives in `web.toml` at `0600` beside
+  `session_key`, because an ntfy topic is readable by anyone who knows it.
+- **Six flat keys in `web.toml`**: `notify_kind`, `notify_url` and the four
+  `notify_on_*` switches. Not a `[notifications]` table — `mergeConfig`, the
+  in-place editor that preserves that file's three kilobytes of comments, skips
+  every table wholesale, so a table the interface must write is a table its only
+  writer cannot reach. `managedKeys`, `managedValues` and `sameManagedValues`
+  grew together: a key added to the first two and forgotten in the third leaves
+  the decode-and-verify guard passing without ever looking at the new value.
+- **A *Send a test* button.** An operator has to be able to prove a notification
+  arrives without waiting for a real rollback to produce one. The page also shows
+  when easywall last sent something, or what went wrong the last time it tried —
+  a notification that fails silently is worse than none, because it is believed.
+- **A failed-login threshold at the rate limiter's own ceiling.** Five failures
+  from one address inside five minutes, then that address is quiet for fifteen
+  minutes. The core's existing burst folding is about the *record*; this one is
+  about the phone, and the second hour of one attack is not news. The address
+  table is bounded at 1024 and evicts dead buckets at the ceiling rather than
+  going blind.
+- **A third row in the outbound-request list**, and a guard that keeps the two
+  pages carrying it from disagreeing.
+  `TestBothPagesCountTheSameOutboundRequests` compares the sentence "*N*, and
+  this is the whole list." on `security.md` and `configuration.md` against the
+  number of files under `internal/` that build an outbound HTTP request. The
+  count lived in prose on two pages and in code on a third, bound by nothing:
+  `configuration.md` was updated with the keys and `security.md` went on saying
+  **Two** above a two-row table.
+
+### Changed
+
+- **The mechanism is not the one the roadmap named, and the roadmap says so.**
+  The 2.20 entry promised that "the web process polls the audit log and sends the
+  notification". `GET_LOG` returns the last 200 entries with no cursor, audit
+  timestamps have second granularity and no sequence number, and the web process
+  never opens that `0600` file anyway. A record read as a queue cannot say which
+  of two entries in one second it has already sent. The notifier reads
+  `GET_STATUS` every 15 seconds instead, through the 2-second cache the interface
+  already fills, and raises its own failed-login events. `accepted` and
+  `rolled_back` are terminal states that persist, so nothing races the
+  120-second window.
+- **Redirects are refused, and nothing is queued.** A destination that answers
+  with a redirect is never followed: whoever controls its DNS could otherwise
+  point your notifications at somebody else. A delivery that fails is tried once
+  more and then dropped, with a `WARN` in the journal. The audit log is the
+  record; a notification is a convenience, and the documentation says so rather
+  than leaving it to be discovered as a defect.
+- **The public demo sends nothing**, whatever is configured, and says so before
+  the test button is pressed.
+
+### Fixed
+
+- **An unconfirmed first apply locked the host out.** On a fresh installation the
+  first-run wizard *stages* rules and never applies them, so the state captured
+  before the first apply is empty. When the acceptance window closed unconfirmed,
+  `rollback` enforced that empty set at policy drop instead of leaving the
+  machine not filtering — closing every port including SSH and the interface.
+  `everConfigured` existed and said exactly this in its own words, and had one
+  non-test call site: the boot path. The daemon refused to enforce an empty set
+  at boot and enforced one on rollback, in the same process, for the same reason
+  not to. The rollback now tears the table down and the audit entry says the
+  machine is not filtering, in the same words the boot path uses. An operator who
+  deliberately applied an empty set keeps enforcing it — that installation has a
+  last-apply marker. Proven against a real kernel through both entrances to
+  `rollback`, the cancelled window and the expired one, rather than against a
+  mock that would assert the call we chose to make.
+
 ## [2.19.0] — 2026-09-12
 
 **What it passes on, it also filters.**
@@ -2005,7 +2084,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.19.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.20.0...HEAD
+[2.20.0]: https://github.com/jp1337/easywall/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/jp1337/easywall/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/jp1337/easywall/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/jp1337/easywall/compare/v2.16.0...v2.17.0

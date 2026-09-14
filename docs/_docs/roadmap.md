@@ -45,6 +45,24 @@ One theme per release, sayable in one sentence — the changelog heading then
 writes itself. A model change travels with the feature that justifies it, never
 earlier as an end in itself and never twice.
 
+> **Amended in 2.20.** The 2.20 row named a mechanism: *"the web process polls
+> the audit log and sends the notification."* Reading the code before writing any
+> said otherwise, and the row now says what was built. Four facts, each checked in
+> the tree rather than assumed:
+>
+> | Fact | Consequence |
+> |---|---|
+> | `GET_LOG` returns the last 200 entries — no cursor, no `since`, no count | a poller has to diff against everything it already sent |
+> | `AuditLogEntry.Time` is RFC3339 at **second** granularity, and carries no sequence number | two identical entries in one second are indistinguishable |
+> | The log is `0600` and owned by root — the web process never opens the file | "polls the audit log" already meant "asks the core", over the socket |
+> | `FirewallStatus` carries `Acceptance`, `AcceptanceReason`, `Panic` and `LastApply` | three of the four triggers are readable there, outcome included |
+>
+> A log is a record and a queue is a queue. Reading the first as the second is
+> what forces the deduplication problem, and that one cannot be solved without
+> changing the audit line format. So the notifier reads the status every fifteen
+> seconds instead, through the cache the interface already fills, and the web
+> process raises its own failed-login events. The core still opens nothing.
+
 > **Amended after 2.18.** One release was inserted and everything from the old
 > 2.19 down moved one place. **The numbers in the amendments below this one are
 > the numbers as they stood when each was written**; they are a record and are
@@ -224,7 +242,7 @@ earlier as an end in itself and never twice.
 | **2.17** | **It proves what it says** — a health check for Docker, systemd and monitoring, and a proof that convicts a rule which enforces nothing | For five releases `ct state established,related accept` matched no packet, the invalid-packet drop and the SSH meter reported themselves enabled and enforced nothing, and every surface said the firewall was active. It was found because an operator's VPS went unreachable and they pasted the ruleset into Discord. This is the machinery that would have caught it, at three depths, and the health check the project has never had |
 | **2.18** | **A password alone is not enough** — a second factor becomes a precondition for using the interface, with passkeys as the stronger one and ACME so a browser will accept them | The factor has existed since 2.8 as a checkbox, and `handleFirstRunSkip` existed so it can be declined. Making it mandatory is only defensible if the good version is available, and two things stood in the way of that: WebAuthn rejects a bare IP as its Relying Party ID, and since Chrome 110 it also refuses any origin with a certificate error — which is every default easywall installation. ACME removes the second. The demo is the one exemption |
 | **2.19** | **What it passes on, it also filters** — a port rule can name traffic this host forwards to a container, not only traffic addressed to the host | easywall has owned a `forward` chain at the forward hook since 2.5, and a drop there beats an accept another table has already made — the mechanism is not what is missing. The words for it are. The only two ways to open that chain, `allow_bridge_networks` and `routing.networks`, are whole-CIDR: neither can say *port 25 to the mail container, nothing else*, and custom rules cannot help because they are appended to `input`. On a host whose services **are** containers that leaves the dashboard reporting **Active** over the handful of rules it does enforce, while every published port is filtered by somebody else. The IPv4-only bridge detection did not travel with it, despite the amendment below saying it would: `docs-tech/carried-forward.md` carries it as that file's one open entry, ruled deliberately deferred rather than fixed in passing, because closing it starts accepting traffic on hosts nobody has measured |
-| **2.20** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward; the web process polls the audit log and sends the notification, the same separation as everything else |
+| **2.20** | **When something happens, you hear about it** — a webhook or ntfy push for a rollback, a confirmed apply, panic mode, repeated failed logins | The core still never opens a connection outward: the web process reads the firewall's status every fifteen seconds and raises its own login events, the same separation as everything else. The audit log is not the source — it is a record, and a record read as a queue cannot say which of two entries in the same second it has already sent. The amendment above has the four facts that decided it |
 | **2.21** | **What it counts can be asked for** — a metrics endpoint | The kernel counters have existed since 2.15 and live only in the interface, so an operator with Grafana cannot see the thing the release was for. Its own entry rather than folded into 2.20, because a scrape format is a second public interface with a compatibility promise — the reasoning that makes 3.0 a major. `DESIGN.md`'s Known Gaps names the missing data-visualisation language; this release either brings one or states plainly that it does not, rather than that decision arriving mid-build |
 | **2.22** | **Every entry has a why and an until** — blacklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
 | **2.23** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser |

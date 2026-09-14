@@ -257,7 +257,7 @@ Two logging switches belong to no module and are set here as well:
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
 | `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this, `recovery_codes` and `<data_dir>/passkeys.json`, then restart, for password-only sign-in |
 | `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
-| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of two possible outbound requests; see below |
+| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of three possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `notify_kind` | string | Notification transport — `"webhook"`, `"ntfy"`, or `""` for off, which is the default. See [Every request that leaves the host](#every-request-that-leaves-the-host) |
 | `notify_url` | string | Where the notification is posted. A credential: an ntfy topic is readable by anyone who knows it. Redirects are refused |

@@ -270,16 +270,24 @@ built for.
 
 ### Every request that goes out
 
-Two, and this is the whole list.
+Three, and this is the whole list.
 
 | | Destination | When | Carries | Default |
 |---|---|---|---|---|
 | Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
+| Notifications | **an address you choose** | when one of four things happens | the event, its detail, this host's name and the version | **off** until you set an address |
 
-Neither is on the path of a page, and on a host with no route out both simply fail
-and nothing else changes. The exact request the count makes is printed verbatim
-under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
+None of the three is on the path of a page, and on a host with no route out they
+simply fail and nothing else changes. The exact request the count makes is printed
+verbatim under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
+
+> **The third row is a different kind of row.** easywall names `api.github.com`
+> and `telemetry.wdkro.de`. It does not name this one — where a notification
+> lands is your choice, so nothing here can promise where it goes. Only that it
+> goes nowhere until you set an address, that redirects are refused, and that the
+> address is a credential. See
+> [Notifications]({{ '/docs/features/notifications/' | relative_url }}).
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
 > event, which htmx does not emit. So `allowEval` stayed at its default of `true`
