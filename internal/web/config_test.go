@@ -1,11 +1,13 @@
 package web
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/BurntSushi/toml"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -496,5 +498,91 @@ password = ""
 	}
 	if len(entries) != 1 {
 		t.Errorf("expected only web.toml in the directory, got %d entries", len(entries))
+	}
+}
+
+// TestSaveNotificationsSurvivesTheRoundTripAndKeepsTheComments writes the six
+// notification keys into the file the package actually installs and insists the
+// result is still that file: the comments intact, the keys top-level, and every
+// value readable back. It is the guard against mergeConfig's decode-and-verify
+// step passing without ever having looked at them.
+func TestSaveNotificationsSurvivesTheRoundTripAndKeepsTheComments(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "web.toml")
+	// The shipped file, comments and [tls] table and all.
+	shipped, err := os.ReadFile("../../config/web.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, shipped, 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SaveNotifications("ntfy", "https://ntfy.example/easywall", true, false, true, true); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back shared.WebConfig
+	if _, err := toml.Decode(string(raw), &back); err != nil {
+		t.Fatalf("the file we just wrote does not parse: %v", err)
+	}
+	if back.NotifyKind != "ntfy" || back.NotifyURL != "https://ntfy.example/easywall" {
+		t.Errorf("kind/url did not survive: %q %q", back.NotifyKind, back.NotifyURL)
+	}
+	if !back.NotifyOnRolledBack || back.NotifyOnAccepted || !back.NotifyOnPanic || !back.NotifyOnFailedLogins {
+		t.Errorf("switches did not survive: %+v", back)
+	}
+	// The three kilobytes of comments are the reason mergeConfig exists.
+	if !bytes.Contains(raw, []byte("# ─── Counting installations ───")) {
+		t.Error("the installed file's comments were replaced by a bare encoding")
+	}
+	// And the keys must be top-level, not swallowed by [tls].
+	if bytes.Index(raw, []byte("notify_kind")) > bytes.Index(raw, []byte("[tls]")) {
+		t.Error("notify_kind was written after [tls], so it is inside that table")
+	}
+}
+
+// TestSameManagedValuesLooksAtTheNotificationKeys covers what the round-trip
+// test above cannot. That test proves the six values reach disk; it stays green
+// with sameManagedValues gutted, because managedValues writes the right lines
+// either way and the file reads back correctly. But sameManagedValues is
+// mergeConfig's last step — the one that decodes the merged text and insists it
+// says what the caller asked for — and a field missing from it means that guard
+// returns true without ever having looked at the value. Green, and wrong.
+//
+// So each notification field is checked here on its own: change exactly one,
+// and the two configurations must stop being the same.
+func TestSameManagedValuesLooksAtTheNotificationKeys(t *testing.T) {
+	base := shared.WebConfig{
+		NotifyKind: "ntfy", NotifyURL: "https://ntfy.example/easywall",
+		NotifyOnRolledBack: true, NotifyOnAccepted: true,
+		NotifyOnPanic: true, NotifyOnFailedLogins: true,
+	}
+	if !sameManagedValues(base, base) {
+		t.Fatal("a configuration is not the same as itself")
+	}
+	for name, mutate := range map[string]func(*shared.WebConfig){
+		"notify_kind":             func(c *shared.WebConfig) { c.NotifyKind = "webhook" },
+		"notify_url":              func(c *shared.WebConfig) { c.NotifyURL = "https://elsewhere.example/" },
+		"notify_on_rolled_back":   func(c *shared.WebConfig) { c.NotifyOnRolledBack = false },
+		"notify_on_accepted":      func(c *shared.WebConfig) { c.NotifyOnAccepted = false },
+		"notify_on_panic":         func(c *shared.WebConfig) { c.NotifyOnPanic = false },
+		"notify_on_failed_logins": func(c *shared.WebConfig) { c.NotifyOnFailedLogins = false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			other := base
+			mutate(&other)
+			if sameManagedValues(base, other) {
+				t.Errorf("%s differs and sameManagedValues still says the merged file "+
+					"expresses the configuration — mergeConfig's guard is not reading this key", name)
+			}
+		})
 	}
 }

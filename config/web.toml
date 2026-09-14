@@ -114,6 +114,29 @@ password = ""  # argon2id hash, set by the first-run wizard
 totp_secret    = ""
 recovery_codes = []
 
+# ─── Notifications ──────────────────────────────────────────────────────────
+# A webhook or an ntfy push when something happens to the firewall. Off unless
+# you switch it on, and configurable under Notifications in the interface.
+#
+#   notify_kind = "ntfy"      # "webhook" | "ntfy" | "" (off)
+#   notify_url  = "https://ntfy.sh/your-private-topic"
+#
+# This is the third request easywall can make, and the first whose destination
+# you choose rather than easywall naming it. The URL is a credential — an ntfy
+# topic is readable by anyone who knows it — which is why it lives in this file
+# at 0600 beside session_key and totp_secret.
+#
+# Redirects are refused: a destination that follows one can be pointed at a
+# third party by whoever controls its DNS.
+notify_kind = ""
+notify_url  = ""
+
+# What is worth telling you about. All off by default.
+notify_on_rolled_back   = false   # an apply was not confirmed and undid itself
+notify_on_accepted      = false   # an apply was confirmed
+notify_on_panic         = false   # panic mode engaged or ended
+notify_on_failed_logins = false   # repeated failures from one address
+
 [tls]
 # Leave empty to use an auto-generated self-signed certificate in ssl_dir.
 # For Let's Encrypt or custom certs, set paths here:

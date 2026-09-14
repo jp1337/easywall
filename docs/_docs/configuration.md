@@ -259,6 +259,12 @@ Two logging switches belong to no module and are set here as well:
 | `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
 | `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of two possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
+| `notify_kind` | string | Notification transport — `"webhook"`, `"ntfy"`, or `""` for off, which is the default. See [Every request that leaves the host](#every-request-that-leaves-the-host) |
+| `notify_url` | string | Where the notification is posted. A credential: an ntfy topic is readable by anyone who knows it. Redirects are refused |
+| `notify_on_rolled_back` | bool | Notify when an apply was not confirmed and undid itself — `false` by default |
+| `notify_on_accepted` | bool | Notify when an apply was confirmed — `false` by default |
+| `notify_on_panic` | bool | Notify when panic mode engaged or ended — `false` by default |
+| `notify_on_failed_logins` | bool | Notify on repeated failed sign-ins from one address — `false` by default |
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 | `trusted_proxies` | array of strings | Addresses and networks whose `X-Forwarded-For` header is believed. Empty by default, which means the TCP peer is authoritative. See [Behind a reverse proxy](#behind-a-reverse-proxy) for what listing one costs |
 | `health_allow` | array of strings | Addresses and networks that may read `/healthz`. Loopback by default. See [Who may read /healthz](#who-may-read-healthz) |
@@ -378,16 +384,20 @@ fails with a key-mismatch error naming a certificate you never configured.
 
 ## Every request that leaves the host
 
-Two, and this is the whole list.
+Three, and this is the whole list.
 
-| | Update check | Counting installations |
-|---|---|---|
-| Key | `update_check` | `telemetry` |
-| Default | **on** | **off** until you switch it on |
-| Destination | `api.github.com` | `telemetry.wdkro.de` |
-| How often | once a day | once a day |
-| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below |
-| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface |
+| | Update check | Counting installations | Notifications |
+|---|---|---|---|
+| Key | `update_check` | `telemetry` | `notify_kind` |
+| Default | **on** | **off** until you switch it on | **off** until you switch it on |
+| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours |
+| How often | once a day | once a day | when something happens |
+| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall |
+| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface |
+
+The third is the only one whose destination you choose rather than easywall
+naming it. That is why `notify_url` is treated as a credential and kept in
+`web.toml` at `0600`, beside `session_key`.
 
 Neither delays a page. The update check is served from a cache on disk and
 refreshed in the background. A failure is remembered for an hour so a host with

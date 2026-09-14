@@ -516,6 +516,23 @@ type WebConfig struct {
 	// consent you can only withdraw while another process is up is not consent.
 	Telemetry *bool `toml:"telemetry" json:"telemetry"`
 
+	// NotifyKind selects the notification transport: "webhook", "ntfy", or ""
+	// for off. Flat top-level keys rather than a [notifications] table because
+	// mergeConfig — the in-place editor that keeps this file's comments — skips
+	// every table wholesale, and these six are keys the interface writes.
+	NotifyKind string `toml:"notify_kind"`
+	// NotifyURL is where the notification is posted. Operator-chosen, so it is
+	// the first outbound destination easywall does not name itself.
+	NotifyURL string `toml:"notify_url"`
+
+	// The four triggers, all off unless switched on — the same posture as
+	// Telemetry, for the same reason: a request that leaves the host is asked
+	// for, never assumed.
+	NotifyOnRolledBack   bool `toml:"notify_on_rolled_back"`
+	NotifyOnAccepted     bool `toml:"notify_on_accepted"`
+	NotifyOnPanic        bool `toml:"notify_on_panic"`
+	NotifyOnFailedLogins bool `toml:"notify_on_failed_logins"`
+
 	// DemoMode runs the web binary against an in-memory mock instead of the
 	// Unix socket — no easywall-core required. Used by the public demo
 	// deployment so visitors can explore every page without affecting any
