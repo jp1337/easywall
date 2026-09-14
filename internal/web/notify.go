@@ -20,7 +20,11 @@ var notifyTimeout = 10 * time.Second
 
 // Notification is one thing worth telling an operator about.
 type Notification struct {
-	Event    string // "rolled_back" | "accepted" | "panic" | "failed_logins"
+	// Event is one of five. Four are triggers the operator ticks; "test" is the
+	// button, which handleNotifyTest sends without consulting any of them — so a
+	// receiver that switches on the four drops the one message the button exists
+	// to produce. docs/_docs/features/notifications.md lists all five.
+	Event    string // "rolled_back" | "accepted" | "panic" | "failed_logins" | "test"
 	Severity string // "info" | "warning" | "critical"
 	Detail   string // free text: the acceptance reason, the address, the count
 	Time     time.Time

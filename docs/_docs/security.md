@@ -278,7 +278,7 @@ Four, and this is the whole list.
 |---|---|---|---|---|
 | Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
-| Notifications | **an address you choose** | when one of four things happens | the event, its detail, this host's name and the version | **off** until you set an address |
+| Notifications | **an address you choose** | when one of the four things you ticked happens, and whenever you press **Send a test** | the event, its detail, this host's name and the version | **off** until you set an address |
 | A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, your agreement to the authority's subscriber terms, the public half of an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
 
 The first three are not on the path of a page. On a host with no route out they

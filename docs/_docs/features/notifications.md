@@ -13,7 +13,7 @@ four triggers, one Save button.
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/notify" ext="png"
      alt="The notifications page: a Send to selector, an address field, four trigger checkboxes, and Save notifications beside a Send a test button." %}
-  <figcaption>Nothing leaves this host until an address is set and a trigger is ticked.</figcaption>
+  <figcaption>Nothing leaves this host until an address is set. After that, a ticked trigger or the test button sends one.</figcaption>
 </figure>
 
 ## Set a destination
@@ -89,13 +89,14 @@ The public demo sends nothing, and says so before you press the button.
 }
 ```
 
-`severity` is one of `info`, `warning` or `critical`, and `time` is UTC. `event` is
-one of **five** values:
+`severity` is one of `info`, `warning` or `critical`, and `time` is UTC. `event`
+has five values, one per row:
 
 | `event` | Raised by |
 |---|---|
 | `test` | **Send a test** — the first one your receiver will ever see, and the one it gets with every switch off |
-| `rolled_back` · `accepted` | the acceptance window, either way it ended |
+| `rolled_back` | the acceptance window closed unconfirmed, or you ended it |
+| `accepted` | you confirmed inside the window |
 | `panic` | panic mode, on either edge |
 | `failed_logins` | the sign-in threshold |
 

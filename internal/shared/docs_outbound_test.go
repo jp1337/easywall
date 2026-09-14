@@ -50,13 +50,22 @@ import (
 func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	root := repoRootDir(t)
 
-	// What makes a file reach out. The four http.* forms are easywall building
-	// the request itself; the autocert import is easywall handing that job to
+	// What makes a file reach out. The http.* forms are easywall building the
+	// request itself; the autocert import is easywall handing that job to
 	// x/crypto, which is the same thing from the host's point of view and is
 	// exactly what both pages missed for two releases.
+	//
+	// This list is a HEURISTIC and not a proof, and saying so is the point: a
+	// guard that claimed completeness it cannot have would be the defect this
+	// release keeps finding. A call on an *http.Client value — c.Get(, c.Do( —
+	// matches nothing here unless the request was built with http.NewRequest,
+	// which today's three call sites all do. It also matches a mention inside a
+	// comment, and _test.go is skipped entirely. Loud and cheap over quiet and
+	// leaky: a false positive costs one line in the map below, a false negative
+	// is a request nobody documented.
 	markers := []string{
-		"http.NewRequest(", "http.Get(", "http.Post(", "http.Head(",
-		"acme/autocert",
+		"http.NewRequest(", "http.Get(", "http.Post(", "http.PostForm(",
+		"http.Head(", "acme/autocert",
 	}
 
 	// Both binaries' trees, not only the library. A request added to a main
@@ -117,9 +126,14 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	for _, f := range found {
 		r, ok := outbound[f]
 		if !ok {
+			// No exemption list, deliberately: every entry in the map below
+			// demands a matching token in both published tables, so there is
+			// nowhere to record "this one does not count". An offer of one in
+			// this message would be a mechanism that does not exist.
 			t.Errorf("%s reaches out and is not one of the rows in security.md and "+
-				"configuration.md — add the row to both pages and name it here, or say "+
-				"here why it is not a request an operator should be told about", f)
+				"configuration.md — add the row to both pages and name it here. If it "+
+				"is a false positive (the marker appears in a comment, say), the entry "+
+				"still needs a row: this guard has no exemption list", f)
 			continue
 		}
 		rows[r.name] = r
