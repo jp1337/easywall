@@ -1360,6 +1360,11 @@ var clientStringKeys = []string{
 	"saved", "options_saved", "settings_saved", "system_saved",
 	"save_error", "system_invalid_duration", "settings_invalid_network",
 	"options_invalid_limit", "provenance_reset_done",
+	// The Notifications page saves itself over HTMX, so every one of its
+	// outcomes arrives as a toast and has to be shipped to the browser. Without
+	// these, show()'s `messages[key] || { text: key }` fallback printed the
+	// literal "notify_saved" at the operator, in both languages, on every save.
+	"notify_saved", "notify_kind_invalid", "notify_url_invalid", "notify_url_required",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",
@@ -1394,6 +1399,11 @@ func templateFuncs() template.FuncMap {
 		"saved": true, "rules_accepted": true, "import_success": true,
 		"options_saved": true, "password_changed": true, "settings_saved": true,
 		"system_saved": true,
+		// The no-JavaScript path: notify.html carries method="POST" as its
+		// fallback, so a save there is a flash rather than a toast. Without
+		// this it renders alert-crit — red, with an error icon — for a message
+		// that says everything worked. Same incident as firstrun_done below.
+		"notify_saved": true,
 		// A recovery code did exactly what it exists to do.
 		"recovery_left": true,
 		// The second factor is now doing what it was set up to do.
@@ -1420,6 +1430,10 @@ func templateFuncs() template.FuncMap {
 		// actually takes: the Network page saves itself over HTMX.
 		"settings_invalid_network": true,
 		"options_invalid_limit":    true,
+		// Three answers the operator can correct in the field in front of them,
+		// not failures of anything — the same direction as the two above.
+		"notify_kind_invalid": true, "notify_url_invalid": true,
+		"notify_url_required": true,
 		// Nothing went wrong here: the core declined a second apply while a
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
