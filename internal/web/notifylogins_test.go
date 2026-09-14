@@ -27,12 +27,14 @@ func TestFiveFailuresFromOneAddressNotifyOnceThenGoQuiet(t *testing.T) {
 	if n := b.record(shared.EvLoginFailed, "203.0.113.5", base.Add(10*time.Minute)); n != nil {
 		t.Error("the quiet period did not hold")
 	}
-	// Past it.
-	for i := 0; i < 5; i++ {
-		b.record(shared.EvLoginFailed, "203.0.113.5", base.Add(20*time.Minute))
+	// Past it: a fresh burst of the same size notifies again.
+	for i := 0; i < burstThreshold-1; i++ {
+		if n := b.record(shared.EvLoginFailed, "203.0.113.5", base.Add(20*time.Minute)); n != nil {
+			t.Fatalf("fired early, on failure %d of the new burst", i+1)
+		}
 	}
 	if n := b.record(shared.EvLoginFailed, "203.0.113.5", base.Add(20*time.Minute)); n == nil {
-		t.Error("after the quiet period a fresh burst must notify again")
+		t.Error("after the quiet period the same number of failures must notify again")
 	}
 }
 

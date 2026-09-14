@@ -69,13 +69,11 @@ func (b *loginBurst) record(ev shared.LoginEvent, addr string, now time.Time) *N
 		if now.Sub(bucket.firedAt) < burstQuiet {
 			return nil // still quiet
 		}
-		// The quiet period just ended. This call only clears the slate: the
-		// event that ends the quiet period does not itself start counting,
-		// or an unbroken attack would refire on this very call whenever it
-		// happens to land on the threshold-th failure (it would, every
-		// time burstThreshold failures arrive back to back).
+		// The quiet period is over: this failure opens a fresh window and
+		// counts as its first, so an unbroken attack notifies again after
+		// exactly burstThreshold more failures — the same as the first time,
+		// not one more for having been quiet.
 		*bucket = burstBucket{opened: now}
-		return nil
 	}
 	if now.Sub(bucket.opened) > burstWindow {
 		*bucket = burstBucket{opened: now}
