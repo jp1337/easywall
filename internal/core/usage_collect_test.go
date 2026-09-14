@@ -122,26 +122,26 @@ func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 	}
 
 	sites := []struct {
-		file, sig                string
-		wantCollects, wantResets int
-		why                      string
+		file, sig                            string
+		wantWrites, wantCollects, wantResets int
+		why                                  string
 	}{
-		{"firewall.go", "func (f *Firewall) apply(", 1, 1,
+		{"firewall.go", "func (f *Firewall) apply(", 1, 1, 1,
 			"the flush zeroes every counter, so the interval since the last tick is " +
 				"booked before it and the baselines are put back to zero after it"},
-		{"firewall.go", "func (f *Firewall) rollback(", 1, 1,
+		{"firewall.go", "func (f *Firewall) rollback(", 2, 1, 1,
 			"every unconfirmed apply ends here, and this write flushes the table just " +
 				"like an apply's does — the traffic of the acceptance window is in those " +
 				"counters and nowhere else. Two writes, one collect: the branches are " +
 				"exclusive, Reset on the first apply this installation has ever made and " +
 				"Apply on every later one"},
-		{"restore.go", "func (f *Firewall) RestoreCurrent(", 1, 1,
+		{"restore.go", "func (f *Firewall) RestoreCurrent(", 1, 1, 1,
 			"a restore is not only a boot: RESUME and the Docker-bridge reconciler both " +
 				"reach it on a machine that has been filtering for weeks"},
-		{"restore.go", "func (f *Firewall) panicLandedDuringWrite(", 1, 0,
+		{"restore.go", "func (f *Firewall) panicLandedDuringWrite(", 1, 1, 0,
 			"the teardown deletes the table, so the counters are booked first and there " +
 				"is nothing left for a baseline to describe"},
-		{"restore.go", "func (f *Firewall) Panic(", 1, 0,
+		{"restore.go", "func (f *Firewall) Panic(", 1, 1, 0,
 			"same shape: what was in use before the operator panicked is part of what " +
 				"they need in order to decide what to change"},
 	}
@@ -163,16 +163,26 @@ func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 			writeAt = append(writeAt, at...)
 			record(s.file, w, len(at))
 		}
-		// A site may hold more than one write when they are branches of the same
-		// decision — rollback picks Reset or Apply depending on whether this
-		// installation has ever been configured — so the bookkeeping is pinned
-		// against the outermost of them: the collect must precede the earliest
-		// write, and the baseline reset must follow the latest. One write is the
-		// common case and falls out of the same comparison.
-		if len(writeAt) == 0 {
-			t.Errorf("%s: %s contains no call that destroys the kernel counters; this "+
-				"guard is asserting bookkeeping around a write that is no longer there",
-				s.file, s.sig)
+		// How many writes this site is allowed, per site and not in general.
+		// rollback holds two because they are branches of one decision — Reset
+		// on the first apply this installation has ever made, Apply on every
+		// later one — and the bookkeeping is then pinned against the outermost
+		// of them: the collect precedes the earliest write, the baseline reset
+		// follows the latest. For a one-write site those are the same index and
+		// the comparison is unchanged.
+		//
+		// The count stays asserted rather than relaxed to "at least one". An
+		// earlier version of this guard dropped it for all five sites in order
+		// to express the two-branch one, and a plausible "tear the table down
+		// before rebuilding it" Reset() added ahead of RestoreCurrent's Apply
+		// then passed the whole suite — a second flush with one collect in front
+		// of it, which is exactly what this test exists to refuse. A site that
+		// grows a write answers here, with a reason, the way rollback did.
+		if len(writeAt) != s.wantWrites {
+			t.Errorf("%s: %s contains %d calls that destroy the kernel counters, want %d "+
+				"— %s. A write added here needs its own entry in this table saying why, "+
+				"and its own bookkeeping",
+				s.file, s.sig, len(writeAt), s.wantWrites, s.why)
 			continue
 		}
 		sort.Ints(writeAt)

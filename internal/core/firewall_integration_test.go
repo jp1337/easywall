@@ -925,6 +925,25 @@ func TestIntegration_AnUnconfirmedFirstApplyLeavesTheHostUnfiltered(t *testing.T
 		t.Fatalf("after an unconfirmed FIRST apply the machine is still filtering; "+
 			"the table holds:\n%s", ruleset(t))
 	}
+
+	// And the record says so. The teardown succeeded here — against a real
+	// kernel, which is the only place it can — so the honest entry is the
+	// neutral one; TestRollback_FirstApplyTeardownFailureIsReportedHonestly
+	// covers the other side, where it does not.
+	var said bool
+	for _, e := range auditEntries(t, fw.cfg) {
+		if e.Action == "boot_enforce_failed" {
+			t.Errorf("the teardown succeeded and this entry reports it as failed: %q", e.Detail)
+		}
+		if e.Action == "boot_not_configured" && strings.Contains(e.Detail, "not filtering") {
+			said = true
+		}
+	}
+	if !said {
+		t.Errorf("the audit log does not record that this host was left unfiltered, which "+
+			"is the entry an operator reads to find out what the rollback did; got %v",
+			auditActions(t, fw.cfg))
+	}
 }
 
 // The other half, and it must keep working: a *second* apply that is not

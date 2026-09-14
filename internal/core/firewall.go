@@ -652,10 +652,28 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			slog.Warn("the acceptance window closed on the first apply this installation " +
 				"has ever made; taking the table down rather than enforcing an empty " +
 				"rule set, which would close SSH and the web interface with it")
-			WriteAuditLog(f.cfg.AuditLogPath(), "boot_not_configured", "all",
-				"the first apply was not confirmed; the table was taken down and this "+
-					"host is not filtering — open the interface and apply again", user)
+
+			// The entry is written after the teardown and says what the teardown
+			// did, which is the shape panicLandedDuringWrite already uses and the
+			// defect the panic branch forty lines above records having fixed
+			// once: an entry asserting "the table was taken down" is false
+			// whenever that Reset() failed, and it is the entry an operator reads
+			// to find out what the rollback did. A failed teardown here is the
+			// worst outcome on this path — the host is still at policy drop with
+			// no port open — so it takes boot_enforce_failed, the crit action the
+			// restore path already uses for a teardown that could not be carried
+			// out, rather than a neutral one coloured by which branch reached it.
+			action := "boot_not_configured"
+			detail := "the first apply was not confirmed; the table was taken down and " +
+				"this host is not filtering — open the interface and apply again"
 			applyErr = f.nft.Reset()
+			if applyErr != nil {
+				action = "boot_enforce_failed"
+				detail = "the first apply was not confirmed and the table could not be " +
+					"taken down (" + applyErr.Error() + "), so this host is filtering an " +
+					"empty rule set at policy drop — run `nft delete table inet easywall`"
+			}
+			WriteAuditLog(f.cfg.AuditLogPath(), action, "all", detail, user)
 		} else {
 			applyErr = f.nft.Apply(previous, opts, nets)
 		}

@@ -83,7 +83,7 @@ A wrong *blocks new connections* would cost the trust the true one needs.
 | **Staged changes** | you have edits the firewall does not have yet | apply them |
 | **Waiting for confirmation** | live but unconfirmed, the window is open | check a second connection, then confirm |
 | **Confirmed** | the rules stay | nothing |
-| **Rolled back** | the window closed unconfirmed; the previous rules are back | your staged edits are still there — review and apply again |
+| **Rolled back** | the window closed unconfirmed; the previous rules are back — on a first apply that means the firewall is off again, because there were none | your staged edits are still there — review and apply again |
 
 A rollback loses nothing you staged. It undoes what went **live**, and the edits
 that caused it are still on their pages.
@@ -120,7 +120,7 @@ machines you can physically reach — see
 | Applied, then everything came back as it was | the window closed without a confirmation | the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) shows `apply_rolledback` with detail `timeout` |
 | The apply failed outright | the kernel refused a rule — usually a [custom rule]({{ '/docs/features/custom-rules/' | relative_url }}) | `journalctl -u easywall-core` carries nft's own message |
 | `rollback_failed` in the log | the new rules did not take **and** the old ones did not come back | the worst outcome there is; check the daemon's log and the running table with `nft list table inet easywall` |
-| Your SSH dropped right after applying | that is the design | do nothing; the window restores the previous rules |
+| Your SSH dropped right after applying | that is the design | do nothing; the window restores the previous rules, and on a first apply it takes the firewall back down altogether — the audit log then reads `boot_not_configured` |
 | An apply is "already running" | one window is open | confirm it, or wait for it to expire |
 
 ---
