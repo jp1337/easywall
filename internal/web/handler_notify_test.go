@@ -1,11 +1,14 @@
 package web
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -55,6 +58,32 @@ func TestAURLThatIsNotHTTPIsRefused(t *testing.T) {
 	}
 }
 
+// The test button ignores the four switches on purpose: an operator pressing
+// it has asked for exactly one delivery, right now, and a test that stays
+// silent because a trigger is off would prove nothing about the endpoint.
+func TestTheTestButtonPostsImmediatelyAndIgnoresTheSwitches(t *testing.T) {
+	var hits int32
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		atomic.AddInt32(&hits, 1)
+	}))
+	defer srv.Close()
+
+	s := newTestServer(t, newFakeCore(t))
+	enrollFactor(t, s)
+	if err := s.cfg.SaveNotifications("webhook", srv.URL, false, false, false, false); err != nil { // every switch off
+		t.Fatal(err)
+	}
+	s.rebuildNotifier()
+
+	rr := doAuthFormRequest(t, s, "/notify/test", "")
+	if rr.Code >= 400 {
+		t.Fatalf("POST /notify/test = %d", rr.Code)
+	}
+	if atomic.LoadInt32(&hits) != 1 {
+		t.Fatal("the test button did not send — a test that respects the switches cannot prove the endpoint works")
+	}
+}
+
 // A destination with no address is notifications aimed at nothing: newNotifier
 // refuses to build without both halves, so the four triggers would sit ticked
 // and silent while the page reported a successful save. "Nothing" is how this
@@ -90,6 +119,11 @@ func TestEveryNotifyOutcomeIsRegisteredEverywhereItIsShown(t *testing.T) {
 		"notify_kind_invalid": "alert-warn",
 		"notify_url_invalid":  "alert-warn",
 		"notify_url_required": "alert-warn",
+		// The test button's four outcomes, registered the same way.
+		"notify_test_sent":      "alert-ok",
+		"notify_test_failed":    "alert-warn",
+		"notify_not_configured": "alert-warn",
+		"notify_demo_no_send":   "alert-warn",
 	}
 
 	shipped := make(map[string]bool, len(clientStringKeys))

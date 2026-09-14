@@ -99,3 +99,40 @@ func (s *Server) handleNotifyPOST(w http.ResponseWriter, r *http.Request) {
 	s.rebuildNotifier()
 	s.respondPartialSave(w, r, "/notify", "notify_saved")
 }
+
+// handleNotifyTest sends one notification now, whatever the switches say.
+//
+// Deliberately not routed through dispatchNotification's switch check: the
+// operator pressing this button has asked for exactly one delivery, and a test
+// button that stays silent because a trigger is off proves nothing about the
+// endpoint.
+func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.DemoMode {
+		s.respondPartialError(w, r, "/notify", "notify_demo_no_send")
+		return
+	}
+	// currentNotifier(), never a bare s.notify read: Task 5 put the field
+	// behind notifyMu because the settings page can replace it while another
+	// goroutine is posting. -race found this one.
+	n := s.currentNotifier()
+	if n == nil {
+		s.respondPartialError(w, r, "/notify", "notify_not_configured")
+		return
+	}
+	err := n.send(Notification{
+		Event: "test", Severity: "info",
+		Detail: "This is a test from easywall. Nothing happened to your firewall.",
+		Time:   time.Now().UTC(),
+	})
+	s.notifyLastMu.Lock()
+	s.notifyLastAt, s.notifyLastErr = time.Now(), ""
+	if err != nil {
+		s.notifyLastErr = err.Error()
+	}
+	s.notifyLastMu.Unlock()
+	if err != nil {
+		s.respondPartialError(w, r, "/notify", "notify_test_failed")
+		return
+	}
+	s.respondPartialSave(w, r, "/notify", "notify_test_sent")
+}

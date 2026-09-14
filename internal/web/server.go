@@ -606,6 +606,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/notify", s.handleNotifyGET)
 		r.Post("/notify", s.handleNotifyPOST)
+		r.Post("/notify/test", s.handleNotifyTest)
 
 		r.Get("/log", s.handleLog)
 		r.Get("/log/filter", s.handleLogFilter)
@@ -1365,6 +1366,9 @@ var clientStringKeys = []string{
 	// these, show()'s `messages[key] || { text: key }` fallback printed the
 	// literal "notify_saved" at the operator, in both languages, on every save.
 	"notify_saved", "notify_kind_invalid", "notify_url_invalid", "notify_url_required",
+	// The test button's four outcomes, same reason: htmx's toast falls back to
+	// the literal key when a message id has no translation shipped to it.
+	"notify_test_sent", "notify_test_failed", "notify_not_configured", "notify_demo_no_send",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",
@@ -1404,6 +1408,9 @@ func templateFuncs() template.FuncMap {
 		// this it renders alert-crit — red, with an error icon — for a message
 		// that says everything worked. Same incident as firstrun_done below.
 		"notify_saved": true,
+		// The test button reached the endpoint — the same direction as
+		// notify_saved, on the same no-JavaScript fallback path.
+		"notify_test_sent": true,
 		// A recovery code did exactly what it exists to do.
 		"recovery_left": true,
 		// The second factor is now doing what it was set up to do.
@@ -1434,6 +1441,11 @@ func templateFuncs() template.FuncMap {
 		// not failures of anything — the same direction as the two above.
 		"notify_kind_invalid": true, "notify_url_invalid": true,
 		"notify_url_required": true,
+		// The test button's three refusals: each names something the operator
+		// can fix (set an address, wait for a real endpoint, leave the demo),
+		// not a failure of the feature.
+		"notify_test_failed": true, "notify_not_configured": true,
+		"notify_demo_no_send": true,
 		// Nothing went wrong here: the core declined a second apply while a
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
