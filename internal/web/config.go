@@ -609,16 +609,6 @@ func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 	return nil
 }
 
-// saveLocked persists the configuration. c.mu must be held for writing, so the
-// file write cannot reorder against the field update.
-//
-// Written atomically where the directory permits it, and in place where it does
-// not. The packaged layout is the second case on purpose: /etc/easywall belongs
-// to root and holds easywall.toml, the configuration the *root* daemon reads.
-// Making that directory writable by the unprivileged web user so it could
-// create a temp file there would hand a network-facing process the ability to
-// rewrite what root loads — the one thing the two-process split exists to
-// prevent. web.toml itself belongs to the web user, so an in-place rewrite
 // SaveNotifications stores the notification settings and writes web.toml.
 //
 // Rolled back on a failed write like every other Save* here, and for a sharper
@@ -657,6 +647,16 @@ func (c *Config) restoreNotifications(prev, prevFile shared.WebConfig) {
 	c.fileConfig.NotifyOnPanic, c.fileConfig.NotifyOnFailedLogins = prevFile.NotifyOnPanic, prevFile.NotifyOnFailedLogins
 }
 
+// saveLocked persists the configuration. c.mu must be held for writing, so the
+// file write cannot reorder against the field update.
+//
+// Written atomically where the directory permits it, and in place where it does
+// not. The packaged layout is the second case on purpose: /etc/easywall belongs
+// to root and holds easywall.toml, the configuration the *root* daemon reads.
+// Making that directory writable by the unprivileged web user so it could
+// create a temp file there would hand a network-facing process the ability to
+// rewrite what root loads — the one thing the two-process split exists to
+// prevent. web.toml itself belongs to the web user, so an in-place rewrite
 // works and nothing else in that directory is reachable.
 func (c *Config) saveLocked() error {
 	// Read before write: the file on disk is what carries the comments, and
