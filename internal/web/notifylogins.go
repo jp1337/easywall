@@ -9,9 +9,16 @@ import (
 )
 
 const (
-	// burstThreshold matches LoginRateLimit's own ceiling, so the notification
-	// fires at the moment easywall starts refusing rather than at some number
-	// nobody can relate to anything.
+	// burstThreshold matches LoginRateLimit's own ceiling, so the notification is
+	// worth the same as easywall refusing that address rather than firing at some
+	// number nobody can relate to anything.
+	//
+	// The same count, not the same moment, and the difference is not pedantry:
+	// the limiter is rate.NewLimiter(rate.Every(2*time.Minute), 5) — a bucket
+	// that refills — while this is a fixed window, so five failures spread over
+	// four minutes notify with tokens still in the bucket. An earlier version of
+	// this comment claimed the two coincide, and that claim reached the published
+	// page, where it contradicted security.md's own description of the limiter.
 	burstThreshold = 5
 	// burstWindow is how long failures accumulate toward the threshold.
 	burstWindow = 5 * time.Minute

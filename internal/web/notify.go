@@ -20,7 +20,11 @@ var notifyTimeout = 10 * time.Second
 
 // Notification is one thing worth telling an operator about.
 type Notification struct {
-	Event    string // "rolled_back" | "accepted" | "panic" | "failed_logins"
+	// Event is one of five. Four are triggers the operator ticks; "test" is the
+	// button, which handleNotifyTest sends without consulting any of them — so a
+	// receiver that switches on the four drops the one message the button exists
+	// to produce. docs/_docs/features/notifications.md lists all five.
+	Event    string // "rolled_back" | "accepted" | "panic" | "failed_logins" | "test"
 	Severity string // "info" | "warning" | "critical"
 	Detail   string // free text: the acceptance reason, the address, the count
 	Time     time.Time
@@ -124,10 +128,17 @@ func ntfyPriority(severity string) string {
 
 // notifyTick is how often the notifier asks for the firewall's state.
 //
-// Fifteen seconds, through the 2-second status cache, so it adds no socket
-// traffic of its own. It does not need to be faster: accepted and rolled_back
-// are terminal states that persist, so a tick that lands after the acceptance
-// window closed still finds the outcome.
+// Fifteen seconds. It goes through statusForRender() like a page render does,
+// but the cache TTL is 2 seconds and this tick is 15, so every tick misses and
+// pays its own GET_STATUS round trip — one to the daemon on this host, none to
+// the network. An earlier version of this comment, and of the spec it came
+// from, said it "adds no socket traffic of its own". That is false for any tick
+// longer than the TTL, and it had propagated as far as the published page
+// before a review caught the arithmetic.
+//
+// It does not need to be faster: accepted and rolled_back are terminal states
+// that persist, so a tick that lands after the acceptance window closed still
+// finds the outcome.
 //
 // A var, not a const, so a test can drive the loop without waiting fifteen
 // seconds per transition — the same reason notifyTimeout is one.

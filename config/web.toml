@@ -56,8 +56,10 @@ health_allow = ["127.0.0.1/8", "::1/128"]
 # ─── Update check ───────────────────────────────────────────────────────────
 # The dashboard asks github.com once a day whether a newer release exists. It
 # never delays a page: the answer comes from a cache on disk. Set to false to
-# remove it entirely. This is one of the two requests easywall can make; the
-# other is the installation count below, which is off unless you switch it on.
+# remove it entirely. This is one of the four requests easywall can make; the
+# others are the installation count below, a notification, and fetching a
+# certificate when ACME is switched on. All three are off unless asked for, and
+# only the notification goes somewhere easywall does not name at all.
 update_check = true
 
 # ─── Counting installations ─────────────────────────────────────────────────
@@ -121,10 +123,12 @@ recovery_codes = []
 #   notify_kind = "ntfy"      # "webhook" | "ntfy" | "" (off)
 #   notify_url  = "https://ntfy.sh/your-private-topic"
 #
-# This is the third request easywall can make, and the first whose destination
-# you choose rather than easywall naming it. The URL is a credential — an ntfy
-# topic is readable by anyone who knows it — which is why it lives in this file
-# at 0600 beside session_key and totp_secret.
+# This is the one request whose destination easywall does not name at all. The
+# update check and the installation count are fixed, and the certificate
+# authority is a default you can replace; this one is yours from the start.
+#
+# The URL is a credential — an ntfy topic is readable by anyone who knows it —
+# which is why it lives in this file at 0600 beside session_key and totp_secret.
 #
 # Redirects are refused: a destination that follows one can be pointed at a
 # third party by whoever controls its DNS.
