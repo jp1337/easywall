@@ -187,7 +187,9 @@ key  = "/etc/letsencrypt/live/example.com/privkey.pem"
 
 No other plaintext port is opened, but `tls.acme = true` opens one. A
 certificate authority proves you control `tls.hostname` by connecting to port
-80 over plain HTTP and reading back a token (HTTP-01).
+80 over plain HTTP and reading back a token (HTTP-01). That is the inbound half.
+The outbound half — what easywall sends the authority, and when — is a row in
+[Every request that goes out](#every-request-that-goes-out) below.
 
 easywall's listener answers that one path and nothing else — 404 for
 everything else. It is deliberately not a second web interface, and
@@ -270,23 +272,29 @@ built for.
 
 ### Every request that goes out
 
-Three, and this is the whole list.
+Four, and this is the whole list.
 
 | | Destination | When | Carries | Default |
 |---|---|---|---|---|
 | Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
 | Notifications | **an address you choose** | when one of four things happens | the event, its detail, this host's name and the version | **off** until you set an address |
+| A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
 
-None of the three is on the path of a page, and on a host with no route out they
-simply fail and nothing else changes. The exact request the count makes is printed
+The first three are not on the path of a page. On a host with no route out they
+simply fail, and nothing else changes. The exact request the count makes is printed
 verbatim under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
-> **The third row is a different kind of row.** easywall names `api.github.com`
-> and `telemetry.wdkro.de`. It does not name this one — where a notification
-> lands is your choice, so nothing here can promise where it goes. Only that it
-> goes nowhere until you set an address, that redirects are refused, and that the
-> address is a credential. See
+**The certificate is not one of those.** It is on the path of every page, because
+it is what serves them: a host that cannot reach the authority is a host whose
+interface cannot answer. The inbound half of that exchange, and the port 80 bind
+that is fatal when it fails, are [above](#the-one-exception-acmes-port-80).
+
+> **The notification is the one easywall cannot name at all.** `api.github.com`
+> and `telemetry.wdkro.de` are fixed, and the certificate authority is a default
+> you may replace. Where a notification goes is yours from the start, so nothing
+> here can promise where it lands. Only that it goes nowhere until you set an
+> address, that redirects are refused, and that the address is a credential. See
 > [Notifications]({{ '/docs/features/notifications/' | relative_url }}).
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`

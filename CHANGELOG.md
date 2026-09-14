@@ -37,14 +37,16 @@ moves, and the core still never opens a connection outward.
   about the phone, and the second hour of one attack is not news. The address
   table is bounded at 1024 and evicts dead buckets at the ceiling rather than
   going blind.
-- **A third row in the outbound-request list**, and a guard that keeps the two
-  pages carrying it from disagreeing.
+- **A guard over the outbound-request list.**
   `TestBothPagesCountTheSameOutboundRequests` compares the sentence "*N*, and
-  this is the whole list." on `security.md` and `configuration.md` against the
-  number of files under `internal/` that build an outbound HTTP request. The
-  count lived in prose on two pages and in code on a third, bound by nothing:
-  `configuration.md` was updated with the keys and `security.md` went on saying
-  **Two** above a two-row table.
+  this is the whole list." on `security.md` and `configuration.md` — and the
+  table under each — against the files in `internal/` that reach out. The count
+  lived in prose on two pages and in code on a third, bound by nothing:
+  `configuration.md` was updated with the notification keys, because
+  `TestEveryConfigKeyIsDocumented` reads that page and no other, and
+  `security.md` went on saying **Two** above a two-row table. The table is
+  checked separately from the number, because a correct count above a table
+  missing a row is what had shipped.
 
 ### Changed
 
@@ -69,6 +71,17 @@ moves, and the core still never opens a connection outward.
 
 ### Fixed
 
+- **The outbound-request list has been missing ACME since 2.18.** Both pages
+  said **two**. `autocert` fetches a certificate from the ACME directory on
+  first need and renews it on its own schedule, carrying the one name in
+  `tls.hostname`, an account key generated on the host, and `tls.acme_email`
+  where one is set. `security.md`'s ACME section described only the inbound
+  half — the authority connecting to port 80 to read a token back — and the
+  outbound half was on neither page. It is now a fourth row on both, and the
+  sentence under it no longer claims all four fail harmlessly on a host with no
+  route out: three do, and the certificate is what serves every page. Found by
+  the guard above on its first run, and fixed here rather than carried, because
+  this release's carried-forward list ends empty.
 - **An unconfirmed first apply locked the host out.** On a fresh installation the
   first-run wizard *stages* rules and never applies them, so the state captured
   before the first apply is empty. When the acceptance window closed unconfirmed,

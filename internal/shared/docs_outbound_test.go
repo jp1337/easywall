@@ -1,12 +1,12 @@
 package shared
 
 import (
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -16,32 +16,58 @@ import (
 // Both say "<number>, and this is the whole list." above a table of
 // destinations — docs/_docs/security.md under *Every request that goes out*,
 // docs/_docs/configuration.md under *Every request that leaves the host*.
-// 2.20 added a third request, and the configuration page was updated by the
-// task that added the keys. TestEveryConfigKeyIsDocumented only reads that
-// page, so security.md went on saying **two** with two rows while the feature
-// shipped a third. A number in a sentence is not something a key-coverage test
-// can see.
+// TestEveryConfigKeyIsDocumented reads the configuration page and no other, so
+// a number written out in a sentence was held up by nothing but whoever
+// remembered both pages.
 //
-// Three sources have to agree here, and the third is the one that makes this
-// more than a spell-check: the code. Every file under internal/ that builds an
-// outbound HTTP request is named below with the row it documents, so a fourth
-// request cannot be added without either extending both pages or saying here
-// why it is not on them.
+// Three sources have to agree here, and the third is what makes this more than
+// a spell-check: the code. Every file under internal/ that reaches out is named
+// below with the row it documents, so a new request cannot be added without
+// either extending both pages or saying here why it is not on them.
+//
+// It found two defects on the branch that added it. 2.20's notification was on
+// the configuration page and not on the security page, which still said **two**
+// above a two-row table. And ACME, shipped in 2.18, was on neither: autocert
+// fetches a certificate from the directory and renews it on its own schedule,
+// while security.md's ACME section describes only the inbound half — the
+// authority connecting to port 80 to read a token back. A request easywall
+// makes through a library is still a request easywall makes, which is why the
+// marker list below is not only http.NewRequest.
+//
+// The number and the table are checked separately, deliberately. A count that
+// matches above a table missing a row is the exact shape of what shipped, and a
+// guard that read only the sentence would have passed on it — measured: it did,
+// on a mutation that deleted the ACME row and left the word "Four" standing.
 func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	root := repoRootDir(t)
 
-	// source file → the row in both tables that documents it.
-	outbound := map[string]string{
-		"internal/shared/version.go":   "Update check — api.github.com",
-		"internal/shared/telemetry.go": "Counting installations — telemetry.wdkro.de",
-		"internal/web/notify.go":       "Notifications — an address the operator chooses",
+	// What makes a file reach out. http.NewRequest is easywall building the
+	// request itself; the autocert import is easywall handing that job to
+	// x/crypto, which is the same thing from the host's point of view and is
+	// exactly what both pages missed for two releases.
+	markers := []string{"http.NewRequest(", "acme/autocert"}
+
+	type row struct {
+		name string // how a failure message names it
+		// token is a string that must appear inside BOTH tables. The two pages
+		// word their rows differently — one says "Installation count" where the
+		// other says "Counting installations" — so this is the destination or
+		// the key, never the label.
+		token string
+	}
+	certificate := row{"A certificate — the ACME directory, Let's Encrypt by default", "acme"}
+
+	// source file → the row in both tables that documents it. Two files can
+	// carry one row: the count the pages must match is the number of distinct
+	// rows, not of files.
+	outbound := map[string]row{
+		"internal/shared/version.go":   {"Update check — api.github.com", "api.github.com"},
+		"internal/shared/telemetry.go": {"Counting installations — telemetry.wdkro.de", "telemetry.wdkro.de"},
+		"internal/web/notify.go":       {"Notifications — an address the operator chooses", "Notifications"},
+		"internal/web/acme.go":         certificate,
+		"internal/web/tlscert.go":      certificate,
 	}
 
-	// ACME is not on this list and not in those tables: autocert talks to the
-	// certificate authority the operator configured under [tls], from inside
-	// x/crypto rather than from any file here. security.md gives it its own
-	// section. This walk only sees requests easywall builds itself, which is
-	// exactly the set those two tables describe.
 	var found []string
 	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -54,9 +80,12 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if strings.Contains(string(raw), "http.NewRequest(") {
-			rel, _ := filepath.Rel(root, path)
-			found = append(found, filepath.ToSlash(rel))
+		for _, marker := range markers {
+			if strings.Contains(string(raw), marker) {
+				rel, _ := filepath.Rel(root, path)
+				found = append(found, filepath.ToSlash(rel))
+				break
+			}
 		}
 		return nil
 	})
@@ -65,26 +94,49 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	}
 	sort.Strings(found)
 
+	rows := map[string]row{}
 	for _, f := range found {
-		if outbound[f] == "" {
-			t.Errorf("%s builds an outbound HTTP request and is not one of the %d rows "+
-				"in security.md and configuration.md — add the row to both pages and name it "+
-				"here, or say here why it is not a request an operator should be told about",
-				f, len(outbound))
+		r, ok := outbound[f]
+		if !ok {
+			t.Errorf("%s reaches out and is not one of the rows in security.md and "+
+				"configuration.md — add the row to both pages and name it here, or say "+
+				"here why it is not a request an operator should be told about", f)
+			continue
 		}
+		rows[r.name] = r
 	}
-	for f, row := range outbound {
-		if _, err := os.Stat(filepath.Join(root, f)); err != nil {
-			t.Errorf("%s is named here as the source of %q and does not exist: %v", f, row, err)
+
+	// A named file that stopped matching is a dead entry pointing at nothing,
+	// and it would hold the count up on its own. Same reasoning as the exemption
+	// check in TestTheOldDemoHostIsNotPublished.
+	for f, r := range outbound {
+		raw, err := os.ReadFile(filepath.Join(root, f))
+		if err != nil {
+			t.Errorf("%s is named here as a source of %q and does not exist: %v", f, r.name, err)
+			continue
+		}
+		matched := false
+		for _, marker := range markers {
+			matched = matched || strings.Contains(string(raw), marker)
+		}
+		if !matched {
+			t.Errorf("%s is named here as a source of %q and no longer matches any of %v — "+
+				"delete the entry rather than leaving it holding the count up", f, r.name, markers)
 		}
 	}
 
 	// The count both pages must say, spelled as they spell it.
 	words := map[int]string{1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six"}
-	want := words[len(outbound)]
+	want := words[len(rows)]
 	if want == "" {
-		t.Fatalf("no word for %d outbound requests — extend the map above", len(outbound))
+		t.Fatalf("no word for %d outbound requests — extend the map above", len(rows))
 	}
+
+	names := make([]string, 0, len(rows))
+	for name := range rows {
+		names = append(names, strconv.Quote(name))
+	}
+	sort.Strings(names)
 
 	claim := regexp.MustCompile(`(?m)^([A-Z][a-z]+), and this is the whole list\.$`)
 	for _, page := range []string{"docs/_docs/security.md", "docs/_docs/configuration.md"} {
@@ -92,24 +144,48 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", page, err)
 		}
-		m := claim.FindAllStringSubmatch(string(raw), -1)
+		body := string(raw)
+		m := claim.FindAllStringSubmatchIndex(body, -1)
 		if len(m) != 1 {
 			t.Errorf("%s has %d sentences reading \"<number>, and this is the whole list.\", want 1 — "+
 				"that sentence is what this test compares against the code", page, len(m))
 			continue
 		}
-		if m[0][1] != want {
-			t.Errorf("%s says %q outbound requests; internal/ builds %d (%s)",
-				page, m[0][1], len(outbound), strings.Join(rowNames(outbound), ", "))
+		if got := body[m[0][2]:m[0][3]]; got != want {
+			t.Errorf("%s says %q outbound requests; internal/ makes %d (%s)",
+				page, got, len(rows), strings.Join(names, ", "))
+		}
+		table := tableAfter(body[m[0][1]:])
+		if table == "" {
+			t.Errorf("%s has no table under that sentence — this test reads the rows there", page)
+			continue
+		}
+		for _, r := range rows {
+			if !strings.Contains(table, r.token) {
+				t.Errorf("%s says %q above a table that never mentions %q — the row for %s is "+
+					"missing, which is the shape the number alone cannot see", page, want, r.token, r.name)
+			}
 		}
 	}
 }
 
-func rowNames(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for _, v := range m {
-		out = append(out, fmt.Sprintf("%q", v))
+// tableAfter returns the first run of consecutive "|" lines in s, which is the
+// table immediately under the claim sentence. Empty if there is none before the
+// next paragraph of prose.
+func tableAfter(s string) string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "|") {
+			out = append(out, line)
+			continue
+		}
+		if len(out) > 0 {
+			break
+		}
+		if line != "" {
+			return "" // prose before any table: not the shape this reads
+		}
 	}
-	sort.Strings(out)
-	return out
+	return strings.Join(out, "\n")
 }

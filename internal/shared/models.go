@@ -503,10 +503,11 @@ type WebConfig struct {
 	// request an operator may reasonably want gone entirely rather than merely
 	// failing quietly.
 	//
-	// One of the three requests easywall can make. The others are Telemetry
-	// below and a notification to NotifyURL, both off unless someone switches
-	// them on — and the notification is the only one whose destination easywall
-	// does not name itself. docs/_docs/security.md lists all three.
+	// One of the four requests easywall can make. The others are Telemetry
+	// below, a notification to NotifyURL, and autocert fetching a certificate
+	// when TLSConfig.ACME is on — all three off unless switched on. The
+	// notification is the only one whose destination easywall does not name at
+	// all. docs/_docs/security.md lists all four.
 	UpdateCheck *bool `toml:"update_check"`
 
 	// Telemetry records whether the operator agreed to easywall counting this

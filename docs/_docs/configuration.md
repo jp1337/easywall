@@ -257,7 +257,7 @@ Two logging switches belong to no module and are set here as well:
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
 | `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this, `recovery_codes` and `<data_dir>/passkeys.json`, then restart, for password-only sign-in |
 | `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
-| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of three possible outbound requests; see below |
+| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of four possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `notify_kind` | string | Notification transport — `"webhook"`, `"ntfy"`, or `""` for off, which is the default. See [Every request that leaves the host](#every-request-that-leaves-the-host) |
 | `notify_url` | string | Where the notification is posted. A credential: an ntfy topic is readable by anyone who knows it. Redirects are refused |
@@ -384,25 +384,27 @@ fails with a key-mismatch error naming a certificate you never configured.
 
 ## Every request that leaves the host
 
-Three, and this is the whole list.
+Four, and this is the whole list.
 
-| | Update check | Counting installations | Notifications |
-|---|---|---|---|
-| Key | `update_check` | `telemetry` | `notify_kind` |
-| Default | **on** | **off** until you switch it on | **off** until you switch it on |
-| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours |
-| How often | once a day | once a day | when something happens |
-| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall |
-| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface |
+| | Update check | Counting installations | Notifications | A certificate |
+|---|---|---|---|---|
+| Key | `update_check` | `telemetry` | `notify_kind` | `tls.acme` |
+| Default | **on** | **off** until you switch it on | **off** until you switch it on | **off** until you switch it on |
+| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | `tls.acme_directory`, Let's Encrypt if unset |
+| How often | once a day | once a day | when something happens | on first need, then before expiry |
+| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall | `tls.hostname`, an account key made here, and `tls.acme_email` if set |
+| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface | `acme = false` — easywall then issues its own certificate |
 
-The third is the only one whose destination you choose rather than easywall
-naming it. That is why `notify_url` is treated as a credential and kept in
-`web.toml` at `0600`, beside `session_key`.
+`notify_url` is the only destination easywall does not name at all. The authority
+is a default you may replace; the other two are fixed. That is why the
+notification address is treated as a credential and kept in `web.toml` at `0600`,
+beside `session_key`.
 
-Neither delays a page. The update check is served from a cache on disk and
-refreshed in the background. A failure is remembered for an hour so a host with
-no route out is not retrying on every load. The count runs in the background and
-gives up after ten seconds.
+The first three never delay a page. The update check is served from a cache on
+disk and refreshed in the background. A failure is remembered for an hour so a
+host with no route out is not retrying on every load. The count runs in the
+background and gives up after ten seconds. The certificate is the one that can
+stop a page, because it is what serves it.
 
 ### The update check
 

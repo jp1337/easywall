@@ -117,6 +117,6 @@ it last managed to send, rather than implying every attempt landed.
 > followed. Otherwise whoever controls its DNS could point your notifications at
 > somebody else.
 
-This is the third request easywall makes, and the only one whose destination it
-does not name. The other two are listed under
+Of the four requests easywall makes, this is the only one whose destination it
+does not name. The other three are listed under
 [Security]({{ '/docs/security/' | relative_url }}#every-request-that-goes-out).
