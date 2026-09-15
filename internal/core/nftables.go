@@ -2252,7 +2252,8 @@ func (m *NftablesManager) warnUnruledPublishedPorts(rules shared.Rules, cidrs []
 		slog.Warn(fmt.Sprintf("%d published on %s with no forwarded rule: the forward "+
 			"chain drops everything that reaches it from outside its own bridge — the "+
 			"world, and containers in another bridge. Give it a port rule with scope "+
-			"\"forwarded\" and no sources, or set docker.published_ports = \"open\"",
+			"\"forwarded\" — no sources, or sources naming the other bridge networks if "+
+			"only containers should reach it — or set docker.published_ports = \"open\"",
 			p.port, p.addr), "protocol", p.proto)
 	}
 }
@@ -2265,8 +2266,16 @@ func (m *NftablesManager) warnUnruledPublishedPorts(rules shared.Rules, cidrs []
 // not in 10.0.0.0/8 unless somebody put it there — falls past the accept into
 // the deny, and that is the reporting host's failure with a rule in place: the
 // operator has written one, believes the port is covered, and would be told
-// nothing. shared.Reachable draws the same distinction thirty lines above the
-// PortInRule borrowed here.
+// nothing.
+//
+// shared.Reachable, which lends the PortInRule borrowed below, does not stop
+// there and deliberately so: it holds one caller's address, so a rule with
+// sources that contains that address still reads as open (reach.go:216-228).
+// Here there is no one caller. What the deny closes is the world plus every
+// other bridge, a set no source list is ever tested against, so any source list
+// leaves part of it dropped — including a list that names the bridges, which is
+// why such a rule is still named here even though it covers the cross-bridge
+// case the warning is about.
 //
 // A published port whose protocol could not be read from the kernel is compared
 // against both lists: the point of this is a warning nobody has to

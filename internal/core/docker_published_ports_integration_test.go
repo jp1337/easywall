@@ -12,10 +12,13 @@ package core
 // writes, through nft, and reads them back.
 
 import (
+	"log/slog"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // dockerNATFixture programs the three rules a published port can produce, in
@@ -84,5 +87,51 @@ func TestIntegration_NoBridgeMeansNoPublishedPorts(t *testing.T) {
 	if got := detectPublishedPorts(nil, 0); len(got) != 0 {
 		t.Errorf("with no bridge network detected the deny renders nothing, so "+
 			"nothing is closed and nothing may be named; got %v", got)
+	}
+}
+
+// The detection reads the namespace the manager writes into, not this process's.
+//
+// Threading NftablesManager.nsFD through was asserted by nothing: the unit tests
+// fake the decoder away, and every other integration test runs both halves in one
+// namespace, where the two numbers are the same. This is the arrangement that can
+// tell them apart — Docker's NAT rules in *this* process's namespace, a manager
+// bound to a fresh one that has none. A detection reading the wrong kernel names
+// a port the ruleset it is warning about never closed, which is the one kind of
+// line this warning cannot afford: an operator who checks it and finds nothing
+// stops believing the next one.
+func TestIntegration_ThePublishedPortDetectionReadsTheManagersNamespace(t *testing.T) {
+	dockerNATFixture(t)
+
+	// The control. Without it, a decoder that reads nothing anywhere produces
+	// exactly the silence this test would call a pass.
+	if got := detectPublishedPorts([]string{"172.18.0.0/16"}, 0); len(got) == 0 {
+		skipOrFailUnprovable(t, "the fixture is not readable from this process's "+
+			"namespace at all, so a silence from the manager's would prove nothing")
+	}
+
+	h, err := NewHarness()
+	if err != nil {
+		skipOrFailUnprovable(t, "the harness could not be built: "+err.Error())
+	}
+	t.Cleanup(h.Close)
+	m, err := NewNftablesManagerInNamespace(h.NetNSFd())
+	if err != nil {
+		skipOrFailUnprovable(t, "no nftables manager for the peer's namespace: "+err.Error())
+	}
+
+	var lines []string
+	prevLog := slog.Default()
+	slog.SetDefault(slog.New(recordingLogHandler{lines: &lines}))
+	t.Cleanup(func() { slog.SetDefault(prevLog) })
+
+	m.warnUnruledPublishedPorts(shared.Rules{}, []string{"172.18.0.0/16"})
+
+	for _, line := range lines {
+		if strings.Contains(line, "with no forwarded rule") {
+			t.Fatalf("the manager's namespace holds no Docker NAT rules, and the "+
+				"warning named a published port out of this process's namespace "+
+				"instead: %q", line)
+		}
 	}
 }
