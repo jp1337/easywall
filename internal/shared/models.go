@@ -837,6 +837,14 @@ type FirewallStatus struct {
 	// confirmation" to an operator who had just ended it by hand — on the screen
 	// whose whole argument is that it says what is true.
 	AcceptanceReason string `json:"acceptance_reason"`
+	// AcceptanceEnabled says whether a window is configured at all, as opposed
+	// to whether one is open now.
+	//
+	// Without it, `acceptance: idle` is two states in one word — no window open
+	// at this moment, and no window that will ever open — and a script polling
+	// the status reported the first while its host was in the second, ten times
+	// over, with nothing in the status able to tell it apart.
+	AcceptanceEnabled bool `json:"acceptance_enabled"`
 }
 
 // FiltersHost reports whether this rule belongs in the input chain.

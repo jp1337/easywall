@@ -62,6 +62,19 @@ acceptance: accepted
 last apply: 2026-08-16T09:12:03Z
 ```
 
+`acceptance: idle` is two states in one word — a window waiting to be used, and
+no window at all — so since 2.20.1 a host with `acceptance.enabled = false` says
+which. The `acceptance:` line itself does not change, so a check matching it
+exactly keeps working:
+
+```
+$ easywall-core status
+firewall:   enforcing
+acceptance: idle
+            no window is configured: an apply is final and nothing will undo it
+last apply: 2026-08-16T09:12:03Z
+```
+
 When the daemon cannot be reached at all — crashed, or not started yet —
 `status` reads the panic marker directly instead. It does not bother asking a
 socket that nothing answers on:
@@ -82,6 +95,12 @@ That disjunction on `2` is deliberate, not an oversight. A machine with no
 daemon running is never in the state it should be — nothing will put the rules
 back until the daemon starts and panic mode ends. So a monitoring check sees `2`
 either way. Only the printed message tells you which case you are in.
+
+**A fresh installation exits `2` as well, and nothing is wrong with it.** Nothing
+has been applied yet, so there are no rules and the machine really is not
+filtering. A setup script that reads any non-zero `status` as a failure stops on
+the one machine where there is nothing yet to fail. Read the `firewall:` line, or
+run the check after the first apply.
 
 ### `panic`
 
