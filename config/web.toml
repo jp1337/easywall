@@ -51,6 +51,11 @@ trusted_proxies = []
 # out means the default above.
 #
 # EASYWALL_WEB_HEALTH_ALLOW sets the same list, comma-separated.
+#
+# If bind_addr is not loopback, add that address here: the container's
+# HEALTHCHECK asks /healthz at the bound address, and under network_mode: host
+# it arrives from that address. Left out, the container reports unhealthy while
+# the firewall itself is fine.
 health_allow = ["127.0.0.1/8", "::1/128"]
 
 # ─── Update check ───────────────────────────────────────────────────────────
