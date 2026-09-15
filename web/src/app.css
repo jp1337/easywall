@@ -1268,6 +1268,26 @@ body {
     color: var(--color-ink);
   }
 
+  /* .field-inline's nowrap is what keeps a dense caption — "max conn 5" — on
+     one line beside its control. A checkbox in a fieldset carries a full
+     sentence instead, and at 390px "Wiederholte fehlgeschlagene Anmeldungen"
+     would run past the card rather than wrap inside it.
+     align-items goes with it: centred is right for the one-line caption the
+     class was written for, and wrong the moment the label wraps — the box
+     floats into the middle of two lines instead of marking the first. The
+     1.5px is the difference between a 16px box and the 19.5px line box beside
+     it, so flex-start still reads as aligned rather than as high.
+
+     Both of those rules are page-local in everything but their selector:
+     `.fieldset` has exactly one user in the whole interface — the four
+     notification triggers on /notify — and the pairing was chosen for a label
+     that wraps to two lines. A second page adopting `.fieldset` for one-line
+     captions wants centred and no offset, the way `.field-inline` is outside a
+     fieldset; scope these two to that page rather than inheriting them. */
+  .fieldset .field-inline { align-items: flex-start; }
+  .fieldset .field-inline > .checkbox { margin-top: 1.5px; }
+  .fieldset .field-inline > span { white-space: normal; }
+
   /* ── Toggle ────────────────────────────────────────────────────────────────
      The off state uses control-edge, not rule-strong: WCAG 1.4.11 wants 3:1
      for the outline of an interactive control, and an operator scanning the
@@ -1304,7 +1324,20 @@ body {
     background: var(--color-action-ink);
   }
 
-  .toggle:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+  /* Focus is a border change plus an outline, not an outline alone —
+     DESIGN.md § Forms, amended 2026-09-08, which measured this control in its
+     failing set: the outline is what the eye finds, and the border is what
+     survives when the outline lands on a surface it cannot separate from.
+     The track has no border to change (it is a 34px pill drawn as a
+     background), so the border is an inset ring. Inset rather than a real
+     border because a border on a 34x19 control resizes the track and shifts
+     the knob; the ring sits at the track's own edge, immediately inside the
+     2px gap the outline leaves. */
+  .toggle:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+  }
 
   /* ── Checkbox ──────────────────────────────────────────────────────────── */
   .checkbox {
@@ -1339,7 +1372,15 @@ body {
   }
 
   .checkbox:checked::after { opacity: 1; }
-  .checkbox:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
+  /* The border change the outline is specified to travel with — DESIGN.md
+     § Forms, amended 2026-09-08, which names .checkbox in its failing set.
+     It sits after :checked deliberately: a ticked box borders on action-fill,
+     and focus has to be visible on it too. */
+  .checkbox:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-color: var(--color-focus-ring);
+  }
 
   /* ── Chips and badges ──────────────────────────────────────────────────────
      A chip carries state or a chosen qualifier. A badge is a neutral marker.
@@ -2445,9 +2486,12 @@ body {
     box-shadow: inset 0 0 0 4px var(--color-select-edge);
   }
 
+  /* Same shape as .checkbox above, and the same amendment: the border moves
+     with the outline. After :checked, whose border-color is select-edge. */
   .radio:focus-visible {
     outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
+    border-color: var(--color-focus-ring);
   }
 
   /* Visible to a screen reader, not on screen. The choice group needs a legend
@@ -2832,10 +2876,17 @@ body {
     resize: vertical;
   }
 
+  /* The textarea has no border of its own — the editor's card draws it — so
+     the border change DESIGN.md § Forms requires alongside the outline is an
+     inset ring, the way .toggle's is. The outline is inset 2px, so the ring
+     occupies the 2px at the very edge and reads as a border around it rather
+     than as a second outline. Named in the 2026-09-08 amendment's failing set
+     as "the three editor textareas". */
   .editor textarea:focus,
   .editor textarea:focus-visible {
     outline: 2px solid var(--color-focus-ring);
     outline-offset: -2px;
+    box-shadow: inset 0 0 0 2px var(--color-focus-ring);
   }
 
   .editor-foot {

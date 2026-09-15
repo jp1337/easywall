@@ -1,3 +1,31 @@
+easywall (2.20.0) unstable; urgency=medium
+
+  * Feat: a webhook or an ntfy push when the firewall moves — an apply undone,
+    an apply confirmed, panic mode started or ended, and repeated failed
+    sign-ins from one address. Four triggers, each settable on its own, all off
+    until switched on. The core still opens no connection outward: the web
+    process reads the firewall's own state and posts.
+  * Feat: a Send a test button, so an operator can prove the endpoint works
+    without waiting for a real rollback. It dials the address in the field and
+    ignores the four switches, because a test that respects them proves nothing.
+  * Fix: an unconfirmed FIRST apply locked the host out. The first-run wizard
+    stages rules and never applies them, so the state captured before the first
+    apply is empty — and the rollback enforced that empty set at policy drop
+    instead of leaving the machine not filtering, closing SSH and the interface
+    with it. It now takes the table down. Both entrances, timeout and operator
+    cancel, are pinned against a real kernel.
+  * Fix: the published list of outbound requests had been missing ACME since
+    2.18. Both pages said two; autocert fetches and renews a certificate from
+    the certificate authority, which neither page listed. Four rows now, bound
+    to the code by a guard.
+  * Fix: four controls showed focus with an outline and no border change, which
+    DESIGN.md has required since it was written and measured at 1.31-1.34:1 in
+    2026-09.
+  * Fix: the notifications page refuses to write web.toml in demo mode, like
+    every other route that stores a credential.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Tue, 15 Sep 2026 08:13:13 +0200
+
 easywall (2.19.0) unstable; urgency=medium
 
   * Feat: a port rule can name traffic this host forwards to a container, not

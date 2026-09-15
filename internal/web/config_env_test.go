@@ -211,6 +211,10 @@ func sentinelFor(t *testing.T, typ reflect.Type, key string) (reflect.Value, fun
 	case reflect.TypeOf((*bool)(nil)):
 		v := true
 		return reflect.ValueOf(&v), func(s string) bool { return strings.Contains(s, key+" = true") }
+	case reflect.TypeOf(false):
+		// The notification switches. false is the zero value, so true is the
+		// only sentinel a zero struct could not have produced.
+		return reflect.ValueOf(true), func(s string) bool { return strings.Contains(s, key+" = true") }
 	case reflect.TypeOf([]string(nil)):
 		v := []string{"sentinel-" + key}
 		return reflect.ValueOf(v), func(s string) bool { return strings.Contains(s, "sentinel-"+key) }

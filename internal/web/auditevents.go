@@ -29,6 +29,11 @@ type auditEvents struct {
 
 	// demo suppresses the recorded address. See Record.
 	demo bool
+
+	// onBurst is called when a login event arrives, with the address the
+	// request actually came from — before demo mode blanks the recorded one.
+	// nil in the fixtures that do not care.
+	onBurst func(shared.LoginEvent, string)
 }
 
 func newAuditEvents(c *CoreClient, demo bool) *auditEvents {
@@ -52,6 +57,12 @@ func newAuditEvents(c *CoreClient, demo bool) *auditEvents {
 // address, the demo's handleLogEvent builds no detail at all — so a dash would
 // be one more line of code making the same statement.
 func (a *auditEvents) Record(ev shared.LoginEvent, addr string, left int, proxied bool) {
+	// Before the blanking below, deliberately: counting a burst of failures
+	// needs to tell one attacker from a thousand visitors, which an empty
+	// address cannot do. Only the *recorded* address is dropped.
+	if a.onBurst != nil {
+		a.onBurst(ev, addr)
+	}
 	if a.demo {
 		addr = ""
 	}

@@ -165,7 +165,6 @@
   {"id": "system_acceptance_duration",      "translation": "Délai"},
   {"id": "system_acceptance_duration_unit", "translation": "secondes"},
   {"id": "system_acceptance_duration_desc", "translation": "Secondes avant l'annulation automatique des règles (10–3600). Par défaut : 120."},
-  {"id": "system_save",                     "translation": "Enregistrer les paramètres système"},
   {"id": "system_saved",                    "translation": "Paramètres système enregistrés."},
   {"id": "system_invalid_duration",         "translation": "La durée doit être comprise entre 10 et 3600 secondes."},
 

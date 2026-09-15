@@ -637,10 +637,59 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		f.collectUsageBeforeWrite()
 
 		opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
-		applyErr := f.nft.Apply(previous, opts, nets)
+		var applyErr error
+		firstApply := !f.everConfigured(previous)
+		if firstApply {
+			// Nothing has ever been applied here, so "back to where you were"
+			// is "not filtering" — not an empty rule set at policy drop, which
+			// closes SSH and the web interface with it. restore.go:98 already
+			// refuses to enforce an empty set at boot for exactly this reason;
+			// this is the same refusal on the path that runs when an operator
+			// is already in trouble.
+			//
+			// An operator who deliberately applied an empty set is unaffected:
+			// that installation has a last-apply marker, so everConfigured is
+			// true and the rules below are restored as before.
+			slog.Warn("the acceptance window closed on the first apply this installation " +
+				"has ever made; taking the table down rather than enforcing an empty " +
+				"rule set, which would close SSH and the web interface with it")
+
+			// The entry is written after the teardown and says what the teardown
+			// did, which is the shape panicLandedDuringWrite already uses and the
+			// defect the panic branch forty lines above records having fixed
+			// once: an entry asserting "the table was taken down" is false
+			// whenever that Reset() failed, and it is the entry an operator reads
+			// to find out what the rollback did. A failed teardown here is the
+			// worst outcome on this path — the host is still at policy drop with
+			// no port open — so it takes boot_enforce_failed, the crit action the
+			// restore path already uses for a teardown that could not be carried
+			// out, rather than a neutral one coloured by which branch reached it.
+			action := "boot_not_configured"
+			detail := "the first apply was not confirmed; the table was taken down and " +
+				"this host is not filtering — open the interface and apply again"
+			applyErr = f.nft.Reset()
+			if applyErr != nil {
+				action = "boot_enforce_failed"
+				detail = "the first apply was not confirmed and the table could not be " +
+					"taken down (" + applyErr.Error() + "), so this host is filtering an " +
+					"empty rule set at policy drop — run `nft delete table inet easywall`"
+			}
+			WriteAuditLog(f.cfg.AuditLogPath(), action, "all", detail, user)
+		} else {
+			applyErr = f.nft.Apply(previous, opts, nets)
+		}
 		if applyErr != nil {
 			slog.Error("rollback nftables failed", "error", applyErr)
-			failures = append(failures, "nftables: "+applyErr.Error())
+			// One event, one entry. A failed teardown on the first-apply branch
+			// has already written boot_enforce_failed above, carrying this same
+			// error in its detail and saying what the failure leaves the host
+			// in; adding it to failures put a second crit entry — rollback_failed
+			// — in the log for the one event, which is exactly the double record
+			// the panic branch forty lines above documents having removed. The
+			// entry that explains what the rollback did stays the only one.
+			if !firstApply {
+				failures = append(failures, "nftables: "+applyErr.Error())
+			}
 		}
 		// Whatever the write reported, the table it left is not the table the
 		// baselines describe: nft.Apply deletes and recreates it, and reports

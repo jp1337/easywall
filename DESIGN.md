@@ -1292,6 +1292,24 @@ that composited to 1.31–1.34:1. Every control whose border moved on focus alre
 than a nicety layered on top of the outline: the outline is what the eye finds, and the
 border is what survives when the outline lands on a surface it cannot separate from.
 
+**Amended 2026-09-15.** Four of that failing set were closed in 2.20 — `.checkbox`,
+`.toggle`, `.radio` and `.editor textarea`. `.radio` was not on the 2026-09-08 list and
+is the same shape; it is named here so the set is the set. Two things the closing had to
+decide, both of which are now part of the rule rather than of one commit:
+
+| | |
+|---|---|
+| **A control with a border moves it** | `.checkbox` and `.radio` take `border-color: var(--color-focus-ring)` on `:focus-visible`, after `:checked`, whose border colour differs |
+| **A control with no border takes an inset ring instead** | `.toggle` is a 34px pill drawn as a `background`, and `.editor textarea` is framed by the card around it. Neither has a border to change, and giving either one resizes the control. `box-shadow: inset 0 0 0 2px var(--color-focus-ring)` puts the same mark at the control's own edge and shifts no layout. **This is the border change, not a substitute for it** — the requirement is a second mark under the outline, and the shape it takes follows the control |
+
+**What is not closed, stated rather than quietly dropped.** `.theme-toggle`
+(`app.css:526`) and `.link` (`:1627`) are still outline-only. Both are borderless by
+design — a sidebar button with a transparent background, and inline text — so both want
+the inset-ring answer above, and on `.link` that is a decision about how an underlined
+run of text carries a second mark, which is a typographic question and not this
+release's. `.f-ssh` is in the 2026-09-08 list and **no longer exists** in `app.css`; it
+went with the options page's rework and is not an open item.
+
 `fieldset` groups related settings and carries its legend in `label` type. This is the
 dominant structure on the options and settings pages; a flat list of forty controls with no
 grouping is unusable, and the grouping is what makes the protection modules scannable.

@@ -56,7 +56,7 @@ const PASS = 'ui-check-password-2026';
 const PAGES = [
   '/dashboard', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
   '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
-  '/log', '/apply',
+  '/notify', '/log', '/apply',
 ];
 
 const failures = [];
@@ -1725,7 +1725,8 @@ const screenshotArgs = screenshotMode
 // them here would add files nothing links to.
 const DEFAULT_SCREENSHOT_PAGES = [
   '/dashboard', '/ports', '/blacklist', '/forwarding', '/custom',
-  '/options', '/settings', '/password', '/log', '/apply', '/apply-window',
+  '/options', '/settings', '/password', '/log', '/notify', '/apply',
+  '/apply-window',
 ];
 // The remaining names in that directory are not URL paths at all — the
 // first-run wizard (with its optional 2FA step), the login page a signed-out
