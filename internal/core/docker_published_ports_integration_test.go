@@ -50,7 +50,7 @@ table ip nat {
 func TestIntegration_PublishedPortsAreReadFromDockersOwnRules(t *testing.T) {
 	dockerNATFixture(t)
 
-	got := detectPublishedPorts([]string{"172.18.0.0/16"})
+	got := detectPublishedPorts([]string{"172.18.0.0/16"}, 0)
 
 	want := map[string]bool{
 		"udp 53 on 172.17.0.1": false,
@@ -81,7 +81,7 @@ func TestIntegration_PublishedPortsAreReadFromDockersOwnRules(t *testing.T) {
 func TestIntegration_NoBridgeMeansNoPublishedPorts(t *testing.T) {
 	dockerNATFixture(t)
 
-	if got := detectPublishedPorts(nil); len(got) != 0 {
+	if got := detectPublishedPorts(nil, 0); len(got) != 0 {
 		t.Errorf("with no bridge network detected the deny renders nothing, so "+
 			"nothing is closed and nothing may be named; got %v", got)
 	}

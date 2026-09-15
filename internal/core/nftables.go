@@ -84,6 +84,13 @@ type NftablesManager struct {
 	mu   sync.Mutex
 	conn *nftables.Conn
 
+	// nsFD is the network namespace conn was opened against, or 0 for this
+	// process's own. Only the self-test sets it, and only the published-port
+	// detection reads it — a dump of Docker's NAT rules has to come from the
+	// kernel the rules being built will run in, not from whichever one this
+	// process happens to sit in.
+	nsFD int
+
 	// adder is where the builders write. In production it is a builtRecorder
 	// wrapping m.conn; in tests it is a recordingConn. Never nil after
 	// NewNftablesManager.
@@ -189,7 +196,7 @@ func NewNftablesManagerInNamespace(nsFD int) (*NftablesManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reach nftables in the self-test namespace: %w", err)
 	}
-	m := &NftablesManager{conn: conn}
+	m := &NftablesManager{conn: conn, nsFD: nsFD}
 	m.adder = builtRecorder{m}
 	return m, nil
 }
@@ -2179,13 +2186,15 @@ func (m *NftablesManager) addForwardPortRules(
 		}
 	}
 
-	warnUnruledPublishedPorts(rules, cidrs)
+	m.warnUnruledPublishedPorts(rules, cidrs)
 
 	// The deny, once per bridge network, after the accepts and before the
-	// exceptions. A container's outbound traffic has its *source* in the bridge
-	// range, so it does not match; neither does traffic between two containers
-	// on the *same* bridge, because both of its ends are inside the one range
-	// this rule tests.
+	// exceptions. It matches on the destination first: a container's outbound
+	// traffic to the world has its destination *outside* the bridge range, so
+	// the rule never reaches its source test. The source test is what spares the
+	// other case — two containers on the *same* bridge, where the destination is
+	// in range and so is the source, both ends inside the one range this rule
+	// tests.
 	//
 	// Across two bridges it does match, and that is not an accident of the
 	// ordering. A container in bridge B reaching a service published on bridge
@@ -2219,7 +2228,8 @@ func (m *NftablesManager) addForwardPortRules(
 }
 
 // warnUnruledPublishedPorts names every published container port the per-bridge
-// deny closes, at the apply that closes it.
+// deny closes, at the apply that closes it. A method for one reason: the ports
+// are read from the namespace this manager's own connection writes into.
 //
 // Under docker.published_ports = "filtered" a published port with no forwarded
 // rule is dropped, which is the feature. What was missing is that nothing said
@@ -2234,25 +2244,34 @@ func (m *NftablesManager) addForwardPortRules(
 // loginEvents folds repeats because a stranger can trigger those in a loop and
 // the visible log holds 200 lines; an apply is an operator's own action, a
 // handful of lines, and the journal keeps all of them.
-func warnUnruledPublishedPorts(rules shared.Rules, cidrs []string) {
-	for _, p := range detectPublishedPortsFn(cidrs) {
+func (m *NftablesManager) warnUnruledPublishedPorts(rules shared.Rules, cidrs []string) {
+	for _, p := range detectPublishedPortsFn(cidrs, m.nsFD) {
 		if forwardedRuleCovers(rules, p) {
 			continue
 		}
 		slog.Warn(fmt.Sprintf("%d published on %s with no forwarded rule: the forward "+
-			"chain drops what arrives for it, including containers on another bridge. "+
-			"Give it a port rule with scope \"forwarded\", or set "+
-			"docker.published_ports = \"open\"", p.port, p.addr), "protocol", p.proto)
+			"chain drops everything that reaches it from outside its own bridge — the "+
+			"world, and containers in another bridge. Give it a port rule with scope "+
+			"\"forwarded\" and no sources, or set docker.published_ports = \"open\"",
+			p.port, p.addr), "protocol", p.proto)
 	}
 }
 
 // forwardedRuleCovers reports whether a forwarded port rule already opens this
-// published port.
+// published port to everything that can reach it.
+//
+// A rule that names sources does not. portAcceptRules renders it as
+// `ip saddr <sources> … accept`, so a container in another bridge — which is
+// not in 10.0.0.0/8 unless somebody put it there — falls past the accept into
+// the deny, and that is the reporting host's failure with a rule in place: the
+// operator has written one, believes the port is covered, and would be told
+// nothing. shared.Reachable draws the same distinction thirty lines above the
+// PortInRule borrowed here.
 //
 // A published port whose protocol could not be read from the kernel is compared
-// against both lists: the point of this is a warning nobody has to double-check, and a
-// false alarm is worse than a missed one for a line whose only job is to be
-// believed.
+// against both lists: the point of this is a warning nobody has to
+// double-check, and a false alarm is worse than a missed one for a line whose
+// only job is to be believed.
 func forwardedRuleCovers(rules shared.Rules, p publishedPort) bool {
 	lists := [][]shared.PortRule{rules.TCP, rules.UDP}
 	switch p.proto {
@@ -2263,7 +2282,8 @@ func forwardedRuleCovers(rules shared.Rules, p publishedPort) bool {
 	}
 	for _, list := range lists {
 		for _, r := range list {
-			if r.FiltersForwarded() && shared.PortInRule(r.Port, p.port) {
+			if r.FiltersForwarded() && len(r.Sources) == 0 &&
+				shared.PortInRule(r.Port, p.port) {
 				return true
 			}
 		}

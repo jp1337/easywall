@@ -9,14 +9,25 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// recordingLogHandler keeps every message logged while it is installed, because
-// what is under test here is a sentence: the port and the address an operator
-// has to read to know which service just went dark.
+// recordingLogHandler keeps every line logged while it is installed, because
+// what is under test here is a sentence: the port, the address and the protocol
+// an operator has to read to know which service just went dark.
+//
+// The attributes are rendered into the line rather than discarded. 53/udp
+// against 53/tcp is the distinction that killed the reporting host — its
+// resolver answers both — and an attribute nothing asserts can be deleted with
+// the whole suite staying green, which is how the protocol came to be the one
+// output field with no test.
 type recordingLogHandler struct{ lines *[]string }
 
 func (h recordingLogHandler) Enabled(context.Context, slog.Level) bool { return true }
 func (h recordingLogHandler) Handle(_ context.Context, r slog.Record) error {
-	*h.lines = append(*h.lines, r.Message)
+	line := r.Message
+	r.Attrs(func(a slog.Attr) bool {
+		line += " " + a.Key + "=" + a.Value.String()
+		return true
+	})
+	*h.lines = append(*h.lines, line)
 	return nil
 }
 func (h recordingLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
@@ -34,7 +45,7 @@ func applyWithPublishedPorts(t *testing.T, rules shared.Rules,
 	t.Cleanup(func() { slog.SetDefault(prevLog) })
 
 	prevDetect := detectPublishedPortsFn
-	detectPublishedPortsFn = func([]string) []publishedPort { return published }
+	detectPublishedPortsFn = func([]string, int) []publishedPort { return published }
 	t.Cleanup(func() { detectPublishedPortsFn = prevDetect })
 
 	buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
@@ -60,14 +71,22 @@ func TestAPublishedPortWithNoForwardedRuleIsNamed(t *testing.T) {
 		[]string{"172.17.0.0/16", "172.18.0.0/16"},
 		[]publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}})
 
+	const want = "53 published on 172.17.0.1 with no forwarded rule"
 	for _, line := range lines {
-		if strings.Contains(line, "53 published on 172.17.0.1 with no forwarded rule") {
-			return
+		if !strings.Contains(line, want) {
+			continue
 		}
+		// The protocol is the rest of the answer, not decoration. The reporting
+		// host's resolver answered on both, and a line naming the wrong one
+		// sends an operator to write a rule that opens the wrong port.
+		if !strings.Contains(line, "protocol=udp") {
+			t.Fatalf("the line names the port but not the protocol it was published "+
+				"on, so the rule it asks for could be the wrong one: %q", line)
+		}
+		return
 	}
 	t.Fatalf("nothing named the published port the deny just closed.\n"+
-		"  want a line containing: %q\n  got: %q",
-		"53 published on 172.17.0.1 with no forwarded rule", lines)
+		"  want a line containing: %q\n  got: %q", want, lines)
 }
 
 // The other half, and the one a mutation lands on: a published port that *has*
@@ -129,6 +148,30 @@ func TestARuleInTheWrongChainOrProtocolStillLeavesThePortNamed(t *testing.T) {
 	}
 }
 
+// A forwarded rule that names sources opens the port to those sources and to
+// nobody else: portAcceptRules renders `ip saddr <sources> … accept`, so a
+// container in another bridge falls past it into the deny. That is the
+// reporting host's failure with a rule in place — the operator has written one
+// and believes the port is covered — so it is the case the warning must not be
+// silent on.
+func TestARuleThatNamesSourcesDoesNotSilenceTheWarning(t *testing.T) {
+	lines := applyWithPublishedPorts(t,
+		shared.Rules{UDP: []shared.PortRule{{
+			Port: "53", Scope: shared.ScopeForwarded, Sources: []string{"10.0.0.0/8"},
+		}}},
+		[]string{"172.17.0.0/16", "172.18.0.0/16"},
+		[]publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}})
+
+	for _, line := range lines {
+		if strings.Contains(line, "53 published on 172.17.0.1") {
+			return
+		}
+	}
+	t.Fatalf("a rule that opens the port to 10.0.0.0/8 only silenced the warning, "+
+		"while the kernel drops the 172.18.x container that has no rule at all; "+
+		"got: %q", lines)
+}
+
 // Under published_ports = "open" nothing in the forward chain denies a published
 // port, so there is nothing to warn about — and a warning there would be the
 // daemon reporting a consequence of a setting nobody has switched on.
@@ -139,7 +182,7 @@ func TestNothingIsNamedWhileFilteringIsOff(t *testing.T) {
 	t.Cleanup(func() { slog.SetDefault(prevLog) })
 
 	prevDetect := detectPublishedPortsFn
-	detectPublishedPortsFn = func([]string) []publishedPort {
+	detectPublishedPortsFn = func([]string, int) []publishedPort {
 		return []publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}}
 	}
 	t.Cleanup(func() { detectPublishedPortsFn = prevDetect })

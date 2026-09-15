@@ -107,17 +107,28 @@ var dockerNATTables = map[string]bool{"nat": true, "docker": true}
 // filter: only a DNAT whose *target* lands inside one of them is a published
 // container port. Every other DNAT on the machine — an operator's own port
 // forward, a load balancer's — is somebody else's rule and is not what the
-// forward chain's deny can close.
+// forward chain's deny can close. Filtering on the target rather than on the
+// published address is also what catches `-p 10.0.0.5:53:53`, published on a
+// host interface and DNAT'd into a bridge like any other.
+//
+// IPv4 only, like detectDockerBridges above it: the tables are listed in the ip
+// family and the header offsets read an IPv4 packet. A published port on an
+// IPv6 network named in docker.custom_networks is closed by the deny — cidrMatch
+// renders a v6 one — and is not named here. That gap is inherited, not new, and
+// features/docker.md carries it for operators.
 //
 // Its own netlink connection, deliberately: NftablesManager's is mid-transaction
 // when this runs, and a dump interleaved into a batch is not a risk worth the
-// one socket it saves.
+// one socket it saves. nsFD is the manager's own network namespace, or 0 for
+// this process's — the self-test applies a ruleset in a namespace of its own,
+// and a detection that read the host's would be describing a different kernel's
+// Docker than the deny it is warning about.
 //
 // Anything it cannot read is nothing. This produces a log line, not a verdict,
 // so failing quiet is right — a daemon that refused to apply because it could
 // not enumerate Docker's NAT rules would be a far worse bug than the one this
 // warns about.
-func detectPublishedPorts(cidrs []string) []publishedPort {
+func detectPublishedPorts(cidrs []string, nsFD int) []publishedPort {
 	var nets []netip.Prefix
 	for _, c := range cidrs {
 		if shared.IsListComment(c) {
@@ -131,11 +142,16 @@ func detectPublishedPorts(cidrs []string) []publishedPort {
 		return nil
 	}
 
-	conn, err := nftables.New()
-	if err != nil {
-		slog.Debug("published port detection: no netlink connection", "error", err)
-		return nil
+	// The error is discarded because there is not one: New only dials — and so
+	// only fails — with AsLasting(), which this does not use. A connection
+	// without it dials per operation, so the first real failure is the dump
+	// below, where it is handled.
+	var opts []nftables.ConnOption
+	if nsFD != 0 {
+		opts = append(opts, nftables.WithNetNSFd(nsFD))
 	}
+	conn, _ := nftables.New(opts...)
+
 	tables, err := conn.ListTablesOfFamily(nftables.TableFamilyIPv4)
 	if err != nil {
 		slog.Debug("published port detection: cannot list tables", "error", err)
