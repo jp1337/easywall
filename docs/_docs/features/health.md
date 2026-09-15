@@ -179,6 +179,11 @@ proof and has not. There, `easywall-core selftest` clears it.
 
 ## Proving a port that answers nothing
 
+If the question is only *has this rule ever matched*, the ports page's
+**Last used** column already answers it from these same counters. What follows
+is for the question it cannot: the `forward` chain's drop is not a rule of
+yours and has no row there.
+
 `unprovable` is easywall declining to measure its own claim. The same problem
 arrives from the other side. A UDP service that never replies looks the same
 whether the firewall dropped the packet or the service ignored it. No probe that
