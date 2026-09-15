@@ -82,6 +82,33 @@ func TestDemoSend_GetStatus(t *testing.T) {
 	if st.Acceptance != shared.AcceptanceIdle {
 		t.Errorf("expected idle acceptance, got %s", st.Acceptance)
 	}
+	// acceptance_enabled is what separates "no window open now" from "no window
+	// will ever open" — both of which read as idle above. The demo must follow
+	// its own [acceptance] section rather than report a constant, or it teaches
+	// the wrong thing about the field.
+	if !st.AcceptanceEnabled {
+		t.Error("the seeded demo has the window on, so AcceptanceEnabled should be true")
+	}
+
+	sys, err := c.GetSystem()
+	if err != nil {
+		t.Fatalf("GetSystem: %v", err)
+	}
+	sys.Acceptance.Enabled = false
+	if err := c.SaveSystem(*sys); err != nil {
+		t.Fatalf("SaveSystem: %v", err)
+	}
+	st, err = c.GetStatus()
+	if err != nil {
+		t.Fatalf("GetStatus after switching the window off: %v", err)
+	}
+	if st.AcceptanceEnabled {
+		t.Error("AcceptanceEnabled is still true after acceptance.enabled was switched off")
+	}
+	if st.Acceptance != shared.AcceptanceIdle {
+		t.Errorf("Acceptance = %s, want idle — the premise is that the two fields "+
+			"disagree only on the question they each answer", st.Acceptance)
+	}
 }
 
 // TestDemoSend_AnOptionDriftIsPending proves the seeded demo has a
