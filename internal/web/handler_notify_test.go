@@ -44,6 +44,13 @@ func TestSavingTheNotificationSettingsStoresThemAndRendersThemBack(t *testing.T)
 	if !strings.Contains(body, "https://ntfy.example/t") {
 		t.Error("the saved URL is not rendered back on the page")
 	}
+	// The other direction of TestTheDemoNeverBuildsANotifier's assertion. That
+	// one pins the banner present in demo mode; without this one an inverted
+	// {{if .Demo}} would keep it green while telling every real operator their
+	// firewall sends nothing.
+	if strings.Contains(body, `data-testid="notify-demo-banner"`) {
+		t.Error("the demo callout is rendered on a page that is not the demo")
+	}
 }
 
 // file:// is not a web endpoint, and the notifier would hand it to an
@@ -95,6 +102,86 @@ func TestADestinationWithNoAddressIsRefused(t *testing.T) {
 	_ = doAuthFormRequest(t, s, "/notify", form.Encode())
 	if kind, _ := s.cfg.NotifyDestination(); kind != "" {
 		t.Fatalf("a destination with no address was stored: kind=%q", kind)
+	}
+	// And refused for this reason. "Nothing was stored" is also true of a
+	// refusal by notify_kind_invalid or by save_error, so the negative on its
+	// own cannot tell the operator's actual mistake from any other one — the
+	// key is what decides which sentence they read.
+	rec := doAuthFormHTMX(t, s, "/notify", form.Encode())
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "notify_url_required") {
+		t.Errorf("HX-Trigger = %q, want the notify_url_required key: a refusal for "+
+			"another reason stores nothing either", trigger)
+	}
+}
+
+// The test button has four outcomes and only the happy one had a behavioural
+// test: the other three were held up by the registration guard below, which
+// proves each key is spelled and coloured everywhere it is shown and nothing
+// about which branch produces it. A reordering that put the notifier check in
+// front of the demo check, or a refusal that stopped refusing, would have been
+// green.
+//
+// The second demo row needs a notifier present, which rebuildNotifier refuses
+// to build in demo mode — so it is set directly rather than through it.
+//
+// HX-Trigger, not a rendered sentence: the key is the stable artefact and the
+// copy is edited.
+func TestTheTestButtonsThreeRefusalsAndItsSend(t *testing.T) {
+	cases := []struct {
+		name    string
+		demo    bool
+		status  int // what the endpoint answers; 0 means no notifier is configured
+		wantKey string
+		wantHit bool
+	}{
+		// Two demo rows, and the first is the one that carries the ordering:
+		// with no notifier, a demo that consulted the notifier first answers
+		// notify_not_configured — true, and the wrong sentence for a visitor who
+		// is not being refused for that — and a demo that dropped the check
+		// altogether answers it as well. Both mutations die on row A alone.
+		//
+		// Row B earns its place against a third: `if demo && s.notify == nil`,
+		// the plausible way somebody merges the two conditions while "improving"
+		// this handler. Row A passes it — no notifier, so it still refuses — and
+		// row B sends to the endpoint. Run, and it goes red on row B only.
+		{"the demo says so before it looks at the notifier at all", true, 0, "notify_demo_no_send", false},
+		{"the demo refuses even with a notifier in place", true, 200, "notify_demo_no_send", false},
+		{"no destination configured is refused, not sent", false, 0, "notify_not_configured", false},
+		{"an endpoint that answers 500 is reported as a failed send", false, 500, "notify_test_failed", true},
+		{"a destination that answers 200 sends", false, 200, "notify_test_sent", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var hits int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				atomic.AddInt32(&hits, 1)
+				w.WriteHeader(tc.status)
+			}))
+			defer srv.Close()
+
+			var s *Server
+			if tc.demo {
+				s = newDemoTestServer(t)
+			} else {
+				s = newTestServer(t, newFakeCore(t))
+			}
+			// Without this the gate 303s the POST to /password and every
+			// assertion below passes on a page that never ran the handler.
+			enrollFactor(t, s)
+			if tc.status != 0 {
+				s.notifyMu.Lock()
+				s.notify = newNotifier("webhook", srv.URL, "test-host", "test")
+				s.notifyMu.Unlock()
+			}
+
+			rec := doAuthFormHTMX(t, s, "/notify/test", "")
+			if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, tc.wantKey) {
+				t.Errorf("HX-Trigger = %q, want %q", trigger, tc.wantKey)
+			}
+			if got := atomic.LoadInt32(&hits) > 0; got != tc.wantHit {
+				t.Errorf("endpoint hit = %v, want %v", got, tc.wantHit)
+			}
+		})
 	}
 }
 

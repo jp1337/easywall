@@ -11,7 +11,23 @@
          key rather than minting a second sentence that says the same thing.
          .alert, not a colour variant — app.css has no informational colour,
          and this is the same neutral shape login.html's own demo notice
-         uses. */}}
+         uses.
+
+         role="status", for this element. It is here when the page first
+         renders rather than injected into it, nothing about it is
+         time-sensitive, and the operator has not done anything for it to be
+         a response to. role="alert" is assertive — it interrupts a screen
+         reader the moment the page speaks — and polite is what a standing
+         notice wants.
+
+         No rule is being followed here, and saying so is deliberate: this tree
+         is not consistent about the role on a first-render notice. login.html's
+         demo banner, which this one copies, uses alert; so does apply.html's
+         first-render alert-warn preview, while password.html's enrolment gate
+         and ports.html's #scope-inert use status for the same kind of thing.
+         Reconciling them is its own change with its own render check, and
+         three attempts to state the pattern as a rule produced three sentences
+         that were not true. */}}
     {{if .Demo}}
     <div role="status" class="alert mb-4" data-testid="notify-demo-banner">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/></svg>
@@ -29,87 +45,87 @@
     {{with .Data}}
     <div class="page-grid">
       <div>
-      <form method="POST" action="/notify"
-          hx-post="/notify"
-          hx-swap="none">
-      <div class="card">
-        <div class="form-stack">
-          <div class="field">
-            <label class="field-label" for="notify_kind">{{T "notify_kind_label"}}</label>
-            {{/* select.input, not a class of its own: this is the same control
-                 the Network page's IPv6 mode uses, and select.input already
-                 carries the arrow spacing that page paid for. */}}
-            <select id="notify_kind" name="kind" class="input w-full">
-              <option value=""        {{if eq .Kind ""}}selected{{end}}>{{T "notify_kind_off"}}</option>
-              <option value="webhook" {{if eq .Kind "webhook"}}selected{{end}}>Webhook</option>
-              <option value="ntfy"    {{if eq .Kind "ntfy"}}selected{{end}}>ntfy</option>
-            </select>
-          </div>
+        <form method="POST" action="/notify"
+              hx-post="/notify"
+              hx-swap="none">
+          <div class="card">
+            <div class="form-stack">
+              <div class="field">
+                <label class="field-label" for="notify_kind">{{T "notify_kind_label"}}</label>
+                {{/* select.input, not a class of its own: this is the same control
+                     the Network page's IPv6 mode uses, and select.input already
+                     carries the arrow spacing that page paid for. */}}
+                <select id="notify_kind" name="kind" class="input w-full">
+                  <option value=""        {{if eq .Kind ""}}selected{{end}}>{{T "notify_kind_off"}}</option>
+                  <option value="webhook" {{if eq .Kind "webhook"}}selected{{end}}>Webhook</option>
+                  <option value="ntfy"    {{if eq .Kind "ntfy"}}selected{{end}}>ntfy</option>
+                </select>
+              </div>
 
-          <div class="field">
-            <label class="field-label" for="notify_url">{{T "notify_url_label"}}</label>
-            {{/* input-data: an address is network data, and DESIGN.md § Forms
-                 puts network data in monospace so a typo is visible while it is
-                 being typed rather than after saving. */}}
-            <input type="url" id="notify_url" name="url" class="input input-data w-full"
-                   value="{{.URL}}" placeholder="https://ntfy.sh/your-private-topic"
-                   spellcheck="false" autocomplete="off">
-          </div>
+              <div class="field">
+                <label class="field-label" for="notify_url">{{T "notify_url_label"}}</label>
+                {{/* input-data: an address is network data, and DESIGN.md § Forms
+                     puts network data in monospace so a typo is visible while it is
+                     being typed rather than after saving. */}}
+                <input type="url" id="notify_url" name="url" class="input input-data w-full"
+                       value="{{.URL}}" placeholder="https://ntfy.sh/your-private-topic"
+                       spellcheck="false" autocomplete="off">
+              </div>
 
-          {{/* Checkboxes, not toggles, and that is a ruling rather than a
-               preference. DESIGN.md § Toggles and checkboxes: "Never use a
-               toggle for something that only takes effect after pressing Save
-               — the toggle's own animation promises immediacy." These four sit
-               behind this form's Save button. The options page's toggles are
-               the other branch of the same rule: they sit behind an explicit
-               apply step and pair with the unconfirmed-change indicator. */}}
-          <fieldset class="fieldset">
-            <legend>{{T "notify_events_legend"}}</legend>
-            <div class="flex flex-col gap-2.5">
-              <label class="field-inline">
-                <input type="checkbox" name="on_rolled_back" class="checkbox" {{if .OnRolledBack}}checked{{end}}>
-                <span>{{T "notify_on_rolled_back"}}</span>
-              </label>
-              <label class="field-inline">
-                <input type="checkbox" name="on_accepted" class="checkbox" {{if .OnAccepted}}checked{{end}}>
-                <span>{{T "notify_on_accepted"}}</span>
-              </label>
-              <label class="field-inline">
-                <input type="checkbox" name="on_panic" class="checkbox" {{if .OnPanic}}checked{{end}}>
-                <span>{{T "notify_on_panic"}}</span>
-              </label>
-              <label class="field-inline">
-                <input type="checkbox" name="on_failed_logins" class="checkbox" {{if .OnFailedLogins}}checked{{end}}>
-                <span>{{T "notify_on_failed_logins"}}</span>
-              </label>
+              {{/* Checkboxes, not toggles, and that is a ruling rather than a
+                   preference. DESIGN.md § Toggles and checkboxes: "Never use a
+                   toggle for something that only takes effect after pressing Save
+                   — the toggle's own animation promises immediacy." These four sit
+                   behind this form's Save button. The options page's toggles are
+                   the other branch of the same rule: they sit behind an explicit
+                   apply step and pair with the unconfirmed-change indicator. */}}
+              <fieldset class="fieldset">
+                <legend>{{T "notify_events_legend"}}</legend>
+                <div class="flex flex-col gap-2.5">
+                  <label class="field-inline">
+                    <input type="checkbox" name="on_rolled_back" class="checkbox" {{if .OnRolledBack}}checked{{end}}>
+                    <span>{{T "notify_on_rolled_back"}}</span>
+                  </label>
+                  <label class="field-inline">
+                    <input type="checkbox" name="on_accepted" class="checkbox" {{if .OnAccepted}}checked{{end}}>
+                    <span>{{T "notify_on_accepted"}}</span>
+                  </label>
+                  <label class="field-inline">
+                    <input type="checkbox" name="on_panic" class="checkbox" {{if .OnPanic}}checked{{end}}>
+                    <span>{{T "notify_on_panic"}}</span>
+                  </label>
+                  <label class="field-inline">
+                    <input type="checkbox" name="on_failed_logins" class="checkbox" {{if .OnFailedLogins}}checked{{end}}>
+                    <span>{{T "notify_on_failed_logins"}}</span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <p class="field-help" data-testid="notify-last">
+                {{if .LastErr}}{{T "notify_last_failed" (dict "Err" .LastErr)}}
+                {{else if .LastAt}}{{T "notify_last_ok" (dict "At" .LastAt)}}
+                {{else}}{{T "notify_never_sent"}}{{end}}
+              </p>
             </div>
-          </fieldset>
+          </div>
 
-          <p class="field-help" data-testid="notify-last">
-            {{if .LastErr}}{{T "notify_last_failed" (dict "Err" .LastErr)}}
-            {{else if .LastAt}}{{T "notify_last_ok" (dict "At" .LastAt)}}
-            {{else}}{{T "notify_never_sent"}}{{end}}
-          </p>
-        </div>
-      </div>
-
-      <div class="save-bar">
-        <button type="submit" class="btn btn-primary">
-          <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-          {{T "notify_save"}}
-        </button>
-        {{/* formaction/formmethod, not a nested form: this button sends to
-             /notify/test regardless of what is typed above and whatever the
-             four switches say — see handleNotifyTest's own comment for why.
-             hx-post overrides the enclosing form's hx-post for this element
-             only, so the no-JavaScript fallback (formaction) and the htmx
-             path agree on the same target. */}}
-        <button type="submit" class="btn" formaction="/notify/test" formmethod="POST"
-            hx-post="/notify/test" hx-swap="none">
-          {{T "notify_test_button"}}
-        </button>
-      </div>
-      </form>
+          <div class="save-bar">
+            <button type="submit" class="btn btn-primary">
+              <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+              {{T "notify_save"}}
+            </button>
+            {{/* formaction/formmethod, not a nested form: this button sends to
+                 /notify/test regardless of what is typed above and whatever the
+                 four switches say — see handleNotifyTest's own comment for why.
+                 hx-post overrides the enclosing form's hx-post for this element
+                 only, so the no-JavaScript fallback (formaction) and the htmx
+                 path agree on the same target. */}}
+            <button type="submit" class="btn" formaction="/notify/test" formmethod="POST"
+                    hx-post="/notify/test" hx-swap="none">
+              {{T "notify_test_button"}}
+            </button>
+          </div>
+        </form>
       </div>
 
       {{/* What section 8 of the spec says this feature does not promise, beside

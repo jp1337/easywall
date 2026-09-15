@@ -147,6 +147,20 @@ moves, and the core still never opens a connection outward.
   route out: three do, and the certificate is what serves every page. Found by
   the guard above on its first run, and fixed here rather than carried, because
   this release's carried-forward list ends empty.
+- **Four controls showed focus with an outline and nothing else.** The checkbox,
+  the toggle, the radio and the rule editors' textareas drew a focus ring over an
+  unchanged control. `DESIGN.md` § Forms has required *a border change plus an
+  outline* since it was written, and its 2026-09-08 amendment measured why: a
+  ring alone composited to 1.31–1.34:1 against the surface it lands on, while
+  every control whose border moved already cleared 3:1. The outline is what the
+  eye finds; the border is what survives when the outline lands on a surface it
+  cannot separate from. The checkbox and the radio now move their border colour
+  on focus. The toggle and the textareas have no border to move — one is a pill
+  drawn as a background, the other is framed by the card around it — so both take
+  an inset ring at the control's own edge, which is the same mark and shifts no
+  layout. Pre-existing on `main` and proven so against the pre-branch base; fixed
+  here rather than carried, because this release's carried-forward list ends
+  empty.
 - **An unconfirmed first apply locked the host out.** On a fresh installation the
   first-run wizard *stages* rules and never applies them, so the state captured
   before the first apply is empty. When the acceptance window closed unconfirmed,

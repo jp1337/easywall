@@ -543,9 +543,14 @@ func TestSaveNotificationsSurvivesTheRoundTripAndKeepsTheComments(t *testing.T) 
 	if !bytes.Contains(raw, []byte("# ─── Counting installations ───")) {
 		t.Error("the installed file's comments were replaced by a bare encoding")
 	}
-	// And the keys must be top-level, not swallowed by [tls].
-	if bytes.Index(raw, []byte("notify_kind")) > bytes.Index(raw, []byte("[tls]")) {
-		t.Error("notify_kind was written after [tls], so it is inside that table")
+	// And the keys must be top-level, not swallowed by [tls]. The absent case
+	// is checked explicitly: bytes.Index returns -1 for a key that is not there
+	// at all, and -1 > idx is false, so a comparison alone passes on a file
+	// missing notify_kind entirely.
+	kindAt := bytes.Index(raw, []byte("notify_kind"))
+	if kindAt < 0 || kindAt > bytes.Index(raw, []byte("[tls]")) {
+		t.Errorf("notify_kind is at %d and [tls] at %d: it must be present and before that table",
+			kindAt, bytes.Index(raw, []byte("[tls]")))
 	}
 }
 

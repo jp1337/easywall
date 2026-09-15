@@ -534,6 +534,17 @@ func TestRollback_ProceedsWhenTheMarkerCannotBeRead(t *testing.T) {
 	// the rules this rollback just restored — F5's finding, one statement further
 	// on. A teardown shows up as its own entry, under boot_enforce_failed.
 	for _, e := range auditEntries(t, cfg) {
+		// The first-apply branch tears the table down deliberately and writes
+		// its own boot_enforce_failed when that fails, which would otherwise be
+		// read here as the post-write undo this test forbids. Naming it: an
+		// entry about the first apply means everConfigured answered wrongly for
+		// this fixture, not that the panic check ran unguarded.
+		if strings.Contains(e.Detail, "first apply") {
+			t.Errorf("the rollback took the first-apply teardown branch, so everConfigured "+
+				"no longer sees this fixture as a host that has been filtering: %s %q",
+				e.Action, e.Detail)
+			continue
+		}
 		if e.Action == "boot_enforce_failed" || strings.Contains(e.Detail, "torn down") {
 			t.Errorf("an unreadable marker must not trigger a teardown after the rollback: %s %q",
 				e.Action, e.Detail)
@@ -838,5 +849,17 @@ func TestRollback_FirstApplyTeardownFailureIsReportedHonestly(t *testing.T) {
 	}
 	if strings.Contains(got.Detail, "this host is not filtering") {
 		t.Errorf("the entry asserts a teardown that did not happen: %q", got.Detail)
+	}
+	// One event, one entry. The teardown error is already in the detail above;
+	// a rollback_failed beside it is the second crit record for the same event
+	// that the panic branch in rollback() documents having removed.
+	for _, e := range entries {
+		if e.Action == "rollback_failed" {
+			t.Errorf("a second crit entry for the one event: rollback_failed %q, "+
+				"beside the boot_enforce_failed that already carries the error", e.Detail)
+		}
+	}
+	if !strings.Contains(got.Detail, "could not be taken down (") {
+		t.Errorf("the folded entry must carry the error it folded in, got %q", got.Detail)
 	}
 }

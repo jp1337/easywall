@@ -112,7 +112,7 @@ nothing. The `user` column says `web` for all thirteen.
 | Action | The identifier, rendered in your language |
 | Rule type | `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `all` |
 | Detail | What changed — the addresses added and removed, or the settings that moved |
-| User | The **process** that wrote the entry, not the person — one of four values, listed below |
+| User | The **process** that wrote the entry, not the person — one of five values, listed below |
 
 ## The address is the peer, and says when it is not
 
@@ -131,7 +131,7 @@ of them.
 
 ## The user column
 
-It names the process, and since 2.7 there are four of them:
+It names the process. There were four from 2.7; 2.17's self-test added the fifth:
 
 | Value | Written by |
 |---|---|
@@ -139,6 +139,7 @@ It names the process, and since 2.7 there are four of them:
 | `core` | the daemon itself, for work no operator asked for in the moment: the boot restore and the restore that follows the end of panic mode |
 | `console` | `easywall-core panic` or `resume`, carried out by the running daemon on the console's behalf |
 | `console-no-daemon` | the same two commands with no daemon running, where the console tool writes the marker and the entry itself — the lockout path, so it says which process was there |
+| `selftest` | `easywall-core selftest`, run by `easywall-selftest.service` before the daemon exists or by hand at a shell. Neither `core` nor `console` is true of it: the proof runs in that binary and the daemon it precedes never sees it |
 
 ## What is not in it
 

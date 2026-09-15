@@ -214,7 +214,7 @@
   {"id": "notify_url_required",      "translation": "Set an address, or choose Nothing to switch notifications off."},
   {"id": "notify_test_button",       "translation": "Send a test"},
   {"id": "notify_test_sent",         "translation": "Test sent."},
-  {"id": "notify_test_failed",       "translation": "The test did not arrive."},
+  {"id": "notify_test_failed",       "translation": "The test did not arrive. Check the address, and that this host can reach it."},
   {"id": "notify_not_configured",    "translation": "Set an address first."},
   {"id": "notify_demo_no_send",      "translation": "The demo sends nothing."},
   {"id": "notify_aside_secret_title",   "translation": "The address is a credential"},

@@ -644,6 +644,21 @@ func (c *Config) NotifyDestination() (string, string) {
 	return c.NotifyKind, c.NotifyURL
 }
 
+// Demo reports whether this process runs against the in-memory mock.
+//
+// Under the lock like every other accessor here, though nothing writes the
+// field after load — shared/env.go's overlay is the only writer and it runs
+// before the server exists. It exists so the runtime readers, which sit beside
+// NotifyDestination and NotifyEnabled in functions whose stated rule is *use the
+// accessors*, do not have to be the one bare field access in the paragraph.
+// Validate and NewServer still read it directly: both run before there is a
+// second goroutine.
+func (c *Config) Demo() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.DemoMode
+}
+
 // NotifyEnabled reports whether the operator asked to hear about this event.
 // An unknown event is not a switch anyone can have turned on, so it is off.
 func (c *Config) NotifyEnabled(event string) bool {
