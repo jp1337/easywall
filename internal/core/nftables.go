@@ -2179,11 +2179,27 @@ func (m *NftablesManager) addForwardPortRules(
 		}
 	}
 
+	warnUnruledPublishedPorts(rules, cidrs)
+
 	// The deny, once per bridge network, after the accepts and before the
 	// exceptions. A container's outbound traffic has its *source* in the bridge
-	// range and container-to-container has both ends inside, so neither matches;
-	// only traffic arriving from outside for a container address does, which is
-	// exactly a published port.
+	// range, so it does not match; neither does traffic between two containers
+	// on the *same* bridge, because both of its ends are inside the one range
+	// this rule tests.
+	//
+	// Across two bridges it does match, and that is not an accident of the
+	// ordering. A container in bridge B reaching a service published on bridge
+	// A's gateway address is DNAT'd to an address in A, so it arrives here with
+	// its destination in A and its source outside A — the same shape as a packet
+	// from the world, because by then that is what it is to this rule. It needs
+	// a forwarded port rule like any other published port, and the exceptions
+	// below cannot give it one: they are rendered after this deny and never run.
+	//
+	// The host that found this published its resolver on 172.17.0.1:53 rather
+	// than 0.0.0.0. Every container's DNS died at the first apply, all fifteen
+	// external probes stayed green, and the only thing that said so was this
+	// rule's own packet counter. warnUnruledPublishedPorts, above, is so that
+	// the next host is told instead.
 	for _, cidr := range cidrs {
 		dst := cidrMatch(cidr, posDstAddr)
 		src := cidrMatchNegated(cidr, posSrcAddr)
@@ -2200,6 +2216,59 @@ func (m *NftablesManager) addForwardPortRules(
 			Exprs: append(exprs, &expr.Counter{}, &expr.Verdict{Kind: expr.VerdictDrop}),
 		})
 	}
+}
+
+// warnUnruledPublishedPorts names every published container port the per-bridge
+// deny closes, at the apply that closes it.
+//
+// Under docker.published_ports = "filtered" a published port with no forwarded
+// rule is dropped, which is the feature. What was missing is that nothing said
+// which ports those are: the reporting host lost every container's DNS and kept
+// answering every external probe, because the port that died was published on a
+// bridge gateway and reached only from inside.
+//
+// Once per apply, every time, with no memory of what it said last time. A
+// suppressed repeat would be silent on exactly the apply an operator is reading
+// the log of, and any memory of it would live in this process — so a restart
+// would re-announce the lot anyway, which is neither "once" nor "on change".
+// loginEvents folds repeats because a stranger can trigger those in a loop and
+// the visible log holds 200 lines; an apply is an operator's own action, a
+// handful of lines, and the journal keeps all of them.
+func warnUnruledPublishedPorts(rules shared.Rules, cidrs []string) {
+	for _, p := range detectPublishedPortsFn(cidrs) {
+		if forwardedRuleCovers(rules, p) {
+			continue
+		}
+		slog.Warn(fmt.Sprintf("%d published on %s with no forwarded rule: the forward "+
+			"chain drops what arrives for it, including containers on another bridge. "+
+			"Give it a port rule with scope \"forwarded\", or set "+
+			"docker.published_ports = \"open\"", p.port, p.addr), "protocol", p.proto)
+	}
+}
+
+// forwardedRuleCovers reports whether a forwarded port rule already opens this
+// published port.
+//
+// A published port whose protocol could not be read from the kernel is compared
+// against both lists: the point of this is a warning nobody has to double-check, and a
+// false alarm is worse than a missed one for a line whose only job is to be
+// believed.
+func forwardedRuleCovers(rules shared.Rules, p publishedPort) bool {
+	lists := [][]shared.PortRule{rules.TCP, rules.UDP}
+	switch p.proto {
+	case "tcp":
+		lists = lists[:1]
+	case "udp":
+		lists = lists[1:]
+	}
+	for _, list := range lists {
+		for _, r := range list {
+			if r.FiltersForwarded() && shared.PortInRule(r.Port, p.port) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // forwardFamilyPin pins a forwarded port accept to IPv4 unless it already names
