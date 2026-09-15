@@ -8,7 +8,9 @@ import (
 	"io"
 	"io/fs"
 	"net"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -254,6 +256,56 @@ func runStatus(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
+// capSysAdminBit is CAP_SYS_ADMIN's bit in /proc/self/status's CapEff mask
+// (include/uapi/linux/capability.h) — the capability internal/core/netns.go
+// says CLONE_NEWNET needs (netns.go:226-229, 374-379), and the one the
+// self-test's namespace harness cannot be built without.
+const capSysAdminBit = 21
+
+// The two words for an empty stamp. Named so a test can assert on the
+// constant rather than on the sentence: a copy edit to either string still
+// leaves the test checking "the capability-absent branch returns whatever
+// proofUnavailableHere says", which is the actual claim, instead of breaking
+// on a wording change that changed nothing behavioural.
+const (
+	proofNeverRecorded   = "never recorded"
+	proofUnavailableHere = "unavailable here"
+)
+
+// capSysAdminAvailable is the probe describeProof consults for an empty
+// stamp. A package-level var, not a read inside describeProof itself, so a
+// test can fake "capability absent" and "capability present" with no /proc
+// and no process of its own.
+var capSysAdminAvailable = probeCapSysAdmin
+
+// probeCapSysAdmin reads CapEff from /proc/self/status: a file read, no fork,
+// no clone, cheap enough for the 30-second Docker healthcheck that calls
+// `health` and, through it, describeProof.
+//
+// A CapEff this cannot parse is treated as capability present, not absent —
+// the same as before this probe existed. Reporting "unavailable here" on a
+// host where the capability might well be there would send an operator
+// looking for a permission that was never the problem; "never recorded" only
+// costs them the one already-open question of whether anybody has run it.
+func probeCapSysAdmin() bool {
+	data, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return true
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		rest, ok := strings.CutPrefix(line, "CapEff:")
+		if !ok {
+			continue
+		}
+		eff, err := strconv.ParseUint(strings.TrimSpace(rest), 16, 64)
+		if err != nil {
+			return true
+		}
+		return eff&(1<<capSysAdminBit) != 0
+	}
+	return true
+}
+
 // describeProof is the one line both `health` and `selftest` print about what
 // was last proven, and against what.
 //
@@ -267,9 +319,20 @@ func runStatus(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 // impossible. `kernel: ` with nothing after it would read as a bug in the one
 // release whose entire subject is a firewall not making false statements about
 // itself.
+//
+// An empty result with CAP_SYS_ADMIN absent is not "nobody has run it yet" —
+// the Docker image asks for CAP_NET_ADMIN only, and the namespace harness
+// needs CAP_SYS_ADMIN (netns.go:226-229, 374-379), so the stamp can never be
+// written. "Never recorded" describes a history and reads like a chore an
+// operator ought to clear; "unavailable here" describes a capability and
+// tells them to stop looking, the same distinction `health` already draws
+// between a disproved claim and an unprovable one (docs/_docs/features/health.md).
 func describeProof(version, kernel string, result shared.SelftestResult, at time.Time) string {
 	if result == "" {
-		return "never recorded"
+		if !capSysAdminAvailable() {
+			return proofUnavailableHere
+		}
+		return proofNeverRecorded
 	}
 	line := string(result)
 	if version != "" {

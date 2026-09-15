@@ -460,6 +460,40 @@ func TestHealthOmitsAnEmptyKernel(t *testing.T) {
 	}
 }
 
+// fakeCapSysAdmin replaces the capability probe for the duration of one test,
+// the same var-swap fakeSelftest uses for the prover below — describeProof's
+// capability branch needs no /proc and no real process to drive either way.
+func fakeCapSysAdmin(t *testing.T, available bool) {
+	t.Helper()
+	previous := capSysAdminAvailable
+	capSysAdminAvailable = func() bool { return available }
+	t.Cleanup(func() { capSysAdminAvailable = previous })
+}
+
+// TestDescribeProofEmptyResult is the anchor for 2.20.1 Task 3: an empty
+// stamp is a capability question, not a history one. It asserts against the
+// proofNeverRecorded/proofUnavailableHere constants, not against a sentence
+// of English copy, so a later wording change updates the test along with the
+// source instead of breaking it for no behavioural reason.
+func TestDescribeProofEmptyResult(t *testing.T) {
+	tests := []struct {
+		name      string
+		available bool
+		want      string
+	}{
+		{name: "capability present: nobody has run it yet", available: true, want: proofNeverRecorded},
+		{name: "capability absent: it never can be, by design", available: false, want: proofUnavailableHere},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeCapSysAdmin(t, tt.available)
+			if got := describeProof("2.20.1", "6.11.0", "", time.Time{}); got != tt.want {
+				t.Errorf("describeProof() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // fakeSelftest replaces the prover with a counter for the duration of one test.
 // The subcommand's job is the stamp comparison and the exit code; the proof
 // itself needs a network namespace and CAP_SYS_ADMIN, and internal/core's
