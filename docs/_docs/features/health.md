@@ -168,10 +168,49 @@ host.** Expected — one claim needs an inbound connection accepted host-side as
 its control, and the table already in place refuses it. That is why the shipped
 proof runs from a `oneshot` unit ordered *before* the daemon.
 
-In a container you meet something else. Nothing there runs the proof at all, so
-the state is *never recorded* rather than `unprovable`, `/healthz` renders
-`"selftest": {}`, and the dashboard omits the fact. Also expected, also nothing
-to do.
+In a container you meet something else. The image asks for `CAP_NET_ADMIN` and
+nothing else, so the proof cannot run there and never will. The selftest line
+reads *unavailable here* rather than *never recorded* — the first names a
+capability, the second names a chore somebody ought to clear. `/healthz` renders
+`"selftest": {}`, the dashboard omits the fact, and the state stays `ok`.
+
+*Never recorded* still appears where it is true: a host that **could** run the
+proof and has not. There, `easywall-core selftest` clears it.
+
+## Proving a port that answers nothing
+
+If the question is only *has this rule ever matched*, the ports page's
+**Last used** column already answers it from these same counters. What follows
+is for the question it cannot: the `forward` chain's drop is not a rule of
+yours and has no row there.
+
+`unprovable` is easywall declining to measure its own claim. The same problem
+arrives from the other side. A UDP service that never replies looks the same
+whether the firewall dropped the packet or the service ignored it. No probe that
+waits for an answer can separate the two.
+
+The rules count packets. Ask them instead of asking the service.
+
+```bash
+sudo nft list table inet easywall > /tmp/before
+#   from the outside host, send what needs no reply
+#   dig @198.51.100.7 example.com   ·   nc -u host 514   ·   nmap -sU -p 53 host
+sudo nft list table inet easywall > /tmp/after
+diff /tmp/before /tmp/after
+```
+
+Do not apply rules in between. An apply rewrites the table, and that zeroes
+every counter in it.
+
+| The counter that moved | Reading |
+|---|---|
+| an `accept` on that port | the packet arrived and easywall let it through — what the service did with it is not easywall's business |
+| the `forward` chain's `drop` | it arrived and easywall dropped it. A published container port with no **forwarded** [rule]({{ '/docs/features/ports/' | relative_url }}) is the usual cause |
+| nothing moved | nothing arrived. Read the path in front of easywall — a provider firewall, a NAT, the wrong address |
+
+This is how the port published on a bridge gateway in
+[Docker coexistence]({{ '/docs/features/docker/' | relative_url }}) was found:
+every container's DNS was gone while fifteen external probes stayed green.
 
 ## The self-test
 

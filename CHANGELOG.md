@@ -5,6 +5,107 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.1] — 2026-09-15
+
+**The window that was not there.**
+
+Two defects found by rolling 2.20.0 onto a real host, both by reading rather than
+by an outage. Neither is reachable without opting into something: one needs a
+configuration that names `duration` and omits `enabled`, the other needs
+`docker.published_ports = "filtered"`.
+
+### Added
+
+- **Every apply under `filtered` now names each published container port that no
+  forwarded rule covers.** The ports are read from Docker's own DNAT rules in the
+  kernel — no Docker socket, no client library, and a host whose Docker has
+  stopped with its rules still loaded is named the same way. A rule that names
+  sources does not count as a cover and is named too: what the deny closes is the
+  world *plus* every other bridge, and no source list is ever tested against that
+  whole set. Naming the other bridge networks restores the cross-bridge container
+  and is the right rule where only containers should reach a port; it does not
+  restore the world, whose packets to a `0.0.0.0`-published port are DNAT'd into
+  a bridge and meet the deny with the same shape. The remedy the line offers says
+  both, after a first draft offered only *drop the sources* and *stop filtering* —
+  an operator whose rule legitimately names two bridge networks was warned at
+  every apply and told to open the port to the world or switch the feature off.
+  Once per apply, every time, with no folding of repeats — a
+  suppressed one would be silent on exactly the apply whose log an operator is
+  reading, and any memory of what it said last would live in a process a restart
+  replaces. IPv4 only, like the bridge detection it takes its networks from; an
+  IPv6 published port is neither detected nor named, which is 2.28's to close.
+- **`acceptance_enabled` in the status reply.** `acceptance: idle` is two states
+  in one word — no window open at this moment, and no window that will ever open —
+  and a script polled it ten times and reported a true statement about a cause it
+  could not see. It is read from the same configuration the apply path reads, so
+  the two cannot disagree, and the demo mock follows its own `[acceptance]`
+  section rather than advertising a window it will not open.
+
+### Fixed
+
+- **A configuration naming only `duration` had no acceptance window at all, and
+  nothing said so.** `AcceptanceConfig.Enabled` is a plain `bool`: absent reads as
+  false, with no default and no warning, while `Duration` beside it in the same
+  struct is refused at `<= 0` and clamped out of range **out loud**. A file that
+  configures a window and a file that configures the length of one which never
+  opens therefore read alike. The reporting host ran its first apply with no way
+  back — the case 2.20 exists to make safe. The daemon now warns once at start
+  when the window is off, in the operator's terms: applies take effect
+  immediately and nothing will undo them. Absent stays off, deliberately.
+  Defaulting it to true would begin blocking applies on every installation whose
+  file omits the key, and automation that applies and moves on would be rolled
+  back for sitting through a window it does not know to confirm. That needs its
+  own release and its own acceptance round.
+- **The start-up warning on a never-configured host promised an undo it would not
+  perform.** `RestoreCurrent` prints, at every start of an installation nothing
+  has ever been applied on, that the first apply "has the acceptance window to
+  undo it" — gated on `everConfigured` alone and never on `Acceptance.Enabled`.
+  The first half of that sentence is true either way; the promise is now printed
+  only where a window exists. It had been printed at every start, for two days,
+  on a host that never had one.
+- **`filtered` dropped container-to-container traffic across two bridges, and the
+  comment justifying the rule ordering said it could not.** The per-bridge deny is
+  `ip daddr <bridge> ip saddr != <bridge> drop`, and "container-to-container has
+  both ends inside, so neither matches" is true within **one** bridge. A container
+  in bridge B reaching a service published on bridge A's gateway is DNAT'd into A,
+  so it arrives with its destination in A and its source outside A — the same
+  shape as a packet from the world, because by then that is what it is to this
+  rule. The exceptions that would have accepted it are rendered after the deny and
+  never run. On the reporting host this killed every container's DNS while all
+  fifteen external probes stayed green: the resolver was published on
+  `172.17.0.1:53` rather than `0.0.0.0`, and the only thing that said so was the
+  drop rule's own packet counter. The behaviour is unchanged and correct — such a
+  port needs a forwarded rule like any other published port — so what is fixed is
+  the comment, and the silence around it.
+
+### Changed
+
+- **`health`'s selftest line names a capability rather than a history.** An empty
+  stamp with `CAP_SYS_ADMIN` absent is not "nobody has run it yet": the namespace
+  harness cannot be built without that capability, and the container image asks
+  for `CAP_NET_ADMIN` and nothing else, deliberately — so the stamp can never be
+  written there. "Never recorded" describes a chore an operator ought to clear;
+  "unavailable here" describes a capability and tells them to stop looking, the
+  same distinction `health` already draws between a disproved claim and an
+  unprovable one. The probe is a read of `CapEff` from `/proc/self/status` — a
+  file read, no fork, no clone, cheap enough for the 30-second Docker healthcheck
+  that calls `health` on every tick. A `CapEff` it cannot parse is treated as the
+  capability being present, which is what the line said before the probe existed.
+  `docker/entrypoint.sh` carried the old wording in a warning of its own and now
+  carries the new one.
+- **Five documentation pages for what the rollout found.** *Docker coexistence*
+  now says that a port published on a bridge gateway is reached through the
+  `forward` chain like any other, that a forwarded rule naming sources covers
+  only the sources it lists, and what the new warning prints. *Health check* gains the counter
+  technique that rollout invented: for a service whose correct response is
+  silence, no reply-based probe can tell *dropped* from *ignored*, so read the
+  rules' own packet counters across the attempt instead — and the container
+  selftest is described as unavailable by design rather than as never run.
+  *Recovery* says that `easywall-core status` exits `2` on an installation nobody
+  has applied to yet, which a setup script must not read as a failure. *System
+  settings* and *Configuration* stop calling the acceptance window on by default,
+  because an absent key is off.
+
 ## [2.20.0] — 2026-09-15
 
 **When something happens, you hear about it.**
@@ -2114,7 +2215,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.20.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.20.1...HEAD
+[2.20.1]: https://github.com/jp1337/easywall/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/jp1337/easywall/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/jp1337/easywall/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/jp1337/easywall/compare/v2.17.0...v2.18.0
