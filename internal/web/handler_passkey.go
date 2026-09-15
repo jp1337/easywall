@@ -254,6 +254,17 @@ func (s *Server) clearLoginPasskeyChallenge(w http.ResponseWriter, r *http.Reque
 // exact failure this file's own package comment describes: hostname set,
 // self-signed cert, the button reads enabled, the ceremony fails in the
 // browser with a SecurityError, and the operator sees nothing at all.
+//
+// Do not relax the third check for a terminating reverse proxy without first
+// fixing the origin. Behind one the browser's certificate is the proxy's and
+// genuinely trusted, so the check refuses a case a browser would accept — but
+// it refuses it for the wrong reason and lands on the right answer, because
+// publicOrigin() is built from this process's own port and the browser reports
+// the proxy's. RPOrigins therefore will not match and ValidateLogin refuses the
+// assertion anyway. Clearing this reason alone — by an operator assertion, or
+// by giving the process a real certificate it serves behind the proxy — enables
+// a button that cannot succeed, which is this comment's own failure arriving
+// from the other direction. See docs/_docs/installation/reverse-proxy.md.
 func (s *Server) passkeyUnavailableReason() string {
 	if s.client.IsDemo() {
 		return "passkey_demo"
