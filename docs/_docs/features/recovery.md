@@ -83,6 +83,12 @@ daemon running is never in the state it should be — nothing will put the rules
 back until the daemon starts and panic mode ends. So a monitoring check sees `2`
 either way. Only the printed message tells you which case you are in.
 
+**A fresh installation exits `2` as well, and nothing is wrong with it.** Nothing
+has been applied yet, so there are no rules and the machine really is not
+filtering. A setup script that reads any non-zero `status` as a failure stops on
+the one machine where there is nothing yet to fail. Read the `firewall:` line, or
+run the check after the first apply.
+
 ### `panic`
 
 ```
