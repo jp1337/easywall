@@ -83,6 +83,14 @@ func TestAPublishedPortWithNoForwardedRuleIsNamed(t *testing.T) {
 			t.Fatalf("the line names the port but not the protocol it was published "+
 				"on, so the rule it asks for could be the wrong one: %q", line)
 		}
+		// The remedy, asserted because it is advice: an operator whose rule
+		// legitimately restricts the port to the bridge networks must not read
+		// this line as an instruction to drop that restriction and open the
+		// port to the world. The documentation describes this same sentence.
+		if !strings.Contains(line, "sources naming the other bridge networks") {
+			t.Fatalf("the remedy offers only a rule with no sources, so the only way "+
+				"out it names is opening the port to the world: %q", line)
+		}
 		return
 	}
 	t.Fatalf("nothing named the published port the deny just closed.\n"+
