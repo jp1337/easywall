@@ -92,17 +92,24 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	//
 	// So the machine is left exactly as it was one second before easywall was
 	// installed, and filtering starts at the first deliberate apply — which has
-	// the acceptance window to undo it. applyFirstRunChoices already reasons this
-	// way in as many words: rules are staged, never applied, because "the first
-	// run is the worst moment to make an exception".
+	// the acceptance window to undo it, where one is configured.
+	// applyFirstRunChoices already reasons this way in as many words: rules
+	// are staged, never applied, because "the first run is the worst moment
+	// to make an exception".
 	if !f.everConfigured(state) {
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_not_configured", "all", reason, "core")
-		slog.Warn("nothing has ever been applied on this installation, so this machine "+
-			"is not filtering: the stored rule set is empty, and enforcing an empty set "+
-			"at policy drop would close SSH and the web interface with it. Open the web "+
-			"interface and finish the first run — the first apply is what starts "+
-			"filtering, and it has the acceptance window to undo it",
-			"reason", reason)
+		// The first half is true either way; the undo is only promised where
+		// one exists. With acceptance.enabled false this sentence told a host
+		// it had a window to undo its first apply with, at every start, for two
+		// days, and it never had one.
+		msg := "nothing has ever been applied on this installation, so this machine " +
+			"is not filtering: the stored rule set is empty, and enforcing an empty set " +
+			"at policy drop would close SSH and the web interface with it. Open the web " +
+			"interface and finish the first run — the first apply is what starts filtering"
+		if f.cfg.SystemSettings().Acceptance.Enabled {
+			msg += ", and it has the acceptance window to undo it"
+		}
+		slog.Warn(msg, "reason", reason)
 		return nil
 	}
 

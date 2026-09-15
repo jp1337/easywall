@@ -875,6 +875,9 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		Panic:               f.PanicEngaged(),
 		AcceptanceRemaining: remaining,
 		AcceptanceReason:    reason,
+		// The same read the apply path makes (see acceptanceOn in apply), so a
+		// caller cannot be told a window exists by one and not by the other.
+		AcceptanceEnabled: f.cfg.SystemSettings().Acceptance.Enabled,
 	}
 }
 
