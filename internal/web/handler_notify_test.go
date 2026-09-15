@@ -117,8 +117,8 @@ func TestADestinationWithNoAddressIsRefused(t *testing.T) {
 	}
 }
 
-// The test button has four outcomes and only the happy one had a behavioural
-// test: the other three were held up by the registration guard below, which
+// The test button has five outcomes and only the happy one had a behavioural
+// test: the other four were held up by the registration guard below, which
 // proves each key is spelled and coloured everywhere it is shown and nothing
 // about which branch produces it. A reordering that put the notifier check in
 // front of the demo check, or a refusal that stopped refusing, would have been
@@ -129,11 +129,12 @@ func TestADestinationWithNoAddressIsRefused(t *testing.T) {
 //
 // HX-Trigger, not a rendered sentence: the key is the stable artefact and the
 // copy is edited.
-func TestTheTestButtonsThreeRefusalsAndItsSend(t *testing.T) {
+func TestTheTestButtonsFourRefusalsAndItsSend(t *testing.T) {
 	cases := []struct {
 		name    string
 		demo    bool
-		status  int // what the endpoint answers; 0 means the form carries no address
+		status  int  // what the endpoint answers; 0 means the form carries no address
+		noKind  bool // true: an address is submitted but no destination is chosen
 		wantKey string
 		wantHit bool
 	}{
@@ -147,11 +148,15 @@ func TestTheTestButtonsThreeRefusalsAndItsSend(t *testing.T) {
 		// plausible way somebody merges the two conditions while "improving"
 		// this handler. Row A passes it — no address, so it still refuses — and
 		// row B sends to the endpoint. Run, and it goes red on row B only.
-		{"the demo says so before it looks at the address at all", true, 0, "notify_demo_no_send", false},
-		{"the demo refuses even with an address submitted", true, 200, "notify_demo_no_send", false},
-		{"no destination in the form is refused, not sent", false, 0, "notify_not_configured", false},
-		{"an endpoint that answers 500 is reported as a failed send", false, 500, "notify_test_failed", true},
-		{"a destination that answers 200 sends", false, 200, "notify_test_sent", true},
+		{"the demo says so before it looks at the address at all", true, 0, false, "notify_demo_no_send", false},
+		{"the demo refuses even with an address submitted", true, 200, false, "notify_demo_no_send", false},
+		{"no destination in the form is refused, not sent", false, 0, false, "notify_not_configured", false},
+		// An address without a chosen destination is a different mistake from
+		// no address at all — see notify_destination_required — and this row is
+		// the one that catches a merge of the two checks back into one key.
+		{"an address with no destination chosen is refused, not sent", false, 200, true, "notify_destination_required", false},
+		{"an endpoint that answers 500 is reported as a failed send", false, 500, false, "notify_test_failed", true},
+		{"a destination that answers 200 sends", false, 200, false, "notify_test_sent", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -175,7 +180,11 @@ func TestTheTestButtonsThreeRefusalsAndItsSend(t *testing.T) {
 			// dials what was typed, and nothing is saved by any of these rows.
 			body := ""
 			if tc.status != 0 {
-				body = url.Values{"kind": {"webhook"}, "url": {srv.URL}}.Encode()
+				v := url.Values{"url": {srv.URL}}
+				if !tc.noKind {
+					v.Set("kind", "webhook")
+				}
+				body = v.Encode()
 			}
 
 			rec := doAuthFormHTMX(t, s, "/notify/test", body)
@@ -210,11 +219,12 @@ func TestEveryNotifyOutcomeIsRegisteredEverywhereItIsShown(t *testing.T) {
 		"notify_kind_invalid": "alert-warn",
 		"notify_url_invalid":  "alert-warn",
 		"notify_url_required": "alert-warn",
-		// The test button's four outcomes, registered the same way.
-		"notify_test_sent":      "alert-ok",
-		"notify_test_failed":    "alert-warn",
-		"notify_not_configured": "alert-warn",
-		"notify_demo_no_send":   "alert-warn",
+		// The test button's five outcomes, registered the same way.
+		"notify_test_sent":            "alert-ok",
+		"notify_test_failed":          "alert-warn",
+		"notify_not_configured":       "alert-warn",
+		"notify_destination_required": "alert-warn",
+		"notify_demo_no_send":         "alert-warn",
 		// The demo's refusal to save them. Shared with /password, but /notify
 		// is the first page to raise it over HTMX, where a flash never renders
 		// and an unshipped key prints itself into the toast.

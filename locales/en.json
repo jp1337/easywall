@@ -216,6 +216,7 @@
   {"id": "notify_test_sent",         "translation": "Test sent."},
   {"id": "notify_test_failed",       "translation": "The test did not arrive. Check the address, and that this host can reach it."},
   {"id": "notify_not_configured",    "translation": "Set an address first."},
+  {"id": "notify_destination_required", "translation": "Choose a destination first."},
   {"id": "notify_demo_no_send",      "translation": "The demo sends nothing."},
   {"id": "notify_aside_secret_title",   "translation": "The address is a credential"},
   {"id": "notify_aside_secret_body",    "translation": "Anyone who knows an ntfy topic can read what easywall sends to it. Pick a name nobody will guess, or run your own server."},

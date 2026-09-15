@@ -44,8 +44,21 @@ type notifier struct {
 	// firewall posts, and a private-range block would refuse the self-hosted
 	// ntfy that is this audience's normal case — validNotifyURL says the same
 	// about the scheme. Both paths that reach here run that validation, the
-	// demo refuses both, redirects are errors rather than followed, and the
-	// response body is never read back, so there is no oracle to probe with.
+	// demo refuses both, and redirects are errors rather than followed.
+	//
+	// The response is not blind, though: handleNotifyTest stores err.Error()
+	// in notifyLastErr, notify.html renders it back through
+	// notify_last_failed, and send() below names the status on an HTTP
+	// failure — so connect-refused, a timeout and a 4xx/5xx are all
+	// distinguishable through the interface. That capability is not new here:
+	// before this release, handleNotifyTest read s.currentNotifier(), built by
+	// rebuildNotifier from exactly the same SaveNotifications(kind, url, ...)
+	// an authenticated operator already controlled, so the same host could
+	// already be made to POST to any http(s) URL and the same three outcomes
+	// were already visible through the saved-then-tested round trip. What
+	// changed is that the taint path went from form → config → notifier to
+	// form → notifier, short enough for gosec to see — it added no capability.
+	//
 	// The three //nolint:gosec below are this note.
 	url     string
 	host    string

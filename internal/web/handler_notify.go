@@ -139,9 +139,10 @@ func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	kind, raw := r.FormValue("kind"), r.FormValue("url")
-	// Refused exactly the way the save path refuses them, from the same
-	// validNotifyURL: an address the save would not accept is not an address
-	// worth dialling, and two different answers for one typo is a worse page.
+	// These two mistakes are refused the same way the save path refuses them,
+	// from the same validNotifyURL: an address the save would not accept is not
+	// an address worth dialling, and two different answers for one typo is a
+	// worse page.
 	if kind != "" && kind != "webhook" && kind != "ntfy" {
 		s.respondPartialError(w, r, "/notify", "notify_kind_invalid")
 		return
@@ -150,10 +151,17 @@ func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
 		s.respondPartialError(w, r, "/notify", "notify_url_invalid")
 		return
 	}
-	// Still "set an address first" — and now it is true of the field the
-	// operator is looking at rather than of a file they cannot see.
-	if kind == "" || raw == "" {
+	// Two different mistakes from here, not one. No address at all is "set an
+	// address first" — and now true of the field the operator is looking at
+	// rather than of a file they cannot see. An address with "Nothing" left
+	// selected has an address; what is missing is the destination, so it gets
+	// its own sentence rather than reusing the one above.
+	if raw == "" {
 		s.respondPartialError(w, r, "/notify", "notify_not_configured")
+		return
+	}
+	if kind == "" {
+		s.respondPartialError(w, r, "/notify", "notify_destination_required")
 		return
 	}
 	err := newNotifierFor(kind, raw).send(Notification{

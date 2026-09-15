@@ -166,6 +166,7 @@ function initHtmxToast() {
     notify_test_sent:         { text: str('notify_test_sent'), kind: 'success' },
     notify_test_failed:       { text: str('notify_test_failed'), kind: 'warning' },
     notify_not_configured:    { text: str('notify_not_configured'), kind: 'warning' },
+    notify_destination_required: { text: str('notify_destination_required'), kind: 'warning' },
     notify_demo_no_send:      { text: str('notify_demo_no_send'), kind: 'warning' },
     demo_readonly:            { text: str('demo_readonly'), kind: 'warning' },
   };

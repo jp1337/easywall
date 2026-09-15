@@ -216,6 +216,7 @@
   {"id": "notify_test_sent",         "translation": "Test gesendet."},
   {"id": "notify_test_failed",       "translation": "Der Test kam nicht an. Adresse prüfen — und ob dieser Host sie erreicht."},
   {"id": "notify_not_configured",    "translation": "Zuerst eine Adresse setzen."},
+  {"id": "notify_destination_required", "translation": "Zuerst ein Ziel wählen."},
   {"id": "notify_demo_no_send",      "translation": "Die Demo sendet nichts."},
   {"id": "notify_aside_secret_title",   "translation": "Die Adresse ist ein Geheimnis"},
   {"id": "notify_aside_secret_body",    "translation": "Wer ein ntfy-Thema kennt, kann mitlesen, was easywall dorthin sendet. Wähle einen Namen, den niemand errät, oder betreibe einen eigenen Server."},

@@ -1366,9 +1366,13 @@ var clientStringKeys = []string{
 	// these, show()'s `messages[key] || { text: key }` fallback printed the
 	// literal "notify_saved" at the operator, in both languages, on every save.
 	"notify_saved", "notify_kind_invalid", "notify_url_invalid", "notify_url_required",
-	// The test button's four outcomes, same reason: htmx's toast falls back to
+	// The test button's five outcomes, same reason: htmx's toast falls back to
 	// the literal key when a message id has no translation shipped to it.
-	"notify_test_sent", "notify_test_failed", "notify_not_configured", "notify_demo_no_send",
+	// notify_not_configured (no address) and notify_destination_required (an
+	// address with no destination chosen) are two different mistakes, so two
+	// different keys.
+	"notify_test_sent", "notify_test_failed", "notify_not_configured",
+	"notify_destination_required", "notify_demo_no_send",
 	// The demo's refusal to save them. The same key handlePasswordPOST uses,
 	// now also on a page that saves over HTMX — where a flash never renders and
 	// an unshipped key would print itself into the toast.
@@ -1445,11 +1449,12 @@ func templateFuncs() template.FuncMap {
 		// not failures of anything — the same direction as the two above.
 		"notify_kind_invalid": true, "notify_url_invalid": true,
 		"notify_url_required": true,
-		// The test button's three refusals: each names something the operator
-		// can fix (set an address, wait for a real endpoint, leave the demo),
-		// not a failure of the feature.
+		// The test button's four refusals: each names something the operator
+		// can fix (set an address, choose a destination, wait for a real
+		// endpoint, leave the demo), not a failure of the feature.
 		"notify_test_failed": true, "notify_not_configured": true,
-		"notify_demo_no_send": true,
+		"notify_destination_required": true,
+		"notify_demo_no_send":         true,
 		// Nothing went wrong here: the core declined a second apply while a
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
