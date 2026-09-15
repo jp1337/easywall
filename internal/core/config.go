@@ -129,9 +129,14 @@ func (c *Config) Validate() error {
 	// configures the length of a window that never opens — the duration above
 	// is refused and clamped out loud, this switch said nothing at all, and a
 	// real host ran its first apply with no way back because of the difference.
+	// Validate also runs from Reload, so this re-fires on every SIGHUP rather
+	// than only at start. That is deliberate: a reload that switches the window
+	// off is exactly the moment somebody needs telling, and a warning that only
+	// ever appeared at boot would be silent for the change that caused it.
 	if !c.Acceptance.Enabled {
-		slog.Warn("acceptance.enabled is false or absent: applies take effect immediately " +
-			"and nothing will undo them — there is no confirmation window and no automatic rollback")
+		slog.Warn("acceptance.enabled is false or absent: applies take effect immediately "+
+			"and nothing will undo them — there is no confirmation window and no automatic rollback",
+			"configured", c.Acceptance.Enabled)
 	}
 
 	// A negative interval is a typo, not an instruction, and it is clamped
