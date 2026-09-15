@@ -473,6 +473,10 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 		LastApply:           d.lastApply,
 		AcceptanceRemaining: d.acceptanceRemainingLocked(),
 		AcceptanceReason:    d.acceptanceReasonLocked(),
+		// The same field applyLocked branches on, for the same reason the core
+		// reads its own config here: the demo must not advertise a window it
+		// will not open.
+		AcceptanceEnabled: d.system.Acceptance.Enabled,
 	}
 }
 
