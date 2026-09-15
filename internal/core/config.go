@@ -124,6 +124,22 @@ func (c *Config) Validate() error {
 			"min", shared.AcceptanceDurationMin, "max", shared.AcceptanceDurationMax)
 		c.Acceptance.Duration = clamped
 	}
+	// Absent reads as false, and this is the only place that says so. A file
+	// naming only `duration` reads like one that configures a window and
+	// configures the length of a window that never opens — the duration above
+	// is refused and clamped out loud, this switch said nothing at all, and a
+	// real host ran its first apply with no way back because of the difference.
+	// Validate also runs from Reload, so this re-fires on every SIGHUP rather
+	// than only at start. That is deliberate: a reload that switches the window
+	// off is exactly the moment somebody needs telling, and a warning that only
+	// ever appeared at boot would be silent for the change that caused it.
+	if !c.Acceptance.Enabled {
+		// No "configured" attribute, unlike the clamps around it: the branch
+		// requires the value, so it could only ever print configured=false —
+		// a field that carries no information and reads as though it might.
+		slog.Warn("acceptance.enabled is false or absent: applies take effect immediately " +
+			"and nothing will undo them — there is no confirmation window and no automatic rollback")
+	}
 
 	// A negative interval is a typo, not an instruction, and it is clamped
 	// rather than refused for the same reason the acceptance duration is: a

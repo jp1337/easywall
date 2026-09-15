@@ -71,6 +71,61 @@ provider firewall was doing for you.
 > acceptance window will not save you here: it proves your own connection, and
 > yours arrives on the `input` chain while your containers do not.
 
+### A port published on a bridge gateway is still a published port
+
+`-p 172.17.0.1:53:53` publishes to the bridge, not to the world, so it reads
+like a container-only service that the `forward` chain's deny cannot be about.
+It is. A container on *another* bridge reaches it DNAT'd into the first one, so
+it arrives with its destination inside that bridge and its source outside it.
+That is the shape of a packet from the internet, because by then it is one. Such
+a port needs a **forwarded** rule like any other published port.
+
+This is the sentence that would have saved the host 2.20.1 came from. Its
+resolver was published that way, every container lost DNS at the first apply,
+and all fifteen external probes stayed green.
+
+> **A forwarded rule that names sources covers only those sources.** What the
+> deny closes is the world *plus* every other bridge. Naming the other bridge
+> networks restores the container in them, and is the right rule where only
+> containers should reach the port. It does not restore the world: a packet to a
+> `0.0.0.0`-published port is DNAT'd into a bridge and meets the deny with the
+> same shape. Such a rule is still named in the log, because no source list is
+> ever tested against that whole set.
+
+### What the log says at each apply
+
+Since 2.20.1 an apply under `filtered` names every published port no forwarded
+rule covers, read from Docker's own DNAT rules in the kernel:
+
+```
+53 published on 172.17.0.1 with no forwarded rule: the forward chain drops
+everything that reaches it from outside its own bridge — the world, and
+containers in another bridge. Give it a port rule with scope "forwarded" —
+no sources, or sources naming the other bridge networks if only containers
+should reach it — or set docker.published_ports = "open"
+```
+
+A publish that remaps the port — `-p 8080:80` — names both numbers, because the
+rule has to name the second one. The forward chain runs after Docker's DNAT, so
+the packet arrives there carrying `80`, and a rule for `8080` matches nothing:
+
+```
+8080 published on 0.0.0.0 reaches the container on 80: no forwarded rule for
+80: the forward chain drops everything that reaches it from outside its own
+bridge — the world, and containers in another bridge. Give it a port rule with
+scope "forwarded" — no sources, or sources naming the other bridge networks if
+only containers should reach it — or set docker.published_ports = "open"
+```
+
+| | |
+|---|---|
+| Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
+| A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
+| **IPv4 only** | The DNAT rules are read in the `ip` family, so a port published on an IPv6 Docker network is never seen |
+| **Silence is not a clearance** | No line for such a port means it was not looked at, not that a rule covers it. Check an IPv6 published port by hand |
+| IPv6 is [2.28]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
+| No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
+
 | Also worth knowing | |
 |---|---|
 | Nothing in the interface sets this key | Edited in `easywall.toml` only. A press that could take every container off the network, with an acceptance window blind to it, is not a control |
@@ -103,3 +158,7 @@ sudo nft list table inet easywall
 # Docker's — should be untouched
 sudo nft list tables | grep -i docker
 ```
+
+For a published port that answers nothing — a resolver, a syslog receiver — no
+reply-based probe can tell *dropped* from *silent*. Read the packet counters
+instead: [proving a port that answers nothing]({{ '/docs/features/health/' | relative_url }}#proving-a-port-that-answers-nothing).

@@ -22,12 +22,17 @@ you just applied.
 
 | | |
 |---|---|
-| **On** — the default | Every apply starts the timer. Not confirming restores the previous rules |
-| **Off** | An apply is final. There is no automatic way back |
+| **On** — what the installed `easywall.toml` sets | Every apply starts the timer. Not confirming restores the previous rules |
+| **Off**, and an absent key is off | An apply is final. There is no automatic way back |
 
 > **Do not switch this off on a remote host.** A rule that closes your own SSH port
 > leaves console access as the only recovery. The setting exists for machines you can
 > physically reach.
+
+> **A file naming only `duration` has no window at all.** `enabled` absent reads as
+> off, so the duration sets the length of something that never opens. The daemon has
+> said so at every start since 2.20.1 — *applies take effect immediately and nothing
+> will undo them*. Add `enabled = true` and reload if you did not mean it.
 
 ## Duration
 

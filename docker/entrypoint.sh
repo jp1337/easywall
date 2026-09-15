@@ -73,7 +73,7 @@ for path in "$CONF/web.toml" "$CONF/ssl"; do
 done
 
 # Said once, here, so an operator reading `docker logs` is not left to wonder
-# why `easywall-core health` reports the self-test as never recorded on a
+# why `easywall-core health` reports the self-test as unavailable here on a
 # container that is otherwise ok. RunSelftest builds a private network namespace
 # and sends real packets through a real table to prove that the rules easywall
 # writes filter what they claim to — that needs CAP_SYS_ADMIN, and this image
@@ -85,8 +85,12 @@ done
 # "unless you granted it" and not a check of the capability set, because there
 # is nothing in this image to check it with — no capsh, and /proc/self/status
 # reports the entrypoint's own bounding set rather than what easywall-core will
-# hold. An operator who adds SYS_ADMIN and runs `easywall-core selftest` by hand
-# gets a real proof, and this line would otherwise be stale the moment they do.
-warn "the rule self-test needs CAP_SYS_ADMIN, which this image does not ask for: unless you granted it, health reports the proof as never recorded, which is not a failure."
+# hold. easywall-core makes that read for itself, in its own process, which is
+# where it is answerable: 2.20.1's describeProof reports "unavailable here"
+# when CAP_SYS_ADMIN is absent and "never recorded" when it is present and
+# nobody has run the proof. An operator who adds SYS_ADMIN and runs
+# `easywall-core selftest` by hand gets a real proof, and this line would
+# otherwise be stale the moment they do.
+warn "the rule self-test needs CAP_SYS_ADMIN, which this image does not ask for: unless you granted it, health reports the proof as unavailable here, which is not a failure."
 
 exec "$@"
