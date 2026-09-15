@@ -542,6 +542,39 @@ func TestDescribeProofEmptyResult(t *testing.T) {
 	}
 }
 
+// The probe itself, which the var-swap above deliberately steps around — and so
+// left untested. Two mutations of it stayed green through 2.20.1's review: the
+// bit moved from 21 to 22, and the fail-open turned into a fail-closed.
+//
+// The masks are hex CapEff values as /proc/self/status writes them. Bit 21 is
+// CAP_SYS_ADMIN and bit 22 is CAP_SYS_BOOT, so the two single-bit rows below are
+// what pins the number: a root mask has both and would notice neither.
+func TestCapEffHasSysAdmin(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		{"root, holding everything", "Name:\tbash\nCapEff:\t000001ffffffffff\n", true},
+		{"CAP_SYS_ADMIN and nothing else", "CapEff:\t0000000000200000\n", true},
+		{"CAP_SYS_BOOT, the bit next to it", "CapEff:\t0000000000400000\n", false},
+		{"a container's default set, which drops it", "CapEff:\t00000000a80425fb\n", false},
+		{"an unprivileged process", "CapEff:\t0000000000000000\n", false},
+		// Every "cannot read this" answer is true: reporting the capability
+		// absent on a host where it may well be there sends an operator after a
+		// permission that was never the problem.
+		{"garbage where the mask should be", "CapEff:\tnot-a-number\n", true},
+		{"no CapEff line at all", "Name:\tbash\nCapInh:\t0000000000000000\n", true},
+		{"nothing at all, which is an unreadable /proc", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := capEffHasSysAdmin([]byte(tc.status)); got != tc.want {
+				t.Errorf("capEffHasSysAdmin(%q) = %v, want %v", tc.status, got, tc.want)
+			}
+		})
+	}
+}
+
 // fakeSelftest replaces the prover with a counter for the duration of one test.
 // The subcommand's job is the stamp comparison and the exit code; the proof
 // itself needs a network namespace and CAP_SYS_ADMIN, and internal/core's
