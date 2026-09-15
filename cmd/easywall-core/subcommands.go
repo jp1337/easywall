@@ -238,6 +238,14 @@ func runStatus(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 	}
 
 	_, _ = fmt.Fprintf(stdout, "acceptance: %s\n", status.Acceptance)
+	// `acceptance: idle` is two states in one word — a window waiting to be
+	// used, and no window at all — and this is the surface recovery.md sends a
+	// monitoring check to. A continuation line rather than a qualifier on the
+	// line above, so a check matching that line exactly keeps working.
+	if !status.AcceptanceEnabled {
+		_, _ = fmt.Fprintln(stdout, "            no window is configured: "+
+			"an apply is final and nothing will undo it")
+	}
 	if status.LastApply != "" {
 		_, _ = fmt.Fprintf(stdout, "last apply: %s\n", status.LastApply)
 	} else {
