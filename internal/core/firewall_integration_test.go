@@ -946,6 +946,78 @@ func TestIntegration_AnUnconfirmedFirstApplyLeavesTheHostUnfiltered(t *testing.T
 	}
 }
 
+// The same thing again through the other door. The test above reaches rollback
+// by cancelling the window; a window that simply expires is the other entrance
+// to that code, and until this test nothing asserted it — which matters because
+// the two paths differ in exactly the value that sits beside the entry the fix
+// writes: AcceptanceReason is "cancelled by operator" on one and "timeout" on
+// the other, and apply records it as the detail of apply_rolledback.
+//
+// No Cancel goroutine, therefore: the window is left to close on its own, which
+// is what costs this test its ten seconds. The duration is the one its twin
+// uses rather than a shorter value invented here, because "same fixture" is the
+// point — a window this test alone made short would not be the window an
+// operator gets.
+//
+// Raised by the wdk-ansible session, which automates exactly this apply.
+func TestIntegration_AFirstApplyThatTimesOutLeavesTheHostUnfilteredToo(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+	cfg := fw.cfg
+	cfg.Acceptance.Enabled = true
+	cfg.Acceptance.Duration = 10 // waited out, not cancelled
+
+	state, err := fw.rules.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fw.everConfigured(state) {
+		t.Fatal("the fixture is not a fresh installation, so this test proves nothing")
+	}
+
+	if err := fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "22"}}); err != nil {
+		t.Fatal(err)
+	}
+	// Nothing confirms and nothing cancels. Apply blocks until the window closes.
+	if err := fw.Apply("test"); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+
+	if fw.nft.Enforcing() {
+		t.Fatalf("after a first apply whose window timed out the machine is still "+
+			"filtering; the table holds:\n%s", ruleset(t))
+	}
+
+	// The same audit claim as the cancel path — and the reason that tells the
+	// two apart. apply_rolledback carries Acceptance.Reason() as its detail.
+	var saidUnfiltered, saidTimeout bool
+	for _, e := range auditEntries(t, fw.cfg) {
+		if e.Action == "boot_enforce_failed" {
+			t.Errorf("the teardown succeeded and this entry reports it as failed: %q", e.Detail)
+		}
+		if e.Action == "boot_not_configured" && strings.Contains(e.Detail, "not filtering") {
+			saidUnfiltered = true
+		}
+		if e.Action == "apply_rolledback" {
+			if e.Detail == "timeout" {
+				saidTimeout = true
+			} else {
+				t.Errorf("apply_rolledback says %q; a window nobody touched ended on the "+
+					"timeout, and recording an operator cancellation here would put a "+
+					"person in the log who was never there", e.Detail)
+			}
+		}
+	}
+	if !saidUnfiltered {
+		t.Errorf("the audit log does not record that this host was left unfiltered, which "+
+			"is the entry an operator reads to find out what the rollback did; got %v",
+			auditActions(t, fw.cfg))
+	}
+	if !saidTimeout {
+		t.Errorf("no apply_rolledback entry with the timeout reason; got %v",
+			auditActions(t, fw.cfg))
+	}
+}
+
 // The other half, and it must keep working: a *second* apply that is not
 // confirmed still restores the previous rules rather than tearing the table
 // down. Without this, the fix above could be written as an unconditional Reset

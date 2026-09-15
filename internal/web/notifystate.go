@@ -24,7 +24,7 @@ type notifyState struct {
 }
 
 func (s *notifyState) observe(status *shared.FirewallStatus) []Notification {
-	// cachedStatus returns nil when the core cannot be reached, and nil is
+	// statusForRender returns nil when the core cannot be reached, and nil is
 	// "unknown", not a state. Forgetting what we knew here would make a core
 	// restart report a rollback that never happened.
 	if status == nil {

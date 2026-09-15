@@ -107,7 +107,7 @@ func (s *Server) handleNotifyPOST(w http.ResponseWriter, r *http.Request) {
 // button that stays silent because a trigger is off proves nothing about the
 // endpoint.
 func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.DemoMode {
+	if s.cfg.Demo() {
 		s.respondPartialError(w, r, "/notify", "notify_demo_no_send")
 		return
 	}

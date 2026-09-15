@@ -32,6 +32,10 @@ func TestObserveTurnsStatusIntoNotifications(t *testing.T) {
 		{"a rollback ended by the operator carries that reason, not the timeout wording",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t2", shared.AcceptanceRolledBack, false, "operator ended it by hand")},
 			[]string{"rolled_back"}, []string{"operator ended it by hand"}, []string{"warning"}},
+		// The `[]string{""}` is an assertion, not an omission: this row has one
+		// event, so `details` must have one element, and the element asserted is
+		// that "accepted" carries no detail. The nil rows elsewhere in this table
+		// mean "no events at all", which is a different claim.
 		{"a confirmed apply",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t2", shared.AcceptanceAccepted, false, "timeout")},
 			[]string{"accepted"}, []string{""}, []string{"info"}},

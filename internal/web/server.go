@@ -1024,9 +1024,9 @@ var auditActionTones = map[string]string{
 	// RulesStore initialises — or the acceptance window closed unconfirmed on
 	// that host's first apply and took the table down for the same reason, which
 	// is the second call site and lands an operator in the identical state.
-	// Amber, not neutral and not red — the machine is
-	// not filtering, which is a firewall state and not a staging step, but it is
-	// waiting on the operator rather than reporting a fault. Red here would put
+	// Amber, not neutral and not red — the machine is not filtering, which is a
+	// firewall state and not a staging step, but it is waiting on the operator
+	// rather than reporting a fault. Red here would put
 	// a fresh install's first audit line at the same weight as
 	// boot_enforce_failed, which is a machine that was supposed to be filtering
 	// and is not.

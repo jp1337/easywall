@@ -153,7 +153,7 @@ var notifyTick = 15 * time.Second
 func (s *Server) rebuildNotifier() {
 	kind, url := s.cfg.NotifyDestination()
 	var n *notifier
-	if !s.cfg.DemoMode && kind != "" && url != "" {
+	if !s.cfg.Demo() && kind != "" && url != "" {
 		host, _ := os.Hostname()
 		n = newNotifier(kind, url, host, shared.CurrentVersion)
 	}

@@ -84,6 +84,54 @@ key  = ""
 	return cfg
 }
 
+// The notifier's half of the claim the dispatcher test below makes for the
+// audit events, and it is NewServer's to make rather than Start's: the T5
+// review looked for the blind spot in Start() and found it narrower than
+// reported — httpSrv, events and the notifier are all built in NewServer, and
+// Start only launches goroutines over them. So the wiring is assertable with no
+// listener, the way the dispatcher test below does it.
+//
+// What would be silent without this: notifyStop left nil (Stop closes nothing
+// and runNotifier never returns), notifyBurst left nil (the first failed login
+// panics on a nil map), or onBurst never assigned (every failed login is
+// counted by nothing and no notification is ever raised). All three are single
+// lines in NewServer with no other reader.
+func TestNewServer_AlwaysWiresTheNotifier(t *testing.T) {
+	fc := newFakeCore(t)
+	for _, demo := range []bool{false, true} {
+		cfg := testConfigForNewServer(t, fc, demo)
+		s, err := NewServer(cfg)
+		if err != nil {
+			t.Fatalf("NewServer(demo=%v): %v", demo, err)
+		}
+		if s.notifyStop == nil {
+			t.Errorf("NewServer(demo=%v) left s.notifyStop nil; Stop closes nothing and "+
+				"runNotifier polls until the process ends", demo)
+		}
+		if s.notifyBurst == nil {
+			t.Errorf("NewServer(demo=%v) left s.notifyBurst nil; the first failed login "+
+				"from any address panics", demo)
+		}
+		if s.events == nil || s.events.onBurst == nil {
+			t.Errorf("NewServer(demo=%v) did not hook notifyLoginFailure onto the events "+
+				"dispatcher; failed logins are counted by nothing", demo)
+		}
+
+		// Stop closes the channel — and a second Stop must not panic on it.
+		// notifyOnce is the only thing between that and a closed-channel close,
+		// and Stop is reachable twice: a signal handler and a deferred Stop
+		// both call it.
+		s.Stop()
+		select {
+		case <-s.notifyStop:
+		default:
+			t.Errorf("NewServer(demo=%v): Stop left notifyStop open; runNotifier keeps "+
+				"polling after shutdown", demo)
+		}
+		s.Stop()
+	}
+}
+
 // The nil guard in recordLoginEvent makes a mis-wiring invisible: no panic, no
 // log line, just an audit trail that is permanently empty. The two setup lines
 // sit immediately after an `if !cfg.DemoMode` block, so the easy slip is moving
