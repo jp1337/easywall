@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Two defects found by rolling 2.20.0 onto a real host, both by reading rather than
 by an outage. Neither is reachable without opting into something: one needs a
-configuration that names `duration` and omits `enabled`, the other needs
+configuration where `enabled` is absent or explicitly false, the other needs
 `docker.published_ports = "filtered"`.
 
 ### Added
