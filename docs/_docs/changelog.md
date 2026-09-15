@@ -83,10 +83,16 @@ configuration that names `duration` and omits `enabled`, the other needs
   forwarded rule covers.** The ports are read from Docker's own DNAT rules in the
   kernel — no Docker socket, no client library, and a host whose Docker has
   stopped with its rules still loaded is named the same way. A rule that names
-  sources does not count as a cover: it renders as `ip saddr <list> … accept`, and
-  a container in another bridge is not in that list unless somebody put it there,
-  so the operator who wrote one believes the port is covered and would otherwise
-  be told nothing. Once per apply, every time, with no folding of repeats — a
+  sources does not count as a cover and is named too: what the deny closes is the
+  world *plus* every other bridge, and no source list is ever tested against that
+  whole set. Naming the other bridge networks restores the cross-bridge container
+  and is the right rule where only containers should reach a port; it does not
+  restore the world, whose packets to a `0.0.0.0`-published port are DNAT'd into
+  a bridge and meet the deny with the same shape. The remedy the line offers says
+  both, after a first draft offered only *drop the sources* and *stop filtering* —
+  an operator whose rule legitimately names two bridge networks was warned at
+  every apply and told to open the port to the world or switch the feature off.
+  Once per apply, every time, with no folding of repeats — a
   suppressed one would be silent on exactly the apply whose log an operator is
   reading, and any memory of what it said last would live in a process a restart
   replaces. IPv4 only, like the bridge detection it takes its networks from; an
@@ -152,8 +158,8 @@ configuration that names `duration` and omits `enabled`, the other needs
   carries the new one.
 - **Five documentation pages for what the rollout found.** *Docker coexistence*
   now says that a port published on a bridge gateway is reached through the
-  `forward` chain like any other, that a forwarded rule naming sources does not
-  cover one, and what the new warning prints. *Health check* gains the counter
+  `forward` chain like any other, that a forwarded rule naming sources covers
+  only the sources it lists, and what the new warning prints. *Health check* gains the counter
   technique that rollout invented: for a service whose correct response is
   silence, no reply-based probe can tell *dropped* from *ignored*, so read the
   rules' own packet counters across the attempt instead — and the container

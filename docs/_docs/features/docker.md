@@ -84,9 +84,13 @@ This is the sentence that would have saved the host 2.20.1 came from. Its
 resolver was published that way, every container lost DNS at the first apply,
 and all fifteen external probes stayed green.
 
-> **A forwarded rule that names sources does not cover it.** Sources render as
-> `ip saddr <list> … accept`, and a container in another bridge is not in that
-> list unless you put it there. It falls past the accept into the deny.
+> **A forwarded rule that names sources covers only those sources.** What the
+> deny closes is the world *plus* every other bridge. Naming the other bridge
+> networks restores the container in them, and is the right rule where only
+> containers should reach the port. It does not restore the world: a packet to a
+> `0.0.0.0`-published port is DNAT'd into a bridge and meets the deny with the
+> same shape. Such a rule is still named in the log, because no source list is
+> ever tested against that whole set.
 
 ### What the log says at each apply
 
@@ -96,14 +100,15 @@ rule covers, read from Docker's own DNAT rules in the kernel:
 ```
 53 published on 172.17.0.1 with no forwarded rule: the forward chain drops
 everything that reaches it from outside its own bridge — the world, and
-containers in another bridge. Give it a port rule with scope "forwarded" and
-no sources, or set docker.published_ports = "open"
+containers in another bridge. Give it a port rule with scope "forwarded" —
+no sources, or sources naming the other bridge networks if only containers
+should reach it — or set docker.published_ports = "open"
 ```
 
 | | |
 |---|---|
 | Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
-| A rule naming sources is not a cover | It is named anyway, deliberately — see the callout above |
+| A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
 | **IPv4 only** | The DNAT rules are read in the `ip` family, so a port published on an IPv6 Docker network is never seen |
 | **Silence is not a clearance** | No line for such a port means it was not looked at, not that a rule covers it. Check an IPv6 published port by hand |
 | IPv6 is [2.28]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
