@@ -71,6 +71,42 @@ provider firewall was doing for you.
 > acceptance window will not save you here: it proves your own connection, and
 > yours arrives on the `input` chain while your containers do not.
 
+### A port published on a bridge gateway is still a published port
+
+`-p 172.17.0.1:53:53` publishes to the bridge, not to the world, so it reads
+like a container-only service that the `forward` chain's deny cannot be about.
+It is. A container on *another* bridge reaches it DNAT'd into the first one, so
+it arrives with its destination inside that bridge and its source outside it.
+That is the shape of a packet from the internet, because by then it is one. Such
+a port needs a **forwarded** rule like any other published port.
+
+This is the sentence that would have saved the host 2.20.1 came from. Its
+resolver was published that way, every container lost DNS at the first apply,
+and all fifteen external probes stayed green.
+
+> **A forwarded rule that names sources does not cover it.** Sources render as
+> `ip saddr <list> … accept`, and a container in another bridge is not in that
+> list unless you put it there. It falls past the accept into the deny.
+
+### What the log says at each apply
+
+Since 2.20.1 an apply under `filtered` names every published port no forwarded
+rule covers, read from Docker's own DNAT rules in the kernel:
+
+```
+53 published on 172.17.0.1 with no forwarded rule: the forward chain drops
+everything that reaches it from outside its own bridge — the world, and
+containers in another bridge. Give it a port rule with scope "forwarded" and
+no sources, or set docker.published_ports = "open"
+```
+
+| | |
+|---|---|
+| Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
+| A rule naming sources is not a cover | It is named anyway, deliberately — see the callout above |
+| **IPv4 only** | The DNAT rules are read in the `ip` family. A published port on an IPv6 Docker network is neither detected nor named; that gap belongs to [2.28]({{ '/docs/roadmap/' | relative_url }}), with the bridge detection it comes from |
+| No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
+
 | Also worth knowing | |
 |---|---|
 | Nothing in the interface sets this key | Edited in `easywall.toml` only. A press that could take every container off the network, with an acceptance window blind to it, is not a control |
@@ -103,3 +139,7 @@ sudo nft list table inet easywall
 # Docker's — should be untouched
 sudo nft list tables | grep -i docker
 ```
+
+For a published port that answers nothing — a resolver, a syslog receiver — no
+reply-based probe can tell *dropped* from *silent*. Read the packet counters
+instead: [proving a port that answers nothing]({{ '/docs/features/health/' | relative_url }}#proving-a-port-that-answers-nothing).

@@ -75,10 +75,15 @@ The two-step activation safety mechanism. When a ruleset is applied, the core wa
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `true` | Enable two-step activation safety |
+| `enabled` | bool | `false` when absent | Two-step activation safety. The installed `easywall.toml` sets `true` |
 | `duration` | int | `120` | Seconds before auto-rollback if not confirmed — 10 to 3600 |
 
 Set `duration` to a value long enough for you to verify connectivity from a second terminal after applying rules.
+
+> **Absent is off, and it is the one value here that is not clamped or refused.**
+> A file naming only `duration` configures the length of a window that never
+> opens. Since 2.20.1 the daemon warns at every start when the key is off —
+> *applies take effect immediately and nothing will undo them*.
 
 The range is enforced, not merely suggested. Below ten seconds the window closes before
 the confirmation page can be read, so every apply rolls back and the firewall can no
