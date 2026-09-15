@@ -295,10 +295,13 @@ var capSysAdminAvailable = probeCapSysAdmin
 // host where the capability might well be there would send an operator
 // looking for a permission that was never the problem; "never recorded" only
 // costs them the one already-open question of whether anybody has run it.
-// The read's error is discarded rather than branched on: an unreadable file
-// leaves no CapEff line to find, which is already the parse's fail-open case
-// below. One place to get the direction wrong instead of two, and the one a
-// test can reach.
+// The read's error is discarded rather than branched on: a file that cannot
+// be opened yields no bytes and so no CapEff line, which is already the
+// parse's fail-open case below. One place to get the direction wrong instead
+// of two, and the one a test can reach. The one divergence from branching on
+// the error is a read that fails partway with the boundary inside CapEff's
+// own digits, which would fail closed; /proc/self/status is generated whole
+// on read and that is not a state it reaches.
 func probeCapSysAdmin() bool {
 	data, _ := os.ReadFile("/proc/self/status")
 	return capEffHasSysAdmin(data)
