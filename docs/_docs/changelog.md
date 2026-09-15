@@ -85,7 +85,10 @@ configuration where `enabled` is absent or explicitly false, the other needs
   stopped with its rules still loaded is named the same way. A rule that names
   sources does not count as a cover and is named too: what the deny closes is the
   world *plus* every other bridge, and no source list is ever tested against that
-  whole set. Naming the other bridge networks restores the cross-bridge container
+  whole set. A remapped publish names both numbers — `-p 8080:80` reads as *8080
+  published on 0.0.0.0 reaches the container on 80*, because the forward chain
+  runs after Docker's DNAT and the rule that covers it must name 80, not 8080.
+  Naming the other bridge networks restores the cross-bridge container
   and is the right rule where only containers should reach a port; it does not
   restore the world, whose packets to a `0.0.0.0`-published port are DNAT'd into
   a bridge and meet the deny with the same shape. The remedy the line offers says
@@ -96,12 +99,15 @@ configuration where `enabled` is absent or explicitly false, the other needs
   reading, and any memory of what it said last would live in a process a restart
   replaces. IPv4 only, like the bridge detection it takes its networks from; an
   IPv6 published port is neither detected nor named, which is 2.28's to close.
-- **`acceptance_enabled` in the status reply.** `acceptance: idle` is two states
+- **`acceptance_enabled` in the status reply, and a line in `easywall-core status`.** `acceptance: idle` is two states
   in one word — no window open at this moment, and no window that will ever open —
   and a script polled it ten times and reported a true statement about a cause it
   could not see. It is read from the same configuration the apply path reads, so
   the two cannot disagree, and the demo mock follows its own `[acceptance]`
-  section rather than advertising a window it will not open.
+  section rather than advertising a window it will not open. `easywall-core
+  status` prints it as its own continuation line under `acceptance:`, so a
+  check matching that line exactly keeps working and a check reading the whole
+  output can finally tell the two states apart.
 
 ### Fixed
 
