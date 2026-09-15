@@ -14,8 +14,10 @@ easywall (2.20.1) unstable; urgency=medium
   * Fix: a Docker container could publish a port that no rule covered, and
     nothing said so. Every apply now names each published port with no matching
     rule, decoded from Docker's own DNAT rules over netlink and filtered to
-    targets inside the bridges it detects. A forwarded rule that names sources
-    does not silence the warning for a container outside them.
+    targets inside the bridges it detects. It names the port the forward chain
+    will see: a remapped publish is DNAT'd before that chain, so `-p 8080:80`
+    needs a rule for 80 and the line says both numbers. A forwarded rule that
+    names sources does not silence the warning for a container outside them.
   * Docs: how a service published on a bridge gateway is reached, why it needs
     a forwarded rule of its own, and how to prove a silent UDP service is
     reachable by reading the packet counters rather than waiting for a reply.
