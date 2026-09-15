@@ -72,6 +72,7 @@ $ easywall-core status
 firewall:   enforcing
 acceptance: idle
             no window is configured: an apply is final and nothing will undo it
+last apply: 2026-08-16T09:12:03Z
 ```
 
 When the daemon cannot be reached at all — crashed, or not started yet —
