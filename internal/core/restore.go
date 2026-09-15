@@ -93,8 +93,9 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// So the machine is left exactly as it was one second before easywall was
 	// installed, and filtering starts at the first deliberate apply — which has
 	// the acceptance window to undo it, where one is configured.
-	// applyFirstRunChoices already reasons this way in as many words: rules are staged, never applied, because "the first
-	// run is the worst moment to make an exception".
+	// applyFirstRunChoices already reasons this way in as many words: rules
+	// are staged, never applied, because "the first run is the worst moment
+	// to make an exception".
 	if !f.everConfigured(state) {
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_not_configured", "all", reason, "core")
 		// The first half is true either way; the undo is only promised where
