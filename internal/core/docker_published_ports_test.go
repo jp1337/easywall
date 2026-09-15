@@ -69,7 +69,7 @@ func TestAPublishedPortWithNoForwardedRuleIsNamed(t *testing.T) {
 				Scope: shared.ScopeForwarded},
 		}},
 		[]string{"172.17.0.0/16", "172.18.0.0/16"},
-		[]publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}})
+		[]publishedPort{{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}})
 
 	const want = "53 published on 172.17.0.1 with no forwarded rule"
 	for _, line := range lines {
@@ -97,6 +97,27 @@ func TestAPublishedPortWithNoForwardedRuleIsNamed(t *testing.T) {
 		"  want a line containing: %q\n  got: %q", want, lines)
 }
 
+// `-p 8080:80`, uncovered. The line has to carry both numbers: the published one
+// so the operator recognises the service, and the container one because that is
+// the only number a forwarded rule can be written for — the accepts render in
+// the forward chain, which runs after Docker's DNAT. A remedy naming 8080 there
+// matches nothing, and the port stays dropped with the warning repeating.
+func TestARemappedPublishNamesBothPortsAndAsksForTheContainerOne(t *testing.T) {
+	lines := applyWithPublishedPorts(t, shared.Rules{},
+		[]string{"172.18.0.0/16"},
+		[]publishedPort{{addr: "0.0.0.0", port: 8080, containerPort: 80, proto: "tcp"}})
+
+	const want = "8080 published on 0.0.0.0 reaches the container on 80: " +
+		"no forwarded rule for 80"
+	for _, line := range lines {
+		if strings.Contains(line, want) {
+			return
+		}
+	}
+	t.Fatalf("the remapped publish was not named with both of its ports.\n"+
+		"  want a line containing: %q\n  got: %q", want, lines)
+}
+
 // The other half, and the one a mutation lands on: a published port that *has*
 // a forwarded rule is working as configured, and a warning about it would be
 // the line an operator learns to ignore. Ranges count — the ports editor writes
@@ -108,11 +129,17 @@ func TestAPublishedPortWithARuleIsNotNamed(t *testing.T) {
 		port publishedPort
 	}{
 		{"exact", shared.PortRule{Port: "53", Scope: shared.ScopeForwarded},
-			publishedPort{addr: "172.17.0.1", port: 53, proto: "udp"}},
+			publishedPort{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}},
 		{"a range", shared.PortRule{Port: "8000:9000", Scope: shared.ScopeForwarded},
-			publishedPort{addr: "0.0.0.0", port: 8080, proto: "tcp"}},
+			publishedPort{addr: "0.0.0.0", port: 8080, containerPort: 8080, proto: "tcp"}},
 		{"scope both", shared.PortRule{Port: "53", Scope: shared.ScopeBoth},
-			publishedPort{addr: "172.17.0.1", port: 53, proto: "udp"}},
+			publishedPort{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}},
+		// `-p 8080:80`. The forward chain sees 80, so 80 is the rule that
+		// covers it — and comparing the published number instead warns an
+		// operator who has done exactly the right thing, at every apply.
+		{"a remapped publish, covered by the container port",
+			shared.PortRule{Port: "80", Scope: shared.ScopeForwarded},
+			publishedPort{addr: "0.0.0.0", port: 8080, containerPort: 80, proto: "tcp"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rules := shared.Rules{TCP: []shared.PortRule{tc.rule}}
@@ -121,7 +148,7 @@ func TestAPublishedPortWithARuleIsNotNamed(t *testing.T) {
 			}
 			for _, line := range applyWithPublishedPorts(t, rules,
 				[]string{"172.17.0.0/16", "172.18.0.0/16"}, []publishedPort{tc.port}) {
-				if strings.Contains(line, "with no forwarded rule") {
+				if strings.Contains(line, "no forwarded rule") {
 					t.Fatalf("a published port that is open was reported as closed: %q", line)
 				}
 			}
@@ -144,7 +171,7 @@ func TestARuleInTheWrongChainOrProtocolStillLeavesThePortNamed(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			lines := applyWithPublishedPorts(t, tc.rules, []string{"172.17.0.0/16"},
-				[]publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}})
+				[]publishedPort{{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}})
 			for _, line := range lines {
 				if strings.Contains(line, "53 published on 172.17.0.1") {
 					return
@@ -168,7 +195,7 @@ func TestARuleThatNamesSourcesDoesNotSilenceTheWarning(t *testing.T) {
 			Port: "53", Scope: shared.ScopeForwarded, Sources: []string{"10.0.0.0/8"},
 		}}},
 		[]string{"172.17.0.0/16", "172.18.0.0/16"},
-		[]publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}})
+		[]publishedPort{{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}})
 
 	for _, line := range lines {
 		if strings.Contains(line, "53 published on 172.17.0.1") {
@@ -191,7 +218,7 @@ func TestNothingIsNamedWhileFilteringIsOff(t *testing.T) {
 
 	prevDetect := detectPublishedPortsFn
 	detectPublishedPortsFn = func([]string, int) []publishedPort {
-		return []publishedPort{{addr: "172.17.0.1", port: 53, proto: "udp"}}
+		return []publishedPort{{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}}
 	}
 	t.Cleanup(func() { detectPublishedPortsFn = prevDetect })
 
@@ -199,7 +226,7 @@ func TestNothingIsNamedWhileFilteringIsOff(t *testing.T) {
 		shared.Rules{}, []string{"172.17.0.0/16"})
 
 	for _, line := range lines {
-		if strings.Contains(line, "with no forwarded rule") {
+		if strings.Contains(line, "no forwarded rule") {
 			t.Fatalf("published_ports = \"open\" drops nothing, and the daemon "+
 				"warned about a port it is not closing: %q", line)
 		}

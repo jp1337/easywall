@@ -2249,17 +2249,31 @@ func (m *NftablesManager) warnUnruledPublishedPorts(rules shared.Rules, cidrs []
 		if forwardedRuleCovers(rules, p) {
 			continue
 		}
-		slog.Warn(fmt.Sprintf("%d published on %s with no forwarded rule: the forward "+
+		// Both numbers when Docker remapped them, because the rule the rest of
+		// this line asks for has to name the container's. A remedy naming the
+		// published port would match nothing in the forward chain, the port
+		// would stay dropped, and the warning would repeat at every apply.
+		named := fmt.Sprintf("%d published on %s with no forwarded rule", p.port, p.addr)
+		if p.containerPort != p.port {
+			named = fmt.Sprintf("%d published on %s reaches the container on %d: "+
+				"no forwarded rule for %d", p.port, p.addr, p.containerPort, p.containerPort)
+		}
+		slog.Warn(named+": the forward "+
 			"chain drops everything that reaches it from outside its own bridge — the "+
 			"world, and containers in another bridge. Give it a port rule with scope "+
 			"\"forwarded\" — no sources, or sources naming the other bridge networks if "+
 			"only containers should reach it — or set docker.published_ports = \"open\"",
-			p.port, p.addr), "protocol", p.proto)
+			"protocol", p.proto)
 	}
 }
 
 // forwardedRuleCovers reports whether a forwarded port rule already opens this
 // published port to everything that can reach it.
+//
+// The number it compares is the *container* port, not the published one. The
+// accepts it is looking for render in the forward chain, which runs after
+// Docker's DNAT — models.go:17 and the deny below both say so — so `-p 8080:80`
+// is covered by a rule for 80 and never by one for 8080.
 //
 // A rule that names sources does not. portAcceptRules renders it as
 // `ip saddr <sources> … accept`, so a container in another bridge — which is
@@ -2292,7 +2306,7 @@ func forwardedRuleCovers(rules shared.Rules, p publishedPort) bool {
 	for _, list := range lists {
 		for _, r := range list {
 			if r.FiltersForwarded() && len(r.Sources) == 0 &&
-				shared.PortInRule(r.Port, p.port) {
+				shared.PortInRule(r.Port, p.containerPort) {
 				return true
 			}
 		}

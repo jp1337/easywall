@@ -105,6 +105,18 @@ no sources, or sources naming the other bridge networks if only containers
 should reach it — or set docker.published_ports = "open"
 ```
 
+A publish that remaps the port — `-p 8080:80` — names both numbers, because the
+rule has to name the second one. The forward chain runs after Docker's DNAT, so
+the packet arrives there carrying `80`, and a rule for `8080` matches nothing:
+
+```
+8080 published on 0.0.0.0 reaches the container on 80: no forwarded rule for
+80: the forward chain drops everything that reaches it from outside its own
+bridge — the world, and containers in another bridge. Give it a port rule with
+scope "forwarded" — no sources, or sources naming the other bridge networks if
+only containers should reach it — or set docker.published_ports = "open"
+```
+
 | | |
 |---|---|
 | Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
