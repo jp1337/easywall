@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.20.0">2.20.0</a>
   <a href="#2.19.0">2.19.0</a>
   <a href="#2.18.0">2.18.0</a>
   <a href="#2.17.0">2.17.0</a>
@@ -67,7 +68,119 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.19.0" markdown="1">
+<details open id="2.20.0" markdown="1">
+<summary><strong>2.20.0</strong> · 2026-09-15 — When something happens, you hear about it</summary>
+
+A rollback at three in the morning was something you found out about by opening
+the dashboard. easywall now posts to a webhook or an ntfy topic when the firewall
+moves, and the core still never opens a connection outward.
+
+### Added
+
+- **Notifications, its own page in the interface.** One destination — a webhook
+  or an ntfy topic — and four triggers, each settable on its own and every one of
+  them off until switched on. The address is refused unless it starts with
+  `http://` or `https://`, and it lives in `web.toml` at `0600` beside
+  `session_key`, because an ntfy topic is readable by anyone who knows it.
+- **Six flat keys in `web.toml`**: `notify_kind`, `notify_url` and the four
+  `notify_on_*` switches. Not a `[notifications]` table — `mergeConfig`, the
+  in-place editor that preserves that file's three kilobytes of comments, skips
+  every table wholesale, so a table the interface must write is a table its only
+  writer cannot reach. `managedKeys`, `managedValues` and `sameManagedValues`
+  grew together: a key added to the first two and forgotten in the third leaves
+  the decode-and-verify guard passing without ever looking at the new value.
+- **A *Send a test* button.** An operator has to be able to prove a notification
+  arrives without waiting for a real rollback to produce one. The page also shows
+  when easywall last sent something, or what went wrong the last time it tried —
+  a notification that fails silently is worse than none, because it is believed.
+- **A failed-login threshold at the rate limiter's own ceiling.** Five failures
+  from one address inside five minutes, then that address is quiet for fifteen
+  minutes. The core's existing burst folding is about the *record*; this one is
+  about the phone, and the second hour of one attack is not news. The address
+  table is bounded at 1024 and evicts dead buckets at the ceiling rather than
+  going blind.
+- **A guard over the outbound-request list.**
+  `TestBothPagesCountTheSameOutboundRequests` compares the sentence "*N*, and
+  this is the whole list." on `security.md` and `configuration.md` — and the
+  table under each — against the files under `internal/` and `cmd/` that reach
+  out. The count lived in prose on two pages and in code on a third, bound by
+  nothing: `configuration.md` was updated with the notification keys, because
+  `TestEveryConfigKeyIsDocumented` reads that page and no other, and
+  `security.md` went on saying **Two** above a two-row table. The table is
+  checked separately from the number, because a correct count above a table
+  missing a row is what had shipped.
+
+### Changed
+
+- **The mechanism is not the one the roadmap named, and the roadmap says so.**
+  The 2.20 entry promised that "the web process polls the audit log and sends the
+  notification". `GET_LOG` returns the last 200 entries with no cursor, audit
+  timestamps have second granularity and no sequence number, and the web process
+  never opens that `0600` file anyway. A record read as a queue cannot say which
+  of two entries in one second it has already sent. The notifier reads
+  `GET_STATUS` every 15 seconds instead — one socket round trip on this host per
+  tick, nothing to the network — and raises its own failed-login events. The
+  status cache is 2 seconds and the tick is 15, so a claim in the spec that this
+  "adds no socket traffic of its own" was wrong and had reached the published
+  page before a review did the arithmetic. `accepted` and
+  `rolled_back` are terminal states that persist, so nothing races the
+  120-second window.
+- **Redirects are refused, and nothing is queued.** A destination that answers
+  with a redirect is never followed: whoever controls its DNS could otherwise
+  point your notifications at somebody else. A delivery that fails is tried once
+  more and then dropped, with a `WARN` in the journal. The audit log is the
+  record; a notification is a convenience, and the documentation says so rather
+  than leaving it to be discovered as a defect.
+- **The public demo sends nothing**, whatever is configured, and says so before
+  the test button is pressed.
+
+### Fixed
+
+- **The outbound-request list has been missing ACME since 2.18.** Both pages
+  said **two**. `autocert` fetches a certificate from the ACME directory on
+  first need and renews it on its own schedule, carrying the one name in
+  `tls.hostname`, an account key generated on the host, and `tls.acme_email`
+  where one is set. `security.md`'s ACME section described only the inbound
+  half — the authority connecting to port 80 to read a token back — and the
+  outbound half was on neither page. It is now a fourth row on both, and the
+  sentence under it no longer claims all four fail harmlessly on a host with no
+  route out: three do, and the certificate is what serves every page. Found by
+  the guard above on its first run, and fixed here rather than carried, because
+  this release's carried-forward list ends empty.
+- **Four controls showed focus with an outline and nothing else.** The checkbox,
+  the toggle, the radio and the rule editors' textareas drew a focus ring over an
+  unchanged control. `DESIGN.md` § Forms has required *a border change plus an
+  outline* since it was written, and its 2026-09-08 amendment measured why: a
+  ring alone composited to 1.31–1.34:1 against the surface it lands on, while
+  every control whose border moved already cleared 3:1. The outline is what the
+  eye finds; the border is what survives when the outline lands on a surface it
+  cannot separate from. The checkbox and the radio now move their border colour
+  on focus. The toggle and the textareas have no border to move — one is a pill
+  drawn as a background, the other is framed by the card around it — so both take
+  an inset ring at the control's own edge, which is the same mark and shifts no
+  layout. Pre-existing on `main` and proven so against the pre-branch base; fixed
+  here rather than carried, because this release's carried-forward list ends
+  empty.
+- **An unconfirmed first apply locked the host out.** On a fresh installation the
+  first-run wizard *stages* rules and never applies them, so the state captured
+  before the first apply is empty. When the acceptance window closed unconfirmed,
+  `rollback` enforced that empty set at policy drop instead of leaving the
+  machine not filtering — closing every port including SSH and the interface.
+  `everConfigured` existed and said exactly this in its own words, and had one
+  non-test call site: the boot path. The daemon refused to enforce an empty set
+  at boot and enforced one on rollback, in the same process, for the same reason
+  not to. The rollback now tears the table down and the audit entry says the
+  machine is not filtering, in the same words the boot path uses. An operator who
+  deliberately applied an empty set keeps enforcing it — that installation has a
+  last-apply marker. Proven against a real kernel through both entrances to
+  `rollback`, the cancelled window and the expired one, rather than against a
+  mock that would assert the call we chose to make.
+
+[See the code changes between 2.19.0 and 2.20.0](https://github.com/jp1337/easywall/compare/v2.19.0...v2.20.0)
+
+</details>
+
+<details id="2.19.0" markdown="1">
 <summary><strong>2.19.0</strong> · 2026-09-12 — What it passes on, it also filters</summary>
 
 A published container port is routed to the container, not addressed to the

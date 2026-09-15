@@ -37,7 +37,7 @@ type Config struct {
 
 	// fileConfig is the parsed file as it stood before the environment overlay.
 	// encode() renders this rather than the live struct, so a variable set for
-	// the process cannot become content of the operator's file. Only the six
+	// the process cannot become content of the operator's file. Only the twelve
 	// managedKeys are taken from the live struct — those are the keys the
 	// interface deliberately maintains.
 	fileConfig shared.WebConfig
@@ -609,6 +609,88 @@ func (c *Config) SaveFirstRun(a FirstRunAccount) error {
 	return nil
 }
 
+// SaveNotifications stores the notification settings and writes web.toml.
+//
+// Rolled back on a failed write like every other Save* here, and for a sharper
+// reason than most: the caller rebuilds the live notifier from these fields the
+// moment this returns. Left in place after a failed write, the process would be
+// posting to a URL that is not in the file — and the next restart would read
+// the old one back and quietly start posting somewhere else.
+func (c *Config) SaveNotifications(kind, url string, rolledBack, accepted, panicMode, failedLogins bool) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prev, prevFile := c.WebConfig, c.fileConfig
+	c.NotifyKind, c.NotifyURL = kind, url
+	c.NotifyOnRolledBack, c.NotifyOnAccepted = rolledBack, accepted
+	c.NotifyOnPanic, c.NotifyOnFailedLogins = panicMode, failedLogins
+	c.fileConfig.NotifyKind, c.fileConfig.NotifyURL = kind, url
+	c.fileConfig.NotifyOnRolledBack, c.fileConfig.NotifyOnAccepted = rolledBack, accepted
+	c.fileConfig.NotifyOnPanic, c.fileConfig.NotifyOnFailedLogins = panicMode, failedLogins
+	if err := c.saveLocked(); err != nil {
+		c.restoreNotifications(prev, prevFile)
+		return err
+	}
+	return nil
+}
+
+// NotifyDestination returns the kind and URL the notifier posts to.
+//
+// Under the lock, like every other accessor here, and for a new reason: from
+// 2.20 these fields are read by a goroutine that is not serving a request —
+// runNotifier — while the settings page writes them from one that is.
+func (c *Config) NotifyDestination() (string, string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.NotifyKind, c.NotifyURL
+}
+
+// Demo reports whether this process runs against the in-memory mock.
+//
+// Under the lock like every other accessor here, though nothing writes the
+// field after load — shared/env.go's overlay is the only writer and it runs
+// before the server exists. It exists so the runtime readers, which sit beside
+// NotifyDestination and NotifyEnabled in functions whose stated rule is *use the
+// accessors*, do not have to be the one bare field access in the paragraph.
+// Validate and NewServer still read it directly: both run before there is a
+// second goroutine.
+func (c *Config) Demo() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.DemoMode
+}
+
+// NotifyEnabled reports whether the operator asked to hear about this event.
+// An unknown event is not a switch anyone can have turned on, so it is off.
+func (c *Config) NotifyEnabled(event string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	switch event {
+	case "rolled_back":
+		return c.NotifyOnRolledBack
+	case "accepted":
+		return c.NotifyOnAccepted
+	case "panic":
+		return c.NotifyOnPanic
+	case "failed_logins":
+		return c.NotifyOnFailedLogins
+	}
+	return false
+}
+
+// restoreNotifications puts the six notification fields back as they were,
+// touching nothing else in either struct: a concurrent SaveTelemetry cannot
+// have run — c.mu is held — but a wholesale `c.WebConfig = prev` would still
+// undo whatever else changed between the snapshot and here if this function
+// ever grows. Six fields, named, is the assignment that stays correct.
+func (c *Config) restoreNotifications(prev, prevFile shared.WebConfig) {
+	c.NotifyKind, c.NotifyURL = prev.NotifyKind, prev.NotifyURL
+	c.NotifyOnRolledBack, c.NotifyOnAccepted = prev.NotifyOnRolledBack, prev.NotifyOnAccepted
+	c.NotifyOnPanic, c.NotifyOnFailedLogins = prev.NotifyOnPanic, prev.NotifyOnFailedLogins
+	c.fileConfig.NotifyKind, c.fileConfig.NotifyURL = prevFile.NotifyKind, prevFile.NotifyURL
+	c.fileConfig.NotifyOnRolledBack, c.fileConfig.NotifyOnAccepted = prevFile.NotifyOnRolledBack, prevFile.NotifyOnAccepted
+	c.fileConfig.NotifyOnPanic, c.fileConfig.NotifyOnFailedLogins = prevFile.NotifyOnPanic, prevFile.NotifyOnFailedLogins
+}
+
 // saveLocked persists the configuration. c.mu must be held for writing, so the
 // file write cannot reorder against the field update.
 //
@@ -677,11 +759,19 @@ const configHeader = `# easywall web configuration
 
 // managedKeys are the only keys easywall ever writes. Everything else in
 // web.toml is read and never touched, so an edit in place has to reach these
-// six and no others.
+// twelve and no others.
 //
 // Ordered as config/web.toml orders them, so a key that has to be appended
 // lands somewhere a reader expects it.
-var managedKeys = []string{"session_key", "username", "password", "telemetry", "totp_secret", "recovery_codes"}
+//
+// keyLineRe below lists the same names; the two are read together, and adding
+// a key to one without the other means the file gets a second copy appended
+// rather than the one it has rewritten.
+var managedKeys = []string{
+	"session_key", "username", "password", "telemetry", "totp_secret", "recovery_codes",
+	"notify_kind", "notify_url", "notify_on_rolled_back", "notify_on_accepted",
+	"notify_on_panic", "notify_on_failed_logins",
+}
 
 // encode renders the whole configuration as TOML, comments and all discarded.
 // The fallback path — see mergeConfig for when it is taken. c.mu must be held.
@@ -692,8 +782,8 @@ var managedKeys = []string{"session_key", "username", "password", "telemetry", "
 // nothing to redact from a value whose destination is the file it came from.
 func (c *Config) encode() ([]byte, error) {
 	out := c.fileConfig
-	// Five of the six keys the interface owns come from the live struct;
-	// everything else — including telemetry, the sixth — is left as fileConfig
+	// Eleven of the twelve keys the interface owns come from the live struct;
+	// everything else — including telemetry, the twelfth — is left as fileConfig
 	// already has it. See the note on fileConfig for the general rule, and
 	// mergeSource for why telemetry is the one exception to it.
 	out.SessionKey = c.SessionKey
@@ -703,6 +793,12 @@ func (c *Config) encode() ([]byte, error) {
 	// a RecoveryCodes() method: c.TOTPSecret is the method value, not the field.
 	out.TOTPSecret = c.WebConfig.TOTPSecret
 	out.RecoveryCodes = c.WebConfig.RecoveryCodes
+	out.NotifyKind = c.NotifyKind
+	out.NotifyURL = c.NotifyURL
+	out.NotifyOnRolledBack = c.NotifyOnRolledBack
+	out.NotifyOnAccepted = c.NotifyOnAccepted
+	out.NotifyOnPanic = c.NotifyOnPanic
+	out.NotifyOnFailedLogins = c.NotifyOnFailedLogins
 
 	buf := bytes.NewBufferString(configHeader)
 	if err := toml.NewEncoder(buf).Encode(out); err != nil {
@@ -728,7 +824,7 @@ func (c *Config) mergeSource() shared.WebConfig {
 	return out
 }
 
-// render produces the bytes to write: the existing file with the six managed
+// render produces the bytes to write: the existing file with the twelve managed
 // values replaced, or a fresh encoding when that cannot be done safely.
 //
 // The file the package installs is three kilobytes of comments explaining what
@@ -763,6 +859,10 @@ func tomlValue(v interface{}) (string, bool) {
 			return removeLine, true // unset: the file must stop stating this key
 		}
 		return strconv.FormatBool(*t), true
+	case bool:
+		// Distinct from *bool above: there, unset and false are different
+		// answers (telemetry consent). Here off is off.
+		return strconv.FormatBool(t), true
 	case []string:
 		// Always rendered, including as [], because clearing the second factor
 		// has to remove the previous codes rather than leave them in the file.
@@ -787,6 +887,13 @@ func managedValues(cfg shared.WebConfig) map[string]string {
 		"telemetry":      cfg.Telemetry,
 		"totp_secret":    cfg.TOTPSecret,
 		"recovery_codes": cfg.RecoveryCodes,
+
+		"notify_kind":             cfg.NotifyKind,
+		"notify_url":              cfg.NotifyURL,
+		"notify_on_rolled_back":   cfg.NotifyOnRolledBack,
+		"notify_on_accepted":      cfg.NotifyOnAccepted,
+		"notify_on_panic":         cfg.NotifyOnPanic,
+		"notify_on_failed_logins": cfg.NotifyOnFailedLogins,
 	} {
 		if rendered, ok := tomlValue(v); ok {
 			out[key] = rendered
@@ -833,7 +940,8 @@ func countSpacesBefore(s string, i int) int {
 
 // keyLineRe matches an assignment to one of the managed keys, capturing the
 // indentation, the key, the spacing around "=" and anything trailing.
-var keyLineRe = regexp.MustCompile(`^(\s*)(session_key|username|password|telemetry|totp_secret|recovery_codes)(\s*=\s*)(.*)$`)
+var keyLineRe = regexp.MustCompile(`^(\s*)(session_key|username|password|telemetry|totp_secret|recovery_codes|` +
+	`notify_kind|notify_url|notify_on_rolled_back|notify_on_accepted|notify_on_panic|notify_on_failed_logins)(\s*=\s*)(.*)$`)
 
 // mergeConfig replaces the managed values inside the existing file text,
 // keeping every comment, blank line and alignment around them. It reports false
@@ -951,6 +1059,15 @@ func sameManagedValues(a, b shared.WebConfig) bool {
 		if a.RecoveryCodes[i] != b.RecoveryCodes[i] {
 			return false
 		}
+	}
+	if a.NotifyKind != b.NotifyKind || a.NotifyURL != b.NotifyURL {
+		return false
+	}
+	if a.NotifyOnRolledBack != b.NotifyOnRolledBack ||
+		a.NotifyOnAccepted != b.NotifyOnAccepted ||
+		a.NotifyOnPanic != b.NotifyOnPanic ||
+		a.NotifyOnFailedLogins != b.NotifyOnFailedLogins {
+		return false
 	}
 	switch {
 	case a.Telemetry == nil && b.Telemetry == nil:

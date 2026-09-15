@@ -16,7 +16,7 @@ timezone: Europe/Berlin
 # Shown as the badge in the sidebar. Must match shared.CurrentVersion in
 # internal/shared/version.go — TestDocsVersionMatchesRelease enforces that.
 # It was hardcoded in the layout as "v2.4" and drifted a patch release behind.
-version: "2.19.0"
+version: "2.20.0"
 
 tagline: "Your firewall. Your rules. No surprises."
 logo: /assets/img/icon.svg
@@ -147,6 +147,8 @@ nav:
         path: /docs/features/two-factor/
       - title: Audit Log
         path: /docs/features/audit-log/
+      - title: Notifications
+        path: /docs/features/notifications/
       - title: Export & Import
         path: /docs/features/export-import/
       - title: Health Check

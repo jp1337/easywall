@@ -162,6 +162,33 @@ type Server struct {
 	eventsStop chan struct{}
 	eventsOnce sync.Once
 
+	// notify posts to the operator's webhook or ntfy topic. nil when no kind is
+	// configured and in demo mode — the public demo makes no outbound request.
+	//
+	// Guarded by notifyMu, and never read directly: rebuildNotifier writes it on
+	// a request goroutine (the settings page saves, then rebuilds) while
+	// runNotifier and the login tap read it on theirs. Use currentNotifier().
+	notifyMu   sync.RWMutex
+	notify     *notifier
+	notifyStop chan struct{}
+	notifyOnce sync.Once
+	// notifySeen, not notifyState: a field with the same name as its type
+	// compiles but reads badly at every use site. Touched only by runNotifier's
+	// goroutine, so it needs no lock of its own.
+	notifySeen  notifyState
+	notifyBurst *loginBurst
+	// notifyLast records the outcome of the most recent delivery, for the page
+	// to show. A notification that fails silently is worse than none.
+	//
+	// In memory, so it resets on restart — this answers spec § 10.3. A file in
+	// data_dir would survive, and would then show an operator a delivery that
+	// happened under a configuration that may no longer exist. What the line is
+	// for is "is my endpoint working right now", and a process that has just
+	// started has not tried yet and should say so.
+	notifyLastMu  sync.Mutex
+	notifyLastAt  time.Time
+	notifyLastErr string
+
 	// statusMu, statusCached and statusAt hold one GET_STATUS for a moment, so
 	// the panic banner and the acceptance chip — which every authenticated
 	// render draws — do not each pay a socket round trip.
@@ -185,7 +212,11 @@ type Server struct {
 // chip. Two seconds, matching the apply page's own poll interval: the chip ticks
 // locally between polls and takes the server's number as the correction, so a
 // number up to two seconds stale is corrected before it can drift further.
-const statusTTL = 2 * time.Second
+//
+// A var, not a const: a test driving the notifier through statusForRender()
+// would otherwise wait two seconds per transition, and this cache exists for
+// render latency rather than as a contract anything depends on.
+var statusTTL = 2 * time.Second
 
 // statusForRender returns the status for the banner and the chip, from cache
 // when it is fresh. nil when the core could not be reached — render treats that
@@ -288,6 +319,11 @@ func NewServer(cfg *Config) (*Server, error) {
 	s.events = newAuditEvents(client, cfg.DemoMode)
 	s.eventsStop = make(chan struct{})
 
+	s.notifyBurst = newLoginBurst()
+	s.events.onBurst = s.notifyLoginFailure
+	s.rebuildNotifier()
+	s.notifyStop = make(chan struct{})
+
 	// Non-fatal here so tests can build a Server without the asset tree; Start()
 	// refuses to serve without it.
 	tmpl, err := loadTemplates(cfg.TemplatesDir())
@@ -389,6 +425,7 @@ func (s *Server) Start() error {
 		go s.telemetry.Run(s.telemetryStop)
 	}
 	go s.events.run(s.eventsStop)
+	go s.runNotifier(s.notifyStop)
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
 	if err := s.httpSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTPS server: %w", err)
@@ -417,6 +454,13 @@ func (s *Server) Stop() {
 	// returns, so nothing more is enqueued after this point.
 	if s.eventsStop != nil {
 		s.eventsOnce.Do(func() { close(s.eventsStop) })
+	}
+
+	// After Shutdown for the same reason as eventsStop above: a rollback that
+	// happens while the grace period is running is exactly the event an
+	// operator wants, and stopping the poller first would drop it.
+	if s.notifyStop != nil {
+		s.notifyOnce.Do(func() { close(s.notifyStop) })
 	}
 }
 
@@ -559,6 +603,10 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
 		r.Post("/system/telemetry", s.handleTelemetryPOST)
+
+		r.Get("/notify", s.handleNotifyGET)
+		r.Post("/notify", s.handleNotifyPOST)
+		r.Post("/notify/test", s.handleNotifyTest)
 
 		r.Get("/log", s.handleLog)
 		r.Get("/log/filter", s.handleLogFilter)
@@ -973,9 +1021,12 @@ var auditActionTones = map[string]string{
 
 	// boot_not_configured: the daemon started on a host where nothing has ever
 	// been applied, and left it alone rather than enforcing the empty rule set
-	// RulesStore initialises. Amber, not neutral and not red — the machine is
-	// not filtering, which is a firewall state and not a staging step, but it is
-	// waiting on the operator rather than reporting a fault. Red here would put
+	// RulesStore initialises — or the acceptance window closed unconfirmed on
+	// that host's first apply and took the table down for the same reason, which
+	// is the second call site and lands an operator in the identical state.
+	// Amber, not neutral and not red — the machine is not filtering, which is a
+	// firewall state and not a staging step, but it is waiting on the operator
+	// rather than reporting a fault. Red here would put
 	// a fresh install's first audit line at the same weight as
 	// boot_enforce_failed, which is a machine that was supposed to be filtering
 	// and is not.
@@ -1310,6 +1361,22 @@ var clientStringKeys = []string{
 	"saved", "options_saved", "settings_saved", "system_saved",
 	"save_error", "system_invalid_duration", "settings_invalid_network",
 	"options_invalid_limit", "provenance_reset_done",
+	// The Notifications page saves itself over HTMX, so every one of its
+	// outcomes arrives as a toast and has to be shipped to the browser. Without
+	// these, show()'s `messages[key] || { text: key }` fallback printed the
+	// literal "notify_saved" at the operator, in both languages, on every save.
+	"notify_saved", "notify_kind_invalid", "notify_url_invalid", "notify_url_required",
+	// The test button's five outcomes, same reason: htmx's toast falls back to
+	// the literal key when a message id has no translation shipped to it.
+	// notify_not_configured (no address) and notify_destination_required (an
+	// address with no destination chosen) are two different mistakes, so two
+	// different keys.
+	"notify_test_sent", "notify_test_failed", "notify_not_configured",
+	"notify_destination_required", "notify_demo_no_send",
+	// The demo's refusal to save them. The same key handlePasswordPOST uses,
+	// now also on a page that saves over HTMX — where a flash never renders and
+	// an unshipped key would print itself into the toast.
+	"demo_readonly",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",
@@ -1344,6 +1411,14 @@ func templateFuncs() template.FuncMap {
 		"saved": true, "rules_accepted": true, "import_success": true,
 		"options_saved": true, "password_changed": true, "settings_saved": true,
 		"system_saved": true,
+		// The no-JavaScript path: notify.html carries method="POST" as its
+		// fallback, so a save there is a flash rather than a toast. Without
+		// this it renders alert-crit — red, with an error icon — for a message
+		// that says everything worked. Same incident as firstrun_done below.
+		"notify_saved": true,
+		// The test button reached the endpoint — the same direction as
+		// notify_saved, on the same no-JavaScript fallback path.
+		"notify_test_sent": true,
 		// A recovery code did exactly what it exists to do.
 		"recovery_left": true,
 		// The second factor is now doing what it was set up to do.
@@ -1370,6 +1445,16 @@ func templateFuncs() template.FuncMap {
 		// actually takes: the Network page saves itself over HTMX.
 		"settings_invalid_network": true,
 		"options_invalid_limit":    true,
+		// Three answers the operator can correct in the field in front of them,
+		// not failures of anything — the same direction as the two above.
+		"notify_kind_invalid": true, "notify_url_invalid": true,
+		"notify_url_required": true,
+		// The test button's four refusals: each names something the operator
+		// can fix (set an address, choose a destination, wait for a real
+		// endpoint, leave the demo), not a failure of the feature.
+		"notify_test_failed": true, "notify_not_configured": true,
+		"notify_destination_required": true,
+		"notify_demo_no_send":         true,
 		// Nothing went wrong here: the core declined a second apply while a
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
