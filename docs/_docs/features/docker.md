@@ -104,7 +104,9 @@ no sources, or set docker.published_ports = "open"
 |---|---|
 | Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
 | A rule naming sources is not a cover | It is named anyway, deliberately — see the callout above |
-| **IPv4 only** | The DNAT rules are read in the `ip` family. A published port on an IPv6 Docker network is neither detected nor named; that gap belongs to [2.28]({{ '/docs/roadmap/' | relative_url }}), with the bridge detection it comes from |
+| **IPv4 only** | The DNAT rules are read in the `ip` family, so a port published on an IPv6 Docker network is never seen |
+| **Silence is not a clearance** | No line for such a port means it was not looked at, not that a rule covers it. Check an IPv6 published port by hand |
+| IPv6 is [2.28]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
 | No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
 
 | Also worth knowing | |
