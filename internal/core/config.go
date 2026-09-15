@@ -134,9 +134,11 @@ func (c *Config) Validate() error {
 	// off is exactly the moment somebody needs telling, and a warning that only
 	// ever appeared at boot would be silent for the change that caused it.
 	if !c.Acceptance.Enabled {
-		slog.Warn("acceptance.enabled is false or absent: applies take effect immediately "+
-			"and nothing will undo them — there is no confirmation window and no automatic rollback",
-			"configured", c.Acceptance.Enabled)
+		// No "configured" attribute, unlike the clamps around it: the branch
+		// requires the value, so it could only ever print configured=false —
+		// a field that carries no information and reads as though it might.
+		slog.Warn("acceptance.enabled is false or absent: applies take effect immediately " +
+			"and nothing will undo them — there is no confirmation window and no automatic rollback")
 	}
 
 	// A negative interval is a typo, not an instruction, and it is clamped

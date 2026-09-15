@@ -101,6 +101,54 @@ func TestRunSubcommand_StatusPrintsWhatTheKernelHolds(t *testing.T) {
 	}
 }
 
+// `acceptance: idle` is two states in one word: a window waiting to be used,
+// and no window at all. A host with acceptance switched off applies rules that
+// nothing will ever undo, and until 2.20.1 the only surface recovery.md sends a
+// monitoring check to could not say which of the two it was looking at.
+//
+// The `acceptance:` line itself must not change shape — a check matching it
+// exactly predates this — so the answer is a continuation line under it, in the
+// indentation `panic mode:` already uses.
+func TestRunSubcommand_StatusSaysWhenThereIsNoAcceptanceWindow(t *testing.T) {
+	const noWindow = "no window is configured"
+	for _, tc := range []struct {
+		name    string
+		enabled bool
+	}{
+		{"no window configured", false},
+		{"a window configured", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status, err := json.Marshal(shared.FirewallStatus{
+				Active:            true,
+				Acceptance:        shared.AcceptanceIdle,
+				AcceptanceEnabled: tc.enabled,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfgPath := writeConfig(t, coreSocket(t, shared.Response{Success: true, Data: status}))
+
+			var out, errOut bytes.Buffer
+			if code := runSubcommand("status", []string{"-config", cfgPath}, &out, &errOut); code != 0 {
+				t.Fatalf("exit code %d, stderr: %s", code, errOut.String())
+			}
+			got := out.String()
+
+			// The line a script greps for, unqualified, in both cases.
+			if !strings.Contains(got, "acceptance: idle\n") {
+				t.Errorf("the acceptance line changed shape, and a check matching it "+
+					"exactly no longer matches:\n%s", got)
+			}
+			if said := strings.Contains(got, noWindow); said != !tc.enabled {
+				t.Errorf("the no-window line was %v with acceptance.enabled = %v; "+
+					"an apply on such a host is final and the status has to say so:\n%s",
+					said, tc.enabled, got)
+			}
+		})
+	}
+}
+
 // The exit code is the part a script reads. Not enforcing must not be 0: a
 // monitoring check that treats an unfiltered machine as healthy is worse than
 // no check.
@@ -489,6 +537,39 @@ func TestDescribeProofEmptyResult(t *testing.T) {
 			fakeCapSysAdmin(t, tt.available)
 			if got := describeProof("2.20.1", "6.11.0", "", time.Time{}); got != tt.want {
 				t.Errorf("describeProof() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The probe itself, which the var-swap above deliberately steps around — and so
+// left untested. Two mutations of it stayed green through 2.20.1's review: the
+// bit moved from 21 to 22, and the fail-open turned into a fail-closed.
+//
+// The masks are hex CapEff values as /proc/self/status writes them. Bit 21 is
+// CAP_SYS_ADMIN and bit 22 is CAP_SYS_BOOT, so the two single-bit rows below are
+// what pins the number: a root mask has both and would notice neither.
+func TestCapEffHasSysAdmin(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		{"root, holding everything", "Name:\tbash\nCapEff:\t000001ffffffffff\n", true},
+		{"CAP_SYS_ADMIN and nothing else", "CapEff:\t0000000000200000\n", true},
+		{"CAP_SYS_BOOT, the bit next to it", "CapEff:\t0000000000400000\n", false},
+		{"a container's default set, which drops it", "CapEff:\t00000000a80425fb\n", false},
+		{"an unprivileged process", "CapEff:\t0000000000000000\n", false},
+		// Every "cannot read this" answer is true: reporting the capability
+		// absent on a host where it may well be there sends an operator after a
+		// permission that was never the problem.
+		{"garbage where the mask should be", "CapEff:\tnot-a-number\n", true},
+		{"no CapEff line at all", "Name:\tbash\nCapInh:\t0000000000000000\n", true},
+		{"nothing at all, which is an unreadable /proc", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := capEffHasSysAdmin([]byte(tc.status)); got != tc.want {
+				t.Errorf("capEffHasSysAdmin(%q) = %v, want %v", tc.status, got, tc.want)
 			}
 		})
 	}

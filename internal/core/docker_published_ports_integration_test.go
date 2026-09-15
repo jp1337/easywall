@@ -21,13 +21,16 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// dockerNATFixture programs the three rules a published port can produce, in
+// dockerNATFixture programs the four rules a published port can produce, in
 // the table and chain Docker uses with the iptables-nft backend.
 //
 //	53 on a bridge gateway   the reporting host's resolver
-//	8080 on every address    `-p 8080:80`, which has no `ip daddr` at all
+//	8080 on every address    `-p 8080:80`, which has no `ip daddr` at all and
+//	                         reaches the container on a different number
 //	9999 to somewhere else   a DNAT that is not a container's, and must not be
 //	                         reported as one
+//	7070 with no target port a DNAT that translates the address only, so the
+//	                         container is reached on the number that arrived
 func dockerNATFixture(t *testing.T) {
 	t.Helper()
 	const ruleset = `
@@ -36,6 +39,7 @@ table ip nat {
 		ip daddr 172.17.0.1 udp dport 53 counter dnat to 172.18.0.2:53
 		tcp dport 8080 counter dnat to 172.18.0.3:80
 		tcp dport 9999 counter dnat to 192.0.2.7:9999
+		tcp dport 7070 counter dnat to 172.18.0.9
 	}
 }
 `
@@ -55,12 +59,19 @@ func TestIntegration_PublishedPortsAreReadFromDockersOwnRules(t *testing.T) {
 
 	got := detectPublishedPorts([]string{"172.18.0.0/16"}, 0)
 
+	// Both numbers in the key, because `-p 8080:80` has two and only one of
+	// them is the number a forwarded rule can name: the forward chain runs
+	// after this DNAT, so the packet arrives there carrying 80. A decoder that
+	// reports 8080 as the container port sends the operator to write a rule
+	// that matches nothing — which is what this asserted until 2.20.1.
 	want := map[string]bool{
-		"udp 53 on 172.17.0.1": false,
-		"tcp 8080 on 0.0.0.0":  false,
+		"udp 53 on 172.17.0.1 -> 53":  false,
+		"tcp 8080 on 0.0.0.0 -> 80":   false,
+		"tcp 7070 on 0.0.0.0 -> 7070": false,
 	}
 	for _, p := range got {
-		key := p.proto + " " + strconv.Itoa(int(p.port)) + " on " + p.addr
+		key := p.proto + " " + strconv.Itoa(int(p.port)) + " on " + p.addr +
+			" -> " + strconv.Itoa(int(p.containerPort))
 		if _, expected := want[key]; !expected {
 			t.Errorf("a DNAT that is not a published container port was reported "+
 				"as one: %s. Only a target inside a detected bridge is a container.", key)
@@ -128,7 +139,7 @@ func TestIntegration_ThePublishedPortDetectionReadsTheManagersNamespace(t *testi
 	m.warnUnruledPublishedPorts(shared.Rules{}, []string{"172.18.0.0/16"})
 
 	for _, line := range lines {
-		if strings.Contains(line, "with no forwarded rule") {
+		if strings.Contains(line, "no forwarded rule") {
 			t.Fatalf("the manager's namespace holds no Docker NAT rules, and the "+
 				"warning named a published port out of this process's namespace "+
 				"instead: %q", line)
