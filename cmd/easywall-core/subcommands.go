@@ -295,12 +295,25 @@ var capSysAdminAvailable = probeCapSysAdmin
 // host where the capability might well be there would send an operator
 // looking for a permission that was never the problem; "never recorded" only
 // costs them the one already-open question of whether anybody has run it.
+// The read's error is discarded rather than branched on: an unreadable file
+// leaves no CapEff line to find, which is already the parse's fail-open case
+// below. One place to get the direction wrong instead of two, and the one a
+// test can reach.
 func probeCapSysAdmin() bool {
-	data, err := os.ReadFile("/proc/self/status")
-	if err != nil {
-		return true
-	}
-	for _, line := range strings.Split(string(data), "\n") {
+	data, _ := os.ReadFile("/proc/self/status")
+	return capEffHasSysAdmin(data)
+}
+
+// capEffHasSysAdmin is probeCapSysAdmin's parse, split out because the file
+// read is the half a test cannot drive: this process has the capabilities it
+// has, and `go test` cannot be given others. Two mutations of the logic below
+// — the bit moved to 22, and the fail-open turned into a fail-closed — both
+// stayed green against the suite that only faked capSysAdminAvailable.
+//
+// Every "cannot read this" path returns true, which is the promise the comment
+// above makes and the direction this must fail in.
+func capEffHasSysAdmin(status []byte) bool {
+	for _, line := range strings.Split(string(status), "\n") {
 		rest, ok := strings.CutPrefix(line, "CapEff:")
 		if !ok {
 			continue
@@ -335,6 +348,14 @@ func probeCapSysAdmin() bool {
 // operator ought to clear; "unavailable here" describes a capability and
 // tells them to stop looking, the same distinction `health` already draws
 // between a disproved claim and an unprovable one (docs/_docs/features/health.md).
+//
+// "Here" is this process, not this machine. The probe reads the capabilities of
+// whoever ran the command, and the socket is root:easywall 0660 — so a non-root
+// member of that group running the `easywall-core health` check health.md
+// documents, on a bare-metal host that could prove it, is told "unavailable
+// here". It takes an empty stamp to reach this branch at all, so it cannot
+// happen on a packaged host where easywall-selftest.service has run, and the
+// Docker healthcheck that is the real consumer runs as root in-container.
 func describeProof(version, kernel string, result shared.SelftestResult, at time.Time) string {
 	if result == "" {
 		if !capSysAdminAvailable() {
