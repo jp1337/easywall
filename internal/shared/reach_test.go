@@ -138,8 +138,8 @@ func TestPortInRule(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := portInRule(tc.spec, tc.port); got != tc.want {
-				t.Errorf("portInRule(%q, %d) = %v, want %v", tc.spec, tc.port, got, tc.want)
+			if got := PortInRule(tc.spec, tc.port); got != tc.want {
+				t.Errorf("PortInRule(%q, %d) = %v, want %v", tc.spec, tc.port, got, tc.want)
 			}
 		})
 	}
