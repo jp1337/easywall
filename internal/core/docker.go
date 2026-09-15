@@ -76,10 +76,18 @@ func isDockerInterface(name string) bool {
 
 // publishedPort is one container port Docker has DNAT'd on to this host: the
 // address it is published on, the port, and the protocol.
+//
+// Two ports, because `-p 8080:80` has two. port is the host side, the number an
+// operator published and the one the DNAT matches at prerouting. containerPort
+// is what the packet carries everywhere after that translation — including the
+// forward chain, which is where the deny this warning is about lives, so it is
+// the number a forwarded rule has to name. They are equal for `-p N:N`, which is
+// why every earlier test passed without telling them apart.
 type publishedPort struct {
-	addr  string
-	port  uint16
-	proto string // "tcp", "udp", or "" when the rule did not say
+	addr          string
+	port          uint16
+	containerPort uint16
+	proto         string // "tcp", "udp", or "" when the rule did not say
 }
 
 // detectPublishedPortsFn is where the published ports come from. A var for the
@@ -247,6 +255,18 @@ func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix) (publishedPort
 	if nat == nil || nat.Type != expr.NATTypeDestNAT || p.port == 0 {
 		return publishedPort{}, false
 	}
+
+	// The translated port, from the register the NAT expression names for it.
+	// `dnat to 172.18.0.3:80` loads it as a 2-byte big-endian immediate into
+	// RegProtoMin — dumped from a live kernel, which is the only evidence worth
+	// writing a decoder against. `dnat to 172.18.0.3` with no port leaves
+	// RegProtoMin at 0 and translates the address only, so the container is
+	// reached on the number that arrived: the published port.
+	p.containerPort = p.port
+	if d := immediates[nat.RegProtoMin]; nat.RegProtoMin != 0 && len(d) == 2 {
+		p.containerPort = binary.BigEndian.Uint16(d)
+	}
+
 	target, ok := netip.AddrFromSlice(immediates[nat.RegAddrMin])
 	if !ok {
 		return publishedPort{}, false
