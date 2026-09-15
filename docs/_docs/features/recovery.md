@@ -62,6 +62,18 @@ acceptance: accepted
 last apply: 2026-08-16T09:12:03Z
 ```
 
+`acceptance: idle` is two states in one word — a window waiting to be used, and
+no window at all — so since 2.20.1 a host with `acceptance.enabled = false` says
+which. The `acceptance:` line itself does not change, so a check matching it
+exactly keeps working:
+
+```
+$ easywall-core status
+firewall:   enforcing
+acceptance: idle
+            no window is configured: an apply is final and nothing will undo it
+```
+
 When the daemon cannot be reached at all — crashed, or not started yet —
 `status` reads the panic marker directly instead. It does not bother asking a
 socket that nothing answers on:
