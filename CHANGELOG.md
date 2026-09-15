@@ -26,9 +26,8 @@ configuration that names `duration` and omits `enabled`, the other needs
   and is the right rule where only containers should reach a port; it does not
   restore the world, whose packets to a `0.0.0.0`-published port are DNAT'd into
   a bridge and meet the deny with the same shape. The remedy the line offers says
-  both, after a first draft offered only *drop the sources* and *stop filtering* —
-  an operator whose rule legitimately names two bridge networks was warned at
-  every apply and told to open the port to the world or switch the feature off.
+  both, so an operator whose rule legitimately names two bridge networks is not
+  told to open the port to the world or switch the feature off.
   Once per apply, every time, with no folding of repeats — a
   suppressed one would be silent on exactly the apply whose log an operator is
   reading, and any memory of what it said last would live in a process a restart

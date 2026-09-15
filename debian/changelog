@@ -1,3 +1,26 @@
+easywall (2.20.1) unstable; urgency=medium
+
+  * Fix: the interface promised an acceptance window that was switched off. With
+    acceptance disabled the restore summary still said the operator had two
+    minutes to undo an apply — a sentence that reads as a safety net and is not
+    one. The promise now drops that clause, the status carries whether the
+    window exists, and start-up says so in the log.
+  * Fix: health called an unprovable selftest a missing one. Inside a container
+    there is no CAP_SYS_ADMIN, so the proof cannot be taken; the line said
+    "never recorded", which reads as a failure somebody should chase. It now
+    says the proof is unavailable there, probed from the process's own
+    capabilities and failing open.
+  * Fix: a Docker container could publish a port that no rule covered, and
+    nothing said so. Start-up now names each published port with no matching
+    rule, decoded from Docker's own DNAT rules over netlink and filtered to
+    targets inside the bridges it detects. A forwarded rule that names sources
+    does not silence the warning for a container outside them.
+  * Docs: how a service published on a bridge gateway is reached, why it needs
+    a forwarded rule of its own, and how to prove a silent UDP service is
+    reachable by reading the packet counters rather than waiting for a reply.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Tue, 15 Sep 2026 18:54:34 +0200
+
 easywall (2.20.0) unstable; urgency=medium
 
   * Feat: a webhook or an ntfy push when the firewall moves — an apply undone,

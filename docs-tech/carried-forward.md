@@ -29,7 +29,7 @@ Pretending it does not
 exist to leave the file at zero would be the dishonesty this sweep exists to
 end. See `docs-tech/specs/2026-09-11-the-carried-forward-sweep.md`.
 
-**Open entries: none, as of 2.20.** That one was closed by 2.19's Scope column a
+**Open entries: none, as of 2.20.1.** That one was closed by 2.19's Scope column a
 day later, and the last remaining entry — `detectDockerBridges` returning IPv4
 CIDRs only — moved to the roadmap's **2.28** row rather than being carried
 again. Its ruling did not change; the ruling is the reason. Work that needs its
