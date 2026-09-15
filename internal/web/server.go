@@ -1369,6 +1369,10 @@ var clientStringKeys = []string{
 	// The test button's four outcomes, same reason: htmx's toast falls back to
 	// the literal key when a message id has no translation shipped to it.
 	"notify_test_sent", "notify_test_failed", "notify_not_configured", "notify_demo_no_send",
+	// The demo's refusal to save them. The same key handlePasswordPOST uses,
+	// now also on a page that saves over HTMX — where a flash never renders and
+	// an unshipped key would print itself into the toast.
+	"demo_readonly",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
 	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",

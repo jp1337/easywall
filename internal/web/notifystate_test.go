@@ -42,9 +42,15 @@ func TestObserveTurnsStatusIntoNotifications(t *testing.T) {
 		{"panic engaged",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t1", shared.AcceptanceIdle, true, "timeout")},
 			[]string{"panic"}, []string{"panic mode was engaged — this host is not filtering"}, []string{"critical"}},
+		// Not critical on this edge, and the assertion is the whole point of the
+		// row: ntfyPriority maps critical to ntfy's "5", which notify.go and
+		// docs/_docs/features/notifications.md both reserve for the event that
+		// means this host is not filtering. "the stored rules are back" is the
+		// opposite of that, and it was paging operators at max priority with
+		// good news.
 		{"panic ended",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, true, "timeout"), st("t1", shared.AcceptanceIdle, false, "timeout")},
-			[]string{"panic"}, []string{"panic mode ended and the stored rules are back"}, []string{"critical"}},
+			[]string{"panic"}, []string{"panic mode ended and the stored rules are back"}, []string{"warning"}},
 		// The row the spec insists on: an unreachable core must not manufacture
 		// an event, and must not forget what it knew.
 		{"a nil status changes nothing and is not an event",

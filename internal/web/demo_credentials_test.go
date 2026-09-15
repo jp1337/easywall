@@ -42,6 +42,15 @@ var credentialWritingRoutes = []struct {
 	{"/password/2fa/enrol-unverified", "ack=1"},
 	{"/password/2fa/disable", "current_password=currentpassword123"},
 	{"/password/2fa/recovery", "current_password=currentpassword123"},
+	// notify_url is a credential too — it is in secretManagedKeys, and
+	// configuration.md says it is kept at 0600 beside session_key — and
+	// SaveNotifications writes the same real web.toml. Without its guard a demo
+	// visitor persisted an address of their choosing, which /notify then
+	// rendered back to every other visitor. It is the one entry here that writes
+	// none of the three credential fields checked below, so the loop checks the
+	// destination as well; a list entry whose mutation produces no output is a
+	// hole in this test, not a row in it.
+	{"/notify", "kind=webhook&url=https://attacker.example/hook&on_panic=on"},
 }
 
 // The public demo runs the whole interface against an in-memory mock, and every
@@ -68,6 +77,7 @@ func TestDemoModeRefusesToWriteCredentials(t *testing.T) {
 			before := s.cfg.PasswordHash()
 			beforeTOTP := s.cfg.TOTPSecret()
 			beforeRecovery := len(s.cfg.RecoveryCodes())
+			beforeKind, beforeURL := s.cfg.NotifyDestination()
 
 			rec := doAuthFormRequest(t, s, tc.path, tc.body)
 			if rec.Code != http.StatusSeeOther && rec.Code != http.StatusOK {
@@ -82,6 +92,11 @@ func TestDemoModeRefusesToWriteCredentials(t *testing.T) {
 			}
 			if after := len(s.cfg.RecoveryCodes()); after != beforeRecovery {
 				t.Errorf("%s changed the stored recovery codes in demo mode", tc.path)
+			}
+			if kind, addr := s.cfg.NotifyDestination(); kind != beforeKind || addr != beforeURL {
+				t.Errorf("%s stored the notification destination %q/%q in demo mode; a visitor "+
+					"to the public demo points this installation's notifications at themselves",
+					tc.path, kind, addr)
 			}
 		})
 	}
@@ -206,5 +221,19 @@ func TestDemoModeEnrolUnverifiedRefusesAfterAFailedCode(t *testing.T) {
 	}
 	if n := len(s.cfg.RecoveryCodes()); n != 0 {
 		t.Errorf("the demo stored %d recovery hashes through the escape", n)
+	}
+}
+
+// /notify saves over HTMX, so its refusal is an HX-Trigger rather than the
+// flash TestDemoModeSaysWhyItRefused reads off /password. Same key, other
+// transport — and the key, not a sentence of English copy, because the copy is
+// edited and the key is the stable artefact.
+func TestTheDemoSaysWhyItWillNotSaveTheNotificationSettings(t *testing.T) {
+	s := newDemoTestServer(t)
+	enrollFactor(t, s)
+	rec := doAuthFormHTMX(t, s, "/notify", "kind=webhook&url=https://attacker.example/hook")
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "demo_readonly") {
+		t.Errorf("HX-Trigger = %q, want demo_readonly: a form that silently does nothing "+
+			"reads as a broken page", trigger)
 	}
 }

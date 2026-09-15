@@ -82,7 +82,10 @@ func TestTheTestButtonPostsImmediatelyAndIgnoresTheSwitches(t *testing.T) {
 	}
 	s.rebuildNotifier()
 
-	rr := doAuthFormRequest(t, s, "/notify/test", "")
+	// The button is a submit inside the settings form, so the browser posts the
+	// whole form with it — see TestTheTestButtonSendsToTheAddressInTheForm.
+	rr := doAuthFormRequest(t, s, "/notify/test",
+		url.Values{"kind": {"webhook"}, "url": {srv.URL}}.Encode())
 	if rr.Code >= 400 {
 		t.Fatalf("POST /notify/test = %d", rr.Code)
 	}
@@ -130,23 +133,23 @@ func TestTheTestButtonsThreeRefusalsAndItsSend(t *testing.T) {
 	cases := []struct {
 		name    string
 		demo    bool
-		status  int // what the endpoint answers; 0 means no notifier is configured
+		status  int // what the endpoint answers; 0 means the form carries no address
 		wantKey string
 		wantHit bool
 	}{
 		// Two demo rows, and the first is the one that carries the ordering:
-		// with no notifier, a demo that consulted the notifier first answers
+		// with an empty form, a demo that looked at the address first answers
 		// notify_not_configured — true, and the wrong sentence for a visitor who
 		// is not being refused for that — and a demo that dropped the check
 		// altogether answers it as well. Both mutations die on row A alone.
 		//
-		// Row B earns its place against a third: `if demo && s.notify == nil`,
-		// the plausible way somebody merges the two conditions while "improving"
-		// this handler. Row A passes it — no notifier, so it still refuses — and
+		// Row B earns its place against a third: `if demo && url == ""`, the
+		// plausible way somebody merges the two conditions while "improving"
+		// this handler. Row A passes it — no address, so it still refuses — and
 		// row B sends to the endpoint. Run, and it goes red on row B only.
-		{"the demo says so before it looks at the notifier at all", true, 0, "notify_demo_no_send", false},
-		{"the demo refuses even with a notifier in place", true, 200, "notify_demo_no_send", false},
-		{"no destination configured is refused, not sent", false, 0, "notify_not_configured", false},
+		{"the demo says so before it looks at the address at all", true, 0, "notify_demo_no_send", false},
+		{"the demo refuses even with an address submitted", true, 200, "notify_demo_no_send", false},
+		{"no destination in the form is refused, not sent", false, 0, "notify_not_configured", false},
 		{"an endpoint that answers 500 is reported as a failed send", false, 500, "notify_test_failed", true},
 		{"a destination that answers 200 sends", false, 200, "notify_test_sent", true},
 	}
@@ -168,13 +171,14 @@ func TestTheTestButtonsThreeRefusalsAndItsSend(t *testing.T) {
 			// Without this the gate 303s the POST to /password and every
 			// assertion below passes on a page that never ran the handler.
 			enrollFactor(t, s)
+			// The form the button submits, not a planted s.notify: the handler
+			// dials what was typed, and nothing is saved by any of these rows.
+			body := ""
 			if tc.status != 0 {
-				s.notifyMu.Lock()
-				s.notify = newNotifier("webhook", srv.URL, "test-host", "test")
-				s.notifyMu.Unlock()
+				body = url.Values{"kind": {"webhook"}, "url": {srv.URL}}.Encode()
 			}
 
-			rec := doAuthFormHTMX(t, s, "/notify/test", "")
+			rec := doAuthFormHTMX(t, s, "/notify/test", body)
 			if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, tc.wantKey) {
 				t.Errorf("HX-Trigger = %q, want %q", trigger, tc.wantKey)
 			}
@@ -211,6 +215,10 @@ func TestEveryNotifyOutcomeIsRegisteredEverywhereItIsShown(t *testing.T) {
 		"notify_test_failed":    "alert-warn",
 		"notify_not_configured": "alert-warn",
 		"notify_demo_no_send":   "alert-warn",
+		// The demo's refusal to save them. Shared with /password, but /notify
+		// is the first page to raise it over HTMX, where a flash never renders
+		// and an unshipped key prints itself into the toast.
+		"demo_readonly": "alert-warn",
 	}
 
 	shipped := make(map[string]bool, len(clientStringKeys))
@@ -281,5 +289,73 @@ func TestTheDemoNeverBuildsANotifier(t *testing.T) {
 	body := doRequest(s, "GET", "/notify", nil, makeAuthCookie(t, s)).Body.String()
 	if !strings.Contains(body, `data-testid="notify-demo-banner"`) {
 		t.Error("the demo page does not carry the demo callout")
+	}
+}
+
+// The button is a type="submit" inside the settings form and the page promises
+// it sends "to the address in the field". It read s.currentNotifier() instead,
+// which rebuildNotifier only replaces after a successful *save* — so an
+// operator who typed a new address and pressed Send a test without saving got
+// "Test sent." for a delivery the old endpoint received. They then had every
+// reason to believe the new address works.
+//
+// Two endpoints, because the assertion that matters is not "B was hit" on its
+// own — a handler that sent to both would pass that — but that A was not.
+func TestTheTestButtonSendsToTheAddressInTheForm(t *testing.T) {
+	var savedHits, typedHits int32
+	saved := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		atomic.AddInt32(&savedHits, 1)
+	}))
+	defer saved.Close()
+	typed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		atomic.AddInt32(&typedHits, 1)
+	}))
+	defer typed.Close()
+
+	s := newTestServer(t, newFakeCore(t))
+	enrollFactor(t, s)
+	if err := s.cfg.SaveNotifications("webhook", saved.URL, true, true, true, true); err != nil {
+		t.Fatal(err)
+	}
+	s.rebuildNotifier()
+
+	rec := doAuthFormHTMX(t, s, "/notify/test",
+		url.Values{"kind": {"webhook"}, "url": {typed.URL}}.Encode())
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "notify_test_sent") {
+		t.Errorf("HX-Trigger = %q, want notify_test_sent", trigger)
+	}
+	if n := atomic.LoadInt32(&typedHits); n != 1 {
+		t.Errorf("the address in the form was hit %d times, want 1", n)
+	}
+	if n := atomic.LoadInt32(&savedHits); n != 0 {
+		t.Errorf("the saved address was hit %d times; the operator is told the address "+
+			"they typed works when it was never dialled", n)
+	}
+	// A test proves an address; it does not commit one. The stored destination
+	// is untouched and so is the live notifier.
+	if _, addr := s.cfg.NotifyDestination(); addr != saved.URL {
+		t.Errorf("the stored address is now %q — the test button saved it", addr)
+	}
+	if n := s.currentNotifier(); n == nil || n.url != saved.URL {
+		t.Error("the test button rebuilt the live notifier; a test must not change what is stored")
+	}
+}
+
+// An address the save path refuses is not an address the test button should
+// dial, and two different answers for one typo is a worse page. Same
+// validNotifyURL, same two keys.
+func TestTheTestButtonRefusesWhatTheSaveWouldRefuse(t *testing.T) {
+	for _, tc := range []struct{ name, body, wantKey string }{
+		{"an unknown kind", "kind=carrier-pigeon&url=https://example.invalid/h", "notify_kind_invalid"},
+		{"a scheme that is not a web endpoint", "kind=webhook&url=file:///etc/passwd", "notify_url_invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestServer(t, newFakeCore(t))
+			enrollFactor(t, s)
+			rec := doAuthFormHTMX(t, s, "/notify/test", tc.body)
+			if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, tc.wantKey) {
+				t.Errorf("HX-Trigger = %q, want %q", trigger, tc.wantKey)
+			}
+		})
 	}
 }

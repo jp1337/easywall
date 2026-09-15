@@ -36,7 +36,17 @@ type Notification struct {
 // per transport: ntfy differs from a webhook in its body and three headers,
 // which is a switch, not an abstraction.
 type notifier struct {
-	kind    string
+	kind string
+	// url is the operator's own destination, and gosec's taint analysis calls
+	// every request built from it an SSRF (G704) now that handleNotifyTest
+	// builds one from the submitted form rather than from the stored settings.
+	// It is the feature: an authenticated operator chooses where their own
+	// firewall posts, and a private-range block would refuse the self-hosted
+	// ntfy that is this audience's normal case — validNotifyURL says the same
+	// about the scheme. Both paths that reach here run that validation, the
+	// demo refuses both, redirects are errors rather than followed, and the
+	// response body is never read back, so there is no oracle to probe with.
+	// The three //nolint:gosec below are this note.
 	url     string
 	host    string
 	version string
@@ -69,7 +79,7 @@ func (n *notifier) send(msg Notification) error {
 	}
 	req.Header.Set("User-Agent", "easywall/"+n.version)
 
-	resp, err := n.client.Do(req)
+	resp, err := n.client.Do(req) //nolint:gosec // G704: see the note on notifier.url
 	if err != nil {
 		return err
 	}
@@ -82,6 +92,7 @@ func (n *notifier) send(msg Notification) error {
 
 func (n *notifier) build(msg Notification) (*http.Request, error) {
 	if n.kind == "ntfy" {
+		//nolint:gosec // G704: see the note on notifier.url
 		req, err := http.NewRequest(http.MethodPost, n.url, bytes.NewBufferString(msg.Detail))
 		if err != nil {
 			return nil, err
@@ -104,6 +115,7 @@ func (n *notifier) build(msg Notification) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+	//nolint:gosec // G704: see the note on notifier.url
 	req, err := http.NewRequest(http.MethodPost, n.url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -144,6 +156,15 @@ func ntfyPriority(severity string) string {
 // seconds per transition — the same reason notifyTimeout is one.
 var notifyTick = 15 * time.Second
 
+// newNotifierFor builds a notifier for one destination, stamped with this
+// host's name and version. The two callers that need one — rebuildNotifier for
+// the stored destination, handleNotifyTest for the submitted one — otherwise
+// repeat the hostname lookup and the version constant between them.
+func newNotifierFor(kind, url string) *notifier {
+	host, _ := os.Hostname()
+	return newNotifier(kind, url, host, shared.CurrentVersion)
+}
+
 // rebuildNotifier builds the client from the configuration in force, or clears
 // it. Called at construction and again after a settings change, so a new
 // address takes effect without a restart.
@@ -154,8 +175,7 @@ func (s *Server) rebuildNotifier() {
 	kind, url := s.cfg.NotifyDestination()
 	var n *notifier
 	if !s.cfg.Demo() && kind != "" && url != "" {
-		host, _ := os.Hostname()
-		n = newNotifier(kind, url, host, shared.CurrentVersion)
+		n = newNotifierFor(kind, url)
 	}
 	s.notifyMu.Lock()
 	s.notify = n

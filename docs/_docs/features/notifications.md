@@ -70,7 +70,8 @@ the four switches say. A test that stayed silent because a trigger is off would
 prove nothing about the endpoint. Under the triggers the page then shows when
 easywall last sent something, or what went wrong the last time it tried.
 
-The public demo sends nothing, and says so before you press the button.
+The public demo sends nothing, and says so before you press the button. It does
+not keep the settings either — the form works and the change is not written.
 
 ## What arrives
 

@@ -65,6 +65,18 @@ func validNotifyURL(raw string) bool {
 }
 
 func (s *Server) handleNotifyPOST(w http.ResponseWriter, r *http.Request) {
+	// The demo shows the form and writes nothing, for the reason
+	// handlePasswordPOST gives: web.toml is the one piece of state the in-memory
+	// mock does not cover, so SaveNotifications writes the real file. notify_url
+	// is a credential — it is in secretManagedKeys and kept at 0600 beside
+	// session_key — and without this a visitor to the public demo persists an
+	// address of their choosing, which the page then renders back to every other
+	// visitor. Enumerated in TestDemoModeRefusesToWriteCredentials, which a new
+	// credential-writing route has to join.
+	if s.cfg.Demo() {
+		s.respondPartialError(w, r, "/notify", "demo_readonly")
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		s.respondPartialError(w, r, "/notify", "save_error")
 		return
@@ -100,26 +112,51 @@ func (s *Server) handleNotifyPOST(w http.ResponseWriter, r *http.Request) {
 	s.respondPartialSave(w, r, "/notify", "notify_saved")
 }
 
-// handleNotifyTest sends one notification now, whatever the switches say.
+// handleNotifyTest sends one notification now, to the address in the form,
+// whatever the switches say.
 //
-// Deliberately not routed through dispatchNotification's switch check: the
-// operator pressing this button has asked for exactly one delivery, and a test
-// button that stays silent because a trigger is off proves nothing about the
-// endpoint.
+// The submitted values, not the stored ones. The button is a type="submit"
+// inside the settings form, so htmx posts whatever is typed above it, and both
+// the page and docs/_docs/features/notifications.md promise it goes there —
+// proving an address before committing it is the point of the button. Reading
+// s.currentNotifier() instead sent to the *saved* endpoint while the operator
+// watched a "Test sent." toast for the new one they had just typed.
+//
+// A one-off notifier, and no rebuildNotifier: a test must not change what is
+// stored.
+//
+// Deliberately not routed through dispatchNotification's switch check either:
+// the operator pressing this button has asked for exactly one delivery, and a
+// test button that stays silent because a trigger is off proves nothing about
+// the endpoint.
 func (s *Server) handleNotifyTest(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.Demo() {
 		s.respondPartialError(w, r, "/notify", "notify_demo_no_send")
 		return
 	}
-	// currentNotifier(), never a bare s.notify read: Task 5 put the field
-	// behind notifyMu because the settings page can replace it while another
-	// goroutine is posting. -race found this one.
-	n := s.currentNotifier()
-	if n == nil {
+	if err := r.ParseForm(); err != nil {
+		s.respondPartialError(w, r, "/notify", "save_error")
+		return
+	}
+	kind, raw := r.FormValue("kind"), r.FormValue("url")
+	// Refused exactly the way the save path refuses them, from the same
+	// validNotifyURL: an address the save would not accept is not an address
+	// worth dialling, and two different answers for one typo is a worse page.
+	if kind != "" && kind != "webhook" && kind != "ntfy" {
+		s.respondPartialError(w, r, "/notify", "notify_kind_invalid")
+		return
+	}
+	if !validNotifyURL(raw) {
+		s.respondPartialError(w, r, "/notify", "notify_url_invalid")
+		return
+	}
+	// Still "set an address first" — and now it is true of the field the
+	// operator is looking at rather than of a file they cannot see.
+	if kind == "" || raw == "" {
 		s.respondPartialError(w, r, "/notify", "notify_not_configured")
 		return
 	}
-	err := n.send(Notification{
+	err := newNotifierFor(kind, raw).send(Notification{
 		Event: "test", Severity: "info",
 		Detail: "This is a test from easywall. Nothing happened to your firewall.",
 		Time:   time.Now().UTC(),

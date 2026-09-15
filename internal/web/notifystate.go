@@ -54,12 +54,20 @@ func (s *notifyState) observe(status *shared.FirewallStatus) []Notification {
 	}
 
 	if status.Panic != s.panicOn {
-		detail := "panic mode was engaged — this host is not filtering"
+		// Critical on the way in, warning on the way out. notify.go's
+		// ntfyPriority maps critical to ntfy's "5", and both that function's
+		// comment and docs/_docs/features/notifications.md say the highest
+		// priority is kept for the one event that means this host is not
+		// filtering. "panic mode ended and the stored rules are back" is the
+		// opposite of that, and it was paging operators at max priority with
+		// good news. Still worth telling — the firewall's posture changed
+		// without anyone touching the interface — so it is a warning, not info.
+		detail, sev := "panic mode was engaged — this host is not filtering", "critical"
 		if !status.Panic {
-			detail = "panic mode ended and the stored rules are back"
+			detail, sev = "panic mode ended and the stored rules are back", "warning"
 		}
 		out = append(out, Notification{
-			Event: "panic", Severity: "critical", Detail: detail, Time: now,
+			Event: "panic", Severity: sev, Detail: detail, Time: now,
 		})
 	}
 

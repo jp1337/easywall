@@ -40,9 +40,9 @@ moves, and the core still never opens a connection outward.
 - **A guard over the outbound-request list.**
   `TestBothPagesCountTheSameOutboundRequests` compares the sentence "*N*, and
   this is the whole list." on `security.md` and `configuration.md` — and the
-  table under each — against the files in `internal/` that reach out. The count
-  lived in prose on two pages and in code on a third, bound by nothing:
-  `configuration.md` was updated with the notification keys, because
+  table under each — against the files under `internal/` and `cmd/` that reach
+  out. The count lived in prose on two pages and in code on a third, bound by
+  nothing: `configuration.md` was updated with the notification keys, because
   `TestEveryConfigKeyIsDocumented` reads that page and no other, and
   `security.md` went on saying **Two** above a two-row table. The table is
   checked separately from the number, because a correct count above a table

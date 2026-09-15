@@ -37,7 +37,7 @@ type Config struct {
 
 	// fileConfig is the parsed file as it stood before the environment overlay.
 	// encode() renders this rather than the live struct, so a variable set for
-	// the process cannot become content of the operator's file. Only the six
+	// the process cannot become content of the operator's file. Only the twelve
 	// managedKeys are taken from the live struct — those are the keys the
 	// interface deliberately maintains.
 	fileConfig shared.WebConfig
@@ -824,7 +824,7 @@ func (c *Config) mergeSource() shared.WebConfig {
 	return out
 }
 
-// render produces the bytes to write: the existing file with the six managed
+// render produces the bytes to write: the existing file with the twelve managed
 // values replaced, or a fresh encoding when that cannot be done safely.
 //
 // The file the package installs is three kilobytes of comments explaining what
