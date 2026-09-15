@@ -59,7 +59,7 @@ type notifier struct {
 	// changed is that the taint path went from form → config → notifier to
 	// form → notifier, short enough for gosec to see — it added no capability.
 	//
-	// The three //nolint:gosec below are this note.
+	// The three #nosec G704 annotations below are this note.
 	url     string
 	host    string
 	version string
@@ -92,7 +92,7 @@ func (n *notifier) send(msg Notification) error {
 	}
 	req.Header.Set("User-Agent", "easywall/"+n.version)
 
-	resp, err := n.client.Do(req) //nolint:gosec // G704: see the note on notifier.url
+	resp, err := n.client.Do(req) // #nosec G704 -- see the note on notifier.url
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (n *notifier) send(msg Notification) error {
 
 func (n *notifier) build(msg Notification) (*http.Request, error) {
 	if n.kind == "ntfy" {
-		//nolint:gosec // G704: see the note on notifier.url
+		// #nosec G704 -- see the note on notifier.url
 		req, err := http.NewRequest(http.MethodPost, n.url, bytes.NewBufferString(msg.Detail))
 		if err != nil {
 			return nil, err
@@ -128,7 +128,7 @@ func (n *notifier) build(msg Notification) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	//nolint:gosec // G704: see the note on notifier.url
+	// #nosec G704 -- see the note on notifier.url
 	req, err := http.NewRequest(http.MethodPost, n.url, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
