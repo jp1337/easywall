@@ -215,7 +215,7 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 	// first match would.
 	restricted := false
 	for _, rule := range r.TCP {
-		if !portInRule(rule.Port, port) {
+		if !PortInRule(rule.Port, port) {
 			continue
 		}
 		if len(rule.Sources) == 0 {
@@ -289,10 +289,14 @@ func inAnyCIDR(src netip.Addr, cidrs []string) bool {
 	return false
 }
 
-// portInRule reports whether a port rule covers port. The stored form is a
+// PortInRule reports whether a port rule covers port. The stored form is a
 // single number or a "low:high" range, which is what the ports editor writes and
 // what buildPortExprs turns into rules.
-func portInRule(spec string, port uint16) bool {
+//
+// Exported because the core asks the same question of a published container
+// port, and a second implementation of "does 8080 fall inside 8000:9000" is a
+// second place for the answer to be different.
+func PortInRule(spec string, port uint16) bool {
 	spec = strings.TrimSpace(spec)
 	low, high, isRange := strings.Cut(spec, ":")
 	lo, err := strconv.ParseUint(strings.TrimSpace(low), 10, 16)
