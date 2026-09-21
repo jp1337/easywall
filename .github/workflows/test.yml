@@ -72,7 +72,7 @@ jobs:
 
   test-integration:
     name: Integration tests (nftables / CAP_NET_ADMIN, ACME / Pebble)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - uses: actions/checkout@v7
@@ -180,7 +180,7 @@ jobs:
   # A generated file with no freshness check is a file that is stale eventually.
   assets:
     name: Generated assets are current
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -247,7 +247,7 @@ jobs:
   # first-run wizard itself, which exercises that too.
   ui:
     name: Interface in a browser
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -325,7 +325,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 

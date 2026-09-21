@@ -12,7 +12,7 @@ permissions:
 jobs:
   goreleaser:
     name: GoReleaser
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     # Map secrets to env vars — secrets context is not available in step `if`,
     # but env context is. Lets us conditionally skip non-GHCR registry logins
@@ -193,7 +193,7 @@ jobs:
   announce:
     name: Announce on Discord
     needs: [goreleaser, debian]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Best-effort on purpose: the release is published and its assets are
     # uploaded by the time this runs. A Discord outage must not colour a good
     # release red — it is reported as a warning and nothing else.

@@ -23,7 +23,7 @@ jobs:
   # ── Cross-compile both binaries for all target platforms ─────────────────
   build-binaries:
     name: Binaries (${{ matrix.goos }}/${{ matrix.goarch }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -95,7 +95,7 @@ jobs:
   # ── Validate Docker image builds successfully (no push) ───────────────────
   build-docker:
     name: Docker Image
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - uses: actions/checkout@v7
