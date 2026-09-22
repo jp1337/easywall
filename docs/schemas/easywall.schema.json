@@ -59,6 +59,32 @@
         }
       }
     },
+    "packet_log": {
+      "type": "object",
+      "description": "Where the packets the *_log switches log are kept. Read at start only.",
+      "additionalProperties": false,
+      "properties": {
+        "nflog_group": {
+          "type": "integer",
+          "description": "The NFLOG group easywall-core binds. One program per group per host; a collision is reported at start and logging falls back to the kernel log.",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 12227
+        },
+        "entries": {
+          "type": "integer",
+          "description": "How many refused packets are kept in memory, newest first.",
+          "minimum": 1000,
+          "maximum": 200000,
+          "default": 20000
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Also write every entry to log_dir/packets.log so the log survives a restart. The file holds IP addresses, is root-only, and rotates itself at twice `entries`.",
+          "default": false
+        }
+      }
+    },
     "ipv6": {
       "type": "object",
       "description": "What the firewall does with IPv6 traffic.",

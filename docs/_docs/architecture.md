@@ -62,7 +62,7 @@ Step by step: [Applying rules]({{ '/docs/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
-Twenty-two message kinds, declared as Go structs on both sides. Adding an
+Twenty-three message kinds, declared as Go structs on both sides. Adding an
 operation means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
@@ -80,6 +80,7 @@ whole protocol was.
 | `GET_SETTINGS` · `SAVE_SETTINGS` | IPv6 and Docker |
 | `GET_SYSTEM` · `SAVE_SYSTEM` | acceptance window |
 | `GET_STATUS` · `GET_LOG` | dashboard · last 200 audit entries |
+| `GET_PACKET_LOG` | what the firewall refused — decoded packets from easywall's NFLOG group, filtered, newest first |
 | `EXPORT_RULES` · `IMPORT_RULES` | backup and restore as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |

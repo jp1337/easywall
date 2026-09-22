@@ -351,6 +351,26 @@ func (c *CoreClient) GetLog() ([]shared.AuditLogEntry, error) {
 	return entries, nil
 }
 
+// GetPacketLog returns the refused packets that match f, newest first.
+func (c *CoreClient) GetPacketLog(f shared.PacketLogFilter) (*shared.PacketLogResult, error) {
+	payload, err := json.Marshal(f)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetPacketLog, Payload: payload})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("core error: %s", resp.Error)
+	}
+	var res shared.PacketLogResult
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		return nil, fmt.Errorf("parse packet log: %w", err)
+	}
+	return &res, nil
+}
+
 // ExportRules returns the current rule set as pretty-printed JSON bytes.
 func (c *CoreClient) ExportRules() ([]byte, error) {
 	resp, err := c.Send(shared.Command{Type: shared.CmdExportRules})

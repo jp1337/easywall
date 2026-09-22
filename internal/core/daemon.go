@@ -623,6 +623,10 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		data, _ := json.Marshal(entries)
 		return shared.Response{Success: true, Data: data}
 
+	case shared.CmdGetPacketLog:
+		data, _ := json.Marshal(shared.PacketLogResult{Entries: []shared.PacketLogEntry{}})
+		return shared.Response{Success: true, Data: data}
+
 	case shared.CmdExportRules:
 		data, err := d.firewall.RulesStore().ExportStaged()
 		if err != nil {
