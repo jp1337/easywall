@@ -47,14 +47,40 @@ func TestBlocked_RendersARow(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"203.0.113.9", "198.51.100.1", `href="/blocked?port=22"`, "eth0",
-		`<span class="badge">SSH brute force</span>`, // the row's own rule label, not the filter's <select>, which lists every label regardless of whether a row exists
-		`href="/blocked?src=203.0.113.9"`,            // clicking an address filters to it
-		`id="pkt-41"`, "hx-preserve",                 // the drill-down survives the live tail
+		`<span class="log-action">SSH brute force</span>`, // the row's own rule label, not the filter's <select>, which lists every label regardless of whether a row exists
+		`href="/blocked?src=203.0.113.9"`,                 // clicking an address filters to it
+		`id="pkt-41"`, "hx-preserve",                      // the drill-down survives the live tail
 		`hx-trigger="every 5s"`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page does not contain %q", want)
 		}
+	}
+}
+
+// RFC 3986 (and net.JoinHostPort, for the same reason): an IPv6 host takes
+// brackets once a port follows it, or "2001:db8::1:23" reads as seven groups
+// instead of six-plus-a-port. IPv4 has no colon to disambiguate and stays
+// exactly as it was.
+func TestBlocked_BracketsAnIPv6DestinationWhenAPortFollows(t *testing.T) {
+	v6 := samplePacket()
+	v6.Seq = 42
+	v6.Family = 6
+	v6.Src = netip.MustParseAddr("2001:db8:bad::17")
+	v6.Dst = netip.MustParseAddr("2001:db8::1")
+	v6.DstPort = 23
+
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Held: 2, Matched: 2,
+		Entries: []shared.PacketLogEntry{samplePacket(), v6}}, shared.FirewallOptions{SSHBruteForceLog: true})
+
+	rec := doAuthRequest(t, s, "GET", "/blocked", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+	if !strings.Contains(body, ">[2001:db8::1]</a>:<a href=\"/blocked?port=23\">23</a>") {
+		t.Errorf("an IPv6 destination with a port is not bracketed:\n%s", body)
+	}
+	if !strings.Contains(body, ">198.51.100.1</a>:<a href=\"/blocked?port=22\">22</a>") {
+		t.Errorf("an IPv4 destination with a port gained brackets it should not have:\n%s", body)
 	}
 }
 
