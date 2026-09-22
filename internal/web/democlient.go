@@ -403,6 +403,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handleSaveSystem(cmd.Payload)
 	case shared.CmdGetLog:
 		return demoOK(d.auditLog)
+	case shared.CmdGetPacketLog:
+		return demoOK(shared.PacketLogResult{Entries: []shared.PacketLogEntry{}})
 	case shared.CmdValidateCustom:
 		// There is no nft binary behind the demo, so it cannot judge syntax. It
 		// used to answer "no errors", which told every visitor their rules were

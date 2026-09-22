@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Twenty-two command types:
+Twenty-three command types:
 
 | | |
 |---|---|
@@ -18,6 +18,7 @@ Twenty-two command types:
 | `GET_SYSTEM` · `SAVE_SYSTEM` | the acceptance window |
 | `GET_STATUS` | dashboard state, asked of the kernel. `acceptance_enabled` says whether a window is configured at all — `acceptance: idle` alone cannot separate *none open now* from *none will ever open* |
 | `GET_LOG` | the last 200 audit entries |
+| `GET_PACKET_LOG` | the refused-packet ring, filtered by `PacketLogFilter`, newest first; plus whether the core holds its NFLOG group and why not |
 | `EXPORT_RULES` · `IMPORT_RULES` | the rule set as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
@@ -122,6 +123,7 @@ Playwright suite in `test.yml`.
 | `ExportRules` / `ImportRules` | round-trips the state as JSON |
 | `ValidateCustom` | **reports the checker as unavailable** |
 | `GetHealth` | `ok`/`healthy`, or `fail`/`panic` while the demo's panic mode is on. The self-test reads `unprovable` with no kernel named |
+| `GetPacketLog` | a generated stream on documentation addresses, a few new packets a minute — see `demoPacketLog` |
 
 ## Adding a command
 
