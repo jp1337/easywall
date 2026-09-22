@@ -78,9 +78,10 @@ podman run --rm --cap-add=NET_ADMIN --cap-add=SYS_ADMIN --cap-add=NET_RAW --secu
          go test -tags integration ./internal/core/... -v'
 ```
 
-The packet-log tests bind an NFLOG group, which needs `nfnetlink_log` loaded.
-Rootless podman cannot autoload it: run `sudo modprobe nfnetlink_log` on the host
-first, or those two tests skip with that reason. CI runs under `sudo` with
+The packet-log tests bind an NFLOG group, which needs `nfnetlink_log` loaded on
+the host — a container shares the host's kernel. `sudo modprobe nfnetlink_log`
+before the run guarantees it; without the module those two tests skip with that
+reason. CI runs under `sudo` with
 `EASYWALL_REQUIRE_SELFTEST=1`, where the same skip is a failure.
 
 The image tag has to be at least the `go` directive in `go.mod`, or the run

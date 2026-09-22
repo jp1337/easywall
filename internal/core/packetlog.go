@@ -445,8 +445,14 @@ func (s *spillFile) close() {
 }
 
 // listen binds group and hands every packet to p. It returns once the bind
-// has succeeded or failed, together with a stop func that ends delivery and
-// closes the socket before returning.
+// has succeeded or failed, together with a stop func that closes the socket.
+//
+// stop is not a hard barrier. go-nflog v2.3.0 keeps its receive goroutine out
+// of the WaitGroup that Close waits on, so hook may still run once after stop
+// returns, and the kernel may hold the group for a moment until that goroutine
+// has let go of the socket. A caller that rebinds the same group straight
+// after stop can therefore meet -EPERM; the integration tests use a group
+// each for that reason.
 //
 // Conntrack state first, and without it if the kernel refuses the flag — an
 // entry without its ct state is worth more than no entry. Twice with it,
@@ -455,9 +461,9 @@ func (s *spillFile) close() {
 // succeeds.
 //
 // A group another program holds answers -EPERM, not -EBUSY: the portid check
-// in nfulnl_recv_config runs before the bind. The journal line in
-// startPacketLog is what turns "operation not permitted" into "another
-// collector holds this group".
+// in nfulnl_recv_config runs before the bind. A process without CAP_NET_ADMIN
+// gets the same errno, so the journal line in startPacketLog names both
+// causes.
 func (p *PacketLog) listen(group uint16) (stop func(), err error) {
 	var lastErr error
 	for _, flags := range []uint16{nflog.FlagConntrack, nflog.FlagConntrack, 0} {
@@ -476,7 +482,7 @@ func (p *PacketLog) listen(group uint16) (stop func(), err error) {
 		// turns it into a read error — and that must return quietly rather than
 		// being logged as the listener having failed.
 		onError := func(err error) int {
-			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+			if ctx.Err() != nil {
 				return 1
 			}
 			return p.onError(err)
@@ -489,7 +495,7 @@ func (p *PacketLog) listen(group uint16) (stop func(), err error) {
 		p.setListening(group, nil)
 		return func() {
 			cancel()
-			_ = nf.Close() // Close = Con.Close + wg.Wait: returns once reading has stopped
+			_ = nf.Close() // closes the socket; see above for what it does not wait on
 		}, nil
 	}
 	err = fmt.Errorf("bind NFLOG group %d: %w", group, lastErr)
