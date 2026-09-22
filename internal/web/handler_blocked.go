@@ -259,9 +259,12 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 	}
 	peer = peer.Unmap().WithZone("")
 	if shared.InAnyEntry(peer, after.Blacklist) && !shared.InAnyEntry(peer, before.Blacklist) {
-		// proxied covers a trusted proxy that sent no header: the client is
-		// then reported as the peer itself, a stand-in, not the operator.
-		if client, proxied := s.clientAddr(r); proxied || client != peer.String() {
+		// "Proxy" only when the peer is a configured trusted proxy — with or
+		// without a header naming a client behind it. Not clientAddr's proxied:
+		// that is header presence, and any untrusted caller can send a header
+		// about itself. "The client resolved past the peer" needs no second
+		// test: resolveClient only reads the header from a trusted peer.
+		if shared.InAnyEntry(peer, s.cfg.TrustedProxies) {
 			return "blocked_refused_proxy"
 		}
 		return "blocked_refused_lockout"

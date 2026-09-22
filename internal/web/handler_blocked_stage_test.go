@@ -176,6 +176,20 @@ func TestStageRefusesToBlacklistAProxyThatSendsNoHeader(t *testing.T) {
 	}
 }
 
+// An untrusted peer that sends a forwarding header about itself is not a proxy
+// anything establishes: the header's value is never read, so blacklisting that
+// peer is blacklisting the operator, and the sentence has to say so.
+func TestStageNamesAnUntrustedPeerWithAHeaderAsTheOperator(t *testing.T) {
+	s, got, _ := stageCore(t, open19999)
+	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "198.51.100.7")
+	if got.called {
+		t.Fatal("the operator's own address was staged on the blacklist")
+	}
+	if f := flashOf(t, s, rec); f != "blocked_refused_lockout" {
+		t.Errorf("flash = %q, want blocked_refused_lockout", f)
+	}
+}
+
 func TestStageOpensAPort(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
 	rec := postStage(t, s, url.Values{"act": {"open"}, "proto": {"udp"}, "port": {"51820"}}, "192.0.2.1", "")
