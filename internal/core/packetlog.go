@@ -232,8 +232,13 @@ type PacketLog struct {
 	lost      uint64
 
 	listening bool
-	group     uint16
-	reason    string
+	// everListened is sticky: once a bind has succeeded it stays true, which is
+	// how setListening (and Query, from it) tells a bind that never succeeded
+	// apart from a listener that ran and then died — the two states the page
+	// must not describe with the same sentence.
+	everListened bool
+	group        uint16
+	reason       string
 
 	spill *spillFile // nil when persist is off, or after the file failed
 
@@ -248,6 +253,14 @@ func NewPacketLog(capacity int) *PacketLog {
 }
 
 // Add numbers e and stores it, and appends it to the file when there is one.
+// ponytail: spill.append holds p.mu through its own compaction, which fires
+// once the file grows past 2×entries lines and rewrites it down to the ring's
+// held entries — at the 200000 maximum, up to ~2×entries (400,000) lines read
+// out and ~200,000 written back, in one call. That stalls Query (the page's
+// 5-second poll) and the receive goroutine (→ ENOBUFS → Lost) for the
+// duration. Bounded and rare (once per `entries` packets written); move the
+// rewrite off p.mu (snapshot oldestFirst, rewrite outside the lock, swap the
+// file in) if that stall ever measures.
 func (p *PacketLog) Add(e shared.PacketLogEntry) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -301,7 +314,8 @@ func (p *PacketLog) Query(f shared.PacketLogFilter) (shared.PacketLogResult, err
 	defer p.mu.Unlock()
 	res := shared.PacketLogResult{
 		Entries: []shared.PacketLogEntry{}, Held: p.n,
-		Listening: p.listening, Group: p.group, Reason: p.reason, Since: p.since,
+		Listening: p.listening, Stopped: !p.listening && p.everListened,
+		Group: p.group, Reason: p.reason, Since: p.since,
 		Discarded: p.discarded, Lost: p.lost, Persisted: p.spill != nil,
 	}
 	for i := range p.n {
@@ -323,6 +337,8 @@ func (p *PacketLog) setListening(group uint16, err error) {
 	p.group, p.listening, p.reason = group, err == nil, ""
 	if err != nil {
 		p.reason = err.Error()
+	} else {
+		p.everListened = true
 	}
 }
 
@@ -498,9 +514,11 @@ func (p *PacketLog) listen(group uint16) (stop func(), err error) {
 			_ = nf.Close() // closes the socket; see above for what it does not wait on
 		}, nil
 	}
-	err = fmt.Errorf("bind NFLOG group %d: %w", group, lastErr)
-	p.setListening(group, err)
-	return nil, err
+	// Not wrapped with the group number: every caller already has it (Query's
+	// Group field, and startPacketLog's own log line), and blocked_not_listening
+	// prefixes it again — wrapping it here too rendered it three times.
+	p.setListening(group, lastErr)
+	return nil, lastErr
 }
 
 func (p *PacketLog) hook(a nflog.Attribute) int {

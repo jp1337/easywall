@@ -3265,6 +3265,11 @@ body {
   }
   .pkt-flow a { color: inherit; text-decoration: none; }
   .pkt-flow a:hover { text-decoration: underline; }
+  .pkt-flow a:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
   .pkt-filters {
     display: flex;
     flex-wrap: wrap;
@@ -3276,6 +3281,11 @@ body {
   .pkt-field .input { width: 12rem; }
   .pkt-field-narrow .input { width: 7rem; }
   .pkt-detail summary { cursor: pointer; font-size: 12px; color: var(--color-ink-muted); }
+  .pkt-detail summary:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
   .pkt-detail dl {
     display: grid;
     grid-template-columns: auto 1fr;

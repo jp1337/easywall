@@ -152,6 +152,69 @@ func TestBlocked_EmptyStates(t *testing.T) {
 	}
 }
 
+// Final review, Important 1. GetPacketLog failing is not "nothing was
+// refused", and GetOptions failing is not "logging is off" — both are the
+// core not answering, which the handler's own comment says should read as
+// nothing rather than something false.
+func TestBlockedRows_CoreErrDoesNotClaimLoggingIsOff(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetPacketLog, errorRespFor("unavailable"))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+
+	body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+	if strings.Contains(body, "Every log switch is off") {
+		t.Error("the live tail claims logging is off when the core could not be asked at all")
+	}
+	if !strings.Contains(body, "unavailable") {
+		t.Errorf("the live tail does not say the core could not be read:\n%s", body)
+	}
+}
+
+func TestBlocked_LoggingUnknownDoesNotClaimItIsOff(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{})
+	fc.SetResponse(shared.CmdGetOptions, errorRespFor("unavailable"))
+
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	if strings.Contains(body, "Every log switch is off") {
+		t.Error("the page claims logging is off when GetOptions failed; unknown must not read as false")
+	}
+	if !strings.Contains(body, "could not be read") {
+		t.Errorf("the page does not say whether anything is logged is unknown:\n%s", body)
+	}
+}
+
+// Final review, Important 2. A bind that never succeeded still has the
+// kernel-log fallback; a listener that ran and then died does not — the two
+// must not share a sentence.
+func TestBlocked_NotListeningTellsBindApartFromStopped(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		res            shared.PacketLogResult
+		want, mustLack string
+	}{
+		{"bind never succeeded",
+			shared.PacketLogResult{Group: 12227, Reason: "device or resource busy"},
+			"kernel log instead", "restarts"},
+		{"ran, then stopped",
+			shared.PacketLogResult{Group: 12227, Reason: "connection reset by peer", Stopped: true},
+			"restarts", "kernel log instead"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, s := blockedCore(t, tc.res, shared.FirewallOptions{LogBlocked: true})
+			body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+			if !strings.Contains(body, tc.want) {
+				t.Errorf("%s: the page does not say %q:\n%s", tc.name, tc.want, body)
+			}
+			if strings.Contains(body, tc.mustLack) {
+				t.Errorf("%s: the page wrongly says %q", tc.name, tc.mustLack)
+			}
+		})
+	}
+}
+
 func TestBlocked_CoreDownStillRenders(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)

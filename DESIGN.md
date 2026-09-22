@@ -698,6 +698,14 @@ they sit on matters more than it did, not less.
 | `state-warn-on-wash` | `#88590c` | Text on a 10% `state-warn` wash |
 | `state-crit-on-wash` | `#ba2832` | Text on a 10% `state-crit` wash |
 
+### `color-scheme`
+
+Each theme's `:root[data-theme="..."]` block also sets the CSS `color-scheme`
+property (`dark` / `light`) beside its tokens — not one of the tokens above,
+but the signal that tells the browser which of its own chrome (an open
+`<select>` list, native scrollbars, the default focus ring) should follow the
+theme too, rather than only what this stylesheet touches directly.
+
 ### Why five tokens carry three values
 
 **Four of these carry the same value as `ink`, and the fifth the same as

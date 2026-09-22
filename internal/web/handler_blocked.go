@@ -29,10 +29,18 @@ type blockedRows struct {
 	// makes; handleBlockedRows — a separate request, on its own poll, handed
 	// nothing from the page that opened it — makes them again so the live
 	// tail's empty message matches the page's.
-	Logging   bool      // any of the ten switches is on
-	Listening bool      // the core holds its NFLOG group
-	Filtered  bool      // a filter narrowed this view
-	Since     time.Time // when the ring began
+	//
+	// CoreErr and LoggingKnown make that message tri-state: unreadable is not
+	// the same as false. GetPacketLog failing must not read as "nothing
+	// refused", and GetOptions failing must not read as "logging is off" —
+	// both are a fact the core did not answer, not a fact about the firewall.
+	CoreErr      string    // GetPacketLog failed; nothing below except Filtered is known
+	Logging      bool      // any of the ten switches is on; meaningful only when LoggingKnown
+	LoggingKnown bool      // GetOptions answered
+	Listening    bool      // the core holds its NFLOG group
+	Stopped      bool      // it held the group and lost it; the kernel-log fallback no longer applies
+	Filtered     bool      // a filter narrowed this view
+	Since        time.Time // when the ring began
 }
 
 type blockedData struct {
@@ -100,10 +108,12 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("could not get the packet log", "error", err)
 		data.CoreErr = err.Error()
+		data.Rows.CoreErr = err.Error()
 	} else {
 		data.Result = res
 		data.Rows.Entries = res.Entries
 		data.Rows.Listening = res.Listening
+		data.Rows.Stopped = res.Stopped
 		data.Rows.Since = res.Since
 	}
 	// Both only decide what the empty state and the header say. Unreadable,
@@ -111,6 +121,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	if opts, err := s.client.GetOptions(); err == nil {
 		data.Logging = opts.LogsAnything()
 		data.Rows.Logging = data.Logging
+		data.Rows.LoggingKnown = true
 	}
 	if state, err := s.client.GetRules(); err == nil {
 		data.Staged = len(shared.DiffRules(state.Current, state.Staged))
@@ -128,12 +139,15 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 	if res, err := s.client.GetPacketLog(f); err == nil {
 		rows.Entries = res.Entries
 		rows.Listening = res.Listening
+		rows.Stopped = res.Stopped
 		rows.Since = res.Since
 	} else {
 		slog.Debug("could not get the packet log for the live tail", "error", err)
+		rows.CoreErr = err.Error()
 	}
 	if opts, err := s.client.GetOptions(); err == nil {
 		rows.Logging = opts.LogsAnything()
+		rows.LoggingKnown = true
 	}
 	s.renderPartial(w, r, "blocked_rows", rows)
 }

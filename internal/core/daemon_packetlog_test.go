@@ -26,6 +26,41 @@ func TestStartPacketLog_ABindFailureKeepsTheKernelLog(t *testing.T) {
 	if res.Listening || res.Reason == "" {
 		t.Errorf("the reply says listening=%v reason=%q; the page has to be able to say why", res.Listening, res.Reason)
 	}
+	if res.Stopped {
+		t.Error("a bind that never succeeded reports Stopped=true; the kernel-log fallback line applies here, the restart line does not")
+	}
+}
+
+// Final review, Important 2. A bind failure and a listener that ran and then
+// died read the same (Listening=false) but must not tell the operator the
+// same thing: a bind failure still has the kernel-log fallback; a listener
+// that stops after running does not, because the log rules still name the now
+// unread NFLOG group. Stopped is what lets /blocked tell them apart.
+func TestPacketLog_OnErrorAfterListeningLeavesNothingLoggedAnywhere(t *testing.T) {
+	p := NewPacketLog(10)
+	p.setListening(12227, nil) // the bind succeeded once
+
+	if code := p.onError(errors.New("netlink receive: connection reset by peer")); code != 1 {
+		t.Fatalf("onError returned %d, want 1 (stop reading on a non-ENOBUFS error)", code)
+	}
+
+	res, _ := p.Query(shared.PacketLogFilter{})
+	if res.Listening {
+		t.Error("still Listening after onError stopped the receive loop")
+	}
+	if !res.Stopped {
+		t.Error("Stopped is false; a listener that ran and died is indistinguishable from a bind that never succeeded")
+	}
+}
+
+func TestPacketLog_ABindThatNeverSucceededIsNotStopped(t *testing.T) {
+	p := NewPacketLog(10)
+	p.setListening(12227, errors.New("device or resource busy"))
+
+	res, _ := p.Query(shared.PacketLogFilter{})
+	if res.Stopped {
+		t.Error("Stopped is true on a bind that never succeeded; the kernel-log fallback line no longer applies for it")
+	}
 }
 
 func TestStartPacketLog_ABindPointsTheRulesAtTheGroup(t *testing.T) {
