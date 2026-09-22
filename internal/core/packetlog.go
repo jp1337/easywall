@@ -1,0 +1,443 @@
+package core
+
+import (
+	"bufio"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/netip"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	nflog "github.com/florianl/go-nflog/v2"
+	"github.com/jp1337/easywall/internal/shared"
+	"golang.org/x/sys/unix"
+)
+
+// The packet log: what the ten log rules refused, read from NFLOG as binary
+// headers of fixed structure, never from a line of text. See
+// docs-tech/specs/2026-09-22-2.21-you-can-see-what-it-refuses.md §2 for why the
+// kernel log cannot be the source.
+
+// packetSnaplen is how much of each packet the log rule copies to NFLOG: an
+// IPv6 header, a short extension chain and a TCP header with options fit.
+const packetSnaplen = 128
+
+// entryFromAttribute turns one NFLOG message into an entry, or reports that the
+// payload was too short to decode — which the caller counts, never shows.
+func entryFromAttribute(a nflog.Attribute, ifname func(uint32) string, now time.Time) (shared.PacketLogEntry, bool) {
+	var e shared.PacketLogEntry
+	if a.Payload == nil {
+		return e, false
+	}
+	e.Rule = shared.PacketLogRuleOther
+	if a.Prefix != nil {
+		e.Rule = shared.RuleFromPrefix(*a.Prefix)
+	}
+	// NFULA_TIMESTAMP is present only when the skb carried one; most do not.
+	e.Time = now.UTC()
+	if a.Timestamp != nil {
+		e.Time = a.Timestamp.UTC()
+	}
+	if a.InDev != nil {
+		e.InDev = ifname(*a.InDev)
+	}
+	if a.Hook != nil {
+		e.Hook = hookName(*a.Hook)
+	}
+	if a.Mark != nil {
+		e.Mark = *a.Mark
+	}
+	e.CtState = ctState(a.CtInfo)
+	if !decodeHeaders(&e, *a.Payload) {
+		return shared.PacketLogEntry{}, false
+	}
+	return e, true
+}
+
+// Attribute.Hook is *uint8 in go-nflog v2.3.0 (types.go) — the byte after
+// hw_protocol in NFULA_PACKET_HDR.
+func hookName(h uint8) string {
+	switch h {
+	case unix.NF_INET_LOCAL_IN:
+		return "input"
+	case unix.NF_INET_FORWARD:
+		return "forward"
+	}
+	return ""
+}
+
+// ctState names enum ip_conntrack_info. Absent means the packet had no
+// conntrack entry at all — which is what an INVALID drop looks like.
+func ctState(info *uint32) string {
+	if info == nil {
+		return ""
+	}
+	switch *info {
+	case 0, 3: // IP_CT_ESTABLISHED, IP_CT_ESTABLISHED_REPLY
+		return "established"
+	case 1, 4: // IP_CT_RELATED, IP_CT_RELATED_REPLY
+		return "related"
+	case 2: // IP_CT_NEW
+		return "new"
+	case 7: // IP_CT_UNTRACKED
+		return "untracked"
+	}
+	return ""
+}
+
+func decodeHeaders(e *shared.PacketLogEntry, b []byte) bool {
+	if len(b) == 0 {
+		return false
+	}
+	switch b[0] >> 4 {
+	case 4:
+		return decodeIPv4(e, b)
+	case 6:
+		return decodeIPv6(e, b)
+	}
+	return false
+}
+
+func decodeIPv4(e *shared.PacketLogEntry, b []byte) bool {
+	if len(b) < 20 {
+		return false
+	}
+	ihl := int(b[0]&0x0f) * 4
+	if ihl < 20 || len(b) < ihl {
+		return false
+	}
+	e.Family = 4
+	e.Length = binary.BigEndian.Uint16(b[2:4])
+	e.TTL = b[8]
+	e.Src = netip.AddrFrom4([4]byte(b[12:16]))
+	e.Dst = netip.AddrFrom4([4]byte(b[16:20]))
+	if binary.BigEndian.Uint16(b[6:8])&0x1fff != 0 {
+		e.Proto = ipProtoName(b[9], 4) // a later fragment: no transport header here
+		return true
+	}
+	return decodeTransport(e, b[9], 4, b[ihl:])
+}
+
+func decodeIPv6(e *shared.PacketLogEntry, b []byte) bool {
+	if len(b) < 40 {
+		return false
+	}
+	e.Family = 6
+	e.Length = uint16(min(40+int(binary.BigEndian.Uint16(b[4:6])), 65535)) // #nosec G115 -- clamped on this line
+	e.TTL = b[7]
+	e.Src = netip.AddrFrom16([16]byte(b[8:24]))
+	e.Dst = netip.AddrFrom16([16]byte(b[24:40]))
+	next, rest := b[6], b[40:]
+	// Bounded: eight extension headers is more than any real packet carries,
+	// and a loop an attacker's packet could steer must end.
+	for range 8 {
+		switch next {
+		case 0, 43, 60: // hop-by-hop, routing, destination options
+			if len(rest) < 8 {
+				return false
+			}
+			n := (int(rest[1]) + 1) * 8
+			if len(rest) < n {
+				return false
+			}
+			next, rest = rest[0], rest[n:]
+		case 44: // fragment
+			if len(rest) < 8 {
+				return false
+			}
+			later := binary.BigEndian.Uint16(rest[2:4])>>3 != 0
+			next, rest = rest[0], rest[8:]
+			if later {
+				e.Proto = ipProtoName(next, 6)
+				return true
+			}
+		default:
+			return decodeTransport(e, next, 6, rest)
+		}
+	}
+	return false
+}
+
+func decodeTransport(e *shared.PacketLogEntry, proto byte, family int, b []byte) bool {
+	e.Proto = ipProtoName(proto, family)
+	switch proto {
+	case unix.IPPROTO_TCP:
+		if len(b) < 20 {
+			return false
+		}
+		e.SrcPort = binary.BigEndian.Uint16(b[0:2])
+		e.DstPort = binary.BigEndian.Uint16(b[2:4])
+		e.TCPFlags = tcpFlags(b[13])
+	case unix.IPPROTO_UDP:
+		if len(b) < 8 {
+			return false
+		}
+		e.SrcPort = binary.BigEndian.Uint16(b[0:2])
+		e.DstPort = binary.BigEndian.Uint16(b[2:4])
+	case unix.IPPROTO_ICMP, unix.IPPROTO_ICMPV6:
+		if len(b) < 2 {
+			return false
+		}
+	}
+	return true
+}
+
+// Named ipProtoName, not protoName: docker.go already declares a
+// package-level protoName(n byte) string, and the two would collide.
+func ipProtoName(p byte, family int) string {
+	switch {
+	case p == unix.IPPROTO_TCP:
+		return "tcp"
+	case p == unix.IPPROTO_UDP:
+		return "udp"
+	case p == unix.IPPROTO_ICMP && family == 4:
+		return "icmp"
+	case p == unix.IPPROTO_ICMPV6 && family == 6:
+		return "icmpv6"
+	}
+	return strconv.Itoa(int(p))
+}
+
+var tcpFlagNames = [8]string{"FIN", "SYN", "RST", "PSH", "ACK", "URG", "ECE", "CWR"}
+
+func tcpFlags(b byte) string {
+	var out []string
+	for i, name := range tcpFlagNames {
+		if b&(1<<i) != 0 {
+			out = append(out, name)
+		}
+	}
+	return strings.Join(out, ",")
+}
+
+// PacketLog holds the most recent refused packets, newest first on the way
+// out. It is the only read path; the spill file exists to be replayed into it.
+type PacketLog struct {
+	mu        sync.Mutex
+	buf       []shared.PacketLogEntry
+	next      int // where the next entry is written
+	n         int // how many are held
+	seq       uint64
+	since     time.Time
+	discarded uint64
+	lost      uint64
+
+	listening bool
+	group     uint16
+	reason    string
+
+	spill *spillFile // nil when persist is off, or after the file failed
+
+	namesMu sync.Mutex
+	names   map[uint32]string
+	namesAt time.Time
+}
+
+// NewPacketLog makes a ring of the given capacity.
+func NewPacketLog(capacity int) *PacketLog {
+	return &PacketLog{buf: make([]shared.PacketLogEntry, max(capacity, 1)), since: time.Now().UTC()}
+}
+
+// Add numbers e and stores it, and appends it to the file when there is one.
+func (p *PacketLog) Add(e shared.PacketLogEntry) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.seq++
+	e.Seq = p.seq
+	p.push(e)
+	if p.spill != nil {
+		if err := p.spill.append(e, p.oldestFirst); err != nil {
+			// Once, not per packet: a full disk must not become a log flood.
+			slog.Error("the packet log stopped writing its file; the page keeps "+
+				"working and starts empty after the next restart", "path", p.spill.path, "error", err)
+			p.spill.close()
+			p.spill = nil
+		}
+	}
+}
+
+func (p *PacketLog) push(e shared.PacketLogEntry) {
+	p.buf[p.next] = e
+	p.next = (p.next + 1) % len(p.buf)
+	if p.n < len(p.buf) {
+		p.n++
+	}
+}
+
+// at returns the i-th newest entry. Caller holds p.mu.
+func (p *PacketLog) at(i int) shared.PacketLogEntry {
+	l := len(p.buf)
+	return p.buf[((p.next-1-i)%l+l)%l]
+}
+
+// oldestFirst is what a compaction writes. Caller holds p.mu.
+func (p *PacketLog) oldestFirst() []shared.PacketLogEntry {
+	out := make([]shared.PacketLogEntry, 0, p.n)
+	for i := p.n - 1; i >= 0; i-- {
+		out = append(out, p.at(i))
+	}
+	return out
+}
+
+// Query answers GET_PACKET_LOG. Linear over the ring: twenty thousand struct
+// comparisons per five-second poll is nothing.
+func (p *PacketLog) Query(f shared.PacketLogFilter) (shared.PacketLogResult, error) {
+	match, err := f.Matcher()
+	if err != nil {
+		return shared.PacketLogResult{}, err
+	}
+	limit := f.EffectiveLimit()
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	res := shared.PacketLogResult{
+		Entries: []shared.PacketLogEntry{}, Held: p.n,
+		Listening: p.listening, Group: p.group, Reason: p.reason, Since: p.since,
+		Discarded: p.discarded, Lost: p.lost, Persisted: p.spill != nil,
+	}
+	for i := range p.n {
+		e := p.at(i)
+		if !match(e) {
+			continue
+		}
+		res.Matched++
+		if len(res.Entries) < limit {
+			res.Entries = append(res.Entries, e)
+		}
+	}
+	return res, nil
+}
+
+func (p *PacketLog) setListening(group uint16, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.group, p.listening, p.reason = group, err == nil, ""
+	if err != nil {
+		p.reason = err.Error()
+	}
+}
+
+func (p *PacketLog) countDiscarded() { p.mu.Lock(); p.discarded++; p.mu.Unlock() }
+func (p *PacketLog) countLost()      { p.mu.Lock(); p.lost++; p.mu.Unlock() }
+
+// Persist replays path into the ring, rewrites it to exactly what the ring now
+// holds, and appends every later entry to it. A file that does not exist yet
+// is not an error.
+func (p *PacketLog) Persist(path string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// #nosec G304 -- path is cfg.PacketLogPath(), built from log_dir
+	if f, err := os.Open(path); err == nil {
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			var e shared.PacketLogEntry
+			if json.Unmarshal(sc.Bytes(), &e) != nil {
+				p.discarded++
+				continue
+			}
+			p.push(e)
+			p.seq = max(p.seq, e.Seq)
+		}
+		_ = f.Close()
+		if err := sc.Err(); err != nil {
+			return fmt.Errorf("replay %s: %w", path, err)
+		}
+		if p.n > 0 {
+			p.since = p.at(p.n - 1).Time
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("replay %s: %w", path, err)
+	}
+
+	s := &spillFile{path: path, limit: 2 * len(p.buf)}
+	if err := s.rewrite(p.oldestFirst()); err != nil {
+		return err
+	}
+	p.spill = s
+	return nil
+}
+
+// spillFile is packets.log: one JSON entry per line, appended, and rewritten
+// from the ring once it holds more than twice the ring's capacity. Rotating
+// itself is the point — at a hundred times the audit log's volume, a missing
+// logrotate is a full disk on the one machine that must not fall over.
+type spillFile struct {
+	path  string
+	f     *os.File
+	lines int
+	limit int
+}
+
+func (s *spillFile) append(e shared.PacketLogEntry, ring func() []shared.PacketLogEntry) error {
+	line, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	if _, err := s.f.Write(append(line, '\n')); err != nil {
+		return err
+	}
+	s.lines++
+	if s.lines > s.limit {
+		return s.rewrite(ring())
+	}
+	return nil
+}
+
+// rewrite replaces the file with entries, atomically, and reopens it for
+// appending.
+func (s *spillFile) rewrite(entries []shared.PacketLogEntry) error {
+	s.close()
+	tmp, err := os.CreateTemp(filepath.Dir(s.path), ".packets-*.tmp")
+	if err != nil {
+		return fmt.Errorf("compact %s: %w", s.path, err)
+	}
+	w := bufio.NewWriter(tmp)
+	enc := json.NewEncoder(w)
+	for _, e := range entries {
+		if err := enc.Encode(e); err != nil {
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
+			return err
+		}
+	}
+	if err := w.Flush(); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	// CreateTemp makes 0600 already; said out loud because the file holds addresses.
+	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), s.path); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	// #nosec G304 -- s.path is cfg.PacketLogPath()
+	f, err := os.OpenFile(s.path, os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return err
+	}
+	s.f, s.lines = f, len(entries)
+	return nil
+}
+
+func (s *spillFile) close() {
+	if s.f != nil {
+		_ = s.f.Close()
+		s.f = nil
+	}
+}
