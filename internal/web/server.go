@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"sync"
@@ -1653,6 +1654,18 @@ func templateFuncs() template.FuncMap {
 		// box does. strings.Join, in the template, so the split half stays in
 		// one place — app.js — rather than being a second parser in Go.
 		"join": strings.Join,
+		// The destination address as shown beside the port that follows it.
+		// RFC 3986 needs an IPv6 host bracketed once a port comes after it —
+		// "2001:db8::1:23" reads as seven groups instead of six-plus-a-port —
+		// the same rule net.JoinHostPort enforces for exactly that reason.
+		// IPv4 has no colon to disambiguate, so it is untouched.
+		"dstHost": func(a netip.Addr, port uint16) string {
+			s := a.String()
+			if port != 0 && strings.Contains(s, ":") {
+				return "[" + s + "]"
+			}
+			return s
+		},
 		// The rows a catalogue entry would add, as JSON in a data attribute.
 		// html/template escapes an attribute value, so this is a string the
 		// browser un-escapes and JSON.parse reads — not a script, and nothing

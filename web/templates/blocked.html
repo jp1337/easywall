@@ -34,7 +34,12 @@
     <div class="card">
       <form method="get" action="/blocked" class="pkt-filters" aria-label="{{T "blocked_filter_label"}}">
         <label class="pkt-field"><span>{{T "blocked_filter_src"}}</span>
-          <input type="text" name="src" value="{{.Filter.Src}}" class="input input-sm input-data" inputmode="text" placeholder="203.0.113.0/24"></label>
+          {{/* No placeholder: its computed colour is already --color-ink-subtle
+               in both themes (verified with getComputedStyle, not by the
+               screenshot), same as every other input; a monospace example
+               address still read as a typed value at a glance, which is the
+               defect, not the colour. Dropped rather than restyled. */}}
+          <input type="text" name="src" value="{{.Filter.Src}}" class="input input-sm input-data" inputmode="text"></label>
         <label class="pkt-field"><span>{{T "blocked_filter_dst"}}</span>
           <input type="text" name="dst" value="{{.Filter.Dst}}" class="input input-sm input-data"></label>
         <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_port"}}</span>
@@ -93,12 +98,25 @@
   <td class="log-time" data-label="{{T "blocked_col_time"}}" title="{{.Time.Format "2006-01-02T15:04:05Z07:00"}}">{{shortTime (.Time.Format "2006-01-02T15:04:05Z07:00")}}</td>
   <td class="pkt-flow" data-label="{{T "blocked_col_iface"}}">{{if .InDev}}<a href="/blocked?in={{.InDev}}">{{.InDev}}</a>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
   <td class="pkt-flow" data-label="{{T "blocked_col_flow"}}">
-    <a href="/blocked?src={{.Src}}">{{.Src}}</a> → <a href="/blocked?dst={{.Dst}}">{{.Dst}}</a>{{if .DstPort}}:<a href="/blocked?port={{.DstPort}}">{{.DstPort}}</a>{{end}}
+    <a href="/blocked?src={{.Src}}">{{.Src}}</a> → <a href="/blocked?dst={{.Dst}}">{{dstHost .Dst .DstPort}}</a>{{if .DstPort}}:<a href="/blocked?port={{.DstPort}}">{{.DstPort}}</a>{{end}}
   </td>
   <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
-  <td data-label="{{T "blocked_col_rule"}}"><span class="badge">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
+  {{/* .log-action, not .badge: a rule name is language ("SSH brute force"),
+       not a value, so it takes the UI face rather than the data face — the
+       same reasoning and the same class the audit log's action chip
+       already uses (see the comment on .log-action in app.css). Neutral:
+       no tone class, the same way an informational log action carries
+       none. */}}
+  <td data-label="{{T "blocked_col_rule"}}"><span class="log-action">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
   <td data-label="{{T "blocked_col_actions"}}">
-    <div class="pkt-actions">
+    {{/* row-action: the same de-emphasis ports.html's own row actions use
+         (DESIGN.md § Tables — "a destructive row action rests at 55%
+         opacity and comes fully forward on row hover or :focus-within").
+         Up to three buttons per row otherwise outweigh the data they act
+         on; the buttons keep their full size, their text and their own
+         tab stops, so nothing about reachability or the accessible name
+         changes, only how loud the row is before it is touched. */}}
+    <div class="pkt-actions row-action">
       <form method="post" action="/blocked/stage">
         <input type="hidden" name="act" value="whitelist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
         <button type="submit" class="btn btn-sm">{{T "blocked_action_whitelist"}}</button>

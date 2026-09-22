@@ -90,6 +90,14 @@
    scale entries), so they sit beside it on the same element. */
 :root,
 :root[data-theme="easywall-dark"] {
+  /* Tells the browser which way round the page is, so a <select>'s own
+     dropdown list, native scrollbars, spell-check underlines and the default
+     focus ring follow the theme too — not just the elements this stylesheet
+     touches directly. Without it a select styled dark for its closed box
+     still opens a light-chrome list, because that chrome is drawn by the UA
+     and color-scheme is what tells it which chrome to draw. docs.css already
+     carries this pair for the documentation site; the application never did. */
+  color-scheme: dark;
   --wash-ok: rgba(62, 207, 142, 0.10);
   --wash-warn: rgba(229, 165, 75, 0.10);
   --wash-crit: rgba(242, 85, 90, 0.10);
@@ -122,6 +130,7 @@
    advances and the page recedes. Do not "simplify" canvas to pure white — the
    panels would lose their edge. */
 :root[data-theme="easywall-light"] {
+  color-scheme: light;
   --color-canvas: #fcfcfd;
   --color-surface: #ffffff;
   --color-surface-raised: #f4f6f9;
