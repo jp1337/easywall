@@ -35,9 +35,9 @@ func TestIntegration_ADroppedPacketArrivesTyped(t *testing.T) {
 	p := NewPacketLog(100)
 	stop, err := p.listen(testNFLOGGroupDropped)
 	if err != nil {
-		// On a host where nfnetlink_log cannot be autoloaded from here —
-		// rootless podman — `sudo modprobe nfnetlink_log` first. CI runs
-		// under sudo and must not skip.
+		// The group needs nfnetlink_log loaded on the host — a container
+		// shares its kernel — and `sudo modprobe nfnetlink_log` before the
+		// run guarantees it. CI runs under sudo and must not skip.
 		skipOrFailUnprovable(t, "cannot bind an NFLOG group: "+err.Error())
 	}
 	defer stop()
