@@ -172,6 +172,26 @@ func TestBlockedRows_CoreErrDoesNotClaimLoggingIsOff(t *testing.T) {
 	}
 }
 
+// The live tail asks GetPacketLog and GetOptions independently of the page
+// load; GetOptions failing while GetPacketLog succeeds (even with an empty
+// log) must not read as "logging is off" in the tail's own fragment either.
+func TestBlockedRows_OptionsErrDoesNotClaimLoggingIsOff(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetPacketLog, successResp(shared.PacketLogResult{
+		Listening: true, Entries: []shared.PacketLogEntry{}}))
+	fc.SetResponse(shared.CmdGetOptions, errorRespFor("unavailable"))
+
+	body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+	if strings.Contains(body, "Every log switch is off") {
+		t.Error("the live tail claims logging is off when GetOptions failed")
+	}
+	if !strings.Contains(body, "could not be read") {
+		t.Errorf("the live tail does not say whether anything is logged is unknown:\n%s", body)
+	}
+}
+
 func TestBlocked_LoggingUnknownDoesNotClaimItIsOff(t *testing.T) {
 	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
 		shared.FirewallOptions{})

@@ -70,6 +70,7 @@ reaches the kernel, and no acceptance window starts, until you go there.
 
 | State | Reads |
 |---|---|
+| The core could not be read | *Core daemon unreachable:* and the error |
 | Nothing switched on | *Nothing is being logged* — with a link to the switches |
 | On, nothing refused since *time* | *Nothing has been refused since …* |
 | Not running, never bound | a banner naming the NFLOG group and why the bind failed; logged packets go to the kernel log instead |
