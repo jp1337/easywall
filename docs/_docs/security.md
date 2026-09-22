@@ -347,7 +347,7 @@ lives:
 | | |
 |---|---|
 | Memory | easywall-core only, the last `entries` packets (20 000 by default), lost on restart |
-| Disk | **nothing, by default.** With `persist = true`: `/var/log/easywall/packets.log`, `0600 root`, at most twice `entries` lines — it rewrites itself, oldest first out, and needs no logrotate |
+| Disk | **nothing, by default.** With `persist = true`: `/var/log/easywall/packets.log`, `0600 root` — it rewrites itself to the ring, oldest first out, once it holds more than twice `entries` lines, and needs no logrotate |
 | Leaves the host | never. The web process asks the core over the socket; nothing is sent anywhere |
 | Erase it | `systemctl stop easywall-core && rm /var/log/easywall/packets.log` |
 
