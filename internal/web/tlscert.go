@@ -45,7 +45,10 @@ type certManager struct {
 
 	// sslDir is set only when easywall generates the certificate itself. With a
 	// custom certificate, renewal is the operator's business — easywall reloads
-	// it but never overwrites it.
+	// it but never overwrites it. Reloads on its own: GetCertificate re-reads
+	// the file when its ModTime moves, so certbot's renewal is served without a
+	// restart and no post-renewal hook is needed. Read as "easywall will not
+	// notice" once, by an operator planning one.
 	sslDir string
 
 	// acme is non-nil when the certificate comes from a certificate authority.
