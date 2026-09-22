@@ -125,13 +125,13 @@ func TestStageBlacklistsAStranger(t *testing.T) {
 
 // Review Focus 1: one spelling for the guard and the kernel.
 //
-// The first half proves the storing side only: shared.InAnyEntry and
-// shared.Reachable both unmap on their own, so this half stays green even
-// without any unmapping in the handler itself. The checking half is what the
-// mutation table's mutation 4 actually exercises — recorded here rather than
-// dropping the assertion, since it still pins the behaviour even though it
-// does not by itself distinguish "the handler unmaps" from "nothing here
-// needed to".
+// The first half stays green even without any unmapping in the handler:
+// shared.InAnyEntry unmaps the *entries*, so the stored "::ffff:192.0.2.1"
+// still matches the operator in the verdict and the peer check. The second
+// half — the zone — is what mutation 4 turns red. The handler's own unmap
+// before the "already there" check is pinned by
+// TestStageUnmapsBeforeAskingWhetherItIsAlreadyThere, because InAnyEntry does
+// not unmap the address it is asked about.
 func TestStageUnmapsTheAddressBeforeCheckingAndStoring(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
 	postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"::ffff:192.0.2.1"}}, "192.0.2.1", "")
@@ -144,6 +144,35 @@ func TestStageUnmapsTheAddressBeforeCheckingAndStoring(t *testing.T) {
 	list, _ := got.p.Rules.([]interface{})
 	if len(list) != 1 || list[0] != "fe80::1" {
 		t.Errorf("stored %v, want the unzoned fe80::1", got.p.Rules)
+	}
+}
+
+// shared.InAnyEntry unmaps the entries, not the address it is asked about, so
+// without the handler's own unmap a mapped spelling of a listed address would
+// be staged a second time.
+func TestStageUnmapsBeforeAskingWhetherItIsAlreadyThere(t *testing.T) {
+	s, got, _ := stageCore(t, shared.Rules{TCP: open19999.TCP, Blacklist: []string{"203.0.113.0/24"}})
+	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"::ffff:203.0.113.9"}}, "192.0.2.1", "")
+	if got.called {
+		t.Errorf("an address already inside a listed network was staged again: %+v", got.p)
+	}
+	if f := flashOf(t, s, rec); f != "blocked_refused_already" {
+		t.Errorf("flash = %q, want blocked_refused_already", f)
+	}
+}
+
+// A trusted proxy that sends no X-Forwarded-For: resolveClient falls back to the
+// peer and says proxied, so client == peer and only proxied tells the operator
+// this address is the proxy, not them.
+func TestStageRefusesToBlacklistAProxyThatSendsNoHeader(t *testing.T) {
+	s, got, _ := stageCore(t, open19999)
+	s.cfg.TrustedProxies = []string{"192.0.2.1"}
+	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "")
+	if got.called {
+		t.Fatal("the proxy was staged on the blacklist")
+	}
+	if f := flashOf(t, s, rec); f != "blocked_refused_proxy" {
+		t.Errorf("flash = %q, want blocked_refused_proxy", f)
 	}
 }
 
@@ -206,11 +235,19 @@ func TestStageRefusesWhatItCannotRead(t *testing.T) {
 // The question cannot be asked, so nothing is staged. Failing open here would
 // make a broken socket the one condition under which the guard does nothing.
 func TestStageRefusesWhenTheVerdictCannotBeAsked(t *testing.T) {
-	s, got, fc := stageCore(t, open19999)
-	fc.SetResponse(shared.CmdGetSettings, errorRespFor("down"))
-	postStage(t, s, url.Values{"act": {"whitelist"}, "addr": {"203.0.113.9"}}, "192.0.2.1", "")
-	if got.called {
-		t.Error("staged without a verdict")
+	// One case per action that can reach the guard: blacklist is pinned by the
+	// lockout tests, and whitelist and open-port only admit more, so failing
+	// closed here is the only thing that proves they ask it at all.
+	for _, form := range []url.Values{
+		{"act": {"whitelist"}, "addr": {"203.0.113.9"}},
+		{"act": {"open"}, "proto": {"udp"}, "port": {"51820"}},
+	} {
+		s, got, fc := stageCore(t, open19999)
+		fc.SetResponse(shared.CmdGetSettings, errorRespFor("down"))
+		postStage(t, s, form, "192.0.2.1", "")
+		if got.called {
+			t.Errorf("%v was staged without a verdict", form)
+		}
 	}
 }
 

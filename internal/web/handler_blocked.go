@@ -259,7 +259,9 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 	}
 	peer = peer.Unmap().WithZone("")
 	if shared.InAnyEntry(peer, after.Blacklist) && !shared.InAnyEntry(peer, before.Blacklist) {
-		if client, _ := s.clientAddr(r); client != peer.String() {
+		// proxied covers a trusted proxy that sent no header: the client is
+		// then reported as the peer itself, a stand-in, not the operator.
+		if client, proxied := s.clientAddr(r); proxied || client != peer.String() {
 			return "blocked_refused_proxy"
 		}
 		return "blocked_refused_lockout"
