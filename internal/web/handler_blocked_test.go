@@ -169,6 +169,22 @@ func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 	if strings.Contains(body, `port=0"`) {
 		t.Error("an ICMP packet is rendered with port 0")
 	}
+	if strings.Contains(body, `value="open"`) {
+		t.Error("an ICMP packet is offered 'open the port'")
+	}
+	tcpRow := samplePacket()
+	_, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tcpRow}},
+		shared.FirewallOptions{LogBlocked: true})
+	if body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String(); !strings.Contains(body, `value="open"`) {
+		t.Error("a TCP packet to port 22 is not offered 'open the port'")
+	}
+	fwd := samplePacket()
+	fwd.Hook = "forward"
+	_, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{fwd}},
+		shared.FirewallOptions{LogBlocked: true})
+	if body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String(); strings.Contains(body, `value="open"`) {
+		t.Error("a forwarded packet is offered an input-chain port rule")
+	}
 }
 
 func TestFilterQueryRoundTrips(t *testing.T) {

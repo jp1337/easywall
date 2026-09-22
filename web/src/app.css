@@ -3275,6 +3275,8 @@ body {
     font-size: 12px;
   }
   .pkt-detail dt { color: var(--color-ink-subtle); }
+  .pkt-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+  .pkt-actions form { display: contents; }
 
   /* ── Demo notice ──────────────────────────────────────────────────────────
      Lives inside the topbar rather than as a band above it. As its own row it

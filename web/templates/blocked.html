@@ -98,6 +98,24 @@
   <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
   <td data-label="{{T "blocked_col_rule"}}"><span class="badge">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
   <td data-label="{{T "blocked_col_actions"}}">
+    <div class="pkt-actions">
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="whitelist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_whitelist"}}</button>
+      </form>
+      {{if ne .Rule "blacklist"}}
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="blacklist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_blacklist"}}</button>
+      </form>
+      {{end}}
+      {{if and .DstPort (ne .Hook "forward") (or (eq .Proto "tcp") (eq .Proto "udp"))}}
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="open"><input type="hidden" name="proto" value="{{.Proto}}"><input type="hidden" name="port" value="{{.DstPort}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_open" (dict "Port" .DstPort)}}</button>
+      </form>
+      {{end}}
+    </div>
     <details class="pkt-detail" id="pkt-{{.Seq}}" hx-preserve="true">
       <summary>{{T "blocked_detail"}}</summary>
       <dl>

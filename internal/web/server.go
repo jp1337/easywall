@@ -613,6 +613,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/blocked", s.handleBlocked)
 		r.Get("/blocked/rows", s.handleBlockedRows)
+		r.Post("/blocked/stage", s.handleBlockedStage)
 
 		r.Get("/apply", s.handleApplyGET)
 		r.Post("/apply/start", s.handleApplyStart)
@@ -1445,6 +1446,9 @@ func templateFuncs() template.FuncMap {
 		// The second factor is now doing what it was set up to do, the same
 		// direction as the totp_enabled/totp_disabled pair above.
 		"passkey_added": true, "passkey_removed": true,
+		// A row action on /blocked staged its rule. Nothing is live yet, and
+		// the flash says so; it is still the action working.
+		"blocked_staged_whitelist": true, "blocked_staged_blacklist": true, "blocked_staged_port": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -1509,6 +1513,11 @@ func templateFuncs() template.FuncMap {
 		// The operator's own account is fine as it stands; a name is missing
 		// or too long, the same shape as the password-policy messages above.
 		"passkey_name_required": true,
+		// The four refusals of a row action. The lockout guard doing its job is
+		// not a failure, and neither is "it is already there".
+		"blocked_refused_lockout": true, "blocked_refused_proxy": true,
+		"blocked_refused_already": true, "blocked_refused_invalid": true,
+		"blocked_refused_unknown": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)
