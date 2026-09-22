@@ -3528,6 +3528,17 @@ body {
      390px — a container overflow, in German, on the page whose rows are
      otherwise the simplest in the app. A two-line pill is the smaller cost. */
   .table-reflow .log-action { white-space: normal; }
+
+  /* .pkt-flow's nowrap is the data face for a table row's tabular columns —
+     right at every width above this one. On a card, "Source → Destination"
+     is the widest value on /blocked (an address, an arrow, another address,
+     optionally a port) and nowrap held it to one line regardless of the
+     card's own width: table 437px inside a 360px .table-wrap at 390px, the
+     same shape of overflow .log-action's fix above already closed once.
+     td, not the bare class, so .pkt-detail's <dd class="pkt-flow"> — short
+     values (TTL, flags) inside the drill-down's own dl, not a table cell —
+     keeps its nowrap. */
+  .table-reflow td.pkt-flow { white-space: normal; }
 }
 
 /* The same block again, for /ports only, at the width /ports actually needs.
@@ -3617,6 +3628,8 @@ body {
   .table-reflow .row-action { opacity: 1; }
 
   .table-reflow .log-action { white-space: normal; }
+
+  .table-reflow td.pkt-flow { white-space: normal; }
 }
 
 @media (max-width: 900px) {
