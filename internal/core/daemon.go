@@ -122,7 +122,14 @@ func (d *Daemon) startPacketLog() {
 	}
 	// Under d.mu with a quit check, as Start does for its socket: Stop reads
 	// packetsStop once, so a stop installed after a concurrent Stop would leave
-	// the group bound by a daemon that has shut down.
+	// the group bound by a daemon that has shut down. The sink is set inside the
+	// same section, or a Stop between the two could end the listener and leave
+	// the rules pointing at a group nobody reads.
+	//
+	// Lock order d.mu → m.mu. Nothing holding m.mu can reach d.mu: only
+	// daemon.go refers to *Daemon. And nothing else holds m.mu yet — this runs
+	// before the restore, the socket and the watchdog — so the section stays a
+	// few field writes long, which pingWatchdog's TryLock relies on.
 	d.mu.Lock()
 	select {
 	case <-d.quit:
@@ -131,9 +138,9 @@ func (d *Daemon) startPacketLog() {
 		return
 	default:
 		d.packetsStop = stop
+		d.firewall.nft.SetLogSink(logSink{nflog: true, group: group})
 		d.mu.Unlock()
 	}
-	d.firewall.nft.SetLogSink(logSink{nflog: true, group: group})
 	slog.Info("packet log listening", "group", group)
 }
 
