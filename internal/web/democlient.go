@@ -4,11 +4,62 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"sync"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
+
+// demoShapes are the kinds of refusal a small internet-facing host actually
+// sees, on documentation addresses only (RFC 5737, RFC 3849). 192.0.2.42 is on
+// the seeded blacklist, so the blacklist rows are consistent with that page.
+var demoShapes = []shared.PacketLogEntry{
+	{Rule: "ssh", Proto: "tcp", DstPort: 22, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("198.51.100.23")},
+	{Rule: "portscan", Proto: "tcp", DstPort: 3389, TCPFlags: "FIN,PSH,URG", Src: netip.MustParseAddr("203.0.113.77")},
+	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("198.51.100.140")},
+	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("203.0.113.5")},
+	{Rule: "blacklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
+	{Rule: "icmp_flood", Proto: "icmp", CtState: "new", Src: netip.MustParseAddr("198.51.100.99")},
+	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("203.0.113.200")},
+	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:bad::17")},
+}
+
+// demoEvery is how often the demo "refuses" something new — enough for the
+// live tail to visibly move while someone looks at it.
+const demoEvery = 7 * time.Second
+
+// demoPacketLog is the demo's stream: a backlog of forty entries before start,
+// then one every demoEvery, newest first — a sliding window of the most
+// recent five hundred, not a stream that stops growing once `now` is far
+// enough past `start`. Derived from the clock rather than stored, so it needs
+// no goroutine and resets with the process like the rest of the demo, and it
+// keeps moving on an instance left running for days, not only its first hour.
+func demoPacketLog(start, now time.Time) []shared.PacketLogEntry {
+	const backlog, most = 40, 500
+	newest := backlog + int(now.Sub(start)/demoEvery)
+	oldest := max(0, newest-most)
+	out := make([]shared.PacketLogEntry, 0, newest-oldest)
+	for i := newest - 1; i >= oldest; i-- {
+		e := demoShapes[i%len(demoShapes)]
+		e.Seq = uint64(i + 1) // #nosec G115 -- i is non-negative (oldest is clamped to 0)
+		e.Time = start.Add(time.Duration(i-backlog) * demoEvery).UTC()
+		e.Hook, e.InDev, e.TTL = "input", "eth0", uint8(40+i%24) // #nosec G115 -- 40..63
+		if e.Family == 0 {
+			e.Family = 4
+		}
+		if e.Family == 6 {
+			e.Dst = netip.MustParseAddr("2001:db8::1")
+		} else {
+			e.Dst = netip.MustParseAddr("203.0.113.10")
+		}
+		if e.DstPort != 0 {
+			e.SrcPort = uint16(32768 + i%28000) // #nosec G115 -- bounded
+		}
+		out = append(out, e)
+	}
+	return out
+}
 
 // demoState is an in-memory mock of easywall-core that powers the public
 // demo deployment. All commands sent through CoreClient.Send are dispatched
@@ -69,14 +120,19 @@ type demoState struct {
 	// panicMode rather than panic so nothing here reads like a call to the
 	// builtin.
 	panicMode bool
+
+	// packetStart is when the demo was created, used to generate a stream of
+	// refused packets in demoPacketLog.
+	packetStart time.Time
 }
 
 // newDemoState constructs the demo state machine and seeds it with a
 // realistic example rule set so the UI looks alive on first visit.
 func newDemoState() *demoState {
 	d := &demoState{
-		actor:      "demo",
-		acceptance: shared.AcceptanceIdle,
+		actor:       "demo",
+		acceptance:  shared.AcceptanceIdle,
+		packetStart: time.Now(),
 	}
 	d.seed()
 	return d
@@ -404,7 +460,30 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 	case shared.CmdGetLog:
 		return demoOK(d.auditLog)
 	case shared.CmdGetPacketLog:
-		return demoOK(shared.PacketLogResult{Entries: []shared.PacketLogEntry{}})
+		var f shared.PacketLogFilter
+		if len(cmd.Payload) > 0 {
+			if err := json.Unmarshal(cmd.Payload, &f); err != nil {
+				return demoErr(err)
+			}
+		}
+		match, err := f.Matcher()
+		if err != nil {
+			return demoErr(err)
+		}
+		all := demoPacketLog(d.packetStart, time.Now())
+		res := shared.PacketLogResult{
+			Entries: []shared.PacketLogEntry{}, Held: len(all), Listening: true,
+			Group: shared.PacketLogGroupDefault, Since: all[len(all)-1].Time,
+		}
+		for _, e := range all {
+			if match(e) {
+				res.Matched++
+				if len(res.Entries) < f.EffectiveLimit() {
+					res.Entries = append(res.Entries, e)
+				}
+			}
+		}
+		return demoOK(res)
 	case shared.CmdValidateCustom:
 		// There is no nft binary behind the demo, so it cannot judge syntax. It
 		// used to answer "no errors", which told every visitor their rules were
