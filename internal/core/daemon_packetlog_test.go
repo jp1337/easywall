@@ -63,3 +63,24 @@ func TestGetPacketLogIsAnsweredFromTheRing(t *testing.T) {
 		t.Errorf("an empty payload was refused: %s", resp.Error)
 	}
 }
+
+// A Stop that lands while the bind is in flight must still end the listener:
+// Stop reads packetsStop once, and a stop func installed after that read would
+// leave the NFLOG group bound by a daemon that has already shut down.
+func TestStartPacketLog_AStopDuringTheBindEndsTheListener(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{}), packets: NewPacketLog(10)}
+	running := false
+	d.listenPacketLog = func(p *PacketLog, g uint16) (func(), error) {
+		running = true
+		d.Stop() // SIGTERM arrives while the bind is being made
+		return func() { running = false }, nil
+	}
+
+	d.startPacketLog()
+
+	if running {
+		t.Error("the listener is still running after Stop returned")
+	}
+}

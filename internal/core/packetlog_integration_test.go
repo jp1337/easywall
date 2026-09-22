@@ -4,16 +4,16 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// Each test below binds its own group. listen's stop closes its socket
-// synchronously, so within one test rebinding after stop is always safe —
-// but two tests sharing a group would still race whichever runs second
-// against the first's teardown, so each gets its own instead.
+// Each test below binds its own group: listen's stop does not wait for
+// go-nflog's receive goroutine, so a group can stay bound for a moment after
+// stop returns, and a second test rebinding it would race that teardown.
 const (
 	testNFLOGGroupDropped = 12228
 	testNFLOGGroupSecond  = 12229
@@ -88,7 +88,12 @@ func TestIntegration_ASecondBinderIsRefusedLoudly(t *testing.T) {
 		t.Fatal("a second listener bound the same group")
 	}
 	res, _ := second.Query(shared.PacketLogFilter{})
-	if res.Listening || res.Reason == "" || res.Group != testNFLOGGroupSecond {
+	// EPERM, from the portid check in nfulnl_recv_config: pinned, so a bind
+	// failing for any other reason cannot pass as the collision.
+	if !strings.Contains(res.Reason, "operation not permitted") {
+		t.Errorf("reason %q, want the kernel's EPERM for a group another socket holds", res.Reason)
+	}
+	if res.Listening || res.Group != testNFLOGGroupSecond {
 		t.Errorf("the refused listener reports %+v; the page must be able to name the group and why", res)
 	}
 }

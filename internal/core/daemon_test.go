@@ -138,11 +138,22 @@ func startTestSocket(t *testing.T, d *Daemon) {
 // TestDaemonStart_StopRefusesAConnectionItCannotWaitFor is the test that sees
 // it, and it only sees it because nothing here masks the counter any more.
 func startDaemonGoroutine(d *Daemon) <-chan error {
+	stubPacketLogBind(d)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- d.Start()
 	}()
 	return errCh
+}
+
+// stubPacketLogBind keeps a unit test's Start off the real NFLOG group: as a
+// user the bind fails and prints an ERROR line into the test output, and under
+// sudo (CI's integration job runs the unit tests too) every test would bind
+// the same group for real and race the others for it.
+func stubPacketLogBind(d *Daemon) {
+	if d.listenPacketLog == nil {
+		d.listenPacketLog = func(*PacketLog, uint16) (func(), error) { return func() {}, nil }
+	}
 }
 
 // startTestDaemon runs the real Start in the background, waits for its socket,
@@ -689,6 +700,7 @@ func TestDaemonStart_ListenError(t *testing.T) {
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 	// /proc sub-path is not writable — net.Listen("unix", ...) fails.
 	d.cfg.SocketPath = "/proc/nonexistent/easywall.sock"
+	stubPacketLogBind(d)
 
 	err := d.Start()
 	if err == nil {

@@ -113,16 +113,27 @@ func (d *Daemon) startPacketLog() {
 		// and it must be there whichever way the bind failed.
 		d.packetLog().setListening(group, err)
 		slog.Error("the packet log could not bind its NFLOG group, so the Blocked page "+
-			"stays empty and logged packets go to the kernel log instead. Another "+
-			"collector — ulogd2, usually — may hold this group: set [packet_log] "+
-			"nflog_group in easywall.toml to a free one and restart",
+			"stays empty and logged packets go to the kernel log instead. \"operation not "+
+			"permitted\" means either another collector (ulogd2, usually) holds this "+
+			"group — set [packet_log] nflog_group in easywall.toml to a free one — or "+
+			"easywall-core lacks CAP_NET_ADMIN; fix the cause and restart",
 			"group", group, "error", err)
 		return
 	}
-	d.firewall.nft.SetLogSink(logSink{nflog: true, group: group})
+	// Under d.mu with a quit check, as Start does for its socket: Stop reads
+	// packetsStop once, so a stop installed after a concurrent Stop would leave
+	// the group bound by a daemon that has shut down.
 	d.mu.Lock()
-	d.packetsStop = stop
-	d.mu.Unlock()
+	select {
+	case <-d.quit:
+		d.mu.Unlock()
+		stop()
+		return
+	default:
+		d.packetsStop = stop
+		d.mu.Unlock()
+	}
+	d.firewall.nft.SetLogSink(logSink{nflog: true, group: group})
 	slog.Info("packet log listening", "group", group)
 }
 
@@ -165,6 +176,10 @@ func (d *Daemon) Start() error {
 				RestoreReasonBoot, d.cfg.PanicMarkerPath(), markerErr), "core")
 	}
 
+	// Before the restore: the rules it writes must already point at the group,
+	// or the first minutes after every boot are logged nowhere anyone reads.
+	d.startPacketLog()
+
 	// Restore the stored rules before the listener is created. The socket is the
 	// only thing that makes this process observable, so putting the kernel work
 	// first ensures no client can observe a half-restored firewall by construction.
@@ -184,9 +199,6 @@ func (d *Daemon) Start() error {
 	//
 	// track rather than a bare Add, here and at every other Add below, for the
 	// reason given on it.
-	// Before the restore: the rules it writes must already point at the group,
-	// or the first minutes after every boot are logged nowhere anyone reads.
-	d.startPacketLog()
 
 	if !d.track() {
 		return nil
