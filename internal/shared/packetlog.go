@@ -184,8 +184,15 @@ type PacketLogResult struct {
 	Held    int              `json:"held"`    // how many the ring holds
 
 	// Listening is whether the core holds its NFLOG group. False with a Reason
-	// means the bind failed and the log rules write to the kernel log instead.
+	// and Stopped false means the bind never succeeded and the log rules write
+	// to the kernel log instead. False with Stopped true means the listener had
+	// bound the group and then lost it (a read error after a clean start): the
+	// rules still name that group, but nothing reads it any more, so nothing is
+	// logged anywhere — not here, not the kernel log — until easywall-core
+	// restarts. The two read very differently on /blocked and must not share a
+	// sentence.
 	Listening bool      `json:"listening"`
+	Stopped   bool      `json:"stopped"`
 	Group     uint16    `json:"group"`
 	Reason    string    `json:"reason,omitempty"`
 	Since     time.Time `json:"since,omitempty"` // when the ring began: start, or the oldest replayed entry

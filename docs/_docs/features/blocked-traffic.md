@@ -30,7 +30,7 @@ and switch one on. The two worth starting with:
 
 | Column | Shows |
 |---|---|
-| Time | When the packet arrived, relative — hover for the exact instant |
+| Time | When the packet arrived, local time — to the second today, without seconds beyond that; hover for the exact instant |
 | Interface | The device it arrived on |
 | Source → Destination | Address, and the destination port if there is one |
 | Proto | `tcp`, `udp`, `icmp`, `icmpv6`, or a bare protocol number |
@@ -72,7 +72,8 @@ reaches the kernel, and no acceptance window starts, until you go there.
 |---|---|
 | Nothing switched on | *Nothing is being logged* — with a link to the switches |
 | On, nothing refused since *time* | *Nothing has been refused since …* |
-| Not running | a banner above the table naming the NFLOG group and why the bind failed |
+| Not running, never bound | a banner naming the NFLOG group and why the bind failed; logged packets go to the kernel log instead |
+| Not running, stopped after running | a banner saying so; nothing is logged anywhere — not here, not the kernel log — until `easywall-core` restarts |
 
 ## What it does not show
 

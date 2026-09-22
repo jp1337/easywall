@@ -66,7 +66,7 @@
       "properties": {
         "nflog_group": {
           "type": "integer",
-          "description": "The NFLOG group easywall-core binds. One program per group per host; a collision is reported at start and logging falls back to the kernel log.",
+          "description": "The NFLOG group easywall-core binds. One program per group per network namespace (per host, for a host-network install); a collision is reported at start and logging falls back to the kernel log.",
           "minimum": 0,
           "maximum": 65535,
           "default": 12227

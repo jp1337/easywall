@@ -349,7 +349,7 @@ lives:
 | Memory | easywall-core only, the last `entries` packets (20 000 by default), lost on restart |
 | Disk | **nothing, by default.** With `persist = true`: `/var/log/easywall/packets.log`, `0600 root` — it rewrites itself to the ring, oldest first out, once it holds more than twice `entries` lines, and needs no logrotate |
 | Leaves the host | never. The web process asks the core over the socket; nothing is sent anywhere |
-| Erase it | `systemctl stop easywall-core && rm /var/log/easywall/packets.log` |
+| Erase it | `systemctl stop easywall-core && rm /var/log/easywall/packets.log` — also the repair for a corrupt file: a line over 64 KiB stops the replay and the log falls back to memory-only until the file is removed and the core restarts |
 
 Retention is bounded by count, not time: at the default sixty lines a minute,
 20 000 entries is about five and a half hours, and a flood shortens it.

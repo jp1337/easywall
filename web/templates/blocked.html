@@ -22,7 +22,7 @@
     {{end}}
     {{with .Result}}{{if not .Listening}}
     <div role="alert" class="alert alert-warn mb-4">
-      <span>{{T "blocked_not_listening" (dict "Group" .Group "Reason" .Reason)}}</span>
+      <span>{{if .Stopped}}{{T "blocked_not_listening_stopped" (dict "Group" .Group "Reason" .Reason)}}{{else}}{{T "blocked_not_listening_bind" (dict "Group" .Group "Reason" .Reason)}}{{end}}</span>
     </div>
     {{end}}{{if .Lost}}
     <div role="status" class="alert alert-warn mb-4"><span>{{T "blocked_lost" (dict "N" .Lost)}}</span></div>
@@ -150,7 +150,9 @@
 </tr>
 {{else}}
 <tr><td colspan="6" class="text-center text-ink-subtle py-6">
-  {{if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#logging">{{T "blocked_empty_off_link"}}</a>
+  {{if .CoreErr}}{{T "core_unreachable"}} {{.CoreErr}}
+  {{else if not .LoggingKnown}}{{T "blocked_core_unreachable"}}
+  {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#logging">{{T "blocked_empty_off_link"}}</a>
   {{else if .Filtered}}{{T "blocked_no_match"}}
   {{else if .Listening}}{{T "blocked_empty_quiet" (dict "Since" (shortTime (.Since.Format "2006-01-02T15:04:05Z07:00")))}}
   {{end}}
