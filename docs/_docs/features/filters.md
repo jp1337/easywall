@@ -178,12 +178,34 @@ flood must not be able to fill the disk.
 | `log_blacklist_connections` | Blacklist hits, before the drop | `easywall blacklist:` |
 | `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
 
-```bash
-journalctl -k -f | grep easywall
-```
+Everything these switches log appears on the
+[Blocked traffic]({{ '/docs/features/blocked-traffic/' | relative_url }}) page, newest
+first, filterable, with the three rules you would write next one click away.
+
+**Since 2.21 this is not the kernel log.** The rules send each packet to
+easywall-core over NFLOG, group `12227` by default, and `journalctl -k | grep
+easywall` returns nothing. Instead:
+
+| You want | Do |
+|---|---|
+| to look | open **Blocked** in the interface |
+| a file to `jq` or ship elsewhere | set [`[packet_log] persist = true`]({{ '/docs/configuration/' | relative_url }}#packet_log), then `tail -f /var/log/easywall/packets.log \| jq .` — one JSON object per line |
+| ulogd2 to have it | give ulogd2 a different group; one group binds once per network namespace (per host, for a host-network install) |
+
+Two costs, stated rather than discovered:
+
+- **With easywall-core stopped, logged packets are discarded.** The kernel log was
+  written whether the daemon ran or not; NFLOG is delivered only to a listener.
+- **If the group cannot be bound** — ulogd2 already holds it — the core says so at
+  start, and so does the Blocked page. Logging then falls back to the kernel log,
+  where the `journalctl` command above works again. Set `nflog_group` to a free
+  group and restart.
+
+A `log` statement in your own [custom rules]({{ '/docs/features/custom-rules/' | relative_url }})
+still writes to the kernel log unless it names `group 12227`.
 
 Each log rule sits directly in front of the drop it belongs to and carries the
-same match, so what appears in the log is exactly what was dropped.
+same match, so what appears on the page is exactly what was dropped.
 
 > **None of this worked before 2.5.0.** Eight switches produced no rule at all, and
 > the one that did carried no prefix. The log expression's `Key` field is a bitmask,

@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.0] — 2026-09-22
+
+**You can see what it refuses.**
+
+Blocked traffic becomes a page: every packet the ten log switches refuse,
+newest first, filterable, with whitelist, blacklist and open-the-port one
+click away from the row that refused it.
+
+### Added
+
+- **The Blocked page.** Filter by source, destination, port, protocol, rule or
+  interface; a live tail; a drill-down for TCP flags, connection state, TTL and
+  packet mark.
+- **Three row actions — whitelist, blacklist, open the port — and the guard
+  behind them.** They stage; they never apply, and never arm the acceptance
+  timer. Every one asks the same reachability check the apply screen runs
+  before it stores anything, so blacklisting the address you are signed in
+  from — or, behind a reverse proxy, the proxy's address — is refused with the
+  reason, before anything is staged.
+- **`[packet_log]`.** `nflog_group` (default `12227`), `entries` (default
+  `20 000`, the ring size) and `persist`, off by default.
+- **`GET_PACKET_LOG`**, the socket protocol's twenty-third command.
+
+### Changed — read this before upgrading
+
+- **`journalctl -k | grep easywall` returns nothing** on a host where
+  easywall-core binds its NFLOG group. The ten log switches send each packet
+  to the core over NFLOG now, not into the kernel ring buffer. Look on the
+  Blocked page instead, or set `[packet_log] persist = true` and
+  `tail -f /var/log/easywall/packets.log | jq .`.
+- **ulogd2 already on group `12227`** collides: the core logs the failure,
+  the Blocked page says so, and every log rule falls back to the kernel log
+  so an apply still succeeds. Give ulogd2 a different group, or set
+  `nflog_group` to a free one.
+
+### Security
+
+- `packets.log` is not written at all unless `persist = true`. When it is,
+  it is `0600 root`, self-rotating at twice `entries` lines, and never added
+  to logrotate.
+- Nothing in this release leaves the host: the web process asks
+  easywall-core over the existing Unix socket, the way it already asks for
+  the audit log.
+
 ## [2.20.1] — 2026-09-15
 
 **The window that was not there.**
@@ -2220,7 +2264,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.20.1...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.21.0...HEAD
+[2.21.0]: https://github.com/jp1337/easywall/compare/v2.20.1...v2.21.0
 [2.20.1]: https://github.com/jp1337/easywall/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/jp1337/easywall/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/jp1337/easywall/compare/v2.18.0...v2.19.0

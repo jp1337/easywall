@@ -121,8 +121,8 @@ reads. Read at start; a `SIGHUP` reports a change here and ignores it.
 
 A group binds once per network namespace (per host, for a host-network
 install). If ulogd2 already holds `12227`, the core logs
-*could not bind its NFLOG group* at start, the page says the same, and logged
-packets go to the kernel log as they did before 2.21. Pick a free group.
+*could not bind its NFLOG group*, falls back to the kernel log as before
+2.21, and the page says the same. Pick a free group.
 
 `entries` outside its range is brought to the nearest end with a warning.
 `nflog_group` outside `0`–`65535` stops the daemon with the key named.
