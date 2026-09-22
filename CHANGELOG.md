@@ -43,8 +43,8 @@ click away from the row that refused it.
 ### Security
 
 - `packets.log` is not written at all unless `persist = true`. When it is,
-  it is `0600 root`, self-rotating at twice `entries` lines, and never added
-  to logrotate.
+  it is `0600 root`, rewrites itself to the ring once it holds more than twice
+  `entries` lines, and is never added to logrotate.
 - Nothing in this release leaves the host: the web process asks
   easywall-core over the existing Unix socket, the way it already asks for
   the audit log.
