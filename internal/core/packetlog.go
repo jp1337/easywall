@@ -253,14 +253,14 @@ func NewPacketLog(capacity int) *PacketLog {
 }
 
 // Add numbers e and stores it, and appends it to the file when there is one.
-// ponytail: spill.append holds p.mu through its own compaction, which fires
+// ponytail: spill.append holds p.mu through its own rewrite, which fires
 // once the file grows past 2×entries lines and rewrites it down to the ring's
-// held entries — at the 200000 maximum, up to ~2×entries (400,000) lines read
-// out and ~200,000 written back, in one call. That stalls Query (the page's
-// 5-second poll) and the receive goroutine (→ ENOBUFS → Lost) for the
-// duration. Bounded and rare (once per `entries` packets written); move the
-// rewrite off p.mu (snapshot oldestFirst, rewrite outside the lock, swap the
-// file in) if that stall ever measures.
+// held entries — at the 200000 maximum, up to 200,000 lines written, in one
+// call. That stalls Query (the page's 5-second poll) and the receive
+// goroutine (→ ENOBUFS → Lost) for the duration. Bounded and rare (once per
+// `entries` packets written); move the rewrite off p.mu (snapshot
+// oldestFirst, rewrite outside the lock, swap the file in) if that stall ever
+// measures.
 func (p *PacketLog) Add(e shared.PacketLogEntry) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
