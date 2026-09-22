@@ -298,3 +298,15 @@ func countLines(t *testing.T, path string) int {
 	}
 	return strings.Count(string(raw), "\n")
 }
+
+// Spec §8: a payload too short to decode is discarded and counted, not merely
+// skipped. entryFromAttribute reports ok=false; hook is what NFLOG actually
+// calls, and it is hook's job to turn that into a count the page can show.
+func TestHookCountsWhatItCannotDecode(t *testing.T) {
+	p := NewPacketLog(10)
+	p.hook(attr("easywall drop: ", []byte{0x45})) // a version/IHL byte, nothing after it
+	res, _ := p.Query(shared.PacketLogFilter{})
+	if res.Discarded != 1 || res.Held != 0 {
+		t.Errorf("discarded=%d held=%d, want 1 and 0", res.Discarded, res.Held)
+	}
+}

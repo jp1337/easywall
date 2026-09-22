@@ -42,6 +42,18 @@ type Daemon struct {
 	// Built on first use so a Daemon constructed by hand in a test still records.
 	loginOnce sync.Once
 	login     *loginEvents
+
+	// packets is the refused-packet ring behind GET_PACKET_LOG. Built by
+	// NewDaemon; packetLog() builds one for a Daemon constructed by hand.
+	packetsOnce sync.Once
+	packets     *PacketLog
+
+	// listenPacketLog binds the NFLOG group. A field so a test can make the
+	// bind fail without a second program holding a real group.
+	listenPacketLog func(p *PacketLog, group uint16) (func(), error)
+	// packetsStop ends the listener started by startPacketLog. nil until a
+	// bind has succeeded.
+	packetsStop func()
 }
 
 // NewDaemon initialises the daemon. Call Start() to begin accepting connections.
@@ -58,11 +70,60 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 		return nil, fmt.Errorf("init firewall: %w", err)
 	}
 
+	packets := NewPacketLog(cfg.PacketLogEntries())
+	if cfg.PacketLogPersist() {
+		if err := packets.Persist(cfg.PacketLogPath()); err != nil {
+			slog.Error("the packet log cannot use its file; it runs in memory only and "+
+				"starts empty after every restart", "path", cfg.PacketLogPath(), "error", err)
+		}
+	}
+
 	return &Daemon{
 		cfg:      cfg,
 		firewall: fw,
 		quit:     make(chan struct{}),
+		packets:  packets,
 	}, nil
+}
+
+func (d *Daemon) packetLog() *PacketLog {
+	d.packetsOnce.Do(func() {
+		if d.packets == nil {
+			d.packets = NewPacketLog(d.cfg.PacketLogEntries())
+		}
+	})
+	return d.packets
+}
+
+// startPacketLog binds the NFLOG group and, only if that worked, points the log
+// rules at it. Before the boot restore, so the rules the restore writes are
+// already the right ones.
+//
+// A failure is loud and changes nothing else: the sink stays the kernel log,
+// which is what this host had before 2.21.
+func (d *Daemon) startPacketLog() {
+	group := d.cfg.PacketLogGroup()
+	listen := d.listenPacketLog
+	if listen == nil {
+		listen = func(p *PacketLog, g uint16) (func(), error) { return p.listen(g) }
+	}
+	stop, err := listen(d.packetLog(), group)
+	if err != nil {
+		// Recorded here as well as inside listen: the page reads the reason,
+		// and it must be there whichever way the bind failed.
+		d.packetLog().setListening(group, err)
+		slog.Error("the packet log could not bind its NFLOG group, so the Blocked page "+
+			"stays empty and logged packets go to the kernel log instead. Another "+
+			"collector — ulogd2, usually — may hold this group: set [packet_log] "+
+			"nflog_group in easywall.toml to a free one and restart",
+			"group", group, "error", err)
+		return
+	}
+	d.firewall.nft.SetLogSink(logSink{nflog: true, group: group})
+	d.mu.Lock()
+	d.packetsStop = stop
+	d.mu.Unlock()
+	slog.Info("packet log listening", "group", group)
 }
 
 // Start creates the Unix socket and begins accepting connections.
@@ -123,6 +184,10 @@ func (d *Daemon) Start() error {
 	//
 	// track rather than a bare Add, here and at every other Add below, for the
 	// reason given on it.
+	// Before the restore: the rules it writes must already point at the group,
+	// or the first minutes after every boot are logged nowhere anyone reads.
+	d.startPacketLog()
+
 	if !d.track() {
 		return nil
 	}
@@ -436,6 +501,13 @@ func (d *Daemon) Stop() {
 		_ = ln.Close()
 	}
 
+	d.mu.Lock()
+	stopPackets := d.packetsStop
+	d.mu.Unlock()
+	if stopPackets != nil {
+		stopPackets()
+	}
+
 	// End an open acceptance window before waiting, or Stop blocks for as long
 	// as that window has left — up to an hour. Cancelling it counts as "not
 	// confirmed", so the rules roll back, which is what the window promises: the
@@ -624,7 +696,17 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdGetPacketLog:
-		data, _ := json.Marshal(shared.PacketLogResult{Entries: []shared.PacketLogEntry{}})
+		var f shared.PacketLogFilter
+		if len(cmd.Payload) > 0 {
+			if err := json.Unmarshal(cmd.Payload, &f); err != nil {
+				return errResp(fmt.Errorf("invalid payload: %w", err))
+			}
+		}
+		res, err := d.packetLog().Query(f)
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(res)
 		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdExportRules:
