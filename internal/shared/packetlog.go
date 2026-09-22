@@ -12,7 +12,7 @@ import (
 // A refused packet, as easywall-core decoded it from NFLOG.
 //
 // Typed on purpose. The kernel log is text, and anything reading text is a
-// parser in the root process — which 2.23's row rejects in as many words. NFLOG
+// parser in the root process — which 2.24's row rejects in as many words. NFLOG
 // hands the core a binary header of fixed structure and the first bytes of the
 // packet, so every field below is read out of a known offset rather than out of
 // a line somebody could shape.

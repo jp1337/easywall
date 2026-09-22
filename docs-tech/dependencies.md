@@ -122,6 +122,12 @@ While fixing it, an eighth pin turned up on the documentation landing page —
 one card below the `<strong>` badge that *was* managed. No manager and no test
 knew about it. It has both now.
 
+## The direct dependencies
+
+- `github.com/florianl/go-nflog/v2` — MIT, v2.3.0 — reads NFLOG in `easywall-core`.
+  Its own dependencies, `mdlayher/netlink`, `golang.org/x/sys` and
+  `github.com/google/go-cmp`, are already in this module's graph.
+
 ## Manual steps some updates need
 
 | Dependency | After merging |
