@@ -111,8 +111,15 @@ looked at the core's socket.
 ## Letting a monitoring host in
 
 `/healthz` starts closed to everything but loopback. It publishes the firewall's
-state to whoever can read it. An orchestrator's own probe comes from the
-container, so loopback is where it is needed and the network is not.
+state to whoever can read it. The gate reads the TCP peer, never a forwarding
+header, so nothing behind a proxy can claim to be loopback.
+
+> **Move `bind_addr` off loopback and you must widen this list to match.** The
+> image's own `HEALTHCHECK` asks `/healthz` at the bound address, and under
+> `network_mode: host` it arrives from that address rather than from `127.0.0.1`.
+> The default turns it away, and the symptom points at the wrong thing. The
+> container goes `unhealthy` while `easywall-core health` says `ok`: the
+> firewall is fine, and only the endpoint is closed. Add the bind address.
 
 ```toml
 # /etc/easywall/web.toml

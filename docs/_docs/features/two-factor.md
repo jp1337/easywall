@@ -46,6 +46,12 @@ Two things have to be true first. If either is not, there is no button to press
 |---|---|
 | `hostname` in [`[tls]`]({{ '/docs/configuration/' | relative_url }}#tls) | WebAuthn's Relying Party ID must be a registrable name. An installation reached at `https://192.168.1.10:12227` has none |
 | A certificate the browser trusts | Chrome refuses WebAuthn outright on a certificate error, and the pair easywall generates for itself is one. ACME, in that same `[tls]` table, fixes it |
+| The browser reaching easywall directly | A passkey is bound to the exact origin the browser used, and easywall expects its own address and port. Through a [reverse proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}) the two differ and every ceremony is refused — giving easywall a trusted certificate behind the proxy satisfies the row above without fixing this one |
+
+A password manager's injected scripts are refused by the page's content
+security policy, which fills the browser console on this page and is the policy
+working rather than a fault. easywall's own script carries the nonce; nothing
+injected does.
 
 A passkey satisfies the requirement on its own. That is also the trap in [the
 way back](#the-way-back): it is a third place a factor lives, and not the file
