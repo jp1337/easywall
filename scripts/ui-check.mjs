@@ -54,7 +54,7 @@ const USER = 'admin';
 const PASS = 'ui-check-password-2026';
 
 const PAGES = [
-  '/dashboard', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
+  '/dashboard', '/blocked', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
   '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
   '/notify', '/log', '/apply',
 ];
@@ -1724,7 +1724,7 @@ const screenshotArgs = screenshotMode
 // their own (filters.md reuses the blacklist/options shots), and shooting
 // them here would add files nothing links to.
 const DEFAULT_SCREENSHOT_PAGES = [
-  '/dashboard', '/ports', '/blacklist', '/forwarding', '/custom',
+  '/dashboard', '/blocked', '/ports', '/blacklist', '/forwarding', '/custom',
   '/options', '/settings', '/password', '/log', '/notify', '/apply',
   '/apply-window',
 ];
