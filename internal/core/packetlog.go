@@ -2,11 +2,13 @@ package core
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -440,4 +442,109 @@ func (s *spillFile) close() {
 		_ = s.f.Close()
 		s.f = nil
 	}
+}
+
+// listen binds group and hands every packet to p. It returns once the bind
+// has succeeded or failed, together with a stop func that ends delivery and
+// closes the socket before returning.
+//
+// Conntrack state first, and without it if the kernel refuses the flag — an
+// entry without its ct state is worth more than no entry. Twice with it,
+// because nfnetlink_log answers -EAGAIN when it has just loaded
+// nf_conntrack_netlink on demand (nfulnl_recv_config), and the second try then
+// succeeds.
+//
+// A group another program holds answers -EPERM, not -EBUSY: the portid check
+// in nfulnl_recv_config runs before the bind. The journal line in
+// startPacketLog is what turns "operation not permitted" into "another
+// collector holds this group".
+func (p *PacketLog) listen(group uint16) (stop func(), err error) {
+	var lastErr error
+	for _, flags := range []uint16{nflog.FlagConntrack, nflog.FlagConntrack, 0} {
+		var nf *nflog.Nflog
+		nf, lastErr = nflog.Open(&nflog.Config{Group: group, Copymode: nflog.CopyPacket, Flags: flags})
+		if lastErr != nil {
+			continue
+		}
+		// Ten modules at up to sixty lines a minute each, all bursting at once,
+		// is six hundred messages in one breath; the default buffer is ~200 KB.
+		_ = nf.Con.SetReadBuffer(1 << 20)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		// A closure over this call's own ctx, not the p.onError method: cancelling
+		// ctx (from stop, below) is how a clean shutdown surfaces here — go-nflog
+		// turns it into a read error — and that must return quietly rather than
+		// being logged as the listener having failed.
+		onError := func(err error) int {
+			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+				return 1
+			}
+			return p.onError(err)
+		}
+		if lastErr = nf.RegisterWithErrorFunc(ctx, p.hook, onError); lastErr != nil {
+			cancel()
+			_ = nf.Close()
+			continue
+		}
+		p.setListening(group, nil)
+		return func() {
+			cancel()
+			_ = nf.Close() // Close = Con.Close + wg.Wait: returns once reading has stopped
+		}, nil
+	}
+	err = fmt.Errorf("bind NFLOG group %d: %w", group, lastErr)
+	p.setListening(group, err)
+	return nil, err
+}
+
+func (p *PacketLog) hook(a nflog.Attribute) int {
+	e, ok := entryFromAttribute(a, p.ifname, time.Now())
+	if !ok {
+		p.countDiscarded()
+		return 0
+	}
+	p.Add(e)
+	return 0
+}
+
+// onError keeps reading through an overrun — the kernel dropped messages the
+// socket could not take, which is counted and shown — and stops on anything
+// else, which the page then reports as "not listening". listen's closure has
+// already filtered out a clean shutdown before this is called.
+func (p *PacketLog) onError(err error) int {
+	// *netlink.OpError has Unwrap (mdlayher/netlink errors.go:113), so the
+	// errno is reachable.
+	if errors.Is(err, unix.ENOBUFS) {
+		p.countLost()
+		return 0
+	}
+	slog.Error("the packet log stopped reading its NFLOG group; the Blocked page "+
+		"shows nothing new until easywall-core restarts", "error", err)
+	p.mu.Lock()
+	group := p.group
+	p.mu.Unlock()
+	p.setListening(group, err)
+	return 1
+}
+
+// ifname resolves an interface index. Cached, because an index lookup is a full
+// RTM_GETLINK dump and this runs per packet.
+// ponytail: whole-map expiry once a minute, so a recycled index (a container's
+// veth coming and going) is mislabelled for at most that long; per-entry
+// invalidation on RTM_DELLINK if it ever matters.
+func (p *PacketLog) ifname(idx uint32) string {
+	p.namesMu.Lock()
+	defer p.namesMu.Unlock()
+	if p.names == nil || time.Since(p.namesAt) > time.Minute {
+		p.names, p.namesAt = map[uint32]string{}, time.Now()
+	}
+	if name, ok := p.names[idx]; ok {
+		return name
+	}
+	name := ""
+	if iface, err := net.InterfaceByIndex(int(idx)); err == nil {
+		name = iface.Name
+	}
+	p.names[idx] = name
+	return name
 }

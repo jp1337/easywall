@@ -3,48 +3,149 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/google/nftables/expr"
+	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/sys/unix"
 )
 
-// The bug this guards against needs no kernel to see: expr.Log.Key is a bitmask
-// over the NFTA_LOG_* attribute indices, and the original code set it to the
-// bare attribute number. NFTA_LOG_PREFIX is 2, so it set bit 1 — NFTA_LOG_GROUP
-// — and left the prefix bit clear. Every log rule shipped without the prefix
-// the documentation told operators to grep for.
-func TestLogExprs_SetsThePrefixBitNotTheAttributeNumber(t *testing.T) {
-	exprs := logExprs("easywall test: ", 30)
-
-	var log *expr.Log
+func logOf(t *testing.T, exprs []expr.Any) *expr.Log {
+	t.Helper()
 	for _, e := range exprs {
 		if l, ok := e.(*expr.Log); ok {
-			log = l
+			return l
 		}
 	}
-	if log == nil {
-		t.Fatal("no log expression produced")
-	}
+	t.Fatal("no log expression produced")
+	return nil
+}
 
-	if log.Key&(1<<unix.NFTA_LOG_PREFIX) == 0 {
-		t.Errorf("the prefix bit is not set: Key=%d. Setting Key to the attribute "+
-			"number rather than 1<<number is what dropped the prefix", log.Key)
+// The prefix bit must be set in both sinks. Key is a bitmask over NFTA_LOG_*
+// indices; setting it to the bare attribute number is what shipped every log
+// rule unlabelled before 2.5.0.
+func TestLogExprs_SetsThePrefixBitNotTheAttributeNumber(t *testing.T) {
+	for _, sink := range []logSink{{}, {nflog: true, group: 12227}} {
+		l := logOf(t, logExprs("easywall test: ", 30, sink))
+		if l.Key&(1<<unix.NFTA_LOG_PREFIX) == 0 {
+			t.Errorf("sink %+v: the prefix bit is not set: Key=%d", sink, l.Key)
+		}
+		if string(l.Data) != "easywall test: " {
+			t.Errorf("prefix = %q", l.Data)
+		}
 	}
-	if log.Key&(1<<unix.NFTA_LOG_GROUP) != 0 {
-		t.Errorf("the group bit is set: Key=%d. easywall sets no log group, and "+
-			"the old value set this bit by accident", log.Key)
+}
+
+// With no NFLOG listener the rule writes where every release before 2.21 wrote:
+// the kernel ring buffer. That is the fallback when the group cannot be bound.
+func TestLogExprs_TheKernelLogSinkSetsNoGroup(t *testing.T) {
+	l := logOf(t, logExprs("p", 0, logSink{}))
+	if l.Key&(1<<unix.NFTA_LOG_GROUP) != 0 || l.Key&(1<<unix.NFTA_LOG_SNAPLEN) != 0 {
+		t.Errorf("Key=%d sets a group or a snaplen with no listener to receive them", l.Key)
 	}
-	if string(log.Data) != "easywall test: " {
-		t.Errorf("prefix = %q, want %q", log.Data, "easywall test: ")
+}
+
+// The NFLOG sink: group, prefix, snaplen, and no flags. The kernel refuses
+// NFTA_LOG_FLAGS beside NFTA_LOG_GROUP — see the plan's correction to spec §2.
+func TestLogExprs_TheNFLOGSinkNamesTheGroup(t *testing.T) {
+	l := logOf(t, logExprs("p", 0, logSink{nflog: true, group: 12227}))
+	want := uint32(1<<unix.NFTA_LOG_GROUP | 1<<unix.NFTA_LOG_PREFIX | 1<<unix.NFTA_LOG_SNAPLEN)
+	if l.Key != want {
+		t.Errorf("Key = %b, want %b", l.Key, want)
+	}
+	if l.Group != 12227 || l.Snaplen != packetSnaplen {
+		t.Errorf("group %d snaplen %d, want 12227 and %d", l.Group, l.Snaplen, packetSnaplen)
+	}
+	if l.Flags != 0 || l.Level != 0 {
+		t.Errorf("flags %d level %d: the kernel refuses either beside a group", l.Flags, l.Level)
+	}
+}
+
+// Spec §1: ten prefixes, one function. A new call site that passes a literal
+// logSink{} instead of the manager's would silently keep one module in the
+// kernel log while the page reports it as logging.
+func TestEveryLogRuleUsesTheManagersSink(t *testing.T) {
+	src, err := os.ReadFile("nftables.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := regexp.MustCompile(`logExprs\(([^()]|\([^()]*\))*\)`).FindAllString(string(src), -1)
+	var real int
+	for _, c := range calls {
+		if strings.HasPrefix(c, "logExprs(prefix") {
+			continue // the declaration
+		}
+		real++
+		if !strings.HasSuffix(c, "m.logSink)") {
+			t.Errorf("%s does not pass m.logSink", c)
+		}
+	}
+	if real < 4 {
+		t.Errorf("found %d call sites, want at least 4 — the pattern no longer matches", real)
+	}
+}
+
+// And through the builders, not only the helper: the final drop log and a
+// filtered module both carry the group once the manager has one.
+func TestBuildersCarryTheSink(t *testing.T) {
+	rec := &recordingConn{}
+	m := &NftablesManager{adder: rec, logSink: logSink{nflog: true, group: 4242}}
+	tbl := easywallInetTableForTest()
+	ch := inputChainForTest(tbl)
+
+	m.addFinalLog(tbl, ch, shared.FirewallOptions{LogBlocked: true})
+	m.addBlacklistRule(tbl, ch, "192.0.2.1", shared.FirewallOptions{LogBlacklist: true})
+
+	var logs int
+	for _, r := range rec.rules {
+		for _, e := range r.Exprs {
+			if l, ok := e.(*expr.Log); ok {
+				logs++
+				if l.Group != 4242 {
+					t.Errorf("a log rule carries group %d, want the manager's 4242", l.Group)
+				}
+			}
+		}
+	}
+	if logs != 2 {
+		t.Errorf("found %d log expressions, want 2", logs)
+	}
+}
+
+// Ties the ten real prefix constants to the rule name RuleFromPrefix reads
+// back out of them — by name, not by a literal restating the constant. A
+// prefix constant edited to a spelling RuleFromPrefix does not recognise
+// turns real packets into "other" and a rule filter that matches nothing,
+// with every other test here still green.
+func TestLogPrefixesMapToTheRulesTheyName(t *testing.T) {
+	want := map[string]string{
+		logPrefixInvalid:   "invalid",
+		logPrefixFragment:  "fragment",
+		logPrefixBogon:     "bogon",
+		logPrefixPortScan:  "portscan",
+		logPrefixSYNFlood:  "syn_flood",
+		logPrefixICMPFlood: "icmp_flood",
+		logPrefixSSH:       "ssh",
+		logPrefixTCPRST:    "tcp_rst",
+		logPrefixBlacklist: "blacklist",
+		logPrefixDrop:      "drop",
+	}
+	if len(want) != len(shared.PacketLogRules) {
+		t.Fatalf("mapped %d prefixes, want the %d rules PacketLogRules lists", len(want), len(shared.PacketLogRules))
+	}
+	for prefix, rule := range want {
+		if got := shared.RuleFromPrefix(prefix); got != rule {
+			t.Errorf("RuleFromPrefix(%q) = %q, want %q", prefix, got, rule)
+		}
 	}
 }
 
 // The log rule carries no verdict: it falls through to the rule that acts, so
 // that rate-limiting the log cannot rate-limit the drop.
 func TestLogExprs_CarriesNoVerdict(t *testing.T) {
-	for _, e := range logExprs("easywall test: ", 0) {
+	for _, e := range logExprs("easywall test: ", 0, logSink{}) {
 		if _, ok := e.(*expr.Verdict); ok {
 			t.Error("a verdict here would let a flood escape the drop whenever the " +
 				"log rate limit kicked in")
@@ -55,7 +156,7 @@ func TestLogExprs_CarriesNoVerdict(t *testing.T) {
 func TestLogExprs_RateLimitDefaultsWhenUnset(t *testing.T) {
 	for _, tc := range []struct{ given, want int }{{0, 60}, {-5, 60}, {30, 30}} {
 		var lim *expr.Limit
-		for _, e := range logExprs("p", tc.given) {
+		for _, e := range logExprs("p", tc.given, logSink{}) {
 			if l, ok := e.(*expr.Limit); ok {
 				lim = l
 			}
@@ -87,7 +188,7 @@ func TestAddFiltered_LogAndActionShareTheMatch(t *testing.T) {
 	// only: addFiltered must not mutate the caller's match.
 	logged := make([]expr.Any, 0, len(match)+2)
 	logged = append(logged, match...)
-	logged = append(logged, logExprs("p", 0)...)
+	logged = append(logged, logExprs("p", 0, logSink{})...)
 
 	if len(match) != before {
 		t.Errorf("the caller's match slice was extended to %d elements", len(match))
