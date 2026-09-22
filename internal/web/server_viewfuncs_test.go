@@ -231,6 +231,13 @@ func TestShortTime_UTCEveningCrossesTheLocalDayInBerlin(t *testing.T) {
 	}
 }
 
+func TestFullTime_IsLocalWithMilliseconds(t *testing.T) {
+	utc := time.Date(2026, 3, 1, 23, 0, 0, 500_000_000, time.UTC)
+	if got := fullTime(utc); got != utc.Local().Format("2006-01-02 15:04:05.000 MST") {
+		t.Errorf("fullTime(%v) = %q, want %v formatted the same way", utc, got, utc.Local())
+	}
+}
+
 func TestTemplateFuncs_CountEntries(t *testing.T) {
 	funcs := templateFuncs()
 	countEntries := funcs["countEntries"].(func([]string) int)

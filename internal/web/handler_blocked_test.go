@@ -1,0 +1,203 @@
+package web
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jp1337/easywall/internal/shared"
+)
+
+func samplePacket() shared.PacketLogEntry {
+	return shared.PacketLogEntry{
+		Seq: 41, Time: time.Now().UTC(), Rule: "ssh", Hook: "input", InDev: "eth0", Family: 4,
+		Src: netip.MustParseAddr("203.0.113.9"), Dst: netip.MustParseAddr("198.51.100.1"),
+		Proto: "tcp", SrcPort: 51514, DstPort: 22, TCPFlags: "SYN", TTL: 57, CtState: "new",
+	}
+}
+
+func blockedCore(t *testing.T, res shared.PacketLogResult, opts shared.FirewallOptions) (*fakeCore, *Server) {
+	t.Helper()
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetPacketLog, successResp(res))
+	fc.SetResponse(shared.CmdGetOptions, successResp(opts))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	return fc, s
+}
+
+func TestBlocked_RequiresAuth(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	assertRedirect(t, doRequest(s, "GET", "/blocked", nil), "/login")
+	assertRedirect(t, doRequest(s, "GET", "/blocked/rows", nil), "/login")
+}
+
+func TestBlocked_RendersARow(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Held: 1, Matched: 1,
+		Entries: []shared.PacketLogEntry{samplePacket()}}, shared.FirewallOptions{SSHBruteForceLog: true})
+
+	rec := doAuthRequest(t, s, "GET", "/blocked", nil)
+	assertStatus(t, rec, http.StatusOK)
+	body := rec.Body.String()
+	for _, want := range []string{
+		"203.0.113.9", "198.51.100.1", `href="/blocked?port=22"`, "eth0",
+		`<span class="badge">SSH brute force</span>`, // the row's own rule label, not the filter's <select>, which lists every label regardless of whether a row exists
+		`href="/blocked?src=203.0.113.9"`,            // clicking an address filters to it
+		`id="pkt-41"`, "hx-preserve",                 // the drill-down survives the live tail
+		`hx-trigger="every 5s"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page does not contain %q", want)
+		}
+	}
+}
+
+// The filter reaches the core as typed fields, and the URL is its only state:
+// the live tail and every link carry the same query back.
+func TestBlocked_TheFilterGoesToTheCoreAndStaysInTheURL(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true})
+	var sent shared.PacketLogFilter
+	fc.OnCommand(shared.CmdGetPacketLog, func(c shared.Command) { _ = json.Unmarshal(c.Payload, &sent) })
+
+	rec := doAuthRequest(t, s, "GET", "/blocked?src=203.0.113.0%2F24&port=22&proto=tcp&rule=ssh&in=eth0", nil)
+	assertStatus(t, rec, http.StatusOK)
+	want := shared.PacketLogFilter{Src: "203.0.113.0/24", Port: 22, Proto: "tcp", Rule: "ssh", InDev: "eth0"}
+	if sent != want {
+		t.Errorf("the core was asked for %+v, want %+v", sent, want)
+	}
+	if !strings.Contains(rec.Body.String(), `hx-get="/blocked/rows?in=eth0&amp;port=22&amp;proto=tcp&amp;rule=ssh&amp;src=203.0.113.0%2F24"`) {
+		t.Error("the live tail does not carry the filter; the next swap would show everything")
+	}
+}
+
+// Review Focus 3. A filter that does not parse is ignored out loud: the page
+// renders the whole log and says the filter was not applied, rather than 500ing
+// or showing an empty table that reads as "nothing was refused".
+func TestBlockedIgnoresAFilterItCannotRead(t *testing.T) {
+	for _, q := range []string{"port=99999", "port=0", "src=not-an-ip", "rule=%3Cscript%3E", "in=eth0%3Brm"} {
+		fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Held: 1, Matched: 1,
+			Entries: []shared.PacketLogEntry{samplePacket()}}, shared.FirewallOptions{LogBlocked: true})
+		var sent shared.PacketLogFilter
+		fc.OnCommand(shared.CmdGetPacketLog, func(c shared.Command) { _ = json.Unmarshal(c.Payload, &sent) })
+
+		rec := doAuthRequest(t, s, "GET", "/blocked?"+q, nil)
+		assertStatus(t, rec, http.StatusOK)
+		body := rec.Body.String()
+		if !strings.Contains(body, "could not be read") {
+			t.Errorf("%s: the page does not say the filter was ignored", q)
+		}
+		if !strings.Contains(body, "203.0.113.9") {
+			t.Errorf("%s: the unfiltered log is not shown", q)
+		}
+		if sent != (shared.PacketLogFilter{}) {
+			t.Errorf("%s: the core was sent %+v; a filter the page refused must not reach it", q, sent)
+		}
+	}
+}
+
+func TestBlocked_EmptyStates(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		res  shared.PacketLogResult
+		opts shared.FirewallOptions
+		want string
+	}{
+		{"nothing switched on", shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+			shared.FirewallOptions{}, `href="/options#logging"`},
+		{"on, and quiet", shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+			shared.FirewallOptions{LogBlocked: true}, "Nothing has been refused"},
+		{"not listening", shared.PacketLogResult{Group: 12227, Reason: "bind NFLOG group 12227: device or resource busy",
+			Entries: []shared.PacketLogEntry{}}, shared.FirewallOptions{LogBlocked: true}, "device or resource busy"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, s := blockedCore(t, tc.res, tc.opts)
+			body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+			if !strings.Contains(body, tc.want) {
+				t.Errorf("the page does not contain %q", tc.want)
+			}
+		})
+	}
+}
+
+func TestBlocked_CoreDownStillRenders(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetPacketLog, errorRespFor("unavailable"))
+	rec := doAuthRequest(t, s, "GET", "/blocked", nil)
+	assertStatus(t, rec, http.StatusOK)
+	if !strings.Contains(rec.Body.String(), "alert-crit") {
+		t.Error("a core that did not answer is not reported")
+	}
+}
+
+func TestBlockedRows_IsAFragment(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{samplePacket()}},
+		shared.FirewallOptions{LogBlocked: true})
+	body := doAuthRequest(t, s, "GET", "/blocked/rows?port=22", nil).Body.String()
+	if strings.Contains(body, "<html") || !strings.Contains(body, "203.0.113.9") {
+		t.Errorf("/blocked/rows is not the rows fragment:\n%s", body)
+	}
+}
+
+// The live tail is its own request and is handed nothing handleBlocked
+// already worked out, so it has to ask the core the same two questions again
+// to pick the same empty-state message — this is what proves it does.
+func TestBlockedRows_EmptyStateMatchesThePage(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true})
+	body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+	if !strings.Contains(body, "Nothing has been refused") {
+		t.Errorf("the live tail's own empty state does not match the page's:\n%s", body)
+	}
+}
+
+func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
+	icmp := samplePacket()
+	icmp.Proto, icmp.SrcPort, icmp.DstPort, icmp.TCPFlags, icmp.Rule = "icmp", 0, 0, "", "icmp_flood"
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{icmp}},
+		shared.FirewallOptions{ICMPFloodLog: true})
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	// Not ":0" — every timestamp on the page contains that.
+	if strings.Contains(body, `port=0"`) {
+		t.Error("an ICMP packet is rendered with port 0")
+	}
+}
+
+func TestFilterQueryRoundTrips(t *testing.T) {
+	f := shared.PacketLogFilter{Src: "2001:db8::/32", Port: 443, Proto: "tcp"}
+	back, ok := blockedFilter(mustParseQuery(t, filterQuery(f)))
+	if !ok || back != f {
+		t.Errorf("round trip: %+v (ok=%v), want %+v", back, ok, f)
+	}
+}
+
+// The rule labels are asked for through printf, which the template-key guard
+// cannot see. Derived from shared.PacketLogRules, so a rule added there without
+// a label fails here instead of rendering "blocked_rule_newthing".
+func TestEveryPacketLogRuleIsLabelled(t *testing.T) {
+	for _, lang := range []string{"en", "de"} {
+		ids := localeIDs(t, lang)
+		for _, r := range append(append([]string{}, shared.PacketLogRules...), shared.PacketLogRuleOther) {
+			if !ids["blocked_rule_"+r] {
+				t.Errorf("locales/%s.json has no blocked_rule_%s", lang, r)
+			}
+		}
+	}
+}
+
+func mustParseQuery(t *testing.T, q string) url.Values {
+	t.Helper()
+	v, err := url.ParseQuery(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}

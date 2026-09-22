@@ -49,6 +49,7 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/log":          "_docs/features/audit-log.md",
 		"/notify":       "_docs/features/notifications.md",
 		"/export":       "_docs/features/export-import.md",
+		"/blocked":      "_docs/features/blocked-traffic.md",
 	}
 
 	// Not pages: redirects, polling endpoints, fragments answered into a page
@@ -60,6 +61,7 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/logout":        "an action, not a page — the behaviour is in security.md",
 		"/apply/status":  "polled by the apply page for the countdown",
 		"/log/filter":    "an htmx fragment of the audit log page",
+		"/blocked/rows":  "an htmx fragment of the blocked-traffic page, polled for the live tail",
 		"/static/*":      "the asset handler",
 		"/schemas/*":     "the JSON schemas, served as files",
 		"/healthz":       "JSON for an orchestrator, not a page — it is documented in features/health.md",

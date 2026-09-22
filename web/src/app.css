@@ -3246,6 +3246,36 @@ body {
     white-space: nowrap;
   }
 
+  /* ── Blocked traffic ──────────────────────────────────────────────────────
+     Addresses and ports are data: the data face, tabular figures, no wrap. */
+  .pkt-flow {
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .pkt-flow a { color: inherit; text-decoration: none; }
+  .pkt-flow a:hover { text-decoration: underline; }
+  .pkt-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: flex-end;
+    margin-bottom: 12px;
+  }
+  .pkt-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--color-ink-muted); }
+  .pkt-field .input { width: 12rem; }
+  .pkt-field-narrow .input { width: 7rem; }
+  .pkt-detail summary { cursor: pointer; font-size: 12px; color: var(--color-ink-muted); }
+  .pkt-detail dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 12px;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  .pkt-detail dt { color: var(--color-ink-subtle); }
+
   /* ── Demo notice ──────────────────────────────────────────────────────────
      Lives inside the topbar rather than as a band above it. As its own row it
      displaced every page by its own height, which read as a layout bug. */

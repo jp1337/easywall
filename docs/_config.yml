@@ -145,6 +145,8 @@ nav:
         path: /docs/features/system-settings/
       - title: Second Factor
         path: /docs/features/two-factor/
+      - title: Blocked traffic
+        path: /docs/features/blocked-traffic/
       - title: Audit Log
         path: /docs/features/audit-log/
       - title: Notifications

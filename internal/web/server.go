@@ -611,6 +611,9 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/log", s.handleLog)
 		r.Get("/log/filter", s.handleLogFilter)
 
+		r.Get("/blocked", s.handleBlocked)
+		r.Get("/blocked/rows", s.handleBlockedRows)
+
 		r.Get("/apply", s.handleApplyGET)
 		r.Post("/apply/start", s.handleApplyStart)
 		r.Post("/apply/confirm", s.handleApplyConfirm)
@@ -1290,6 +1293,14 @@ func shortTime(v string) string {
 	return t.Format("2 Jan 2006 15:04")
 }
 
+// fullTime is the drill-down's timestamp: local, to the millisecond, with the
+// zone named — shortTime's whole-second, relative precision loses exactly
+// what a drill-down is for. Takes time.Time directly, unlike shortTime's RFC
+// 3339 string: every caller here already holds one.
+func fullTime(t time.Time) string {
+	return t.Local().Format("2006-01-02 15:04:05.000 MST")
+}
+
 // lastUsed renders one rule's Last used cell.
 //
 // Four states, and the difference between two of them is the whole reason this
@@ -1544,6 +1555,7 @@ func templateFuncs() template.FuncMap {
 		"actionTone": actionTone,
 		"richText":   richText,
 		"shortTime":  shortTime,
+		"fullTime":   fullTime,
 		// dict lets a template pass named values into a translation that carries
 		// its own {{.Placeholder}} — the only way a sentence with an interpolated
 		// value stays one message for the translator.
