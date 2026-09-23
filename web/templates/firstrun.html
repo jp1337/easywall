@@ -47,9 +47,19 @@
             <h2 class="firstrun-section">{{T "firstrun_account_title"}}</h2>
             <p class="field-help">{{T "firstrun_account_desc"}}</p>
 
+            {{/* First, and never pre-filled: a rejected submission comes back
+                 with every other answer, and this one is the proof the claimant
+                 can read the host's log. It is not in firstRunData on purpose. */}}
             <div class="field mt-2">
+              <label class="field-label" for="setup_token">{{T "firstrun_token_label"}}</label>
+              <input id="setup_token" name="setup_token" type="text" autocomplete="off" spellcheck="false"
+                     autocapitalize="characters" autofocus required class="input input-data w-full">
+              <p class="field-help">{{richText (T "firstrun_token_help")}}</p>
+            </div>
+
+            <div class="field">
               <label class="field-label" for="username">{{T "firstrun_username"}}</label>
-              <input id="username" name="username" type="text" autocomplete="username" autofocus required
+              <input id="username" name="username" type="text" autocomplete="username" required
                      value="{{with .Data.Form}}{{.Username}}{{end}}"
                      class="input w-full">
             </div>

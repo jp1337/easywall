@@ -75,6 +75,9 @@
   {"id": "firstrun_done",           "translation": "Account created and your choices staged. Sign in, review them, then apply."},
   {"id": "firstrun_done_choices_failed", "translation": "Account and second factor created. Your recovery codes are below and will not be shown again. The initial choices could not be staged — the core did not answer. Sign in and set them yourself."},
   {"id": "firstrun_notice",        "translation": "This is the only account. Resetting a lost password needs shell access to the server."},
+  {"id": "firstrun_token_label",   "translation": "Setup token"},
+  {"id": "firstrun_token_help",    "translation": "Proves you can read this server's log, where easywall printed it at start. Docker: `docker compose logs easywall | grep 'setup token' | tail -1` · Debian: `sudo journalctl -u easywall-web -g 'setup token' | tail -1`. A restart prints a new one."},
+  {"id": "firstrun_token_wrong",   "translation": "That setup token does not match. Copy it again from the log — after a restart, only the newest one works."},
 
   {"id": "dashboard_title",        "translation": "Dashboard"},
   {"id": "dashboard_status",       "translation": "Firewall status"},

@@ -27,7 +27,9 @@ the download 404s; build [from source]({{ '/docs/installation/manual/' | relativ
 instead.
 
 Then open `https://<server>:12227` and complete the
-[setup]({{ '/docs/installation/first-run/' | relative_url }}). The certificate is
+[setup]({{ '/docs/installation/first-run/' | relative_url }}). The setup token it
+asks for is in `sudo journalctl -u easywall-web -g 'setup token'` — the install
+prints that command too. The certificate is
 self-signed on first start, so the browser will warn — accept it, or
 [configure your own](#your-own-certificate).
 

@@ -125,6 +125,32 @@ Left open. Whoever next has shell access to the demo host can settle it with
 regardless of which answer turns out to be true — the code should not have
 depended on the deployment's file permissions to be safe.
 
+## The first run
+
+Before 2.22 whoever finished `/firstrun` first owned the firewall: the routes
+were public, the handler checked only `IsFirstRun`, and `SaveFirstRun`'s lock
+picked a winner, not a legitimate one. Of six projects read at pinned tags, only
+Jupyter (a token in the log) and Nextcloud (a file on disk) make the claimant
+prove host access; easywall now does the former.
+
+| | |
+|---|---|
+| Token | 160 bits from `newTOTPSecret()`, shown in fours (`formatTOTPSecret`) |
+| Made | in `NewServer`, only while `IsFirstRun()`; held in `Server.setupToken`. Never on disk, never in the environment |
+| Printed | once, `slog.Warn`, with the phrase `setup token` — the docs and CI grep for it |
+| Checked | at the top of `handleFirstRunPOST`, before `HashPassword`: `decodeTOTPSecret` on both sides, then `subtle.ConstantTimeCompare`. `PostFormValue`, so never from a query string |
+| Covers | confirm and recover as well: both need step 1's pending entry, which only a checked step 1 mints |
+| Never stashed | a refused submission keeps every answer except the passwords and the token — the session cookie is signed, not encrypted |
+| Why the web process | account creation is already the web process's alone; in the core it would need a protocol command and an authentication duty the core has none of |
+
+Checking before the hash also removed an unauthenticated 64 MiB Argon2id run
+per `POST /firstrun`. `TestFirstRunRefusesAMissingOrWrongSetupToken` counts the
+calls through `firstRunHash`.
+
+Not defended, one line each:
+- Anyone who can read the journal (`adm`, `systemd-journal`) or `docker logs` (the `docker` group — root-equivalent anyway) can claim.
+- A man in the middle on the first visit, against the self-signed certificate, sees the token as it is typed.
+
 ## Why `X-Forwarded-For` is ignored
 
 `buildRouter` deliberately does **not** use `middleware.RealIP`:

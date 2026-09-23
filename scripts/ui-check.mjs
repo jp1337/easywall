@@ -16,7 +16,10 @@
  *     missing asset gets caught across the whole app at once.
  *
  * Expects easywall-web already running in demo mode with no password set, so the
- * run starts at the first-run wizard and sets up its own account. Usage:
+ * run starts at the first-run wizard and sets up its own account. The wizard
+ * asks for the setup token easywall-web printed at start, which this reads out
+ * of web.log beside the config (EASYWALL_WEB_LOG overrides) — the file CI's ui
+ * job sends the server's output to. Usage:
  *
  *   EASYWALL_URL=https://127.0.0.1:12227 node scripts/ui-check.mjs
  *
@@ -40,7 +43,7 @@ import { chromium } from 'playwright-core';
 import { createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import https from 'node:https';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -199,6 +202,39 @@ function readAcceptanceDurationMin() {
 // never waits anywhere near the real default of 120s.
 const WINDOW_SECONDS = readAcceptanceDurationMin();
 
+/**
+ * The setup token easywall-web printed at start, out of its JSON log. The last
+ * line that carries one, because a restart prints a new token and only the
+ * newest is valid. Since 2.22 /firstrun refuses step 1 without it, so a run
+ * that drives the wizard reads the log the way an operator does.
+ */
+function setupTokenIn(logText) {
+  let token = null;
+  for (const line of logText.split('\n')) {
+    if (!line.includes('setup token')) continue;
+    try {
+      token = JSON.parse(line).token || token;
+    } catch {
+      // not one of easywall-web's JSON lines
+    }
+  }
+  return token;
+}
+
+/** Polls read() until it yields a setup token; where names the source in the error. */
+async function waitForSetupToken(read, where, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const token = setupTokenIn(read());
+    if (token) return token;
+    if (Date.now() > deadline) {
+      throw new Error(`no "setup token" line in ${where} within ${timeoutMs}ms — ` +
+        '/firstrun refuses step 1 without it');
+    }
+    await sleep(250);
+  }
+}
+
 /** Polls an HTTPS URL, ignoring certificate errors, until it answers or times out. */
 async function waitForPort(url, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -236,6 +272,15 @@ async function setUpAccount(page) {
     console.log('  ok   an account already exists; skipping the wizard');
     return;
   }
+  const logPath = process.env.EASYWALL_WEB_LOG || join(dirname(CONFIG_PATH), 'web.log');
+  const token = await waitForSetupToken(() => {
+    try {
+      return readFileSync(logPath, 'utf8');
+    } catch {
+      return '';
+    }
+  }, logPath);
+  await page.fill('input[name=setup_token]', token);
   await page.fill('input[name=username]', USER);
   await page.fill('input[name=password]', PASS);
   await page.fill('input[name=password_confirm]', PASS);
@@ -2175,10 +2220,16 @@ async function takeWizardScreenshots(browser, theme) {
     `update_check = false`,
   ].join('\n'));
 
-  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  // stdout piped rather than inherited: the setup token is in it, and the
+  // wizard refuses step 1 without it. Still echoed, so the log reads as before.
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')],
+    { stdio: ['ignore', 'pipe', 'inherit'] });
+  let out = '';
+  proc.stdout.on('data', d => { out += d; process.stdout.write(d); });
   try {
     const base = `https://127.0.0.1:${port}`;
     await waitForPort(`${base}/firstrun`);
+    const token = await waitForSetupToken(() => out, "the wizard instance's output");
 
     const ctx = await screenshotContext(browser, theme);
     const page = await ctx.newPage();
@@ -2186,6 +2237,7 @@ async function takeWizardScreenshots(browser, theme) {
     await page.goto(`${base}/firstrun`, { waitUntil: 'load' });
     await shoot(page, 'firstrun', theme);
 
+    await page.fill('input[name=setup_token]', token);
     await page.fill('input[name=username]', USER);
     await page.fill('input[name=password]', PASS);
     await page.fill('input[name=password_confirm]', PASS);
@@ -2314,10 +2366,18 @@ try {
   await setup.close();
 
   if (screenshotMode) {
-    if (screenshotArgs.length) {
-      await takeScreenshots(browser, session, screenshotArgs);
-    } else {
+    // "firstrun" is not a path a signed-in session can visit: it names the
+    // three wizard screens, which takeWizardScreenshots shoots on its own
+    // throwaway instance.
+    const wizard = screenshotArgs.includes('/firstrun');
+    const paths = screenshotArgs.filter(a => a !== '/firstrun');
+    if (!screenshotArgs.length) {
       await takeFullScreenshotSet(browser, session);
+    } else {
+      if (paths.length) await takeScreenshots(browser, session, paths);
+      if (wizard) {
+        for (const theme of ['light', 'dark']) await takeWizardScreenshots(browser, theme);
+      }
     }
   } else {
     await runChecks(browser, session);
