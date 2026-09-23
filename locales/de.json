@@ -479,7 +479,7 @@
   {"id": "settings_invalid_network", "translation": "Es wurde nichts gespeichert: eines der Netze ist kein CIDR-Netz wie 10.0.0.0/8. Einer blossen Adresse fehlt die Präfixlänge."},
   {"id": "settings_saved_note", "translation": "Sofort gespeichert und mit dem nächsten {} aktiv — bis dahin als ausstehende Änderung sichtbar."},
   {"id": "settings_ipv6_warn_title", "translation": "Das war ein Schalter, und er hat gelogen"},
-  {"id": "settings_ipv6_warn_body", "translation": "Vor 2.5.0 gab es einen Ein/Aus-Schalter, dessen *Aus* dokumentiert war als „IPv6 bleibt ungefiltert\". Es war das Gegenteil: alle Regeln galten weiter, nur die ICMPv6-Freigaben fielen weg — IPv6 war gefiltert und kaputt. Bestehende Konfigurationen stehen jetzt auf *Mitfiltern*."},
+  {"id": "settings_ipv6_warn_body", "translation": "Vor 2.5.0 gab es einen Ein/Aus-Schalter, dessen *Aus* dokumentiert war als „IPv6 bleibt ungefiltert“. Es war das Gegenteil: alle Regeln galten weiter, nur die ICMPv6-Freigaben fielen weg — IPv6 war gefiltert und kaputt. Bestehende Konfigurationen stehen jetzt auf *Mitfiltern*."},
   {"id": "settings_docker_card_title", "translation": "Warum Docker mitreden muss"},
   {"id": "settings_docker_card_body", "translation": "Docker schreibt eigene nftables-Regeln. easywall erlaubt die Bridge-Bereiche vor der Sperrliste, damit Container-Verkehr weiter funktioniert."},
   {"id": "settings_docker_card_note", "translation": "Bridges werden beim Anwenden der Regeln erkannt. Ein danach angelegtes Netz braucht ein erneutes Anwenden oder einen Eintrag oben."},
