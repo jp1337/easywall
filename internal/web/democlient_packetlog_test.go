@@ -63,3 +63,24 @@ func TestDemoAnswersGetPacketLogFiltered(t *testing.T) {
 		}
 	}
 }
+
+// A demo row blocked by "default drop" from an address the demo's own
+// blacklist already covers is a firewall that could not have produced it, and
+// every blacklist click then answers "already there".
+func TestDemoPacketSourcesAgreeWithTheDemoLists(t *testing.T) {
+	d := newDemoState()
+	bl, wl := d.rules.Current.Blacklist, d.rules.Current.Whitelist
+	for _, e := range demoShapes {
+		inBL := shared.InAnyEntry(e.Src, bl)
+		switch {
+		case e.Rule == "blacklist" && !inBL:
+			t.Errorf("%s is logged as a blacklist hit but the demo blacklist does not cover it", e.Src)
+		case e.Rule != "blacklist" && inBL:
+			t.Errorf("%s (%s) is covered by the demo blacklist, which drops it before %s could", e.Src, e.Rule, e.Rule)
+		case (e.Rule == "drop" || e.Rule == "bogon" || e.Rule == shared.PacketLogRuleOther) && shared.InAnyEntry(e.Src, wl):
+			// Modules run before the whitelist, so a whitelisted source can be
+			// logged by ssh or portscan; it cannot be by what runs after.
+			t.Errorf("%s is whitelisted in the demo, so %s — which runs after the whitelist — could not have refused it", e.Src, e.Rule)
+		}
+	}
+}
