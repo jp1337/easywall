@@ -17,7 +17,7 @@ Rules-Requires-Root: no
 
 Package: easywall
 Architecture: any
-Depends: ${misc:Depends}, nftables, openssl
+Depends: ${misc:Depends}, adduser, nftables, openssl
 Recommends: logrotate
 Description: Linux firewall management with a web interface
  easywall provides a secure web interface for managing nftables firewall rules
