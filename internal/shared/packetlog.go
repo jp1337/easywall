@@ -50,6 +50,43 @@ type PacketLogEntry struct {
 	Mark uint32 `json:"mark,omitempty"`
 }
 
+// Remedy says which of /blocked's three row actions could have let a packet
+// through. The page offers only those: a whitelist button on a port-scan row
+// would promise something the chain cannot do, and "open 3389" there invites
+// the scanner.
+type Remedy struct {
+	Whitelist, Blacklist, Open bool
+}
+
+// Remedies reads the answer off the input chain's order — protection modules,
+// then the blacklist, then the whitelist, then the port rules, then the final
+// drop (internal/core/nftables.go Apply; Reachable steps 5–9). If that order
+// changes, TestRemediesFollowTheChainOrder is the table to redo.
+func (e PacketLogEntry) Remedies() Remedy {
+	var r Remedy
+	// The whitelist, the blacklist and the port rules all live in the input
+	// chain; a forwarded packet is decided by forwarded rules, which this page
+	// does not write. No easywall log rule sits in the forward chain today.
+	if e.Hook == "forward" {
+		return r
+	}
+	switch e.Rule {
+	case "drop", PacketLogRuleOther:
+		// The whitelist accepts before the final drop and before every custom
+		// rule (the nft CLI appends those after everything netlink wrote).
+		// Opening the port would rescue a custom-rule drop too; it is not
+		// offered, because it would override a rule the operator wrote.
+		r.Whitelist = true
+	case "bogon":
+		// addBogonFilter is given the whitelist as its exemption list.
+		r.Whitelist = true
+	}
+	r.Blacklist = e.Rule != "blacklist"
+	r.Open = e.Rule == "drop" && e.DstPort != 0 &&
+		(e.Proto == "tcp" || e.Proto == "udp")
+	return r
+}
+
 // PacketLogRules are the ten log switches, by the name their prefix carries.
 // filters.md lists them in this order.
 var PacketLogRules = []string{

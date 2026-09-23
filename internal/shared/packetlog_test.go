@@ -119,3 +119,50 @@ func TestLogsAnythingCountsEverySwitch(t *testing.T) {
 		t.Error("nothing is switched on and LogsAnything() says otherwise")
 	}
 }
+
+// The input chain is modules → blacklist → whitelist → ports → final drop
+// (internal/core/nftables.go Apply; Reachable steps 5–9). An action is offered
+// only where it could have changed this packet's verdict.
+func remedyTCP(rule string) PacketLogEntry {
+	return PacketLogEntry{Rule: rule, Proto: "tcp", DstPort: 22, Hook: "input"}
+}
+
+var remedyCases = []struct {
+	e    PacketLogEntry
+	want Remedy
+}{
+	{remedyTCP("drop"), Remedy{Whitelist: true, Blacklist: true, Open: true}},
+	{remedyTCP("bogon"), Remedy{Whitelist: true, Blacklist: true}},            // the bogon filter exempts the whitelist
+	{remedyTCP(PacketLogRuleOther), Remedy{Whitelist: true, Blacklist: true}}, // custom rules run after the whitelist
+	{remedyTCP("blacklist"), Remedy{}},                                        // the blacklist runs before the whitelist
+	{remedyTCP("ssh"), Remedy{Blacklist: true}},
+	{remedyTCP("syn_flood"), Remedy{Blacklist: true}},
+	{remedyTCP("tcp_rst"), Remedy{Blacklist: true}},
+	{remedyTCP("portscan"), Remedy{Blacklist: true}},
+	{remedyTCP("invalid"), Remedy{Blacklist: true}},
+	{remedyTCP("fragment"), Remedy{Blacklist: true}},
+	{PacketLogEntry{Rule: "icmp_flood", Proto: "icmp"}, Remedy{Blacklist: true}},
+	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Whitelist: true, Blacklist: true}}, // no port to open
+	{PacketLogEntry{Rule: "drop", Proto: "tcp", Hook: "forward", DstPort: 25}, Remedy{}},    // the lists and port rules are input-chain only
+}
+
+func TestRemediesFollowTheChainOrder(t *testing.T) {
+	for _, tc := range remedyCases {
+		if got := tc.e.Remedies(); got != tc.want {
+			t.Errorf("%s/%s: Remedies() = %+v, want %+v", tc.e.Rule, tc.e.Proto, got, tc.want)
+		}
+	}
+}
+
+// A rule added to PacketLogRules must be placed in the table above on purpose.
+func TestRemediesKnowsEveryRule(t *testing.T) {
+	known := map[string]bool{}
+	for _, c := range remedyCases {
+		known[c.e.Rule] = true
+	}
+	for _, r := range PacketLogRules {
+		if !known[r] {
+			t.Errorf("rule %q has no row in TestRemediesFollowTheChainOrder — decide where it sits in the chain", r)
+		}
+	}
+}
