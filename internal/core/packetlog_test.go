@@ -130,12 +130,13 @@ func TestDecode_LaterFragmentHasNoPorts(t *testing.T) {
 func TestDecode_TruncatedIsDiscarded(t *testing.T) {
 	whole := ipv4(6, "203.0.113.9", "198.51.100.1", 0, tcp(1, 22, 0x02))
 	for name, b := range map[string][]byte{
-		"no bytes":            {},
-		"half an IPv4 header": whole[:12],
-		"IHL past the end":    append([]byte{0x4f}, whole[1:20]...),
-		"half a TCP header":   whole[:30],
-		"half an IPv6 header": ipv6(6, "2001:db8::1", "2001:db8::2", nil)[:30],
-		"not IP at all":       {0x00, 0x01, 0x02},
+		"no bytes":             {},
+		"half an IPv4 header":  whole[:12],
+		"IHL past the end":     append([]byte{0x4f}, whole[1:20]...),
+		"half a TCP header":    whole[:30],
+		"half an IPv6 header":  ipv6(6, "2001:db8::1", "2001:db8::2", nil)[:30],
+		"not IP at all":        {0x00, 0x01, 0x02},
+		"a one-byte ICMP body": ipv4(1, "203.0.113.9", "198.51.100.1", 0, []byte{8}),
 	} {
 		if e, ok := entryFromAttribute(attr("easywall drop: ", b), noNames, time.Now()); ok {
 			t.Errorf("%s: decoded to %+v", name, e)
@@ -327,6 +328,7 @@ func TestDecode_ICMPRecordsTypeAndCode(t *testing.T) {
 		{"ICMPv6 router solicitation", ipv6(58, "2001:db8::9", "ff02::2", []byte{133, 0, 0, 0}), &shared.PacketICMP{Type: 133}},
 		{"TCP carries none", ipv4(6, "203.0.113.9", "198.51.100.1", 0, tcp(1, 22, 0x02)), nil},
 		{"ICMPv6 inside IPv4 is not read", ipv4(58, "203.0.113.9", "198.51.100.1", 0, []byte{128, 0, 0, 0}), nil},
+		{"ICMPv4 inside IPv6 is not read", ipv6(1, "2001:db8::9", "2001:db8::1", []byte{8, 0, 0, 0}), nil},
 		{"a later fragment carries none", ipv4(1, "203.0.113.9", "198.51.100.1", 185, []byte{8, 0, 0, 0}), nil},
 	} {
 		e, ok := entryFromAttribute(attr("easywall drop: ", tc.payload), noNames, time.Now())
