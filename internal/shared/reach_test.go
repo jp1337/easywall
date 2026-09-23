@@ -282,3 +282,24 @@ func TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller(t *testing
 		t.Errorf("Reachable = (%s, %s), want (open, port_open)", v, reason)
 	}
 }
+
+// A rule scoped to forwarded traffic is never written into the input chain
+// (nftables.go builds the input port rules only for FiltersHost), so it
+// cannot let the operator reach the interface. Counting it made /apply say
+// "reachable" for a web port nothing on the host accepts.
+func TestReachable_AForwardedOnlyRuleDoesNotOpenTheHost(t *testing.T) {
+	src := netip.MustParseAddr("203.0.113.9")
+	r := Rules{TCP: []PortRule{{Port: "12227", Scope: ScopeForwarded}}}
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 12227, false, false)
+	if v != ReachBlocked || reason != ReasonNoRule {
+		t.Errorf("Reachable = (%s, %s), want (blocked, no_rule)", v, reason)
+	}
+
+	// Both scopes, and the empty scope that means host, still open it.
+	for _, scope := range []PortScope{"", ScopeHost, ScopeBoth} {
+		r := Rules{TCP: []PortRule{{Port: "12227", Scope: scope}}}
+		if v, _ := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 12227, false, false); v != ReachOpen {
+			t.Errorf("scope %q: Reachable = %s, want open", scope, v)
+		}
+	}
+}
