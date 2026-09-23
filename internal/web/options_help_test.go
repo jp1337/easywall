@@ -142,6 +142,9 @@ func TestOptionsPageExplainsEveryModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	cards := strings.Split(string(raw), `<div class="module" `)[1:]
+	if n := strings.Count(string(raw), `class="toggle"`); n != len(optionHelps) {
+		t.Errorf("options.html has %d switches, optionHelps %d — a card without id=\"opt-<key>\" is not split out above", n, len(optionHelps))
+	}
 	if len(cards) != len(optionHelps) {
 		t.Errorf("options.html has %d module cards, optionHelps %d", len(cards), len(optionHelps))
 	}
