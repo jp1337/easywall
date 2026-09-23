@@ -68,7 +68,8 @@ chmod 0750 "$CONF/ssl" 2>/dev/null || warn "could not set the mode of $CONF/ssl"
 # the mode first, so from that line on only root changes what is in it, then
 # what an older volume left behind —
 #   - a link is removed and never followed; nothing easywall writes is one,
-#   - the web's own files move into web/,
+#   - the web's own files move into web/, if the web user owns them, built
+#     here and renamed in rather than written into web/ in place,
 #   - a panic marker not owned by root is removed: only the core makes one,
 #     and one the web user made would leave the firewall down at every start,
 #   - an entry that is not a regular file is removed: the core never makes
@@ -88,7 +89,7 @@ fi
 mkdir -p "$DATA/web" 2>/dev/null || warn "could not create $DATA/web"
 chown easywall:easywall "$DATA/web" 2>/dev/null || warn "could not set the owner of $DATA/web"
 chmod 0700 "$DATA/web" 2>/dev/null || warn "could not set the mode of $DATA/web"
-for p in "$DATA"/* "$DATA"/.[!.]*; do
+for p in "$DATA"/* "$DATA"/.[!.]* "$DATA"/..?*; do
     { [ -e "$p" ] || [ -L "$p" ]; } || continue
     f=${p##*/}
     [ "$f" = web ] && continue
@@ -99,13 +100,19 @@ for p in "$DATA"/* "$DATA"/.[!.]*; do
     fi
     case "$f" in
         totp_replay.json|passkeys.json|passkeys.json.corrupt|version_cache.json|telemetry.json)
-            if [ -f "$p" ]; then
+            if [ -f "$p" ] && [ "$(stat -c %U "$p")" = easywall ]; then
                 if [ -e "$DATA/web/$f" ] || [ -L "$DATA/web/$f" ]; then
                     rm -f "$p"
-                elif install -m 0600 -o easywall -g easywall "$p" "$DATA/web/$f"; then
-                    rm -f "$p"
                 else
-                    warn "could not move $p into $DATA/web"
+                    # Built in root's directory and renamed into web/, never
+                    # written into web/ in place — see debian/postinst.
+                    t=
+                    if ! { t=$(mktemp "$DATA/.easywall-XXXXXX") &&
+                           install -m 0600 -o easywall -g easywall "$p" "$t" &&
+                           mv -fT "$t" "$DATA/web/$f" && rm -f "$p"; }; then
+                        rm -f "${t:-}"
+                        warn "could not move $p into $DATA/web"
+                    fi
                 fi
                 continue
             fi ;;

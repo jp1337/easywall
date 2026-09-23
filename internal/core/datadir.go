@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"syscall"
 )
 
 // dataDirIsShared reports whether data_dir lets anyone but its owner write in
@@ -18,9 +19,21 @@ import (
 // before 2.22 keeps whatever mode it was given, and this line is the only thing
 // that will tell it. A warning, not a refusal: a core that will not start is a
 // machine with no firewall, which is worse than the finding.
+//
+// A data_dir the core does not own is shared too, whatever its mode: the owner
+// of a directory can chmod it and then replace anything in it.
 func dataDirIsShared(dir string) bool {
 	info, err := os.Stat(dir)
-	if err != nil || info.Mode().Perm()&0o022 == 0 {
+	if err != nil {
+		return false
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok && st.Uid != uint32(os.Geteuid()) { // #nosec G115 -- a uid, never negative
+		slog.Error("data_dir is not owned by the user easywall-core runs as, so its owner "+
+			"can replace rules.json, which is restored at boot: chown root "+dir,
+			"path", dir, "owner", st.Uid)
+		return true
+	}
+	if info.Mode().Perm()&0o022 == 0 {
 		return false
 	}
 	slog.Error("data_dir is writable by more than its owner, so whoever else can write it "+

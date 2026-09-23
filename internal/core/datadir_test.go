@@ -1,6 +1,8 @@
 package core
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -155,5 +157,44 @@ func TestEveryCoreDataPathIsDirectlyInDataDir(t *testing.T) {
 	}
 	if seen < 8 {
 		t.Fatalf("found %d *Path methods on Config, want at least 8: the walk is reading nothing", seen)
+	}
+}
+
+// TestTheCoreSaysAtStartThatDataDirIsShared holds the call, not the helper:
+// NewDaemon is where the warning has to be said, and a helper nobody calls
+// tells no one. The log directory is made to fail so NewDaemon returns before
+// it reaches nftables.
+func TestTheCoreSaysAtStartThatDataDirIsShared(t *testing.T) {
+	cfg := newTestConfig(t)
+	if err := os.Chmod(cfg.DataDir, 0o770); err != nil { // #nosec G302 -- the 2.21 mode, under test
+		t.Fatal(err)
+	}
+	cfg.LogDir = "/proc/easywall-unit-test-log"
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(prev)
+
+	_, _ = NewDaemon(cfg)
+
+	if !strings.Contains(buf.String(), "data_dir is writable by more than its owner") {
+		t.Errorf("NewDaemon started on a 0770 data_dir without saying so; the log was:\n%s", buf.String())
+	}
+}
+
+// TestADataDirSomebodyElseOwnsIsSaidOutLoud: the owner of a directory can
+// replace anything in it whatever its mode, so a data_dir the core does not
+// own is shared with whoever does. "/" stands in for one: it is root's, and
+// this test needs to run as somebody else.
+func TestADataDirSomebodyElseOwnsIsSaidOutLoud(t *testing.T) {
+	info, err := os.Stat("/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); !ok || st.Uid == uint32(os.Geteuid()) { // #nosec G115 -- a uid
+		t.Skip("/ is owned by this process's user; there is no directory here somebody else owns")
+	}
+	if !dataDirIsShared("/") {
+		t.Error("dataDirIsShared(a directory owned by another user) = false, want true")
 	}
 }

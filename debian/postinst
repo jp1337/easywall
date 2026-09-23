@@ -52,12 +52,15 @@ case "$1" in
     #
     # The install -d above made it 0750, so from here on only root adds,
     # removes or renames anything in it. What the web user already owned is
-    # replaced by root-owned copies below, so a live web process —
-    # dpkg-reconfigure does not stop it — gains nothing. What an older layout
-    # left behind is dealt with now, and each pass is a no-op on the next
-    # upgrade:
+    # replaced by root-owned copies below. A live web process —
+    # dpkg-reconfigure does not stop it — can still write web/, so nothing here
+    # writes into web/ in place: a file for it is built in this directory and
+    # renamed in, which replaces whatever it put at that name rather than
+    # following it. What an older layout left behind is dealt with now, and
+    # each pass is a no-op on the next upgrade:
     #   - a link is removed and never followed — nothing easywall writes is one;
-    #   - the web's own files move into web/;
+    #   - the web's own files move into web/, if the web user owns them — one
+    #     that is a hard link to somebody else's file is not the web's;
     #   - a panic marker not owned by root is removed: only the core makes one;
     #   - an entry that is not a regular file is removed: the core never makes
     #     one here;
@@ -74,7 +77,7 @@ case "$1" in
     fi
     install -d -m 0700 -o easywall -g easywall "$data/web" ||
       echo "easywall: could not create $data/web; the web interface cannot keep its state" >&2
-    for p in "$data"/* "$data"/.[!.]*; do
+    for p in "$data"/* "$data"/.[!.]* "$data"/..?*; do
       { [ -e "$p" ] || [ -L "$p" ]; } || continue
       f=${p##*/}
       [ "$f" = web ] && continue
@@ -85,11 +88,20 @@ case "$1" in
       fi
       case "$f" in
         totp_replay.json|passkeys.json|passkeys.json.corrupt|version_cache.json|telemetry.json)
-          if [ -f "$p" ]; then
+          if [ -f "$p" ] && [ "$(stat -c %U "$p")" = easywall ]; then
             if [ -e "$data/web/$f" ] || [ -L "$data/web/$f" ]; then
               rm -f "$p"
-            elif ! { install -m 0600 -o easywall -g easywall "$p" "$data/web/$f" && rm -f "$p"; }; then
-              echo "easywall: could not move $p into $data/web" >&2
+            else
+              # Built here, in root's directory, and renamed into web/: install
+              # straight into web/ chmods through a link the web user swaps in
+              # between its chown and its chmod.
+              t=
+              if ! { t=$(mktemp "$data/.easywall-XXXXXX") &&
+                     install -m 0600 -o easywall -g easywall "$p" "$t" &&
+                     mv -fT "$t" "$data/web/$f" && rm -f "$p"; }; then
+                rm -f "${t:-}"
+                echo "easywall: could not move $p into $data/web" >&2
+              fi
             fi
             continue
           fi ;;
