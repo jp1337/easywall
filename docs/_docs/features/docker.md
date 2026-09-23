@@ -52,10 +52,10 @@ some other reason as well.
 
 | | Setup | Inbound to published ports | Outbound from containers | Good for |
 |---|---|---|---|---|
-| **1** | `enabled = true` — *recommended* | yes, Docker publishes them | works | most hosts |
+| **1** | `enabled = true` — the shipped default | yes, Docker publishes them | works | most hosts |
 | **2** | `enabled = true`, `published_ports = "filtered"` | only with a **forwarded** [port rule]({{ '/docs/features/ports/' | relative_url }}) | works | one firewall on a container host |
 | **3** | `enabled = true`, Docker with `{"iptables": false}` | only with a [port rule]({{ '/docs/features/ports/' | relative_url }}) per port | **needs a masquerade rule you write yourself** | one firewall, one place to look |
-| **4** | `enabled = false` | no | **no** | a host that runs no containers |
+| **4** | `enabled = false` — deliberately | no | **no** | a host that runs no containers |
 
 ### Option 2 is what replaces a cloud firewall
 

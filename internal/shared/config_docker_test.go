@@ -5,7 +5,30 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/jp1337/easywall/config"
 )
+
+// 2.22, finding A: with docker.enabled = false, a compose or Debian host
+// running Docker gets no exceptions in the forward chain, which then drops
+// every container's traffic at the first apply — invisible to the acceptance
+// window, because that window proves the operator's own connection on the
+// input chain, not the containers'. On a host with no docker*/br-* interface
+// this default changes nothing.
+//
+// Decoded from the embedded bytes, not read off disk, so it is the exact
+// default --write-config, the Debian package and the container image all
+// ship — the same thing TestWriteConfigProducesSomethingTheCoreCanLoad
+// proves loads and validates.
+func TestTheEmbeddedDefaultDetectsDockerBridges(t *testing.T) {
+	var c CoreConfig
+	if _, err := toml.Decode(string(config.Core), &c); err != nil {
+		t.Fatalf("the embedded easywall.toml does not parse: %v", err)
+	}
+	if !c.Docker.Enabled {
+		t.Error("the embedded easywall.toml ships docker.enabled = false; a Docker host " +
+			"loses every container's network at the first apply (2.22 finding A)")
+	}
+}
 
 // An easywall.toml written before 2.19 has no published_ports key at all, and a
 // container host that upgrades must not lose a published port at its next
