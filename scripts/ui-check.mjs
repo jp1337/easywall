@@ -920,6 +920,26 @@ async function checkBlockedTailHoldsStill(page) {
 }
 
 /**
+ * A tail that loses its session navigates to /login rather than swapping the
+ * login page into the table. The middleware answered htmx with a 303, which
+ * the XHR followed, and /login rendered inside /blocked's Time column.
+ */
+async function checkASignedOutTailNavigates(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  await page.mouse.move(1, 1);            // the tail pauses under the pointer
+  await ctx.clearCookies();               // the session is gone, as after a timeout
+  await page.waitForURL(/\/login$/, { timeout: 12000 }).catch(() => {});
+  const url = page.url();
+  const swapped = await page.locator('#blocked-rows form[action="/login"]').count();
+  await ctx.close();
+  if (swapped > 0) { fail('signed-out tail', 'the login form was swapped into #blocked-rows'); return; }
+  if (!url.endsWith('/login')) { fail('signed-out tail', `still at ${url} after the session ended`); return; }
+  console.log('  ok   a signed-out tail navigates to /login');
+}
+
+/**
  * A /blocked card at 390px in German keeps an address whole and its Details
  * clear of the buttons. The card's td is a flex row with overflow-wrap:
  * anywhere, so each link of the route used to be its own flex item and broke
@@ -1823,6 +1843,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
+  await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
