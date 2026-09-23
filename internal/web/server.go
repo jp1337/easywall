@@ -1564,6 +1564,7 @@ func templateFuncs() template.FuncMap {
 		},
 		"actionTone": actionTone,
 		"richText":   richText,
+		"optHelp":    optionHelpFor, // the disclosure under each /options card; options_help.go
 		"shortTime":  shortTime,
 		"fullTime":   fullTime,
 		// dict lets a template pass named values into a translation that carries

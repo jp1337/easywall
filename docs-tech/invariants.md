@@ -114,6 +114,9 @@ The background is in [dependencies](dependencies.md).
 | `TestLocaleFilesAreAtParity` | `en.json` and `de.json` hold the same keys |
 | `TestTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
 | `TestMarkupStringsAreRenderedThroughRichText` | a message with a link or a `code` span stays one message |
+| `TestOptionHelpsAreComplete` | every option in `optionHelps` has its `_desc`, `_protects`, `_breaks`, `_when` in `en` and `de`, and none carries markup. The disclosure asks for its keys through methods, which `TestTemplatesOnlyUseTranslatedKeys`' `T "literal"` regex cannot see |
+| `TestOptionHelpAnchorsAreFiltersHeadings`, `TestGFMHeadingIDMatchesTheBuiltSite` | every card's docs link lands on a heading `filters.md` has, by kramdown-parser-gfm 1.1.0's id rule, pinned to two ids read out of a real `docs/_site`. A renamed heading opens the page at the top, which looks like it worked |
+| `TestOptionsPageExplainsEveryModule`, `TestOptionsPageRendersEveryDisclosure` | every `/options` card is in the table and the table has no card missing; each card carries its own `id="opt-<key>"` — /blocked links there — and its own disclosure, not a neighbour's; the page as served in both languages shows no raw message id |
 | `TestClientStringsCoverWhatAppJSAsksFor` | text `app.js` builds has its key in `clientStringKeys` |
 | `TestClientStringsCarryNoMarkupAppJSCannotRender` | a string inlined for `app.js` has no `` ` `` or `*` — it escapes them, so the markers would be shown literally |
 | `TestTemplateClassesExistInStylesheet` | a template does not name a class Tailwind no longer generates |

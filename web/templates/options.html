@@ -23,6 +23,19 @@
 
     {{if .Options}}
     {{$o := .Options}}
+    <section class="aside-card options-which" aria-labelledby="options-which-title">
+      <h2 class="aside-title" id="options-which-title">
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+        {{T "options_which_title"}}
+      </h2>
+      <div class="options-which-hosts">
+        <p><strong>{{T "options_which_server"}}</strong> {{T "options_which_server_body"}}</p>
+        <p><strong>{{T "options_which_nat"}}</strong> {{T "options_which_nat_body"}}</p>
+        <p><strong>{{T "options_which_containers"}}</strong> {{T "options_which_containers_body"}}</p>
+      </div>
+      <p>{{richText (T "options_which_more") "https://easywall-project.org/docs/features/filters/#which-to-turn-on" (T "options_which_more_link")}}</p>
+    </section>
+
     <form method="POST" action="/options"
           hx-post="/options"
           hx-swap="none">
@@ -34,11 +47,11 @@
 
     <div class="module-grid">
 
-      <div class="module">
+      <div class="module" id="opt-ssh_brute_force">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_ssh_brute"}}</span>
-            <span class="module-desc">{{T "opt_ssh_brute_desc"}}</span>
+            <span class="module-name">{{T "opt_ssh_brute_force"}}</span>
+            <span class="module-desc">{{T "opt_ssh_brute_force_desc"}}</span>
           </span>
           <input type="checkbox" name="ssh_brute_force" class="toggle" {{if $o.SSHBruteForce}}checked{{end}}>
         </label>
@@ -56,9 +69,10 @@
             <input type="number" name="ssh_brute_force_log_limit" value="{{$o.SSHBruteForceLogLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "ssh_brute_force")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-icmp_flood">
         <label class="module-head">
           <span class="module-text">
             <span class="module-name">{{T "opt_icmp_flood"}}</span>
@@ -80,9 +94,10 @@
             <input type="number" name="icmp_flood_log_limit" value="{{$o.ICMPFloodLogLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "icmp_flood")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-syn_flood">
         <label class="module-head">
           <span class="module-text">
             <span class="module-name">{{T "opt_syn_flood"}}</span>
@@ -100,9 +115,10 @@
             <input type="number" name="syn_flood_limit" value="{{$o.SYNFloodLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "syn_flood")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-port_scan">
         <label class="module-head">
           <span class="module-text">
             <span class="module-name">{{T "opt_port_scan"}}</span>
@@ -116,13 +132,14 @@
             <span>{{T "param_log"}}</span>
           </label>
         </div>
+        {{template "opt_help" (optHelp "port_scan")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-drop_invalid_packets">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_invalid_packets"}}</span>
-            <span class="module-desc">{{T "opt_invalid_packets_desc"}}</span>
+            <span class="module-name">{{T "opt_drop_invalid_packets"}}</span>
+            <span class="module-desc">{{T "opt_drop_invalid_packets_desc"}}</span>
           </span>
           <input type="checkbox" name="drop_invalid_packets" class="toggle" {{if $o.InvalidPackets}}checked{{end}}>
         </label>
@@ -132,13 +149,14 @@
             <span>{{T "param_log"}}</span>
           </label>
         </div>
+        {{template "opt_help" (optHelp "drop_invalid_packets")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-drop_fragments">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_fragments"}}</span>
-            <span class="module-desc">{{T "opt_fragments_desc"}}</span>
+            <span class="module-name">{{T "opt_drop_fragments"}}</span>
+            <span class="module-desc">{{T "opt_drop_fragments_desc"}}</span>
           </span>
           <input type="checkbox" name="drop_fragments" class="toggle" {{if $o.Fragments}}checked{{end}}>
         </label>
@@ -148,13 +166,14 @@
             <span>{{T "param_log"}}</span>
           </label>
         </div>
+        {{template "opt_help" (optHelp "drop_fragments")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-bogon_filter">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_bogons"}}</span>
-            <span class="module-desc">{{T "opt_bogons_desc"}}</span>
+            <span class="module-name">{{T "opt_bogon_filter"}}</span>
+            <span class="module-desc">{{T "opt_bogon_filter_desc"}}</span>
           </span>
           <input type="checkbox" name="bogon_filter" class="toggle" {{if $o.Bogons}}checked{{end}}>
         </label>
@@ -164,13 +183,14 @@
             <span>{{T "param_log"}}</span>
           </label>
         </div>
+        {{template "opt_help" (optHelp "bogon_filter")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-connection_limit_per_ip">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_conn_limit"}}</span>
-            <span class="module-desc">{{T "opt_conn_limit_desc"}}</span>
+            <span class="module-name">{{T "opt_connection_limit_per_ip"}}</span>
+            <span class="module-desc">{{T "opt_connection_limit_per_ip_desc"}}</span>
           </span>
           <input type="checkbox" name="connection_limit_per_ip" class="toggle" {{if $o.ConnectionLimit}}checked{{end}}>
         </label>
@@ -180,13 +200,14 @@
             <input type="number" name="connection_limit_max" value="{{$o.ConnectionLimitMax}}" min="1" max="100000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "connection_limit_per_ip")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-tcp_rst_flood">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_tcp_rst"}}</span>
-            <span class="module-desc">{{T "opt_tcp_rst_desc"}}</span>
+            <span class="module-name">{{T "opt_tcp_rst_flood"}}</span>
+            <span class="module-desc">{{T "opt_tcp_rst_flood_desc"}}</span>
           </span>
           <input type="checkbox" name="tcp_rst_flood" class="toggle" {{if $o.TCPRSTFlood}}checked{{end}}>
         </label>
@@ -200,6 +221,7 @@
             <input type="number" name="tcp_rst_flood_limit" value="{{$o.TCPRSTFloodLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "tcp_rst_flood")}}
       </div>
 
     </div>
@@ -211,7 +233,7 @@
 
     <div class="module-grid">
 
-      <div class="module">
+      <div class="module" id="opt-drop_broadcast">
         <label class="module-head">
           <span class="module-text">
             <span class="module-name">{{T "opt_drop_broadcast"}}</span>
@@ -219,9 +241,10 @@
           </span>
           <input type="checkbox" name="drop_broadcast" class="toggle" {{if $o.DropBroadcast}}checked{{end}}>
         </label>
+        {{template "opt_help" (optHelp "drop_broadcast")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-drop_multicast">
         <label class="module-head">
           <span class="module-text">
             <span class="module-name">{{T "opt_drop_multicast"}}</span>
@@ -229,9 +252,10 @@
           </span>
           <input type="checkbox" name="drop_multicast" class="toggle" {{if $o.DropMulticast}}checked{{end}}>
         </label>
+        {{template "opt_help" (optHelp "drop_multicast")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-drop_anycast">
         <label class="module-head">
           <span class="module-text">
             <span class="module-name">{{T "opt_drop_anycast"}}</span>
@@ -239,13 +263,14 @@
           </span>
           <input type="checkbox" name="drop_anycast" class="toggle" {{if $o.DropAnycast}}checked{{end}}>
         </label>
+        {{template "opt_help" (optHelp "drop_anycast")}}
       </div>
 
-      <div class="module" id="logging">
+      <div class="module" id="opt-log_blocked_connections">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_log_blocked"}}</span>
-            <span class="module-desc">{{T "opt_log_blocked_desc"}}</span>
+            <span class="module-name">{{T "opt_log_blocked_connections"}}</span>
+            <span class="module-desc">{{T "opt_log_blocked_connections_desc"}}</span>
           </span>
           <input type="checkbox" name="log_blocked_connections" class="toggle" {{if $o.LogBlocked}}checked{{end}}>
         </label>
@@ -255,13 +280,14 @@
             <input type="number" name="log_blocked_connections_limit" value="{{$o.LogBlockedLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "log_blocked_connections")}}
       </div>
 
-      <div class="module">
+      <div class="module" id="opt-log_blacklist_connections">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_log_blacklist"}}</span>
-            <span class="module-desc">{{T "opt_log_blacklist_desc"}}</span>
+            <span class="module-name">{{T "opt_log_blacklist_connections"}}</span>
+            <span class="module-desc">{{T "opt_log_blacklist_connections_desc"}}</span>
           </span>
           <input type="checkbox" name="log_blacklist_connections" class="toggle" {{if $o.LogBlacklist}}checked{{end}}>
         </label>
@@ -271,6 +297,7 @@
             <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
+        {{template "opt_help" (optHelp "log_blacklist_connections")}}
       </div>
 
     </div>
@@ -289,4 +316,24 @@
   </div>
 </div>
 {{template "foot" .}}
+{{end}}
+
+{{define "opt_help"}}
+{{/* One module's disclosure: what it protects against, what it can break, when
+     to want it, and the section of filters.md that explains it. The sentences
+     are optionHelps' (internal/web/options_help.go); this only lays them out.
+     After the header's </label>, never inside it: a label's text is its
+     switch's accessible name, and "What does this change?" would join it
+     (measured), and <details> is not phrasing content a label may hold. Closed by
+     default: fourteen open cards would be the 1700px list DESIGN.md's
+     "Protection modules" replaced. */}}
+<details class="pkt-detail module-help">
+  <summary>{{T "options_help_summary"}}</summary>
+  <dl>
+    <dt>{{T "options_help_protects"}}</dt><dd>{{T .ProtectsKey}}</dd>
+    <dt>{{T "options_help_breaks"}}</dt><dd>{{T .BreaksKey}}</dd>
+    <dt>{{T "options_help_when"}}</dt><dd>{{T .WhenKey}}</dd>
+  </dl>
+  <a class="link" href="{{.DocsURL}}">{{T "options_help_docs"}}</a>
+</details>
 {{end}}

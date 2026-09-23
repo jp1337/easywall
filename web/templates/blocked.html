@@ -168,7 +168,7 @@
 <tr><td colspan="6" class="text-center text-ink-subtle py-6">
   {{if .CoreErr}}{{T "core_unreachable"}} {{.CoreErr}}
   {{else if not .LoggingKnown}}{{T "blocked_core_unreachable"}}
-  {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#logging">{{T "blocked_empty_off_link"}}</a>
+  {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#opt-log_blocked_connections">{{T "blocked_empty_off_link"}}</a>
   {{else if .Filtered}}{{T "blocked_no_match"}}
   {{else if .Listening}}{{T "blocked_empty_quiet" (dict "Since" (shortTime (.Since.Format "2006-01-02T15:04:05Z07:00")))}}
   {{end}}

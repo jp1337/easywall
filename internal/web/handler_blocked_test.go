@@ -207,7 +207,7 @@ func TestBlocked_EmptyStates(t *testing.T) {
 		want string
 	}{
 		{"nothing switched on", shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
-			shared.FirewallOptions{}, `href="/options#logging"`},
+			shared.FirewallOptions{}, `href="/options#opt-log_blocked_connections"`},
 		{"on, and quiet", shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
 			shared.FirewallOptions{LogBlocked: true}, "Nothing has been refused"},
 		{"not listening", shared.PacketLogResult{Group: 12227, Reason: "bind NFLOG group 12227: device or resource busy",

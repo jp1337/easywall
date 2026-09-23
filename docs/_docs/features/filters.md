@@ -21,13 +21,13 @@ The question most people arrive with. Details for each module are below.
 
 | Host | Turn on | Leave off |
 |---|---|---|
-| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop, unless you know your traffic |
+| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop — it has no effect, [see below](#what-three-modules-never-see) |
 | Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
 | Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/options" ext="png"
-     alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. A module that is switched on carries an edge down its left side." %}
+     alt="The firewall options page: a card naming which switches three kinds of host want, then a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle, its own parameters and a closed What does this change? disclosure. A module that is switched on carries an edge down its left side." %}
   <figcaption>Toggling a module here stages the change at once — the kernel does not see it until the next apply.</figcaption>
 </figure>
 
@@ -89,14 +89,14 @@ Two things cross that chain:
 | Module | Drops | Tuning | Default |
 |---|---|---|---|
 | **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/docs/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
-| **ICMP flood** | Echo requests from one source above its rate — ICMP type 8 and ICMPv6 type 128 | `icmp_flood_connection_limit` — 10/s | **on** |
+| **ICMP flood** | IPv4 echo requests (type 8) from one source above its rate. IPv6 pings never reach it | `icmp_flood_connection_limit` — 10/s | **on** |
 | **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
 | **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |
 | **Invalid packets** | Packets conntrack cannot match to a connection | — | **on** |
-| **Fragment drop** | Fragmented **IPv4** packets | — | off |
+| **Fragment drop** | Fragmented **IPv4** packets — none arrive, see below | — | off |
 | **Bogon filter** | Impossible **IPv4** source addresses on a non-loopback interface | — | off |
 | **Connection limit** | Simultaneous connections from one source above its cap | `connection_limit_max` — 100 | off |
-| **TCP RST flood** | Inbound RST packets from one source above its rate | `tcp_rst_flood_limit` — 100/s | off |
+| **TCP RST flood** | Inbound RST packets from one source above its rate, that no connection claims | `tcp_rst_flood_limit` — 100/s | off |
 
 > **Every rate is counted per source address** — one kernel counter per address, in a
 > set whose entries expire when that source goes quiet. A flood from one host cannot
@@ -104,6 +104,17 @@ Two things cross that chain:
 >
 > Not true before 2.5.0: four modules held a single counter for the whole machine, so
 > five SSH attempts a minute from anywhere locked out the administrator too.
+
+Every module runs before the whitelist, so it applies to a whitelisted address like
+any other. Only the bogon filter exempts one.
+
+### What three modules never see
+
+| Module | Never sees | Because |
+|---|---|---|
+| **Fragment drop** | A fragment | Linux reassembles IPv4 fragments before the input chain runs (`ip_local_deliver`). The rule matches nothing |
+| **ICMP flood** | An IPv6 ping | ICMPv6 echo requests are accepted under [Always on](#always-on), before any module |
+| **TCP RST flood** | Most resets | A reset that belongs to a connection is accepted as return traffic. Nearly every other one is *invalid*, and **Invalid packets**, on by default, drops it first |
 
 ### What the bogon filter drops
 
@@ -156,8 +167,19 @@ ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
 | **Drop multicast** | Traffic to a multicast group | off |
 | **Drop anycast** | Traffic to an anycast destination | off |
 
-> **Not on a LAN.** These carry DHCP, mDNS and IPv6 neighbour discovery. Safe to drop
-> on a public-facing host with a static address; disruptive nearly everywhere else.
+> **Not on a LAN.** Safe to drop on a public-facing host with a static address;
+> disruptive nearly everywhere else.
+
+What each one breaks:
+
+- **Broadcast** — a DHCP reply sent as a broadcast to a renewing client. A first lease
+  on `systemd-networkd` still arrives: it is read from a packet socket, before the
+  firewall sees it. Other DHCP clients are unmeasured.
+- **Multicast** — mDNS (Avahi, `.local` names), SSDP and DLNA, and every other
+  multicast. IPv6 neighbour discovery is not affected: it is decided earlier, under
+  [Always on](#always-on).
+- **Anycast** — only traffic to an address the kernel classifies as anycast. Most hosts
+  have none, and for them the switch changes nothing.
 
 ## Logging
 
@@ -175,7 +197,7 @@ flood must not be able to fill the disk.
 | `drop_invalid_packets_log` | Packets in INVALID state | `easywall invalid:` |
 | `drop_fragments_log` | Fragmented packets | `easywall fragment:` |
 | `bogon_filter_log` | Bogon sources | `easywall bogon:` |
-| `log_blacklist_connections` | Blacklist hits, before the drop | `easywall blacklist:` |
+| `log_blacklist_connections` | Blacklist hits on a single address, before the drop. A network entry is dropped unlogged | `easywall blacklist:` |
 | `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
 
 Everything these switches log appears on the
