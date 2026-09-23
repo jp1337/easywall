@@ -21,7 +21,7 @@ The question most people arrive with. Details for each module are below.
 
 | Host | Turn on | Leave off |
 |---|---|---|
-| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop — it has no effect, [see below](#what-three-modules-never-see) |
+| Public server, static address | Everything under Attack protection but fragment drop, plus the bogon filter | Fragment drop — it breaks large DNS answers, [see below](#what-fragment-drop-breaks) |
 | Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
 | Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
 
@@ -40,8 +40,14 @@ Two things come earlier still: loopback, always, and the [IPv6
 mode]({{ '/docs/features/system-settings/' | relative_url }}) — set to `passthrough` or
 `block`, IPv6 is decided before any module sees it.
 
+Two modules come right after the IPv6 mode, ahead of return traffic: **ICMP flood** and
+**TCP RST flood**. To conntrack, every ping after a source's first and every reset for
+a live connection *is* return traffic, and the accept would let them through unmetered.
+**Fragment drop** runs before all of it, in a chain of its own — see
+[what it breaks](#what-fragment-drop-breaks).
+
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback first, then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then established connections and ICMP, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: loopback first; then the fragment drop, when it is on; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
@@ -89,14 +95,14 @@ Two things cross that chain:
 | Module | Drops | Tuning | Default |
 |---|---|---|---|
 | **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/docs/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
-| **ICMP flood** | IPv4 echo requests (type 8) from one source above its rate. IPv6 pings never reach it | `icmp_flood_connection_limit` — 10/s | **on** |
+| **ICMP flood** | Echo requests from one source above its rate — ICMP type 8 and ICMPv6 type 128 | `icmp_flood_connection_limit` — 10/s | **on** |
 | **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
 | **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |
 | **Invalid packets** | Packets conntrack cannot match to a connection | — | **on** |
-| **Fragment drop** | Fragmented **IPv4** packets — none arrive, see below | — | off |
+| **Fragment drop** | Fragmented **IPv4** packets to this host, before reassembly — [what it breaks](#what-fragment-drop-breaks) | — | off |
 | **Bogon filter** | Impossible **IPv4** source addresses on a non-loopback interface | — | off |
 | **Connection limit** | Simultaneous connections from one source above its cap | `connection_limit_max` — 100 | off |
-| **TCP RST flood** | Inbound RST packets from one source above its rate, that no connection claims | `tcp_rst_flood_limit` — 100/s | off |
+| **TCP RST flood** | Inbound RST packets from one source above its rate, for a live connection or none | `tcp_rst_flood_limit` — 100/s | off |
 
 > **Every rate is counted per source address** — one kernel counter per address, in a
 > set whose entries expire when that source goes quiet. A flood from one host cannot
@@ -108,13 +114,18 @@ Two things cross that chain:
 Every module runs before the whitelist, so it applies to a whitelisted address like
 any other. Only the bogon filter exempts one.
 
-### What three modules never see
+### What fragment drop breaks
 
-| Module | Never sees | Because |
-|---|---|---|
-| **Fragment drop** | A fragment | Linux reassembles IPv4 fragments before the input chain runs (`ip_local_deliver`). The rule matches nothing |
-| **ICMP flood** | An IPv6 ping | ICMPv6 echo requests are accepted under [Always on](#always-on), before any module |
-| **TCP RST flood** | Most resets | A reset that belongs to a connection is accepted as return traffic. Nearly every other one is *invalid*, and **Invalid packets**, on by default, drops it first |
+The kernel reassembles a fragmented packet before the `input` chain sees it. So this
+module has a chain of its own, `fragments`, at the prerouting hook, ahead of the
+reassembly. It drops IPv4 fragments addressed to this host. IPv6, loopback and traffic
+the host routes are left alone.
+
+That breaks every reply too large for one packet. The one most hosts meet is a DNS
+answer over UDP carrying DNSSEC, and
+[RFC 8900](https://www.rfc-editor.org/rfc/rfc8900#section-6.5) asks operators not to
+filter fragments to or from a DNS server. Until 2.22 the rule sat in `input` and
+matched nothing.
 
 ### What the bogon filter drops
 
@@ -197,7 +208,7 @@ flood must not be able to fill the disk.
 | `drop_invalid_packets_log` | Packets in INVALID state | `easywall invalid:` |
 | `drop_fragments_log` | Fragmented packets | `easywall fragment:` |
 | `bogon_filter_log` | Bogon sources | `easywall bogon:` |
-| `log_blacklist_connections` | Blacklist hits on a single address, before the drop. A network entry is dropped unlogged | `easywall blacklist:` |
+| `log_blacklist_connections` | Blacklist hits, before the drop | `easywall blacklist:` |
 | `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
 
 Everything these switches log appears on the
