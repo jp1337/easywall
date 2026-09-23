@@ -28,14 +28,14 @@ func (o optionHelp) DocsURL() string     { return filtersDocsURL + "#" + o.Ancho
 // optionHelps is in the order options.html renders the cards.
 var optionHelps = []optionHelp{
 	{"ssh_brute_force", "attack-protection"},
-	{"icmp_flood", "what-three-modules-never-see"},
+	{"icmp_flood", "attack-protection"},
 	{"syn_flood", "attack-protection"},
 	{"port_scan", "attack-protection"},
 	{"drop_invalid_packets", "attack-protection"},
-	{"drop_fragments", "what-three-modules-never-see"},
+	{"drop_fragments", "what-fragment-drop-breaks"},
 	{"bogon_filter", "what-the-bogon-filter-drops"},
 	{"connection_limit_per_ip", "attack-protection"},
-	{"tcp_rst_flood", "what-three-modules-never-see"},
+	{"tcp_rst_flood", "attack-protection"},
 	{"drop_broadcast", "traffic-filtering"},
 	{"drop_multicast", "traffic-filtering"},
 	{"drop_anycast", "traffic-filtering"},
