@@ -68,13 +68,18 @@ COPY config/*.toml /usr/share/easywall/config/
 # holds easywall.toml, which the root core reads. Handing the whole directory to
 # the unprivileged web user — as `chown -R easywall:easywall /etc/easywall` did
 # — let a network-facing process rewrite the configuration root loads.
-RUN mkdir -p /run/easywall /var/lib/easywall /var/log/easywall /etc/easywall/ssl && \
+# /var/lib/easywall is the core's in the same way, and the web keeps its state
+# in web/ inside it: until 2.22 the two shared one 0770 directory, and the web
+# user could replace the core's files there and plant links root wrote through.
+# A named volume is filled from this layout; the entrypoint repairs any other.
+RUN mkdir -p /run/easywall /var/lib/easywall/web /var/log/easywall /etc/easywall/ssl && \
     chown root:easywall /run/easywall     && chmod 750 /run/easywall && \
     chown root:easywall /etc/easywall     && chmod 750 /etc/easywall && \
     chown root:root     /etc/easywall/easywall.toml && chmod 600 /etc/easywall/easywall.toml && \
     chown easywall:easywall /etc/easywall/web.toml  && chmod 600 /etc/easywall/web.toml && \
     chown easywall:easywall /etc/easywall/ssl       && chmod 750 /etc/easywall/ssl && \
-    chown root:easywall /var/lib/easywall && chmod 770 /var/lib/easywall && \
+    chown root:easywall /var/lib/easywall && chmod 750 /var/lib/easywall && \
+    chown easywall:easywall /var/lib/easywall/web && chmod 700 /var/lib/easywall/web && \
     chown root:easywall /var/log/easywall && chmod 750 /var/log/easywall
 
 # Supervisor config

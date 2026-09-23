@@ -248,6 +248,47 @@ jobs:
           docker exec easywall-hc nft delete table inet easywall
           expect unhealthy "the nftables table deleted"
 
+      # ── A 2.21 data directory, taken apart safely ─────────────────────────
+      #
+      # Until 2.22 /var/lib/easywall was 0770 and shared with the web user, who
+      # could replace the core's files there and plant links root wrote through.
+      # The entrypoint now makes it root's (0750) and the web's state its own
+      # web/ (0700). A named volume or a bind mount from 2.21 still has the old
+      # shape, so this hands the image one — a web file to keep, a link where
+      # root writes, web/ itself a link to /etc, a panic marker — and asserts
+      # each is dealt with and nothing is followed. stat runs in the same
+      # container, after the entrypoint, so it sees the /etc the link named.
+      - name: The entrypoint takes a 2.21 data directory apart safely
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          d="${{ runner.temp }}/easywall-data-2.21"
+          sudo rm -rf "$d"
+          sudo install -d -o 0 -g 101 -m 0770 "$d"
+          # The web's state, which must survive...
+          printf '{"step":42}' | sudo tee "$d/totp_replay.json" >/dev/null
+          # ...and what the old mode let the web user plant: a link where root
+          # writes, web/ itself a link to /etc, a panic marker, and a core
+          # file replaced outright.
+          sudo ln -s /etc/shadow "$d/last_apply"
+          sudo ln -s /etc "$d/web"
+          sudo touch "$d/panic" "$d/rules.json"
+          sudo chown -h 100:101 "$d/totp_replay.json" "$d/last_apply" "$d/web" "$d/panic" "$d/rules.json"
+          sudo chmod 0666 "$d/rules.json"
+
+          etc=$(docker run --rm -v "$d:/var/lib/easywall" easywall:dev stat -c '%u:%g %a' /etc)
+          [ "$etc" = "0:0 755" ] || fail "the container's /etc is '$etc' after the entrypoint met web -> /etc: it followed the link"
+          [ "$(sudo stat -c '%u:%g %a' "$d")" = "0:101 750" ] \
+            || fail "the data directory is $(sudo stat -c '%u:%g %a' "$d"), want 0:101 750 — the web user can still write the core's files"
+          [ "$(sudo stat -c %a "$d/rules.json")" = 600 ] || fail "rules.json is not a root-owned copy at 0600"
+          if ! sudo test -d "$d/web" || sudo test -L "$d/web"; then fail "web/ is not a real directory"; fi
+          [ "$(sudo stat -c '%u:%g %a' "$d/web")" = "100:101 700" ] || fail "web/ is $(sudo stat -c '%u:%g %a' "$d/web"), want 100:101 700"
+          ! sudo test -L "$d/last_apply" || fail "the planted last_apply link is still there"
+          ! sudo test -e "$d/panic" || fail "a panic marker the web user made survived: the core would leave the firewall down"
+          [ "$(sudo cat "$d/web/totp_replay.json")" = '{"step":42}' ] || fail "the TOTP replay step did not move into web/"
+          echo "ok  a 2.21 data directory: made root's, web/ its own, the link removed and nothing followed"
+          sudo rm -rf "$d"
+
       - name: Clean up
         if: always()
         run: docker rm -f easywall-hc || true
@@ -486,10 +527,11 @@ jobs:
           check /etc/easywall/web.toml   easywall:easywall 600
           check /etc/easywall/easywall.toml root:root      600
           check /etc/easywall/ssl        easywall:easywall 750
-          # Shared between the two processes: the root core writes rules.json,
-          # the web user writes its caches. Owned by root with group write, so
-          # the core does not need CAP_DAC_OVERRIDE to reach it.
-          check /var/lib/easywall        root:easywall     770
+          # The core's: owned by root, so the core needs no CAP_DAC_OVERRIDE,
+          # and not group-writable, so the web user cannot replace what root
+          # reads there. The web keeps its state in its own web/ (2.22).
+          check /var/lib/easywall        root:easywall     750
+          check /var/lib/easywall/web    easywall:easywall 700
           # The three units, by installed path. A unit file that nothing
           # installs is a unit that does not exist on the machine, which is the
           # class of mistake that shipped this package with no binaries at all
@@ -633,6 +675,69 @@ jobs:
             exit 1
           fi
           echo "the core configuration is out of the web user's reach"
+
+      # ── An upgrade from the shared data directory ─────────────────────────
+      #
+      # Until 2.22 /var/lib/easywall was 0770 and shared with the web user, who
+      # could replace the core's files there and plant links that root wrote
+      # through. postinst now makes it root's (0750), gives the web process its
+      # own web/ (0700) and takes apart what the old mode allowed. This puts the
+      # 2.21 layout back on the installed package, does what that layout let the
+      # web user do — as that user — and runs postinst the way dpkg does on an
+      # upgrade. The fresh-install check above cannot see any of the repair
+      # branches, nor that none of them follows a link.
+      - name: An upgrade takes the shared data directory apart safely
+        run: |
+          docker exec -i easywall-test bash -s <<'EOF'
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          d=/var/lib/easywall
+          systemctl stop easywall-web.service easywall-core.service
+          # The 2.21 layout: one directory, 0770, shared, no web/.
+          rm -rf "$d/web"
+          chmod 0770 "$d"
+          # What it let the web user do, done as that user: keep its state here,
+          # replace a file of the core's, point last_apply at a file root would
+          # then write, make web/ a link to /etc, and engage panic mode.
+          runuser -u easywall -- sh -c '
+            d=/var/lib/easywall
+            printf "{\"step\":42}" > "$d/totp_replay.json"
+            printf "{}" > "$d/.x" && mv -f "$d/.x" "$d/usage.json"
+            ln -sf /etc/shadow "$d/last_apply"
+            ln -s /etc "$d/web"
+            : > "$d/panic"
+            chmod 0666 "$d/usage.json"
+            ln "$d/usage.json" "$d/telemetry.json"
+            mkfifo "$d/selftest.json"'
+
+          /var/lib/dpkg/info/easywall.postinst configure 2.21.1
+
+          [ "$(stat -c '%U:%G %a' "$d")" = "root:easywall 750" ] || fail "$d is $(stat -c '%U:%G %a' "$d") after the upgrade, want root:easywall 750"
+          if [ -L "$d/web" ] || [ ! -d "$d/web" ]; then fail "$d/web is not a real directory"; fi
+          [ "$(stat -c '%U:%G %a' "$d/web")" = "easywall:easywall 700" ] || fail "$d/web is $(stat -c '%U:%G %a' "$d/web"), want easywall:easywall 700"
+          [ "$(stat -c '%U:%G' /etc)" = "root:root" ] || fail "/etc is $(stat -c '%U:%G' /etc): postinst followed web -> /etc"
+          [ ! -L "$d/last_apply" ] || fail "the planted last_apply link survived the upgrade"
+          [ "$(stat -c %U "$d/usage.json")" = root ] || fail "usage.json still belongs to the web user, who can go on writing it in place"
+          [ "$(stat -c '%U %a %h' "$d/usage.json")" = "root 600 1" ] || fail "usage.json keeps the web user's inode"
+          [ ! -p "$d/selftest.json" ] || fail "a FIFO the web user made survived"
+          ! runuser -u easywall -- sh -c "echo x >> $d/web/telemetry.json && grep -q x $d/usage.json" || fail "web/telemetry.json still writes usage.json"
+          grep -q '"step":42' "$d/web/totp_replay.json" || fail "the TOTP replay step did not move into $d/web"
+          [ ! -e "$d/panic" ] || fail "a panic marker the web user made survived the upgrade: the core would leave the firewall down"
+          if runuser -u easywall -- ln -s /etc/shadow "$d/planted" 2>/dev/null; then fail "the web user can still plant a link in $d"; fi
+          runuser -u easywall -- test -w "$d/web" || fail "the web user cannot write its own $d/web"
+          echo "ok  the upgrade made $d root's, gave the web its own web/, and followed no link"
+
+          # Idempotent: a second configure finds nothing to do and says nothing about it.
+          again=$(/var/lib/dpkg/info/easywall.postinst configure 2.22.0 2>&1)
+          case "$again" in *"easywall: $d"*) fail "a second configure still found something to repair: $again" ;; esac
+          echo "ok  a second configure changed nothing"
+
+          for unit in easywall-core easywall-web; do
+            for _ in $(seq 1 20); do systemctl is-active --quiet $unit && break; sleep 0.5; done
+            systemctl is-active --quiet $unit || fail "$unit did not come back after the upgrade"
+          done
+          echo "ok  both services are running again"
+          EOF
 
       # The version reaches the binary. It is written in with -ldflags -X, which
       # does nothing at all when the target is a constant — as it was, so every

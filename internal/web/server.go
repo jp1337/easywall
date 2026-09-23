@@ -302,6 +302,8 @@ func NewServer(cfg *Config) (*Server, error) {
 		localeStatus = map[string]LocaleStatus{}
 	}
 
+	prepareStateDir(cfg.DataDir)
+
 	s := &Server{
 		cfg:                 cfg,
 		client:              client,

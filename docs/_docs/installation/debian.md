@@ -50,6 +50,7 @@ or whose binaries do not match the leg that built it.
 | `/etc/easywall/easywall.toml` | core: firewall options, acceptance window, Docker |
 | `/etc/easywall/web.toml` | web: auth, TLS, language, bind address |
 | `/var/lib/easywall/rules.json` | the three rule sets |
+| `/var/lib/easywall/web/` | web: passkeys, the TOTP replay guard, the version cache |
 | `/var/log/easywall/audit.log` | [audit log]({{ '/docs/features/audit-log/' | relative_url }}), rotated daily |
 | `/etc/easywall/*.toml.template` | the commented defaults the package carries |
 

@@ -62,7 +62,7 @@ User=root
 #
 # Being a member of the group solves both without widening the capability set:
 # the owner of a file may give it to a group it belongs to, and the data
-# directory is group-writable.
+# directory is root's own (0750 root:easywall), so the owner bits reach it.
 Group=easywall
 ExecStart=/usr/sbin/easywall-core --config /etc/easywall/easywall.toml
 ExecReload=/bin/kill -HUP $MAINPID

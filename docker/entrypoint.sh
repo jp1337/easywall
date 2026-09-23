@@ -60,6 +60,72 @@ mkdir -p "$CONF/ssl" 2>/dev/null || warn "could not create $CONF/ssl"
 chown easywall:easywall "$CONF/ssl" 2>/dev/null || warn "could not set the owner of $CONF/ssl"
 chmod 0750 "$CONF/ssl" 2>/dev/null || warn "could not set the mode of $CONF/ssl"
 
+# /var/lib/easywall is root's; the web process keeps its state in web/, the one
+# directory there it can write. Until 2.22 the whole directory was 0770 and
+# shared, and the web user could replace the core's files and plant links in
+# their place: root then wrote through them (last_apply) or restored them at
+# boot (rules.json). The same shape and the same order as debian/postinst:
+# the mode first, so from that line on only root changes what is in it, then
+# what an older volume left behind —
+#   - a link is removed and never followed; nothing easywall writes is one,
+#   - the web's own files move into web/,
+#   - a panic marker not owned by root is removed: only the core makes one,
+#     and one the web user made would leave the firewall down at every start,
+#   - an entry that is not a regular file is removed: the core never makes
+#     one here,
+#   - anything else not owned by root is replaced by a root-owned copy, whose
+#     owner could otherwise go on writing it in place whatever the
+#     directory's mode.
+# web/ first of all: a chown through a link named web would hand its target
+# to the web user.
+DATA=/var/lib/easywall
+chown root:easywall "$DATA" 2>/dev/null || warn "could not set the owner of $DATA"
+chmod 0750 "$DATA" 2>/dev/null || warn "could not set the mode of $DATA"
+if [ -L "$DATA/web" ] || { [ -e "$DATA/web" ] && [ ! -d "$DATA/web" ]; }; then
+    warn "$DATA/web was not a directory; removed"
+    rm -f "$DATA/web"
+fi
+mkdir -p "$DATA/web" 2>/dev/null || warn "could not create $DATA/web"
+chown easywall:easywall "$DATA/web" 2>/dev/null || warn "could not set the owner of $DATA/web"
+chmod 0700 "$DATA/web" 2>/dev/null || warn "could not set the mode of $DATA/web"
+for p in "$DATA"/* "$DATA"/.[!.]*; do
+    { [ -e "$p" ] || [ -L "$p" ]; } || continue
+    f=${p##*/}
+    [ "$f" = web ] && continue
+    if [ -L "$p" ]; then
+        warn "$p was a link; removed, not followed"
+        rm -f "$p"
+        continue
+    fi
+    case "$f" in
+        totp_replay.json|passkeys.json|passkeys.json.corrupt|version_cache.json|telemetry.json)
+            if [ -f "$p" ]; then
+                if [ -e "$DATA/web/$f" ] || [ -L "$DATA/web/$f" ]; then
+                    rm -f "$p"
+                elif install -m 0600 -o easywall -g easywall "$p" "$DATA/web/$f"; then
+                    rm -f "$p"
+                else
+                    warn "could not move $p into $DATA/web"
+                fi
+                continue
+            fi ;;
+    esac
+    if [ "$(stat -c %u "$p")" = 0 ]; then
+        continue
+    elif [ "$f" = panic ]; then
+        warn "$p was not made by the core; removed, panic mode is not engaged"
+        rm -rf "$p"
+    elif [ ! -f "$p" ]; then
+        warn "$p was not a regular file, which the core never makes here; removed"
+        rm -rf "$p"
+    else
+        warn "$p was not owned by root; replaced by a root-owned copy. Review it"
+        if ! { t=$(mktemp "$DATA/.easywall-XXXXXX") && cat "$p" > "$t" && mv -f "$t" "$p"; }; then
+            warn "could not give $p to root"
+        fi
+    fi
+done
+
 # Say so here rather than leaving it to be discovered as a restart loop. The two
 # things easywall-web cannot start without are a writable web.toml and a
 # writable ssl directory.

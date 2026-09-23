@@ -273,9 +273,9 @@ func (p *passkeyStore) saveLocked() error {
 		return err
 	}
 	// The package's own atomic writer, from tlscert.go. See totpReplay.accept
-	// for why no in-place fallback is needed here either: data_dir is
-	// installed 0770 root:easywall with the web user in that group, so a temp
-	// file always works.
+	// for why no in-place fallback is needed here either: the file is in
+	// <data_dir>/web, this process's own directory, so a temp file always
+	// works.
 	if err := writeFileAtomic(p.path, data, 0600); err != nil {
 		return err
 	}
