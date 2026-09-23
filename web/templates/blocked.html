@@ -32,6 +32,7 @@
     {{end}}
 
     <div class="card">
+      {{$bad := .Bad}}
       <form method="get" action="/blocked" class="pkt-filters" aria-label="{{T "blocked_filter_label"}}">
         <label class="pkt-field"><span>{{T "blocked_filter_src"}}</span>
           {{/* No placeholder: its computed colour is already --color-ink-subtle
@@ -39,23 +40,23 @@
                screenshot), same as every other input; a monospace example
                address still read as a typed value at a glance, which is the
                defect, not the colour. Dropped rather than restyled. */}}
-          <input type="text" name="src" value="{{.Filter.Src}}" class="input input-sm input-data" inputmode="text"></label>
+          <input type="text" name="src" value="{{.Form.Src}}" class="input input-sm input-data{{if eq $bad "src"}} is-error{{end}}" inputmode="text"{{if eq $bad "src"}} aria-invalid="true"{{end}}></label>
         <label class="pkt-field"><span>{{T "blocked_filter_dst"}}</span>
-          <input type="text" name="dst" value="{{.Filter.Dst}}" class="input input-sm input-data"></label>
+          <input type="text" name="dst" value="{{.Form.Dst}}" class="input input-sm input-data{{if eq $bad "dst"}} is-error{{end}}"{{if eq $bad "dst"}} aria-invalid="true"{{end}}></label>
         <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_port"}}</span>
-          <input type="text" name="port" value="{{if .Filter.Port}}{{.Filter.Port}}{{end}}" class="input input-sm input-data" inputmode="numeric"></label>
+          <input type="text" name="port" value="{{.Form.Port}}" class="input input-sm input-data{{if eq $bad "port"}} is-error{{end}}" inputmode="numeric"{{if eq $bad "port"}} aria-invalid="true"{{end}}></label>
         <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_proto"}}</span>
-          <select name="proto" class="input input-sm">
+          <select name="proto" class="input input-sm{{if eq $bad "proto"}} is-error{{end}}"{{if eq $bad "proto"}} aria-invalid="true"{{end}}>
             <option value="">{{T "blocked_filter_any"}}</option>
-            {{$p := .Filter.Proto}}{{range .Protos}}<option value="{{.}}"{{if eq . $p}} selected{{end}}>{{.}}</option>{{end}}
+            {{$p := .Form.Proto}}{{range .Protos}}<option value="{{.}}"{{if eq . $p}} selected{{end}}>{{.}}</option>{{end}}
           </select></label>
         <label class="pkt-field"><span>{{T "blocked_filter_rule"}}</span>
-          <select name="rule" class="input input-sm">
+          <select name="rule" class="input input-sm{{if eq $bad "rule"}} is-error{{end}}"{{if eq $bad "rule"}} aria-invalid="true"{{end}}>
             <option value="">{{T "blocked_filter_any"}}</option>
-            {{$r := .Filter.Rule}}{{range .RuleList}}<option value="{{.}}"{{if eq . $r}} selected{{end}}>{{T (printf "blocked_rule_%s" .)}}</option>{{end}}
+            {{$r := .Form.Rule}}{{range .RuleList}}<option value="{{.}}"{{if eq . $r}} selected{{end}}>{{T (printf "blocked_rule_%s" .)}}</option>{{end}}
           </select></label>
         <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_iface"}}</span>
-          <input type="text" name="in" value="{{.Filter.InDev}}" class="input input-sm input-data"></label>
+          <input type="text" name="in" value="{{.Form.InDev}}" class="input input-sm input-data{{if eq $bad "in"}} is-error{{end}}"{{if eq $bad "in"}} aria-invalid="true"{{end}}></label>
         <button type="submit" class="btn btn-sm">{{T "blocked_filter_apply"}}</button>
         <a href="/blocked" class="btn btn-sm">{{T "blocked_filter_clear"}}</a>
       </form>

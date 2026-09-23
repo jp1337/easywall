@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +93,7 @@ func TestBlocked_TheFilterGoesToTheCoreAndStaysInTheURL(t *testing.T) {
 	var sent shared.PacketLogFilter
 	fc.OnCommand(shared.CmdGetPacketLog, func(c shared.Command) { _ = json.Unmarshal(c.Payload, &sent) })
 
-	rec := doAuthRequest(t, s, "GET", "/blocked?src=203.0.113.0%2F24&port=22&proto=tcp&rule=ssh&in=eth0", nil)
+	rec := doAuthRequest(t, s, "GET", "/blocked?in=eth0&port=22&proto=tcp&rule=ssh&src=203.0.113.0%2F24", nil)
 	assertStatus(t, rec, http.StatusOK)
 	want := shared.PacketLogFilter{Src: "203.0.113.0/24", Port: 22, Proto: "tcp", Rule: "ssh", InDev: "eth0"}
 	if sent != want {
@@ -100,6 +101,50 @@ func TestBlocked_TheFilterGoesToTheCoreAndStaysInTheURL(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `hx-get="/blocked/rows?in=eth0&amp;port=22&amp;proto=tcp&amp;rule=ssh&amp;src=203.0.113.0%2F24"`) {
 		t.Error("the live tail does not carry the filter; the next swap would show everything")
+	}
+}
+
+func TestBlockedRedirectsToTheCanonicalQuery(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true})
+	rec := doAuthRequest(t, s, "GET", "/blocked?src=&dst=&port=22&proto=&rule=&in=", nil)
+	assertRedirect(t, rec, "/blocked?port=22")
+	rec = doAuthRequest(t, s, "GET", "/blocked?src=&dst=", nil)
+	assertRedirect(t, rec, "/blocked")
+	assertStatus(t, doAuthRequest(t, s, "GET", "/blocked?port=22", nil), http.StatusOK)
+	// The spelling html/template gives an IPv6 link is already canonical.
+	assertStatus(t, doAuthRequest(t, s, "GET", "/blocked?src=2001%3adb8%3a%3a1", nil), http.StatusOK)
+}
+
+func TestBlockedKeepsAnUnreadableFilterInTheForm(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{samplePacket()}},
+		shared.FirewallOptions{LogBlocked: true})
+	body := doAuthRequest(t, s, "GET", "/blocked?src=10.0.0.0%2F33&port=22", nil).Body.String()
+	if !strings.Contains(body, `value="10.0.0.0/33"`) {
+		t.Error("the field no longer shows what was typed")
+	}
+	if !regexp.MustCompile(`name="src"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*name="src"`).MatchString(body) {
+		t.Error("the field that could not be read is not marked")
+	}
+	if regexp.MustCompile(`name="port"[^>]*aria-invalid="true"`).MatchString(body) {
+		t.Error("a readable field is marked invalid")
+	}
+}
+
+func TestBlockedHeaderCountsLikeTheApplyScreen(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true, Fragments: true})
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{Whitelist: []string{"192.0.2.9"}},
+	}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{
+		Recorded: true,
+		Config:   shared.AppliedConfig{Firewall: shared.FirewallOptions{LogBlocked: true}},
+	}))
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	if !strings.Contains(body, "2 staged") {
+		t.Error("one rule change and one configuration change must read as 2 staged, as /apply counts them")
 	}
 }
 
@@ -353,9 +398,9 @@ func TestBlockedForwardedRowShowsADashNotAnEmptyCell(t *testing.T) {
 
 func TestFilterQueryRoundTrips(t *testing.T) {
 	f := shared.PacketLogFilter{Src: "2001:db8::/32", Port: 443, Proto: "tcp"}
-	back, ok := blockedFilter(mustParseQuery(t, filterQuery(f)))
-	if !ok || back != f {
-		t.Errorf("round trip: %+v (ok=%v), want %+v", back, ok, f)
+	back, bad := blockedFilter(mustParseQuery(t, filterQuery(f)))
+	if bad != "" || back != f {
+		t.Errorf("round trip: %+v (bad=%q), want %+v", back, bad, f)
 	}
 }
 
