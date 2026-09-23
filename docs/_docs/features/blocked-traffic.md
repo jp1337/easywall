@@ -24,7 +24,7 @@ and switch one on. The two worth starting with:
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/blocked" ext="png"
-     alt="The Blocked traffic page: a filter bar above a table of refused packets, each row carrying whitelist, blacklist, open-port actions and a details disclosure." %}
+     alt="The Blocked traffic page: a filter bar above a table of refused packets, each row carrying the actions its rule allows and a details disclosure." %}
   <figcaption>Six columns cover a triage glance; everything else is one click into Details.</figcaption>
 </figure>
 
