@@ -64,6 +64,7 @@
       <div class="toolbar">
         <h2 class="section-title">{{T "blocked_recent"}}</h2>
         <span class="toolbar-spacer"></span>
+        <span class="toolbar-note">{{T "blocked_live_hint"}}</span>
         {{with .Result}}<span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>{{end}}
       </div>
       <div class="table-wrap">

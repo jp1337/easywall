@@ -1990,6 +1990,9 @@ body {
     white-space: nowrap;
   }
 
+  /* A sentence in a toolbar, not a value: the UI face, and it wraps. */
+  .toolbar-note { font-size: 12px; color: var(--color-ink-subtle); white-space: normal; min-width: 0; }
+
   .search { position: relative; display: flex; align-items: center; }
 
   .search svg {

@@ -584,6 +584,7 @@
   {"id": "blocked_title", "translation": "Blocked traffic"},
   {"id": "blocked_subtitle", "translation": "What the firewall refused, newest first."},
   {"id": "blocked_recent", "translation": "Refused packets"},
+  {"id": "blocked_live_hint", "translation": "Updates every 5 s · pauses while you point at or work in the table"},
   {"id": "blocked_count", "translation": "{{.N}} of {{.M}}"},
   {"id": "blocked_col_time", "translation": "Time"},
   {"id": "blocked_col_iface", "translation": "Interface"},
