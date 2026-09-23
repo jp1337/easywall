@@ -241,3 +241,28 @@ func TestLogPrefixesAreDocumented(t *testing.T) {
 		}
 	}
 }
+
+// A blacklisted network is logged like a blacklisted address. It went to a
+// builder that took no log spec until 2.22, so log_blacklist_connections said
+// nothing about 10.0.0.0/8 while logging 10.0.0.1.
+func TestBlacklistLogsANetworkEntry(t *testing.T) {
+	for _, entry := range []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1", "2001:db8::/32"} {
+		rec := &recordingConn{}
+		m := &NftablesManager{adder: rec}
+		tbl := easywallInetTableForTest()
+		m.addBlacklistRule(tbl, inputChainForTest(tbl), entry, shared.FirewallOptions{LogBlacklist: true})
+
+		if len(rec.rules) != 2 {
+			t.Errorf("%s: %d rules, want a log rule and a drop", entry, len(rec.rules))
+			continue
+		}
+		l := logOf(t, rec.rules[0].Exprs)
+		if string(l.Data) != logPrefixBlacklist {
+			t.Errorf("%s: the first rule logs %q, want %q", entry, l.Data, logPrefixBlacklist)
+		}
+		last := rec.rules[1].Exprs[len(rec.rules[1].Exprs)-1]
+		if v, ok := last.(*expr.Verdict); !ok || v.Kind != expr.VerdictDrop {
+			t.Errorf("%s: the second rule ends in %#v, want a drop", entry, last)
+		}
+	}
+}

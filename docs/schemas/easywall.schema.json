@@ -262,7 +262,7 @@
         },
         "drop_fragments": {
           "type": "boolean",
-          "description": "Drop IP-fragmented packets. May break legitimate large-MTU traffic.",
+          "description": "Drop fragmented IPv4 packets addressed to this host, before the kernel reassembles them. Breaks any reply too large for one packet — a DNS answer over UDP with DNSSEC, for one.",
           "default": false
         },
         "drop_fragments_log": {

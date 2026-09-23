@@ -35,7 +35,7 @@ func TestAMappedNetworkBuildsWhatItsIPv4NetworkBuilds(t *testing.T) {
 		{"cidrMatch", func(s string) []expr.Any { return cidrMatch(s, posSrcAddr) }},
 		{"cidrMatchNegated", func(s string) []expr.Any { return cidrMatchNegated(s, posDstAddr) }},
 		{"addCIDRAccept", added(func(m *NftablesManager, s string) { m.addCIDRAccept(tbl, ch, s) })},
-		{"addCIDRDrop", added(func(m *NftablesManager, s string) { m.addCIDRDrop(tbl, ch, s) })},
+		{"cidrDropMatch", cidrDropMatch},
 	}
 	for _, b := range builders {
 		want := b.build("10.0.0.0/8")
