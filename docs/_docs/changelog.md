@@ -71,7 +71,7 @@ which is the file GitHub and the release tooling read.
 </script>
 
 <details open id="2.21.0" markdown="1">
-<summary><strong>2.21.0</strong> · 2026-09-22 — You can see what it refuses</summary>
+<summary><strong>2.21.0</strong> · 2026-09-23 — You can see what it refuses</summary>
 
 Blocked traffic becomes a page: every packet the ten log switches refuse,
 newest first, filterable, with whitelist, blacklist and open-the-port one
