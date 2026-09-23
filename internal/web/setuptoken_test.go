@@ -109,12 +109,12 @@ func TestFirstRunRefusesAMissingOrWrongSetupToken(t *testing.T) {
 // four, and a copy may lose the spaces or change case.
 func TestFirstRunAcceptsTheSetupTokenHoweverItIsPasted(t *testing.T) {
 	for name, pasted := range map[string]string{
-		"as printed":       formatTOTPSecret(testSetupToken),
-		"without spaces":   testSetupToken,
-		"lower, with -":    strings.ToLower(strings.ReplaceAll(formatTOTPSecret(testSetupToken), " ", "-")),
-		"padded with = ":   testSetupToken + "====",
-		"trailing newline": testSetupToken + "\n",
-		"with its quotes":  "\"" + formatTOTPSecret(testSetupToken) + "\"",
+		"as printed":      formatTOTPSecret(testSetupToken),
+		"without spaces":  testSetupToken,
+		"lower, with -":   strings.ToLower(strings.ReplaceAll(formatTOTPSecret(testSetupToken), " ", "-")),
+		"padded with = ":  testSetupToken + "====",
+		"trailing tab":    testSetupToken + "\t",
+		"with its quotes": "\"" + formatTOTPSecret(testSetupToken) + "\"",
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := newFirstRunTestServer(t, newFakeCore(t))

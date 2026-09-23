@@ -45,7 +45,7 @@ included:
 
 ```
 demo mode active — using in-memory mock instead of core socket
-first run: enter this setup token at /firstrun to create the account   token="ABCD EFGH …"
+{"level":"WARN","msg":"first run: enter this setup token at /firstrun to create the account","token":"ABCD EFGH …"}
 ```
 
 Finish the wizard yourself, then publish the credentials. A public demo that
