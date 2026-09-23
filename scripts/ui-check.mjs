@@ -1515,6 +1515,33 @@ async function checkFocusIsVisible(ctx, theme) {
 }
 
 /**
+ * A row action's text at rest must clear WCAG AA for text, 4.5:1 (2.21.1 F2).
+ * Opacity is composited, so the colour a reader sees is the text over the
+ * button over the row.
+ */
+async function checkBlockedActionContrast(page, theme) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(250);
+  const c = await page.$eval('#blocked-rows .pkt-actions .btn', b => {
+    let op = 1;
+    for (let el = b; el; el = el.parentElement) op *= parseFloat(getComputedStyle(el).opacity);
+    let bg = null;
+    for (let el = b; el; el = el.parentElement) {
+      const v = getComputedStyle(el).backgroundColor;
+      if (v && v !== 'rgba(0, 0, 0, 0)' && v !== 'transparent') { bg = v; break; }
+    }
+    return { fg: getComputedStyle(b).color, bg, op };
+  });
+  const fg = parseRGBA(c.fg), bg = parseRGBA(c.bg);
+  const seen = compositeOver({ ...fg, a: fg.a * c.op }, bg);
+  const ratio = contrastRatio(seen, bg);
+  if (ratio < 4.5) {
+    fail(`blocked action contrast [${theme}]`, `${ratio.toFixed(2)}:1 at rest, needs 4.5:1`);
+  }
+}
+
+/**
  * Nothing scrolls sideways inside its own container either.
  *
  * The page-level overflow check below cannot see this, and not by oversight: a
@@ -1664,6 +1691,9 @@ async function runChecks(browser, session) {
     });
     await focusCtx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
     await checkFocusIsVisible(focusCtx, theme);
+    const cp = await focusCtx.newPage();
+    await checkBlockedActionContrast(cp, theme);
+    await cp.close();
     await focusCtx.close();
   }
 
