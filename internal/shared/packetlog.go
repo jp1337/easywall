@@ -218,8 +218,8 @@ func (f PacketLogFilter) Matcher() (func(PacketLogEntry) bool, error) {
 // addrOrPrefix reads "203.0.113.9" as 203.0.113.9/32, and unmaps and unzones
 // first so that ::ffff:203.0.113.9 is the IPv4 address it is.
 func addrOrPrefix(s string) (netip.Prefix, error) {
-	if p, err := netip.ParsePrefix(s); err == nil {
-		return p.Masked(), nil
+	if p, err := ParseNetwork(s); err == nil {
+		return p, nil
 	}
 	a, err := netip.ParseAddr(s)
 	if err != nil {

@@ -142,7 +142,7 @@ func detectPublishedPorts(cidrs []string, nsFD int) []publishedPort {
 		if shared.IsListComment(c) {
 			continue
 		}
-		if p, err := netip.ParsePrefix(strings.TrimSpace(c)); err == nil {
+		if p, err := shared.ParseNetwork(c); err == nil {
 			nets = append(nets, p)
 		}
 	}
