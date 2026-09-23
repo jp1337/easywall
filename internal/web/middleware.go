@@ -76,6 +76,21 @@ func sessionUser(sess *sessions.Session, currentCredential func() string) string
 	return user
 }
 
+// redirectRefused sends a refused request to `to`. A plain navigation gets a
+// 303. An htmx request gets a 401 with HX-Redirect instead: its XHR would
+// follow a 303 without htmx seeing it and swap the target page into the
+// element it was updating — /login inside /blocked's table, every five
+// seconds, after a session expired. htmx reads HX-Redirect before it looks at
+// the status and navigates the whole window.
+func redirectRefused(w http.ResponseWriter, r *http.Request, to string) {
+	if isHTMX(r) {
+		w.Header().Set("HX-Redirect", to)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	http.Redirect(w, r, to, http.StatusSeeOther)
+}
+
 // RequireAuth rejects unauthenticated requests with a redirect to /login.
 //
 // currentCredential returns the fingerprint of the password in force right now.
@@ -87,7 +102,7 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sess, err := store.Get(r, SessionName)
 			if err != nil || sessionUser(sess, currentCredential) == "" {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				redirectRefused(w, r, "/login")
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -155,7 +170,7 @@ func RequireSecondFactor(hasFactor func() bool, isDemo func() bool) func(http.Ha
 			// without which the walk cannot tell an enrolment route working
 			// as designed from one the gate incorrectly blocked.
 			w.Header().Set("X-Easywall-Gate", "second-factor-required")
-			http.Redirect(w, r, "/password", http.StatusSeeOther)
+			redirectRefused(w, r, "/password")
 		})
 	}
 }

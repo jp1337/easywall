@@ -663,6 +663,50 @@ func TestTheGateOpensAsSoonAsAFactorExists(t *testing.T) {
 	}
 }
 
+// An htmx request that has lost its session must not be answered with a 303:
+// the browser's XHR follows it and htmx swaps the login page into whatever it
+// was polling. HX-Redirect navigates the window instead.
+func TestRequireAuth_AnHTMXRequestIsSentToLoginNotSwapped(t *testing.T) {
+	store := sessions.NewCookieStore([]byte("test-key-32bytes-padding-padding!"))
+	handler := RequireAuth(store, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("next handler must not be called for an unauthenticated request")
+	}))
+
+	req := httptest.NewRequest("GET", "/blocked/rows", nil)
+	req.Header.Set("HX-Request", "true")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401 — a 3xx is followed by the XHR and swapped in", rec.Code)
+	}
+	if got := rec.Header().Get("HX-Redirect"); got != "/login" {
+		t.Errorf("HX-Redirect = %q, want /login", got)
+	}
+	if loc := rec.Header().Get("Location"); loc != "" {
+		t.Errorf("Location = %q, want none on an htmx answer", loc)
+	}
+}
+
+func TestRequireSecondFactor_AnHTMXRequestIsSentToPasswordNotSwapped(t *testing.T) {
+	handler := RequireSecondFactor(func() bool { return false }, func() bool { return false })(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			t.Error("next handler must not be called without a second factor")
+		}))
+
+	req := httptest.NewRequest("GET", "/blocked/rows", nil)
+	req.Header.Set("HX-Request", "true")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized || rec.Header().Get("HX-Redirect") != "/password" {
+		t.Errorf("got %d HX-Redirect=%q, want 401 and /password", rec.Code, rec.Header().Get("HX-Redirect"))
+	}
+	if rec.Header().Get("X-Easywall-Gate") != "second-factor-required" {
+		t.Error("the gate header is how TestTheGateCannotBeWalkedPast tells the gate from a handler; keep it on the htmx path too")
+	}
+}
+
 // TestTheGateAllowlistIsExactAndNotAPrefix drives RequireSecondFactor directly,
 // over a handler of this test's own, instead of through the router.
 //
