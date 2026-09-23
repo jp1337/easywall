@@ -3267,6 +3267,14 @@ body {
     white-space: nowrap;
   }
   .pkt-flow a { color: inherit; text-decoration: none; }
+  /* One flex item, not five. On a card the td is a flex row, so each link,
+     the arrow and the colon became their own item, and the card's
+     overflow-wrap:anywhere broke every one of them — "192.0.2 / .140",
+     "80 / 80". Grouped, the route wraps between addresses; inline-block
+     links break inside themselves only when one alone is wider than the
+     line (a long IPv6 address at 390px). */
+  .pkt-route { flex: 1; min-width: 0; }
+  .pkt-route a { display: inline-block; }
   .pkt-flow a:hover { text-decoration: underline; }
   .pkt-flow a:focus-visible {
     outline: 2px solid var(--color-focus-ring);
@@ -3297,6 +3305,10 @@ body {
     font-size: 12px;
   }
   .pkt-detail dt { color: var(--color-ink-subtle); }
+  /* The buttons and their Details, as one item: stacked, as a table cell
+     already stacks them, instead of side by side on a card, where a German
+     button ("Sperrliste bearbeiten") ran into "Details". */
+  .pkt-act { flex: 1; min-width: 0; }
   .pkt-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
   .pkt-actions form { display: contents; }
 

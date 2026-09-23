@@ -920,6 +920,53 @@ async function checkBlockedTailHoldsStill(page) {
 }
 
 /**
+ * A /blocked card at 390px in German keeps an address whole and its Details
+ * clear of the buttons. The card's td is a flex row with overflow-wrap:
+ * anywhere, so each link of the route used to be its own flex item and broke
+ * mid-number ("192.0.2 / .140"), and "Sperrliste bearbeiten" ran into
+ * "Details" — while every width check here stayed green, because nothing
+ * overflowed its container.
+ */
+async function checkBlockedCardsKeepValuesWhole(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  await ctx.addCookies([{ name: 'easywall_lang', value: 'de', url: BASE }]);
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  const bad = await page.evaluate(() => {
+    const out = [];
+    const rows = document.querySelectorAll('#blocked-rows tr');
+    // Every link in a flow cell, not .pkt-route's: the check must still see
+    // the links if the grouping is lost. Lines are counted on a Range over the
+    // text, because a blockified flex item reports one rect however it wraps.
+    const lines = el => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return new Set([...r.getClientRects()].map(q => Math.round(q.top))).size;
+    };
+    for (const a of document.querySelectorAll('#blocked-rows td.pkt-flow a')) {
+      // An IPv4 address or a port fits a 390px line; only a long IPv6 may break.
+      if (!a.textContent.includes('::') && lines(a) > 1) out.push(`"${a.textContent}" breaks across lines`);
+    }
+    for (const tr of rows) {
+      const s = tr.querySelector('.pkt-detail summary');
+      if (!s) continue;
+      if (lines(s) > 1) out.push('"Details" wraps onto two lines');
+      const r = s.getBoundingClientRect();
+      for (const b of tr.querySelectorAll('.pkt-actions .btn')) {
+        const q = b.getBoundingClientRect();
+        if (r.left < q.right && q.left < r.right && r.top < q.bottom && q.top < r.bottom) out.push(`"Details" overlaps "${b.textContent.trim()}"`);
+      }
+    }
+    return { out: [...new Set(out)], n: rows.length };
+  });
+  await ctx.close();
+  if (bad.n === 0) { fail('blocked cards at 390px [de]', 'no rows to measure'); return; }
+  if (bad.out.length) { fail('blocked cards at 390px [de]', bad.out.slice(0, 5).join('; ')); return; }
+  console.log('  ok   blocked cards keep addresses whole and Details clear at 390px in German');
+}
+
+/**
  * Adds one port rule via #add-rule-btn — the same control
  * checkForwardingPortIsNotReparsed already drives for the forwarding table,
  * since ports.html's row editor works the same way: click to append a row,
@@ -1776,6 +1823,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
+  await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
   await checkTheGate(browser);
