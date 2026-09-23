@@ -54,7 +54,7 @@ const USER = 'admin';
 const PASS = 'ui-check-password-2026';
 
 const PAGES = [
-  '/dashboard', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
+  '/dashboard', '/blocked', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
   '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
   '/notify', '/log', '/apply',
 ];
@@ -1724,7 +1724,7 @@ const screenshotArgs = screenshotMode
 // their own (filters.md reuses the blacklist/options shots), and shooting
 // them here would add files nothing links to.
 const DEFAULT_SCREENSHOT_PAGES = [
-  '/dashboard', '/ports', '/blacklist', '/forwarding', '/custom',
+  '/dashboard', '/blocked', '/ports', '/blacklist', '/forwarding', '/custom',
   '/options', '/settings', '/password', '/log', '/notify', '/apply',
   '/apply-window',
 ];
@@ -1781,10 +1781,18 @@ const SHOT_VIEWPORT = { width: 1700, height: 900 };
  * page with a sidebar that ran past 900px. Growing
  * the window instead renders the page the way a reader with a window that tall
  * would see it — which is also the right answer for the sticky save bar.
+ *
+ * `maxHeight` bounds that growth. /blocked is the exception: its row count is
+ * live traffic, not layout, and the demo's synthetic stream alone can carry
+ * it past 200 rows — growing to fit would photograph the whole table instead
+ * of documenting the page. Capped at the plain viewport height, the figure
+ * shows what a reader actually meets: header, filters, the first dozen or so
+ * rows, exactly as `SHOT_VIEWPORT.height` already does for every page short
+ * enough not to need growing at all.
  */
-async function shoot(page, name, theme) {
+async function shoot(page, name, theme, maxHeight = Infinity) {
   const out = `docs/assets/img/screens/${name}-${theme}.png`;
-  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  const height = Math.min(await page.evaluate(() => document.documentElement.scrollHeight), maxHeight);
   if (height > SHOT_VIEWPORT.height) {
     await page.setViewportSize({ width: SHOT_VIEWPORT.width, height });
     // The reflow is synchronous, but a sticky element's resolved position and
@@ -1827,7 +1835,7 @@ async function takeScreenshots(browser, session, pages) {
     for (const path of mainPages) {
       await page.goto(BASE + path, { waitUntil: 'networkidle' });
       const name = path.replace(/^\//, '').replace(/\?.*$/, '');
-      await shoot(page, name, theme);
+      await shoot(page, name, theme, name === 'blocked' ? SHOT_VIEWPORT.height : undefined);
     }
     await ctx.close();
   }

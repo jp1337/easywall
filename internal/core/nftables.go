@@ -91,6 +91,12 @@ type NftablesManager struct {
 	// process happens to sit in.
 	nsFD int
 
+	// logSink is where every log rule this manager builds sends its packet.
+	// Set once, by the daemon, before the boot restore; read by the builders
+	// under mu. The self-test's managers leave it zero — the kernel log — which
+	// is right: nothing listens in the peer namespace.
+	logSink logSink
+
 	// adder is where the builders write. In production it is a builtRecorder
 	// wrapping m.conn; in tests it is a recordingConn. Never nil after
 	// NewNftablesManager.
@@ -895,9 +901,10 @@ func (m *NftablesManager) applyCustomRules(rules []string) error {
 
 // --- Logging ---
 
-// Log prefixes. Every one starts with "easywall " so that a single
-// `journalctl -k | grep easywall` catches all of them, which is what the
-// documentation tells operators to run.
+// Log prefixes. Every one starts with "easywall ". Since 2.21 they travel to
+// easywall-core's NFLOG group as NFULA_PREFIX, where shared.RuleFromPrefix reads
+// them back into a rule name — and they are still what the kernel log shows on
+// a host where the group could not be bound.
 const (
 	logPrefixInvalid   = "easywall invalid: "
 	logPrefixFragment  = "easywall fragment: "
@@ -918,6 +925,16 @@ type logSpec struct {
 	perMinute int
 }
 
+// logSink is where a log rule sends what it matched.
+//
+// The zero value is the kernel ring buffer, which is what every release before
+// 2.21 wrote and what this one falls back to when the NFLOG group cannot be
+// bound: an apply must never fail because the packet log is unavailable.
+type logSink struct {
+	nflog bool
+	group uint16
+}
+
 // logExprs builds a rate-limited log expression pair.
 //
 // expr.Log.Key is a bitmask over the NFTA_LOG_* attribute indices, not an
@@ -926,9 +943,22 @@ type logSpec struct {
 // received an empty log group and no prefix at all. That is how every logged
 // packet reached the kernel log unlabelled, while the documentation told
 // operators to grep for a prefix that was never written.
-func logExprs(prefix string, perMinute int) []expr.Any {
+// Where the packet goes is sink's business — see logSink.
+func logExprs(prefix string, perMinute int, sink logSink) []expr.Any {
 	if perMinute <= 0 {
 		perMinute = 60
+	}
+	log := &expr.Log{
+		Key:  1 << unix.NFTA_LOG_PREFIX,
+		Data: []byte(prefix),
+	}
+	if sink.nflog {
+		// Group, prefix and snaplen, and nothing else: nft_log_init refuses
+		// NFTA_LOG_FLAGS and NFTA_LOG_LEVEL beside NFTA_LOG_GROUP. The snaplen
+		// is what keeps a 1500-byte payload out of the core's memory.
+		log.Key |= 1<<unix.NFTA_LOG_GROUP | 1<<unix.NFTA_LOG_SNAPLEN
+		log.Group = sink.group
+		log.Snaplen = packetSnaplen
 	}
 	return []expr.Any{
 		// Rate-limits the log line, not the verdict: this rule carries no
@@ -942,11 +972,16 @@ func logExprs(prefix string, perMinute int) []expr.Any {
 			Unit:  expr.LimitTimeMinute,
 			Burst: uint32(perMinute),
 		},
-		&expr.Log{
-			Key:  1 << unix.NFTA_LOG_PREFIX,
-			Data: []byte(prefix),
-		},
+		log,
 	}
+}
+
+// SetLogSink points every log rule built from now on at s. The next apply
+// writes it; rules already in the kernel keep what they were built with.
+func (m *NftablesManager) SetLogSink(s logSink) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.logSink = s
 }
 
 // addFiltered installs a module's rule as up to two rules sharing one match:
@@ -957,7 +992,7 @@ func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, matc
 	if lg.enabled {
 		logged := make([]expr.Any, 0, len(match)+2)
 		logged = append(logged, match...)
-		logged = append(logged, logExprs(lg.prefix, lg.perMinute)...)
+		logged = append(logged, logExprs(lg.prefix, lg.perMinute, m.logSink)...)
 		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: logged})
 	}
 	acted := make([]expr.Any, 0, len(match)+1)
@@ -1346,7 +1381,7 @@ func (m *NftablesManager) addPortScanPrevention(t *nftables.Table, c *nftables.C
 		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: scanChain,
-			Exprs: logExprs(logPrefixPortScan, 0),
+			Exprs: logExprs(logPrefixPortScan, 0, m.logSink),
 		})
 	}
 	m.adder.AddRule(&nftables.Rule{
@@ -1706,7 +1741,7 @@ func (m *NftablesManager) addOverRateChain(t *nftables.Table, name string, lg lo
 		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: ch,
-			Exprs: logExprs(lg.prefix, lg.perMinute),
+			Exprs: logExprs(lg.prefix, lg.perMinute, m.logSink),
 		})
 	}
 	m.adder.AddRule(&nftables.Rule{
@@ -2734,7 +2769,7 @@ func (m *NftablesManager) addFinalLog(t *nftables.Table, c *nftables.Chain, opts
 	m.adder.AddRule(&nftables.Rule{
 		Table: t,
 		Chain: c,
-		Exprs: logExprs(logPrefixDrop, limit),
+		Exprs: logExprs(logPrefixDrop, limit, m.logSink),
 	})
 }
 

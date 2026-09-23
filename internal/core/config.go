@@ -152,6 +152,22 @@ func (c *Config) Validate() error {
 		c.Usage.Interval = &off
 	}
 
+	// The group is bound as a uint16. A value outside it cannot be one, so it
+	// stops the daemon with the key named rather than being wrapped into some
+	// other program's group.
+	if g := c.PacketLog.Group; g != nil && (*g < 0 || *g > 65535) {
+		return fmt.Errorf("packet_log.nflog_group must be between 0 and 65535, got %d", *g)
+	}
+	// Clamped, like usage.interval: an out-of-range buffer size is not worth
+	// refusing to start a firewall over.
+	if e := c.PacketLog.Entries; e != nil && (*e < shared.PacketLogEntriesMin || *e > shared.PacketLogEntriesMax) {
+		clamped := min(max(*e, shared.PacketLogEntriesMin), shared.PacketLogEntriesMax)
+		slog.Warn("packet_log.entries is outside the permitted range; using the nearest permitted value",
+			"configured", *e, "using", clamped,
+			"min", shared.PacketLogEntriesMin, "max", shared.PacketLogEntriesMax)
+		c.PacketLog.Entries = &clamped
+	}
+
 	for _, l := range shared.FirewallLimits {
 		enabled, value := l.Enabled(&c.Firewall), l.Value(&c.Firewall)
 		if !*enabled || l.InRange(*value) {
@@ -330,6 +346,20 @@ func (c *Config) Reload() error {
 		}
 	}
 
+	// [packet_log] is bound at start — the group is a socket this process holds.
+	// A change is reported and ignored, the same as a path.
+	if fresh.PacketLogGroup() != c.packetLogGroupLocked() ||
+		fresh.PacketLogEntries() != c.packetLogEntriesLocked() ||
+		fresh.PacketLog.Persist != c.PacketLog.Persist {
+		slog.Warn("ignoring changed [packet_log] on reload; it takes effect on restart")
+	}
+	// Not applied to the running c.PacketLog — that is what "ignored" means —
+	// but recorded as the file's current view, the same as the three paths.
+	// Without this, saveLocked (below) would restore the running, stale value
+	// on the next Save from any page and silently erase an edit the operator
+	// made directly in the file for the next restart.
+	c.fileConfig.PacketLog = fresh.fileConfig.PacketLog
+
 	c.Firewall = fresh.Firewall
 	c.Acceptance = fresh.Acceptance
 	c.Usage = fresh.Usage
@@ -355,6 +385,49 @@ func (c *Config) UsageInterval() time.Duration {
 		return shared.UsageIntervalDefault * time.Second
 	}
 	return time.Duration(*c.Usage.Interval) * time.Second
+}
+
+// PacketLogGroup is the NFLOG group the core binds. Unset is the default.
+func (c *Config) PacketLogGroup() uint16 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.packetLogGroupLocked()
+}
+
+// PacketLogEntries is the ring's capacity. Unset is the default; Validate
+// clamps a set value into range.
+func (c *Config) PacketLogEntries() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.packetLogEntriesLocked()
+}
+
+// PacketLogPersist reports whether the ring is also written to PacketLogPath.
+func (c *Config) PacketLogPersist() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.PacketLog.Persist
+}
+
+// PacketLogPath is the spill file. In log_dir, which the unit already lists in
+// ReadWritePaths, and deliberately absent from debian/easywall.logrotate: it
+// rotates itself, and a rotation from outside would break the replay.
+func (c *Config) PacketLogPath() string {
+	return c.LogDir + "/packets.log"
+}
+
+func (c *Config) packetLogGroupLocked() uint16 {
+	if c.PacketLog.Group == nil {
+		return shared.PacketLogGroupDefault
+	}
+	return uint16(*c.PacketLog.Group) // #nosec G115 -- Validate refuses anything outside 0–65535
+}
+
+func (c *Config) packetLogEntriesLocked() int {
+	if c.PacketLog.Entries == nil {
+		return shared.PacketLogEntriesDefault
+	}
+	return *c.PacketLog.Entries
 }
 
 // RulesPath returns the absolute path to rules.json.
@@ -510,6 +583,7 @@ func (c *Config) saveLocked() error {
 	snapshot.SocketPath = c.fileConfig.SocketPath
 	snapshot.DataDir = c.fileConfig.DataDir
 	snapshot.LogDir = c.fileConfig.LogDir
+	snapshot.PacketLog = c.fileConfig.PacketLog
 
 	dir := filepath.Dir(c.configPath)
 	tmp, err := os.CreateTemp(dir, "core-*.toml.tmp")

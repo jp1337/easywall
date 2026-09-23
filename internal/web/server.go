@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"sync"
@@ -610,6 +611,10 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/log", s.handleLog)
 		r.Get("/log/filter", s.handleLogFilter)
+
+		r.Get("/blocked", s.handleBlocked)
+		r.Get("/blocked/rows", s.handleBlockedRows)
+		r.Post("/blocked/stage", s.handleBlockedStage)
 
 		r.Get("/apply", s.handleApplyGET)
 		r.Post("/apply/start", s.handleApplyStart)
@@ -1290,6 +1295,14 @@ func shortTime(v string) string {
 	return t.Format("2 Jan 2006 15:04")
 }
 
+// fullTime is the drill-down's timestamp: local, to the millisecond, with the
+// zone named — shortTime's whole-second, relative precision loses exactly
+// what a drill-down is for. Takes time.Time directly, unlike shortTime's RFC
+// 3339 string: every caller here already holds one.
+func fullTime(t time.Time) string {
+	return t.Local().Format("2006-01-02 15:04:05.000 MST")
+}
+
 // lastUsed renders one rule's Last used cell.
 //
 // Four states, and the difference between two of them is the whole reason this
@@ -1434,6 +1447,9 @@ func templateFuncs() template.FuncMap {
 		// The second factor is now doing what it was set up to do, the same
 		// direction as the totp_enabled/totp_disabled pair above.
 		"passkey_added": true, "passkey_removed": true,
+		// A row action on /blocked staged its rule. Nothing is live yet, and
+		// the flash says so; it is still the action working.
+		"blocked_staged_whitelist": true, "blocked_staged_blacklist": true, "blocked_staged_port": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -1498,6 +1514,11 @@ func templateFuncs() template.FuncMap {
 		// The operator's own account is fine as it stands; a name is missing
 		// or too long, the same shape as the password-policy messages above.
 		"passkey_name_required": true,
+		// The four refusals of a row action. The lockout guard doing its job is
+		// not a failure, and neither is "it is already there".
+		"blocked_refused_lockout": true, "blocked_refused_proxy": true,
+		"blocked_refused_already": true, "blocked_refused_invalid": true,
+		"blocked_refused_unknown": true,
 	}
 
 	checkSVG := template.HTML(`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>`)
@@ -1544,6 +1565,7 @@ func templateFuncs() template.FuncMap {
 		"actionTone": actionTone,
 		"richText":   richText,
 		"shortTime":  shortTime,
+		"fullTime":   fullTime,
 		// dict lets a template pass named values into a translation that carries
 		// its own {{.Placeholder}} — the only way a sentence with an interpolated
 		// value stays one message for the translator.
@@ -1632,6 +1654,18 @@ func templateFuncs() template.FuncMap {
 		// box does. strings.Join, in the template, so the split half stays in
 		// one place — app.js — rather than being a second parser in Go.
 		"join": strings.Join,
+		// The destination address as shown beside the port that follows it.
+		// RFC 3986 needs an IPv6 host bracketed once a port comes after it —
+		// "2001:db8::1:23" reads as seven groups instead of six-plus-a-port —
+		// the same rule net.JoinHostPort enforces for exactly that reason.
+		// IPv4 has no colon to disambiguate, so it is untouched.
+		"dstHost": func(a netip.Addr, port uint16) string {
+			s := a.String()
+			if port != 0 && strings.Contains(s, ":") {
+				return "[" + s + "]"
+			}
+			return s
+		},
 		// The rows a catalogue entry would add, as JSON in a data attribute.
 		// html/template escapes an attribute value, so this is a string the
 		// browser un-escapes and JSON.parse reads — not a script, and nothing

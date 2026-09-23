@@ -123,7 +123,7 @@ only containers should reach it — or set docker.published_ports = "open"
 | A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
 | **IPv4 only** | The DNAT rules are read in the `ip` family, so a port published on an IPv6 Docker network is never seen |
 | **Silence is not a clearance** | No line for such a port means it was not looked at, not that a rule covers it. Check an IPv6 published port by hand |
-| IPv6 is [2.28]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
+| IPv6 is [2.29]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
 | No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
 
 | Also worth knowing | |
