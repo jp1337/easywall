@@ -43,8 +43,16 @@ mode                              = "filter"
 icmp_allow_router_advertisement   = true
 icmp_allow_neighbor_advertisement = true
 
+# ─── Docker coexistence ─────────────────────────────────────────────────────
+# enabled  detects interfaces named docker* or br-* and trusts their networks
+#          — see features/docker.md. On, because a host with no such interface
+#          gets no rule change, and a Docker host with it off loses every
+#          container's network at the first apply, invisible to the
+#          acceptance window (the forward chain has no exceptions to give it).
+#          A non-Docker bridge with the same name — OpenWrt's br-lan is one —
+#          would be trusted too; set this to false on a host like that.
 [docker]
-enabled               = false  # set to true to auto-detect Docker bridge networks
+enabled               = true   # auto-detect Docker bridge networks
 allow_bridge_networks = true
 custom_networks       = []
 

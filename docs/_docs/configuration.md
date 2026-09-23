@@ -152,10 +152,20 @@ with static addressing that genuinely need neither.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `false` | Auto-detect Docker bridge interfaces and whitelist them |
+| `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and whitelist them |
 | `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
 | `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
 | `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port |
+
+> **`enabled` ships `true` since 2.22.** A host with no `docker*`/`br-*`
+> interface gets no rule change either way. One that has such an interface
+> and shipped `false` lost every container's network at the first apply.
+> The acceptance window is blind to that: it proves the operator's own
+> connection on the `input` chain, and container traffic crosses the
+> `forward` chain instead. Existing files keep whatever they already say;
+> only a fresh install or `--write-config` sees the new default. A
+> non-Docker `br-*` interface — OpenWrt's `br-lan` is one — is trusted too;
+> set `enabled = false` on a host like that.
 
 > **`published_ports` has no control in the interface, deliberately.** One press
 > could take every container on this host off the network. The acceptance window
