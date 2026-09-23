@@ -584,6 +584,7 @@
   {"id": "blocked_title", "translation": "Blockierter Verkehr"},
   {"id": "blocked_subtitle", "translation": "Was die Firewall abgewiesen hat, das Neueste zuerst."},
   {"id": "blocked_recent", "translation": "Abgewiesene Pakete"},
+  {"id": "blocked_live_hint", "translation": "Aktualisiert alle 5 s · pausiert, solange Sie in der Tabelle zeigen oder arbeiten"},
   {"id": "blocked_count", "translation": "{{.N}} von {{.M}}"},
   {"id": "blocked_col_time", "translation": "Zeit"},
   {"id": "blocked_col_iface", "translation": "Schnittstelle"},

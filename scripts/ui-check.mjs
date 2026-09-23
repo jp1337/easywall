@@ -876,6 +876,40 @@ async function checkApplyPreview(page) {
 }
 
 /**
+ * /blocked's live tail must not move what the operator is pointing at or
+ * destroy what has keyboard focus (2.21.1 F3, F12). The demo refuses a packet
+ * every 7 s, so 12 s is at least one poll with new rows either way.
+ */
+async function checkBlockedTailHoldsStill(page) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  const firstSeq = () => page.$eval('#blocked-rows details', d => d.id);
+
+  await page.hover('#blocked-rows tr:first-child td:first-child');
+  const underPointer = await firstSeq();
+  await page.waitForTimeout(12000);
+  if (await firstSeq() !== underPointer) {
+    fail('blocked tail', 'rows moved while the pointer was on the table');
+  }
+
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(12000);
+  if (await firstSeq() === underPointer) {
+    fail('blocked tail', 'the tail did not resume after the pointer left the table');
+  }
+
+  await page.focus('#blocked-rows .pkt-actions .btn');
+  const label = await page.evaluate(() => document.activeElement.textContent.trim());
+  await page.waitForTimeout(12000);
+  const still = await page.evaluate(() => {
+    const a = document.activeElement;
+    return a && a.isConnected && !!a.closest('#blocked-rows') ? a.textContent.trim() : null;
+  });
+  if (still !== label) {
+    fail('blocked tail', `keyboard focus on "${label}" was lost to ${still === null ? 'the page' : `"${still}"`}`);
+  }
+}
+
+/**
  * Adds one port rule via #add-rule-btn — the same control
  * checkForwardingPortIsNotReparsed already drives for the forwarding table,
  * since ports.html's row editor works the same way: click to append a row,
@@ -1725,6 +1759,7 @@ async function runChecks(browser, session) {
   await checkPortsCatalogue(p);
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
+  await checkBlockedTailHoldsStill(p);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
   await checkTheGate(browser);
