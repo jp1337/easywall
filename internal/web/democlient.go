@@ -14,7 +14,7 @@ import (
 // demoShapes are the kinds of refusal a small internet-facing host actually
 // sees, on documentation addresses only (RFC 5737, RFC 3849). Every source
 // address avoids the demo's seeded blacklist and whitelist, so a visitor
-// adding a source to one of those lists always sees a tangible change. All
+// adding a source to one of those lists always sees a tangible change. Every
 // IPv4 documentation range falls into shared.BogonRanges and the demo runs
 // with Bogons: true, so on a real kernel these rows would be bogon drops; the
 // demo does not model that, because there is no other address space it may use.
