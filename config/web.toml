@@ -76,7 +76,7 @@ update_check = true
 # A random identifier generated on this machine and the version — enough to tell
 # whether a critical fix reached everyone, not enough to describe anyone. Your
 # address is not recorded at the other end. The identifier lives in
-# <data_dir>/telemetry.json and may be deleted. Also switchable under System.
+# <data_dir>/web/telemetry.json and may be deleted. Also switchable under System.
 #
 # Left out of this file on purpose: absent means nobody has answered yet, which
 # is a different state from "no" and the one the first-run wizard asks about. An
@@ -112,8 +112,9 @@ password = ""  # argon2id hash, set by the first-run wizard
 #
 # Locked out with the phone gone and the codes gone? Three things to clear, not
 # two, and no longer all of them in this file: empty both lines below, delete
-# passkeys.json in data_dir (set at the top of this file — /var/lib/easywall by
-# default), then restart easywall-web. The password alone signs you in again —
+# passkeys.json in web/ inside data_dir (set at the top of this file —
+# /var/lib/easywall/web by default), then restart easywall-web. The password
+# alone signs you in again —
 # onto Password → Second factor, where you enrol a new one before the rest of
 # the interface opens. That is the way back in, not a way to stay without one.
 # A passkey left behind is a second factor of its own: it still sends you to

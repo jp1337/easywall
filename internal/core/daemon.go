@@ -61,6 +61,7 @@ func NewDaemon(cfg *Config) (*Daemon, error) {
 	if err := os.MkdirAll(cfg.DataDir, 0750); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
+	dataDirIsShared(cfg.DataDir)
 	if err := os.MkdirAll(cfg.LogDir, 0750); err != nil {
 		return nil, fmt.Errorf("create log dir: %w", err)
 	}

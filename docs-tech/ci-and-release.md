@@ -57,8 +57,9 @@ Nothing is cross-built: `debian/control` says `Architecture: any` and
 `debian/rules` calls a plain `go build`, so the runner decides. That is what makes
 the rest of the job possible — it installs the package, checks the ownership of
 every path, starts both services, connects to the socket **as the `easywall`
-user**, fetches `/firstrun` over HTTPS, and compares `--version` against the
-package version. A cross-built package could do none of that.
+user**, fetches `/firstrun` over HTTPS, re-runs `postinst` over a 2.21 data
+directory with what that layout let the web user plant, and compares
+`--version` against the package version. A cross-built package could do none of that.
 
 Two checks earn their place specifically:
 

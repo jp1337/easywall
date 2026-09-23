@@ -281,6 +281,8 @@ key  = ""
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+	// NewServer makes data_dir/web before it opens a store; so does this.
+	prepareStateDir(cfg.DataDir)
 	// Set a real hashed password for login tests
 	hash, err := HashPassword("testpassword123!")
 	if err != nil {

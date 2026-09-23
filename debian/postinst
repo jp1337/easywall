@@ -26,18 +26,91 @@ case "$1" in
     # package had no web interface. Nothing in CI installs the package, so
     # nothing noticed.
     #
-    # /var/lib/easywall is shared: the root core writes rules.json and the
-    # last-apply marker, the web user writes the version cache and the
-    # installation identifier. It was easywall:easywall 0750, which the core
-    # could not write — root only reaches a directory it does not own through
-    # CAP_DAC_OVERRIDE, and the unit's capability set does not include it. Owned
-    # by root with group write, both processes get in on their own merits and
-    # nobody else does.
+    # /var/lib/easywall is the core's: rules.json, the apply state, the panic
+    # marker. Owned by root, because root only reaches a directory it does not
+    # own through CAP_DAC_OVERRIDE, and the unit's capability set does not
+    # include it — it was easywall:easywall 0750 once, and the core could not
+    # write it. Group easywall with no write, so the web process can reach
+    # web/ inside it and nothing else. It was 0770 until 2.22, shared, and see
+    # below for what that let the web user do.
     install -d -m 0750 -o root     -g easywall /run/easywall
     install -d -m 0750 -o root     -g easywall /etc/easywall
     install -d -m 0750 -o easywall -g easywall /etc/easywall/ssl
-    install -d -m 0770 -o root     -g easywall /var/lib/easywall
+    install -d -m 0750 -o root     -g easywall /var/lib/easywall
     install -d -m 0750 -o root     -g easywall /var/log/easywall
+
+    # ── The web process keeps its state in /var/lib/easywall/web ──────────
+    #
+    # Its own directory, the only one under /var/lib/easywall it can write:
+    # passkeys, the TOTP replay guard, the version cache, the installation
+    # identifier. Until 2.22 they sat beside the core's files in a directory
+    # both could write, and in a directory you can write you can replace any
+    # file and plant a link in its place. The web user could swap rules.json,
+    # which the core restores at boot with no acceptance window, and point
+    # last_apply at any file for root to write the next time an apply was
+    # accepted — a path from the network-facing process to root.
+    #
+    # The install -d above made it 0750, so from here on only root adds,
+    # removes or renames anything in it. What the web user already owned is
+    # replaced by root-owned copies below, so a live web process —
+    # dpkg-reconfigure does not stop it — gains nothing. What an older layout
+    # left behind is dealt with now, and each pass is a no-op on the next
+    # upgrade:
+    #   - a link is removed and never followed — nothing easywall writes is one;
+    #   - the web's own files move into web/;
+    #   - a panic marker not owned by root is removed: only the core makes one;
+    #   - an entry that is not a regular file is removed: the core never makes
+    #     one here;
+    #   - anything else not owned by root is replaced by a root-owned copy.
+    #     Its owner could otherwise go on writing it in place, whatever the
+    #     directory's mode.
+    # web/ first of all: install -d through a link named web would chown its
+    # target to the web user. docker/entrypoint.sh does the same, in the same
+    # order.
+    data=/var/lib/easywall
+    if [ -L "$data/web" ] || { [ -e "$data/web" ] && [ ! -d "$data/web" ]; }; then
+      echo "easywall: $data/web was not a directory; removed" >&2
+      rm -f "$data/web"
+    fi
+    install -d -m 0700 -o easywall -g easywall "$data/web" ||
+      echo "easywall: could not create $data/web; the web interface cannot keep its state" >&2
+    for p in "$data"/* "$data"/.[!.]*; do
+      { [ -e "$p" ] || [ -L "$p" ]; } || continue
+      f=${p##*/}
+      [ "$f" = web ] && continue
+      if [ -L "$p" ]; then
+        echo "easywall: $p was a link; removed, not followed" >&2
+        rm -f "$p"
+        continue
+      fi
+      case "$f" in
+        totp_replay.json|passkeys.json|passkeys.json.corrupt|version_cache.json|telemetry.json)
+          if [ -f "$p" ]; then
+            if [ -e "$data/web/$f" ] || [ -L "$data/web/$f" ]; then
+              rm -f "$p"
+            elif ! { install -m 0600 -o easywall -g easywall "$p" "$data/web/$f" && rm -f "$p"; }; then
+              echo "easywall: could not move $p into $data/web" >&2
+            fi
+            continue
+          fi ;;
+      esac
+      if [ "$(stat -c %u "$p")" = 0 ]; then
+        continue
+      elif [ "$f" = panic ]; then
+        # Only the core engages panic mode, and the core is root. A marker the
+        # web user made would leave the firewall down at every start.
+        echo "easywall: $p was not made by the core; removed, panic mode is not engaged" >&2
+        rm -rf "$p"
+      elif [ ! -f "$p" ]; then
+        echo "easywall: $p was not a regular file, which the core never makes here; removed" >&2
+        rm -rf "$p"
+      else
+        echo "easywall: $p was not owned by root; replaced by a root-owned copy. Review it" >&2
+        if ! { t=$(mktemp "$data/.easywall-XXXXXX") && cat "$p" > "$t" && mv -f "$t" "$p"; }; then
+          echo "easywall: could not give $p to root" >&2
+        fi
+      fi
+    done
 
     # ── Generate web.toml from template if not already present ───────────
     #
