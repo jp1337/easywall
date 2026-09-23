@@ -3297,6 +3297,14 @@ body {
   .pkt-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
   .pkt-actions form { display: contents; }
 
+  /* Quiet by colour, not by opacity. .row-action's 55% suits an icon, whose
+     bar is 3:1; on a word it measured 4.2:1 against the 4.5:1 text needs.
+     ink-muted clears 4.5:1 in both themes and comes to full ink when the row
+     is hovered or holds focus. */
+  .pkt-actions .btn { color: var(--color-ink-muted); }
+  .table tbody tr:hover .pkt-actions .btn,
+  .table tbody tr:focus-within .pkt-actions .btn { color: var(--color-ink); }
+
   /* ── Demo notice ──────────────────────────────────────────────────────────
      Lives inside the topbar rather than as a band above it. As its own row it
      displaced every page by its own height, which read as a layout bug. */

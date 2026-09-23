@@ -109,14 +109,16 @@
        none. */}}
   <td data-label="{{T "blocked_col_rule"}}"><span class="log-action">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
   <td data-label="{{T "blocked_col_actions"}}">
-    {{/* row-action: the same de-emphasis ports.html's own row actions use
-         (DESIGN.md § Tables — "a destructive row action rests at 55%
-         opacity and comes fully forward on row hover or :focus-within").
-         Up to three buttons per row otherwise outweigh the data they act
-         on; the buttons keep their full size, their text and their own
-         tab stops, so nothing about reachability or the accessible name
-         changes, only how loud the row is before it is touched. */}}
-    <div class="pkt-actions row-action">
+    {{/* Quiet by colour, not by opacity (DESIGN.md § Tables, amended
+         2.21.1): .pkt-actions .btn rests at ink-muted and comes to full
+         ink on row hover or :focus-within. row-action's 55% opacity suits
+         an icon, whose non-text contrast bar is 3:1 — on this row's word
+         buttons it measured 4.2:1, below the 4.5:1 text needs. Up to three
+         buttons per row otherwise outweigh the data they act on; the
+         buttons keep their full size, their text and their own tab stops,
+         so nothing about reachability or the accessible name changes,
+         only how loud the row is before it is touched. */}}
+    <div class="pkt-actions">
       {{$r := .Remedies}}
       {{if $r.Whitelist}}
       <form method="post" action="/blocked/stage">
