@@ -1320,6 +1320,19 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 	})
 }
 
+// parseIPNet is shared.ParseNetwork in the shape the builders below were
+// written against: a 4-byte address and mask for IPv4, 16 bytes for IPv6. That
+// is what net.ParseCIDR returned for every entry that is not IPv4-mapped, so
+// those entries build the same bytes they did before 2.22; a mapped one now
+// builds the bytes of the IPv4 network it names.
+func parseIPNet(s string) (*net.IPNet, error) {
+	p, err := shared.ParseNetwork(s)
+	if err != nil {
+		return nil, err
+	}
+	return &net.IPNet{IP: p.Addr().AsSlice(), Mask: net.CIDRMask(p.Bits(), p.Addr().BitLen())}, nil
+}
+
 // ipv4SourceMatch matches an IPv4 source address or network. A bare address is
 // treated as a /32. Returns nil for anything that is not an IPv4 entry —
 // comments, IPv6, and text that does not parse — so callers can skip it.
@@ -1337,7 +1350,7 @@ func ipv4SourceMatch(entry string) []expr.Any {
 		}
 		ipNet = &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}
 	} else {
-		_, parsed, err := net.ParseCIDR(entry)
+		parsed, err := parseIPNet(entry)
 		if err != nil || parsed.IP.To4() == nil {
 			return nil
 		}
@@ -1993,7 +2006,7 @@ func cidrMatchOp(entry string, pos addrPos, op expr.CmpOp) []expr.Any {
 			ipNet = &net.IPNet{IP: ip.To16(), Mask: net.CIDRMask(128, 128)}
 		}
 	} else {
-		_, parsed, err := net.ParseCIDR(entry)
+		parsed, err := parseIPNet(entry)
 		if err != nil {
 			return nil
 		}
@@ -2381,7 +2394,7 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 		return // a note or a spacer, not an address
 	}
 	cidr = strings.TrimSpace(cidr)
-	_, ipNet, err := net.ParseCIDR(cidr)
+	ipNet, err := parseIPNet(cidr)
 	if err != nil {
 		return
 	}
@@ -2490,7 +2503,7 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 }
 
 func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr string) {
-	_, ipNet, err := net.ParseCIDR(cidr)
+	ipNet, err := parseIPNet(cidr)
 	if err != nil {
 		return
 	}
@@ -2687,9 +2700,9 @@ func portAcceptRules(t *nftables.Table, c *nftables.Chain, proto string, rule sh
 		if match := cidrMatch(src, posSrcAddr); match != nil {
 			matches = append(matches, match)
 		} else if !shared.IsListComment(src) {
-			// ValidateRules accepts a little more than cidrMatch can build into a
-			// rule (e.g. an IPv4-mapped IPv6 CIDR whose mask length cidrMatch's
-			// family check rejects). The gap fails closed — the source is
+			// ValidateRules and cidrMatch parse with the same function, so this
+			// should not happen; until 2.22 an IPv4-mapped network did (a 16-byte
+			// mask on a 4-byte address). A gap fails closed — the source is
 			// dropped, never opened — but silently, so it is logged here.
 			slog.Warn("port rule source accepted by validation but not usable in a kernel rule",
 				"port", rule.Port, "source", src)

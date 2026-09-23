@@ -274,7 +274,7 @@ func InAnyEntry(src netip.Addr, entries []string) bool {
 			}
 			continue
 		}
-		if pfx, err := netip.ParsePrefix(e); err == nil && pfx.Contains(src) {
+		if pfx, err := ParseNetwork(e); err == nil && pfx.Contains(src) {
 			return true
 		}
 	}
@@ -287,7 +287,7 @@ func inAnyCIDR(src netip.Addr, cidrs []string) bool {
 		if IsListComment(c) {
 			continue
 		}
-		if pfx, err := netip.ParsePrefix(strings.TrimSpace(c)); err == nil && pfx.Contains(src) {
+		if pfx, err := ParseNetwork(c); err == nil && pfx.Contains(src) {
 			return true
 		}
 	}
