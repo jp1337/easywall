@@ -29,6 +29,11 @@ easywall (2.21.1) unstable; urgency=medium
     audit log to a fresh, empty anonymous volume with nothing said. docker.md
     now names the three paths that must persist, and easywall-core warns at
     start when the log looks lost.
+  * Fix: a /blocked card at phone width broke addresses and ports
+    mid-number, and a German button ran into Details.
+  * Fix: the status could report live rules with no acceptance window
+    during an apply: Status() read the window before the kernel, whose query
+    waits on the lock the write holds. In since 2.14.
   * Fix: the German IPv6 warning closed its „ quotation with an ASCII "
     instead of the matching “.
 
