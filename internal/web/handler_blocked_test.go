@@ -310,9 +310,9 @@ func TestBlockedOffersOnlyRemedies(t *testing.T) {
 		e           shared.PacketLogEntry
 		want, avoid []string
 	}{
-		{"port scan", scan, []string{`value="blacklist"`}, []string{`value="whitelist"`, `value="open"`}},
+		{"port scan", scan, []string{`value="blacklist"`}, []string{`value="whitelist"`, `value="open"`, `href="/blacklist"`}},
 		{"blacklist", bl, []string{`href="/blacklist"`}, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}},
-		{"default drop", drop, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}, nil},
+		{"default drop", drop, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}, []string{`href="/blacklist"`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tc.e}},
@@ -329,6 +329,25 @@ func TestBlockedOffersOnlyRemedies(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A forwarded row offers none of the three actions and no blacklist link
+// (Remedies() is the zero value); the actions cell must not render empty —
+// a mobile "Actions" label over nothing reads as a bug.
+func TestBlockedForwardedRowShowsADashNotAnEmptyCell(t *testing.T) {
+	fwd := samplePacket()
+	fwd.Hook, fwd.Rule = "forward", "drop"
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{fwd}},
+		shared.FirewallOptions{LogBlocked: true})
+	body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+	for _, avoid := range []string{`value="whitelist"`, `value="blacklist"`, `value="open"`, `href="/blacklist"`, `<form`} {
+		if strings.Contains(body, avoid) {
+			t.Errorf("forwarded row offers %s, which could not have let it through", avoid)
+		}
+	}
+	if !strings.Contains(body, `<span class="text-ink-subtle">—</span>`) {
+		t.Error("forwarded row's actions cell has no control and no placeholder dash")
 	}
 }
 

@@ -142,6 +142,9 @@
            What can is removing the entry, and that is the list page's job. */}}
       <a href="/blacklist" class="btn btn-sm">{{T "blocked_action_edit_blacklist"}}</a>
       {{end}}
+      {{if not (or $r.Whitelist $r.Blacklist $r.Open (eq .Rule "blacklist"))}}
+      <span class="text-ink-subtle">—</span>
+      {{end}}
     </div>
     <details class="pkt-detail" id="pkt-{{.Seq}}" hx-preserve="true">
       <summary>{{T "blocked_detail"}}</summary>
