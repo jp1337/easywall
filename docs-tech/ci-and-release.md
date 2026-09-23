@@ -229,12 +229,14 @@ buildx invocation is dramatically slower.
 GHCR must succeed, Docker Hub must succeed if its token is configured, Quay is
 best-effort and downgrades to a workflow warning.
 
-The `deploy-demo` job runs on a **self-hosted** runner inside an intranet. The
-workflow triggers on `push: branches: [main]` only. Never add `pull_request` or
-`pull_request_target` to it, or to any job running on `self-hosted` — that turns
-any fork's pull request into arbitrary code execution on that runner. It is gated
-behind the repository variable `DEPLOY_DEMO`, because a job whose labels no runner
-answers does not fail: it queues for 24 hours and reports as cancelled.
+Nothing in it deploys. The public demo follows `:edge` through a reset that runs
+outside this repository every six hours and recreates the container with the
+image pulled fresh. Until 2026-09-23 a `deploy-demo` job here nudged the demo's
+Watchtower from a self-hosted intranet runner; it was skipped on every run behind a
+variable nobody had set, while the reset did the work, and it was removed together
+with its `WATCHTOWER_API_TOKEN` secret and the runner. No job in this repository
+runs on `self-hosted`, and none should: the repository is public, so a
+self-hosted job is one trigger change away from running a fork's code.
 
 ## What protects `main`
 
