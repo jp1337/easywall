@@ -843,6 +843,21 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		lastApply = last.UTC().Format(time.RFC3339)
 	}
 
+	// Captured once so Acceptance and AcceptanceReason below describe the same
+	// instant. Acceptance.Reason() is set to "timeout" the moment a window
+	// opens, before anyone knows how it will end — reading it whenever a window
+	// is merely Pending would tell the operator a timeout has already happened.
+	// The one status where the reason is the whole point is RolledBack, which is
+	// the only one it is read for here.
+	//
+	// Kernel first, window second, remaining time third: apply opens the
+	// window before it writes the kernel, so in this order a live table always
+	// comes with the window covering it. The other way round, an Idle sampled
+	// just before Start paired with an Enforcing() that queued on the nft
+	// mutex through the whole write, and reported live rules with no window.
+	active := f.nft.Enforcing()
+	accStatus := f.acceptance.Status()
+
 	// Rounded up, so a window with 119.6 s left reads 120 and the first render
 	// of a 120-second window says 02:00 rather than 01:59. This is the only
 	// number on that screen; starting it a second in is wrong about it.
@@ -850,14 +865,6 @@ func (f *Firewall) Status() shared.FirewallStatus {
 	if d := f.acceptance.Remaining(); d > 0 {
 		remaining = int((d + time.Second - 1) / time.Second)
 	}
-
-	// Captured once so Acceptance and AcceptanceReason below describe the same
-	// instant. Acceptance.Reason() is set to "timeout" the moment a window
-	// opens, before anyone knows how it will end — reading it whenever a window
-	// is merely Pending would tell the operator a timeout has already happened.
-	// The one status where the reason is the whole point is RolledBack, which is
-	// the only one it is read for here.
-	accStatus := f.acceptance.Status()
 	reason := ""
 	if accStatus == shared.AcceptanceRolledBack {
 		reason = f.acceptance.Reason()
@@ -868,7 +875,7 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		// dashboard renders this as "rules are live", which is a claim about
 		// what the kernel holds; answering it with "the daemon is running" made
 		// that sentence unverified, and green after the table had been deleted.
-		Active:              f.nft.Enforcing(),
+		Active:              active,
 		Acceptance:          accStatus,
 		HasPending:          pending,
 		LastApply:           lastApply,

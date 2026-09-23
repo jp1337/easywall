@@ -718,12 +718,13 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 // fails immediately and the code never reaches the kernel-write step whose
 // ordering relative to acceptance.Start is exactly what this test is about.
 //
-// Load-sensitive by construction, and not closable: the gap it polls for is a
-// handful of instructions, and under container CPU contention the scheduler
-// widens it wide enough for the poll loop above to catch a sample in the
-// middle of it. Seen once in roughly 15 runs. That is not a flake to retry
-// away — it is this test truly observing a real, unavoidable transient state,
-// the same one an operator's own Status() call could land inside.
+// It failed about once in fifteen CI runs until 2.21.1, and that was written
+// off here as an unavoidable transient. It was a bug in Status(): it read the
+// window before asking the kernel, and the kernel query queues on the nft
+// mutex that nft.Apply holds for the whole write, so one call could pair an
+// Idle from before Start with a table from after the write — 42 failures in
+// 2000 runs at GOMAXPROCS=1. Status() now reads the kernel first; see the
+// comment there. A failure here is a finding again, not noise.
 func TestIntegration_TheWindowIsOpenWhileTheRulesAreLive(t *testing.T) {
 	fw := newTestFirewallWithRealNft(t)
 	fw.cfg.Acceptance.Duration = 3

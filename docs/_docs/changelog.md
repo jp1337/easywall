@@ -75,8 +75,8 @@ which is the file GitHub and the release tooling read.
 <summary><strong>2.21.1</strong> · 2026-09-23 — What it offers, it can do</summary>
 
 A patch to 2.21.0, from walking `/blocked` in Chrome after the release. The
-`/blocked` findings were caused by 2.21.0; the last two are older, found on the
-way, and fixed rather than carried forward.
+`/blocked` findings were caused by 2.21.0; the last three are older, found on
+the way, and fixed rather than carried forward.
 
 ### Fixed
 
@@ -116,6 +116,11 @@ way, and fixed rather than carried forward.
   The header counted rule changes only; `/apply` counts rules and
   configuration together. Both now read the same total from the same
   preview.
+- **A card on a phone broke its addresses mid-number.** At 390px
+  `192.0.2.140` read `192.0.2` / `.140` and a port split in two, because each
+  link of the route was its own flex item; in German, *Sperrliste bearbeiten*
+  ran into *Details*. The route wraps between addresses now, and the buttons
+  stack over *Details* as they do in the table.
 - **The demo's refused packets came from networks its own lists already
   cover.** Every blacklist click in the demo answered "already there" instead
   of showing a rule take effect. Demo packet sources no longer overlap the
@@ -125,6 +130,14 @@ way, and fixed rather than carried forward.
   `docker.md` now says which three paths must persist, and easywall-core
   warns at start when the audit log is missing or empty while rules are
   configured and nothing has rotated it away.
+- **The status could say the rules were live with no acceptance window
+  open.** `Status()` read the window before asking the kernel, and the kernel
+  query waits on the lock an apply holds for its whole write — so a status
+  taken during an apply could pair *idle* from before the window opened with
+  a table from after the write, and the dashboard showed unconfirmed rules
+  with no countdown. In since 2.14; one integration test caught it about once
+  in fifteen CI runs and its comment called that unavoidable. Reproduced 33
+  times in 2,000 runs, and 0 with the kernel read first.
 - **The German IPv6 warning closed its quotation with an ASCII `"` instead of
   `“`.**
 
