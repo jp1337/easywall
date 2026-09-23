@@ -142,8 +142,10 @@ var remedyCases = []struct {
 	{remedyTCP("invalid"), Remedy{Blacklist: true}},
 	{remedyTCP("fragment"), Remedy{Blacklist: true}},
 	{PacketLogEntry{Rule: "icmp_flood", Proto: "icmp"}, Remedy{Blacklist: true}},
-	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Whitelist: true, Blacklist: true}}, // no port to open
-	{PacketLogEntry{Rule: "drop", Proto: "tcp", Hook: "forward", DstPort: 25}, Remedy{}},    // the lists and port rules are input-chain only
+	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Whitelist: true, Blacklist: true}},                           // no port to open
+	{PacketLogEntry{Rule: "drop", Proto: "tcp", Hook: "forward", DstPort: 25}, Remedy{}},                              // the lists and port rules are input-chain only
+	{PacketLogEntry{Rule: "drop", Proto: "tcp", DstPort: 0, Hook: "input"}, Remedy{Whitelist: true, Blacklist: true}}, // tcp, but no port decoded — nothing to open
+	{PacketLogEntry{Rule: "drop", Proto: "132", DstPort: 9, Hook: "input"}, Remedy{Whitelist: true, Blacklist: true}}, // SCTP: a port, but no port rule speaks it
 }
 
 func TestRemediesFollowTheChainOrder(t *testing.T) {

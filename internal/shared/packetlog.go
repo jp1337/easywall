@@ -50,10 +50,12 @@ type PacketLogEntry struct {
 	Mark uint32 `json:"mark,omitempty"`
 }
 
-// Remedy says which of /blocked's three row actions could have let a packet
-// through. The page offers only those: a whitelist button on a port-scan row
-// would promise something the chain cannot do, and "open 3389" there invites
-// the scanner.
+// Remedy says which of /blocked's three row actions are worth offering for a
+// packet: not "could this have let it through" — a blacklist entry never lets
+// a packet through, it blocks the source's next one — but "could this change
+// this packet's verdict, or block its source." The page offers only those: a
+// whitelist button on a port-scan row would promise something the chain
+// cannot do, and "open 3389" there invites the scanner.
 type Remedy struct {
 	Whitelist, Blacklist, Open bool
 }
