@@ -218,6 +218,11 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		if !PortInRule(rule.Port, port) {
 			continue
 		}
+		// The input chain holds host-scoped rules only (nftables.go builds it
+		// from FiltersHost); a forwarded-only rule opens nothing here.
+		if !rule.FiltersHost() {
+			continue
+		}
 		if len(rule.Sources) == 0 {
 			return ReachOpen, ReasonPortOpen
 		}
