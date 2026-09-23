@@ -100,7 +100,7 @@
   <td class="log-time" data-label="{{T "blocked_col_time"}}" title="{{.Time.Format "2006-01-02T15:04:05Z07:00"}}">{{shortTime (.Time.Format "2006-01-02T15:04:05Z07:00")}}</td>
   <td class="pkt-flow" data-label="{{T "blocked_col_iface"}}">{{if .InDev}}<a href="/blocked?in={{.InDev}}">{{.InDev}}</a>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
   <td class="pkt-flow" data-label="{{T "blocked_col_flow"}}">
-    <a href="/blocked?src={{.Src}}">{{.Src}}</a> → <a href="/blocked?dst={{.Dst}}">{{dstHost .Dst .DstPort}}</a>{{if .DstPort}}:<a href="/blocked?port={{.DstPort}}">{{.DstPort}}</a>{{end}}
+    <span class="pkt-route"><a href="/blocked?src={{.Src}}">{{.Src}}</a> → <a href="/blocked?dst={{.Dst}}">{{dstHost .Dst .DstPort}}</a>{{if .DstPort}}<a href="/blocked?port={{.DstPort}}">:{{.DstPort}}</a>{{end}}</span>
   </td>
   <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
   {{/* .log-action, not .badge: a rule name is language ("SSH brute force"),
@@ -110,7 +110,7 @@
        no tone class, the same way an informational log action carries
        none. */}}
   <td data-label="{{T "blocked_col_rule"}}"><span class="log-action">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
-  <td data-label="{{T "blocked_col_actions"}}">
+  <td data-label="{{T "blocked_col_actions"}}"><div class="pkt-act">
     {{/* Quiet by colour, not by opacity (DESIGN.md § Tables, amended
          2.21.1): .pkt-actions .btn rests at ink-muted and comes to full
          ink on row hover or :focus-within. row-action's 55% opacity suits
@@ -162,7 +162,7 @@
         {{if .Mark}}<dt>{{T "blocked_detail_mark"}}</dt><dd class="pkt-flow">{{.Mark}}</dd>{{end}}
       </dl>
     </details>
-  </td>
+  </div></td>
 </tr>
 {{else}}
 <tr><td colspan="6" class="text-center text-ink-subtle py-6">

@@ -83,10 +83,10 @@ func TestBlocked_BracketsAnIPv6DestinationWhenAPortFollows(t *testing.T) {
 	rec := doAuthRequest(t, s, "GET", "/blocked", nil)
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, ">[2001:db8::1]</a>:<a href=\"/blocked?port=23\">23</a>") {
+	if !strings.Contains(body, ">[2001:db8::1]</a><a href=\"/blocked?port=23\">:23</a>") {
 		t.Errorf("an IPv6 destination with a port is not bracketed:\n%s", body)
 	}
-	if !strings.Contains(body, ">198.51.100.1</a>:<a href=\"/blocked?port=22\">22</a>") {
+	if !strings.Contains(body, ">198.51.100.1</a><a href=\"/blocked?port=22\">:22</a>") {
 		t.Errorf("an IPv4 destination with a port gained brackets it should not have:\n%s", body)
 	}
 }
