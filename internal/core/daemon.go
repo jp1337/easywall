@@ -183,6 +183,17 @@ func (d *Daemon) Start() error {
 				RestoreReasonBoot, d.cfg.PanicMarkerPath(), markerErr), "core")
 	}
 
+	// A data directory that survived with a log directory that did not — the
+	// container-recreate case logDirLooksLost describes. Said at every start
+	// until the log has an entry, which the first apply writes.
+	if state, err := d.firewall.RulesStore().GetState(); err == nil &&
+		logDirLooksLost(d.cfg.AuditLogPath(), state.Current) {
+		slog.Warn("the audit log is missing or empty although rules are configured: "+
+			"log_dir did not survive while data_dir did. In a container, mount "+
+			"/var/log/easywall — without it every update starts a new, empty log",
+			"log_dir", d.cfg.LogDir)
+	}
+
 	// Before the restore: the rules it writes must already point at the group,
 	// or the first minutes after every boot are logged nowhere anyone reads.
 	d.startPacketLog()
