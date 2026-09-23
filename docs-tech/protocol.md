@@ -58,6 +58,15 @@ the release that added each one is byte-identical after a round-trip. `id` is
 filled in once, at the first start of 2.15, on every path that writes the file
 and on none that reads it.
 
+## The packet log entry
+
+`GET_PACKET_LOG` returns `shared.PacketLogEntry`, and the same JSON is one line
+of `packets.log`. Fields are added, never renamed:
+
+| Field | Since | Absent means |
+|---|---|---|
+| `icmp` — `{"type": N, "code": N}` | 2.22 | not an ICMP/ICMPv6 packet, a later fragment, or a line a 2.21 core wrote. A replayed old line keeps it absent; `TestReplayReadsLinesWithoutTheICMPField` |
+
 ## The snapshot behind `GET_APPLIED_CONFIG`
 
 The core stores `applied-config.json` in its data directory, mode 0600, atomically,

@@ -310,3 +310,70 @@ func TestHookCountsWhatItCannotDecode(t *testing.T) {
 		t.Errorf("discarded=%d held=%d, want 1 and 0", res.Discarded, res.Held)
 	}
 }
+
+// 2.23 G3: an ICMP row can say it was a ping only if the entry carries the
+// type. Read from the first two bytes of the ICMP header, for both families,
+// and only when the protocol belongs to the family.
+func TestDecode_ICMPRecordsTypeAndCode(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		payload []byte
+		want    *shared.PacketICMP
+	}{
+		{"IPv4 echo request", ipv4(1, "203.0.113.9", "198.51.100.1", 0, []byte{8, 0, 0, 0}), &shared.PacketICMP{Type: 8}},
+		{"IPv4 unreachable, host", ipv4(1, "203.0.113.9", "198.51.100.1", 0, []byte{3, 1, 0, 0}), &shared.PacketICMP{Type: 3, Code: 1}},
+		{"IPv4 echo reply is type 0, not absent", ipv4(1, "203.0.113.9", "198.51.100.1", 0, []byte{0, 0, 0, 0}), &shared.PacketICMP{}},
+		{"ICMPv6 echo request", ipv6(58, "2001:db8::9", "2001:db8::1", []byte{128, 0, 0, 0}), &shared.PacketICMP{Type: 128}},
+		{"ICMPv6 router solicitation", ipv6(58, "2001:db8::9", "ff02::2", []byte{133, 0, 0, 0}), &shared.PacketICMP{Type: 133}},
+		{"TCP carries none", ipv4(6, "203.0.113.9", "198.51.100.1", 0, tcp(1, 22, 0x02)), nil},
+		{"ICMPv6 inside IPv4 is not read", ipv4(58, "203.0.113.9", "198.51.100.1", 0, []byte{128, 0, 0, 0}), nil},
+		{"a later fragment carries none", ipv4(1, "203.0.113.9", "198.51.100.1", 185, []byte{8, 0, 0, 0}), nil},
+	} {
+		e, ok := entryFromAttribute(attr("easywall drop: ", tc.payload), noNames, time.Now())
+		if !ok {
+			t.Errorf("%s: discarded", tc.name)
+			continue
+		}
+		switch {
+		case tc.want == nil && e.ICMP != nil:
+			t.Errorf("%s: ICMP = %+v, want none", tc.name, *e.ICMP)
+		case tc.want != nil && (e.ICMP == nil || *e.ICMP != *tc.want):
+			t.Errorf("%s: ICMP = %+v, want %+v", tc.name, e.ICMP, *tc.want)
+		}
+	}
+}
+
+// The spill file outlives an upgrade. A line a 2.21 core wrote has no icmp
+// field and must replay as "not recorded", and an entry without one must not
+// grow the key — a jq filter written against 2.21's lines keeps matching.
+func TestReplayReadsLinesWithoutTheICMPField(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "packets.log")
+	old := `{"seq":3,"time":"2026-09-20T10:00:00Z","rule":"drop","family":4,"src":"203.0.113.9","dst":"198.51.100.1","proto":"icmp","ttl":57,"len":84}`
+	if err := os.WriteFile(path, []byte(old+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := NewPacketLog(10)
+	if err := p.Persist(path); err != nil {
+		t.Fatal(err)
+	}
+	p.Add(shared.PacketLogEntry{Rule: "drop", Family: 4, Proto: "icmp",
+		Src: netip.MustParseAddr("203.0.113.9"), ICMP: &shared.PacketICMP{Type: 13}})
+	res, _ := p.Query(shared.PacketLogFilter{})
+	if res.Discarded != 0 || len(res.Entries) != 2 {
+		t.Fatalf("held %d, discarded %d — the 2.21 line must replay", len(res.Entries), res.Discarded)
+	}
+	if res.Entries[1].ICMP != nil {
+		t.Errorf("the 2.21 line replayed with ICMP %+v; it recorded none", *res.Entries[1].ICMP)
+	}
+	if got := res.Entries[0].ICMP; got == nil || got.Type != 13 {
+		t.Errorf("the new entry lost its type across the spill file: %+v", got)
+	}
+	raw, _ := os.ReadFile(path)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if strings.Contains(lines[0], `"icmp":`) {
+		t.Errorf("an entry with no ICMP header was written with the key: %s", lines[0])
+	}
+	if !strings.Contains(lines[len(lines)-1], `"icmp":{"type":13,"code":0}`) {
+		t.Errorf("the ICMP type is not in the file: %s", lines[len(lines)-1])
+	}
+}

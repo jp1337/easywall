@@ -84,3 +84,29 @@ func TestDemoPacketSourcesAgreeWithTheDemoLists(t *testing.T) {
 		}
 	}
 }
+
+// The real core records an ICMP packet's type since 2.22; a demo row without
+// one would show the public page a gap the product does not have. Asked
+// through GET_PACKET_LOG, so the field is proven to survive the JSON too.
+func TestDemoICMPRowsCarryTheirType(t *testing.T) {
+	// icmp only: the demo has no ICMPv6 shape (grep icmpv6 democlient.go is
+	// empty), so a loop over both protocols passes the icmpv6 half vacuously
+	// — no entries, so the body under it never runs.
+	d := newDemoState()
+	payload, _ := json.Marshal(shared.PacketLogFilter{Proto: "icmp"})
+	var res shared.PacketLogResult
+	if resp := d.Send(shared.Command{Type: shared.CmdGetPacketLog, Payload: payload}); !resp.Success ||
+		json.Unmarshal(resp.Data, &res) != nil {
+		t.Fatalf("%+v", resp)
+	}
+	if len(res.Entries) == 0 {
+		t.Fatal("no demo icmp rows — the checks below would pass vacuously")
+	}
+	for _, e := range res.Entries {
+		if e.ICMP == nil {
+			t.Errorf("a demo icmp row (%s from %s) has no ICMP type", e.Rule, e.Src)
+		} else if e.Rule == "icmp_flood" && e.ICMP.Type != 8 {
+			t.Errorf("an ICMP-flood row is type %d; the module only meters echo requests", e.ICMP.Type)
+		}
+	}
+}

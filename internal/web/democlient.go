@@ -24,7 +24,7 @@ var demoShapes = []shared.PacketLogEntry{
 	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.140")},
 	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("192.0.2.5")},
 	{Rule: "blacklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
-	{Rule: "icmp_flood", Proto: "icmp", CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
+	{Rule: "icmp_flood", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
 	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("192.0.2.200")},
 	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:5::17")},
 }
