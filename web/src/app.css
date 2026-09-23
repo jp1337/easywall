@@ -2547,7 +2547,8 @@ body {
   /* Same treatment as an aside-card's inline code, but allowed to break: the
      one place this is used holds a URL, and a URL that cannot wrap pushes the
      card wider than the screen on a phone. */
-  .switch-detail code {
+  .switch-detail code,
+  .field-help code {
     font-family: var(--font-data);
     font-size: 11.5px;
     padding: 1px 4px;

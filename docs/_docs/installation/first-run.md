@@ -7,13 +7,32 @@ description: One page — the account, and how this host starts out. Everything 
 # First Run
 
 The first time you open `https://<server>:12227`, easywall serves the setup page
-and nothing else. It asks for two things.
+and nothing else. It asks for a setup token, then two things.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/firstrun" ext="png"
-     alt="The first-run page: an account section with username, password and confirmation on the left, and a first-choices section on the right with the SSH port, a note that the web port stays open, a switch for 80 and 443, three IPv6 options and a switch for counting the installation." %}
+     alt="The first-run page: an account section with a setup-token field, username, password and confirmation on the left, and a first-choices section on the right with the SSH port, a note that the web port stays open, a switch for 80 and 443, three IPv6 options and a switch for counting the installation." %}
   <figcaption>The choices on the right are staged. Nothing reaches the firewall here.</figcaption>
 </figure>
+
+## The setup token
+
+The page is open to anyone who can reach port 12227, so it first asks for proof
+that you can read this server's log. easywall-web prints a token there each time
+it starts without an account:
+
+| Installed with | Fetch it |
+|---|---|
+| Docker | `docker compose logs easywall \| grep 'setup token' \| tail -1` |
+| Debian | `sudo journalctl -u easywall-web -g 'setup token' \| tail -1` |
+
+Paste the value after `"token":` — with or without its spaces.
+
+| | |
+|---|---|
+| Valid | until the account exists, or easywall-web restarts. A restart prints a new one and the old one stops working |
+| Lost it | restart easywall-web and read the new line |
+| Stored | nowhere but the running process and that one log line |
 
 ## Your account
 
@@ -128,7 +147,7 @@ sudo sed -i -E 's/^password[[:space:]]*=.*/password = ""/' /etc/easywall/web.tom
 sudo systemctl restart easywall-web
 ```
 
-Clearing the `password` line reopens this page. The rules, the audit log and every
+Clearing the `password` line reopens this page, and the restart prints a new setup token for it. The rules, the audit log and every
 setting are untouched — only the account is recreated.
 
 ## Behind a reverse proxy
@@ -146,6 +165,7 @@ network, avoids it.
 
 | Symptom | Cause | Check |
 |---|---|---|
+| "That setup token does not match" | a typo, or easywall-web restarted after you copied it | fetch the newest line — see [The setup token](#the-setup-token) |
 | The setup page 404s | an account already exists | go to `/login`; clear the `password` line to start over |
 | "That is not a port number" | the SSH port is outside 1–65535 | |
 | "the choices could not be staged" | the core daemon was not reachable | `systemctl status easywall-core`, then set the ports by hand |

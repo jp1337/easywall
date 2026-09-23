@@ -24,10 +24,11 @@ Then, from your own machine, open `https://<server>:12227` — the address you
 already reach that host on. **`localhost` only works when easywall is on the
 machine in front of you**, and it is the one instruction this page used to give.
 
-Three things to expect on that first page:
+Four things to expect on that first page:
 
 | | |
 |---|---|
+| A setup token field | `docker compose logs easywall \| grep 'setup token'` — see [First Run]({{ '/docs/installation/first-run/' | relative_url }}#the-setup-token) |
 | A certificate warning | easywall generates its own on first start. Accept it, or [supply your own](#your-own-certificate) |
 | Nothing filtered yet | a fresh container carries no rules, so nothing easywall did is between you and port 12227 |
 | The container reads `unhealthy` | correct, and it clears at your first apply — see [Health check](#the-health-check) |

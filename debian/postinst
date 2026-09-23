@@ -91,6 +91,14 @@ case "$1" in
       systemctl enable easywall-selftest.service || true
       systemctl enable easywall-core.service easywall-web.service || true
       systemctl start  easywall-core.service easywall-web.service || true
+
+      # The first visitor to /firstrun used to own the firewall. It now asks for
+      # a setup token that easywall-web prints when it starts; postinst cannot
+      # print the token itself — the web process makes it — so it says where
+      # it is. Only while no account exists: an upgrade prints nothing.
+      if grep -Eq '^[[:space:]]*password[[:space:]]*=[[:space:]]*""' /etc/easywall/web.toml; then
+        echo "easywall: open https://<this host>:12227/firstrun — the setup token it asks for: sudo journalctl -u easywall-web -g 'setup token' | tail -1"
+      fi
     fi
     ;;
 esac

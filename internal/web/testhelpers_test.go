@@ -343,6 +343,17 @@ key  = ""
 	return s
 }
 
+// testSetupToken is the setup token every first-run fixture holds, and
+// withSetupToken the form field that proves it. 32 base32 characters, the
+// 20 bytes newTOTPSecret draws. Every step-1 POST in this package carries it
+// unless the test is about the token: without it the request is refused
+// before any other field is read, and a test of the username check would go
+// green on the token check instead.
+const (
+	testSetupToken = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+	withSetupToken = "&setup_token=" + testSetupToken
+)
+
 // newFirstRunTestServer creates a Server in first-run mode (no password set).
 func newFirstRunTestServer(t *testing.T, fc *fakeCore) *Server {
 	t.Helper()
@@ -406,6 +417,7 @@ key  = ""
 		tmpl:                tmpl,
 		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:               certs,
+		setupToken:          formatTOTPSecret(testSetupToken),
 	}
 	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for

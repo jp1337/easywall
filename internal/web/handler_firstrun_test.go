@@ -21,7 +21,7 @@ import (
 // tests can reach a written account.
 func completeWizard(t *testing.T, s *Server, form string) *httptest.ResponseRecorder {
 	t.Helper()
-	step1 := doFormRequest(s, "POST", "/firstrun", form)
+	step1 := doFormRequest(s, "POST", "/firstrun", form+withSetupToken)
 	if step1.Code != http.StatusOK {
 		t.Fatalf("step 1 answered %d, want 200 with the setup step rendered", step1.Code)
 	}
@@ -70,7 +70,7 @@ func TestHandleFirstRunPOST_EmptyUsername(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/firstrun", "username=&password=ValidPassword123!&password_confirm=ValidPassword123!")
+	rec := doFormRequest(s, "POST", "/firstrun", "username=&password=ValidPassword123!&password_confirm=ValidPassword123!"+withSetupToken)
 	assertRedirect(t, rec, "/firstrun")
 }
 
@@ -78,7 +78,7 @@ func TestHandleFirstRunPOST_PasswordTooShort(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=short&password_confirm=short")
+	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=short&password_confirm=short"+withSetupToken)
 	assertRedirect(t, rec, "/firstrun")
 }
 
@@ -86,7 +86,7 @@ func TestHandleFirstRunPOST_PasswordMismatch(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123!&password_confirm=DifferentPassword!")
+	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123!&password_confirm=DifferentPassword!"+withSetupToken)
 	assertRedirect(t, rec, "/firstrun")
 }
 
@@ -98,7 +98,7 @@ func TestHandleFirstRunPOST_ValidSubmission(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newFirstRunTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123456!&password_confirm=ValidPassword123456!")
+	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123456!&password_confirm=ValidPassword123456!"+withSetupToken)
 	assertStatus(t, rec, http.StatusOK)
 
 	if !s.cfg.IsFirstRun() {
@@ -161,7 +161,7 @@ func TestHandleFirstRunPOST_Password11Chars(t *testing.T) {
 	}
 
 	rec := doFormRequest(s, "POST", "/firstrun",
-		"username=admin&password="+pw+"&password_confirm="+pw)
+		"username=admin&password="+pw+"&password_confirm="+pw+withSetupToken)
 	assertRedirect(t, rec, "/firstrun")
 
 	if !s.cfg.IsFirstRun() {
@@ -178,7 +178,7 @@ func TestHandleFirstRunPOST_Step1DoesNotTouchDisk(t *testing.T) {
 	s := newFirstRunTestServer(t, fc)
 	s.cfg.configPath = "/nonexistent/path/web.toml"
 
-	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123456!&password_confirm=ValidPassword123456!")
+	rec := doFormRequest(s, "POST", "/firstrun", "username=admin&password=ValidPassword123456!&password_confirm=ValidPassword123456!"+withSetupToken)
 	assertStatus(t, rec, http.StatusOK)
 
 	if !s.cfg.IsFirstRun() {
@@ -253,7 +253,7 @@ func TestHandleFirstRunPOST_RejectsAnImpossibleSSHPortBeforeCreatingTheAccount(t
 		s := newFirstRunTestServer(t, fc)
 
 		rec := doFormRequest(s, "POST", "/firstrun",
-			"username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port="+port)
+			"username=admin&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port="+port+withSetupToken)
 		assertRedirect(t, rec, "/firstrun")
 
 		if !s.cfg.IsFirstRun() {
@@ -337,7 +337,7 @@ func TestHandleFirstRunPOST_RejectedSubmissionKeepsTheAnswers(t *testing.T) {
 
 	rec := doFormRequest(s, "POST", "/firstrun",
 		"username=operator&password=averysecurepass1!&password_confirm=mismatch"+
-			"&ssh_port=2222&open_web=on&ipv6_mode=block&telemetry=on")
+			"&ssh_port=2222&open_web=on&ipv6_mode=block&telemetry=on"+withSetupToken)
 
 	back := doRequest(s, "GET", "/firstrun", nil, rec.Result().Cookies()...)
 	body := back.Body.String()

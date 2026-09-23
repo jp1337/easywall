@@ -75,6 +75,9 @@
   {"id": "firstrun_done",           "translation": "Konto angelegt und deine Auswahl vorgemerkt. Melde dich an, prüfe sie und wende sie an."},
   {"id": "firstrun_done_choices_failed", "translation": "Konto und zweiter Faktor angelegt. Deine Wiederherstellungscodes stehen unten und werden nicht erneut angezeigt. Die ersten Entscheidungen konnten nicht vorgemerkt werden — der Core hat nicht geantwortet. Melde dich an und setze sie selbst."},
   {"id": "firstrun_notice",        "translation": "Dies ist das einzige Konto. Ein verlorenes Passwort lässt sich nur mit Shell-Zugriff auf den Server zurücksetzen."},
+  {"id": "firstrun_token_label",   "translation": "Einrichtungs-Token"},
+  {"id": "firstrun_token_help",    "translation": "Beweist, dass du das Log dieses Servers lesen kannst — dort hat easywall es beim Start ausgegeben. Docker: `docker compose logs easywall | grep 'setup token' | tail -1` · Debian: `sudo journalctl -u easywall-web -g 'setup token' | tail -1`. Ein Neustart gibt ein neues aus."},
+  {"id": "firstrun_token_wrong",   "translation": "Dieses Einrichtungs-Token passt nicht. Kopiere es erneut aus dem Log — nach einem Neustart gilt nur das neueste."},
 
   {"id": "dashboard_title",        "translation": "Übersicht"},
   {"id": "dashboard_status",       "translation": "Firewall-Status"},

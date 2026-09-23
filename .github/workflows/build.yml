@@ -617,6 +617,17 @@ jobs:
           # ssl/ is 0750 easywall:easywall, so only the web user and root can
           # see the certificate it generates — which is the point of it.
           docker exec easywall-test test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
+          # 2.22: /firstrun refuses a claim without the setup token, so the
+          # token has to be where first-run.md and postinst send the operator.
+          # journal is captured, not piped straight into grep -q: under
+          # set -o pipefail (this step's shell), grep's early exit on the
+          # first match can SIGPIPE journalctl before it finishes writing,
+          # failing a step whose journal holds the line.
+          journal=$(docker exec easywall-test journalctl -u easywall-web --no-pager || true)
+          case "$journal" in
+            *'setup token'*) ;;
+            *) echo "::error::no 'setup token' line in the easywall-web journal — nobody can complete /firstrun"; exit 1 ;;
+          esac
           if docker exec --user easywall easywall-test sh -c 'echo x >> /etc/easywall/easywall.toml' 2>/dev/null; then
             echo "::error::the web user can write the core's configuration"
             exit 1
