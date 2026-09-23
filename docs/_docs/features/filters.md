@@ -119,7 +119,8 @@ any other. Only the bogon filter exempts one.
 The kernel reassembles a fragmented packet before the `input` chain sees it. So this
 module has a chain of its own, `fragments`, at the prerouting hook, ahead of the
 reassembly. It drops IPv4 fragments addressed to this host. IPv6, loopback and traffic
-the host routes are left alone.
+the host routes are left alone. A port forward to this host's address counts as
+traffic to this host.
 
 That breaks every reply too large for one packet. The one most hosts meet is a DNS
 answer over UDP carrying DNSSEC, and

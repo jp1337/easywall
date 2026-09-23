@@ -456,7 +456,7 @@
   {"id": "opt_drop_fragments", "translation": "Fragment drop"},
   {"id": "opt_drop_fragments_desc", "translation": "Drops IPv4 fragments before they are reassembled. Breaks large UDP replies, DNSSEC answers among them."},
   {"id": "opt_drop_fragments_protects", "translation": "Floods of fragments that never complete and tie up the kernel's reassembly memory (RFC 8900 §3.7). The rest of the firewall only ever sees the reassembled packet."},
-  {"id": "opt_drop_fragments_breaks", "translation": "Every IPv4 packet too large to arrive in one piece: a DNS answer over UDP with DNSSEC, some tunnels (GRE, IP-in-IP). Only traffic to this host; loopback and routed traffic are left alone."},
+  {"id": "opt_drop_fragments_breaks", "translation": "Every IPv4 packet too large to arrive in one piece: a DNS answer over UDP with DNSSEC, some tunnels (GRE, IP-in-IP). Only traffic to this host; loopback and routed traffic are left alone. A port forward to this host's address counts as traffic to this host."},
   {"id": "opt_drop_fragments_when", "translation": "You know nothing this host relies on arrives fragmented. Off by default."},
   {"id": "opt_bogon_filter", "translation": "Bogon filter"},
   {"id": "opt_bogon_filter_desc", "translation": "Drops private and reserved IPv4 sources. On a LAN, whitelist your own network first."},
