@@ -32,7 +32,7 @@ Editing changes nothing. Applying changes everything — for 120 seconds. *Not* 
 The one thing worth knowing before you write a rule. A whitelisted address reaches every port; a blacklisted one is dropped before the whitelist is ever consulted.
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback first, the IPv6 mode, established connections and ICMP, protection modules, Docker bridge networks, blacklist, whitelist, open ports, custom rules, chain policy drops." %}
+   alt="Decision flow for an incoming packet: loopback first, fragment drop, the IPv6 mode, ping and reset rate limits, established connections and ICMP, the other protection modules, Docker bridge networks, blacklist, whitelist, open ports, custom rules, chain policy drops." %}
 
 ## Where to start
 

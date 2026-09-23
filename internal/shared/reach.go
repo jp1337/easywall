@@ -150,6 +150,10 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		}
 	}
 
+	// Ahead of step 3 since 2.22 sit the ping and reset meters, which are rate
+	// limits and match no SYN; and ahead of the whole chain the fragment drop,
+	// in a prerouting chain of its own. A connection's SYN arrives in one piece.
+	//
 	// 3. established/related is not consulted: a new connection is not
 	// established, and that is the whole distinction this function is built on.
 	// 4. ICMP is irrelevant to a TCP connection.
