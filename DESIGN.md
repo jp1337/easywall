@@ -1162,6 +1162,12 @@ A destructive row action rests at 55% opacity and comes fully forward on row hov
 someone tabbing through, and on a touch screen there is no hover at all — below the reflow
 breakpoint it is always at full strength.
 
+**Amended in 2.21.1.** That opacity is for an icon, whose non-text contrast bar
+is 3:1. A row action that is a **word** rests at `ink-muted` instead and comes to
+full `ink` on the same hover or `:focus-within`: 55% opacity on text measured
+4.2:1 on `/blocked` in the light theme, below the 4.5:1 text needs, and no opacity above it is quiet
+enough to be worth the rule.
+
 ### The dashboard's two ranks
 
 Six tiles were never six of the same thing. Three are ways into the host — its addresses,

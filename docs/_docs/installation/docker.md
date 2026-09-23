@@ -49,6 +49,25 @@ deliberately cannot.
 > the directory into the shape the Debian package installs. **Editing those files on
 > the host afterwards needs `sudo`.**
 
+## What must persist
+
+| Path in the container | Holds | Without it |
+|---|---|---|
+| `/etc/easywall` | `easywall.toml`, `web.toml`, the certificate | the setup starts over |
+| `/var/lib/easywall` | `rules.json`, the apply state, passkeys | every rule is gone |
+| `/var/log/easywall` | `audit.log`, `packets.log` (with `persist = true`) | the audit trail and the refused-packet history start empty at every update |
+
+```bash
+docker run -d --name easywall --network host --cap-add NET_ADMIN \
+  -v easywall_config:/etc/easywall \
+  -v easywall_data:/var/lib/easywall \
+  -v easywall_logs:/var/log/easywall \
+  ghcr.io/jp1337/easywall:latest
+```
+
+Without the mount, Docker's `VOLUME` directive gives every recreated container a
+new, empty anonymous volume, and the history in it is gone after the next update.
+
 ## The health check
 
 The image carries a `HEALTHCHECK` that fetches `/healthz` every ten seconds, and

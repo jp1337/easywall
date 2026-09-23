@@ -12,17 +12,21 @@ import (
 )
 
 // demoShapes are the kinds of refusal a small internet-facing host actually
-// sees, on documentation addresses only (RFC 5737, RFC 3849). 192.0.2.42 is on
-// the seeded blacklist, so the blacklist rows are consistent with that page.
+// sees, on documentation addresses only (RFC 5737, RFC 3849). Every source
+// address avoids the demo's seeded blacklist and whitelist, so a visitor
+// adding a source to one of those lists always sees a tangible change. Every
+// IPv4 documentation range falls into shared.BogonRanges and the demo runs
+// with Bogons: true, so on a real kernel these rows would be bogon drops; the
+// demo does not model that, because there is no other address space it may use.
 var demoShapes = []shared.PacketLogEntry{
-	{Rule: "ssh", Proto: "tcp", DstPort: 22, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("198.51.100.23")},
-	{Rule: "portscan", Proto: "tcp", DstPort: 3389, TCPFlags: "FIN,PSH,URG", Src: netip.MustParseAddr("203.0.113.77")},
-	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("198.51.100.140")},
-	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("203.0.113.5")},
+	{Rule: "ssh", Proto: "tcp", DstPort: 22, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.23")},
+	{Rule: "portscan", Proto: "tcp", DstPort: 3389, TCPFlags: "FIN,PSH,URG", Src: netip.MustParseAddr("192.0.2.77")},
+	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.140")},
+	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("192.0.2.5")},
 	{Rule: "blacklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
-	{Rule: "icmp_flood", Proto: "icmp", CtState: "new", Src: netip.MustParseAddr("198.51.100.99")},
-	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("203.0.113.200")},
-	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:bad::17")},
+	{Rule: "icmp_flood", Proto: "icmp", CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
+	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("192.0.2.200")},
+	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:5::17")},
 }
 
 // demoEvery is how often the demo "refuses" something new — enough for the

@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.1] — 2026-09-23
+
+**What it offers, it can do.**
+
+A patch to 2.21.0, from walking `/blocked` in Chrome after the release. The
+`/blocked` findings were caused by 2.21.0; the last three are older, found on
+the way, and fixed rather than carried forward.
+
+### Fixed
+
+- **A row offered actions that could not have let its packet through.**
+  Whitelisting the source of a packet the blacklist or a protection module
+  dropped does nothing — the input chain runs *modules → blacklist →
+  whitelist → ports → final drop* — and "Open 3389" on a port-scan row invited
+  the scanner. Each row now offers only what the chain order lets it change:
+  whitelist, blacklist and open-the-port on a default drop; whitelist and
+  blacklist on the bogon filter and on a custom rule; blacklist alone on a
+  protection module; a link to the blacklist page, and nothing else, on the
+  blacklist itself.
+- **The live tail moved rows under the pointer and dropped keyboard focus.** A
+  click aimed at a row action could land on the row that slid into its place a
+  poll later, and a focused button was gone from the DOM twelve seconds after
+  it was focused. The tail now skips its poll while the pointer or keyboard
+  focus is inside the table, says so in the toolbar, and catches up at the next
+  poll, within five seconds of you leaving it.
+- **Row actions rested at 55% opacity — text needs 4.5:1, opacity cannot give
+  it that.** Measured contrast was ≈4.2:1, below WCAG AA. The de-emphasis is
+  now a muted ink colour at full opacity, with full ink back on row hover and
+  focus; `DESIGN.md`'s rule for `.row-action` is amended to say so.
+- **German said *Whitelist*/*Blacklist* on `/blocked` and the apply screen,
+  *Erlaubnisliste*/*Sperrliste* everywhere else.** Every remaining
+  `Whitelist`/`Blacklist` in `locales/de.json` is now `Erlaubnisliste`/
+  `Sperrliste`, matching the rest of the interface.
+- **"Log blocked" and "Log blacklist" still said *writes … to the system
+  log*.** False since 2.21.0 moved that traffic to the Blocked page; both
+  option descriptions now say where the entries actually show up.
+- **The filter form put empty fields in the URL, and an unreadable filter
+  cleared what you had typed.** `?src=&dst=&port=3389&proto=&rule=portscan&in=`
+  was the canonical link `/blocked` handed out for a three-field filter, and a
+  typo in any field lost the whole form instead of showing what could not be
+  read. A readable filter now redirects once to its canonical, minimal query;
+  an unreadable one keeps every field visible and marks the one at fault.
+- **The header's staged count and the apply screen's count could disagree.**
+  The header counted rule changes only; `/apply` counts rules and
+  configuration together. Both now read the same total from the same
+  preview.
+- **A card on a phone broke its addresses mid-number.** At 390px
+  `192.0.2.140` read `192.0.2` / `.140` and a port split in two, because each
+  link of the route was its own flex item; in German, *Sperrliste bearbeiten*
+  ran into *Details*. The route wraps between addresses now, and the buttons
+  stack over *Details* as they do in the table.
+- **The demo's refused packets came from networks its own lists already
+  cover.** Every blacklist click in the demo answered "already there" instead
+  of showing a rule take effect. Demo packet sources no longer overlap the
+  demo's seeded blacklist or whitelist.
+- **Docker's log directory could vanish silently.** A container recreated
+  without `/var/log/easywall` mounted got a fresh, empty anonymous volume;
+  `docker.md` now says which three paths must persist, and easywall-core
+  warns at start when the audit log is missing or empty while rules are
+  configured and nothing has rotated it away.
+- **The status could say the rules were live with no acceptance window
+  open.** `Status()` read the window before asking the kernel, and the kernel
+  query waits on the lock an apply holds for its whole write — so a status
+  taken during an apply could pair *idle* from before the window opened with
+  a table from after the write, and the dashboard showed unconfirmed rules
+  with no countdown. In since 2.14; one integration test caught it about once
+  in fifteen CI runs and its comment called that unavoidable. Reproduced 33
+  times in 2,000 runs, and 0 with the kernel read first.
+- **The German IPv6 warning closed its quotation with an ASCII `"` instead of
+  `“`.**
+
 ## [2.21.0] — 2026-09-23
 
 **You can see what it refuses.**
@@ -2264,7 +2335,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.21.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.21.1...HEAD
+[2.21.1]: https://github.com/jp1337/easywall/compare/v2.21.0...v2.21.1
 [2.21.0]: https://github.com/jp1337/easywall/compare/v2.20.1...v2.21.0
 [2.20.1]: https://github.com/jp1337/easywall/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/jp1337/easywall/compare/v2.19.0...v2.20.0
