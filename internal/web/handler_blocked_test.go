@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,12 @@ func blockedCore(t *testing.T, res shared.PacketLogResult, opts shared.FirewallO
 	fc.SetResponse(shared.CmdGetPacketLog, successResp(res))
 	fc.SetResponse(shared.CmdGetOptions, successResp(opts))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	// The header's staged count now comes from buildPreview, which also reads
+	// these two — stubbed here so every /blocked test gets a complete preview
+	// rather than logging "the apply preview has no configuration half" on
+	// every single request.
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
 	return fc, s
 }
 
@@ -76,10 +83,10 @@ func TestBlocked_BracketsAnIPv6DestinationWhenAPortFollows(t *testing.T) {
 	rec := doAuthRequest(t, s, "GET", "/blocked", nil)
 	assertStatus(t, rec, http.StatusOK)
 	body := rec.Body.String()
-	if !strings.Contains(body, ">[2001:db8::1]</a>:<a href=\"/blocked?port=23\">23</a>") {
+	if !strings.Contains(body, ">[2001:db8::1]</a><a href=\"/blocked?port=23\">:23</a>") {
 		t.Errorf("an IPv6 destination with a port is not bracketed:\n%s", body)
 	}
-	if !strings.Contains(body, ">198.51.100.1</a>:<a href=\"/blocked?port=22\">22</a>") {
+	if !strings.Contains(body, ">198.51.100.1</a><a href=\"/blocked?port=22\">:22</a>") {
 		t.Errorf("an IPv4 destination with a port gained brackets it should not have:\n%s", body)
 	}
 }
@@ -92,7 +99,7 @@ func TestBlocked_TheFilterGoesToTheCoreAndStaysInTheURL(t *testing.T) {
 	var sent shared.PacketLogFilter
 	fc.OnCommand(shared.CmdGetPacketLog, func(c shared.Command) { _ = json.Unmarshal(c.Payload, &sent) })
 
-	rec := doAuthRequest(t, s, "GET", "/blocked?src=203.0.113.0%2F24&port=22&proto=tcp&rule=ssh&in=eth0", nil)
+	rec := doAuthRequest(t, s, "GET", "/blocked?in=eth0&port=22&proto=tcp&rule=ssh&src=203.0.113.0%2F24", nil)
 	assertStatus(t, rec, http.StatusOK)
 	want := shared.PacketLogFilter{Src: "203.0.113.0/24", Port: 22, Proto: "tcp", Rule: "ssh", InDev: "eth0"}
 	if sent != want {
@@ -100,6 +107,70 @@ func TestBlocked_TheFilterGoesToTheCoreAndStaysInTheURL(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `hx-get="/blocked/rows?in=eth0&amp;port=22&amp;proto=tcp&amp;rule=ssh&amp;src=203.0.113.0%2F24"`) {
 		t.Error("the live tail does not carry the filter; the next swap would show everything")
+	}
+}
+
+func TestBlockedRedirectsToTheCanonicalQuery(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true})
+	rec := doAuthRequest(t, s, "GET", "/blocked?src=&dst=&port=22&proto=&rule=&in=", nil)
+	assertRedirect(t, rec, "/blocked?port=22")
+	rec = doAuthRequest(t, s, "GET", "/blocked?src=&dst=", nil)
+	assertRedirect(t, rec, "/blocked")
+	assertStatus(t, doAuthRequest(t, s, "GET", "/blocked?port=22", nil), http.StatusOK)
+	// The spelling html/template gives an IPv6 link is already canonical.
+	assertStatus(t, doAuthRequest(t, s, "GET", "/blocked?src=2001%3adb8%3a%3a1", nil), http.StatusOK)
+}
+
+func TestBlockedKeepsAnUnreadableFilterInTheForm(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{samplePacket()}},
+		shared.FirewallOptions{LogBlocked: true})
+	body := doAuthRequest(t, s, "GET", "/blocked?src=10.0.0.0%2F33&port=22", nil).Body.String()
+	if !strings.Contains(body, `value="10.0.0.0/33"`) {
+		t.Error("the field no longer shows what was typed")
+	}
+	if !regexp.MustCompile(`name="src"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*name="src"`).MatchString(body) {
+		t.Error("the field that could not be read is not marked")
+	}
+	if !regexp.MustCompile(`name="src"[^>]*class="[^"]*\bis-error\b|class="[^"]*\bis-error\b[^"]*"[^>]*name="src"`).MatchString(body) {
+		t.Error("the field that could not be read does not carry the is-error class")
+	}
+	if regexp.MustCompile(`name="port"[^>]*aria-invalid="true"`).MatchString(body) {
+		t.Error("a readable field is marked invalid")
+	}
+}
+
+func TestBlockedHeaderCountsLikeTheApplyScreen(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true, Fragments: true})
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{Whitelist: []string{"192.0.2.9"}},
+	}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{
+		Recorded: true,
+		Config:   shared.AppliedConfig{Firewall: shared.FirewallOptions{LogBlocked: true}},
+	}))
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	if !strings.Contains(body, "2 staged") {
+		t.Error("one rule change and one configuration change must read as 2 staged, as /apply counts them")
+	}
+}
+
+// One number, one source: /apply renders Preview.Total even when Incomplete
+// is true (buildPreview already sets Total to the rule count before it
+// returns on an unreadable configuration half), so /blocked must show the
+// same number rather than hide it because one of the five reads failed.
+func TestBlockedHeaderCountsEvenWhenThePreviewIsIncomplete(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true})
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{Whitelist: []string{"192.0.2.9"}},
+	}))
+	fc.SetResponse(shared.CmdGetSettings, errorRespFor("unavailable"))
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	if !strings.Contains(body, "1 staged") {
+		t.Error("one staged rule change must read as 1 staged even when GetSettings fails and the preview is incomplete")
 	}
 }
 
@@ -270,7 +341,7 @@ func TestBlockedRows_EmptyStateMatchesThePage(t *testing.T) {
 
 func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 	icmp := samplePacket()
-	icmp.Proto, icmp.SrcPort, icmp.DstPort, icmp.TCPFlags, icmp.Rule = "icmp", 0, 0, "", "icmp_flood"
+	icmp.Proto, icmp.SrcPort, icmp.DstPort, icmp.TCPFlags, icmp.Rule = "icmp", 0, 0, "", "drop"
 	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{icmp}},
 		shared.FirewallOptions{ICMPFloodLog: true})
 	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
@@ -282,6 +353,7 @@ func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 		t.Error("an ICMP packet is offered 'open the port'")
 	}
 	tcpRow := samplePacket()
+	tcpRow.Rule = "drop"
 	_, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tcpRow}},
 		shared.FirewallOptions{LogBlocked: true})
 	if body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String(); !strings.Contains(body, `value="open"`) {
@@ -289,6 +361,7 @@ func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 	}
 	fwd := samplePacket()
 	fwd.Hook = "forward"
+	fwd.Rule = "drop"
 	_, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{fwd}},
 		shared.FirewallOptions{LogBlocked: true})
 	if body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String(); strings.Contains(body, `value="open"`) {
@@ -296,11 +369,64 @@ func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 	}
 }
 
+func TestBlockedOffersOnlyRemedies(t *testing.T) {
+	scan := samplePacket()
+	scan.Rule, scan.DstPort = "portscan", 3389
+	bl := samplePacket()
+	bl.Rule = "blacklist"
+	drop := samplePacket()
+	drop.Rule = "drop"
+	for _, tc := range []struct {
+		name        string
+		e           shared.PacketLogEntry
+		want, avoid []string
+	}{
+		{"port scan", scan, []string{`value="blacklist"`}, []string{`value="whitelist"`, `value="open"`, `href="/blacklist"`}},
+		{"blacklist", bl, []string{`href="/blacklist"`}, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}},
+		{"default drop", drop, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}, []string{`href="/blacklist"`}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tc.e}},
+				shared.FirewallOptions{LogBlocked: true})
+			body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+			for _, w := range tc.want {
+				if !strings.Contains(body, w) {
+					t.Errorf("missing %s", w)
+				}
+			}
+			for _, a := range tc.avoid {
+				if strings.Contains(body, a) {
+					t.Errorf("offers %s, which could not have let this packet through", a)
+				}
+			}
+		})
+	}
+}
+
+// A forwarded row offers none of the three actions and no blacklist link
+// (Remedies() is the zero value); the actions cell must not render empty —
+// a mobile "Actions" label over nothing reads as a bug.
+func TestBlockedForwardedRowShowsADashNotAnEmptyCell(t *testing.T) {
+	fwd := samplePacket()
+	fwd.Hook, fwd.Rule = "forward", "drop"
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{fwd}},
+		shared.FirewallOptions{LogBlocked: true})
+	body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+	for _, avoid := range []string{`value="whitelist"`, `value="blacklist"`, `value="open"`, `href="/blacklist"`, `<form`} {
+		if strings.Contains(body, avoid) {
+			t.Errorf("forwarded row offers %s, which could not have let it through", avoid)
+		}
+	}
+	if !strings.Contains(body, `<span class="text-ink-subtle">—</span>`) {
+		t.Error("forwarded row's actions cell has no control and no placeholder dash")
+	}
+}
+
 func TestFilterQueryRoundTrips(t *testing.T) {
 	f := shared.PacketLogFilter{Src: "2001:db8::/32", Port: 443, Proto: "tcp"}
-	back, ok := blockedFilter(mustParseQuery(t, filterQuery(f)))
-	if !ok || back != f {
-		t.Errorf("round trip: %+v (ok=%v), want %+v", back, ok, f)
+	back, bad := blockedFilter(mustParseQuery(t, filterQuery(f)))
+	if bad != "" || back != f {
+		t.Errorf("round trip: %+v (bad=%q), want %+v", back, bad, f)
 	}
 }
 

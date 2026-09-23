@@ -876,6 +876,97 @@ async function checkApplyPreview(page) {
 }
 
 /**
+ * /blocked's live tail must not move what the operator is pointing at or
+ * destroy what has keyboard focus (2.21.1 F3, F12). The demo refuses a packet
+ * every 7 s, so 12 s is at least one poll with new rows either way.
+ */
+async function checkBlockedTailHoldsStill(page) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  if (await page.locator('#blocked-rows details').count() === 0) {
+    fail('blocked tail', 'no rows to observe — the demo produced no refused packets');
+    return;
+  }
+  const firstSeq = () => page.$eval('#blocked-rows details', d => d.id);
+
+  await page.hover('#blocked-rows tr:first-child td:first-child');
+  const underPointer = await firstSeq();
+  await page.waitForTimeout(12000);
+  if (await firstSeq() !== underPointer) {
+    fail('blocked tail', 'rows moved while the pointer was on the table');
+  }
+
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(12000);
+  if (await firstSeq() === underPointer) {
+    fail('blocked tail', 'the tail did not resume after the pointer left the table');
+  }
+
+  if (await page.locator('#blocked-rows .pkt-actions .btn').count() === 0) {
+    fail('blocked tail', 'no row action to focus — the demo produced no refused packets');
+    return;
+  }
+  await page.focus('#blocked-rows .pkt-actions .btn');
+  const label = await page.evaluate(() => document.activeElement.textContent.trim());
+  await page.waitForTimeout(12000);
+  const still = await page.evaluate(() => {
+    const a = document.activeElement;
+    return a && a.isConnected && !!a.closest('#blocked-rows') ? a.textContent.trim() : null;
+  });
+  if (still !== label) {
+    fail('blocked tail', `keyboard focus on "${label}" was lost to ${still === null ? 'the page' : `"${still}"`}`);
+    return;
+  }
+  console.log('  ok   blocked tail holds still under pointer and focus, resumes after');
+}
+
+/**
+ * A /blocked card at 390px in German keeps an address whole and its Details
+ * clear of the buttons. The card's td is a flex row with overflow-wrap:
+ * anywhere, so each link of the route used to be its own flex item and broke
+ * mid-number ("192.0.2 / .140"), and "Sperrliste bearbeiten" ran into
+ * "Details" — while every width check here stayed green, because nothing
+ * overflowed its container.
+ */
+async function checkBlockedCardsKeepValuesWhole(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  await ctx.addCookies([{ name: 'easywall_lang', value: 'de', url: BASE }]);
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  const bad = await page.evaluate(() => {
+    const out = [];
+    const rows = document.querySelectorAll('#blocked-rows tr');
+    // Every link in a flow cell, not .pkt-route's: the check must still see
+    // the links if the grouping is lost. Lines are counted on a Range over the
+    // text, because a blockified flex item reports one rect however it wraps.
+    const lines = el => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return new Set([...r.getClientRects()].map(q => Math.round(q.top))).size;
+    };
+    for (const a of document.querySelectorAll('#blocked-rows td.pkt-flow a')) {
+      // An IPv4 address or a port fits a 390px line; only a long IPv6 may break.
+      if (!a.textContent.includes('::') && lines(a) > 1) out.push(`"${a.textContent}" breaks across lines`);
+    }
+    for (const tr of rows) {
+      const s = tr.querySelector('.pkt-detail summary');
+      if (!s) continue;
+      if (lines(s) > 1) out.push('"Details" wraps onto two lines');
+      const r = s.getBoundingClientRect();
+      for (const b of tr.querySelectorAll('.pkt-actions .btn')) {
+        const q = b.getBoundingClientRect();
+        if (r.left < q.right && q.left < r.right && r.top < q.bottom && q.top < r.bottom) out.push(`"Details" overlaps "${b.textContent.trim()}"`);
+      }
+    }
+    return { out: [...new Set(out)], n: rows.length };
+  });
+  await ctx.close();
+  if (bad.n === 0) { fail('blocked cards at 390px [de]', 'no rows to measure'); return; }
+  if (bad.out.length) { fail('blocked cards at 390px [de]', bad.out.slice(0, 5).join('; ')); return; }
+  console.log('  ok   blocked cards keep addresses whole and Details clear at 390px in German');
+}
+
+/**
  * Adds one port rule via #add-rule-btn — the same control
  * checkForwardingPortIsNotReparsed already drives for the forwarding table,
  * since ports.html's row editor works the same way: click to append a row,
@@ -1515,6 +1606,39 @@ async function checkFocusIsVisible(ctx, theme) {
 }
 
 /**
+ * A row action's text at rest must clear WCAG AA for text, 4.5:1 (2.21.1 F2).
+ * Opacity is composited, so the colour a reader sees is the text over the
+ * button over the row.
+ */
+async function checkBlockedActionContrast(page, theme) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(250);
+  if (await page.locator('#blocked-rows .pkt-actions .btn').count() === 0) {
+    fail(`blocked action contrast [${theme}]`, 'no row action to measure — the demo produced no refused packets');
+    return;
+  }
+  const c = await page.$eval('#blocked-rows .pkt-actions .btn', b => {
+    let op = 1;
+    for (let el = b; el; el = el.parentElement) op *= parseFloat(getComputedStyle(el).opacity);
+    let bg = null;
+    for (let el = b; el; el = el.parentElement) {
+      const v = getComputedStyle(el).backgroundColor;
+      if (v && v !== 'rgba(0, 0, 0, 0)' && v !== 'transparent') { bg = v; break; }
+    }
+    return { fg: getComputedStyle(b).color, bg, op };
+  });
+  const fg = parseRGBA(c.fg), bg = parseRGBA(c.bg);
+  const seen = compositeOver({ ...fg, a: fg.a * c.op }, bg);
+  const ratio = contrastRatio(seen, bg);
+  if (ratio < 4.5) {
+    fail(`blocked action contrast [${theme}]`, `${ratio.toFixed(2)}:1 at rest, needs 4.5:1`);
+    return;
+  }
+  console.log(`  ok   blocked row actions ${ratio.toFixed(2)}:1 at rest in ${theme}`);
+}
+
+/**
  * Nothing scrolls sideways inside its own container either.
  *
  * The page-level overflow check below cannot see this, and not by oversight: a
@@ -1664,6 +1788,9 @@ async function runChecks(browser, session) {
     });
     await focusCtx.addInitScript(t => localStorage.setItem('theme', `easywall-${t}`), theme);
     await checkFocusIsVisible(focusCtx, theme);
+    const cp = await focusCtx.newPage();
+    await checkBlockedActionContrast(cp, theme);
+    await cp.close();
     await focusCtx.close();
   }
 
@@ -1695,6 +1822,8 @@ async function runChecks(browser, session) {
   await checkPortsCatalogue(p);
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
+  await checkBlockedTailHoldsStill(p);
+  await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
   await checkTheGate(browser);

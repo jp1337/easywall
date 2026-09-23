@@ -1,3 +1,44 @@
+easywall (2.21.1) unstable; urgency=medium
+
+  * Fix: a row on /blocked offered whitelist, blacklist or open-the-port even
+    where the input chain could not have let the packet through them — "Open
+    3389" on a port-scan row invited the scanner. Each row now offers only
+    what the chain order (modules, blacklist, whitelist, ports, final drop)
+    lets it change.
+  * Fix: the live tail moved rows under the pointer and dropped keyboard
+    focus every poll. It now pauses while the pointer or keyboard focus is
+    inside the table, says so in the toolbar, and catches up at the next
+    poll, within five seconds of leaving it.
+  * Fix: row actions rested at 55% opacity, measuring under the 4.5:1 WCAG AA
+    text contrast needs; they now rest at a muted ink colour at full opacity
+    and return to full ink on row hover or focus.
+  * Fix: German said Whitelist/Blacklist on /blocked and the apply screen,
+    Erlaubnisliste/Sperrliste everywhere else. Both terms are now unified.
+  * Fix: "Log blocked" and "Log blacklist" still said they write to the
+    system log; both now say the entries show on the Blocked page.
+  * Fix: the /blocked filter form put empty fields in the URL and an
+    unreadable filter cleared what was typed. A readable filter now
+    redirects once to its canonical query; an unreadable one keeps every
+    field visible and marks the one at fault.
+  * Fix: the header's staged count and the apply screen's count could
+    disagree; both now read the same total from the same preview.
+  * Fix: the demo's refused packets came from networks its own blacklist and
+    whitelist already covered, so acting on a row never changed anything
+    visible. Demo sources no longer overlap the demo's own lists.
+  * Fix: a container recreated without /var/log/easywall mounted lost its
+    audit log to a fresh, empty anonymous volume with nothing said. docker.md
+    now names the three paths that must persist, and easywall-core warns at
+    start when the log looks lost.
+  * Fix: a /blocked card at phone width broke addresses and ports
+    mid-number, and a German button ran into Details.
+  * Fix: the status could report live rules with no acceptance window
+    during an apply: Status() read the window before the kernel, whose query
+    waits on the lock the write holds. In since 2.14.
+  * Fix: the German IPv6 warning closed its „ quotation with an ASCII "
+    instead of the matching “.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Wed, 23 Sep 2026 20:00:00 +0200
+
 easywall (2.21.0) unstable; urgency=medium
 
   * New: blocked traffic is a page. The ten log switches send what they refuse

@@ -158,6 +158,22 @@ func (d *Daemon) Start() error {
 		d.mu.Unlock()
 	}
 
+	// A data directory that survived with a log directory that did not — the
+	// container-recreate case logDirLooksLost describes. Said at every start
+	// until the log has an entry, which the first apply writes. This has to be
+	// the first thing Start reads the log directory for: the panic-marker
+	// check just below can itself write to AuditLogPath() when the marker is
+	// unreadable, and a boot with both an unreadable marker and a lost log
+	// directory must still warn about the lost directory rather than have that
+	// write make the log look merely rotated.
+	if state, err := d.firewall.RulesStore().GetState(); err == nil &&
+		logDirLooksLost(d.cfg.AuditLogPath(), state.Current) {
+		slog.Warn("the audit log is missing or empty although rules are configured: "+
+			"log_dir did not survive while data_dir did. In a container, mount "+
+			"/var/log/easywall — without it every update starts a new, empty log",
+			"log_dir", d.cfg.LogDir)
+	}
+
 	// One loud entry, once, if the panic marker cannot be read at all.
 	//
 	// PanicEngaged answers an unreadable marker with "engaged", so the restore

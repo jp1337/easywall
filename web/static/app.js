@@ -94,6 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ── Passkey login ────────────────────────────────────── */
   initPasskeyLogin();
+
+  /* ── Pause the blocked-traffic tail while the table is in use ───────── */
+  initBlockedTail();
 });
 
 /* ── List editor counter ──────────────────────────────────────────────────
@@ -115,6 +118,21 @@ function initListCounter(inputId, outId, one, many) {
 
   input.addEventListener('input', update);
   update();
+}
+
+/* ── Blocked traffic live tail ────────────────────────────────────────────
+   The tail replaces every row every five seconds. While the pointer or the
+   keyboard focus is in the table the poll is skipped: a swap would slide the
+   row under the cursor and destroy the focused button. The fragment is the
+   whole view, so the first poll after the operator leaves catches up.
+   Ceiling: a screen reader's browse cursor does not move focus, so it is not
+   seen here. */
+function initBlockedTail() {
+  document.body.addEventListener('htmx:beforeRequest', e => {
+    const t = e.detail && e.detail.elt;
+    if (!t || t.id !== 'blocked-rows') return;
+    if (t.matches(':hover') || t.contains(document.activeElement)) e.preventDefault();
+  });
 }
 
 /* ── HTMX toast ───────────────────────────────────────────────────────────

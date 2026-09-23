@@ -42,22 +42,30 @@ type blockedRows struct {
 	Since        time.Time // when the ring began
 }
 
+// blockedForm is what the filter form shows back: the raw fields as typed,
+// independent of whether they parsed. A filter that could not be read must
+// still appear in its field, or the operator cannot see what they typed to
+// fix it.
+type blockedForm struct{ Src, Dst, Port, Proto, Rule, InDev string }
+
 type blockedData struct {
-	Filter   shared.PacketLogFilter
-	Unread   bool // a filter was given and could not be read, so none is applied
+	Form     blockedForm
+	Bad      string // the name of the first field that could not be read, empty when the filter is good
+	Unread   bool   // a filter was given and could not be read, so none is applied
 	Result   *shared.PacketLogResult
 	Rows     blockedRows
 	CoreErr  string
-	Staged   int // rule changes waiting for Apply
+	Staged   int // changes waiting for Apply, counted exactly as /apply counts them
 	RuleList []string
 	Protos   []string
 }
 
-// blockedFilter reads the URL. ok is false when anything given could not be
-// read, and the filter returned is then empty: a view the operator did not ask
-// for is better than a partly applied one they cannot tell from the one they
-// asked for.
-func blockedFilter(q url.Values) (shared.PacketLogFilter, bool) {
+// blockedFilter reads the URL. The second value names the first field that
+// could not be read ("src", "dst", "port", "proto", "rule", "in"), empty when
+// the filter is good; the filter returned is then empty: a view the operator
+// did not ask for is better than a partly applied one they cannot tell from
+// the one they asked for.
+func blockedFilter(q url.Values) (shared.PacketLogFilter, string) {
 	f := shared.PacketLogFilter{
 		Src:   strings.TrimSpace(q.Get("src")),
 		Dst:   strings.TrimSpace(q.Get("dst")),
@@ -68,14 +76,26 @@ func blockedFilter(q url.Values) (shared.PacketLogFilter, bool) {
 	if p := strings.TrimSpace(q.Get("port")); p != "" {
 		n, err := strconv.ParseUint(p, 10, 16)
 		if err != nil || n == 0 {
-			return shared.PacketLogFilter{}, false
+			return shared.PacketLogFilter{}, "port"
 		}
 		f.Port = uint16(n)
 	}
-	if f.Validate() != nil {
-		return shared.PacketLogFilter{}, false
+	// One field at a time, so the page can say which one it could not read.
+	for _, c := range []struct {
+		name string
+		one  shared.PacketLogFilter
+	}{
+		{"src", shared.PacketLogFilter{Src: f.Src}},
+		{"dst", shared.PacketLogFilter{Dst: f.Dst}},
+		{"proto", shared.PacketLogFilter{Proto: f.Proto}},
+		{"rule", shared.PacketLogFilter{Rule: f.Rule}},
+		{"in", shared.PacketLogFilter{InDev: f.InDev}},
+	} {
+		if c.one.Validate() != nil {
+			return shared.PacketLogFilter{}, c.name
+		}
 	}
-	return f, true
+	return f, ""
 }
 
 // filterQuery encodes f for a URL. Built from the parsed filter, never from the
@@ -94,12 +114,38 @@ func filterQuery(f shared.PacketLogFilter) string {
 }
 
 func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
-	f, ok := blockedFilter(r.URL.Query())
+	q := r.URL.Query()
+	f, bad := blockedFilter(q)
+	// A readable filter lives at one URL. The GET form sends every field, the
+	// empty ones too; redirect once to the query filterQuery would have built.
+	// Compared re-encoded, not raw: html/template writes an IPv6 link as
+	// %3a and url.Values.Encode as %3A, and those are the same query.
+	if bad == "" && r.URL.RawQuery != "" && q.Encode() != filterQuery(f) {
+		to := "/blocked"
+		if enc := filterQuery(f); enc != "" {
+			to += "?" + enc
+		}
+		http.Redirect(w, r, to, http.StatusSeeOther)
+		return
+	}
+
 	data := &blockedData{
-		Filter: f, Unread: !ok && r.URL.RawQuery != "",
+		Bad: bad, Unread: bad != "",
 		Rows:     blockedRows{Query: filterQuery(f), Filtered: !f.IsZero()},
 		RuleList: append(append([]string{}, shared.PacketLogRules...), shared.PacketLogRuleOther),
 		Protos:   shared.PacketLogProtos,
+	}
+	if bad == "" {
+		data.Form = blockedForm{Src: f.Src, Dst: f.Dst, Proto: f.Proto, Rule: f.Rule, InDev: f.InDev}
+		if f.Port != 0 {
+			data.Form.Port = strconv.Itoa(int(f.Port))
+		}
+	} else {
+		data.Form = blockedForm{
+			Src: strings.TrimSpace(q.Get("src")), Dst: strings.TrimSpace(q.Get("dst")),
+			Port: strings.TrimSpace(q.Get("port")), Proto: q.Get("proto"), Rule: q.Get("rule"),
+			InDev: strings.TrimSpace(q.Get("in")),
+		}
 	}
 
 	res, err := s.client.GetPacketLog(f)
@@ -119,9 +165,12 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.Logging = opts.LogsAnything()
 		data.Rows.LoggingKnown = true
 	}
-	if state, err := s.client.GetRules(); err == nil {
-		data.Staged = len(shared.DiffRules(state.Current, state.Staged))
-	}
+	// The apply screen's own total, so the two pages cannot disagree about
+	// how many changes are waiting. One number, one source: /apply renders
+	// Total even when Incomplete is true (buildPreview already sets Total to
+	// the rule count before it returns on an unreadable configuration half),
+	// so /blocked must show the same number rather than hide it.
+	data.Staged = s.buildPreview(r).Total
 	s.render(w, r, "blocked.html", "blocked", data)
 }
 
@@ -130,7 +179,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 // same two questions again rather than inheriting an answer from a page load
 // that may be minutes old.
 func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
-	f, _ := blockedFilter(r.URL.Query())
+	f, _ := blockedFilter(r.URL.Query()) // an unreadable filter here renders as no filter, exactly like the page
 	rows := blockedRows{Entries: []shared.PacketLogEntry{}, Query: filterQuery(f), Filtered: !f.IsZero()}
 	if res, err := s.client.GetPacketLog(f); err == nil {
 		rows.Entries = res.Entries
@@ -153,7 +202,7 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleBlockedStage(w http.ResponseWriter, r *http.Request) {
 	back := "/blocked"
 	if q, err := url.ParseQuery(r.FormValue("q")); err == nil {
-		if f, ok := blockedFilter(q); ok {
+		if f, bad := blockedFilter(q); bad == "" {
 			if enc := filterQuery(f); enc != "" {
 				back += "?" + enc
 			}
