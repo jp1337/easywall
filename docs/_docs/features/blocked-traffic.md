@@ -57,6 +57,16 @@ port and a protocol the firewall can open:
 | **Blacklist** | Stages the source address on the blacklist |
 | **Open *port*** | Stages a port rule for the packet's destination port and protocol |
 
+| The packet was refused by | Offered | Why not the others |
+|---|---|---|
+| Default drop | whitelist · blacklist · open the port | — |
+| Bogon filter | whitelist · blacklist | a port rule runs after the filter |
+| Another rule (your custom rules) | whitelist · blacklist | opening the port would override a rule you wrote |
+| The blacklist | a link to the blacklist | the blacklist is checked before the whitelist |
+| A protection module (SSH, SYN, ICMP, RST, port scan, invalid, fragment) | blacklist | modules run before the whitelist and the ports |
+
+The table pauses while you point at it or work in it, and catches up when you leave.
+
 **They stage. They never apply.** A staged count appears beside the page title
 and links to [Apply]({{ '/docs/features/apply/' | relative_url }}); nothing
 reaches the kernel, and no acceptance window starts, until you go there.
