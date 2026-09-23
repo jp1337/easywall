@@ -7,8 +7,8 @@ easywall (2.21.1) unstable; urgency=medium
     lets it change.
   * Fix: the live tail moved rows under the pointer and dropped keyboard
     focus every poll. It now pauses while the pointer or keyboard focus is
-    inside the table, says so in the toolbar, and catches up the moment you
-    leave it.
+    inside the table, says so in the toolbar, and catches up at the next
+    poll, within five seconds of leaving it.
   * Fix: row actions rested at 55% opacity, measuring under the 4.5:1 WCAG AA
     text contrast needs; they now rest at a muted ink colour at full opacity
     and return to full ink on row hover or focus.

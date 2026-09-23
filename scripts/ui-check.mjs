@@ -914,7 +914,9 @@ async function checkBlockedTailHoldsStill(page) {
   });
   if (still !== label) {
     fail('blocked tail', `keyboard focus on "${label}" was lost to ${still === null ? 'the page' : `"${still}"`}`);
+    return;
   }
+  console.log('  ok   blocked tail holds still under pointer and focus, resumes after');
 }
 
 /**
@@ -1565,6 +1567,10 @@ async function checkBlockedActionContrast(page, theme) {
   await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
   await page.mouse.move(5, 5);
   await page.waitForTimeout(250);
+  if (await page.locator('#blocked-rows .pkt-actions .btn').count() === 0) {
+    fail(`blocked action contrast [${theme}]`, 'no row action to measure — the demo produced no refused packets');
+    return;
+  }
   const c = await page.$eval('#blocked-rows .pkt-actions .btn', b => {
     let op = 1;
     for (let el = b; el; el = el.parentElement) op *= parseFloat(getComputedStyle(el).opacity);
@@ -1580,7 +1586,9 @@ async function checkBlockedActionContrast(page, theme) {
   const ratio = contrastRatio(seen, bg);
   if (ratio < 4.5) {
     fail(`blocked action contrast [${theme}]`, `${ratio.toFixed(2)}:1 at rest, needs 4.5:1`);
+    return;
   }
+  console.log(`  ok   blocked row actions ${ratio.toFixed(2)}:1 at rest in ${theme}`);
 }
 
 /**

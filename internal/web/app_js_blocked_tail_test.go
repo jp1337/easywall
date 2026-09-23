@@ -1,6 +1,7 @@
 package web
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestAppJS_TheBlockedTailPausesWhileTheTableIsInUse(t *testing.T) {
 			t.Errorf("the live-tail section does not contain %q", want)
 		}
 	}
-	if !strings.Contains(src, "initBlockedTail();") {
+	if !regexp.MustCompile(`(?m)^\s*initBlockedTail\(\);`).MatchString(src) {
 		t.Error("initBlockedTail is never called")
 	}
 }

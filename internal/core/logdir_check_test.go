@@ -30,6 +30,12 @@ func TestLogDirLooksLost(t *testing.T) {
 		{"rules, a compressed rotation", func(d string) {
 			write(t, d, "audit.log.2.gz", "x")
 		}, configured, false},
+		{"rules, a dateext rotation", func(d string) {
+			write(t, d, "audit.log-20260923.gz", "x")
+		}, configured, false},
+		{"rules, an unrelated file beside the log", func(d string) {
+			write(t, d, "auditXlog", "x")
+		}, configured, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()

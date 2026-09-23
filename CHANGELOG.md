@@ -28,8 +28,8 @@ way, and fixed rather than carried forward.
   click aimed at a row action could land on the row that slid into its place a
   poll later, and a focused button was gone from the DOM twelve seconds after
   it was focused. The tail now skips its poll while the pointer or keyboard
-  focus is inside the table, says so in the toolbar, and catches up with one
-  request the moment you leave it.
+  focus is inside the table, says so in the toolbar, and catches up at the next
+  poll, within five seconds of you leaving it.
 - **Row actions rested at 55% opacity — text needs 4.5:1, opacity cannot give
   it that.** Measured contrast was ≈4.2:1, below WCAG AA. The de-emphasis is
   now a muted ink colour at full opacity, with full ink back on row hover and

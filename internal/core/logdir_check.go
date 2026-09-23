@@ -23,8 +23,10 @@ func logDirLooksLost(auditPath string, rules shared.Rules) bool {
 	if info, err := os.Stat(auditPath); err == nil && info.Size() > 0 {
 		return false
 	}
-	// logrotate's `create` leaves an empty audit.log beside audit.log.1 or a
-	// compressed older one; that is a rotation, not a loss.
-	rotated, _ := filepath.Glob(auditPath + ".*")
-	return len(rotated) == 0
+	// logrotate's `create` leaves an empty audit.log beside audit.log.1, a
+	// compressed older one, or — with `dateext` — audit.log-20260923.gz; that
+	// is a rotation, not a loss.
+	numbered, _ := filepath.Glob(auditPath + ".*")
+	dated, _ := filepath.Glob(auditPath + "-*")
+	return len(numbered)+len(dated) == 0
 }
