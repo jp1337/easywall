@@ -117,21 +117,30 @@
          tab stops, so nothing about reachability or the accessible name
          changes, only how loud the row is before it is touched. */}}
     <div class="pkt-actions row-action">
+      {{$r := .Remedies}}
+      {{if $r.Whitelist}}
       <form method="post" action="/blocked/stage">
         <input type="hidden" name="act" value="whitelist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
         <button type="submit" class="btn btn-sm">{{T "blocked_action_whitelist"}}</button>
       </form>
-      {{if ne .Rule "blacklist"}}
+      {{end}}
+      {{if $r.Blacklist}}
       <form method="post" action="/blocked/stage">
         <input type="hidden" name="act" value="blacklist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
         <button type="submit" class="btn btn-sm">{{T "blocked_action_blacklist"}}</button>
       </form>
       {{end}}
-      {{if and .DstPort (ne .Hook "forward") (or (eq .Proto "tcp") (eq .Proto "udp"))}}
+      {{if $r.Open}}
       <form method="post" action="/blocked/stage">
         <input type="hidden" name="act" value="open"><input type="hidden" name="proto" value="{{.Proto}}"><input type="hidden" name="port" value="{{.DstPort}}"><input type="hidden" name="q" value="{{$q}}">
         <button type="submit" class="btn btn-sm">{{T "blocked_action_open" (dict "Port" .DstPort)}}</button>
       </form>
+      {{end}}
+      {{if eq .Rule "blacklist"}}
+      {{/* Only a blacklist row gets here: the blacklist is consulted before
+           the whitelist, so no action on this page could have let it through.
+           What can is removing the entry, and that is the list page's job. */}}
+      <a href="/blacklist" class="btn btn-sm">{{T "blocked_action_edit_blacklist"}}</a>
       {{end}}
     </div>
     <details class="pkt-detail" id="pkt-{{.Seq}}" hx-preserve="true">

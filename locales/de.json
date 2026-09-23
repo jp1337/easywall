@@ -633,6 +633,7 @@
   {"id": "blocked_action_whitelist", "translation": "Zur Whitelist"},
   {"id": "blocked_action_blacklist", "translation": "Zur Blacklist"},
   {"id": "blocked_action_open", "translation": "{{.Port}} öffnen"},
+  {"id": "blocked_action_edit_blacklist", "translation": "Sperrliste bearbeiten"},
   {"id": "blocked_port_description", "translation": "Geöffnet aus „Blockierter Verkehr“"},
   {"id": "blocked_staged_whitelist", "translation": "Für die Whitelist vorgemerkt. Nichts ändert sich, bevor Sie anwenden."},
   {"id": "blocked_staged_blacklist", "translation": "Für die Blacklist vorgemerkt. Nichts ändert sich, bevor Sie anwenden."},

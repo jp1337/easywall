@@ -270,7 +270,7 @@ func TestBlockedRows_EmptyStateMatchesThePage(t *testing.T) {
 
 func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 	icmp := samplePacket()
-	icmp.Proto, icmp.SrcPort, icmp.DstPort, icmp.TCPFlags, icmp.Rule = "icmp", 0, 0, "", "icmp_flood"
+	icmp.Proto, icmp.SrcPort, icmp.DstPort, icmp.TCPFlags, icmp.Rule = "icmp", 0, 0, "", "drop"
 	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{icmp}},
 		shared.FirewallOptions{ICMPFloodLog: true})
 	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
@@ -282,6 +282,7 @@ func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 		t.Error("an ICMP packet is offered 'open the port'")
 	}
 	tcpRow := samplePacket()
+	tcpRow.Rule = "drop"
 	_, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tcpRow}},
 		shared.FirewallOptions{LogBlocked: true})
 	if body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String(); !strings.Contains(body, `value="open"`) {
@@ -289,10 +290,45 @@ func TestBlockedOffersOpenPortOnlyWithAPort(t *testing.T) {
 	}
 	fwd := samplePacket()
 	fwd.Hook = "forward"
+	fwd.Rule = "drop"
 	_, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{fwd}},
 		shared.FirewallOptions{LogBlocked: true})
 	if body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String(); strings.Contains(body, `value="open"`) {
 		t.Error("a forwarded packet is offered an input-chain port rule")
+	}
+}
+
+func TestBlockedOffersOnlyRemedies(t *testing.T) {
+	scan := samplePacket()
+	scan.Rule, scan.DstPort = "portscan", 3389
+	bl := samplePacket()
+	bl.Rule = "blacklist"
+	drop := samplePacket()
+	drop.Rule = "drop"
+	for _, tc := range []struct {
+		name        string
+		e           shared.PacketLogEntry
+		want, avoid []string
+	}{
+		{"port scan", scan, []string{`value="blacklist"`}, []string{`value="whitelist"`, `value="open"`}},
+		{"blacklist", bl, []string{`href="/blacklist"`}, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}},
+		{"default drop", drop, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tc.e}},
+				shared.FirewallOptions{LogBlocked: true})
+			body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
+			for _, w := range tc.want {
+				if !strings.Contains(body, w) {
+					t.Errorf("missing %s", w)
+				}
+			}
+			for _, a := range tc.avoid {
+				if strings.Contains(body, a) {
+					t.Errorf("offers %s, which could not have let this packet through", a)
+				}
+			}
+		})
 	}
 }
 
