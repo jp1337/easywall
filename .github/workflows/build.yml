@@ -255,9 +255,11 @@ jobs:
       # The entrypoint now makes it root's (0750) and the web's state its own
       # web/ (0700). A named volume or a bind mount from 2.21 still has the old
       # shape, so this hands the image one — a web file to keep, a link where
-      # root writes, web/ itself a link to /etc, a panic marker — and asserts
-      # each is dealt with and nothing is followed. stat runs in the same
-      # container, after the entrypoint, so it sees the /etc the link named.
+      # root writes, web/ itself a link to /etc, a panic marker, a FIFO, a core
+      # file replaced outright and hard-linked under a web name — and asserts
+      # each is dealt with, nothing is followed, and a second start finds
+      # nothing to do. stat runs in the same container, after the entrypoint,
+      # so it sees the /etc the link named.
       - name: The entrypoint takes a 2.21 data directory apart safely
         run: |
           set -euo pipefail
@@ -268,25 +270,40 @@ jobs:
           # The web's state, which must survive...
           printf '{"step":42}' | sudo tee "$d/totp_replay.json" >/dev/null
           # ...and what the old mode let the web user plant: a link where root
-          # writes, web/ itself a link to /etc, a panic marker, and a core
-          # file replaced outright.
+          # writes, web/ itself a link to /etc, a panic marker, a FIFO where
+          # the core reads, and core files replaced outright — one of them
+          # hard-linked under a web name, so it would stay writable from web/.
           sudo ln -s /etc/shadow "$d/last_apply"
           sudo ln -s /etc "$d/web"
-          sudo touch "$d/panic" "$d/rules.json"
-          sudo chown -h 100:101 "$d/totp_replay.json" "$d/last_apply" "$d/web" "$d/panic" "$d/rules.json"
-          sudo chmod 0666 "$d/rules.json"
+          sudo touch "$d/panic" "$d/rules.json" "$d/usage.json"
+          sudo mkfifo "$d/selftest.json"
+          sudo ln "$d/usage.json" "$d/telemetry.json"
+          sudo chown -h 100:101 "$d/totp_replay.json" "$d/last_apply" "$d/web" "$d/panic" \
+            "$d/rules.json" "$d/usage.json" "$d/selftest.json"
+          sudo chmod 0666 "$d/rules.json" "$d/usage.json"
 
           etc=$(docker run --rm -v "$d:/var/lib/easywall" easywall:dev stat -c '%u:%g %a' /etc)
           [ "$etc" = "0:0 755" ] || fail "the container's /etc is '$etc' after the entrypoint met web -> /etc: it followed the link"
           [ "$(sudo stat -c '%u:%g %a' "$d")" = "0:101 750" ] \
             || fail "the data directory is $(sudo stat -c '%u:%g %a' "$d"), want 0:101 750 — the web user can still write the core's files"
-          [ "$(sudo stat -c %a "$d/rules.json")" = 600 ] || fail "rules.json is not a root-owned copy at 0600"
+          # Owner, mode and link count: a chmod alone would leave the web
+          # user's inode, which its owner can go on writing in place.
+          [ "$(sudo stat -c '%u %a %h' "$d/rules.json")" = "0 600 1" ] \
+            || fail "rules.json is '$(sudo stat -c '%u %a %h' "$d/rules.json")', want a root-owned copy: '0 600 1'"
+          [ "$(sudo stat -c '%u %a %h' "$d/usage.json")" = "0 600 1" ] \
+            || fail "usage.json is '$(sudo stat -c '%u %a %h' "$d/usage.json")', want '0 600 1': still the web user's inode"
+          ! sudo test -p "$d/selftest.json" || fail "a FIFO the web user made survived"
+          [ "$(sudo stat -c %i "$d/web/telemetry.json")" != "$(sudo stat -c %i "$d/usage.json")" ] \
+            || fail "web/telemetry.json is still usage.json's inode"
           if ! sudo test -d "$d/web" || sudo test -L "$d/web"; then fail "web/ is not a real directory"; fi
           [ "$(sudo stat -c '%u:%g %a' "$d/web")" = "100:101 700" ] || fail "web/ is $(sudo stat -c '%u:%g %a' "$d/web"), want 100:101 700"
           ! sudo test -L "$d/last_apply" || fail "the planted last_apply link is still there"
           ! sudo test -e "$d/panic" || fail "a panic marker the web user made survived: the core would leave the firewall down"
           [ "$(sudo cat "$d/web/totp_replay.json")" = '{"step":42}' ] || fail "the TOTP replay step did not move into web/"
           echo "ok  a 2.21 data directory: made root's, web/ its own, the link removed and nothing followed"
+          again=$(docker run --rm -v "$d:/var/lib/easywall" easywall:dev true 2>&1)
+          case "$again" in *"/var/lib/easywall"*) fail "a second start still found something to repair: $again" ;; esac
+          echo "ok  a second start changed nothing"
           sudo rm -rf "$d"
 
       - name: Clean up

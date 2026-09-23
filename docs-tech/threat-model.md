@@ -356,9 +356,9 @@ Three walls now, outside in:
 
 | Wall | Where | Covers |
 |---|---|---|
-| the mode | `debian/postinst`, `Dockerfile`, `docker/entrypoint.sh` | every layout the package or the image sets up. Both scripts also take an old layout apart: a link is removed unfollowed, the web's files move to `web/`, a `panic` not owned by root is removed, an entry that is not a regular file is removed, anything else not owned by root is replaced by a root-owned copy |
+| the mode | `debian/postinst`, `Dockerfile`, `docker/entrypoint.sh` | every layout the package or the image sets up. Both scripts also take an old layout apart: a link is removed unfollowed, the web's own files are copied in root's directory and renamed into `web/`, a `panic` not owned by root is removed, an entry that is not a regular file is removed, anything else not owned by root is replaced by a root-owned copy |
 | `ReadWritePaths=/var/lib/easywall/web` | `easywall-web.service` | a packaged host whatever the mode says: under `ProtectSystem=strict` the parent is read-only to the web process |
-| the core itself | `writeLastApply`, `readLastApply`, `dataDirIsShared` | a layout neither controls. Every data file is written by temporary file and rename, which replaces a link instead of following it; `last_apply` is read with `O_NOFOLLOW`; a group- or world-writable `data_dir` is logged as an error at every start |
+| the core itself | `writeLastApply`, `readLastApply`, `dataDirIsShared` | a layout neither controls. Every data file is written by temporary file and rename, which replaces a link instead of following it; `last_apply` is read with `O_NOFOLLOW`; a group- or world-writable `data_dir`, or one the core does not own, is logged as an error at every start |
 
 The web process's own `prepareStateDir` copies its files from the old location
 rather than renaming them. Once `data_dir` is `0750` a rename fails, and a

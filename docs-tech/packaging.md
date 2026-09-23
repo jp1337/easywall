@@ -53,7 +53,7 @@ services stopped by `prerm`:
 |---|---|
 | `web` that is not a real directory | removes it, before `install -d` could chown through it |
 | any link | removes it, never follows it |
-| one of the web's five file names | moves it into `web/` |
+| one of the web's five file names, owned by the web user | copies it in root's directory, then renames the copy into `web/`. Never written into `web/` in place: the web user can swap a name there for a link between `install`'s chown and its chmod |
 | `panic` not owned by root | removes it: only the core makes one |
 | an entry that is not a regular file | removes it: the core never makes one here |
 | anything else not owned by root | replaces it with a root-owned copy, and names it |
