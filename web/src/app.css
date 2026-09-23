@@ -2423,6 +2423,21 @@ body {
 
   .module-params .input { width: 5.5rem; }
 
+  /* The disclosure at the foot of every card: what the switch protects
+     against, what it can break, when to want it. Closed by default — fourteen
+     open cards would be the 1700px list this grid replaced. Last in the card,
+     so with .module-head absorbing the row's spare height every summary sits on
+     its card's bottom edge and a row reads as one line. Summary type and the
+     dt/dd grid are .pkt-detail's, shared with /blocked; this adds only the band. */
+  .module-help {
+    padding: 9px 15px 11px;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .module-help dd { max-width: 60ch; }
+
+  .module-help .link { display: inline-block; margin-top: 8px; font-size: 12px; }
+
   /* ── Switch row ──────────────────────────────────────────────────────────
      For settings that are a plain on/off with no parameters. A <label>, so the
      whole row is the hit area rather than only the switch at the far edge —
@@ -2610,6 +2625,22 @@ body {
     color: var(--color-ink);
     white-space: nowrap;
   }
+
+  /* "Which to turn on" above the /options grid: an aside-card that is not in
+     an aside. The three host types sit side by side where there is room and
+     stack on a phone; after .aside-card p so the margin reset wins. */
+  .options-which { margin-bottom: 26px; }
+
+  .options-which-hosts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 8px 20px;
+    margin-bottom: 8px;
+  }
+
+  .options-which-hosts p { margin: 0; max-width: 60ch; }
+
+  .options-which strong { font-weight: 600; color: var(--color-ink); }
 
   /* Definition-list variant, for "key — value" facts such as system info. */
   .aside-facts {

@@ -932,6 +932,7 @@ section's rule and it stands. The ceiling is per element, and every one of them 
 | `.hero-note`, `.verdict-note` | 60ch | The sentence explaining a state, on the dashboard and on the apply screen. Translated, and unbounded in length |
 | `.apply-lead` | 52ch | The lead-in above the three-step sequence, one authored paragraph per verdict |
 | `.page-subtitle` | 68ch | One authored line of orientation under the page title. It binds: German `apply_subtitle` is 107 characters and wraps |
+| `.module-help dd`, `.options-which-hosts p` | 60ch | A module's protects / breaks / turn-on lines, and the three host types above the /options grid. Translated |
 
 **Added 2026-09-09, from a measurement rather than a reading.** `.hero-note` and
 `.verdict-note` had no cap at all, and this document had no rule for them to violate — the
@@ -1198,11 +1199,24 @@ different things; `options.html` renders fourteen `class="module"` cards and ele
 `class="module-params"` blocks. *Eleven toggles* was wrong in three places until 2026-09-11.
 
 Each is a card in an `auto-fill` grid at `minmax(330px, 1fr)`. Name and switch in the header,
-one line saying what the module does, and parameters below a hairline **inside the card** —
+one line saying what the module does — leading with what it breaks, where it breaks
+something, and parameters below a hairline **inside the card** —
 not on a darker band underneath it, which read as a detached second row. An active module
 carries a 2px `select-edge` inset on its left edge: the same device that marks the active
 nav item, so "this one is live" speaks one vocabulary throughout. The header is a `<label>`
 wrapping its own switch, so the whole card top is the hit area.
+
+**What a switch breaks is in the card, closed.** Every card ends in a native `<details>`
+— *What does this change?* — with three lines, *protects against*, *can break*, *turn it
+on if*, and a link to that module's section of the published filters page. Closed by
+default: the one-liner carries the decision and the disclosure the reasoning, and
+fourteen open cards would be the 1700px list again. It is the card's last child and sits
+outside the header's `<label>`: inside it, the summary would become part of the switch's
+accessible name.
+Its type and grid are `.pkt-detail`'s, the disclosure /blocked already ships. Above the
+grid, one `aside-card` names the switches each of three host types wants — text, not a
+preset, so there is no state to fall out of step with the table it copies. *Added
+2026-09-23 (2.22).*
 
 The state is never carried by that edge alone — the switch itself shows its position, which
 is what a colour-blind operator and a screenshot both rely on.

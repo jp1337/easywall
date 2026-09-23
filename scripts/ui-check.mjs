@@ -987,6 +987,50 @@ async function checkBlockedCardsKeepValuesWhole(browser, session) {
 }
 
 /**
+ * An open /options disclosure fits its card at 390px in German. The bogon
+ * filter's, because its German "Kann stören" line is the longest of the
+ * fourteen. .module is overflow: hidden, so a line running past the card is
+ * clipped in place — the page does not widen and no scroll container
+ * overflows, so neither check above can see it.
+ */
+async function checkOptionsDisclosureFits(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  await ctx.addCookies([{ name: 'easywall_lang', value: 'de', url: BASE }]);
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.goto(`${BASE}/options`, { waitUntil: 'networkidle' });
+  const card = page.locator('#opt-bogon_filter');
+  await card.locator('.module-help summary').click();
+  const bad = await card.evaluate(el => {
+    const out = [];
+    const details = el.querySelector('.module-help');
+    if (!details.open) out.push('the disclosure did not open');
+    const lines = n => {
+      const r = document.createRange();
+      r.selectNodeContents(n);
+      return new Set([...r.getClientRects()].map(q => Math.round(q.top))).size;
+    };
+    if (lines(details.querySelector('summary')) > 1) out.push('the summary wraps');
+    const box = el.getBoundingClientRect();
+    for (const n of details.querySelectorAll('summary, dt, dd, a')) {
+      const what = `<${n.tagName.toLowerCase()}> "${n.textContent.trim().slice(0, 32)}"`;
+      const r = n.getBoundingClientRect();
+      if (r.width === 0) out.push(`${what} is not laid out`);
+      if (r.left < box.left - 0.5 || r.right > box.right + 0.5) out.push(`${what} runs past the card`);
+      if (n.scrollWidth > n.clientWidth + 1) out.push(`${what} is clipped`);
+    }
+    return out;
+  });
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (overflow > 0) bad.push(`the page scrolls ${overflow}px sideways`);
+  await checkContainersDoNotOverflow(page, 'de 390px, disclosure open', '/options');
+  await ctx.close();
+  if (bad.length) { fail('options disclosure at 390px [de]', bad.join('; ')); return; }
+  console.log('  ok   an open /options disclosure fits its card at 390px in German');
+}
+
+/**
  * Adds one port rule via #add-rule-btn — the same control
  * checkForwardingPortIsNotReparsed already drives for the forwarding table,
  * since ports.html's row editor works the same way: click to append a row,
@@ -1845,6 +1889,7 @@ async function runChecks(browser, session) {
   await checkBlockedTailHoldsStill(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
+  await checkOptionsDisclosureFits(browser, session);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
   await checkTheGate(browser);
