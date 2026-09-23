@@ -882,6 +882,10 @@ async function checkApplyPreview(page) {
  */
 async function checkBlockedTailHoldsStill(page) {
   await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  if (await page.locator('#blocked-rows details').count() === 0) {
+    fail('blocked tail', 'no rows to observe — the demo produced no refused packets');
+    return;
+  }
   const firstSeq = () => page.$eval('#blocked-rows details', d => d.id);
 
   await page.hover('#blocked-rows tr:first-child td:first-child');
@@ -897,6 +901,10 @@ async function checkBlockedTailHoldsStill(page) {
     fail('blocked tail', 'the tail did not resume after the pointer left the table');
   }
 
+  if (await page.locator('#blocked-rows .pkt-actions .btn').count() === 0) {
+    fail('blocked tail', 'no row action to focus — the demo produced no refused packets');
+    return;
+  }
   await page.focus('#blocked-rows .pkt-actions .btn');
   const label = await page.evaluate(() => document.activeElement.textContent.trim());
   await page.waitForTimeout(12000);
