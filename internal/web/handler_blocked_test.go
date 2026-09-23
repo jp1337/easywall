@@ -29,6 +29,12 @@ func blockedCore(t *testing.T, res shared.PacketLogResult, opts shared.FirewallO
 	fc.SetResponse(shared.CmdGetPacketLog, successResp(res))
 	fc.SetResponse(shared.CmdGetOptions, successResp(opts))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	// The header's staged count now comes from buildPreview, which also reads
+	// these two — stubbed here so every /blocked test gets a complete preview
+	// rather than logging "the apply preview has no configuration half" on
+	// every single request.
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
 	return fc, s
 }
 
@@ -126,6 +132,9 @@ func TestBlockedKeepsAnUnreadableFilterInTheForm(t *testing.T) {
 	if !regexp.MustCompile(`name="src"[^>]*aria-invalid="true"|aria-invalid="true"[^>]*name="src"`).MatchString(body) {
 		t.Error("the field that could not be read is not marked")
 	}
+	if !regexp.MustCompile(`name="src"[^>]*class="[^"]*\bis-error\b|class="[^"]*\bis-error\b[^"]*"[^>]*name="src"`).MatchString(body) {
+		t.Error("the field that could not be read does not carry the is-error class")
+	}
 	if regexp.MustCompile(`name="port"[^>]*aria-invalid="true"`).MatchString(body) {
 		t.Error("a readable field is marked invalid")
 	}
@@ -145,6 +154,23 @@ func TestBlockedHeaderCountsLikeTheApplyScreen(t *testing.T) {
 	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
 	if !strings.Contains(body, "2 staged") {
 		t.Error("one rule change and one configuration change must read as 2 staged, as /apply counts them")
+	}
+}
+
+// One number, one source: /apply renders Preview.Total even when Incomplete
+// is true (buildPreview already sets Total to the rule count before it
+// returns on an unreadable configuration half), so /blocked must show the
+// same number rather than hide it because one of the five reads failed.
+func TestBlockedHeaderCountsEvenWhenThePreviewIsIncomplete(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
+		shared.FirewallOptions{LogBlocked: true})
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
+		Staged: shared.Rules{Whitelist: []string{"192.0.2.9"}},
+	}))
+	fc.SetResponse(shared.CmdGetSettings, errorRespFor("unavailable"))
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	if !strings.Contains(body, "1 staged") {
+		t.Error("one staged rule change must read as 1 staged even when GetSettings fails and the preview is incomplete")
 	}
 }
 

@@ -49,7 +49,6 @@ type blockedRows struct {
 type blockedForm struct{ Src, Dst, Port, Proto, Rule, InDev string }
 
 type blockedData struct {
-	Filter   shared.PacketLogFilter
 	Form     blockedForm
 	Bad      string // the name of the first field that could not be read, empty when the filter is good
 	Unread   bool   // a filter was given and could not be read, so none is applied
@@ -131,7 +130,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := &blockedData{
-		Filter: f, Bad: bad, Unread: bad != "",
+		Bad: bad, Unread: bad != "",
 		Rows:     blockedRows{Query: filterQuery(f), Filtered: !f.IsZero()},
 		RuleList: append(append([]string{}, shared.PacketLogRules...), shared.PacketLogRuleOther),
 		Protos:   shared.PacketLogProtos,
@@ -167,10 +166,11 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.LoggingKnown = true
 	}
 	// The apply screen's own total, so the two pages cannot disagree about
-	// how many changes are waiting.
-	if p := s.buildPreview(r); !p.Incomplete {
-		data.Staged = p.Total
-	}
+	// how many changes are waiting. One number, one source: /apply renders
+	// Total even when Incomplete is true (buildPreview already sets Total to
+	// the rule count before it returns on an unreadable configuration half),
+	// so /blocked must show the same number rather than hide it.
+	data.Staged = s.buildPreview(r).Total
 	s.render(w, r, "blocked.html", "blocked", data)
 }
 
