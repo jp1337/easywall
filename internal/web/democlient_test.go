@@ -614,8 +614,8 @@ func TestDemo_CancelAcceptanceRollsBackNow(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 22 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 22 "+
+	if len(shared.AllCommandTypes) != 23 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 23 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 

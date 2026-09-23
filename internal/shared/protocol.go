@@ -163,6 +163,14 @@ const (
 	// the identical outcome today by doing nothing for 120 seconds. It grants no
 	// capability; it saves the wait.
 	CmdCancelAcceptance CommandType = "CANCEL_ACCEPTANCE"
+
+	// CmdGetPacketLog returns what the firewall refused: the packets the ten
+	// log rules sent to easywall's NFLOG group, decoded by the core, filtered
+	// by PacketLogFilter, newest first.
+	//
+	// Read-only and answered out of memory, so it keeps the short deadline.
+	// No audit entry: reading the log is not an event, CmdGetLog's reasoning.
+	CmdGetPacketLog CommandType = "GET_PACKET_LOG"
 )
 
 // AllCommandTypes is the complete list of every command the protocol declares.
@@ -176,7 +184,7 @@ var AllCommandTypes = []CommandType{
 	CmdGetSettings, CmdSaveSettings, CmdGetSystem,
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
 	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig, CmdGetUsage,
-	CmdGetHealth, CmdPanic, CmdResume, CmdLogEvent,
+	CmdGetHealth, CmdPanic, CmdResume, CmdLogEvent, CmdGetPacketLog,
 }
 
 // LoginEvent is one of the thirteen things that can happen at the door. The

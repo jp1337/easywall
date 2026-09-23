@@ -155,6 +155,15 @@ type FirewallOptions struct {
 	LogBlacklistLimit int  `toml:"log_blacklist_connections_limit"`
 }
 
+// LogsAnything reports whether any of the ten log switches is on. /blocked says
+// "nothing is switched on" when it is false, and TestLogsAnythingCountsEverySwitch
+// holds this to every `*_log` / `log_*` field by reflection.
+func (o FirewallOptions) LogsAnything() bool {
+	return o.SSHBruteForceLog || o.ICMPFloodLog || o.SYNFloodLog || o.TCPRSTFloodLog ||
+		o.PortScanLog || o.InvalidPacketsLog || o.FragmentsLog || o.BogonsLog ||
+		o.LogBlacklist || o.LogBlocked
+}
+
 // FirewallLimit describes one numeric option: what it is called, the range it
 // may hold, the value used when it is absent, and how to reach it in a
 // FirewallOptions.
@@ -283,6 +292,30 @@ type UsageConfig struct {
 	// advances at every apply, and configuration.md says exactly that instead of
 	// leaving it to be discovered.
 	Interval *int `toml:"interval"`
+}
+
+// The packet log's defaults. 12227 is easywall's web port: outside ulogd2's
+// conventional 0–2 and the small numbers a hand-written nflog rule reaches
+// for, and recognisable in a collision report. 20000 entries is ≈4 MB and ≈5.5
+// hours at the default 60 log lines a minute.
+const (
+	PacketLogGroupDefault   = 12227
+	PacketLogEntriesDefault = 20000
+	PacketLogEntriesMin     = 1000
+	PacketLogEntriesMax     = 200000
+)
+
+// PacketLogConfig is [packet_log]. Read once at start: the NFLOG group is bound
+// for the life of the process, so a SIGHUP reports a change and ignores it.
+type PacketLogConfig struct {
+	// Pointers for the reason UsageConfig.Interval is one: every installation
+	// upgrading from 2.20 has no [packet_log] section, and group 0 is exactly
+	// the group ulogd2 already holds.
+	Group   *int `toml:"nflog_group"`
+	Entries *int `toml:"entries"`
+	// Persist writes every entry to log_dir/packets.log as well, so the ring
+	// survives a restart. Off by default: the file holds IP addresses.
+	Persist bool `toml:"persist"`
 }
 
 // IPv6Mode says what the firewall does with IPv6 traffic.
@@ -420,6 +453,7 @@ type CoreConfig struct {
 	Firewall   FirewallOptions  `toml:"firewall"`
 	Acceptance AcceptanceConfig `toml:"acceptance"`
 	Usage      UsageConfig      `toml:"usage"`
+	PacketLog  PacketLogConfig  `toml:"packet_log"`
 	IPv6       IPv6Config       `toml:"ipv6"`
 	Docker     DockerConfig     `toml:"docker"`
 	Routing    RoutingConfig    `toml:"routing"`

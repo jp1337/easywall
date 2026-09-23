@@ -90,6 +90,14 @@
    scale entries), so they sit beside it on the same element. */
 :root,
 :root[data-theme="easywall-dark"] {
+  /* Tells the browser which way round the page is, so a <select>'s own
+     dropdown list, native scrollbars, spell-check underlines and the default
+     focus ring follow the theme too — not just the elements this stylesheet
+     touches directly. Without it a select styled dark for its closed box
+     still opens a light-chrome list, because that chrome is drawn by the UA
+     and color-scheme is what tells it which chrome to draw. docs.css already
+     carries this pair for the documentation site; the application never did. */
+  color-scheme: dark;
   --wash-ok: rgba(62, 207, 142, 0.10);
   --wash-warn: rgba(229, 165, 75, 0.10);
   --wash-crit: rgba(242, 85, 90, 0.10);
@@ -122,6 +130,7 @@
    advances and the page recedes. Do not "simplify" canvas to pure white — the
    panels would lose their edge. */
 :root[data-theme="easywall-light"] {
+  color-scheme: light;
   --color-canvas: #fcfcfd;
   --color-surface: #ffffff;
   --color-surface-raised: #f4f6f9;
@@ -3246,6 +3255,48 @@ body {
     white-space: nowrap;
   }
 
+  /* ── Blocked traffic ──────────────────────────────────────────────────────
+     Addresses and ports are data: the data face, tabular figures, no wrap. */
+  .pkt-flow {
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .pkt-flow a { color: inherit; text-decoration: none; }
+  .pkt-flow a:hover { text-decoration: underline; }
+  .pkt-flow a:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .pkt-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    align-items: flex-end;
+    margin-bottom: 12px;
+  }
+  .pkt-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--color-ink-muted); }
+  .pkt-field .input { width: 12rem; }
+  .pkt-field-narrow .input { width: 7rem; }
+  .pkt-detail summary { cursor: pointer; font-size: 12px; color: var(--color-ink-muted); }
+  .pkt-detail summary:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .pkt-detail dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 12px;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  .pkt-detail dt { color: var(--color-ink-subtle); }
+  .pkt-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+  .pkt-actions form { display: contents; }
+
   /* ── Demo notice ──────────────────────────────────────────────────────────
      Lives inside the topbar rather than as a band above it. As its own row it
      displaced every page by its own height, which read as a layout bug. */
@@ -3496,6 +3547,17 @@ body {
      390px — a container overflow, in German, on the page whose rows are
      otherwise the simplest in the app. A two-line pill is the smaller cost. */
   .table-reflow .log-action { white-space: normal; }
+
+  /* .pkt-flow's nowrap is the data face for a table row's tabular columns —
+     right at every width above this one. On a card, "Source → Destination"
+     is the widest value on /blocked (an address, an arrow, another address,
+     optionally a port) and nowrap held it to one line regardless of the
+     card's own width: table 437px inside a 360px .table-wrap at 390px, the
+     same shape of overflow .log-action's fix above already closed once.
+     td, not the bare class, so .pkt-detail's <dd class="pkt-flow"> — short
+     values (TTL, flags) inside the drill-down's own dl, not a table cell —
+     keeps its nowrap. */
+  .table-reflow td.pkt-flow { white-space: normal; }
 }
 
 /* The same block again, for /ports only, at the width /ports actually needs.
@@ -3585,6 +3647,8 @@ body {
   .table-reflow .row-action { opacity: 1; }
 
   .table-reflow .log-action { white-space: normal; }
+
+  .table-reflow td.pkt-flow { white-space: normal; }
 }
 
 @media (max-width: 900px) {

@@ -1,0 +1,161 @@
+{{define "blocked.html"}}
+{{template "head" .}}
+{{template "sidebar" .}}
+<div class="main">
+  {{template "topbar" .}}
+  <div class="content">
+    {{template "flash" .}}
+
+    <div class="page-header">
+      <div class="page-header-text">
+        <h1 class="page-title">{{T "blocked_title"}}</h1>
+        <p class="page-subtitle">{{T "blocked_subtitle"}}</p>
+      </div>
+      {{with .Data}}{{if .Staged}}
+      <a href="/apply" class="btn btn-primary btn-sm">{{T "blocked_staged" (dict "N" .Staged)}}</a>
+      {{end}}{{end}}
+    </div>
+
+    {{with .Data}}
+    {{if .CoreErr}}
+    <div role="alert" class="alert alert-crit mb-4"><span>{{.CoreErr}}</span></div>
+    {{end}}
+    {{with .Result}}{{if not .Listening}}
+    <div role="alert" class="alert alert-warn mb-4">
+      <span>{{if .Stopped}}{{T "blocked_not_listening_stopped" (dict "Group" .Group "Reason" .Reason)}}{{else}}{{T "blocked_not_listening_bind" (dict "Group" .Group "Reason" .Reason)}}{{end}}</span>
+    </div>
+    {{end}}{{if .Lost}}
+    <div role="status" class="alert alert-warn mb-4"><span>{{T "blocked_lost" (dict "N" .Lost)}}</span></div>
+    {{end}}{{end}}
+    {{if .Unread}}
+    <div role="status" class="alert alert-warn mb-4"><span>{{T "blocked_filter_unread"}}</span></div>
+    {{end}}
+
+    <div class="card">
+      <form method="get" action="/blocked" class="pkt-filters" aria-label="{{T "blocked_filter_label"}}">
+        <label class="pkt-field"><span>{{T "blocked_filter_src"}}</span>
+          {{/* No placeholder: its computed colour is already --color-ink-subtle
+               in both themes (verified with getComputedStyle, not by the
+               screenshot), same as every other input; a monospace example
+               address still read as a typed value at a glance, which is the
+               defect, not the colour. Dropped rather than restyled. */}}
+          <input type="text" name="src" value="{{.Filter.Src}}" class="input input-sm input-data" inputmode="text"></label>
+        <label class="pkt-field"><span>{{T "blocked_filter_dst"}}</span>
+          <input type="text" name="dst" value="{{.Filter.Dst}}" class="input input-sm input-data"></label>
+        <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_port"}}</span>
+          <input type="text" name="port" value="{{if .Filter.Port}}{{.Filter.Port}}{{end}}" class="input input-sm input-data" inputmode="numeric"></label>
+        <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_proto"}}</span>
+          <select name="proto" class="input input-sm">
+            <option value="">{{T "blocked_filter_any"}}</option>
+            {{$p := .Filter.Proto}}{{range .Protos}}<option value="{{.}}"{{if eq . $p}} selected{{end}}>{{.}}</option>{{end}}
+          </select></label>
+        <label class="pkt-field"><span>{{T "blocked_filter_rule"}}</span>
+          <select name="rule" class="input input-sm">
+            <option value="">{{T "blocked_filter_any"}}</option>
+            {{$r := .Filter.Rule}}{{range .RuleList}}<option value="{{.}}"{{if eq . $r}} selected{{end}}>{{T (printf "blocked_rule_%s" .)}}</option>{{end}}
+          </select></label>
+        <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_iface"}}</span>
+          <input type="text" name="in" value="{{.Filter.InDev}}" class="input input-sm input-data"></label>
+        <button type="submit" class="btn btn-sm">{{T "blocked_filter_apply"}}</button>
+        <a href="/blocked" class="btn btn-sm">{{T "blocked_filter_clear"}}</a>
+      </form>
+
+      {{if .Result}}
+      <div class="toolbar">
+        <h2 class="section-title">{{T "blocked_recent"}}</h2>
+        <span class="toolbar-spacer"></span>
+        {{with .Result}}<span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>{{end}}
+      </div>
+      <div class="table-wrap">
+        <table class="table table-reflow">
+          <thead>
+            <tr>
+              <th>{{T "blocked_col_time"}}</th>
+              <th>{{T "blocked_col_iface"}}</th>
+              <th>{{T "blocked_col_flow"}}</th>
+              <th>{{T "blocked_col_proto"}}</th>
+              <th>{{T "blocked_col_rule"}}</th>
+              <th>{{T "blocked_col_actions"}}</th>
+            </tr>
+          </thead>
+          <tbody id="blocked-rows" hx-get="/blocked/rows?{{.Rows.Query}}" hx-trigger="every 5s" hx-swap="innerHTML">
+            {{template "blocked_rows" .Rows}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{template "foot" .}}
+{{end}}
+
+{{define "blocked_rows"}}
+{{$q := .Query}}
+{{range .Entries}}
+<tr>
+  <td class="log-time" data-label="{{T "blocked_col_time"}}" title="{{.Time.Format "2006-01-02T15:04:05Z07:00"}}">{{shortTime (.Time.Format "2006-01-02T15:04:05Z07:00")}}</td>
+  <td class="pkt-flow" data-label="{{T "blocked_col_iface"}}">{{if .InDev}}<a href="/blocked?in={{.InDev}}">{{.InDev}}</a>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td class="pkt-flow" data-label="{{T "blocked_col_flow"}}">
+    <a href="/blocked?src={{.Src}}">{{.Src}}</a> → <a href="/blocked?dst={{.Dst}}">{{dstHost .Dst .DstPort}}</a>{{if .DstPort}}:<a href="/blocked?port={{.DstPort}}">{{.DstPort}}</a>{{end}}
+  </td>
+  <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
+  {{/* .log-action, not .badge: a rule name is language ("SSH brute force"),
+       not a value, so it takes the UI face rather than the data face — the
+       same reasoning and the same class the audit log's action chip
+       already uses (see the comment on .log-action in app.css). Neutral:
+       no tone class, the same way an informational log action carries
+       none. */}}
+  <td data-label="{{T "blocked_col_rule"}}"><span class="log-action">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
+  <td data-label="{{T "blocked_col_actions"}}">
+    {{/* row-action: the same de-emphasis ports.html's own row actions use
+         (DESIGN.md § Tables — "a destructive row action rests at 55%
+         opacity and comes fully forward on row hover or :focus-within").
+         Up to three buttons per row otherwise outweigh the data they act
+         on; the buttons keep their full size, their text and their own
+         tab stops, so nothing about reachability or the accessible name
+         changes, only how loud the row is before it is touched. */}}
+    <div class="pkt-actions row-action">
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="whitelist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_whitelist"}}</button>
+      </form>
+      {{if ne .Rule "blacklist"}}
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="blacklist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_blacklist"}}</button>
+      </form>
+      {{end}}
+      {{if and .DstPort (ne .Hook "forward") (or (eq .Proto "tcp") (eq .Proto "udp"))}}
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="open"><input type="hidden" name="proto" value="{{.Proto}}"><input type="hidden" name="port" value="{{.DstPort}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_open" (dict "Port" .DstPort)}}</button>
+      </form>
+      {{end}}
+    </div>
+    <details class="pkt-detail" id="pkt-{{.Seq}}" hx-preserve="true">
+      <summary>{{T "blocked_detail"}}</summary>
+      <dl>
+        <dt>{{T "blocked_detail_time"}}</dt><dd class="pkt-flow">{{fullTime .Time}}</dd>
+        {{if .TCPFlags}}<dt>{{T "blocked_detail_flags"}}</dt><dd class="pkt-flow">{{.TCPFlags}}</dd>{{end}}
+        {{if .CtState}}<dt>{{T "blocked_detail_ct"}}</dt><dd class="pkt-flow">{{.CtState}}</dd>{{end}}
+        <dt>{{T "blocked_detail_ttl"}}</dt><dd class="pkt-flow">{{.TTL}}</dd>
+        {{if .SrcPort}}<dt>{{T "blocked_detail_sport"}}</dt><dd class="pkt-flow">{{.SrcPort}}</dd>{{end}}
+        {{if .Hook}}<dt>{{T "blocked_detail_hook"}}</dt><dd class="pkt-flow">{{.Hook}}</dd>{{end}}
+        {{if .Mark}}<dt>{{T "blocked_detail_mark"}}</dt><dd class="pkt-flow">{{.Mark}}</dd>{{end}}
+      </dl>
+    </details>
+  </td>
+</tr>
+{{else}}
+<tr><td colspan="6" class="text-center text-ink-subtle py-6">
+  {{if .CoreErr}}{{T "core_unreachable"}} {{.CoreErr}}
+  {{else if not .LoggingKnown}}{{T "blocked_core_unreachable"}}
+  {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#logging">{{T "blocked_empty_off_link"}}</a>
+  {{else if .Filtered}}{{T "blocked_no_match"}}
+  {{else if .Listening}}{{T "blocked_empty_quiet" (dict "Since" (shortTime (.Since.Format "2006-01-02T15:04:05Z07:00")))}}
+  {{end}}
+</td></tr>
+{{end}}
+{{end}}

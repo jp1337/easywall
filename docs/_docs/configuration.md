@@ -107,6 +107,26 @@ them. So **Last used** still advances at every apply, even on a host with the
 ticker switched off. What you lose is the resolution in between: a port used
 an hour after your last apply is dated at your next one.
 
+### `[packet_log]`
+
+Where the packets the [`*_log` switches]({{ '/docs/features/filters/' | relative_url }}#logging)
+log are kept — what the [Blocked page]({{ '/docs/features/blocked-traffic/' | relative_url }})
+reads. Read at start; a `SIGHUP` reports a change here and ignores it.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `nflog_group` | int | `12227` | The NFLOG group `easywall-core` binds |
+| `entries` | int | `20000` | Packets kept, newest first — `1000` to `200000` |
+| `persist` | bool | `false` | Also write them to `log_dir/packets.log`, so the page survives a restart |
+
+A group binds once per network namespace (per host, for a host-network
+install). If ulogd2 already holds `12227`, the core logs
+*could not bind its NFLOG group*, falls back to the kernel log as before
+2.21, and the page says the same. Pick a free group.
+
+`entries` outside its range is brought to the nearest end with a warning.
+`nflog_group` outside `0`–`65535` stops the daemon with the key named.
+
 ### `[ipv6]`
 
 | Key | Type | Default | Description |

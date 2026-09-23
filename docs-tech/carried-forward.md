@@ -31,8 +31,8 @@ end. See `docs-tech/specs/2026-09-11-the-carried-forward-sweep.md`.
 
 **Open entries: none, as of 2.20.1.** That one was closed by 2.19's Scope column a
 day later, and the last remaining entry — `detectDockerBridges` returning IPv4
-CIDRs only — moved to the roadmap's **2.28** row rather than being carried
-again. Its ruling did not change; the ruling is the reason. Work that needs its
+CIDRs only — moved to the roadmap's **2.28** row (renumbered **2.29** since)
+rather than being carried again. Its ruling did not change; the ruling is the reason. Work that needs its
 own acceptance round and its own integration test is a release, and this file's
 own rule is that an entry carries enough context to *act on*. Everything below
 is struck through and kept as the record of what was ruled and when.

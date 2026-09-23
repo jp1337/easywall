@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.21.0">2.21.0</a>
   <a href="#2.20.1">2.20.1</a>
   <a href="#2.20.0">2.20.0</a>
   <a href="#2.19.0">2.19.0</a>
@@ -69,7 +70,54 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.20.1" markdown="1">
+<details open id="2.21.0" markdown="1">
+<summary><strong>2.21.0</strong> · 2026-09-23 — You can see what it refuses</summary>
+
+Blocked traffic becomes a page: every packet the ten log switches refuse,
+newest first, filterable, with whitelist, blacklist and open-the-port one
+click away from the row that refused it.
+
+### Added
+
+- **The Blocked page.** Filter by source, destination, port, protocol, rule or
+  interface; a live tail; a drill-down for TCP flags, connection state, TTL and
+  packet mark.
+- **Three row actions — whitelist, blacklist, open the port — and the guard
+  behind them.** They stage; they never apply, and never arm the acceptance
+  timer. Every one asks the same reachability check the apply screen runs
+  before it stores anything, so blacklisting the address you are signed in
+  from — or, behind a reverse proxy, the proxy's address — is refused with the
+  reason, before anything is staged.
+- **`[packet_log]`.** `nflog_group` (default `12227`), `entries` (default
+  `20 000`, the ring size) and `persist`, off by default.
+- **`GET_PACKET_LOG`**, the socket protocol's twenty-third command.
+
+### Changed — read this before upgrading
+
+- **`journalctl -k | grep easywall` returns nothing** on a host where
+  easywall-core binds its NFLOG group. The ten log switches send each packet
+  to the core over NFLOG now, not into the kernel ring buffer. Look on the
+  Blocked page instead, or set `[packet_log] persist = true` and
+  `tail -f /var/log/easywall/packets.log | jq .`.
+- **ulogd2 already on group `12227`** collides: the core logs the failure,
+  the Blocked page says so, and every log rule falls back to the kernel log
+  so an apply still succeeds. Give ulogd2 a different group, or set
+  `nflog_group` to a free one.
+
+### Security
+
+- `packets.log` is not written at all unless `persist = true`. When it is,
+  it is `0600 root`, rewrites itself to the ring once it holds more than twice
+  `entries` lines, and is never added to logrotate.
+- Nothing in this release leaves the host: the web process asks
+  easywall-core over the existing Unix socket, the way it already asks for
+  the audit log.
+
+[See the code changes between 2.20.1 and 2.21.0](https://github.com/jp1337/easywall/compare/v2.20.1...v2.21.0)
+
+</details>
+
+<details id="2.20.1" markdown="1">
 <summary><strong>2.20.1</strong> · 2026-09-15 — The window that was not there</summary>
 
 Two defects found by rolling 2.20.0 onto a real host, both by reading rather than

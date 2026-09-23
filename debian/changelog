@@ -1,3 +1,27 @@
+easywall (2.21.0) unstable; urgency=medium
+
+  * New: blocked traffic is a page. The ten log switches send what they refuse
+    to an NFLOG group (12227 by default, [packet_log] nflog_group), and
+    easywall-core decodes each packet's headers into a typed entry kept in a
+    ring of 20000. /blocked filters them by source, destination, port,
+    protocol, rule and interface, with a drill-down and a live tail.
+  * New: three actions on every row — whitelist the source, blacklist the
+    source, open the port. They stage and never apply, and they refuse, with
+    the reason, anything that would stop a new connection from the address
+    the operator is signed in from, or from the trusted proxy in front.
+  * Changed: journalctl -k no longer shows easywall's log lines on a host where
+    the core binds its group. If the group cannot be bound — ulogd2 holds it,
+    or the process lacks CAP_NET_ADMIN — the core says so at start, the page
+    says so, and logging falls back to the kernel log, so an apply never fails
+    because of it. With easywall-core stopped, logged packets are discarded.
+  * Security: the optional spill file (persist = true, off by default) holds IP
+    addresses, is 0600 root, rewrites itself once it holds more than twice the
+    ring, and is never handed to logrotate. Nothing leaves the host.
+  * New dependency: github.com/florianl/go-nflog/v2 v2.3.0 (MIT); its own
+    dependencies were already in the module graph.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Wed, 23 Sep 2026 03:55:34 +0200
+
 easywall (2.20.1) unstable; urgency=medium
 
   * Fix: the start-up log promised an acceptance window that was switched off.
