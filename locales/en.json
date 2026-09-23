@@ -451,9 +451,9 @@
   {"id": "opt_drop_anycast", "translation": "Drop anycast"},
   {"id": "opt_drop_anycast_desc", "translation": "Discards traffic sent to an anycast destination"},
   {"id": "opt_log_blocked", "translation": "Log blocked"},
-  {"id": "opt_log_blocked_desc", "translation": "Writes dropped connections to the system log"},
+  {"id": "opt_log_blocked_desc", "translation": "Shows dropped connections on the Blocked page"},
   {"id": "opt_log_blacklist", "translation": "Log blacklist"},
-  {"id": "opt_log_blacklist_desc", "translation": "Writes blacklisted connection attempts to the system log"},
+  {"id": "opt_log_blacklist_desc", "translation": "Shows blacklisted connection attempts on the Blocked page"},
 
   {"id": "settings_subtitle", "translation": "Address families and container networks the firewall has to account for."},
   {"id": "settings_ipv6_desc", "translation": "Whether the inet table filters IPv6, and which discovery messages get through."},
