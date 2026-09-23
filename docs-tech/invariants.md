@@ -514,6 +514,7 @@ costs every clone and fork the moment it lands. Not worth it.
 | `TestStageRefusesWhenTheVerdictFlips` / `TestStageRefusesToBlacklistTheProxy` | the two halves of the row-action lockout guard, each alone: the operator's own resolved address, and the proxy every request arrives through | spec §6. Together they are the same shape 2.13 first drew for the acceptance window — a confident answer about the wrong host is worse than none |
 | `TestEveryPacketLogRuleIsLabelled` | every rule name in `shared.PacketLogRules`, plus `other`, has a `blocked_rule_*` key in `en` and `de` | the labels are read through `printf`, which the template-key guard cannot see. A rule added to the list without a label would render `blocked_rule_newthing` on the one page that decides whether to blacklist what it names |
 | `TestLogsAnythingCountsEverySwitch` | `FirewallOptions.LogsAnything` is held, by reflection, to every field whose `toml` tag ends `_log` or starts `log_` | the empty state says "nothing is switched on" when this is false; a log switch added to the struct and forgotten here tells an operator who has switched it on that they have not |
+| `TestReplayReadsLinesWithoutTheICMPField` | a `packets.log` line without `icmp` replays as "not recorded", and a non-ICMP entry is written without the key | the spill file outlives the upgrade that added the field; a replay that refused old lines would empty /blocked at every update |
 
 ## Adding one
 

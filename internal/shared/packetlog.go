@@ -48,6 +48,19 @@ type PacketLogEntry struct {
 	// Mark is the skb's nfmark (NFULA_MARK), or zero when the kernel set none —
 	// which most packets carry as-is, so zero is not itself informative.
 	Mark uint32 `json:"mark,omitempty"`
+	// ICMP is the type and code of an ICMP or ICMPv6 packet, the first two
+	// bytes of its header. Nil for every other protocol, for a later fragment,
+	// and for every line a core before 2.22 wrote into the spill file — those
+	// replay without it, and nil is the honest reading of "not recorded". A
+	// pointer, because type 0 code 0 is an echo reply and must not read as
+	// absent.
+	ICMP *PacketICMP `json:"icmp,omitempty"`
+}
+
+// PacketICMP is an ICMP header's first two bytes. Since 2.22.
+type PacketICMP struct {
+	Type uint8 `json:"type"`
+	Code uint8 `json:"code"`
 }
 
 // Remedy says which of /blocked's three row actions are worth offering for a
