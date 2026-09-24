@@ -10,9 +10,9 @@ import (
 )
 
 // firewallOptionBools is how many boolean fields shared.FirewallOptions has:
-// twelve protection modules, eight per-module log toggles, and the two
-// table-wide ones — LogBlocked, which logs whatever the final policy drops, and
-// LogBlocklist.
+// twelve protection modules, eight per-module log toggles, and the three
+// table-wide ones — LogBlocked, which logs whatever the final policy drops,
+// LogBlocklist, and LogFeed (2.23), which logs what a feed drops.
 //
 // It is counted from the struct, not from the documentation. DESIGN.md calls the
 // protection modules eleven in two places and fourteen in a third; resolving
@@ -20,7 +20,7 @@ import (
 // gate asserts against the code and names the number it found. Whichever count
 // DESIGN.md settles on, the guard below is about coverage: every boolean the
 // struct has is switched on so every builder's output is read.
-const firewallOptionBools = 22
+const firewallOptionBools = 23
 
 // allProtectionModulesOn switches on every boolean option there is.
 //
