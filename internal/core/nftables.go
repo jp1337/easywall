@@ -432,7 +432,7 @@ type RuleCounter struct {
 // One UI rule with three sources is three kernel rules — addPortAccept builds
 // one per source — so the figure for that port is their sum, and the id in each
 // rule's comment is what makes summing them possible. A rule with no comment is
-// skipped: the module rules, the blacklist, the whitelist and the Docker
+// skipped: the module rules, the blocklist, the allowlist and the Docker
 // exceptions all carry no id and are not what this counts. A scope = "both"
 // rule is the same arithmetic one chain wider: one kernel rule per chain, same
 // id, summed the same way — the rule is one rule, and the packets it accepted
@@ -799,7 +799,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	}
 	if opts.Bogons {
 		m.addBogonFilter(table, inputChain, opts,
-			append(append([]string(nil), state.Current.Whitelist...), dockerCIDRs...))
+			append(append([]string(nil), state.Current.Allowlist...), dockerCIDRs...))
 	}
 	if opts.SSHBruteForce {
 		m.addSSHBruteForce(table, inputChain, state.Current, opts)
@@ -817,19 +817,19 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addAnycastDrop(table, inputChain)
 	}
 
-	// Docker bridge whitelisting
+	// Docker bridge allowlisting
 	for _, cidr := range dockerCIDRs {
 		m.addCIDRAccept(table, inputChain, cidr)
 	}
 
-	// Blacklist (DROP before whitelist)
-	for _, ip := range state.Current.Blacklist {
-		m.addBlacklistRule(table, inputChain, ip, opts)
+	// Blocklist (DROP before allowlist)
+	for _, ip := range state.Current.Blocklist {
+		m.addBlocklistRule(table, inputChain, ip, opts)
 	}
 
-	// Whitelist (ACCEPT specific sources)
-	for _, ip := range state.Current.Whitelist {
-		m.addWhitelistRule(table, inputChain, ip)
+	// Allowlist (ACCEPT specific sources)
+	for _, ip := range state.Current.Allowlist {
+		m.addAllowlistRule(table, inputChain, ip)
 	}
 
 	// Open TCP / UDP ports.
@@ -957,7 +957,7 @@ const (
 	logPrefixICMPFlood = "easywall icmp-flood: "
 	logPrefixSSH       = "easywall ssh: "
 	logPrefixTCPRST    = "easywall tcp-rst: "
-	logPrefixBlacklist = "easywall blacklist: "
+	logPrefixBlocklist = "easywall blocklist: "
 	logPrefixDrop      = "easywall drop: "
 )
 
@@ -1160,8 +1160,8 @@ func IsReservedRuleID(id string) bool {
 // which is the class of defect this release exists to prevent.
 //
 // So do not add the tag to the forward copy for symmetry. Untagged puts it in
-// exactly the category it belongs to, beside the module rules, the blacklist,
-// the whitelist and the Docker exceptions: rules with a counter, no id, and
+// exactly the category it belongs to, beside the module rules, the blocklist,
+// the allowlist and the Docker exceptions: rules with a counter, no id, and
 // nothing reading them by name. The counter is on both, because it costs
 // nothing and `nft list ruleset` is where an operator looks.
 //
@@ -1328,20 +1328,20 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 // addBogonFilter drops sources that cannot legitimately reach a public
 // interface — with an exception for the ones the operator has said can.
 //
-// exempt holds the whitelist and the Docker bridge networks. They are needed
+// exempt holds the allowlist and the Docker bridge networks. They are needed
 // here because both are lists of RFC-1918 addresses, which is exactly what this
-// module drops, and it runs first: with the filter on, whitelisting 192.168.1.0/24
+// module drops, and it runs first: with the filter on, allowlisting 192.168.1.0/24
 // or letting Docker's 172.17.0.0/16 through did nothing at all, because the
 // packet was already gone by the time either rule was reached. Measured against
 // a kernel — the drop for 172.16.0.0/12 sat at position 17 and the accept for
 // 172.17.0.0/16 at 23.
 //
 // The exceptions go in front of the drops rather than the whole module moving
-// after the whitelist, because the order the rest of the chain runs in is
+// after the allowlist, because the order the rest of the chain runs in is
 // documented on four pages and is right: a protection module *should* see a
 // packet before an accept rule does. What was wrong is narrower than that. This
 // module's premise is "nothing legitimately has this source address", and an
-// operator who whitelists a private network has just said otherwise about part
+// operator who allowlists a private network has just said otherwise about part
 // of it. Everything else in the range is still dropped.
 //
 // The drops live in their own chain so an exception can `return` from it and
@@ -1665,14 +1665,14 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 	// ordinary traffic is not this chain's decision to make.
 	//
 	// This used to accept, and Apply adds the jump to the input chain *before*
-	// the blacklist — so a blacklisted address could SSH in as long as it stayed
+	// the blocklist — so a blocklisted address could SSH in as long as it stayed
 	// under the limit, and port 22 was accepted outright whenever the module was
 	// on and no rule opened it (sshPorts falls back to {"22"} above). A
-	// protection module that opens a port and overrules the blacklist is doing
+	// protection module that opens a port and overrules the blocklist is doing
 	// the opposite of its name.
 	//
-	// Returning puts the packet back where it came from: blacklist, then
-	// whitelist, then the port rules. Over-rate still drops in sshbrute-over, so
+	// Returning puts the packet back where it came from: blocklist, then
+	// allowlist, then the port rules. Over-rate still drops in sshbrute-over, so
 	// nothing about the metering changes.
 	m.adder.AddRule(&nftables.Rule{
 		Table: t,
@@ -2531,19 +2531,19 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 	})
 }
 
-func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain, ip string, opts shared.FirewallOptions) {
+func (m *NftablesManager) addBlocklistRule(t *nftables.Table, c *nftables.Chain, ip string, opts shared.FirewallOptions) {
 	if shared.IsListComment(ip) {
 		return // a note or a spacer, not an address
 	}
 
 	// opts was accepted and ignored here until 2.5.0, which is why the
-	// log_blacklist_connections switch produced nothing — and until 2.22 a
+	// log_blocklist_connections switch produced nothing — and until 2.22 a
 	// network entry still returned before this line, into a builder that took
 	// no log spec, so 10.0.0.0/8 was dropped without one.
 	lg := logSpec{
-		enabled:   opts.LogBlacklist,
-		prefix:    logPrefixBlacklist,
-		perMinute: opts.LogBlacklistLimit,
+		enabled:   opts.LogBlocklist,
+		prefix:    logPrefixBlocklist,
+		perMinute: opts.LogBlocklistLimit,
 	}
 
 	var match []expr.Any
@@ -2582,7 +2582,7 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, lg)
 }
 
-// cidrDropMatch is the source match for a blacklisted network, or nil when cidr
+// cidrDropMatch is the source match for a blocklisted network, or nil when cidr
 // does not parse. The expressions are byte for byte what addCIDRDrop wrote
 // before 2.22; only the verdict moved out, so addFiltered can put a log rule in
 // front of it.
@@ -2635,7 +2635,7 @@ func cidrDropMatch(cidr string) []expr.Any {
 	}
 }
 
-func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain, ip string) {
+func (m *NftablesManager) addAllowlistRule(t *nftables.Table, c *nftables.Chain, ip string) {
 	if shared.IsListComment(ip) {
 		return // a note or a spacer, not an address
 	}

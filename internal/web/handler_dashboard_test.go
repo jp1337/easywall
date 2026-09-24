@@ -114,8 +114,8 @@ func TestHandleDashboard_WithRuleCounts(t *testing.T) {
 		Current: shared.Rules{
 			TCP:       []shared.PortRule{{Port: "22"}, {Port: "80"}},
 			UDP:       []shared.PortRule{{Port: "53"}},
-			Blacklist: []string{"1.2.3.4"},
-			Whitelist: []string{"10.0.0.0/8", "192.168.0.0/16"},
+			Blocklist: []string{"1.2.3.4"},
+			Allowlist: []string{"10.0.0.0/8", "192.168.0.0/16"},
 		},
 	}
 	fc.SetResponse(shared.CmdGetRules, successResp(rules))
@@ -138,8 +138,8 @@ func TestDashboardCountsIgnoreCommentsAndBlankLines(t *testing.T) {
 
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
 		Current: shared.Rules{
-			Blacklist: []string{"# scanners", "192.0.2.1", "", "192.0.2.2"},
-			Whitelist: []string{"# office", "", "203.0.113.10"},
+			Blocklist: []string{"# scanners", "192.0.2.1", "", "192.0.2.2"},
+			Allowlist: []string{"# office", "", "203.0.113.10"},
 			Custom:    []string{"# note", "tcp dport 9100 accept", ""},
 			TCP:       []shared.PortRule{{Port: "22"}},
 		},
@@ -155,8 +155,8 @@ func TestDashboardCountsIgnoreCommentsAndBlankLines(t *testing.T) {
 		lines []string
 		want  int
 	}{
-		{"blacklist", []string{"# scanners", "192.0.2.1", "", "192.0.2.2"}, 2},
-		{"whitelist", []string{"# office", "", "203.0.113.10"}, 1},
+		{"blocklist", []string{"# scanners", "192.0.2.1", "", "192.0.2.2"}, 2},
+		{"allowlist", []string{"# office", "", "203.0.113.10"}, 1},
 		{"custom", []string{"# note", "tcp dport 9100 accept", ""}, 1},
 	} {
 		if got := countListEntries(tc.lines); got != tc.want {

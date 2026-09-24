@@ -73,7 +73,7 @@ func TestIntegration_SelftestProvesTheRemainingFourClaims(t *testing.T) {
 	}{
 		{"an open port accepts a connection", proveOpenPortAccepts},
 		{"a closed port does not", proveClosedPortRefuses},
-		{"a blacklisted address does not reach an open port", proveBlacklistWins},
+		{"a blocklisted address does not reach an open port", proveBlocklistWins},
 		{"a forwarded rule opens one container port and the deny closes the rest",
 			proveForwardedPortFiltered},
 	} {

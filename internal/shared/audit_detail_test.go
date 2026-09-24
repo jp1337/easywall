@@ -6,10 +6,10 @@ import (
 )
 
 func TestDescribeRuleChange_NamesTheAddresses(t *testing.T) {
-	before := Rules{Blacklist: []string{"192.0.2.1", "192.0.2.2"}}
-	after := Rules{Blacklist: []string{"192.0.2.2", "203.0.113.7"}}
+	before := Rules{Blocklist: []string{"192.0.2.1", "192.0.2.2"}}
+	after := Rules{Blocklist: []string{"192.0.2.2", "203.0.113.7"}}
 
-	got := DescribeRuleChange("blacklist", before, after)
+	got := DescribeRuleChange("blocklist", before, after)
 	for _, want := range []string{"added 203.0.113.7", "removed 192.0.2.1"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("detail %q is missing %q", got, want)

@@ -577,13 +577,13 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/ports", s.handlePortsGET)
 		r.Post("/ports", s.handlePortsPOST)
 
-		r.Get("/blacklist", s.handleBlacklistGET)
-		r.Post("/blacklist", s.handleBlacklistPOST)
+		r.Get("/blocklist", s.handleBlocklistGET)
+		r.Post("/blocklist", s.handleBlocklistPOST)
 
-		r.Get("/whitelist", s.handleWhitelistGET)
-		r.Post("/whitelist", s.handleWhitelistPOST)
+		r.Get("/allowlist", s.handleAllowlistGET)
+		r.Post("/allowlist", s.handleAllowlistPOST)
 
-		// Shared HTMX validation endpoint for both blacklist and whitelist.
+		// Shared HTMX validation endpoint for both blocklist and allowlist.
 		r.Post("/iplist/validate", s.handleIPListValidate)
 
 		r.Get("/forwarding", s.handleForwardingGET)
@@ -1165,7 +1165,7 @@ func wrapPairs(s, marker, element string, inner func(string) string) string {
 
 // inlineMarkup renders the two inline forms a translation may carry: `literal`
 // becomes <code>, *word* becomes <em>. Emphasis is not decoration here — "this
-// list is evaluated *before* the whitelist" is the whole point of the sentence —
+// list is evaluated *before* the allowlist" is the whole point of the sentence —
 // so a translator needs to be able to move it.
 func inlineMarkup(s string) string {
 	return wrapPairs(s, "`", "code", func(seg string) string {
@@ -1178,7 +1178,7 @@ func inlineMarkup(s string) string {
 // follow.
 //
 // Sentences like these used to be split into before/after fragments around the
-// anchor, which does not survive translation: German writes "Die Blacklist wird
+// anchor, which does not survive translation: German writes "Die Blocklist wird
 // zuerst ausgewertet" with the link first where English has it third. Keeping the
 // sentence whole leaves word order to the translator.
 //
@@ -1469,7 +1469,7 @@ func templateFuncs() template.FuncMap {
 		"passkey_added": true, "passkey_removed": true,
 		// A row action on /blocked staged its rule. Nothing is live yet, and
 		// the flash says so; it is still the action working.
-		"blocked_staged_whitelist": true, "blocked_staged_blacklist": true, "blocked_staged_port": true,
+		"blocked_staged_allowlist": true, "blocked_staged_blocklist": true, "blocked_staged_port": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -1626,7 +1626,7 @@ func templateFuncs() template.FuncMap {
 		},
 		// The mark in the diff's mono column. Structural, never chromatic:
 		// DESIGN.md reserves colour outside the blue family for firewall state,
-		// and a green/red diff would break it twice over — a new blacklist entry
+		// and a green/red diff would break it twice over — a new blocklist entry
 		// is not good news and a removed port is not a failure.
 		"deltaMark": func(kind shared.DeltaKind) string {
 			switch kind {

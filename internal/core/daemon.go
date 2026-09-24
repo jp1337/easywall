@@ -776,9 +776,9 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 			return errResp(err)
 		}
 		WriteAuditLog(d.cfg.AuditLogPath(), "rules_imported", "all",
-			fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
+			fmt.Sprintf("%d tcp, %d udp, %d blocklist, %d allowlist",
 				len(incoming.TCP), len(incoming.UDP),
-				len(incoming.Blacklist), len(incoming.Whitelist)), "web")
+				len(incoming.Blocklist), len(incoming.Allowlist)), "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdValidateCustom:

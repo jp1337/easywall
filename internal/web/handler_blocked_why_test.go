@@ -28,7 +28,7 @@ func TestEveryDropReasonHasALabel(t *testing.T) {
 func TestEveryDropReasonSentenceIsFilled(t *testing.T) {
 	rules := shared.Rules{
 		TCP:       []shared.PortRule{{Port: "22"}, {Port: "8443", Sources: []string{"10.0.0.0/8"}}, {Port: "9000", Scope: shared.ScopeForwarded}},
-		Blacklist: []string{"192.0.2.66"}, Whitelist: []string{"198.51.100.7"},
+		Blocklist: []string{"192.0.2.66"}, Allowlist: []string{"198.51.100.7"},
 	}
 	filter := shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Filter}}
 	tcp := func(src string, port uint16) shared.PacketLogEntry {
@@ -180,7 +180,7 @@ func TestEveryBlockedRuleLeadsToItsOption(t *testing.T) {
 		}
 	}
 	for r := range blockedRuleOption {
-		if r != "drop" && r != "blacklist" && blockedRuleOption[r] == "" {
+		if r != "drop" && r != "blocklist" && blockedRuleOption[r] == "" {
 			t.Errorf("rule %q is a module but leads nowhere", r)
 		}
 	}

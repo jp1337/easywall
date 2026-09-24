@@ -44,20 +44,20 @@ func (s *Server) rejectIPList(w http.ResponseWriter, r *http.Request, page, raw 
 	})
 }
 
-func (s *Server) handleBlacklistGET(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBlocklistGET(w http.ResponseWriter, r *http.Request) {
 	state, err := s.client.GetRules()
 	if err != nil {
 		slog.Warn("get rules error", "error", err)
-		s.render(w, r, "blacklist.html", "blacklist", &ipListData{Title: "blacklist"})
+		s.render(w, r, "blocklist.html", "blocklist", &ipListData{Title: "blocklist"})
 		return
 	}
-	s.render(w, r, "blacklist.html", "blacklist", &ipListData{
-		Title:   "blacklist",
-		Entries: state.Staged.Blacklist,
+	s.render(w, r, "blocklist.html", "blocklist", &ipListData{
+		Title:   "blocklist",
+		Entries: state.Staged.Blocklist,
 	})
 }
 
-func (s *Server) handleBlacklistPOST(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleBlocklistPOST(w http.ResponseWriter, r *http.Request) {
 	raw := r.FormValue("entries")
 
 	// The live validation beside the textarea is advisory — it swaps a message
@@ -66,25 +66,25 @@ func (s *Server) handleBlacklistPOST(w http.ResponseWriter, r *http.Request) {
 	// and then silently skipped when the rules were applied. Refuse the save
 	// instead, and say which line.
 	if errs := validateIPListEntries(raw); len(errs) > 0 {
-		s.rejectIPList(w, r, "blacklist", raw, errs)
+		s.rejectIPList(w, r, "blocklist", raw, errs)
 		return
 	}
 
-	if err := s.client.SaveRules("blacklist", parseIPList(raw)); err != nil {
-		slog.Warn("save blacklist error", "error", err)
+	if err := s.client.SaveRules("blocklist", parseIPList(raw)); err != nil {
+		slog.Warn("save blocklist error", "error", err)
 		s.setFlash(w, r, "save_error")
-		http.Redirect(w, r, "/blacklist", http.StatusSeeOther)
+		http.Redirect(w, r, "/blocklist", http.StatusSeeOther)
 		return
 	}
 
 	s.setFlash(w, r, "saved")
-	http.Redirect(w, r, "/blacklist", http.StatusSeeOther)
+	http.Redirect(w, r, "/blocklist", http.StatusSeeOther)
 }
 
 // parseIPList converts the textarea into the list that gets stored: one trimmed
 // line per element, comments and the blank lines between groups kept.
 //
-// They used to be dropped here, which quietly deleted them. blacklist.md
+// They used to be dropped here, which quietly deleted them. blocklist.md
 // documents `#` comments, the entry counter is written to ignore them, the
 // demo ships a list full of them, and the core skips them wherever it reads a
 // list — every part of the system expected them to be there except the one

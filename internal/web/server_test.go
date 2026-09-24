@@ -396,7 +396,7 @@ func TestRender_PanicBannerAppearsOnEveryAuthenticatedPage(t *testing.T) {
 	srv := newTestServerWithStatus(t, &shared.FirewallStatus{Panic: true, Acceptance: shared.AcceptanceIdle})
 	enrollFactor(t, srv)
 
-	for _, path := range []string{"/dashboard", "/ports", "/blacklist", "/log", "/apply"} {
+	for _, path := range []string{"/dashboard", "/ports", "/blocklist", "/log", "/apply"} {
 		t.Run(path, func(t *testing.T) {
 			rec := getAuthenticated(t, srv, path)
 			if rec.Code != http.StatusOK {

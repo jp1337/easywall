@@ -40,7 +40,7 @@ var optionHelps = []optionHelp{
 	{"drop_multicast", "traffic-filtering"},
 	{"drop_anycast", "traffic-filtering"},
 	{"log_blocked_connections", "logging"},
-	{"log_blacklist_connections", "logging"},
+	{"log_blocklist_connections", "logging"},
 }
 
 // optionHelpFor is the template's lookup. An unknown key is an error, not an

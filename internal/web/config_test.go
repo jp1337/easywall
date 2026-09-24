@@ -188,7 +188,7 @@ func TestACMEIsRefusedWithoutAgreedTerms(t *testing.T) {
 }
 
 // TestACMENeedsAHostname asserts the domain is present. autocert's HostPolicy
-// with an empty whitelist issues for nothing and fails at the first handshake,
+// with an empty allowlist issues for nothing and fails at the first handshake,
 // which is a runtime symptom for a startup mistake.
 func TestACMENeedsAHostname(t *testing.T) {
 	cfg := validTestConfig(t)

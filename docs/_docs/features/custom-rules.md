@@ -60,7 +60,7 @@ real rule set and far below what a form body can carry.
 Last — after the ports, before the chain policy drops what is left.
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: the fragment drop first when it is on, then loopback, then the IPv6 mode, then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first when it is on, then loopback, then the IPv6 mode, then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 Two consequences worth knowing:
 

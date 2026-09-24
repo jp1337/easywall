@@ -218,7 +218,7 @@ function initRuleEditor() {
 
   if (!tbody || !hidden) return;
 
-  const isSimple = tbody.dataset.simple === 'true'; // blacklist/whitelist use simple text
+  const isSimple = tbody.dataset.simple === 'true'; // blocklist/allowlist use simple text
 
   // Column headings, in order, taken from the rendered table so client-built
   // rows carry the same labels the server used — in whatever language.

@@ -499,8 +499,8 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	}
 	// Every entry has to be a network the apply step can turn into a rule.
 	// addCIDRAccept returns quietly on anything it cannot parse, so an unchecked
-	// entry was listed here as whitelisted and never reached the kernel — the
-	// same silent skip the blacklist had, in the direction where the operator
+	// entry was listed here as allowlisted and never reached the kernel — the
+	// same silent skip the blocklist had, in the direction where the operator
 	// finds out because something they expected to work does not.
 	if err := checkNetworkLists(s.Docker.CustomNetworks, s.Routing.Networks); err != nil {
 		return err

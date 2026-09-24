@@ -307,7 +307,7 @@ func TestHandleApplyGET_APendingWindowCountsWhatIsLive(t *testing.T) {
 // so the safety has to be the control itself: a differently-labelled button,
 // not the filled primary one. FirewallOptions{} leaves Bogons false, so staging
 // the httptest peer (192.0.2.1, see TheVerdictNamesTheOperatorsOwnAddress) on
-// the blacklist sends it straight to ReachBlocked/blacklisted.
+// the blocklist sends it straight to ReachBlocked/blocklisted.
 func TestHandleApplyGET_BlockedVerdictSwapsTheButton(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
@@ -315,7 +315,7 @@ func TestHandleApplyGET_BlockedVerdictSwapsTheButton(t *testing.T) {
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
-		Staged: shared.Rules{Blacklist: []string{"192.0.2.1"}},
+		Staged: shared.Rules{Blocklist: []string{"192.0.2.1"}},
 	}))
 	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
 	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))

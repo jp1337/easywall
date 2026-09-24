@@ -63,13 +63,13 @@ func flashOf(t *testing.T, s *Server, rec *httptest.ResponseRecorder) string {
 }
 
 // Spec §6, the trap: the operator's own address is in the log because the SSH
-// module rate-limited them, and one click would blacklist them out.
-func TestStageRefusesToBlacklistTheOperator(t *testing.T) {
+// module rate-limited them, and one click would blocklist them out.
+func TestStageRefusesToBlocklistTheOperator(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "")
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "")
 	assertRedirect(t, rec, "/blocked")
 	if got.called {
-		t.Fatalf("the operator's own address was staged on the blacklist: %+v", got.p)
+		t.Fatalf("the operator's own address was staged on the blocklist: %+v", got.p)
 	}
 	if f := flashOf(t, s, rec); f != "blocked_refused_lockout" {
 		t.Errorf("flash = %q, want blocked_refused_lockout", f)
@@ -77,14 +77,14 @@ func TestStageRefusesToBlacklistTheOperator(t *testing.T) {
 }
 
 // The verdict half of the guard, isolated: behind a trusted proxy the operator
-// is 198.51.100.7 and the peer is the proxy, so blacklisting the operator's own
+// is 198.51.100.7 and the peer is the proxy, so blocklisting the operator's own
 // address flips the verdict while the peer check sees nothing.
 func TestStageRefusesWhenTheVerdictFlips(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
 	s.cfg.TrustedProxies = []string{"192.0.2.1"}
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"198.51.100.7"}}, "192.0.2.1", "198.51.100.7")
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"198.51.100.7"}}, "192.0.2.1", "198.51.100.7")
 	if got.called {
-		t.Fatal("blacklisting the operator's resolved address was staged")
+		t.Fatal("blocklisting the operator's resolved address was staged")
 	}
 	if f := flashOf(t, s, rec); f != "blocked_refused_lockout" {
 		t.Errorf("flash = %q, want blocked_refused_lockout", f)
@@ -94,12 +94,12 @@ func TestStageRefusesWhenTheVerdictFlips(t *testing.T) {
 // The proxy half, isolated: the address in the log is the proxy's. The verdict
 // about the operator (198.51.100.7) stays open — the confident answer about the
 // wrong host the spec warns of — and only the peer check refuses.
-func TestStageRefusesToBlacklistTheProxy(t *testing.T) {
+func TestStageRefusesToBlocklistTheProxy(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
 	s.cfg.TrustedProxies = []string{"192.0.2.1"}
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "198.51.100.7")
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "198.51.100.7")
 	if got.called {
-		t.Fatal("the proxy every request arrives through was staged on the blacklist")
+		t.Fatal("the proxy every request arrives through was staged on the blocklist")
 	}
 	if f := flashOf(t, s, rec); f != "blocked_refused_proxy" {
 		t.Errorf("flash = %q, want blocked_refused_proxy", f)
@@ -107,18 +107,18 @@ func TestStageRefusesToBlacklistTheProxy(t *testing.T) {
 }
 
 // Somebody else's address, the ordinary case: staged, not applied.
-func TestStageBlacklistsAStranger(t *testing.T) {
+func TestStageBlocklistsAStranger(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"203.0.113.9"}, "q": {"port=22"}}, "192.0.2.1", "")
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"203.0.113.9"}, "q": {"port=22"}}, "192.0.2.1", "")
 	assertRedirect(t, rec, "/blocked?port=22")
-	if !got.called || got.p.RuleType != "blacklist" {
+	if !got.called || got.p.RuleType != "blocklist" {
 		t.Fatalf("nothing was staged: %+v", got.p)
 	}
 	list, _ := got.p.Rules.([]interface{})
 	if len(list) != 1 || list[0] != "203.0.113.9" {
 		t.Errorf("staged %v, want [203.0.113.9]", got.p.Rules)
 	}
-	if f := flashOf(t, s, rec); f != "blocked_staged_blacklist" {
+	if f := flashOf(t, s, rec); f != "blocked_staged_blocklist" {
 		t.Errorf("flash = %q", f)
 	}
 }
@@ -134,13 +134,13 @@ func TestStageBlacklistsAStranger(t *testing.T) {
 // not unmap the address it is asked about.
 func TestStageUnmapsTheAddressBeforeCheckingAndStoring(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
-	postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"::ffff:192.0.2.1"}}, "192.0.2.1", "")
+	postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"::ffff:192.0.2.1"}}, "192.0.2.1", "")
 	if got.called {
 		t.Error("the operator's address in its IPv4-mapped spelling slipped past the guard")
 	}
 
 	s, got, _ = stageCore(t, open19999)
-	postStage(t, s, url.Values{"act": {"whitelist"}, "addr": {"fe80::1%eth0"}}, "192.0.2.1", "")
+	postStage(t, s, url.Values{"act": {"allowlist"}, "addr": {"fe80::1%eth0"}}, "192.0.2.1", "")
 	list, _ := got.p.Rules.([]interface{})
 	if len(list) != 1 || list[0] != "fe80::1" {
 		t.Errorf("stored %v, want the unzoned fe80::1", got.p.Rules)
@@ -151,8 +151,8 @@ func TestStageUnmapsTheAddressBeforeCheckingAndStoring(t *testing.T) {
 // without the handler's own unmap a mapped spelling of a listed address would
 // be staged a second time.
 func TestStageUnmapsBeforeAskingWhetherItIsAlreadyThere(t *testing.T) {
-	s, got, _ := stageCore(t, shared.Rules{TCP: open19999.TCP, Blacklist: []string{"203.0.113.0/24"}})
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"::ffff:203.0.113.9"}}, "192.0.2.1", "")
+	s, got, _ := stageCore(t, shared.Rules{TCP: open19999.TCP, Blocklist: []string{"203.0.113.0/24"}})
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"::ffff:203.0.113.9"}}, "192.0.2.1", "")
 	if got.called {
 		t.Errorf("an address already inside a listed network was staged again: %+v", got.p)
 	}
@@ -164,12 +164,12 @@ func TestStageUnmapsBeforeAskingWhetherItIsAlreadyThere(t *testing.T) {
 // A trusted proxy that sends no X-Forwarded-For: resolveClient falls back to the
 // peer and says proxied, so client == peer and only proxied tells the operator
 // this address is the proxy, not them.
-func TestStageRefusesToBlacklistAProxyThatSendsNoHeader(t *testing.T) {
+func TestStageRefusesToBlocklistAProxyThatSendsNoHeader(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
 	s.cfg.TrustedProxies = []string{"192.0.2.1"}
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "")
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "")
 	if got.called {
-		t.Fatal("the proxy was staged on the blacklist")
+		t.Fatal("the proxy was staged on the blocklist")
 	}
 	if f := flashOf(t, s, rec); f != "blocked_refused_proxy" {
 		t.Errorf("flash = %q, want blocked_refused_proxy", f)
@@ -177,13 +177,13 @@ func TestStageRefusesToBlacklistAProxyThatSendsNoHeader(t *testing.T) {
 }
 
 // An untrusted peer that sends a forwarding header about itself is not a proxy
-// anything establishes: the header's value is never read, so blacklisting that
-// peer is blacklisting the operator, and the sentence has to say so.
+// anything establishes: the header's value is never read, so blocklisting that
+// peer is blocklisting the operator, and the sentence has to say so.
 func TestStageNamesAnUntrustedPeerWithAHeaderAsTheOperator(t *testing.T) {
 	s, got, _ := stageCore(t, open19999)
-	rec := postStage(t, s, url.Values{"act": {"blacklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "198.51.100.7")
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"192.0.2.1"}}, "192.0.2.1", "198.51.100.7")
 	if got.called {
-		t.Fatal("the operator's own address was staged on the blacklist")
+		t.Fatal("the operator's own address was staged on the blocklist")
 	}
 	if f := flashOf(t, s, rec); f != "blocked_refused_lockout" {
 		t.Errorf("flash = %q, want blocked_refused_lockout", f)
@@ -210,10 +210,10 @@ func TestStageOpensAPort(t *testing.T) {
 func TestStageRefusesWhatIsAlreadyThere(t *testing.T) {
 	rules := shared.Rules{
 		TCP:       open19999.TCP,
-		Blacklist: []string{"203.0.113.0/24"},
+		Blocklist: []string{"203.0.113.0/24"},
 	}
 	for _, form := range []url.Values{
-		{"act": {"blacklist"}, "addr": {"203.0.113.9"}},        // inside a listed network
+		{"act": {"blocklist"}, "addr": {"203.0.113.9"}},        // inside a listed network
 		{"act": {"open"}, "proto": {"tcp"}, "port": {"19999"}}, // already open to everyone
 	} {
 		s, got, _ := stageCore(t, rules)
@@ -229,8 +229,8 @@ func TestStageRefusesWhatIsAlreadyThere(t *testing.T) {
 
 func TestStageRefusesWhatItCannotRead(t *testing.T) {
 	for _, form := range []url.Values{
-		{"act": {"blacklist"}, "addr": {"203.0.113.0/24"}}, // a network is typed on the blacklist page
-		{"act": {"blacklist"}, "addr": {"nope"}},
+		{"act": {"blocklist"}, "addr": {"203.0.113.0/24"}}, // a network is typed on the blocklist page
+		{"act": {"blocklist"}, "addr": {"nope"}},
 		{"act": {"open"}, "proto": {"icmp"}, "port": {"1"}},
 		{"act": {"open"}, "proto": {"tcp"}, "port": {"0"}},
 		{"act": {"apply"}},
@@ -249,11 +249,11 @@ func TestStageRefusesWhatItCannotRead(t *testing.T) {
 // The question cannot be asked, so nothing is staged. Failing open here would
 // make a broken socket the one condition under which the guard does nothing.
 func TestStageRefusesWhenTheVerdictCannotBeAsked(t *testing.T) {
-	// One case per action that can reach the guard: blacklist is pinned by the
-	// lockout tests, and whitelist and open-port only admit more, so failing
+	// One case per action that can reach the guard: blocklist is pinned by the
+	// lockout tests, and allowlist and open-port only admit more, so failing
 	// closed here is the only thing that proves they ask it at all.
 	for _, form := range []url.Values{
-		{"act": {"whitelist"}, "addr": {"203.0.113.9"}},
+		{"act": {"allowlist"}, "addr": {"203.0.113.9"}},
 		{"act": {"open"}, "proto": {"udp"}, "port": {"51820"}},
 	} {
 		s, got, fc := stageCore(t, open19999)
@@ -276,7 +276,7 @@ func TestStageNeverApplies(t *testing.T) {
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 	applied := false
 	fc.OnCommand(shared.CmdApplyRules, func(shared.Command) { applied = true })
-	postStage(t, s, url.Values{"act": {"whitelist"}, "addr": {"203.0.113.9"}}, "192.0.2.1", "")
+	postStage(t, s, url.Values{"act": {"allowlist"}, "addr": {"203.0.113.9"}}, "192.0.2.1", "")
 	if applied {
 		t.Error("a row action applied the rules; it must only stage them")
 	}
@@ -285,5 +285,5 @@ func TestStageNeverApplies(t *testing.T) {
 func TestStage_RequiresAuth(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
-	assertRedirect(t, doFormRequest(s, "POST", "/blocked/stage", "act=whitelist&addr=203.0.113.9"), "/login")
+	assertRedirect(t, doFormRequest(s, "POST", "/blocked/stage", "act=allowlist&addr=203.0.113.9"), "/login")
 }

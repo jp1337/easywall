@@ -11,7 +11,7 @@ import (
 )
 
 // The Network page's own validator has to refuse exactly what the core refuses —
-// no more and no less. It used to be validateIPListEntries, the blacklist's,
+// no more and no less. It used to be validateIPListEntries, the blocklist's,
 // which accepts a bare address; the core stores these with net.ParseCIDR and
 // does not. So the page accepted 192.168.1.5, the core refused it, and the
 // operator was shown "Failed to save changes. Check core connection." Measured

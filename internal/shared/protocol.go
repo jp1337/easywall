@@ -286,7 +286,7 @@ type Response struct {
 
 // SaveRulesPayload is the payload for CmdSaveRules.
 type SaveRulesPayload struct {
-	RuleType string      `json:"rule_type"` // "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"
+	RuleType string      `json:"rule_type"` // "tcp", "udp", "blocklist", "allowlist", "forwarding", "custom"
 	Rules    interface{} `json:"rules"`
 }
 

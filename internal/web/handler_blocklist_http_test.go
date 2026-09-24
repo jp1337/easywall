@@ -7,70 +7,70 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-func TestHandleBlacklistGET_RequiresAuth(t *testing.T) {
+func TestHandleBlocklistGET_RequiresAuth(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
-	rec := doRequest(s, "GET", "/blacklist", nil)
+	rec := doRequest(s, "GET", "/blocklist", nil)
 	assertRedirect(t, rec, "/login")
 }
 
-func TestHandleBlacklistGET_Success(t *testing.T) {
+func TestHandleBlocklistGET_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
-		Staged: shared.Rules{Blacklist: []string{"192.168.1.1"}},
+		Staged: shared.Rules{Blocklist: []string{"192.168.1.1"}},
 	}))
 
-	rec := doAuthRequest(t, s, "GET", "/blacklist", nil)
+	rec := doAuthRequest(t, s, "GET", "/blocklist", nil)
 	assertStatus(t, rec, http.StatusOK)
 }
 
-func TestHandleBlacklistGET_CoreError(t *testing.T) {
+func TestHandleBlocklistGET_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdGetRules, errorRespFor("rules error"))
 
-	rec := doAuthRequest(t, s, "GET", "/blacklist", nil)
+	rec := doAuthRequest(t, s, "GET", "/blocklist", nil)
 	assertStatus(t, rec, http.StatusOK)
 }
 
-func TestHandleBlacklistPOST_RequiresAuth(t *testing.T) {
+func TestHandleBlocklistPOST_RequiresAuth(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 
-	rec := doFormRequest(s, "POST", "/blacklist", "entries=192.168.1.1")
+	rec := doFormRequest(s, "POST", "/blocklist", "entries=192.168.1.1")
 	assertRedirect(t, rec, "/login")
 }
 
-func TestHandleBlacklistPOST_Success(t *testing.T) {
+func TestHandleBlocklistPOST_Success(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
-	rec := doAuthFormRequest(t, s, "/blacklist", "entries=192.168.1.1%0A10.0.0.1")
-	assertRedirect(t, rec, "/blacklist")
+	rec := doAuthFormRequest(t, s, "/blocklist", "entries=192.168.1.1%0A10.0.0.1")
+	assertRedirect(t, rec, "/blocklist")
 }
 
-func TestHandleBlacklistPOST_EmptyEntries(t *testing.T) {
+func TestHandleBlocklistPOST_EmptyEntries(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, shared.Response{Success: true})
 
-	rec := doAuthFormRequest(t, s, "/blacklist", "entries=")
-	assertRedirect(t, rec, "/blacklist")
+	rec := doAuthFormRequest(t, s, "/blocklist", "entries=")
+	assertRedirect(t, rec, "/blocklist")
 }
 
-func TestHandleBlacklistPOST_CoreError(t *testing.T) {
+func TestHandleBlocklistPOST_CoreError(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdSaveRules, errorRespFor("save error"))
 
-	rec := doAuthFormRequest(t, s, "/blacklist", "entries=192.168.1.1")
-	assertRedirect(t, rec, "/blacklist")
+	rec := doAuthFormRequest(t, s, "/blocklist", "entries=192.168.1.1")
+	assertRedirect(t, rec, "/blocklist")
 }

@@ -144,7 +144,7 @@ func TestBlockedHeaderCountsLikeTheApplyScreen(t *testing.T) {
 	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
 		shared.FirewallOptions{LogBlocked: true, Fragments: true})
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
-		Staged: shared.Rules{Whitelist: []string{"192.0.2.9"}},
+		Staged: shared.Rules{Allowlist: []string{"192.0.2.9"}},
 	}))
 	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
 	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{
@@ -165,7 +165,7 @@ func TestBlockedHeaderCountsEvenWhenThePreviewIsIncomplete(t *testing.T) {
 	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{}},
 		shared.FirewallOptions{LogBlocked: true})
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{
-		Staged: shared.Rules{Whitelist: []string{"192.0.2.9"}},
+		Staged: shared.Rules{Allowlist: []string{"192.0.2.9"}},
 	}))
 	fc.SetResponse(shared.CmdGetSettings, errorRespFor("unavailable"))
 	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
@@ -373,7 +373,7 @@ func TestBlockedOffersOnlyRemedies(t *testing.T) {
 	scan := samplePacket()
 	scan.Rule, scan.DstPort = "portscan", 3389
 	bl := samplePacket()
-	bl.Rule = "blacklist"
+	bl.Rule = "blocklist"
 	drop := samplePacket()
 	drop.Rule = "drop"
 	for _, tc := range []struct {
@@ -381,9 +381,9 @@ func TestBlockedOffersOnlyRemedies(t *testing.T) {
 		e           shared.PacketLogEntry
 		want, avoid []string
 	}{
-		{"port scan", scan, []string{`value="blacklist"`}, []string{`value="whitelist"`, `value="open"`, `href="/blacklist"`}},
-		{"blacklist", bl, []string{`href="/blacklist"`}, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}},
-		{"default drop", drop, []string{`value="whitelist"`, `value="blacklist"`, `value="open"`}, []string{`href="/blacklist"`}},
+		{"port scan", scan, []string{`value="blocklist"`}, []string{`value="allowlist"`, `value="open"`, `href="/blocklist"`}},
+		{"blocklist", bl, []string{`href="/blocklist"`}, []string{`value="allowlist"`, `value="blocklist"`, `value="open"`}},
+		{"default drop", drop, []string{`value="allowlist"`, `value="blocklist"`, `value="open"`}, []string{`href="/blocklist"`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{tc.e}},
@@ -403,7 +403,7 @@ func TestBlockedOffersOnlyRemedies(t *testing.T) {
 	}
 }
 
-// A forwarded row offers none of the three actions and no blacklist link
+// A forwarded row offers none of the three actions and no blocklist link
 // (Remedies() is the zero value); the actions cell must not render empty —
 // a mobile "Actions" label over nothing reads as a bug.
 func TestBlockedForwardedRowShowsADashNotAnEmptyCell(t *testing.T) {
@@ -412,7 +412,7 @@ func TestBlockedForwardedRowShowsADashNotAnEmptyCell(t *testing.T) {
 	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{fwd}},
 		shared.FirewallOptions{LogBlocked: true})
 	body := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
-	for _, avoid := range []string{`value="whitelist"`, `value="blacklist"`, `value="open"`, `href="/blacklist"`, `<form`} {
+	for _, avoid := range []string{`value="allowlist"`, `value="blocklist"`, `value="open"`, `href="/blocklist"`, `<form`} {
 		if strings.Contains(body, avoid) {
 			t.Errorf("forwarded row offers %s, which could not have let it through", avoid)
 		}

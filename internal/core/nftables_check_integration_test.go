@@ -12,7 +12,7 @@ import (
 // firewallOptionBools is how many boolean fields shared.FirewallOptions has:
 // twelve protection modules, eight per-module log toggles, and the two
 // table-wide ones — LogBlocked, which logs whatever the final policy drops, and
-// LogBlacklist.
+// LogBlocklist.
 //
 // It is counted from the struct, not from the documentation. DESIGN.md calls the
 // protection modules eleven in two places and fourteen in a third; resolving
@@ -59,8 +59,8 @@ func countTrueBoolFields(opts shared.FirewallOptions) int {
 //
 // One entry per shape rather than a realistic policy: an SSH-marked port so
 // addSSHBruteForce meters something, a range so buildPortExprs takes its second
-// path, a source-restricted rule, a UDP port, a blacklist and a whitelist entry,
-// a private whitelist network so the bogon filter builds its exemption returns,
+// path, a source-restricted rule, a UDP port, a blocklist and an allowlist entry,
+// a private allowlist network so the bogon filter builds its exemption returns,
 // and a forward so the NAT prerouting chain exists. Custom rules are left out:
 // they go through the nft CLI after the flush and never become expressions this
 // check can read.
@@ -72,8 +72,8 @@ func fullExampleRules() shared.Rules {
 			{Port: "443", Description: "restricted", Sources: []string{"203.0.113.0/24"}},
 		},
 		UDP:        []shared.PortRule{{Port: "53", Description: "dns"}},
-		Blacklist:  []string{"198.51.100.7"},
-		Whitelist:  []string{"192.168.42.0/24"},
+		Blocklist:  []string{"198.51.100.7"},
+		Allowlist:  []string{"192.168.42.0/24"},
 		Forwarding: []shared.ForwardingRule{{Protocol: "tcp", SourcePort: 2222, DestPort: 22}},
 		Custom:     []string{},
 	}

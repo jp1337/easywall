@@ -121,10 +121,10 @@ nav:
     children:
       - title: Ports
         path: /docs/features/ports/
-      - title: Blacklist
-        path: /docs/features/blacklist/
-      - title: Whitelist
-        path: /docs/features/whitelist/
+      - title: Blocklist
+        path: /docs/features/blocklist/
+      - title: Allowlist
+        path: /docs/features/allowlist/
       - title: Port Forwarding
         path: /docs/features/forwarding/
       - title: Custom Rules

@@ -62,8 +62,8 @@ type ForwardingRule struct {
 type Rules struct {
 	TCP        []PortRule       `json:"tcp"`
 	UDP        []PortRule       `json:"udp"`
-	Blacklist  []string         `json:"blacklist"`  // blocked source IPs / CIDRs
-	Whitelist  []string         `json:"whitelist"`  // always-allowed source IPs / CIDRs
+	Blocklist  []string         `json:"blocklist"`  // blocked source IPs / CIDRs
+	Allowlist  []string         `json:"allowlist"`  // always-allowed source IPs / CIDRs
 	Forwarding []ForwardingRule `json:"forwarding"` // NAT port forwards
 	Custom     []string         `json:"custom"`     // raw nftables rule strings
 }
@@ -83,8 +83,8 @@ type Rules struct {
 func (r Rules) IsEmpty() bool {
 	return len(r.TCP) == 0 &&
 		len(r.UDP) == 0 &&
-		len(r.Blacklist) == 0 &&
-		len(r.Whitelist) == 0 &&
+		len(r.Blocklist) == 0 &&
+		len(r.Allowlist) == 0 &&
 		len(r.Forwarding) == 0 &&
 		len(r.Custom) == 0
 }
@@ -150,9 +150,9 @@ type FirewallOptions struct {
 	LogBlocked      bool `toml:"log_blocked_connections"`
 	LogBlockedLimit int  `toml:"log_blocked_connections_limit"`
 
-	// Logging of blacklisted connections
-	LogBlacklist      bool `toml:"log_blacklist_connections"`
-	LogBlacklistLimit int  `toml:"log_blacklist_connections_limit"`
+	// Logging of blocklisted connections
+	LogBlocklist      bool `toml:"log_blocklist_connections"`
+	LogBlocklistLimit int  `toml:"log_blocklist_connections_limit"`
 }
 
 // LogsAnything reports whether any of the ten log switches is on. /blocked says
@@ -161,7 +161,7 @@ type FirewallOptions struct {
 func (o FirewallOptions) LogsAnything() bool {
 	return o.SSHBruteForceLog || o.ICMPFloodLog || o.SYNFloodLog || o.TCPRSTFloodLog ||
 		o.PortScanLog || o.InvalidPacketsLog || o.FragmentsLog || o.BogonsLog ||
-		o.LogBlacklist || o.LogBlocked
+		o.LogBlocklist || o.LogBlocked
 }
 
 // FirewallLimit describes one numeric option: what it is called, the range it
@@ -233,9 +233,9 @@ var FirewallLimits = []FirewallLimit{
 	{"log_blocked_connections_limit", 1, 10000, 60,
 		func(o *FirewallOptions) *bool { return &o.LogBlocked },
 		func(o *FirewallOptions) *int { return &o.LogBlockedLimit }},
-	{"log_blacklist_connections_limit", 1, 10000, 60,
-		func(o *FirewallOptions) *bool { return &o.LogBlacklist },
-		func(o *FirewallOptions) *int { return &o.LogBlacklistLimit }},
+	{"log_blocklist_connections_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.LogBlocklist },
+		func(o *FirewallOptions) *int { return &o.LogBlocklistLimit }},
 }
 
 // InRange reports whether v is a value this limit may hold.
@@ -422,8 +422,8 @@ type RoutingConfig struct {
 // DockerConfig controls Docker coexistence mode.
 type DockerConfig struct {
 	Enabled             bool     `toml:"enabled"`               // auto-detect Docker bridges
-	AllowBridgeNetworks bool     `toml:"allow_bridge_networks"` // whitelist detected bridge networks
-	CustomNetworks      []string `toml:"custom_networks"`       // additional networks to whitelist
+	AllowBridgeNetworks bool     `toml:"allow_bridge_networks"` // allowlist detected bridge networks
+	CustomNetworks      []string `toml:"custom_networks"`       // additional networks to allowlist
 
 	// PublishedPorts decides what happens to traffic this host forwards to a
 	// container. "open" is Docker's business, which is what it has always been;

@@ -43,7 +43,7 @@ type blockedRows struct {
 
 	// What a default-drop row's reason is read against: the rules the kernel
 	// holds (Current), parsed once here rather than once per row (DropReason's
-	// InAnyEntry calls used to reparse the blacklist, the whitelist and every
+	// InAnyEntry calls used to reparse the blocklist, the allowlist and every
 	// port rule's Sources for each on-screen row, every poll — see Task 8's
 	// "Cost per poll"), and the network settings they were applied with.
 	// WhyKnown is false when either could not be read, and then no row carries
@@ -256,7 +256,7 @@ func (s *Server) handleBlockedStage(w http.ResponseWriter, r *http.Request) {
 // none.
 //
 // The audit entry is the core's: SAVE_RULES writes rules_saved with the change
-// described, the same entry the blacklist page's own Save produces.
+// described, the same entry the blocklist page's own Save produces.
 func (s *Server) stageFromLog(r *http.Request) string {
 	state, err := s.client.GetRules()
 	if err != nil {
@@ -269,7 +269,7 @@ func (s *Server) stageFromLog(r *http.Request) string {
 	var done string
 
 	switch act := r.FormValue("act"); act {
-	case "whitelist", "blacklist":
+	case "allowlist", "blocklist":
 		// One address, never a network: a network is a decision, and the list
 		// page is where it is typed. Unmapped and unzoned before anything reads
 		// it, so the guard and the kernel see the same spelling.
@@ -278,9 +278,9 @@ func (s *Server) stageFromLog(r *http.Request) string {
 			return "blocked_refused_invalid"
 		}
 		entry := addr.Unmap().WithZone("").String()
-		list := &next.Whitelist
-		if act == "blacklist" {
-			list = &next.Blacklist
+		list := &next.Allowlist
+		if act == "blocklist" {
+			list = &next.Blocklist
 		}
 		if shared.InAnyEntry(addr.Unmap().WithZone(""), *list) {
 			return "blocked_refused_already"
@@ -330,7 +330,7 @@ func (s *Server) stageFromLog(r *http.Request) string {
 // It asks reachVerdict — the function the apply screen asks — and not
 // shared.Reachable, because reachVerdict is what resolves the operator's
 // address through trusted_proxies and knows the address is local. Then it asks
-// the one thing reachVerdict cannot: whether the TCP peer is being blacklisted.
+// the one thing reachVerdict cannot: whether the TCP peer is being blocklisted.
 // Behind a proxy the address in the log is the proxy's, and the verdict about
 // the operator's own address stays open while everyone who comes through that
 // proxy is cut off.
@@ -353,7 +353,7 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 		return ""
 	}
 	peer = peer.Unmap().WithZone("")
-	if shared.InAnyEntry(peer, after.Blacklist) && !shared.InAnyEntry(peer, before.Blacklist) {
+	if shared.InAnyEntry(peer, after.Blocklist) && !shared.InAnyEntry(peer, before.Blocklist) {
 		// "Proxy" only when the peer is a configured trusted proxy — with or
 		// without a header naming a client behind it. Not clientAddr's proxied:
 		// that is header presence, and any untrusted caller can send a header
@@ -370,7 +370,7 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 // blockedRuleOption is the /options card behind each rule a /blocked row can
 // name, by the card's toml key — its anchor is opt-<key> (options.html). Every
 // rule in shared.PacketLogRules has an entry, and an empty one is a decision:
-// the blacklist and the final drop are not switches, so no card refused those
+// the blocklist and the final drop are not switches, so no card refused those
 // packets. TestEveryBlockedRuleLeadsToItsOption holds both halves.
 var blockedRuleOption = map[string]string{
 	"ssh":        "ssh_brute_force",
@@ -381,6 +381,6 @@ var blockedRuleOption = map[string]string{
 	"invalid":    "drop_invalid_packets",
 	"fragment":   "drop_fragments",
 	"bogon":      "bogon_filter",
-	"blacklist":  "",
+	"blocklist":  "",
 	"drop":       "",
 }

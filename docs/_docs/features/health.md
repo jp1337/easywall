@@ -245,7 +245,7 @@ The claims:
 1. a reply on an established connection passes
 2. an open port accepts a connection
 3. a closed port does not
-4. a blacklisted address does not reach an open port
+4. a blocklisted address does not reach an open port
 
 A disproved claim records `failed`, which reads `degraded` — never a refusal to
 filter. No layer of this ever declines to put the rules in the kernel.

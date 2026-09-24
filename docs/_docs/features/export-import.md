@@ -30,8 +30,8 @@ rules of that kind.
     {"port": "443", "description": "HTTPS", "ssh": false}
   ],
   "udp":        [{"port": "53", "description": "DNS", "ssh": false}],
-  "blacklist":  ["192.0.2.1", "198.51.100.0/24"],
-  "whitelist":  ["203.0.113.10"],
+  "blocklist":  ["192.0.2.1", "198.51.100.0/24"],
+  "allowlist":  ["203.0.113.10"],
   "forwarding": [{"protocol": "tcp", "source_port": 2222, "dest_port": 22}],
   "custom":     ["iif eth0 ip protocol udp udp dport 1194 accept"]
 }
@@ -40,7 +40,7 @@ rules of that kind.
 | Key | Shape |
 |---|---|
 | `tcp`, `udp` | `port` string, `description` string, `ssh` bool |
-| `blacklist`, `whitelist` | strings — IPv4, IPv6 or CIDR |
+| `blocklist`, `allowlist` | strings — IPv4, IPv6 or CIDR |
 | `forwarding` | `protocol` `"tcp"` or `"udp"`, `source_port` int, `dest_port` int |
 | `custom` | strings — raw nftables match expressions |
 

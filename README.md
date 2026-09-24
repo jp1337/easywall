@@ -36,7 +36,7 @@ itself unless you confirm it.**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/img/screens/dashboard-dark.png">
-  <img src="docs/assets/img/screens/dashboard-light.png" alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP ports, UDP ports, blacklist, whitelist, custom rules and forwarding; and a recent-activity list.">
+  <img src="docs/assets/img/screens/dashboard-light.png" alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP ports, UDP ports, blocklist, allowlist, custom rules and forwarding; and a recent-activity list.">
 </picture>
 
 ## The idea
@@ -94,7 +94,7 @@ Then open `https://localhost:12227`. The first visit
 | | |
 |---|---|
 | **Ports** | TCP and UDP, single or range, with per-rule SSH brute-force routing |
-| **Blacklist & whitelist** | IPv4, IPv6 and CIDR, evaluated before any port rule |
+| **Blocklist & allowlist** | IPv4, IPv6 and CIDR, evaluated before any port rule |
 | **Protection modules** | Twelve, five on by default — floods, scans, bogons, fragments, broadcast/multicast/anycast |
 | **Port forwarding** | NAT redirects with protocol selection |
 | **Custom rules** | Raw nftables, syntax-checked before it is applied |

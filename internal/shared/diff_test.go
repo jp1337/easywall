@@ -30,13 +30,13 @@ func TestDiffRules_ReorderingPortsIsNotAChange(t *testing.T) {
 }
 
 func TestDiffRules_ListsSkipCommentsAndBlanks(t *testing.T) {
-	cur := Rules{Blacklist: []string{"# scanners", "192.0.2.42", "", "192.0.2.118"}}
-	staged := Rules{Blacklist: []string{"192.0.2.118", "# a different note", "203.0.113.9"}}
+	cur := Rules{Blocklist: []string{"# scanners", "192.0.2.42", "", "192.0.2.118"}}
+	staged := Rules{Blocklist: []string{"192.0.2.118", "# a different note", "203.0.113.9"}}
 
 	got := DiffRules(cur, staged)
 	want := []RuleDelta{
-		{Set: "blacklist", Kind: DeltaAdded, Key: "203.0.113.9"},
-		{Set: "blacklist", Kind: DeltaRemoved, Key: "192.0.2.42"},
+		{Set: "blocklist", Kind: DeltaAdded, Key: "203.0.113.9"},
+		{Set: "blocklist", Kind: DeltaRemoved, Key: "192.0.2.42"},
 	}
 	assertDeltas(t, got, want)
 }

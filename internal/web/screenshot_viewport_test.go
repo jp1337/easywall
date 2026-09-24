@@ -25,7 +25,7 @@ func repoScript(t *testing.T, name string) string {
 // `.page-grid` drops its 320px context column below a measured breakpoint, and
 // the screenshot viewport was 1440 — 130px underneath it — from 2.11 to 2.13. So
 // every figure in docs/ showed the collapsed single-column fallback: the aside
-// cards stacked under the table on ports, blacklist, forwarding, custom and
+// cards stacked under the table on ports, blocklist, forwarding, custom and
 // options alike, which is the layout a narrow window gets and not the one the
 // design is about. Nothing failed; the screenshots were simply of the wrong
 // thing, in the repository, for three releases.

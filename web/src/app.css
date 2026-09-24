@@ -1458,7 +1458,7 @@ body {
      What changes, before the operator commits to finding out during the 120
      seconds. Structural marks and no hue at all: DESIGN.md reserves colour
      outside the blue family for firewall state, and a green/red diff would
-     break that twice over — a new blacklist entry is not good news and a
+     break that twice over — a new blocklist entry is not good news and a
      removed port is not a failure. The three state colours are on the verdict
      below, which genuinely is a state. */
   .diff { padding: 16px; }
@@ -2896,7 +2896,7 @@ body {
     white-space: nowrap;
   }
 
-  /* ── List editor (blacklist / whitelist / custom rules) ──────────────────
+  /* ── List editor (blocklist / allowlist / custom rules) ──────────────────
      A textarea is the honest control for a list that may hold eight entries or
      eight hundred. What it lacked was a measure and any sense of how many
      entries it currently holds. */

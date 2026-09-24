@@ -28,7 +28,7 @@ const (
 
 // RuleDelta is one line of the rule diff.
 type RuleDelta struct {
-	Set   string    `json:"set"` // "tcp" "udp" "blacklist" "whitelist" "forwarding" "custom"
+	Set   string    `json:"set"` // "tcp" "udp" "blocklist" "allowlist" "forwarding" "custom"
 	Kind  DeltaKind `json:"kind"`
 	Key   string    `json:"key"`   // "8443", "192.0.2.42", "8080->80/tcp", "#3"
 	Label string    `json:"label"` // the port description, when it has one
@@ -52,8 +52,8 @@ func DiffRules(current, staged Rules) []RuleDelta {
 	var out []RuleDelta
 	out = append(out, diffPorts("tcp", current.TCP, staged.TCP)...)
 	out = append(out, diffPorts("udp", current.UDP, staged.UDP)...)
-	out = append(out, diffList("blacklist", current.Blacklist, staged.Blacklist)...)
-	out = append(out, diffList("whitelist", current.Whitelist, staged.Whitelist)...)
+	out = append(out, diffList("blocklist", current.Blocklist, staged.Blocklist)...)
+	out = append(out, diffList("allowlist", current.Allowlist, staged.Allowlist)...)
 	out = append(out, diffForwarding(current.Forwarding, staged.Forwarding)...)
 	out = append(out, diffCustom(current.Custom, staged.Custom)...)
 	return out

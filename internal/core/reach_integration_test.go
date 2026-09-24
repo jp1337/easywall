@@ -69,13 +69,13 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 	}{
 		{name: "the port is open", rules: shared.Rules{TCP: open}},
 		{name: "nothing is open", rules: shared.Rules{}},
-		{name: "the source is whitelisted and no port is open",
-			rules: shared.Rules{Whitelist: []string{"10.77.1.0/24"}}},
-		{name: "blacklisted and whitelisted at once",
+		{name: "the source is allowlisted and no port is open",
+			rules: shared.Rules{Allowlist: []string{"10.77.1.0/24"}}},
+		{name: "blocklisted and allowlisted at once",
 			rules: shared.Rules{
 				TCP:       open,
-				Blacklist: []string{"10.77.1.2"},
-				Whitelist: []string{"10.77.1.2"},
+				Blocklist: []string{"10.77.1.2"},
+				Allowlist: []string{"10.77.1.2"},
 			}},
 		{name: "the bogon filter is on and the source is private",
 			rules: shared.Rules{TCP: open}, opts: shared.FirewallOptions{Bogons: true}},
@@ -165,23 +165,23 @@ func tcpReaches(t *testing.T, pid, addr string, port int) bool {
 }
 
 // The SSH brute-force chain used to end in accept, and Apply adds it to the
-// input chain before the blacklist. So a blacklisted address could open an SSH
+// input chain before the blocklist. So a blocklisted address could open an SSH
 // connection as long as it stayed under the rate limit — the protection module
 // outranked the list whose whole job is to refuse an address.
 //
 // The chain now returns. Under-rate traffic falls back into the input chain and
-// meets the blacklist, then the whitelist, then the port rule. Over-rate still
+// meets the blocklist, then the allowlist, then the port rule. Over-rate still
 // drops in sshbrute-over.
 //
 // A dropped connection is not, by itself, evidence of anything: it is also
 // what a harness that is not routing at all looks like, and what a jump whose
 // match condition never fires (no conntrack, so "ct state new" never matches)
-// looks like when the blacklist happens to catch the packet by some other
-// route. So this also runs the same rules minus the blacklist entry first, as
+// looks like when the blocklist happens to catch the packet by some other
+// route. So this also runs the same rules minus the blocklist entry first, as
 // a control, and asserts the order of the two rules in the kernel's own copy
 // of the chain — the actual claim the fix rests on — rather than trusting a
 // blocked connection to mean what it is supposed to.
-func TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist(t *testing.T) {
+func TestIntegration_SSHBruteForceDoesNotOutrankTheBlocklist(t *testing.T) {
 	for _, bin := range []string{"bash", "timeout"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			t.Skipf("skipping: %s is not installed, and this test opens a real TCP connection", bin)
@@ -210,8 +210,8 @@ func TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist(t *testing.T) {
 	tcpRule := shared.PortRule{Port: strconv.Itoa(port), Description: "ssh", SSH: true}
 	opts := shared.FirewallOptions{SSHBruteForce: true, SSHBruteForceConnectionLimit: 5}
 
-	// Control: the same rules, minus the blacklist entry. A dropped connection
-	// below is only evidence of the blacklist outranking the module if a
+	// Control: the same rules, minus the blocklist entry. A dropped connection
+	// below is only evidence of the blocklist outranking the module if a
 	// connection can get through this harness at all when nothing blocks it.
 	controlRules := shared.Rules{TCP: []shared.PortRule{tcpRule}}
 	controlState := shared.RulesState{Current: controlRules, Staged: controlRules, Backup: controlRules}
@@ -219,13 +219,13 @@ func TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist(t *testing.T) {
 		t.Fatalf("Apply (control): %v", err)
 	}
 	if !tcpReaches(t, r.pidA, "10.77.1.1", port) {
-		t.Fatalf("control failed: an SSH-marked port under the rate limit, with no blacklist entry, " +
+		t.Fatalf("control failed: an SSH-marked port under the rate limit, with no blocklist entry, " +
 			"refused a connection — the harness is not routing, so nothing below can be trusted")
 	}
 
 	rules := shared.Rules{
 		TCP:       []shared.PortRule{tcpRule},
-		Blacklist: []string{"10.77.1.2"},
+		Blocklist: []string{"10.77.1.2"},
 	}
 	state := shared.RulesState{Current: rules, Staged: rules, Backup: rules}
 	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
@@ -234,26 +234,26 @@ func TestIntegration_SSHBruteForceDoesNotOutrankTheBlacklist(t *testing.T) {
 
 	// The ordering claim the fix rests on, asserted directly against the
 	// kernel's own copy of the chain: the sshbrute jump must still be added
-	// before the blacklist drop. If someone moves the module after the
-	// blacklist, this whole fix stops being necessary — and should be noticed,
+	// before the blocklist drop. If someone moves the module after the
+	// blocklist, this whole fix stops being necessary — and should be noticed,
 	// not silently pass because both orders happen to behave the same today.
 	input := inputChainText(t, m)
 	sshJump := indexOfRule(input, strconv.Itoa(port), "jump sshbrute")
-	blacklistDrop := indexOfRule(input, "10.77.1.2", "drop")
+	blocklistDrop := indexOfRule(input, "10.77.1.2", "drop")
 	if sshJump == -1 {
 		t.Fatalf("no rule in the input chain jumps to sshbrute for port %d\n  %s",
 			port, strings.Join(input, "\n  "))
 	}
-	if blacklistDrop == -1 {
+	if blocklistDrop == -1 {
 		t.Fatalf("no rule in the input chain drops 10.77.1.2\n  %s", strings.Join(input, "\n  "))
 	}
-	if sshJump >= blacklistDrop {
-		t.Fatalf("the sshbrute jump (rule %d) is not before the blacklist drop (rule %d) in the input chain\n  %s",
-			sshJump, blacklistDrop, strings.Join(input, "\n  "))
+	if sshJump >= blocklistDrop {
+		t.Fatalf("the sshbrute jump (rule %d) is not before the blocklist drop (rule %d) in the input chain\n  %s",
+			sshJump, blocklistDrop, strings.Join(input, "\n  "))
 	}
 
 	if tcpReaches(t, r.pidA, "10.77.1.1", port) {
-		t.Errorf("a blacklisted address reached an SSH-marked port under the rate limit\n"+
+		t.Errorf("a blocklisted address reached an SSH-marked port under the rate limit\n"+
 			"sshbrute chain:\n  %s\ninput chain:\n  %s",
 			strings.Join(chainText(t, "sshbrute"), "\n  "),
 			strings.Join(input, "\n  "))

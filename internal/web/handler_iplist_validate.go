@@ -17,7 +17,7 @@ type lineError struct {
 	Detail string
 }
 
-// validateIPListEntries returns the rejected lines of blacklist/whitelist editor
+// validateIPListEntries returns the rejected lines of blocklist/allowlist editor
 // input, in line order. Each non-blank, non-comment line must parse as either a
 // single IP address (IPv4 or IPv6) or a CIDR network.
 //
@@ -84,8 +84,8 @@ type validationData struct {
 	Mono bool
 }
 
-// handleIPListValidate is an HTMX endpoint shared between the blacklist and
-// whitelist editors. It accepts the textarea content via form POST and returns
+// handleIPListValidate is an HTMX endpoint shared between the blocklist and
+// allowlist editors. It accepts the textarea content via form POST and returns
 // the fragment the page swaps into #iplist-errors.
 //
 // It renders a template rather than assembling HTML here. The inline version this

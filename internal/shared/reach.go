@@ -46,8 +46,8 @@ const (
 	ReasonBogonFilter        ReachReason = "bogon_filter"
 	ReasonDockerNetwork      ReachReason = "docker_network"
 	ReasonDockerBridge       ReachReason = "docker_bridge"
-	ReasonBlacklisted        ReachReason = "blacklisted"
-	ReasonWhitelisted        ReachReason = "whitelisted"
+	ReasonBlocklisted        ReachReason = "blocklisted"
+	ReasonAllowlisted        ReachReason = "allowlisted"
 	ReasonPortOpen           ReachReason = "port_open"
 	ReasonPortSourceMismatch ReachReason = "port_source_mismatch"
 	ReasonCustomRules        ReachReason = "custom_rules"
@@ -59,7 +59,7 @@ const (
 var AllReachReasons = []ReachReason{
 	ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
 	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
-	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
+	ReasonBlocklisted, ReasonAllowlisted, ReasonPortOpen, ReasonCustomRules,
 	ReasonPortSourceMismatch, ReasonNoRule,
 }
 
@@ -173,7 +173,7 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 	// the two worst outcomes available — a false alarm on every LAN request, or
 	// silence on a real lockout.
 	if o.Bogons && src.Is4() && inAnyCIDR(src, BogonRanges) &&
-		!InAnyEntry(src, r.Whitelist) && !inAnyCIDR(src, dockerNets) {
+		!InAnyEntry(src, r.Allowlist) && !inAnyCIDR(src, dockerNets) {
 		return ReachUnknown, ReasonBogonFilter
 	}
 
@@ -195,15 +195,15 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		}
 	}
 
-	// 7. The blacklist drops, and it is consulted *before* the whitelist. An
+	// 7. The blocklist drops, and it is consulted *before* the allowlist. An
 	// operator's own address on both lists is blocked. That is the trap.
-	if InAnyEntry(src, r.Blacklist) {
-		return ReachBlocked, ReasonBlacklisted
+	if InAnyEntry(src, r.Blocklist) {
+		return ReachBlocked, ReasonBlocklisted
 	}
 
-	// 8. The whitelist accepts.
-	if InAnyEntry(src, r.Whitelist) {
-		return ReachOpen, ReasonWhitelisted
+	// 8. The allowlist accepts.
+	if InAnyEntry(src, r.Allowlist) {
+		return ReachOpen, ReasonAllowlisted
 	}
 
 	// 9. The port. TCP only: the interface is served over TCP, and a UDP rule for
