@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,27 @@ import (
 
 	"github.com/jp1337/easywall/internal/shared"
 )
+
+// pinnedTLSTestServer returns an unstarted httptest.Server presenting the
+// certificate this installation's own certPath names — generated fresh into
+// s.cfg.SSLDir — so a caller only has to attach a Listener and call
+// StartTLS. httptest.Server.StartTLS uses s.TLS.Certificates when they are
+// already set rather than minting its own fixed test certificate, which is
+// what makes it possible to test HealthCheck's pinning against a server
+// presenting the exact certificate it is meant to accept.
+func pinnedTLSTestServer(t *testing.T, s *Server) *httptest.Server {
+	t.Helper()
+	if err := generateSelfSignedCert(s.cfg.SSLDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+	cert, err := tls.LoadX509KeyPair(s.cfg.CertPath(), s.cfg.KeyPath())
+	if err != nil {
+		t.Fatalf("load generated cert: %v", err)
+	}
+	srv := httptest.NewUnstartedServer(s.router)
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	return srv
+}
 
 func TestHealthTargetFollowsBindAddr(t *testing.T) {
 	for bind, want := range map[string]string{
@@ -66,7 +88,7 @@ func TestHealthCheckAsksASpecificBind(t *testing.T) {
 			if err != nil {
 				t.Skipf("cannot bind 127.0.0.2 here: %v", err)
 			}
-			srv := httptest.NewUnstartedServer(s.router)
+			srv := pinnedTLSTestServer(t, s)
 			srv.Listener = ln
 			srv.StartTLS()
 			t.Cleanup(srv.Close)
@@ -97,7 +119,7 @@ func TestHealthCheckAsksASpecificBind(t *testing.T) {
 		if err != nil {
 			t.Skipf("cannot bind [%s%%%s] here: %v", ip, zone, err)
 		}
-		srv := httptest.NewUnstartedServer(s.router)
+		srv := pinnedTLSTestServer(t, s)
 		srv.Listener = ln
 		srv.StartTLS()
 		t.Cleanup(srv.Close)
@@ -184,5 +206,89 @@ func TestHealthzAdmitsItsOwnAddressAndNoOther(t *testing.T) {
 				t.Errorf("answered %d, want %d", rec.Code, tc.want)
 			}
 		})
+	}
+}
+
+// The 2.22 CodeQL finding (go/disabled-certificate-check): HealthCheck used
+// to skip certificate verification entirely. A server presenting a
+// different certificate — what a man-in-the-middle, or another process that
+// merely took over the same port, would present — must be refused. This
+// test goes red if InsecureSkipVerify comes back, or if pinning is loosened
+// to accept any certificate the peer happens to offer.
+func TestHealthCheckRefusesADifferentCertificate(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetHealth, healthReply(t, shared.HealthResult{State: shared.HealthOK}))
+	s := newTestServer(t, fc)
+	s.cfg.HealthAllow = []string{"127.0.0.1/32"}
+
+	// The certificate this installation is configured to pin: generated once
+	// into its own ssl_dir, the way production does it.
+	if err := generateSelfSignedCert(s.cfg.SSLDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+
+	// The certificate the server under test actually presents: a different
+	// one, generated into a directory of its own.
+	otherDir := t.TempDir()
+	if err := generateSelfSignedCert(otherDir); err != nil {
+		t.Fatalf("generateSelfSignedCert (other): %v", err)
+	}
+	otherCert, err := tls.LoadX509KeyPair(otherDir+"/cert.pem", otherDir+"/key.pem")
+	if err != nil {
+		t.Fatalf("load other cert: %v", err)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	srv := httptest.NewUnstartedServer(s.router)
+	srv.Listener = ln
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{otherCert}}
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+	s.cfg.BindAddr = ln.Addr().String()
+
+	if err := HealthCheck(s.cfg); err == nil {
+		t.Fatal("HealthCheck accepted a server presenting a different certificate")
+	}
+}
+
+// A missing certificate file is a startup-shaped failure, not a passed
+// health check: HealthCheck must return an error rather than silently
+// skipping the pin (which is what InsecureSkipVerify amounted to).
+func TestHealthCheckErrorsOnMissingCertFile(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetHealth, healthReply(t, shared.HealthResult{State: shared.HealthOK}))
+	s := newTestServer(t, fc)
+	s.cfg.HealthAllow = []string{"127.0.0.1/32"}
+	// s.cfg.SSLDir exists (newTestServer creates it) but nothing has written
+	// cert.pem into it: CertPath names a file that is not there.
+
+	// A real, reachable, healthy server all the same — presenting some
+	// certificate of its own — so a HealthCheck that returned nil here could
+	// only have done so by skipping the pin instead of erroring on the
+	// missing file, not because there was nothing to reach.
+	otherDir := t.TempDir()
+	if err := generateSelfSignedCert(otherDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+	otherCert, err := tls.LoadX509KeyPair(otherDir+"/cert.pem", otherDir+"/key.pem")
+	if err != nil {
+		t.Fatalf("load cert: %v", err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	srv := httptest.NewUnstartedServer(s.router)
+	srv.Listener = ln
+	srv.TLS = &tls.Config{Certificates: []tls.Certificate{otherCert}}
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+	s.cfg.BindAddr = ln.Addr().String()
+
+	if err := HealthCheck(s.cfg); err == nil {
+		t.Fatal("HealthCheck with no certificate file on disk returned nil, want an error")
 	}
 }
