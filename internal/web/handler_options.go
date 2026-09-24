@@ -3,6 +3,7 @@ package web
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,7 @@ func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 		s.respondPartialError(w, r, "/options", "save_error")
 		return
 	}
+	currentFieldNames(r.Form)
 
 	// strconv, not fmt.Sscanf: Sscanf stops at the first character it cannot
 	// read and reports success for what it got, so "5abc" arrived as 5 and
@@ -110,4 +112,23 @@ func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respondPartialSave(w, r, "/options", "options_saved")
+}
+
+// currentFieldNames reads a field posted under a list's pre-2.23 name as the
+// current one: an Options tab left open across the upgrade still posts the
+// old log switch and its limit, and without this the blocklist log was saved
+// as off with the default limit. A field the form also sends under its new
+// name wins.
+func currentFieldNames(form url.Values) {
+	for name, v := range form {
+		parts := strings.Split(name, "_")
+		for i := range parts {
+			parts[i] = shared.CurrentListName(parts[i])
+		}
+		if now := strings.Join(parts, "_"); now != name {
+			if _, set := form[now]; !set {
+				form[now] = v
+			}
+		}
+	}
 }

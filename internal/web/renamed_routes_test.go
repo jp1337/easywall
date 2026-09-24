@@ -65,3 +65,29 @@ func TestAnOldRowActionStagesOnTheNewList(t *testing.T) {
 		t.Fatalf("act=blacklist staged %+v, want the blocklist", got.p)
 	}
 }
+
+// An Options page left open across the upgrade posts the blocklist log under
+// its 2.22 field names. They are saved as the switch they were, and a field
+// also sent under its new name wins.
+func TestAnOldOptionsTabKeepsTheBlocklistLog(t *testing.T) {
+	for _, tc := range []struct {
+		form  string
+		on    bool
+		limit int
+	}{
+		{"log_blacklist_connections=on&log_blacklist_connections_limit=33", true, 33},
+		{"log_blacklist_connections_limit=33&log_blocklist_connections_limit=44", false, 44},
+	} {
+		fc := newFakeCore(t)
+		s := newTestServer(t, fc)
+		enrollFactor(t, s)
+		fc.SetResponse(shared.CmdSaveOptions, shared.Response{Success: true})
+		var got shared.FirewallOptions
+		fc.OnCommand(shared.CmdSaveOptions, func(c shared.Command) { _ = json.Unmarshal(c.Payload, &got) })
+
+		doAuthFormRequest(t, s, "/options", tc.form)
+		if got.LogBlocklist != tc.on || got.LogBlocklistLimit != tc.limit {
+			t.Errorf("%s saved log %v limit %d, want %v %d", tc.form, got.LogBlocklist, got.LogBlocklistLimit, tc.on, tc.limit)
+		}
+	}
+}
