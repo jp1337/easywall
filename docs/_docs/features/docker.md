@@ -27,8 +27,11 @@ published_ports       = "open" # "filtered": easywall decides who reaches a
 ```
 
 Detection reads the interfaces named `docker*` or `br-*` and takes the CIDR of
-each. It runs **when rules are applied**, not continuously — a network created
-afterwards needs another apply, or an entry in `custom_networks`.
+each. It runs at every apply. It also runs once more on its own, for up to 90
+seconds after `easywall-core` starts. That covers the ordinary case: no such
+bridge existed at boot, and Docker started after the daemon. Past that
+window, or for a bridge added later still, apply again, or add an entry to
+`custom_networks`.
 
 Entries there are CIDR networks — `172.20.0.0/16`, not a single container address —
 with `#` comments allowed. Anything else is refused by name rather than accepted and

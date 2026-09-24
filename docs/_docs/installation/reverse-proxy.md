@@ -111,9 +111,11 @@ refused. `X-Forwarded-For` is only ever believed from a proxy on
 believe the same way, so this interface reads it from no one.
 
 Two ways out, both outside this page's scope. Point a browser at easywall
-directly on 443, with no proxy in front. `tls.acme` exists for exactly this as
-of this release, and removes the reason to run a proxy for the certificate
-alone. Or accept that passkeys are one more thing this configuration does not
+directly on 443, with no proxy in front. `tls.acme` exists for exactly this,
+and removes the reason to run a proxy for the certificate alone. It is
+Debian package only, not in the container image — see
+[Docker → Your own certificate]({{ '/docs/installation/docker/' | relative_url }}#your-own-certificate).
+Or accept that passkeys are one more thing this configuration does not
 offer, the way `trusted_proxies` already is for the audit log and the login
 limiter. The password-plus-TOTP factor is unaffected either way.
 
