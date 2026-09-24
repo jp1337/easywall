@@ -21,7 +21,7 @@ var whyRules = Rules{
 	},
 	UDP:       []PortRule{{Port: "53"}},
 	Blacklist: []string{"192.0.2.66"},
-	Whitelist: []string{"# admins", "198.51.100.7"},
+	Whitelist: []string{"# admins", "198.51.100.7", "192.0.2.9"}, // .9: whitelisted as IPv4 only, for the mapped-source case below
 }
 
 func whyTCP(src string, port uint16) PacketLogEntry {
@@ -49,6 +49,8 @@ var (
 	v6FilterRA    = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter, ICMPAllowRouterAdvertisement: true}}
 	v6Block       = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Block}}
 	v6Passthrough = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Passthrough}}
+	v6DockerNet   = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter},
+		Docker: DockerConfig{Enabled: true, CustomNetworks: []string{"172.20.0.0/16"}}}
 )
 
 var dropReasonCases = []struct {
@@ -105,6 +107,12 @@ var dropReasonCases = []struct {
 		DropWhy{DropPortClosed, map[string]any{"Port": uint16(993), "Proto": "tcp"}}},
 	{"a module row names itself", edited(whyTCP("203.0.113.9", 22), func(e *PacketLogEntry) { e.Rule = "ssh" }), v6Filter, DropWhy{}},
 	{"no easywall rule logs in the forward chain", edited(whyTCP("203.0.113.9", 993), func(e *PacketLogEntry) { e.Hook = "forward" }), v6Filter, DropWhy{}},
+	{"an IPv4-mapped source in an IPv6 packet is not read as the IPv4 whitelist entry",
+		edited(whyTCP("203.0.113.9", 993), func(e *PacketLogEntry) {
+			e.Family, e.Src = 6, netip.MustParseAddr("::ffff:192.0.2.9")
+		}), v6Filter,
+		DropWhy{DropPortClosed, map[string]any{"Port": uint16(993), "Proto": "tcp"}}},
+	{"a Docker custom network gets no reason", whyTCP("172.20.5.9", 993), v6DockerNet, DropWhy{}},
 }
 
 func TestDropReasonWalksTheChainInOrder(t *testing.T) {
@@ -139,8 +147,15 @@ func TestDropReasonReachesEveryCode(t *testing.T) {
 // DropReason reparsed a list this size on every InAnyEntry call — up to three
 // times per row — and /blocked/rows asks that of every on-screen row, every
 // five-second poll; measured at 197ms for 200 rows at 10,000 entries and 1.02s
-// at 50,000. Parsed once and read with DropReasonParsed, the same 200 rows
-// must stay well under a second even at this size.
+// at 50,000. A loop that re-parses per row still finishes under a second at
+// this size — the wall-clock timer alone does not carry the test — so what
+// actually proves parsing runs once is allocations: DropReasonParsed on an
+// already-parsed ParsedRules allocates a small, list-size-independent
+// constant (measured at 4 on this row: the Port/Proto map and the loop
+// variable, nothing that scales with the blacklist); re-parsing per call
+// would allocate a netip.Prefix slice sized to the list on every one of the
+// 100 runs AllocsPerRun makes. The timer stays as documentation of the
+// user-facing cost.
 func TestParseRulesOnceHoldsA10000EntryList(t *testing.T) {
 	entries := make([]string, 10000)
 	for i := range entries {
@@ -150,6 +165,11 @@ func TestParseRulesOnceHoldsA10000EntryList(t *testing.T) {
 	big.Blacklist = entries
 	parsed := ParseRules(big)
 	row := whyTCP("203.0.113.9", 993)
+
+	const maxAllocs = 8 // measured 4; margin for the map plus a small slice, never for list size
+	if n := testing.AllocsPerRun(10, func() { row.DropReasonParsed(parsed, v6Filter) }); n > maxAllocs {
+		t.Errorf("DropReasonParsed allocated %v times per call against a 10,000-entry list; want <= %d, independent of list size", n, maxAllocs)
+	}
 
 	start := time.Now()
 	for i := 0; i < 200; i++ { // a realistic on-screen row count
