@@ -82,8 +82,20 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg.CoreConfig); err != nil {
+	meta, err := toml.Decode(string(data), &cfg.CoreConfig)
+	if err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	// A limit the file does not name is its default, not zero. The package
+	// generates easywall.toml once and never replaces it, so a host upgraded
+	// from 2.22 has no log_feed_connections_limit: read as 0, /options rendered
+	// value="0" min="1", the browser refused to submit the form, and no option
+	// could be saved at all. Before readOldLogKeys, so a 2.22 file's
+	// old-spelling blocklist log limit still sets its limit.
+	for _, l := range shared.FirewallLimits {
+		if !meta.IsDefined("firewall", l.Key) {
+			*l.Value(&cfg.Firewall) = l.Default
+		}
 	}
 	if err := readOldLogKeys(data, &cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)

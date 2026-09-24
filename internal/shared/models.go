@@ -70,8 +70,8 @@ type Rules struct {
 	// Feeds are the enabled feed ids — catalogue ids and own-1…own-3 — in the
 	// order they were switched on. Only the ids: a feed's contents are the
 	// core's feeds.json, never this file, which holds three copies of Rules
-	// and is re-marshalled on every status poll. omitempty keeps a rules.json
-	// written before 2.23 byte-identical until a feed is switched on.
+	// and is re-marshalled on every status poll. omitempty: a rules.json with
+	// no feed switched on carries no "feeds" key.
 	Feeds []string `json:"feeds,omitempty"`
 }
 
