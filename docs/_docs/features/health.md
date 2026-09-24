@@ -121,9 +121,9 @@ header, so nothing behind a proxy can claim to be loopback.
 > the container's check included.
 >
 > **This is not a loopback exception.** Any process on this host that
-> connects to the bound address — a same-host reverse proxy relaying remote
-> traffic included — is admitted the same way; the list is not the complete
-> set of admitted peers unless it is `[]`.
+> connects to the bound address is admitted the same way, a same-host reverse
+> proxy relaying remote traffic included. Unless the list is `[]`, it is not
+> the complete set of admitted peers.
 
 ```toml
 # /etc/easywall/web.toml
