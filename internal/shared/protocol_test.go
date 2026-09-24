@@ -41,28 +41,35 @@ func TestFeedCommandsHaveTheirDeadlineClasses(t *testing.T) {
 	}
 }
 
-// Why the limit is 4 MiB (plan P12): one UPDATE_FEED of FeedMaxEntries
-// entries fits at any IPv4 spelling — the longest is an 18-character /31,
-// 2 100 059 bytes in all — and at the IPv6 lengths real lists carry.
-//
-// Not at every IPv6 length, measured: 100 000 bare addresses of the longest
-// form (39 characters, "2fff:ffff:…") are 4 200 059 bytes, 5 755 over, and
-// as /128 prefixes 4 500 059. So the fetcher sends a full-length prefix as a
-// bare address, and a refresh that is still over is recorded as too large
-// (P12) — the largest IPv6 list offered today, blocklist.de, carries 454.
+// Why the limit is 8 MiB (plan P12): one UPDATE_FEED of FeedMaxEntries
+// entries fits at the longest spelling any entry can have. Measured: 100 000
+// of the longest IPv6 addresses are 4 200 059 bytes bare and 4 600 059 as /128
+// prefixes — both over 4 MiB, which is what the limit was first set to — and
+// the /128 case leaves 3 788 549 bytes of the 8 388 608. The longest IPv4
+// spelling, a /31, is 2 100 059.
 func TestMaxMessageBytesCarriesAFullFeed(t *testing.T) {
-	for _, entry := range []string{"255.255.255.254/31", "2001:db8:1234:5678:9abc::def0"} {
+	for _, tc := range []struct {
+		entry string
+		want  int
+	}{
+		{"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 4200059},
+		{"ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/128", 4600059},
+		{"255.255.255.254/31", 2100059},
+	} {
 		entries := make([]string, FeedMaxEntries)
 		for i := range entries {
-			entries[i] = entry
+			entries[i] = tc.entry
 		}
 		payload, err := json.Marshal(UpdateFeedPayload{ID: OwnFeedID(MaxOwnFeeds), Entries: entries})
 		if err != nil {
 			t.Fatal(err)
 		}
 		cmd, _ := json.Marshal(Command{Type: CmdUpdateFeed, Payload: payload})
+		if len(cmd) != tc.want {
+			t.Errorf("%d entries like %s are %d bytes; measured %d — re-measure the margin", FeedMaxEntries, tc.entry, len(cmd), tc.want)
+		}
 		if len(cmd) > MaxMessageBytes {
-			t.Errorf("%d entries like %s are %d bytes; MaxMessageBytes is %d", FeedMaxEntries, entry, len(cmd), MaxMessageBytes)
+			t.Errorf("%d entries like %s are %d bytes; MaxMessageBytes is %d", FeedMaxEntries, tc.entry, len(cmd), MaxMessageBytes)
 		}
 	}
 }

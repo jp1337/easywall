@@ -91,7 +91,7 @@ whole protocol was.
 | `UPDATE_FEED` | a new version of one feed, fetched by the web process; the core re-checks every entry before it stores or loads any |
 | `GET_FEEDS` | per feed: entry counts, when it changed and was checked, packets dropped — never the entries |
 
-A message is at most 4 MiB each way. A longer request is answered *request too
+A message is at most 8 MiB each way. A longer request is answered *request too
 large*.
 
 Full list: [`internal/shared/protocol.go`](https://github.com/jp1337/easywall/blob/main/internal/shared/protocol.go).
