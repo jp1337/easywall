@@ -54,9 +54,9 @@ func TestBlocked_RendersARow(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"203.0.113.9", "198.51.100.1", `href="/blocked?port=22"`, "eth0",
-		`<span class="log-action">SSH brute force</span>`, // the row's own rule label, not the filter's <select>, which lists every label regardless of whether a row exists
-		`href="/blocked?src=203.0.113.9"`,                 // clicking an address filters to it
-		`id="pkt-41"`, "hx-preserve",                      // the drill-down survives the live tail
+		`<a class="log-action" href="/options#opt-ssh_brute_force">SSH brute force</a>`, // the row's own rule label, not the filter's <select>, which lists every label regardless of whether a row exists
+		`href="/blocked?src=203.0.113.9"`,                                               // clicking an address filters to it
+		`id="pkt-41"`, "hx-preserve",                                                    // the drill-down survives the live tail
 		`hx-trigger="every 5s"`,
 	} {
 		if !strings.Contains(body, want) {

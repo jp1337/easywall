@@ -40,6 +40,41 @@ type blockedRows struct {
 	Listening    bool      // the core holds its NFLOG group
 	Filtered     bool      // a filter narrowed this view
 	Since        time.Time // when the ring began
+
+	// What a default-drop row's reason is read against: the rules the kernel
+	// holds (Current), parsed once here rather than once per row (DropReason's
+	// InAnyEntry calls used to reparse the blacklist, the whitelist and every
+	// port rule's Sources for each on-screen row, every poll — see Task 8's
+	// "Cost per poll"), and the network settings they were applied with.
+	// WhyKnown is false when either could not be read, and then no row carries
+	// a reason — none is better than one computed from a guess.
+	Rules    shared.ParsedRules
+	Net      shared.NetworkSettings
+	WhyKnown bool
+}
+
+// rulesNow fills rows' reason inputs, and asks only when a default-drop row is
+// on screen. The cost is two more socket round trips per five-second poll —
+// GET_RULES and GET_APPLIED_CONFIG, each one small file the core reads from
+// disk — on top of the two the tail already makes. The applied settings rather
+// than GET_SETTINGS: a saved setting reaches the kernel at the next apply,
+// and "now" means what the kernel holds. shared.ParseRules runs once here, not
+// once per row: DropReasonParsed reads the parsed form.
+func (s *Server) rulesNow(rows *blockedRows) {
+	if !slices.ContainsFunc(rows.Entries, func(e shared.PacketLogEntry) bool { return e.Rule == "drop" }) {
+		return
+	}
+	state, err := s.client.GetRules()
+	if err != nil {
+		slog.Debug("no drop reasons: the rules could not be read", "error", err)
+		return
+	}
+	applied, err := s.client.GetAppliedConfig()
+	if err != nil || !applied.Recorded {
+		slog.Debug("no drop reasons: the applied settings are not known", "error", err)
+		return
+	}
+	rows.Rules, rows.Net, rows.WhyKnown = shared.ParseRules(state.Current), applied.Config.Network, true
 }
 
 // blockedForm is what the filter form shows back: the raw fields as typed,
@@ -158,6 +193,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.Entries = res.Entries
 		data.Rows.Listening = res.Listening
 		data.Rows.Since = res.Since
+		s.rulesNow(&data.Rows)
 	}
 	// Only decides what the empty state and the header say. Unreadable, it
 	// says nothing rather than something false.
@@ -185,6 +221,7 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 		rows.Entries = res.Entries
 		rows.Listening = res.Listening
 		rows.Since = res.Since
+		s.rulesNow(&rows)
 	} else {
 		slog.Debug("could not get the packet log for the live tail", "error", err)
 		rows.CoreErr = err.Error()
@@ -328,4 +365,22 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 		return "blocked_refused_lockout"
 	}
 	return ""
+}
+
+// blockedRuleOption is the /options card behind each rule a /blocked row can
+// name, by the card's toml key — its anchor is opt-<key> (options.html). Every
+// rule in shared.PacketLogRules has an entry, and an empty one is a decision:
+// the blacklist and the final drop are not switches, so no card refused those
+// packets. TestEveryBlockedRuleLeadsToItsOption holds both halves.
+var blockedRuleOption = map[string]string{
+	"ssh":        "ssh_brute_force",
+	"icmp_flood": "icmp_flood",
+	"syn_flood":  "syn_flood",
+	"tcp_rst":    "tcp_rst_flood",
+	"portscan":   "port_scan",
+	"invalid":    "drop_invalid_packets",
+	"fragment":   "drop_fragments",
+	"bogon":      "bogon_filter",
+	"blacklist":  "",
+	"drop":       "",
 }

@@ -62,6 +62,8 @@ Compiled into every rule set. There is no switch for these.
 | ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
 | ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
 
+**IPv4 pings are not answered, IPv6 pings are:** type 8 is not in the ICMPv4 list, and *ICMP flood* only limits the rate, it accepts nothing.
+
 ## The three chains
 
 Everything above is the `input` chain — traffic addressed to this host. easywall

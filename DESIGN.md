@@ -1438,6 +1438,12 @@ that is only a hue fails the same way a state that is only a dot fails.
 A `badge` is a neutral count or marker. A `chip` carries state or a chosen qualifier. If you
 find yourself reaching for a coloured badge, you want a chip.
 
+**Amended in 2.22.** A chip can lead somewhere: on `/blocked` a module's rule
+chip is an `<a class="log-action">` to its card on `/options`. It keeps the chip's
+shape and takes the link's permanent underline, because the underline is what
+says it is a control. The blacklist and default-drop chips stay plain — no
+switch refused those packets.
+
 ### Tooltips
 
 Tooltips explain a control, they never carry information that exists nowhere else — a

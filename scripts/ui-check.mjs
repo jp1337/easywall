@@ -985,6 +985,36 @@ async function checkASignedOutTailNavigates(browser, session) {
 }
 
 /**
+ * A default-drop row says why, and a module's chip leads to its card
+ * (2.23 G1, G4). The demo's shapes include a closed port, a port open only
+ * for other sources and an IPv4 ping, so every default-drop row on the page
+ * has a reason to give; one without is the defect, as is a sentence still
+ * carrying its message id or an unfilled placeholder.
+ */
+async function checkBlockedSaysWhy(page) {
+  await page.goto(`${BASE}/blocked?rule=drop`, { waitUntil: 'networkidle' });
+  const r = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#blocked-rows tr')].filter(tr => tr.querySelector('.log-action'));
+    const whys = rows.map(tr => (tr.querySelector('.pkt-why') || {}).textContent || '');
+    return { n: rows.length, missing: whys.filter(w => !w.trim()).length,
+      raw: whys.filter(w => w.includes('blocked_why_') || w.includes('<no value>')) };
+  });
+  if (r.n === 0) { fail('blocked reasons', 'no default-drop rows — the demo produced none'); return; }
+  if (r.missing) { fail('blocked reasons', `${r.missing} of ${r.n} default-drop rows give no reason`); return; }
+  if (r.raw.length) { fail('blocked reasons', `unrendered: ${r.raw[0]}`); return; }
+
+  await page.goto(`${BASE}/blocked?rule=portscan`, { waitUntil: 'networkidle' });
+  const href = await page.getAttribute('#blocked-rows a.log-action', 'href').catch(() => null);
+  if (!href || !href.startsWith('/options#opt-')) { fail('blocked reasons', `a port-scan chip leads to ${href}`); return; }
+  await page.goto(`${BASE}${href}`, { waitUntil: 'networkidle' });
+  if (await page.locator(`#${href.split('#')[1]}`).count() !== 1) {
+    fail('blocked reasons', `${href} names no card on /options`);
+    return;
+  }
+  console.log(`  ok   ${r.n} default-drop rows each say why; a module chip reaches its card`);
+}
+
+/**
  * A /blocked card at 390px in German keeps an address whole and its Details
  * clear of the buttons. The card's td is a flex row with overflow-wrap:
  * anywhere, so each link of the route used to be its own flex item and broke
@@ -1932,6 +1962,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
+  await checkBlockedSaysWhy(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkOptionsDisclosureFits(browser, session);
