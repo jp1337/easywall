@@ -81,24 +81,92 @@ func TestHealthCheckAsksASpecificBind(t *testing.T) {
 			}
 		})
 	}
+
+	// Fix round 2, end to end: a zoned bind_addr on a link-local address.
+	// Skipped where this host has none to bind.
+	t.Run("zoned", func(t *testing.T) {
+		ip, zone := linkLocalIPv6WithZone(t)
+		fc := newFakeCore(t)
+		fc.SetResponse(shared.CmdGetHealth, healthReply(t, shared.HealthResult{State: shared.HealthOK}))
+		s := newTestServer(t, fc)
+		// Loopback and every non-link-local network are not on it: only the
+		// own-address rule can admit this zoned peer.
+		s.cfg.HealthAllow = []string{"::1/128"}
+
+		ln, err := net.Listen("tcp6", "["+ip+"%"+zone+"]:0")
+		if err != nil {
+			t.Skipf("cannot bind [%s%%%s] here: %v", ip, zone, err)
+		}
+		srv := httptest.NewUnstartedServer(s.router)
+		srv.Listener = ln
+		srv.StartTLS()
+		t.Cleanup(srv.Close)
+		// Not ln.Addr().String(): Go's TCPListener drops the zone from the
+		// address getsockname(2) hands back, so the listener's own address
+		// string reads as though the bind had no zone at all. bind_addr in a
+		// real config carries the zone the operator wrote, so it is put back
+		// here from what linkLocalIPv6WithZone found — only the port comes
+		// from the listener.
+		_, port, err := net.SplitHostPort(ln.Addr().String())
+		if err != nil {
+			t.Fatalf("listener address %q has no port: %v", ln.Addr(), err)
+		}
+		s.cfg.BindAddr = net.JoinHostPort(ip+"%"+zone, port)
+
+		if err := HealthCheck(s.cfg); err != nil {
+			t.Fatalf("a healthy installation bound to a zoned address %s read unhealthy: %v", s.cfg.BindAddr, err)
+		}
+	})
+}
+
+// linkLocalIPv6WithZone finds a link-local IPv6 address and the interface
+// name (the zone) it lives on, or skips the test — a host with no such
+// interface (a CI runner with only loopback and a plain IPv4 bridge, say)
+// cannot exercise a zoned bind at all.
+func linkLocalIPv6WithZone(t *testing.T) (ip, zone string) {
+	t.Helper()
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		t.Skipf("cannot list interfaces: %v", err)
+	}
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok || ipnet.IP.To4() != nil || !ipnet.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			return ipnet.IP.String(), iface.Name
+		}
+	}
+	t.Skip("no link-local IPv6 address found on this host")
+	return "", ""
 }
 
 // The own-address rule admits exactly one peer, and not at all when the
 // operator has switched the endpoint off with an empty list.
 func TestHealthzAdmitsItsOwnAddressAndNoOther(t *testing.T) {
 	for _, tc := range []struct {
-		name, peer, local string
-		allow             []string
-		want              int
+		name, peer, local, zone string
+		allow                   []string
+		want                    int
 	}{
-		{"own address", "10.0.0.9:40000", "10.0.0.9", []string{"127.0.0.1/8"}, http.StatusOK},
-		{"a neighbour", "10.0.0.5:40000", "10.0.0.9", []string{"127.0.0.1/8"}, http.StatusNotFound},
-		{"own address, endpoint off", "10.0.0.9:40000", "10.0.0.9", []string{}, http.StatusNotFound},
+		{"own address", "10.0.0.9:40000", "10.0.0.9", "", []string{"127.0.0.1/8"}, http.StatusOK},
+		{"a neighbour", "10.0.0.5:40000", "10.0.0.9", "", []string{"127.0.0.1/8"}, http.StatusNotFound},
+		{"own address, endpoint off", "10.0.0.9:40000", "10.0.0.9", "", []string{}, http.StatusNotFound},
 		// The own-address rule is not scoped to loopback: a same-host process
 		// (a reverse proxy relaying remote traffic, say) reaches the bound
 		// address as its own peer and is admitted even though the list names
 		// neither 127.0.0.1 nor that address. Only [] closes the endpoint.
-		{"loopback, list without it", "127.0.0.1:40000", "127.0.0.1", []string{"10.0.0.0/8"}, http.StatusOK},
+		{"loopback, list without it", "127.0.0.1:40000", "127.0.0.1", "", []string{"10.0.0.0/8"}, http.StatusOK},
+		// Fix round 2: a zoned bind_addr. Go's net stack writes a zone onto a
+		// link-local peer's RemoteAddr; localIP used to drop the zone from the
+		// local side, so a zoned peer and its own zoned local address never
+		// compared equal and the own-address rule could never match at all.
+		{"own address, zoned", "[fe80::9%eth0]:40000", "fe80::9", "eth0", []string{"::1/128"}, http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fc := newFakeCore(t)
@@ -109,7 +177,7 @@ func TestHealthzAdmitsItsOwnAddressAndNoOther(t *testing.T) {
 			req := httptest.NewRequest("GET", "/healthz", nil)
 			req.RemoteAddr = tc.peer
 			req = req.WithContext(context.WithValue(req.Context(), http.LocalAddrContextKey,
-				&net.TCPAddr{IP: net.ParseIP(tc.local), Port: 12227}))
+				&net.TCPAddr{IP: net.ParseIP(tc.local), Zone: tc.zone, Port: 12227}))
 			rec := httptest.NewRecorder()
 			s.router.ServeHTTP(rec, req)
 			if rec.Code != tc.want {
