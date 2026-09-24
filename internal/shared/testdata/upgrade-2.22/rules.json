@@ -1,0 +1,67 @@
+{
+  "current": {
+    "tcp": [
+      {
+        "id": "0c40d769d0f3",
+        "port": "22",
+        "description": "SSH",
+        "ssh": true
+      }
+    ],
+    "udp": [],
+    "blacklist": [
+      "# scanners",
+      "203.0.113.9",
+      "198.51.100.0/24"
+    ],
+    "whitelist": [
+      "192.0.2.10",
+      "2001:db8:1::/48"
+    ],
+    "forwarding": [],
+    "custom": []
+  },
+  "staged": {
+    "tcp": [
+      {
+        "id": "0c40d769d0f3",
+        "port": "22",
+        "description": "SSH",
+        "ssh": true
+      }
+    ],
+    "udp": [],
+    "blacklist": [
+      "# scanners",
+      "203.0.113.9",
+      "198.51.100.0/24",
+      "2001:db8::/32"
+    ],
+    "whitelist": [
+      "192.0.2.10",
+      "2001:db8:1::/48"
+    ],
+    "forwarding": [],
+    "custom": []
+  },
+  "backup": {
+    "tcp": [
+      {
+        "id": "0c40d769d0f3",
+        "port": "22",
+        "description": "SSH",
+        "ssh": true
+      }
+    ],
+    "udp": [],
+    "blacklist": [
+      "# scanners",
+      "203.0.113.9"
+    ],
+    "whitelist": [
+      "192.0.2.10"
+    ],
+    "forwarding": [],
+    "custom": []
+  }
+}

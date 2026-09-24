@@ -2,6 +2,8 @@
 layout: default
 title: Allowlist
 description: Addresses that reach every port, whether it is open or not — and the way back into your own machine.
+redirect_from:
+  - /docs/features/whitelist/
 ---
 
 # Allowlist

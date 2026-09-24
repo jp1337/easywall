@@ -2,6 +2,8 @@
 layout: default
 title: Blocklist
 description: A list of addresses that are dropped before anything else is considered.
+redirect_from:
+  - /docs/features/blacklist/
 ---
 
 # Blocklist

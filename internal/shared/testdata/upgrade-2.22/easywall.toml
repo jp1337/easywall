@@ -1,0 +1,140 @@
+# easywall core configuration
+# See documentation at https://easywall-project.org/configuration
+
+socket_path = "/run/easywall/core.sock"
+data_dir    = "/var/lib/easywall"
+log_dir     = "/var/log/easywall"
+
+[acceptance]
+enabled  = true
+duration = 120  # seconds before auto-rollback if not confirmed
+
+# ─── Usage counters ─────────────────────────────────────────────────────────
+# How often the per-rule packet counters are read out of the kernel, in
+# seconds. This is what the "Last used" column on the port pages is built from.
+#
+# 0 stops the ticker. An apply still reads the counters before it writes, because
+# writing the rules resets every one of them — so "Last used" keeps advancing at
+# every apply even with the ticker off.
+[usage]
+interval = 300
+
+# ─── Packet log ─────────────────────────────────────────────────────────────
+# What the Blocked page reads. The *_log switches under [firewall] decide what is
+# logged; this decides where it goes. Read at start only — restart to change it.
+#
+# nflog_group  the NFLOG group easywall-core binds. A group binds once per
+#              network namespace (per host, for a host-network install):
+#              if ulogd2 or another collector already holds it, the core says so
+#              at start and the log goes to the kernel log instead
+# entries      how many packets are kept, newest first (1000–200000)
+# persist      also write them to log_dir/packets.log, so the page survives a
+#              restart. The file holds IP addresses and rotates itself
+[packet_log]
+nflog_group = 12227
+entries     = 20000
+persist     = false
+
+[ipv6]
+# filter      — apply every rule to IPv6 as well as IPv4 (default)
+# passthrough — accept all IPv6 before any rule; IPv6 is managed elsewhere
+# block       — drop all IPv6 except loopback
+mode                              = "filter"
+icmp_allow_router_advertisement   = true
+icmp_allow_neighbor_advertisement = true
+
+# ─── Docker coexistence ─────────────────────────────────────────────────────
+# enabled  detects interfaces named docker* or br-* and trusts their networks
+#          — see features/docker.md. On, because a host with no such interface
+#          gets no rule change, and a Docker host with it off loses every
+#          container's network at the first apply, invisible to the
+#          acceptance window (the forward chain has no exceptions to give it).
+#          A non-Docker bridge with the same name — OpenWrt's br-lan is one —
+#          would be trusted too; set this to false on a host like that.
+[docker]
+enabled               = true   # auto-detect Docker bridge networks
+allow_bridge_networks = true
+custom_networks       = []
+
+# What happens to traffic this host forwards to a container.
+#
+#   open      Docker decides who reaches a published port — what easywall has
+#             always done, and the default
+#   filtered  only a port rule with scope = "forwarded" lets anything in
+#
+# "filtered" is what makes easywall the only firewall on a container host.
+# Switching it on closes every published port that has no forwarded rule, so
+# write the rules first and apply once: the acceptance window will not catch
+# this, because it proves your own connection and yours arrives on the input
+# chain.
+published_ports       = "open"
+
+# ─── Routed traffic ─────────────────────────────────────────────────────────
+# What happens to traffic this host passes on rather than receives — between two
+# interfaces, or out of a container. easywall's forward chain drops by default,
+# and a drop there is final: a rule in another table that accepts the same packet
+# does not save it. A plain server routes nothing and loses nothing by this.
+#
+#   closed    pass nothing on beyond what Docker coexistence above allows
+#   networks  also pass on the networks listed below, in either direction
+#   open      leave routed traffic alone; easywall filters only what arrives here
+#
+# Docker's networks cross regardless of this setting — switching coexistence on
+# is already that statement, and they do not belong in the list below.
+[routing]
+mode     = "closed"
+networks = []
+
+[firewall]
+# ─── SSH brute-force prevention ─────────────────────────────────────────────
+ssh_brute_force                  = true
+ssh_brute_force_log              = false
+ssh_brute_force_connection_limit = 5
+ssh_brute_force_log_limit        = 60
+
+# ─── ICMP flood prevention ──────────────────────────────────────────────────
+icmp_flood                       = true
+icmp_flood_log                   = false
+icmp_flood_connection_limit      = 10
+icmp_flood_log_limit             = 60
+
+# ─── SYN flood prevention ───────────────────────────────────────────────────
+syn_flood                        = true
+syn_flood_log                    = false
+syn_flood_limit                  = 100
+
+# ─── Port scan detection ────────────────────────────────────────────────────
+port_scan                        = true
+port_scan_log                    = false
+
+# ─── Invalid packet drop ────────────────────────────────────────────────────
+drop_invalid_packets             = true
+drop_invalid_packets_log         = false
+
+# ─── IP fragment drop ───────────────────────────────────────────────────────
+drop_fragments                   = false
+drop_fragments_log               = false
+
+# ─── Bogon filter (RFC-1918 from external interfaces) ───────────────────────
+bogon_filter                     = false
+bogon_filter_log                 = false
+
+# ─── Connection limit per source IP ─────────────────────────────────────────
+connection_limit_per_ip          = false
+connection_limit_max             = 100
+
+# ─── TCP RST flood ──────────────────────────────────────────────────────────
+tcp_rst_flood                    = false
+tcp_rst_flood_log                = false
+tcp_rst_flood_limit              = 100
+
+# ─── Broadcast / multicast / anycast drop ───────────────────────────────────
+drop_broadcast                   = false
+drop_multicast                   = false
+drop_anycast                     = false
+
+# ─── Logging ────────────────────────────────────────────────────────────────
+log_blocked_connections          = false
+log_blocked_connections_limit    = 60
+log_blacklist_connections        = true
+log_blacklist_connections_limit  = 25

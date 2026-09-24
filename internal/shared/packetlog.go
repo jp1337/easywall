@@ -415,6 +415,9 @@ func RuleFromPrefix(prefix string) string {
 	}
 	name = strings.TrimRight(name, "\x00 ")
 	name = strings.ReplaceAll(strings.TrimSuffix(name, ":"), "-", "_")
+	// A rule 2.22 loaded keeps its prefix, "easywall blacklist: ", until the
+	// next apply.
+	name = CurrentListName(name)
 	if slices.Contains(PacketLogRules, name) {
 		return name
 	}

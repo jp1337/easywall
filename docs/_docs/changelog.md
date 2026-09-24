@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#Unreleased">Unreleased</a>
   <a href="#2.22.0">2.22.0</a>
   <a href="#2.21.1">2.21.1</a>
   <a href="#2.21.0">2.21.0</a>
@@ -72,7 +73,36 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.22.0" markdown="1">
+<details open id="Unreleased" markdown="1">
+<summary><strong>Unreleased</strong> — Other people's lists</summary>
+
+### Changed — read this before upgrading
+
+- **Breaking: the blocklist's log prefix is `easywall blocklist: `.** It was
+  `easywall blacklist: `. Anything that greps the kernel log or
+  `packets.log` for the old prefix, or filters `jq` on `rule == "blacklist"`,
+  finds nothing new. A persisted `packets.log` written by 2.22 is read back
+  under the new name and rewritten that way at start.
+- **Blacklist is now blocklist, whitelist is now allowlist** — in the
+  interface, the documentation, the socket protocol's `rule_type`, and every
+  file easywall writes. `rules.json` and an export from 2.22 are read in
+  either spelling and written in the new one; a document naming one list
+  both ways is refused rather than guessed.
+- **`/blacklist` and `/whitelist` answer 301** to `/blocklist` and
+  `/allowlist`. A form posted to an old address is still saved, so a tab
+  left open across the upgrade loses nothing. A saved `/blocked?rule=`
+  filter with the old name is moved on to the new one.
+- **`log_blacklist_connections` and `log_blacklist_connections_limit` still
+  work** in `easywall.toml`, with one warning line at start naming the new
+  keys, `log_blocklist_connections` and `log_blocklist_connections_limit`.
+  The schema and the documentation name only the new ones, and the next save
+  from the interface writes them.
+
+[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.22.0...HEAD)
+
+</details>
+
+<details id="2.22.0" markdown="1">
 <summary><strong>2.22.0</strong> · 2026-09-24 — It is yours, and it says why</summary>
 
 Two audits, shipped together as one release. wdk-ansible's review of the

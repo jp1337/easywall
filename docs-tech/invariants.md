@@ -544,6 +544,22 @@ breaking the code it names.
 | `TestRequireAuth_AnHTMXRequestIsSentToLoginNotSwapped` | a refused htmx request gets `401` + `HX-Redirect`, never a 303 the XHR follows | a session that expired on /blocked rendered the login page inside the table |
 | `TestReachable_AForwardedOnlyRuleDoesNotOpenTheHost` | the lockout check skips a port rule that is not `FiltersHost()`, as the input chain does | /apply called the web port reachable through a rule that only filters forwarded traffic |
 
+## The lists' old names
+
+2.23 renamed the two lists. Each row was found by breaking the migration it
+names. The fixtures in `internal/shared/testdata/upgrade-2.22/` are the v2.22.0
+code's own output, not hand-typed.
+
+| Test | Protects | Incident |
+|---|---|---|
+| `TestTheOldListNamesAreGone` | outside history and the fixtures, the old words appear exactly as often per file as the migration needs, and in no file name but the old-URL stub | a rename by `sed` leaves the words in a new file the next release adds, and a reader deleted as "cleanup" breaks every upgrade from 2.22 without a failing test |
+| `TestA222RulesFileReadsIntoTheNewNames` / `TestA222RulesFileIsMigratedByTheFirstSave` / `TestA222ExportImports` / `TestA222ExportImportsIntoTheStore` | all three copies in `rules.json`, and an export, decode in either spelling and are written in the new one | a renamed json tag reads a 2.22 file as an empty blocklist and allowlist — the allowlist that was the way back in, gone |
+| `TestARulesDocumentNamingAListBothWaysIsRefused` | one list under both names is an error, not a merge | either guess drops entries the operator can see in the file |
+| `TestA222ConfigReadsTheOldLogKeys` / `TestTheNewLogKeyWinsOverItsOldSpelling` | the two old `[firewall]` keys still switch the log and set its limit, with one warning; a present new key wins | `easywall.toml` is a conffile; a kept 2.22 copy would have switched the log off silently |
+| `TestA222AppliedConfigReadsTheOldFieldNames` | `applied-config.json` from 2.22 (Go field names, the old spelling) reads as the switch it recorded | /apply reported the log switch as a pending change on a host that had not changed it |
+| `TestA222PacketLogReplaysUnderTheNewRuleName` / `TestA222LogPrefixDecodesAsTheBlocklist` | a persisted 2.22 line and a kernel rule loaded by 2.22 both read as rule `blocklist` | the `/blocked` filter for the blocklist missed every row written before the upgrade |
+| `TestTheOldListAddressesMovePermanently` / `TestAPostToAnOldListAddressIsSaved` / `TestAnOldBlockedFilterReadsAsTheNewRule` / `TestAnOldRowActionStagesOnTheNewList` | old URLs answer 301, a POST to one is saved, a saved filter and a stale row action use the new name | a 301 on POST becomes a GET and drops the pasted list |
+
 ## Adding one
 
 The shape that works: **derive the list from the code, compare it against the

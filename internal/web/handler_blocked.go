@@ -105,7 +105,9 @@ func blockedFilter(q url.Values) (shared.PacketLogFilter, string) {
 		Src:   strings.TrimSpace(q.Get("src")),
 		Dst:   strings.TrimSpace(q.Get("dst")),
 		Proto: q.Get("proto"),
-		Rule:  q.Get("rule"),
+		// A filter saved before 2.23 says rule=blacklist; read it as the rule's
+		// name now, and the redirect in handleBlocked moves the URL on.
+		Rule:  shared.CurrentListName(q.Get("rule")),
 		InDev: strings.TrimSpace(q.Get("in")),
 	}
 	if p := strings.TrimSpace(q.Get("port")); p != "" {
@@ -268,7 +270,8 @@ func (s *Server) stageFromLog(r *http.Request) string {
 	var payload any
 	var done string
 
-	switch act := r.FormValue("act"); act {
+	// A /blocked page left open across the upgrade posts the old list name.
+	switch act := shared.CurrentListName(r.FormValue("act")); act {
 	case "allowlist", "blocklist":
 		// One address, never a network: a network is a decision, and the list
 		// page is where it is typed. Unmapped and unzoned before anything reads

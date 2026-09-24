@@ -85,6 +85,9 @@ func LoadConfig(path string) (*Config, error) {
 	if err := toml.Unmarshal(data, &cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
+	if err := readOldLogKeys(data, &cfg.CoreConfig); err != nil {
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
 	cfg.configPath = path
 	cfg.fileConfig = cfg.CoreConfig // before the overlay, deliberately
 	// Before the caller's Validate(), which main runs next: an environment value
@@ -97,6 +100,52 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
 	return &cfg, nil
+}
+
+// readOldLogKeys reads the two [firewall] keys easywall.toml carried until
+// 2.22, log_blacklist_connections and log_blacklist_connections_limit, into
+// their 2.23 fields. The file is a conffile the operator may have edited, so
+// the old spelling has to keep working; it is read here and nowhere else, so
+// FirewallOptions carries no second field that DiffConfig, the schema and the
+// documentation guards would each have to be taught to ignore. The next save
+// from the interface writes the new keys (saveLocked encodes the struct).
+//
+// A new key that is present wins over its old one, and the warning says so.
+func readOldLogKeys(data []byte, c *shared.CoreConfig) error {
+	var old struct {
+		Firewall struct {
+			Log   *bool `toml:"log_blacklist_connections"`
+			Limit *int  `toml:"log_blacklist_connections_limit"`
+		} `toml:"firewall"`
+	}
+	meta, err := toml.Decode(string(data), &old)
+	if err != nil {
+		return err
+	}
+	var read, ignored []string
+	if v := old.Firewall.Log; v != nil {
+		if meta.IsDefined("firewall", "log_blocklist_connections") {
+			ignored = append(ignored, "log_blacklist_connections")
+		} else {
+			c.Firewall.LogBlocklist = *v
+			read = append(read, "log_blacklist_connections")
+		}
+	}
+	if v := old.Firewall.Limit; v != nil {
+		if meta.IsDefined("firewall", "log_blocklist_connections_limit") {
+			ignored = append(ignored, "log_blacklist_connections_limit")
+		} else {
+			c.Firewall.LogBlocklistLimit = *v
+			read = append(read, "log_blacklist_connections_limit")
+		}
+	}
+	if len(read)+len(ignored) > 0 {
+		slog.Warn("easywall.toml uses the [firewall] key names from before 2.23; "+
+			"rename log_blacklist_connections to log_blocklist_connections and "+
+			"log_blacklist_connections_limit to log_blocklist_connections_limit",
+			"read", read, "ignored_because_the_new_key_is_set", ignored)
+	}
+	return nil
 }
 
 // Validate checks all required fields and returns a descriptive error if

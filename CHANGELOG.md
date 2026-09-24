@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Other people's lists.**
+
+### Changed — read this before upgrading
+
+- **Breaking: the blocklist's log prefix is `easywall blocklist: `.** It was
+  `easywall blacklist: `. Anything that greps the kernel log or
+  `packets.log` for the old prefix, or filters `jq` on `rule == "blacklist"`,
+  finds nothing new. A persisted `packets.log` written by 2.22 is read back
+  under the new name and rewritten that way at start.
+- **Blacklist is now blocklist, whitelist is now allowlist** — in the
+  interface, the documentation, the socket protocol's `rule_type`, and every
+  file easywall writes. `rules.json` and an export from 2.22 are read in
+  either spelling and written in the new one; a document naming one list
+  both ways is refused rather than guessed.
+- **`/blacklist` and `/whitelist` answer 301** to `/blocklist` and
+  `/allowlist`. A form posted to an old address is still saved, so a tab
+  left open across the upgrade loses nothing. A saved `/blocked?rule=`
+  filter with the old name is moved on to the new one.
+- **`log_blacklist_connections` and `log_blacklist_connections_limit` still
+  work** in `easywall.toml`, with one warning line at start naming the new
+  keys, `log_blocklist_connections` and `log_blocklist_connections_limit`.
+  The schema and the documentation name only the new ones, and the next save
+  from the interface writes them.
+
 ## [2.22.0] — 2026-09-24
 
 **It is yours, and it says why.**
