@@ -1,0 +1,53 @@
+{
+  "firewall": {
+    "SSHBruteForce": true,
+    "SSHBruteForceLog": false,
+    "SSHBruteForceConnectionLimit": 5,
+    "SSHBruteForceLogLimit": 60,
+    "ICMPFlood": true,
+    "ICMPFloodLog": false,
+    "ICMPFloodConnectionLimit": 10,
+    "ICMPFloodLogLimit": 60,
+    "SYNFlood": true,
+    "SYNFloodLog": false,
+    "SYNFloodLimit": 100,
+    "PortScan": true,
+    "PortScanLog": false,
+    "InvalidPackets": true,
+    "InvalidPacketsLog": false,
+    "Fragments": false,
+    "FragmentsLog": false,
+    "Bogons": false,
+    "BogonsLog": false,
+    "ConnectionLimit": false,
+    "ConnectionLimitMax": 100,
+    "TCPRSTFlood": false,
+    "TCPRSTFloodLog": false,
+    "TCPRSTFloodLimit": 100,
+    "DropBroadcast": false,
+    "DropMulticast": false,
+    "DropAnycast": false,
+    "LogBlocked": false,
+    "LogBlockedLimit": 60,
+    "LogBlacklist": true,
+    "LogBlacklistLimit": 25
+  },
+  "network": {
+    "ipv6": {
+      "mode": "filter",
+      "enabled": false,
+      "icmp_allow_router_advertisement": true,
+      "icmp_allow_neighbor_advertisement": true
+    },
+    "docker": {
+      "Enabled": true,
+      "AllowBridgeNetworks": true,
+      "CustomNetworks": null,
+      "PublishedPorts": "open"
+    },
+    "routing": {
+      "mode": "closed",
+      "networks": null
+    }
+  }
+}

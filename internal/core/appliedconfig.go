@@ -38,6 +38,25 @@ func readAppliedConfig(path string) (shared.AppliedConfigResult, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return shared.AppliedConfigResult{}, fmt.Errorf("parse applied config: %w", err)
 	}
+	// FirewallOptions has no json tags, so the file carries Go field names, and
+	// a snapshot 2.22 wrote says LogBlacklist. Read as 0 and false, it would
+	// report the log switch as a pending change on /apply until the next
+	// apply rewrote the file — and a host upgraded in panic mode applies
+	// nothing at start.
+	var old struct {
+		Firewall struct {
+			LogBlacklist      *bool
+			LogBlacklistLimit *int
+		} `json:"firewall"`
+	}
+	if json.Unmarshal(data, &old) == nil {
+		if v := old.Firewall.LogBlacklist; v != nil {
+			cfg.Firewall.LogBlocklist = *v
+		}
+		if v := old.Firewall.LogBlacklistLimit; v != nil {
+			cfg.Firewall.LogBlocklistLimit = *v
+		}
+	}
 	return shared.AppliedConfigResult{Recorded: true, Config: cfg}, nil
 }
 

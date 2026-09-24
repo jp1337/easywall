@@ -58,6 +58,8 @@ func TestEveryPageIsDocumented(t *testing.T) {
 	// happening to look like one of these.
 	notAPage := map[string]string{
 		"/":              "redirects to /dashboard",
+		"/blacklist":     "301 to /blocklist, the page's name before 2.23",
+		"/whitelist":     "301 to /allowlist, the page's name before 2.23",
 		"/logout":        "an action, not a page — the behaviour is in security.md",
 		"/apply/status":  "polled by the apply page for the countdown",
 		"/log/filter":    "an htmx fragment of the audit log page",

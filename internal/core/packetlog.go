@@ -367,6 +367,10 @@ func (p *PacketLog) Persist(path string) error {
 				p.discarded++
 				continue
 			}
+			// A line 2.22 wrote says "blacklist". Read as today's name, so the
+			// /blocked filter and label find it; the rewrite below then stores it
+			// that way.
+			e.Rule = shared.CurrentListName(e.Rule)
 			p.push(e)
 			p.seq = max(p.seq, e.Seq)
 		}

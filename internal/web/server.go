@@ -583,6 +583,15 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/allowlist", s.handleAllowlistGET)
 		r.Post("/allowlist", s.handleAllowlistPOST)
 
+		// The pre-2.23 addresses: bookmarks, and links in anything written about
+		// easywall before the rename. A GET moves permanently. A POST is saved,
+		// not redirected — a tab left open across the upgrade still posts its
+		// form here, and a 301 turns a POST into a GET that drops the list.
+		r.Get("/blacklist", http.RedirectHandler("/blocklist", http.StatusMovedPermanently).ServeHTTP)
+		r.Post("/blacklist", s.handleBlocklistPOST)
+		r.Get("/whitelist", http.RedirectHandler("/allowlist", http.StatusMovedPermanently).ServeHTTP)
+		r.Post("/whitelist", s.handleAllowlistPOST)
+
 		// Shared HTMX validation endpoint for both blocklist and allowlist.
 		r.Post("/iplist/validate", s.handleIPListValidate)
 
