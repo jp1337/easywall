@@ -1710,5 +1710,7 @@ func templateFuncs() template.FuncMap {
 			}
 			return ""
 		},
+		// The /options card a /blocked rule chip leads to, or nothing.
+		"blockedOption": func(rule string) string { return blockedRuleOption[rule] },
 	}
 }

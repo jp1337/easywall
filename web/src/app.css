@@ -3352,6 +3352,28 @@ body {
   .table tbody tr:hover .pkt-actions .btn,
   .table tbody tr:focus-within .pkt-actions .btn { color: var(--color-ink); }
 
+  /* The rule cell: a chip, and under a default drop the reason. One flex item
+     on a card, as .pkt-act is. The reason is a sentence — the UI face, and it
+     wraps; max-width keeps a long one from widening the Rule column at the
+     expense of the data columns, which do not wrap. */
+  .pkt-rule { flex: 1; min-width: 0; }
+  .pkt-why {
+    display: block;
+    max-width: 18rem;
+    margin-top: 3px;
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    white-space: normal;
+  }
+  /* A chip that leads to its option carries the link's permanent underline
+     (DESIGN.md § Links and badges): the underline is the affordance. */
+  a.log-action { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--color-ink-subtle); }
+  a.log-action:hover { color: var(--color-ink); text-decoration-color: currentColor; }
+  a.log-action:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
   /* ── Demo notice ──────────────────────────────────────────────────────────
      Lives inside the topbar rather than as a band above it. As its own row it
      displaced every page by its own height, which read as a layout bug. */
