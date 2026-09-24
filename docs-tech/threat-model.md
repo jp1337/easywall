@@ -413,6 +413,13 @@ the password alone.
   on stderr; they cannot tell it from yours. A manual install keeps its mode
   until the operator runs the two commands in `installation/manual.md`, and the
   core says so at every start until then.
+- What an own feed can reach. It is a GET from the web process's position:
+  `https://` to any host the web process can reach, LAN included, and `http://`
+  to any loopback port. A session holder reads back what fails to parse: five
+  lines of at most 80 bytes, 400 bytes a refresh. Its password is stored in plain
+  text in `<data_dir>/web/feed_fetch.json`, `easywall` 0600 — the web process has
+  to send it, so it cannot be hashed. Redirects and userinfo URLs are refused, so
+  the credentials go to the URL the operator typed and nowhere else.
 - A descriptor the web process held open across the upgrade. It is stopped by
   `prerm`, and every non-root file is replaced by a new root-owned inode, so
   none survives a package upgrade. A host process running as uid 100 beside a
