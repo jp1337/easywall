@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/netip"
 
@@ -77,12 +78,36 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 // healthAllowed matches the TCP peer — and only the TCP peer — against the
 // list. peerIP is the helper that reads r.RemoteAddr and nothing else;
 // resolveClient is the one that must not be used here.
+//
+// A peer whose address is the connection's own local address is admitted as
+// well: a completed handshake from our own address is a process on this host,
+// as trusted as loopback. That is what `easywall-web -healthcheck` is when
+// bind_addr names a specific address, which refuses loopback outright. Not
+// when the list is empty — that is the operator switching the endpoint off.
 func healthAllowed(r *http.Request, allow []string) bool {
 	addr, err := netip.ParseAddr(peerIP(r))
 	if err != nil {
 		return false
 	}
-	return shared.InAnyEntry(addr.Unmap(), allow)
+	addr = addr.Unmap()
+	if len(allow) > 0 && addr == localIP(r) {
+		return true
+	}
+	return shared.InAnyEntry(addr, allow)
+}
+
+// localIP is the address this connection arrived on, or the zero Addr when
+// the server did not record one (a request built by a test, for one).
+func localIP(r *http.Request) netip.Addr {
+	tcp, ok := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+	if !ok {
+		return netip.Addr{}
+	}
+	ip, ok := netip.AddrFromSlice(tcp.IP)
+	if !ok {
+		return netip.Addr{}
+	}
+	return ip.Unmap()
 }
 
 // writeHealth answers with the result as JSON. no-store because a cached "ok"
