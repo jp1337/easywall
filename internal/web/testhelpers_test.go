@@ -327,6 +327,8 @@ key  = ""
 		tmpl:                tmpl,
 		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:               certs,
+		// No runner: nothing in a handler test fetches a feed.
+		feedStore: newFeedStore(cfg.FeedStatePath()),
 	}
 	// Built the way production builds it (NewServer wires this the same way,
 	// right after the struct literal): a real, empty store rather than the

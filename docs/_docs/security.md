@@ -273,16 +273,17 @@ built for.
 
 ### Every request that goes out
 
-Four, and this is the whole list.
+Five, and this is the whole list.
 
 | | Destination | When | Carries | Default |
 |---|---|---|---|---|
 | Update check | `api.github.com` | once a day | nothing about you — a plain GET for the newest release | **on**, `update_check = false` removes it |
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
 | Notifications | **an address you choose** | when one of the four things you ticked happens, and whenever you press **Send a test** | the event, its detail, this host's name and the version | **off** until you set an address |
+| Feeds | each list you switch on, at the address the catalogue names — or **an address you choose** for an own feed | on the list's schedule, hourly to daily | nothing about you — a GET with the version in the User-Agent; to an own feed, the user and password you gave it | **off**, each one, until you switch it on |
 | A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, your agreement to the authority's subscriber terms, the public half of an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
 
-The first three are not on the path of a page. On a host with no route out they
+The first four are not on the path of a page. On a host with no route out they
 simply fail, and nothing else changes. The exact request the count makes is printed
 verbatim under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
@@ -296,12 +297,17 @@ fatal when it fails, are [above](#the-one-exception-acmes-port-80).
 The private half of the account key never leaves the host. What goes out is its
 public half, signing each request.
 
-> **The notification is the one easywall cannot name at all.** `api.github.com`
-> and `telemetry.wdkro.de` are fixed, and the certificate authority is a default
-> you may replace. Where a notification goes is yours from the start, so nothing
-> here can promise where it lands. Only that it goes nowhere until you set an
-> address, that redirects are refused, and that the address is a credential. See
-> [Notifications]({{ '/docs/features/notifications/' | relative_url }}).
+> **The notification and an own feed are the two easywall cannot name at all.**
+> `api.github.com`, `telemetry.wdkro.de` and the catalogue's lists are fixed, and
+> the certificate authority is a default you may replace. Where a notification
+> goes is yours from the start, so nothing here can promise where it lands. Only
+> that it goes nowhere until you set an address, that redirects are refused, and
+> that the address is a credential. See
+> [Notifications]({{ '/docs/features/notifications/' | relative_url }}). An own
+> feed is held to `https://`, or `http://` to this host only; redirects are
+> refused there too, and its password is never shown back or logged. It is kept
+> in plain text in `<data_dir>/web/feed_fetch.json`, readable by the web user
+> alone, because the web process has to send it.
 
 > **Fixed in v2.4.0.** htmx was configured through a listener for an `htmx:config`
 > event, which htmx does not emit. So `allowEval` stayed at its default of `true`

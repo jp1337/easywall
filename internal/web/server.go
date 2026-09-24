@@ -158,6 +158,14 @@ type Server struct {
 	telemetryStop chan struct{}
 	telemetryOnce sync.Once
 
+	// feedStore is the feeds' web state — validators, failures, own feeds —
+	// read by the blocklist page in every mode. feeds fetches them: nil in
+	// demo mode, which makes no outbound request (spec §3).
+	feedStore *feedStore
+	feeds     *feedRunner
+	feedStop  chan struct{}
+	feedOnce  sync.Once
+
 	// events carries login events to the core without a request waiting on one.
 	events     *auditEvents
 	eventsStop chan struct{}
@@ -337,6 +345,12 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetryStop = make(chan struct{})
 	}
 
+	s.feedStore = newFeedStore(cfg.FeedStatePath())
+	if !cfg.DemoMode {
+		s.feeds = newFeedRunner(client, s.feedStore)
+		s.feedStop = make(chan struct{})
+	}
+
 	s.events = newAuditEvents(client, cfg.DemoMode)
 	s.eventsStop = make(chan struct{})
 
@@ -445,6 +459,9 @@ func (s *Server) Start() error {
 	if s.telemetry != nil {
 		go s.telemetry.Run(s.telemetryStop)
 	}
+	if s.feeds != nil {
+		go s.feeds.run(s.feedStop)
+	}
 	go s.events.run(s.eventsStop)
 	go s.runNotifier(s.notifyStop)
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
@@ -460,6 +477,9 @@ func (s *Server) Stop() {
 	s.stopACMEChallengeListener()
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
+	}
+	if s.feedStop != nil {
+		s.feedOnce.Do(func() { close(s.feedStop) })
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
