@@ -39,16 +39,32 @@ host's existing firewall and any provider-level security group for port 12227.
 Now complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}) — it
 covers the SSH port, which is the one answer that can shut you out. Before you do,
 see [Environment Variables]({{ '/docs/environment/' | relative_url }}) for what
-`docker-compose.yml` can set without editing `./config` at all — and what it
+`docker-compose.yml` can set without editing `./easywall-config` at all — and what it
 deliberately cannot.
 
-> **`./config` changes owner on first start, and needs to.** The mount replaces the
-> ownership the image sets, so the files arrive belonging to whoever cloned the
-> repository — and `easywall-web` must write `web.toml` and create its certificate in
-> `config/ssl/`. It could do neither, and the container reported healthy anyway
-> because the healthcheck only looked at the core's socket. The entrypoint now puts
-> the directory into the shape the Debian package installs. **Editing those files on
-> the host afterwards needs `sudo`.**
+> **`./easywall-config` is yours, and changes owner on first start.** Docker
+> creates it empty. The entrypoint fills it from the defaults inside the image,
+> in the shape the Debian package installs: `web.toml` and `ssl/` to the
+> container's `easywall` user (uid 100, gid 101), `easywall.toml` to root.
+> It is gitignored: the account lives there. **Editing those files on the host
+> needs `sudo`.** In a bind-mounted `/var/lib/easywall` the entrypoint does the
+> same: the directory is root's, and the web process keeps its passkeys and
+> TOTP replay store in `web/` inside it.
+
+> **Upgrading a git checkout from 2.21 or earlier?** compose mounted `./config`,
+> the tracked defaults. Move your files once, before pulling:
+>
+> ```bash
+> docker compose down
+> sudo mv config easywall-config && sudo rm -f easywall-config/embed.go
+> git checkout -- config && git pull
+> docker compose up -d
+> ```
+>
+> Your existing `easywall.toml` is moved as-is: whatever it already says for
+> `docker.enabled` is kept, not replaced by the new default.
+> Skip it and the container starts a fresh first run — which the setup token
+> keeps anyone else from claiming.
 
 ## What must persist
 
@@ -190,11 +206,11 @@ it owns [`table inet easywall`]({{ '/docs/features/docker/' | relative_url }}) a
 ```yaml
 volumes:
   - /etc/letsencrypt:/etc/letsencrypt:ro
-  - ./config:/etc/easywall
+  - ./easywall-config:/etc/easywall
 ```
 
 ```toml
-# config/web.toml
+# ./easywall-config/web.toml
 [tls]
 cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"

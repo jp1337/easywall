@@ -1,0 +1,28 @@
+# CI only — build.yml's "compose, as documented" step layers this over
+# docker-compose.yml. Nobody runs it on its own.
+#
+# Three changes and no more, so what is tested is the documented file:
+services:
+  easywall:
+    # 1. The image the job just built, not a pull.
+    image: easywall:dev
+    # 2. Its own network, not the host's: under network_mode: host the rules
+    #    would land on the runner itself, at policy drop (see the HEALTHCHECK
+    #    step). A fixed address, so the step can reach the interface from the
+    #    runner and move bind_addr onto it.
+    network_mode: !reset null
+    networks:
+      ci:
+        ipv4_address: 172.30.99.10
+    # 3. Empty bind mounts where docker-compose.yml has named volumes: the shape
+    #    a host directory arrives in, root:root 0755 (2.22 finding D).
+    #    ./easywall-config is already one and is left exactly as documented.
+    volumes:
+      - ${EASYWALL_CI_STATE:?set by build.yml}/lib:/var/lib/easywall
+      - ${EASYWALL_CI_STATE:?set by build.yml}/log:/var/log/easywall
+
+networks:
+  ci:
+    ipam:
+      config:
+        - subnet: 172.30.99.0/24

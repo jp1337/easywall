@@ -46,9 +46,14 @@ LABEL org.opencontainers.image.title="easywall" \
 # without this package, Go's time.LoadLocation fails for anything but "UTC"
 # and "Local" silently means UTC regardless of what TZ says, which is a TZ
 # variable that looks respected and is not.
+#
+# The ids are pinned to what alpine happened to assign when they were not:
+# 101 and 100, measured in the v2.21.1 image. Pinned so a bind-mounted
+# directory can be handed over with one stable `chown 100:101`, and unchanged
+# so no existing volume changes owner on upgrade.
 RUN apk add --no-cache nftables supervisor tini tzdata && \
-    addgroup -S easywall && \
-    adduser  -S -G easywall easywall
+    addgroup -S -g 101 easywall && \
+    adduser  -S -u 100 -G easywall easywall
 
 COPY --from=builder /out/easywall-core /usr/sbin/easywall-core
 COPY --from=builder /out/easywall-web  /usr/sbin/easywall-web
@@ -87,7 +92,7 @@ COPY docker/supervisord.conf /etc/supervisord.conf
 
 # The ownership above is set at build time and a bind mount replaces all of it.
 # The entrypoint restores it at start, which is what makes `docker compose up -d`
-# with the shipped ./config mount work at all — read its header.
+# with the shipped ./easywall-config mount work at all — read its header.
 COPY docker/entrypoint.sh /usr/local/bin/easywall-entrypoint
 RUN chmod 0755 /usr/local/bin/easywall-entrypoint
 
