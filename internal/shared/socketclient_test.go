@@ -25,11 +25,13 @@ func rawServer(t *testing.T, out []byte) (socketPath string, received *Command) 
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	t.Cleanup(func() { _ = ln.Close() })
 
 	received = &Command{}
 	done := make(chan struct{})
+	// Cleanups run last-first: the listener closes before the wait, so a test
+	// whose client never connects fails instead of hanging in Accept.
 	t.Cleanup(func() { <-done })
+	t.Cleanup(func() { _ = ln.Close() })
 
 	go func() {
 		defer close(done)
