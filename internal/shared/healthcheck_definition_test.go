@@ -102,12 +102,22 @@ func TestTheContainerHealthCheckHasOneDefinition(t *testing.T) {
 	// describing the thing it checks". No digit-boundary hazard here — both
 	// fragments are long enough that a differing value cannot leave one a
 	// prefix of the other — so the plain helper is enough.
-	for _, fragment := range []string{"--no-check-certificate", "https://127.0.0.1:12227/healthz"} {
+	//
+	// Since 2.22 the probe is `easywall-web -healthcheck`, which reads
+	// bind_addr at run time. The wget it replaced was fixed at
+	// 127.0.0.1:12227 and read `unhealthy` for ever on a specific or moved
+	// bind; it must not come back in either file.
+	for _, fragment := range []string{"easywall-web -healthcheck"} {
 		if !namedOutsideAComment(dockerfile, fragment) {
 			t.Errorf("the Dockerfile's probe does not contain %q", fragment)
 		}
 		if !namedOutsideAComment(compose, fragment) {
 			t.Errorf("compose's probe does not contain %q", fragment)
+		}
+	}
+	for _, fixed := range []string{"127.0.0.1:12227/healthz", "wget"} {
+		if namedOutsideAComment(dockerfile, fixed) || namedOutsideAComment(compose, fixed) {
+			t.Errorf("a probe names %q again — a check fixed to one address cannot follow bind_addr", fixed)
 		}
 	}
 }

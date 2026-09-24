@@ -51,9 +51,21 @@ const (
 	// renders here and nowhere else must still have its counter read somewhere.
 	forwardChainName = "forward"
 
+	// fragmentChainName is the prerouting chain the fragment drop lives in, and
+	// the only easywall chain at that hook besides the NAT one ("prerouting"). It
+	// exists only while drop_fragments is on.
+	fragmentChainName = "fragments"
+
 	// nftables chain priorities
 	prioFilter = 0
 	prioNAT    = -100
+
+	// prioBeforeDefrag is NF_IP_PRI_RAW_BEFORE_DEFRAG, and NF_IP6_PRI_ has the
+	// same value (include/uapi/linux/netfilter_ipv4.h:32, netfilter_ipv6.h:36 @
+	// v6.12): ahead of conntrack's reassembly at NF_IP_PRI_CONNTRACK_DEFRAG,
+	// -400. A chain at any later priority, or at any later hook, sees a fragment
+	// only once it has been put back together — see addFragmentDrop.
+	prioBeforeDefrag = -450
 
 	// nftConnlimitInvert makes a connlimit match when the count is *over* the
 	// configured value rather than under it — `ct count over N`. golang.org/x/sys
@@ -717,6 +729,31 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addFamilyVerdict(table, inputChain, unix.NFPROTO_IPV6, expr.VerdictDrop)
 	}
 
+	// The two meters whose packets the next two rules would otherwise accept
+	// unmetered, so they come first. Until 2.22 they sat with the other modules,
+	// below both, and saw next to nothing:
+	//
+	//   - Every echo request after a source's first is `ct state established`:
+	//     conntrack keys an echo on its identifier (icmp_pkt_to_tuple,
+	//     nf_conntrack_proto_icmp.c:37-39 @ v6.12, and its ICMPv6 twin), one ping
+	//     process keeps one, and a tuple that has seen a reply is established
+	//     (nf_conntrack_core.c:1903-1905). Measured: 20 pings, 1 new and 19
+	//     established, in both families. ICMPv6 128 is in the accept list below
+	//     as well, so an IPv6 ping never reached the meter at all.
+	//   - A reset for a tracked connection is `established` too; one for no
+	//     connection is `invalid` (nf_conntrack_proto_tcp.c:200, the rst row maps
+	//     sNO to sIV), which Invalid packets drops first.
+	//
+	// Neither admits anything: under its rate a packet falls through to the
+	// rules that follow, as it always did. And neither matches a reply to this
+	// host's own traffic except a reset: an echo request is never one.
+	if opts.ICMPFlood {
+		m.addICMPFloodProtection(table, inputChain, opts)
+	}
+	if opts.TCPRSTFlood {
+		m.addTCPRSTFlood(table, inputChain, opts)
+	}
+
 	m.addEstablishedAccept(table, inputChain)
 	m.addICMPRules(table, inputChain, ipv6)
 
@@ -746,20 +783,26 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addInvalidPacketDrop(table, inputChain, opts)
 	}
 	if opts.Fragments {
-		m.addFragmentDrop(table, inputChain, opts)
+		// Its own base chain, and only while the switch is on: the input chain
+		// never sees a fragment. See addFragmentDrop.
+		fragChain := m.conn.AddChain(&nftables.Chain{
+			Name:     fragmentChainName,
+			Table:    table,
+			Type:     nftables.ChainTypeFilter,
+			Hooknum:  nftables.ChainHookPrerouting,
+			Priority: nftables.ChainPriorityRef(prioBeforeDefrag),
+			// Accept, and it is not a formality: this is a base chain, and a
+			// drop policy here would drop every packet the host receives.
+			Policy: policyAccept(),
+		})
+		m.addFragmentDrop(table, fragChain, opts)
 	}
 	if opts.Bogons {
 		m.addBogonFilter(table, inputChain, opts,
 			append(append([]string(nil), state.Current.Whitelist...), dockerCIDRs...))
 	}
-	if opts.ICMPFlood {
-		m.addICMPFloodProtection(table, inputChain, opts)
-	}
 	if opts.SSHBruteForce {
 		m.addSSHBruteForce(table, inputChain, state.Current, opts)
-	}
-	if opts.TCPRSTFlood {
-		m.addTCPRSTFlood(table, inputChain, opts)
 	}
 	if opts.ConnectionLimit {
 		m.addConnectionLimit(table, inputChain, opts)
@@ -1228,18 +1271,45 @@ func (m *NftablesManager) addInvalidPacketDrop(t *nftables.Table, c *nftables.Ch
 		logSpec{enabled: opts.InvalidPacketsLog, prefix: logPrefixInvalid})
 }
 
+// addFragmentDrop drops IPv4 fragments addressed to this host, in c — the
+// fragments chain, a prerouting base chain at prioBeforeDefrag.
+//
+// Until 2.22 this rule sat in the input chain and matched nothing, ever. Linux
+// reassembles an IPv4 datagram in ip_local_deliver before the LOCAL_IN hook
+// runs (net/ipv4/ip_input.c:249-254 @ v6.12), and conntrack does it earlier
+// still, at PRE_ROUTING -400 (nf_defrag_ipv4.c:95-99). Measured over a veth at
+// MTU 1280: a 3000-byte ping passed with the switch on, because the input
+// chain only ever held the reassembled packet. Hence the hook and the priority.
+//
+// Three tests narrow it to what the switch has always meant:
+//
+//   - IPv4 only. An IPv6 fragment is left to the kernel: RFC 8900 §3.9 measured
+//     28 % of IPv6 paths already dropping them, and §6.5 asks operators not to
+//     filter fragments to or from a DNS server — which every host's resolver
+//     is. Adding IPv6 to a switch that has only ever said IPv4 would break the
+//     same thing on a second family for somebody who never asked.
+//   - Not on loopback, which the input chain accepts before anything else.
+//   - Only to an address this host holds. Prerouting also sees what the host
+//     routes and has not yet routed; the input chain never did, and a module
+//     that silently started dropping a router's transit fragments would be a
+//     new behaviour behind an old switch.
+//
+// What it breaks, and it is why the switch is off by default: any reply too
+// large for one packet, most visibly a DNS answer over UDP with DNSSEC.
 func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
-	// Drop fragmented IPv4 packets (offset > 0 or MF flag set)
 	match := []expr.Any{
 		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
 		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
+		&expr.Meta{Key: expr.MetaKeyIIFNAME, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte("lo\x00")},
+		// More-fragments or a non-zero offset: the first fragment, and every
+		// one after it.
 		&expr.Payload{
 			DestRegister: 1,
 			Base:         expr.PayloadBaseNetworkHeader,
-			Offset:       6, // fragment offset field
+			Offset:       6, // flags and fragment offset
 			Len:          2,
 		},
-		// Check if fragment offset bits are non-zero (fragmented packet)
 		&expr.Bitwise{
 			SourceRegister: 1,
 			DestRegister:   1,
@@ -1248,6 +1318,8 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 			Xor:            []byte{0x00, 0x00},
 		},
 		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x00, 0x00}},
+		&expr.Fib{Register: 1, ResultADDRTYPE: true, FlagDADDR: true},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: binaryutil.NativeEndian.PutUint32(unix.RTN_LOCAL)},
 	}
 	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop},
 		logSpec{enabled: opts.FragmentsLog, prefix: logPrefixFragment})
@@ -1320,6 +1392,19 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 	})
 }
 
+// parseIPNet is shared.ParseNetwork in the shape the builders below were
+// written against: a 4-byte address and mask for IPv4, 16 bytes for IPv6. That
+// is what net.ParseCIDR returned for every entry that is not IPv4-mapped, so
+// those entries build the same bytes they did before 2.22; a mapped one now
+// builds the bytes of the IPv4 network it names.
+func parseIPNet(s string) (*net.IPNet, error) {
+	p, err := shared.ParseNetwork(s)
+	if err != nil {
+		return nil, err
+	}
+	return &net.IPNet{IP: p.Addr().AsSlice(), Mask: net.CIDRMask(p.Bits(), p.Addr().BitLen())}, nil
+}
+
 // ipv4SourceMatch matches an IPv4 source address or network. A bare address is
 // treated as a /32. Returns nil for anything that is not an IPv4 entry —
 // comments, IPv6, and text that does not parse — so callers can skip it.
@@ -1337,7 +1422,7 @@ func ipv4SourceMatch(entry string) []expr.Any {
 		}
 		ipNet = &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)}
 	} else {
-		_, parsed, err := net.ParseCIDR(entry)
+		parsed, err := parseIPNet(entry)
 		if err != nil || parsed.IP.To4() == nil {
 			return nil
 		}
@@ -1481,7 +1566,8 @@ func (m *NftablesManager) addICMPFloodProtection(t *nftables.Table, c *nftables.
 	// Rate-limit echo requests. The protocol number and the echo-request type
 	// both differ by family: ICMP type 8 on IPv4, ICMPv6 type 128 on IPv6. The
 	// rule used to be written for IPv4 only, so a ping flood over IPv6 passed
-	// the module entirely.
+	// the module entirely — and then, until 2.22, it sat behind the established
+	// and ICMPv6 accepts and passed it anyway. Apply adds it ahead of both.
 	match := func(f addrFamily) []expr.Any {
 		proto, echo := byte(unix.IPPROTO_ICMP), byte(8)
 		if f.nfproto == unix.NFPROTO_IPV6 {
@@ -1628,7 +1714,12 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 // addTCPRSTFlood rate-limits inbound TCP RST packets per second.
 //
 // A reset flood is cheap to send and forces the receiver to tear down state,
-// so the cap is on the packet rate rather than on connections.
+// so the cap is on the packet rate rather than on connections. The only reset
+// that tears anything down belongs to a connection, and conntrack calls that
+// one established — so Apply adds this ahead of the established accept, where
+// it meters every reset, tracked or not. Behind it, until 2.22, it could only
+// ever see the resets conntrack calls invalid, and Invalid packets, on by
+// default, dropped those first.
 func (m *NftablesManager) addTCPRSTFlood(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
 	limit := opts.TCPRSTFloodLimit
 	if limit <= 0 {
@@ -1993,7 +2084,7 @@ func cidrMatchOp(entry string, pos addrPos, op expr.CmpOp) []expr.Any {
 			ipNet = &net.IPNet{IP: ip.To16(), Mask: net.CIDRMask(128, 128)}
 		}
 	} else {
-		_, parsed, err := net.ParseCIDR(entry)
+		parsed, err := parseIPNet(entry)
 		if err != nil {
 			return nil
 		}
@@ -2381,7 +2472,7 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 		return // a note or a spacer, not an address
 	}
 	cidr = strings.TrimSpace(cidr)
-	_, ipNet, err := net.ParseCIDR(cidr)
+	ipNet, err := parseIPNet(cidr)
 	if err != nil {
 		return
 	}
@@ -2444,15 +2535,11 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 	if shared.IsListComment(ip) {
 		return // a note or a spacer, not an address
 	}
-	parsed := net.ParseIP(ip)
-	if parsed == nil {
-		// Try CIDR
-		m.addCIDRDrop(t, c, ip)
-		return
-	}
 
 	// opts was accepted and ignored here until 2.5.0, which is why the
-	// log_blacklist_connections switch produced nothing.
+	// log_blacklist_connections switch produced nothing — and until 2.22 a
+	// network entry still returned before this line, into a builder that took
+	// no log spec, so 10.0.0.0/8 was dropped without one.
 	lg := logSpec{
 		enabled:   opts.LogBlacklist,
 		prefix:    logPrefixBlacklist,
@@ -2460,7 +2547,13 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 	}
 
 	var match []expr.Any
-	if ip4 := parsed.To4(); ip4 != nil {
+	parsed := net.ParseIP(ip)
+	switch {
+	case parsed == nil:
+		if match = cidrDropMatch(ip); match == nil {
+			return
+		}
+	case parsed.To4() != nil:
 		match = []expr.Any{
 			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
 			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
@@ -2470,9 +2563,9 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 				Offset:       12, // src IP in IPv4 header
 				Len:          4,
 			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: parsed.To4()},
 		}
-	} else {
+	default:
 		match = []expr.Any{
 			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
 			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
@@ -2489,63 +2582,57 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, lg)
 }
 
-func (m *NftablesManager) addCIDRDrop(t *nftables.Table, c *nftables.Chain, cidr string) {
-	_, ipNet, err := net.ParseCIDR(cidr)
+// cidrDropMatch is the source match for a blacklisted network, or nil when cidr
+// does not parse. The expressions are byte for byte what addCIDRDrop wrote
+// before 2.22; only the verdict moved out, so addFiltered can put a log rule in
+// front of it.
+//
+// Parsed through parseIPNet, not net.ParseCIDR: an IPv4-mapped IPv6 network
+// (e.g. ::ffff:10.0.0.0/104) is written as the IPv4 network it names, the same
+// fix Task 13 gave every other parse site in this file.
+func cidrDropMatch(cidr string) []expr.Any {
+	ipNet, err := parseIPNet(cidr)
 	if err != nil {
-		return
+		return nil
 	}
-	ip4 := ipNet.IP.To4()
-	if ip4 != nil {
-		m.adder.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseNetworkHeader,
-					Offset:       12,
-					Len:          4,
-				},
-				&expr.Bitwise{
-					SourceRegister: 1,
-					DestRegister:   1,
-					Len:            4,
-					Mask:           []byte(ipNet.Mask),
-					Xor:            []byte{0, 0, 0, 0},
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
-				&expr.Verdict{Kind: expr.VerdictDrop},
-			},
-		})
-		return
-	}
-	// IPv6 CIDR
-	ip6 := ipNet.IP.To16()
-	m.adder.AddRule(&nftables.Rule{
-		Table: t,
-		Chain: c,
-		Exprs: []expr.Any{
+	if ip4 := ipNet.IP.To4(); ip4 != nil {
+		return []expr.Any{
 			&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
 			&expr.Payload{
 				DestRegister: 1,
 				Base:         expr.PayloadBaseNetworkHeader,
-				Offset:       8, // src IP in IPv6 header
-				Len:          16,
+				Offset:       12,
+				Len:          4,
 			},
 			&expr.Bitwise{
 				SourceRegister: 1,
 				DestRegister:   1,
-				Len:            16,
+				Len:            4,
 				Mask:           []byte(ipNet.Mask),
-				Xor:            make([]byte, 16),
+				Xor:            []byte{0, 0, 0, 0},
 			},
-			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip6},
-			&expr.Verdict{Kind: expr.VerdictDrop},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ip4},
+		}
+	}
+	return []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV6}},
+		&expr.Payload{
+			DestRegister: 1,
+			Base:         expr.PayloadBaseNetworkHeader,
+			Offset:       8, // src IP in IPv6 header
+			Len:          16,
 		},
-	})
+		&expr.Bitwise{
+			SourceRegister: 1,
+			DestRegister:   1,
+			Len:            16,
+			Mask:           []byte(ipNet.Mask),
+			Xor:            make([]byte, 16),
+		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ipNet.IP.To16()},
+	}
 }
 
 func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain, ip string) {
@@ -2687,9 +2774,9 @@ func portAcceptRules(t *nftables.Table, c *nftables.Chain, proto string, rule sh
 		if match := cidrMatch(src, posSrcAddr); match != nil {
 			matches = append(matches, match)
 		} else if !shared.IsListComment(src) {
-			// ValidateRules accepts a little more than cidrMatch can build into a
-			// rule (e.g. an IPv4-mapped IPv6 CIDR whose mask length cidrMatch's
-			// family check rejects). The gap fails closed — the source is
+			// ValidateRules and cidrMatch parse with the same function, so this
+			// should not happen; until 2.22 an IPv4-mapped network did (a 16-byte
+			// mask on a 4-byte address). A gap fails closed — the source is
 			// dropped, never opened — but silently, so it is logged here.
 			slog.Warn("port rule source accepted by validation but not usable in a kernel rule",
 				"port", rule.Port, "source", src)

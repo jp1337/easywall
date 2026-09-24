@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/netip"
 
@@ -77,12 +78,53 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 // healthAllowed matches the TCP peer — and only the TCP peer — against the
 // list. peerIP is the helper that reads r.RemoteAddr and nothing else;
 // resolveClient is the one that must not be used here.
+//
+// A peer whose address is the connection's own local address is admitted as
+// well: a completed handshake from our own address is a process on this host,
+// as trusted as loopback. That is what `easywall-web -healthcheck` is when
+// bind_addr names a specific address, which refuses loopback outright. Not
+// when the list is empty — that is the operator switching the endpoint off.
+//
+// The zone is stripped before either comparison, deliberately, not carried
+// through: a zoned peer (a link-local caller, on a zoned bind_addr) can only
+// ever have completed the handshake on the one zone the local address itself
+// belongs to — the accepting socket already implies it — so the numeric
+// address alone is enough once a connection exists. It also matches how
+// netip.Prefix.Contains itself treats a zone: measured,
+// `netip.MustParsePrefix("fe80::/64").Contains(zonedAddr)` is false for every
+// zoned Addr, whatever the zone — a health_allow CIDR entry is written with
+// no zone at all, so a zoned peer kept its zone would fail every CIDR rule
+// too, not only the own-address rule this round's finding named.
 func healthAllowed(r *http.Request, allow []string) bool {
 	addr, err := netip.ParseAddr(peerIP(r))
 	if err != nil {
 		return false
 	}
-	return shared.InAnyEntry(addr.Unmap(), allow)
+	addr = addr.Unmap().WithZone("")
+	if len(allow) > 0 && addr == localIP(r) {
+		return true
+	}
+	return shared.InAnyEntry(addr, allow)
+}
+
+// localIP is the address this connection arrived on, or the zero Addr when
+// the server did not record one (a request built by a test, for one).
+//
+// netip.AddrFromSlice never carries tcp.Zone — it builds from the raw IP
+// bytes alone — so this already returns a zoneless Addr; WithZone("") is
+// written anyway, to say in code what healthAllowed's comment says in prose:
+// the comparison is deliberately zoneless on both sides, not zoneless here by
+// omission.
+func localIP(r *http.Request) netip.Addr {
+	tcp, ok := r.Context().Value(http.LocalAddrContextKey).(*net.TCPAddr)
+	if !ok {
+		return netip.Addr{}
+	}
+	ip, ok := netip.AddrFromSlice(tcp.IP)
+	if !ok {
+		return netip.Addr{}
+	}
+	return ip.Unmap().WithZone("")
 }
 
 // writeHealth answers with the result as JSON. no-store because a cached "ok"

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -32,6 +33,12 @@ type firstRunData struct {
 	// and the wizard says so rather than doing it quietly.
 	WebPort string
 }
+
+// firstRunHash is HashPassword, named so a test can count the calls: an
+// anonymous POST /firstrun cost a 64 MiB Argon2id run before anything proved
+// who was asking, and "the token is checked first" is only true if a refused
+// request never reaches this.
+var firstRunHash = HashPassword
 
 // defaultSSHPort is what the wizard offers when the operator has not moved SSH.
 const defaultSSHPort = "22"
@@ -135,6 +142,19 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		Telemetry: r.FormValue("telemetry") != "",
 	}
 
+	// The setup token before any answer is judged and before the password is
+	// hashed. Whoever finished this page first used to own the firewall; the
+	// token proves the claimant can read this host's log, where easywall-web
+	// printed it at start. First, too, because a refused request must not cost
+	// an Argon2id run. PostFormValue and not FormValue: a token in the query
+	// string would land in proxy logs and browser history.
+	if !s.setupTokenMatches(r.PostFormValue("setup_token")) {
+		addr, _ := s.clientAddr(r)
+		slog.Warn("first run: refused a submission with a missing or wrong token", "client", addr)
+		s.firstRunError(w, r, "firstrun_token_wrong", answers)
+		return
+	}
+
 	password := r.FormValue("password")
 	confirm := r.FormValue("password_confirm")
 
@@ -159,7 +179,7 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash, err := HashPassword(password)
+	hash, err := firstRunHash(password)
 	if err != nil {
 		slog.Error("hash password error", "error", err)
 		s.firstRunError(w, r, "internal_error", answers)
@@ -172,6 +192,31 @@ func (s *Server) handleFirstRunPOST(w http.ResponseWriter, r *http.Request) {
 	// account is created only once a code confirms it; see
 	// handleFirstRunConfirm and completeFirstRun.
 	s.beginFirstRunTOTP(w, r, answers, hash)
+}
+
+// setupTokenMatches compares what the claimant typed with the token this
+// process printed at start. given is trimmed of surrounding quotes, quote
+// marks and whitespace first — first-run.md says "paste the value after
+// `"token":`", which a careless copy takes literally, quotes and all, and a
+// paste can carry a trailing newline or tab. Both sides then go through
+// decodeTOTPSecret, so a token pasted with its spaces, in lower case or with
+// dashes still matches, and the comparison is on the decoded bytes, in
+// constant time. No token held — the process started with an account —
+// matches nothing.
+func (s *Server) setupTokenMatches(given string) bool {
+	if s.setupToken == "" {
+		return false
+	}
+	want, err := decodeTOTPSecret(s.setupToken)
+	if err != nil {
+		return false
+	}
+	given = strings.Trim(given, "\"' \t\r\n")
+	got, err := decodeTOTPSecret(given)
+	if err != nil {
+		return false
+	}
+	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
 // completeFirstRun performs the one write and, best-effort, the staging that

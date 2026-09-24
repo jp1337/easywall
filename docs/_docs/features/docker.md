@@ -27,8 +27,11 @@ published_ports       = "open" # "filtered": easywall decides who reaches a
 ```
 
 Detection reads the interfaces named `docker*` or `br-*` and takes the CIDR of
-each. It runs **when rules are applied**, not continuously — a network created
-afterwards needs another apply, or an entry in `custom_networks`.
+each. It runs at every apply. It also runs once more on its own, for up to 90
+seconds after `easywall-core` starts. That covers the ordinary case: no such
+bridge existed at boot, and Docker started after the daemon. Past that
+window, or for a bridge added later still, apply again, or add an entry to
+`custom_networks`.
 
 Entries there are CIDR networks — `172.20.0.0/16`, not a single container address —
 with `#` comments allowed. Anything else is refused by name rather than accepted and
@@ -52,10 +55,10 @@ some other reason as well.
 
 | | Setup | Inbound to published ports | Outbound from containers | Good for |
 |---|---|---|---|---|
-| **1** | `enabled = true` — *recommended* | yes, Docker publishes them | works | most hosts |
+| **1** | `enabled = true` — the shipped default | yes, Docker publishes them | works | most hosts |
 | **2** | `enabled = true`, `published_ports = "filtered"` | only with a **forwarded** [port rule]({{ '/docs/features/ports/' | relative_url }}) | works | one firewall on a container host |
 | **3** | `enabled = true`, Docker with `{"iptables": false}` | only with a [port rule]({{ '/docs/features/ports/' | relative_url }}) per port | **needs a masquerade rule you write yourself** | one firewall, one place to look |
-| **4** | `enabled = false` | no | **no** | a host that runs no containers |
+| **4** | `enabled = false` — deliberately | no | **no** | a host that runs no containers |
 
 ### Option 2 is what replaces a cloud firewall
 

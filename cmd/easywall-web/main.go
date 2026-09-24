@@ -22,6 +22,10 @@ func main() {
 	// the password hash.
 	writeConfig := flag.String("write-config", "",
 		"write a commented default configuration to this path and exit")
+	// The container's HEALTHCHECK. It reads bind_addr the way the server does —
+	// file, then EASYWALL_WEB_BIND_ADDR — and writes nothing.
+	healthcheck := flag.Bool("healthcheck", false,
+		"ask /healthz at bind_addr and exit 0 on a 200, 1 otherwise")
 	flag.Parse()
 
 	if *showVersion {
@@ -35,6 +39,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("wrote", *writeConfig)
+		return
+	}
+
+	if *healthcheck {
+		cfg, err := web.LoadConfig(*configPath)
+		if err == nil {
+			err = web.HealthCheck(cfg)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "easywall-web:", err)
+			os.Exit(1)
+		}
 		return
 	}
 

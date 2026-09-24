@@ -30,7 +30,7 @@ data_dir    = "/var/lib/easywall"
 session_key = "REPLACE_WITH_openssl_rand_hex_32"
 demo_mode   = true
 username    = "demo"
-password    = ""      # empty: the first visitor sets it through the wizard
+password    = ""      # empty: the wizard runs, and asks for the setup token below
 [tls]
 cert = ""
 key  = ""
@@ -39,11 +39,17 @@ EOF
 sudo easywall-web -config /etc/easywall/web.toml
 ```
 
-The startup log confirms it:
+The startup log confirms it, and — while no account exists — carries the setup
+token the wizard asks for. Without it nobody can finish the first run, you
+included:
 
 ```
 demo mode active — using in-memory mock instead of core socket
+{"time":"…","level":"WARN","msg":"first run: enter this setup token at /firstrun to create the account","token":"ABCD EFGH …"}
 ```
+
+Finish the wizard yourself, then publish the credentials. A public demo that
+leaves the first run to its first visitor is what the token exists to prevent.
 
 > **Custom-rule syntax cannot be checked.** There is no `nft` binary, so the page says
 > live validation is not running rather than reporting a verdict it has no basis for.

@@ -361,7 +361,7 @@ func TestIntegration_Enforcing_FalseWhenTheInputChainIsEmpty(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // An address that will not parse used to be stored, listed in the interface as
-// blocked, and then quietly skipped by the parse guard in addCIDRDrop. Apply
+// blocked, and then quietly skipped by the parse guard in cidrDropMatch. Apply
 // now refuses the whole set.
 func TestIntegration_Apply_RefusesAnUnparseableEntry(t *testing.T) {
 	m := newIntegrationManager(t)

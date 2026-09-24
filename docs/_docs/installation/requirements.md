@@ -15,11 +15,19 @@ description: What the host needs, what it does not, and which install path to ta
 |---|---|---|
 | Kernel | 3.13 | when the nftables netlink API arrived |
 | nftables | any | `apt install nftables` |
-| init | systemd | for the service units |
+| init | systemd — Debian package | for the service units |
+| init | none — Docker | `supervisord` runs both processes inside the container |
 | Architecture | amd64 or arm64 | binaries shipped for both |
 | RAM | ~32 MB | both processes, idle |
 | Disk | ~20 MB | binaries, assets, config |
 | Privilege | `CAP_NET_ADMIN` | the core needs it to write rules. The web process does not |
+
+The packet log's NFLOG group needs the `nfnetlink_log` kernel module.
+Nothing here loads it by hand — the kernel autoloads it the first time a
+process holding `CAP_NET_ADMIN` binds an NFLOG group, the same way it
+autoloads `nf_tables`. Only a host with module loading disabled entirely
+needs `modprobe nfnetlink_log` itself, and falls back to the kernel log
+until it gets it.
 
 ## Tested on
 

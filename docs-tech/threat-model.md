@@ -125,6 +125,32 @@ Left open. Whoever next has shell access to the demo host can settle it with
 regardless of which answer turns out to be true — the code should not have
 depended on the deployment's file permissions to be safe.
 
+## The first run
+
+Before 2.22 whoever finished `/firstrun` first owned the firewall: the routes
+were public, the handler checked only `IsFirstRun`, and `SaveFirstRun`'s lock
+picked a winner, not a legitimate one. Of six projects read at pinned tags, only
+Jupyter (a token in the log) and Nextcloud (a file on disk) make the claimant
+prove host access; easywall now does the former.
+
+| | |
+|---|---|
+| Token | 160 bits from `newTOTPSecret()`, shown in fours (`formatTOTPSecret`) |
+| Made | in `NewServer`, only while `IsFirstRun()`; held in `Server.setupToken`. Never on disk, never in the environment |
+| Printed | once, `slog.Warn`, with the phrase `setup token` — the docs and CI grep for it |
+| Checked | at the top of `handleFirstRunPOST`, before `HashPassword`: `decodeTOTPSecret` on both sides, then `subtle.ConstantTimeCompare`. `PostFormValue`, so never from a query string |
+| Covers | confirm and recover as well: both need step 1's pending entry, which only a checked step 1 mints |
+| Never stashed | a refused submission keeps every answer except the passwords and the token — the session cookie is signed, not encrypted |
+| Why the web process | account creation is already the web process's alone; in the core it would need a protocol command and an authentication duty the core has none of |
+
+Checking before the hash also removed an unauthenticated 64 MiB Argon2id run
+per `POST /firstrun`. `TestFirstRunRefusesAMissingOrWrongSetupToken` counts the
+calls through `firstRunHash`.
+
+Not defended, one line each:
+- Anyone who can read the journal (`adm`, `systemd-journal`) or `docker logs` (the `docker` group — root-equivalent anyway) can claim.
+- A man in the middle on the first visit, against the self-signed certificate, sees the token as it is typed.
+
 ## Why `X-Forwarded-For` is ignored
 
 `buildRouter` deliberately does **not** use `middleware.RealIP`:
@@ -228,6 +254,20 @@ guard is a test rather than a comment: `TestHealthzIgnoresForwardingHeaders`
 asserts both directions — a forged loopback header from a remote peer stays 404,
 and a real loopback peer is not talked out of it by a header naming someone else.
 
+2.22 admits one more peer: the connection's own local address
+(`http.LocalAddrContextKey`). A completed handshake whose source is our own
+address is a process on this host, as trusted as loopback, and it is what
+`easywall-web -healthcheck` is on a specific bind — it dials from the target
+address so the kernel's source choice cannot change that. Not when the list is
+empty. `TestHealthzAdmitsItsOwnAddressAndNoOther` holds both edges.
+
+The rule is not scoped to loopback, and `health_allow` stops being the
+complete set of admitted peers once it is non-empty: any process on this
+host — including a same-host reverse proxy relaying a remote caller's
+traffic — reaches the bound address as its own peer and is admitted, whether
+or not it, or loopback, appears in the list. Only `health_allow = []` closes
+the endpoint to everyone on this host as well.
+
 404 and not 403, because not confirming the endpoint exists costs nothing when
 whoever is allowed gets the real answer. `degraded` answers 200: a `HEALTHCHECK`
 that restarted the container for it would restart a working firewall.
@@ -309,6 +349,36 @@ The button grants no capability. It saves the wait. Anything that could reach it
 could reach the identical outcome by doing nothing, which is why this is not the
 panic button pointed the other way.
 
+## `data_dir` is root's
+
+| Directory | Written by | Mode since 2.22 |
+|---|---|---|
+| `/var/lib/easywall` | the core: `rules.json`, `last_apply`, `applied-config.json`, `usage.json`, `selftest.json`, `panic` | `root:easywall 0750` |
+| `/var/lib/easywall/web` | the web process: `passkeys.json`, `totp_replay.json`, `version_cache.json`, `telemetry.json` | `easywall:easywall 0700` |
+
+Until 2.22 both sets lived in one `root:easywall 0770` directory with no sticky
+bit. Write permission on a directory is permission to replace, unlink and create
+any name in it, whoever owns the file. So the web user could:
+
+- point `last_apply` at any file. `setLastApply` used `os.WriteFile`, which
+  follows a link, so the next accepted apply was a root write to that file;
+- replace `rules.json`, which the core restores at boot with no acceptance window;
+- create `panic`, which `PanicState` reads as panic mode engaged — and the core
+  then leaves the firewall alone.
+
+Three walls now, outside in:
+
+| Wall | Where | Covers |
+|---|---|---|
+| the mode | `debian/postinst`, `Dockerfile`, `docker/entrypoint.sh` | every layout the package or the image sets up. Both scripts also take an old layout apart: a link is removed unfollowed, the web's own files are copied in root's directory and renamed into `web/`, a `panic` not owned by root is removed, an entry that is not a regular file is removed, anything else not owned by root is replaced by a root-owned copy |
+| `ReadWritePaths=/var/lib/easywall/web` | `easywall-web.service` | a packaged host whatever the mode says: under `ProtectSystem=strict` the parent is read-only to the web process |
+| the core itself | `writeLastApply`, `readLastApply`, `dataDirIsShared` | a layout neither controls. Every data file is written by temporary file and rename, which replaces a link instead of following it; `last_apply` is read with `O_NOFOLLOW`; a group- or world-writable `data_dir`, or one the core does not own, is logged as an error at every start |
+
+The web process's own `prepareStateDir` copies its files from the old location
+rather than renaming them. Once `data_dir` is `0750` a rename fails, and a
+`passkeys.json` left behind reads as no passkeys: for a passkey-only account,
+the password alone.
+
 ## What is not defended
 
 - A compromised root account. Root owns the core.
@@ -338,3 +408,12 @@ panic button pointed the other way.
   `authDataCount == 0 && SignCount == 0`, which is what iCloud Keychain and most
   platform passkeys report on *every* assertion, so for those the check has
   never fired and cannot. TOTP has no equivalent tell either way.
+- What an attack before the upgrade already did to `data_dir`. postinst and the
+  entrypoint replace a replaced `rules.json` with a root-owned copy and name it
+  on stderr; they cannot tell it from yours. A manual install keeps its mode
+  until the operator runs the two commands in `installation/manual.md`, and the
+  core says so at every start until then.
+- A descriptor the web process held open across the upgrade. It is stopped by
+  `prerm`, and every non-root file is replaced by a new root-owned inode, so
+  none survives a package upgrade. A host process running as uid 100 beside a
+  bind mount is outside this model.

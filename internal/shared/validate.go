@@ -3,6 +3,7 @@ package shared
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -245,6 +246,34 @@ func ValidateIPOrCIDR(s string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid IP or CIDR: %s", s)
+}
+
+// ParseNetwork reads an address-list network entry the way every rule builder
+// and every containment check reads it.
+//
+// An IPv4-mapped network is the IPv4 network it names: ::ffff:10.0.0.0/104 is
+// 10.0.0.0/8. ValidateIPOrCIDR has always accepted that spelling and until 2.22
+// nothing turned it back, so the blacklist and the whitelist paired a 4-byte
+// compare with a 16-byte mask and the kernel refused the whole rule set with
+// EINVAL, and a port rule's source list skipped it with a WARN.
+//
+// It parses with net.ParseCIDR, the parser ValidateIPOrCIDR uses, and not with
+// netip.ParsePrefix: the two disagree (10.0.0.0/08 passes one and not the
+// other), and a builder stricter than the validator skips an entry the
+// operator was told is fine — a blacklist line that blocks nothing.
+func ParseNetwork(s string) (netip.Prefix, error) {
+	_, n, err := net.ParseCIDR(strings.TrimSpace(s))
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	// n.IP is 4 bytes for an IPv4 network and 16 for any other, so a mapped
+	// network arrives here as a 16-byte ::ffff: address.
+	addr, _ := netip.AddrFromSlice(n.IP)
+	bits, _ := n.Mask.Size()
+	if addr.Is4In6() && bits >= 96 {
+		return netip.PrefixFrom(addr.Unmap(), bits-96).Masked(), nil
+	}
+	return netip.PrefixFrom(addr, bits).Masked(), nil
 }
 
 // ValidateAddressList checks one of the configuration's address lists: bare

@@ -3,10 +3,13 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -197,8 +200,25 @@ func NewFirewall(cfg *Config) (*Firewall, error) {
 
 // readLastApply loads the recorded time of the last accepted apply. A missing
 // or unreadable file means "not known", which is what a fresh install is.
+//
+// O_NOFOLLOW: the parse error below quotes what it read, so a link planted in
+// place of this file would copy the start of any file root can read into the
+// journal. Nothing can plant one in the 2.22 layout; this keeps it that way on
+// a layout the package does not control.
+//
+// O_NONBLOCK, and the Stat check below: a FIFO planted in this name would
+// otherwise block this call — and the core with it — forever.
 func readLastApply(path string) time.Time {
-	data, err := os.ReadFile(path) // #nosec G304 -- path is built from the daemon's own config
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) // #nosec G304 -- path is built from the daemon's own config
+	if err != nil {
+		return time.Time{}
+	}
+	if info, err := f.Stat(); err != nil || !info.Mode().IsRegular() {
+		_ = f.Close()
+		return time.Time{}
+	}
+	data, err := io.ReadAll(f)
+	_ = f.Close()
 	if err != nil {
 		return time.Time{}
 	}
@@ -234,15 +254,45 @@ func (f *Firewall) setLastApply(t time.Time) {
 	f.lastApplyMu.Unlock()
 
 	path := f.cfg.LastApplyPath()
-	// 0600 for the same reason as the audit log: only this process reads it —
-	// the dashboard's "last apply" comes over the socket with the status, not
-	// from this file — so the group bit gave the web process a read it never
-	// takes.
-	if err := os.WriteFile(path, []byte(t.UTC().Format(time.RFC3339)), 0600); err != nil {
-		// Not fatal: the rules are applied and accepted either way. The
-		// dashboard will just show "never" again after a restart.
+	// Not fatal: the rules are applied and accepted either way. The dashboard
+	// will just show "never" again after a restart.
+	if err := writeLastApply(path, t); err != nil {
 		slog.Warn("could not record last apply time", "path", path, "error", err)
 	}
+}
+
+// writeLastApply writes the marker atomically — a temporary file, then a
+// rename — like every other file the core keeps in data_dir.
+//
+// It was the one os.WriteFile among them, and os.WriteFile follows a symlink.
+// Until 2.22 data_dir was root:easywall 0770, so the web user could put
+// `last_apply -> /etc/shadow` there and the next accepted apply had root write
+// a timestamp into the target: a root write to any file, driven by the
+// network-facing process. CreateTemp opens with O_EXCL, which never follows a
+// link, and rename replaces a link rather than writing through it.
+//
+// 0600 — CreateTemp's own mode — for the same reason as the audit log: only
+// this process reads it; the dashboard's "last apply" comes over the socket.
+func writeLastApply(path string, t time.Time) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "last_apply-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.WriteString(t.UTC().Format(time.RFC3339)); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // Apply starts a full rule-application cycle.

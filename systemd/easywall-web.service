@@ -31,7 +31,12 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/var/lib/easywall /etc/easywall /run/easywall
+# /var/lib/easywall/web and not /var/lib/easywall: the parent is the core's
+# data directory, and this process has no business writing it (2.22 — it could
+# replace the core's files there and plant links root then wrote through). Not
+# prefixed with "-": postinst creates it, and a unit that cannot keep its state
+# should say so at start rather than lose passkeys quietly.
+ReadWritePaths=/var/lib/easywall/web /etc/easywall /run/easywall
 # ssl_dir is deliberately not ReadOnlyPaths: easywall generates its own
 # self-signed certificate there on first start and replaces it before it
 # expires. Marking it read-only made both impossible — the process could not

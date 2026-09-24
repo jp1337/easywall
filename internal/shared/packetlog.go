@@ -48,6 +48,19 @@ type PacketLogEntry struct {
 	// Mark is the skb's nfmark (NFULA_MARK), or zero when the kernel set none —
 	// which most packets carry as-is, so zero is not itself informative.
 	Mark uint32 `json:"mark,omitempty"`
+	// ICMP is the type and code of an ICMP or ICMPv6 packet, the first two
+	// bytes of its header. Nil for every other protocol, for a later fragment,
+	// and for every line a core before 2.22 wrote into the spill file — those
+	// replay without it, and nil is the honest reading of "not recorded". A
+	// pointer, because type 0 code 0 is an echo reply and must not read as
+	// absent.
+	ICMP *PacketICMP `json:"icmp,omitempty"`
+}
+
+// PacketICMP is an ICMP header's first two bytes. Since 2.22.
+type PacketICMP struct {
+	Type uint8 `json:"type"`
+	Code uint8 `json:"code"`
 }
 
 // Remedy says which of /blocked's three row actions are worth offering for a
@@ -87,6 +100,293 @@ func (e PacketLogEntry) Remedies() Remedy {
 	r.Open = e.Rule == "drop" && e.DstPort != 0 &&
 		(e.Proto == "tcp" || e.Proto == "udp")
 	return r
+}
+
+// DropReason says why the final drop refused a packet. A default-drop row means
+// no option refused it — nothing accepted it — so its reason is what was
+// missing, read off the rules the kernel holds now. A closed enum with a locale
+// key per value (blocked_why_<code>), for the reason ReachReason is one: a
+// sentence assembled in Go cannot be translated.
+type DropReason string
+
+const (
+	DropIPv6Blocked     DropReason = "ipv6_blocked"      // IPv6 is set to block now; it drops unlogged
+	DropIPv6Passthrough DropReason = "ipv6_passthrough"  // IPv6 is passed through now
+	DropICMPAcceptedNow DropReason = "icmp_accepted_now" // {Proto, Type}: the type is accepted now
+	DropBlacklistedNow  DropReason = "blacklisted_now"   // the source is on the blacklist now
+	DropWhitelistedNow  DropReason = "whitelisted_now"   // the source is on the whitelist now
+	DropIPv4Ping        DropReason = "ipv4_ping"         // an IPv4 echo request
+	DropICMPType        DropReason = "icmp_type"         // {Proto, Type}: not an accepted type
+	DropICMPUntyped     DropReason = "icmp_untyped"      // {Proto}: logged before 2.22 recorded the type
+	DropNoPort          DropReason = "no_port"           // no port a rule could match
+	DropPortClosed      DropReason = "port_closed"       // {Port, Proto}
+	DropPortForwarded   DropReason = "port_forwarded"    // {Port, Proto}: the rule is scope = "forwarded"
+	DropPortSources     DropReason = "port_sources"      // {Port, Proto, Sources}
+	DropPortOpenNow     DropReason = "port_open_now"     // {Port, Proto}: a rule accepts it now
+)
+
+// AllDropReasons is the complete list; the interface's guard pins every one to
+// both strict locales.
+var AllDropReasons = []DropReason{
+	DropIPv6Blocked, DropIPv6Passthrough, DropICMPAcceptedNow, DropBlacklistedNow,
+	DropWhitelistedNow, DropIPv4Ping, DropICMPType, DropICMPUntyped, DropNoPort,
+	DropPortClosed, DropPortForwarded, DropPortSources, DropPortOpenNow,
+}
+
+// DropWhy is a reason and the values its sentence names. Code is empty when
+// the row has no reason to give: not a default drop, or a forwarded packet.
+type DropWhy struct {
+	Code   DropReason
+	Params map[string]any
+}
+
+// ICMPv4Accepted and ICMPv6Accepted are the types addICMPRules accepts
+// (internal/core/nftables.go). Written twice, once here and once as kernel
+// rules; core's TestICMPAcceptsAreTheListsDropReasonReads builds the rules and
+// compares them with these, so the two cannot drift.
+var ICMPv4Accepted = []uint8{0, 3, 11, 12}
+
+// ICMPv6Accepted depends on the two discovery settings. Consulted only in
+// filter mode — the other two decide IPv6 before any ICMP rule.
+func ICMPv6Accepted(v6 IPv6Config) []uint8 {
+	t := []uint8{1, 2, 3, 4, 128, 129}
+	if v6.ICMPAllowRouterAdvertisement {
+		t = append(t, 133, 134)
+	}
+	if v6.ICMPAllowNeighborAdvertisement {
+		t = append(t, 135, 136)
+	}
+	return t
+}
+
+// ParsedRules is Rules with the blacklist, the whitelist and every port
+// rule's Sources already decoded into netip.Prefix. InAnyEntry reparses its
+// []string argument on every call; DropReason used to call it up to three
+// times per row, and /blocked/rows asks it of every on-screen row, every
+// five-second poll. At the realistic upper bound — /import accepts 512 KiB
+// (handler_export.go:33), about 10,000 short entries — reparsing that list
+// for 200 on-screen rows measured 197ms per poll, and 1.02s at 50,000
+// entries (packetlog_dropreason_test.go's TestParseRulesOnceHoldsA10000EntryList);
+// parsed once per request, both are unmeasurable. Use ParseRules to build
+// one; DropReasonParsed reads it.
+type ParsedRules struct {
+	Blacklist []netip.Prefix
+	Whitelist []netip.Prefix
+	TCP       []ParsedPortRule
+	UDP       []ParsedPortRule
+}
+
+// ParsedPortRule is a PortRule with Sources already decoded. The original
+// strings stay embedded — DropReasonParsed still needs them, verbatim, for
+// the sentence a port_sources row shows.
+type ParsedPortRule struct {
+	PortRule
+	ParsedSources []netip.Prefix
+}
+
+// ParseRules decodes every address list in r once. A comment or a blank
+// line is dropped here rather than carried into ParsedSources, the same way
+// the rule builders and InAnyEntry skip them, so a later membership test
+// needs no second pass to find that out.
+func ParseRules(r Rules) ParsedRules {
+	tcp := make([]ParsedPortRule, len(r.TCP))
+	for i, pr := range r.TCP {
+		tcp[i] = ParsedPortRule{PortRule: pr, ParsedSources: parseEntryList(pr.Sources)}
+	}
+	udp := make([]ParsedPortRule, len(r.UDP))
+	for i, pr := range r.UDP {
+		udp[i] = ParsedPortRule{PortRule: pr, ParsedSources: parseEntryList(pr.Sources)}
+	}
+	return ParsedRules{
+		Blacklist: parseEntryList(r.Blacklist),
+		Whitelist: parseEntryList(r.Whitelist),
+		TCP:       tcp,
+		UDP:       udp,
+	}
+}
+
+// parseEntryList is InAnyEntry's own parsing step, run once instead of once
+// per call. A bare address becomes a single-host prefix, so a later Contains
+// alone decides both shapes — exactly InAnyEntry's two branches, without its
+// per-call cost. Networks go through ParseNetwork, the parser every rule
+// builder and every other containment check uses, not netip.ParsePrefix: the
+// two disagree on a spelling like 10.0.0.0/08, and a stricter double here
+// would read a source list open that the rule builders read as covering it.
+func parseEntryList(entries []string) []netip.Prefix {
+	var out []netip.Prefix
+	for _, entry := range entries {
+		if IsListComment(entry) {
+			continue
+		}
+		e := strings.TrimSpace(entry)
+		if addr, err := netip.ParseAddr(e); err == nil {
+			addr = addr.Unmap()
+			out = append(out, netip.PrefixFrom(addr, addr.BitLen()))
+			continue
+		}
+		if pfx, err := ParseNetwork(e); err == nil {
+			out = append(out, pfx)
+		}
+	}
+	return out
+}
+
+// inAnyParsedEntry is InAnyEntry against a list parseEntryList already
+// decoded: both a bare address and a network are prefixes by then, so one
+// Contains test covers what InAnyEntry needed two branches for.
+func inAnyParsedEntry(src netip.Addr, entries []netip.Prefix) bool {
+	for _, pfx := range entries {
+		if pfx.Contains(src) {
+			return true
+		}
+	}
+	return false
+}
+
+// DropReason is DropReasonParsed for a caller holding unparsed Rules — every
+// test in this package, and no production caller since ParseRules exists:
+// parsing the blacklist, the whitelist and every port rule's Sources afresh
+// for each of a few hundred on-screen rows, every poll, is the cost
+// ParsedRules exists to avoid.
+func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
+	return e.DropReasonParsed(ParseRules(r), n)
+}
+
+// DropReasonParsed walks the input chain in nft.Apply's order — the fragment
+// drop (prerouting, IPv4 fragments only), loopback, the IPv6 mode, the ping
+// and reset meters, established, the ICMP accepts, the other modules, the
+// Docker networks, the blacklist, the whitelist, the port rules, the custom
+// rules, the final log — and names the first step that would decide this
+// packet differently now, or the step that was missing. pr is the rule set
+// the kernel holds (Current), already parsed once by ParseRules; n the
+// network settings it was applied with.
+//
+// Steps it does not ask about: the fragment drop, loopback, the meters and
+// established cannot reach the final drop; a module that refuses logs under
+// its own name; the custom rules are not parsed here (see Reachable); and of
+// the Docker networks, only CustomNetworks is consulted — the auto-detected
+// bridges cannot be listed from the web process, so a packet from one still
+// reads as whatever port or list reason would otherwise apply.
+func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) DropWhy {
+	// The final log is in the input chain only; no easywall rule logs in the
+	// forward chain, so a forwarded "drop" row has no step here to name.
+	if e.Rule != "drop" || e.Hook == "forward" {
+		return DropWhy{}
+	}
+	// Unmapped and unzoned for the list lookups, as Reachable does — except
+	// for a Family 6 packet, which stays un-unmapped: the kernel's IPv4 list
+	// entries match NFPROTO_IPV4 only, and an IPv4-mapped source in an IPv6
+	// packet is still an IPv6 packet. Contains refuses an IPv4-mapped IPv6
+	// address against an IPv4 prefix, so leaving it mapped is what keeps this
+	// packet from reading as covered by an IPv4 list, source or port-source
+	// entry the kernel would never have matched it against.
+	src := e.Src.WithZone("")
+	if e.Family != 6 {
+		src = src.Unmap()
+	}
+	icmp := e.Proto == "icmp" || e.Proto == "icmpv6"
+	label := "ICMP"
+	if e.Proto == "icmpv6" {
+		label = "ICMPv6"
+	}
+
+	// The IPv6 mode sits right after loopback. Neither verdict logs, so a
+	// default-drop IPv6 row under either mode arrived while the mode was filter.
+	// The packet's family, not the address's: the kernel rule matches
+	// NFPROTO_IPV6, and an IPv4-mapped source is still an IPv6 packet.
+	if e.Family == 6 {
+		switch n.IPv6.Mode {
+		case IPv6Block:
+			return DropWhy{Code: DropIPv6Blocked}
+		case IPv6Passthrough:
+			return DropWhy{Code: DropIPv6Passthrough}
+		}
+	}
+
+	// The ICMP accepts, before every module.
+	if icmp && e.ICMP != nil {
+		accepted := ICMPv4Accepted
+		if e.Proto == "icmpv6" {
+			accepted = ICMPv6Accepted(n.IPv6)
+		}
+		if slices.Contains(accepted, e.ICMP.Type) {
+			return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
+		}
+	}
+
+	// The Docker networks accept before the blacklist (nftables.go's Apply:
+	// the CIDR accepts render right after the optional modules, before the
+	// blacklist). Only CustomNetworks — the ones the operator named — can be
+	// listed here; an auto-detected bridge is the gap the comment above names.
+	if n.Docker.Enabled {
+		for _, cidr := range n.Docker.CustomNetworks {
+			if pfx, err := ParseNetwork(cidr); err == nil && pfx.Contains(src) {
+				return DropWhy{}
+			}
+		}
+	}
+
+	// The blacklist drops before the whitelist accepts; either one, now,
+	// decides this packet before any port rule.
+	if inAnyParsedEntry(src, pr.Blacklist) {
+		return DropWhy{Code: DropBlacklistedNow}
+	}
+	if inAnyParsedEntry(src, pr.Whitelist) {
+		return DropWhy{Code: DropWhitelistedNow}
+	}
+
+	switch {
+	case icmp && e.ICMP == nil:
+		return DropWhy{Code: DropICMPUntyped, Params: map[string]any{"Proto": label}}
+	case icmp && e.Proto == "icmp" && e.ICMP.Type == 8:
+		// Not in ICMPv4Accepted, and ICMP flood only rate-limits: it jumps
+		// when a source is over its rate and accepts nothing under it.
+		return DropWhy{Code: DropIPv4Ping}
+	case icmp:
+		return DropWhy{Code: DropICMPType, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
+	case (e.Proto != "tcp" && e.Proto != "udp") || e.DstPort == 0:
+		return DropWhy{Code: DropNoPort}
+	}
+
+	rules := pr.TCP
+	if e.Proto == "udp" {
+		rules = pr.UDP
+	}
+	p := map[string]any{"Port": e.DstPort, "Proto": e.Proto}
+	var others []string
+	forwarded := false
+	for _, rule := range rules {
+		if !PortInRule(rule.Port, e.DstPort) {
+			continue
+		}
+		if !rule.FiltersHost() {
+			forwarded = true
+			continue
+		}
+		switch {
+		case len(rule.Sources) == 0:
+			return DropWhy{Code: DropPortOpenNow, Params: p}
+		case len(rule.ParsedSources) == 0:
+			// Only comments: portAcceptRules builds no rule rather than
+			// opening the port to everyone.
+		case inAnyParsedEntry(src, rule.ParsedSources):
+			return DropWhy{Code: DropPortOpenNow, Params: p}
+		default:
+			for _, s := range rule.Sources {
+				if !IsListComment(s) {
+					others = append(others, strings.TrimSpace(s))
+				}
+			}
+		}
+	}
+	switch {
+	case len(others) > 0:
+		p["Sources"] = strings.Join(others, ", ")
+		return DropWhy{Code: DropPortSources, Params: p}
+	case forwarded:
+		return DropWhy{Code: DropPortForwarded, Params: p}
+	}
+	return DropWhy{Code: DropPortClosed, Params: p}
 }
 
 // PacketLogRules are the ten log switches, by the name their prefix carries.
@@ -205,8 +505,8 @@ func (f PacketLogFilter) Matcher() (func(PacketLogEntry) bool, error) {
 // addrOrPrefix reads "203.0.113.9" as 203.0.113.9/32, and unmaps and unzones
 // first so that ::ffff:203.0.113.9 is the IPv4 address it is.
 func addrOrPrefix(s string) (netip.Prefix, error) {
-	if p, err := netip.ParsePrefix(s); err == nil {
-		return p.Masked(), nil
+	if p, err := ParseNetwork(s); err == nil {
+		return p, nil
 	}
 	a, err := netip.ParseAddr(s)
 	if err != nil {

@@ -42,6 +42,7 @@ func TestPacketLogFilterMatches(t *testing.T) {
 		{"source network", PacketLogFilter{Src: "203.0.113.0/24"}, true},
 		{"source elsewhere", PacketLogFilter{Src: "192.0.2.0/24"}, false},
 		{"mapped spelling of the same source", PacketLogFilter{Src: "::ffff:203.0.113.9"}, true},
+		{"mapped network source", PacketLogFilter{Src: "::ffff:203.0.113.0/120"}, true},
 		{"destination", PacketLogFilter{Dst: "198.51.100.1"}, true},
 		{"port is the destination port", PacketLogFilter{Port: 22}, true},
 		{"another port", PacketLogFilter{Port: 443}, false},

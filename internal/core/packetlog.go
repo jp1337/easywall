@@ -187,6 +187,12 @@ func decodeTransport(e *shared.PacketLogEntry, proto byte, family int, b []byte)
 		if len(b) < 2 {
 			return false
 		}
+		// Only when the protocol belongs to the family: ICMPv6 inside IPv4 is
+		// named by its number above, and its bytes are not a type this page
+		// can read.
+		if e.Proto == "icmp" || e.Proto == "icmpv6" {
+			e.ICMP = &shared.PacketICMP{Type: b[0], Code: b[1]}
+		}
 	}
 	return true
 }

@@ -24,9 +24,14 @@ var demoShapes = []shared.PacketLogEntry{
 	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.140")},
 	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("192.0.2.5")},
 	{Rule: "blacklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
-	{Rule: "icmp_flood", Proto: "icmp", CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
+	{Rule: "icmp_flood", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
 	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("192.0.2.200")},
 	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:5::17")},
+	// Two default drops whose reason is not "the port is closed": an IPv4 ping,
+	// which nothing accepts (2.23 G2), and the seeded 8443 rule, which is open
+	// only for 203.0.113.0/24.
+	{Rule: "drop", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.61")},
+	{Rule: "drop", Proto: "tcp", DstPort: 8443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.88")},
 }
 
 // demoEvery is how often the demo "refuses" something new — enough for the

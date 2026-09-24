@@ -24,13 +24,15 @@ Then, from your own machine, open `https://<server>:12227` — the address you
 already reach that host on. **`localhost` only works when easywall is on the
 machine in front of you**, and it is the one instruction this page used to give.
 
-Three things to expect on that first page:
+Five things to expect on that first page:
 
 | | |
 |---|---|
+| A setup token field | `docker compose logs easywall \| grep 'setup token' \| tail -1` — see [First Run]({{ '/docs/installation/first-run/' | relative_url }}#the-setup-token) |
 | A certificate warning | easywall generates its own on first start. Accept it, or [supply your own](#your-own-certificate) |
 | Nothing filtered yet | a fresh container carries no rules, so nothing easywall did is between you and port 12227 |
 | The container reads `unhealthy` | correct, and it clears at your first apply — see [Health check](#the-health-check) |
+| This host's containers | already trusted on a fresh install — `docker.enabled = true` is the default since 2.22; a file from 2.21 keeps what it says; see [Docker Coexistence]({{ '/docs/features/docker/' | relative_url }}) to turn it off or change what it accepts |
 
 If the page does not load at all, easywall is not what is blocking it. Check the
 host's existing firewall and any provider-level security group for port 12227.
@@ -38,16 +40,45 @@ host's existing firewall and any provider-level security group for port 12227.
 Now complete the [setup]({{ '/docs/installation/first-run/' | relative_url }}) — it
 covers the SSH port, which is the one answer that can shut you out. Before you do,
 see [Environment Variables]({{ '/docs/environment/' | relative_url }}) for what
-`docker-compose.yml` can set without editing `./config` at all — and what it
+`docker-compose.yml` can set without editing `./easywall-config` at all — and what it
 deliberately cannot.
 
-> **`./config` changes owner on first start, and needs to.** The mount replaces the
-> ownership the image sets, so the files arrive belonging to whoever cloned the
-> repository — and `easywall-web` must write `web.toml` and create its certificate in
-> `config/ssl/`. It could do neither, and the container reported healthy anyway
-> because the healthcheck only looked at the core's socket. The entrypoint now puts
-> the directory into the shape the Debian package installs. **Editing those files on
-> the host afterwards needs `sudo`.**
+> **`./easywall-config` is yours, and changes owner on first start.** Docker
+> creates it empty. The entrypoint fills it from the defaults inside the image,
+> in the shape the Debian package installs. `web.toml` and `ssl/` go to the
+> container's `easywall` user (uid 100, gid 101); `easywall.toml` goes to root.
+> It is gitignored: the account lives there. **Editing those files on the host
+> needs `sudo`.** In a bind-mounted `/var/lib/easywall` the entrypoint does the
+> same: the directory is root's, and the web process keeps its passkeys and
+> TOTP replay store in `web/` inside it.
+
+> **Upgrading a git checkout from 2.21 or earlier?** compose mounted `./config`,
+> the tracked defaults. Move your files once, before pulling:
+>
+> ```bash
+> docker compose down
+> sudo mv config easywall-config && sudo rm -f easywall-config/embed.go
+> git checkout -- config && git pull
+> docker compose up -d
+> ```
+>
+> Your existing `easywall.toml` is moved as-is: whatever it already says for
+> `docker.enabled` is kept, not replaced by the new default.
+> Skip it and the container starts a fresh first run — which the setup token
+> keeps anyone else from claiming.
+
+## Reaching it from elsewhere
+
+Direct access — `https://<server>:12227` from your own machine — is the
+intended path. It is safe to leave open: `/firstrun` now needs the setup
+token from the container's own log, not merely being first there. Two more
+routes, if a firewall or a provider security group closes that port for
+everyone but you:
+
+| Route | Command | Watch for |
+|---|---|---|
+| An SSH tunnel | `ssh -L 12227:127.0.0.1:12227 user@server`, then open `https://127.0.0.1:12227` | `administratively prohibited` names `sshd`'s `AllowTcpForwarding no` — not an easywall fault |
+| A reverse proxy | see [Behind a Reverse Proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}) | a proxy address that is SNAT'd or on an overlay network needs its real address read from the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) and listed in `trusted_proxies` |
 
 ## What must persist
 
@@ -176,6 +207,12 @@ name. This page never listed it. It is gone; applying a full rule set was verifi
 `nf_tables` is not loaded, load it on the host with `modprobe nf_tables` — a host
 already running nftables has it.
 
+The packet log's `nfnetlink_log` needs the same kind of load, and gets it the
+same way. The kernel requests it by name the first time an NFLOG group
+binds, triggered by nothing more than the `NET_ADMIN` this container
+already has. Only a host with module loading disabled entirely falls back
+to the kernel log instead.
+
 This is also why easywall in a container still coexists with Docker's own rules —
 it owns [`table inet easywall`]({{ '/docs/features/docker/' | relative_url }}) and nothing else.
 
@@ -189,11 +226,11 @@ it owns [`table inet easywall`]({{ '/docs/features/docker/' | relative_url }}) a
 ```yaml
 volumes:
   - /etc/letsencrypt:/etc/letsencrypt:ro
-  - ./config:/etc/easywall
+  - ./easywall-config:/etc/easywall
 ```
 
 ```toml
-# config/web.toml
+# ./easywall-config/web.toml
 [tls]
 cert = "/etc/letsencrypt/live/example.com/fullchain.pem"
 key  = "/etc/letsencrypt/live/example.com/privkey.pem"
@@ -206,14 +243,25 @@ away for one feature. Run your own ACME client (certbot, or Let's Encrypt's
 own container) against the host and mount its output the way shown above
 instead.
 
+> **Passkeys need `tls.hostname` too.** It is the WebAuthn Relying Party ID,
+> set separately from the certificate above — see
+> [Configuration → `[tls]`]({{ '/docs/configuration/' | relative_url }}#tls).
+
 ## Updating
 
 ```bash
 docker compose pull && docker compose up -d
 ```
 
-[Watchtower](https://containrrr.dev/watchtower/) automates it. Nightly or weekly on
-`:latest` for production, or against `:edge` if you want every green build.
+A recreate restores whatever rules were last applied, with **no acceptance
+window** — nothing catches a restore that would lock you out, the way an
+apply through the interface does. Pull and recreate on purpose, not on a
+timer.
+
+For production, pin `:vX.Y.Z` (see [Which tag](#which-tag)) and update the
+same way. [Watchtower](https://containrrr.dev/watchtower/), the usual way to
+automate this, is archived with no release since 2023 — skip it, or point it
+at nothing looser than a pinned tag you bump yourself.
 
 ## Checking what you pulled
 

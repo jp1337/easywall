@@ -46,7 +46,8 @@ sudo useradd  --system --no-create-home --shell /usr/sbin/nologin \
 sudo install -d -m 0750 -o root     -g easywall /run/easywall
 sudo install -d -m 0750 -o root     -g easywall /etc/easywall
 sudo install -d -m 0750 -o easywall -g easywall /etc/easywall/ssl
-sudo install -d -m 0770 -o root     -g easywall /var/lib/easywall
+sudo install -d -m 0750 -o root     -g easywall /var/lib/easywall
+sudo install -d -m 0700 -o easywall -g easywall /var/lib/easywall/web
 sudo install -d -m 0750 -o root     -g easywall /var/log/easywall
 
 sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
@@ -60,7 +61,8 @@ sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 | `easywall.toml` — `root:root` `0600` | the root daemon reads this. A network-facing process that can change what root reads has undone the two-process split |
 | `web.toml` — `easywall:easywall` `0600` | the wizard writes the password hash here, and the password page rewrites it |
 | `ssl_dir` — `easywall:easywall` `0750` | easywall generates its own certificate there and replaces it before it expires |
-| `/var/lib/easywall` — `root:easywall` `0770` | **shared**: the root core writes `rules.json`, the web user writes its caches. Group-writable so the core does not need `CAP_DAC_OVERRIDE` |
+| `/var/lib/easywall` — `root:easywall` `0750` | the core's: `rules.json`, the apply state, the panic marker. Owned by root so the core needs no `CAP_DAC_OVERRIDE`; not group-writable, so the web user cannot replace what root reads |
+| `/var/lib/easywall/web` — `easywall:easywall` `0700` | the web process's own state: passkeys, the TOTP replay guard, the version cache |
 | `/run/easywall` — `root:easywall` `0750` | holds the control socket the web process connects to |
 
 > **`/var/lib/easywall` used to be listed here as `easywall:easywall`, and that does
@@ -68,7 +70,20 @@ sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 > service also removes `CAP_DAC_OVERRIDE`. So root cannot enter a directory it does
 > not own. `rules.json` is never written. Every request fails on a permission
 > error raised deep inside the call. The package had the same bug and it is what the
-> `0770 root:easywall` above fixes.
+> `root:easywall` above fixes.
+
+> **Installed this way before 2.22?** `/var/lib/easywall` was `0770` and shared,
+> and the web user could replace the core's files in it. Once, before you start
+> the new binaries:
+>
+> ```bash
+> sudo install -d -m 0700 -o easywall -g easywall /var/lib/easywall/web
+> sudo chmod 0750 /var/lib/easywall
+> ```
+>
+> easywall-web copies its own files into `web/` when it next starts. Until the
+> mode is changed, easywall-core logs an error at every start. The new
+> `easywall-web.service` does not start at all without `web/`.
 
 ## Configure
 

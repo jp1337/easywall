@@ -19,7 +19,7 @@ func beginFirstRun(t *testing.T, s *Server) (string, []*http.Cookie) {
 	t.Helper()
 	rec := doFormRequest(s, "POST", "/firstrun",
 		"username=admin&password=firstrunpassword1!&password_confirm=firstrunpassword1!"+
-			"&ssh_port=22&ipv6_mode=filter")
+			"&ssh_port=22&ipv6_mode=filter"+withSetupToken)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("step 1 answered %d, want 200 with the setup step rendered in place", rec.Code)
 	}
@@ -443,7 +443,7 @@ func TestTheWizardHasNoWayPastTheSecondFactor(t *testing.T) {
 	// left, and a valid step 1 leads to the TOTP step every time.
 	rec := doFormRequest(s, "POST", "/firstrun",
 		"password="+testPassword+"&password_confirm="+testPassword+
-			"&username=admin&ssh_port=22")
+			"&username=admin&ssh_port=22"+withSetupToken)
 	body := strings.ToLower(rec.Body.String())
 	if !strings.Contains(body, "totp") && !strings.Contains(body, "authenticator") {
 		t.Error("submitting the wizard did not lead to the second-factor step")
