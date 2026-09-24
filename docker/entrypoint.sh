@@ -3,9 +3,10 @@
 #
 # The image sets the ownership this needs at build time — and a bind mount
 # replaces every bit of it. `docker compose up -d`, the first command in the
-# installation guide, mounts ./config over /etc/easywall, so the files arrive
-# owned by whoever cloned the repository, in a directory the easywall user
-# cannot write and with no ssl/ in it at all. easywall-web needs to write
+# installation guide, mounts ./easywall-config over /etc/easywall — created
+# empty and root-owned by Docker, and until 2.22 it was ./config, owned by
+# whoever cloned the repository. Either way the easywall user cannot write it
+# and there is no ssl/ in it at all. easywall-web needs to write
 # web.toml (it generates the session key into it on first start, and the wizard
 # and the password page rewrite it) and to create its certificate in ssl_dir.
 # It could do neither, so it exited before binding, supervisord restarted it
@@ -35,14 +36,24 @@ for f in easywall.toml web.toml; do
     fi
 done
 
+# This predates the branch: the directory's creator can plant
+# $CONF/web.toml -> /etc/shadow (or any host file) before the container's
+# first start, and cp, chown and chmod all follow a symlink to its target.
+for p in "$CONF/web.toml" "$CONF/easywall.toml" "$CONF/ssl"; do
+    if [ -L "$p" ]; then
+        warn "$p is a symlink; refusing to change its owner"
+        exit 1
+    fi
+done
+
 # Root-owned, group easywall: the web user must traverse it to reach its own
 # config and must not be able to write in it.
-chown root:easywall "$CONF" 2>/dev/null || warn "could not set the owner of $CONF"
+chown -h root:easywall "$CONF" 2>/dev/null || warn "could not set the owner of $CONF"
 chmod 0750 "$CONF" 2>/dev/null || warn "could not set the mode of $CONF"
 
 # web.toml belongs to the web user, which rewrites it.
 if [ -f "$CONF/web.toml" ]; then
-    chown easywall:easywall "$CONF/web.toml" 2>/dev/null || warn "could not set the owner of web.toml"
+    chown -h easywall:easywall "$CONF/web.toml" 2>/dev/null || warn "could not set the owner of web.toml"
     chmod 0600 "$CONF/web.toml" 2>/dev/null || warn "could not set the mode of web.toml"
 fi
 
@@ -50,14 +61,14 @@ fi
 # reach. A network-facing process able to replace it would defeat the
 # two-process split entirely.
 if [ -f "$CONF/easywall.toml" ]; then
-    chown root:root "$CONF/easywall.toml" 2>/dev/null || warn "could not set the owner of easywall.toml"
+    chown -h root:root "$CONF/easywall.toml" 2>/dev/null || warn "could not set the owner of easywall.toml"
     chmod 0600 "$CONF/easywall.toml" 2>/dev/null || warn "could not set the mode of easywall.toml"
 fi
 
 # easywall generates its own certificate here and replaces it before it expires,
 # so the directory has to belong to the web user.
 mkdir -p "$CONF/ssl" 2>/dev/null || warn "could not create $CONF/ssl"
-chown easywall:easywall "$CONF/ssl" 2>/dev/null || warn "could not set the owner of $CONF/ssl"
+chown -h easywall:easywall "$CONF/ssl" 2>/dev/null || warn "could not set the owner of $CONF/ssl"
 chmod 0750 "$CONF/ssl" 2>/dev/null || warn "could not set the mode of $CONF/ssl"
 
 # /var/lib/easywall is root's; the web process keeps its state in web/, the one
@@ -133,15 +144,18 @@ for p in "$DATA"/* "$DATA"/.[!.]* "$DATA"/..?*; do
     fi
 done
 
-# Say so here rather than leaving it to be discovered as a restart loop. The two
-# things easywall-web cannot start without are a writable web.toml and a
-# writable ssl directory.
-for path in "$CONF/web.toml" "$CONF/ssl"; do
+# Say so here rather than leaving it to be discovered as a restart loop or a
+# silently lost write. easywall-web cannot start without a writable web.toml
+# and ssl directory, and cannot keep its state without a writable web/ — a
+# failed replay-store write only warns (totpreplay.go), and root01xvp ran 44
+# hours like that and read healthy. /var/log/easywall is left alone: the web
+# process never writes it.
+for path in "$CONF/web.toml" "$CONF/ssl" "$DATA/web"; do
     if ! su easywall -s /bin/sh -c "test -w '$path'" 2>/dev/null; then
-        warn "$path is not writable by the easywall user."
-        warn "easywall-web cannot start without it. If /etc/easywall is a"
-        warn "read-only mount, make it writable, or set session_key in web.toml"
-        warn "and point ssl_dir at a writable directory."
+        warn "$path is not writable by the easywall user (uid 100, gid 101)."
+        warn "easywall-web cannot start, or keep its state, without it. A read-only"
+        warn "mount has to be made writable; for /etc/easywall you can instead set"
+        warn "session_key in web.toml and point ssl_dir at a writable directory."
     fi
 done
 

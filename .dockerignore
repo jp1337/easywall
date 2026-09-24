@@ -1,0 +1,6 @@
+# The builder stage COPYs the whole build context; none of this belongs in
+# an image layer or even in the upload to the daemon.
+/easywall-config
+/ssl
+/data
+/backup

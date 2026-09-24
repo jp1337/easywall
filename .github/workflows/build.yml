@@ -136,11 +136,8 @@ jobs:
       # compose inherited the image's — the one measured here was the only one
       # there was. Since 2.19, docker-compose.yml carries its own healthcheck:
       # block (podman's OCI format has no healthcheck field, so `podman build`
-      # dropped it silently — see carried-forward.md), and this job does not
-      # run compose, so it measures the image's check only. The compose block
-      # is covered instead by TestTheContainerHealthCheckHasOneDefinition
-      # (internal/shared), which asserts the two agree field by field rather
-      # than by a container reaching healthy. See docs-tech/ci-and-release.md.
+      # dropped it silently — see carried-forward.md). This step measures the
+      # image's check; the next one, "compose, as documented", runs compose.
       #
       # Its own network namespace, not the host's. docker-compose.yml shares the
       # host's because nftables must reach host tables, and doing that here would
@@ -306,9 +303,93 @@ jobs:
           echo "ok  a second start changed nothing"
           sudo rm -rf "$d"
 
+      # ── compose, as documented ────────────────────────────────────────────
+      #
+      # The step above measures the image under a plain `docker run`. Nothing
+      # ran docker-compose.yml — the first command in the installation guide —
+      # and every 2.22 finding lived there: B (the first visitor owned the
+      # firewall), A (containers lost the network at the first apply), K (the
+      # mount put the account into the git checkout), D (a bind-mounted
+      # /var/lib/easywall the web user could not write, while healthy) and C
+      # (the health check ignored bind_addr). One assertion each, every one
+      # verified by breaking the code it covers.
+      #
+      # docker-compose.ci.yml changes three things and nothing else: the image
+      # just built, a bridge network with a fixed address instead of the host's
+      # (same reason as the step above), and empty bind mounts where compose has
+      # named volumes. ./easywall-config is used exactly as documented.
+      - name: compose, as documented
+        env:
+          EASYWALL_CI_STATE: ${{ runner.temp }}/easywall-compose
+        run: |
+          set -euo pipefail
+          compose() { docker compose -f docker-compose.yml -f docker-compose.ci.yml "$@"; }
+          fail() {
+            echo "::error::$*"
+            compose logs --no-log-prefix easywall 2>&1 | tail -40 || true
+            exit 1
+          }
+          ip=172.30.99.10
+
+          # The documented command, minus the build this job has already done.
+          compose up -d --no-build --pull never
+
+          # B — the token is in the log, and /firstrun refuses a claim without it.
+          token=""
+          for _ in $(seq 1 60); do
+            token=$(compose logs --no-log-prefix easywall 2>/dev/null | grep 'setup token' | tail -1 | jq -r '.token // empty' || true)
+            [ -n "$token" ] && break
+            sleep 1
+          done
+          [ -n "$token" ] || fail "no 'setup token' line in docker compose logs: nobody can complete /firstrun"
+          echo "ok  B: the log carries a setup token"
+
+          for _ in $(seq 1 40); do curl -sk -m 5 -o /dev/null "https://$ip:12227/firstrun" && break; sleep 0.5; done
+          form='username=ci&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port=22'
+          code=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' --data "$form" "https://$ip:12227/firstrun")
+          [ "$code" = 303 ] || fail "POST /firstrun without the token answered $code, want 303 back to the form"
+          # The other half, or the refusal above could be any rejection at all.
+          body=$(curl -sk -m 5 --data "$form" --data-urlencode "setup_token=$token" "https://$ip:12227/firstrun")
+          case "$body" in
+            *totp-secret*) echo "ok  B: /firstrun refuses a claim without the token and takes one with it" ;;
+            *) fail "POST /firstrun with the logged token did not reach the TOTP step" ;;
+          esac
+
+          # A — the seeded easywall.toml trusts Docker's bridges.
+          compose exec -T easywall sed -n '/^\[docker\]/,/^\[/p' /etc/easywall/easywall.toml \
+            | grep -Eq '^enabled[[:space:]]*=[[:space:]]*true' \
+            || fail "/etc/easywall/easywall.toml was not seeded with [docker] enabled = true"
+          echo "ok  A: [docker] enabled = true"
+
+          # K — ./easywall-config was seeded from the image and stays out of git.
+          for f in web.toml easywall.toml; do
+            sudo test -s "easywall-config/$f" || fail "the entrypoint did not seed ./easywall-config/$f from the image's defaults"
+          done
+          git check-ignore -q easywall-config/web.toml || fail "./easywall-config is not gitignored — the account is one 'git add' away"
+          dirty=$(sudo git -c safe.directory="$PWD" status --porcelain)
+          [ -z "$dirty" ] || fail "the compose run left the checkout dirty — secrets would be one 'git add' away: $dirty"
+          echo "ok  K: ./easywall-config seeded, and git sees nothing"
+
+          # D — the pinned ids; the web user writes its own web/ and not the core's directory.
+          compose exec -T easywall id easywall | grep -q 'uid=100(easywall) gid=101(easywall)' \
+            || fail "the easywall user is not uid 100 / gid 101: $(compose exec -T easywall id easywall)"
+          compose exec -T easywall su easywall -s /bin/sh -c 'test -w /var/lib/easywall/web' \
+            || fail "the easywall user cannot write its state directory in a bind-mounted /var/lib/easywall"
+          if compose exec -T easywall su easywall -s /bin/sh -c 'ln -s /etc/shadow /var/lib/easywall/last_apply' 2>/dev/null; then
+            fail "the easywall user can plant a link in the core's /var/lib/easywall"
+          fi
+          echo "ok  D: uid 100, gid 101, web/ writable by the web user and the core's directory not"
+
+          # C — the health check at a moved bind_addr: added with easywall-web -healthcheck (Task 4).
+
       - name: Clean up
         if: always()
-        run: docker rm -f easywall-hc || true
+        env:
+          EASYWALL_CI_STATE: ${{ runner.temp }}/easywall-compose
+        run: |
+          docker rm -f easywall-hc || true
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v || true
+          sudo rm -rf easywall-config "$EASYWALL_CI_STATE"
 
   # ── Validate Debian package can be built, installed and started ──────────
   #

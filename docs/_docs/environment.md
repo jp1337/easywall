@@ -145,7 +145,7 @@ services:
       - no-new-privileges:true
 
     volumes:
-      - ./config:/etc/easywall
+      - ./easywall-config:/etc/easywall
       - easywall_data:/var/lib/easywall
       - easywall_logs:/var/log/easywall
 

@@ -74,17 +74,21 @@ No npm in the package jobs: `web/static/style.css` is committed and the `assets`
 job already fails if it does not match its source. Rebuilding it here would also
 drag `@tailwindcss/oxide` for arm64 in for nothing.
 
-The `build-image` job's "The HEALTHCHECK notices either half dying" step brings
-the image up with a plain `docker run` and reads `.State.Health` through three
-transitions. That measures the **image's** `HEALTHCHECK` only. Until 2.19 that
-was also the only health check in the repository, so this step covered
-`docker-compose.yml` by construction — compose inherited the image's check
-because it declared none of its own. Since 2.19 compose carries its own
-`healthcheck:` block (§Task 19, the podman OCI problem), and this job does not
-run compose, so it no longer covers the compose path at all. That path is
-covered instead by `TestTheContainerHealthCheckHasOneDefinition`
-(`internal/shared/healthcheck_definition_test.go`), which asserts the two
-blocks agree field by field rather than by a container reaching `healthy`.
+The `build-docker` job measures the image twice. "The HEALTHCHECK notices either
+half dying" brings it up with a plain `docker run` and reads `.State.Health`
+through three transitions — the **image's** check. "compose, as documented" then
+runs `docker-compose.yml` itself, layered with `docker-compose.ci.yml` (the image
+just built, a bridge network with a fixed address, empty bind mounts) and asserts
+one thing per 2.22 finding: the setup token is in the log and `/firstrun` refuses
+a claim without it (B), the seeded `easywall.toml` has `[docker] enabled = true`
+(A), `./easywall-config` is seeded and git sees nothing (K), the web user is uid
+100 / gid 101 and can write its own `web/` in a bind-mounted `/var/lib/easywall`
+but not the directory itself (D), and the container reads `healthy` with
+`bind_addr` moved to its own address and another port (C). Each was verified by
+breaking the code it covers. "The entrypoint takes a 2.21 data directory apart
+safely" hands the image an old, planted data directory and asserts nothing in it
+is followed. The two healthcheck definitions are additionally held together by
+`TestTheContainerHealthCheckHasOneDefinition`.
 
 ### `security.yml`
 
