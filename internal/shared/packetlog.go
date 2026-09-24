@@ -263,17 +263,27 @@ func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
 //
 // Steps it does not ask about: the fragment drop, loopback, the meters and
 // established cannot reach the final drop; a module that refuses logs under
-// its own name; the custom rules are not parsed here (see Reachable); and
-// the Docker networks are left out, because the auto-detected bridges cannot
-// be listed from the web process.
+// its own name; the custom rules are not parsed here (see Reachable); and of
+// the Docker networks, only CustomNetworks is consulted — the auto-detected
+// bridges cannot be listed from the web process, so a packet from one still
+// reads as whatever port or list reason would otherwise apply.
 func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) DropWhy {
 	// The final log is in the input chain only; no easywall rule logs in the
 	// forward chain, so a forwarded "drop" row has no step here to name.
 	if e.Rule != "drop" || e.Hook == "forward" {
 		return DropWhy{}
 	}
-	// Unmapped and unzoned for the list lookups, as Reachable does.
-	src := e.Src.Unmap().WithZone("")
+	// Unmapped and unzoned for the list lookups, as Reachable does — except
+	// for a Family 6 packet, which stays un-unmapped: the kernel's IPv4 list
+	// entries match NFPROTO_IPV4 only, and an IPv4-mapped source in an IPv6
+	// packet is still an IPv6 packet. Contains refuses an IPv4-mapped IPv6
+	// address against an IPv4 prefix, so leaving it mapped is what keeps this
+	// packet from reading as covered by an IPv4 list, source or port-source
+	// entry the kernel would never have matched it against.
+	src := e.Src.WithZone("")
+	if e.Family != 6 {
+		src = src.Unmap()
+	}
 	icmp := e.Proto == "icmp" || e.Proto == "icmpv6"
 	label := "ICMP"
 	if e.Proto == "icmpv6" {
@@ -301,6 +311,18 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 		}
 		if slices.Contains(accepted, e.ICMP.Type) {
 			return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
+		}
+	}
+
+	// The Docker networks accept before the blacklist (nftables.go's Apply:
+	// the CIDR accepts render right after the optional modules, before the
+	// blacklist). Only CustomNetworks — the ones the operator named — can be
+	// listed here; an auto-detected bridge is the gap the comment above names.
+	if n.Docker.Enabled {
+		for _, cidr := range n.Docker.CustomNetworks {
+			if pfx, err := ParseNetwork(cidr); err == nil && pfx.Contains(src) {
+				return DropWhy{}
+			}
 		}
 	}
 

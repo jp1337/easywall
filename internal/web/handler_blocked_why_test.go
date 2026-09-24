@@ -126,14 +126,33 @@ func TestBlockedDefaultDropSaysWhy(t *testing.T) {
 	fc, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{drop}},
 		shared.FirewallOptions{LogBlocked: true})
 	fc.SetResponse(shared.CmdGetRules, shared.Response{Success: false, Error: "timeout"})
+	// Without this, GET_APPLIED_CONFIG sits at fakeCore's default
+	// {Success:true}, which decodes as Recorded:false — that alone would hide
+	// the reason and pass the assertion below for the wrong half.
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{Recorded: true}))
 	rec := doAuthRequest(t, s, "GET", "/blocked/rows", nil)
 	if rec.Code != http.StatusOK {
-		t.Errorf("a core that times out on the extra reads answered %d, want 200", rec.Code)
+		t.Errorf("a core that times out on GET_RULES answered %d, want 200", rec.Code)
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "993") {
-		t.Errorf("the row itself is missing when the extra reads time out:\n%s", body)
+		t.Errorf("the row itself is missing when GET_RULES times out:\n%s", body)
 	} else if strings.Contains(body, "pkt-why") {
 		t.Errorf("a reason was given although the rules could not be read:\n%s", body)
+	}
+	// The mirror: GET_RULES succeeds, GET_APPLIED_CONFIG times out. Either half
+	// missing must hide the reason, not just one of them.
+	fc, s = blockedCore(t, shared.PacketLogResult{Listening: true, Entries: []shared.PacketLogEntry{drop}},
+		shared.FirewallOptions{LogBlocked: true})
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{Current: rules}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, shared.Response{Success: false, Error: "timeout"})
+	rec = doAuthRequest(t, s, "GET", "/blocked/rows", nil)
+	if rec.Code != http.StatusOK {
+		t.Errorf("a core that times out on GET_APPLIED_CONFIG answered %d, want 200", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "993") {
+		t.Errorf("the row itself is missing when GET_APPLIED_CONFIG times out:\n%s", body)
+	} else if strings.Contains(body, "pkt-why") {
+		t.Errorf("a reason was given although the applied config could not be read:\n%s", body)
 	}
 }
 
