@@ -44,8 +44,8 @@ deliberately cannot.
 
 > **`./easywall-config` is yours, and changes owner on first start.** Docker
 > creates it empty. The entrypoint fills it from the defaults inside the image,
-> in the shape the Debian package installs: `web.toml` and `ssl/` to the
-> container's `easywall` user (uid 100, gid 101), `easywall.toml` to root.
+> in the shape the Debian package installs. `web.toml` and `ssl/` go to the
+> container's `easywall` user (uid 100, gid 101); `easywall.toml` goes to root.
 > It is gitignored: the account lives there. **Editing those files on the host
 > needs `sudo`.** In a bind-mounted `/var/lib/easywall` the entrypoint does the
 > same: the directory is root's, and the web process keeps its passkeys and
