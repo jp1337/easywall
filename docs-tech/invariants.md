@@ -531,6 +531,19 @@ costs every clone and fork the moment it lands. Not worth it.
 | `TestICMPAcceptsAreTheListsDropReasonReads` | `shared.ICMPv4Accepted`/`ICMPv6Accepted` equal the types `addICMPRules` builds, in every IPv6 configuration | the list exists twice by necessity; drift would make /blocked call an accepted type refused, or the reverse |
 | `TestEveryBlockedRuleLeadsToItsOption` | every `PacketLogRules` entry has a card key (or `""` on purpose), and every key is an `id` the rendered `/options` carries | a chip that leads to an anchor nobody renders scrolls nowhere, silently |
 
+## Whoever installs it owns it
+
+2.22's first run, health check, refusal and lockout check. Each row was found by
+breaking the code it names.
+
+| Test | Protects | Incident |
+|---|---|---|
+| `TestFirstRunRefusesAMissingOrWrongSetupToken` | a step-1 POST without the token, or with the wrong one, stores no pending entry and runs no Argon2 hash | before 2.22 whoever finished `/firstrun` first owned the firewall, on both install paths |
+| `TestFirstRunAcceptsTheSetupTokenHoweverItIsPasted` / `TestTheSetupTokenIsComparedInConstantTime` | lowercase, grouping spaces, quotes and a trailing tab are accepted; the compare is `subtle.ConstantTimeCompare` on decoded bytes | a token people cannot paste is a token people disable; a `==` is a timing oracle |
+| `TestHealthzAdmitsItsOwnAddressAndNoOther` / `TestHealthCheckAsksASpecificBind` | `-healthcheck` dials from `bind_addr`, and `/healthz` admits that peer — a zoned IPv6 bind included — unless the list is `[]` | the HEALTHCHECK asked `127.0.0.1:12227` whatever `bind_addr` said, and a specific bind read unhealthy for ever |
+| `TestRequireAuth_AnHTMXRequestIsSentToLoginNotSwapped` | a refused htmx request gets `401` + `HX-Redirect`, never a 303 the XHR follows | a session that expired on /blocked rendered the login page inside the table |
+| `TestReachable_AForwardedOnlyRuleDoesNotOpenTheHost` | the lockout check skips a port rule that is not `FiltersHost()`, as the input chain does | /apply called the web port reachable through a rule that only filters forwarded traffic |
+
 ## Adding one
 
 The shape that works: **derive the list from the code, compare it against the
