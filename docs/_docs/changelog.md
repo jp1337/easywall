@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.22.0">2.22.0</a>
   <a href="#2.21.1">2.21.1</a>
   <a href="#2.21.0">2.21.0</a>
   <a href="#2.20.1">2.20.1</a>
@@ -71,7 +72,149 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.21.1" markdown="1">
+<details open id="2.22.0" markdown="1">
+<summary><strong>2.22.0</strong> · 2026-09-24 — It is yours, and it says why</summary>
+
+Two audits, shipped together as one release. wdk-ansible's review of the
+Docker path found that whoever finished `/firstrun` first owned the
+firewall — Docker and Debian alike — and, while measuring the fix, that four
+protection switches did not do what their names said. A separate question
+about `/options` — *users do not know what they are doing and cannot read up
+on it* — found the fourteen switches already had a one-line description and
+none of them said what breaks, who wants it, or where to read more. Neither
+defect was caused by 2.21; both predate it, and both are fixed here rather
+than carried forward.
+
+### Security
+
+- **Whoever finished `/firstrun` first owned the firewall — Docker and
+  Debian alike.** `web.toml` binds `0.0.0.0`, and nothing gated the wizard
+  beyond `IsFirstRun`. easywall-web now generates a 160-bit setup token at
+  start, only while no account exists, holds it in memory, and prints it
+  once as a `slog.Warn` line — `docker compose logs`, the journal. Step 1 of
+  `/firstrun` refuses without it, checked with `subtle.ConstantTimeCompare`
+  before the password is hashed. A restart prints a new token, which is also
+  the recovery for a lost line; nothing touches disk.
+- **An anonymous `POST /firstrun` cost a 64 MiB Argon2id hash before any
+  proof of host access.** The token check now runs first, so a request with
+  no token, or the wrong one, never reaches the hash.
+- **The web user could make the root core write anywhere.** `/var/lib/easywall`
+  was `root:easywall 0770` with no sticky bit: the web process could point
+  `last_apply` at any file for root to write, replace the rules restored at
+  boot, or plant a `panic` marker that keeps the firewall down at every
+  start. The directory is root's now (`0750`); the web process keeps its own
+  state — passkeys, the TOTP replay store — in `data_dir/web` (`0700`, owned
+  by the web user), and both install paths migrate the old layout
+  automatically, without following a symlink or a hardlink into it.
+
+### Added
+
+- **`easywall-web -healthcheck`.** Loads the configuration without writing
+  anything, derives the health target from `bind_addr` — including a zoned
+  IPv6 bind — and exits 0 on a 200. The container's `HEALTHCHECK` and
+  `docker-compose.yml` use it now instead of asking a hardcoded
+  `127.0.0.1`, which a specific `bind_addr` refuses. The own-address rule
+  that lets a peer at this host's own address reach itself now recognises a
+  zoned bind too.
+- **Every switch on `/options` says what it breaks.** Each of the fourteen
+  module cards keeps its one-line description — rewritten to lead with the
+  consequence, e.g. *Drop multicast* now opens with what stops working — and
+  gains a closed `<details>`: protects against, can break, turn it on if,
+  and a link to its section of `filters.md`. A card above the grid names the
+  switches a public server, a home network behind NAT, and a container host
+  each want. The dead key `options_readonly` — it said options need a core
+  restart, false since options save live — is removed from every locale.
+- **The packet log records an ICMP packet's type and code.** `GET_PACKET_LOG`
+  entries carry them additively, so a blocked ICMP row can finally say what
+  kind of packet it was, rather than just *ICMP*.
+- **A default-drop row on `/blocked` now says why.** *port 993/tcp is not
+  open*; *993/tcp is open only for 10.0.0.0/8*; *IPv4 pings are not
+  answered*; *ICMP type 8 is not accepted* — derived from the rules as they
+  stand now, not stored per packet, and each reason has both locale keys. A
+  module row's chip — *Port scan*, *SSH brute force* — now links to that
+  option's card on `/options`.
+
+### Changed
+
+- **`docker.enabled = true` is the default in the shipped `easywall.toml` —
+  new files only.** Without it, the forward chain's policy drop left a
+  compose host's containers without a network at the first apply, before
+  the acceptance window could even show it. A file carried over from 2.21
+  or earlier keeps whatever it already says; nothing is overwritten.
+- **The compose mount moved from `./config` to `./easywall-config`.** The old
+  mount put the account into a git-tracked directory: afterwards the files
+  carried the password hash and the TOTP secret, were root-owned, and a
+  `git pull` or `git checkout .` failed or deleted the account. The
+  entrypoint now seeds `./easywall-config` (gitignored) from the image's own
+  defaults. Upgrading a git checkout from 2.21 or earlier needs this once,
+  before pulling:
+
+  ```bash
+  docker compose down
+  sudo mv config easywall-config && sudo rm -f easywall-config/embed.go
+  git checkout -- config && git pull
+  docker compose up -d
+  ```
+
+  An existing `easywall.toml` is moved as-is — whatever it already says for
+  `docker.enabled` is kept, not replaced by the new default.
+- **`fr`'s coverage gap grew by the keys this release added.** Every new key
+  in this release went into `en` and `de` only, which is the project's rule:
+  `fr` falls back to English rather than gaining a stale, half-translated
+  set. `en` now holds 756 keys; `fr` answers 443 of them (58%), a gap of 313.
+
+### Fixed
+
+- **A signed-out htmx request swapped `/login` into `/blocked`'s table.**
+  `RequireAuth` and `RequireSecondFactor` answered every refused request
+  with a 303, which an XHR follows. An htmx request now gets 401 with
+  `HX-Redirect` instead.
+- **Fragment drop, ICMP flood and TCP RST flood acted on almost no
+  traffic.** Fragment drop sat in the input chain, which never sees a
+  fragment — the kernel reassembles before `LOCAL_IN`, and conntrack does it
+  earlier still; a 3000-byte ping over a 1280 MTU passed with the switch on.
+  It now runs in its own prerouting chain, ahead of reassembly, for IPv4
+  fragments addressed to this host. ICMP flood and TCP RST flood sat behind
+  the established-connection accept: every ping after a source's first is
+  established, and so is a reset for a live connection — 20 of 20 pings
+  passed a limit of one a second, and an IPv6 ping was accepted before the
+  meter ran at all. Both meters now run ahead of the accept and count what
+  they were always meant to. **What this can break:** fragment drop can now
+  drop a UDP reply too large for one packet, most visibly a DNS answer with
+  DNSSEC — it stays off by default. The blacklist log also no longer skips
+  network entries.
+- **The lockout check ignored a port rule that only filters forwarded
+  traffic.** `Reachable` counted every TCP rule, but the input chain holds
+  host-scoped rules only, so a forward-only rule for the web port read as
+  reachable on `/apply` when it was not.
+- **An IPv4-mapped network (`::ffff:10.0.0.0/104`) failed every apply with
+  `EINVAL`.** It passed validation, and then a blacklist, a whitelist or a
+  bogon exception holding it failed every apply, while a port rule's source
+  silently skipped it. `shared.ParseNetwork` now reads it as the IPv4
+  network it names (`10.0.0.0/8`); nothing is refused, and a non-mapped
+  entry builds the same bytes as before.
+- **`debian/control` did not depend on `adduser`, which `postinst` calls.**
+  It does now.
+- The Docker install page named neither `docker.enabled` nor its new
+  default.
+- Password reset and troubleshooting covered systemd only, not Docker.
+- The claim that easywall "never trusts `X-Forwarded-For`" is corrected —
+  superseded in 2.13.
+- Remote-access guidance is added; `ssh -L`'s silent failure under
+  `AllowTcpForwarding no` is named.
+- `tls.hostname` is documented, and `tls.acme` is no longer offered for an
+  image that refuses it.
+- `nfnetlink_log`'s autoload from a `NET_ADMIN` container is now mentioned.
+- `health.md` and the Dockerfile comment no longer describe a stale compose
+  health check.
+- The self-hosted demo recipe no longer relies on the first-visitor claim,
+  and `features/docker.md` no longer says detection is not continuous.
+
+[See the code changes between 2.21.1 and 2.22.0](https://github.com/jp1337/easywall/compare/v2.21.1...v2.22.0)
+
+</details>
+
+<details id="2.21.1" markdown="1">
 <summary><strong>2.21.1</strong> · 2026-09-23 — What it offers, it can do</summary>
 
 A patch to 2.21.0, from walking `/blocked` in Chrome after the release. The
