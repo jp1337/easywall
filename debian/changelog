@@ -1,3 +1,54 @@
+easywall (2.22.0) unstable; urgency=medium
+
+  * Security: whoever finished /firstrun first owned the firewall, Docker
+    and Debian alike. easywall-web now prints a 160-bit setup token once at
+    start (docker compose logs, the journal); step 1 of /firstrun refuses
+    without it, checked before the password is hashed.
+  * Security: an anonymous POST /firstrun cost a 64 MiB Argon2id hash before
+    any proof of host access; the token check now runs first.
+  * Security: the web user could make the root core write anywhere.
+    /var/lib/easywall is root's now (0750); the web process keeps its own
+    state in data_dir/web, and both install paths migrate the old layout
+    automatically.
+  * New: easywall-web -healthcheck loads the configuration and asks the
+    address bind_addr names, including a zoned IPv6 bind. The container's
+    HEALTHCHECK and docker-compose.yml use it instead of a hardcoded
+    127.0.0.1.
+  * New: every switch on /options says what it breaks — protects against,
+    can break, turn it on if — with a link to its section of filters.md. A
+    card above the grid names what a public server, a home network behind
+    NAT, and a container host each want.
+  * New: the packet log records an ICMP packet's type and code, so a
+    blocked ICMP row can say what kind of packet it was.
+  * New: a default-drop row on /blocked now says why — port not open, IPv4
+    pings not answered, ICMP type not accepted. A module row's chip links
+    to that option's card on /options.
+  * Changed: docker.enabled = true is the default in a new easywall.toml;
+    an existing file keeps what it already says.
+  * Changed: the compose mount moved from ./config to ./easywall-config, so
+    the account no longer lives in a git-tracked directory. Upgrading a git
+    checkout from 2.21 or earlier needs this once, before pulling: docker
+    compose down; sudo mv config easywall-config && sudo rm -f
+    easywall-config/embed.go; git checkout -- config && git pull; docker
+    compose up -d.
+  * Fix: a signed-out htmx request swapped /login into /blocked's table; it
+    now gets 401 with HX-Redirect instead.
+  * Fix: fragment drop, ICMP flood and TCP RST flood acted on almost no
+    traffic — fragment drop matched nothing in the input chain, and both
+    meters sat behind the established-connection accept. All three now act
+    on real traffic; fragment drop can now break a UDP reply too large for
+    one packet, most visibly DNSSEC, and stays off by default.
+  * Fix: the lockout check ignored a port rule that only filters forwarded
+    traffic, so it read as reachable on /apply when it was not.
+  * Fix: an IPv4-mapped network (::ffff:10.0.0.0/104) failed every apply
+    with EINVAL; it is now read as the IPv4 network it names.
+  * Fix: debian/control did not depend on adduser, which postinst calls.
+  * Fix: Docker's documentation gained the pages Debian always had —
+    recovery, remote access, passkeys, module loading, a corrected
+    X-Forwarded-For claim, and a corrected compose health check.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Thu, 24 Sep 2026 20:00:00 +0200
+
 easywall (2.21.1) unstable; urgency=medium
 
   * Fix: a row on /blocked offered whitelist, blacklist or open-the-port even
