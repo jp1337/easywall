@@ -28,6 +28,11 @@ type PacketLogEntry struct {
 	// Rule is one of PacketLogRules, or PacketLogRuleOther.
 	Rule string `json:"rule"`
 
+	// Feed is the feed id a "feed" row's prefix named — a catalogue id or
+	// own-N — and empty for every other rule, for a prefix naming an id no
+	// catalogue knows, and for every line a core before 2.23 wrote. Since 2.23.
+	Feed string `json:"feed,omitempty"`
+
 	// Hook is "input" or "forward", or empty when NFLOG did not say. Only an
 	// input packet can be let in by opening a port.
 	Hook  string `json:"hook,omitempty"`
@@ -74,8 +79,8 @@ type Remedy struct {
 }
 
 // Remedies reads the answer off the input chain's order — protection modules,
-// then the blocklist, then the allowlist, then the port rules, then the final
-// drop (internal/core/nftables.go Apply; Reachable steps 5–9). If that order
+// then the blocklist, then the allowlist, then the feeds, then the port rules,
+// then the final drop (internal/core/nftables.go Apply; Reachable steps 5–9). If that order
 // changes, TestRemediesFollowTheChainOrder is the table to redo.
 func (e PacketLogEntry) Remedies() Remedy {
 	var r Remedy
@@ -94,6 +99,10 @@ func (e PacketLogEntry) Remedies() Remedy {
 		r.Allowlist = true
 	case "bogon":
 		// addBogonFilter is given the allowlist as its exemption list.
+		r.Allowlist = true
+	case "feed":
+		// The feeds are evaluated after the allowlist (spec D3): allowlisting
+		// the source is exactly what rescues it from somebody else's list.
 		r.Allowlist = true
 	}
 	r.Blocklist = e.Rule != "blocklist"
@@ -389,15 +398,15 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 	return DropWhy{Code: DropPortClosed, Params: p}
 }
 
-// PacketLogRules are the ten log switches, by the name their prefix carries.
-// filters.md lists them in this order.
+// PacketLogRules are the eleven log switches, by the name their prefix
+// carries. filters.md lists them in this order.
 var PacketLogRules = []string{
 	"ssh", "icmp_flood", "syn_flood", "tcp_rst", "portscan",
-	"invalid", "fragment", "bogon", "blocklist", "drop",
+	"invalid", "fragment", "bogon", "blocklist", "feed", "drop",
 }
 
 // PacketLogRuleOther is a packet some other rule logged into easywall's group —
-// a custom rule, usually. Shown, and labelled as not one of the ten.
+// a custom rule, usually. Shown, and labelled as not one of the eleven.
 const PacketLogRuleOther = "other"
 
 // PacketLogProtos are the protocols the filter offers by name.
@@ -407,21 +416,45 @@ var PacketLogProtos = []string{"tcp", "udp", "icmp", "icmpv6"}
 // in nftables.go are "easywall <name>: ".
 const logPrefixStem = "easywall "
 
-// RuleFromPrefix names the rule behind an NFLOG prefix.
-func RuleFromPrefix(prefix string) string {
+// feedLogPrefixStem is the one prefix that carries a value: the feed's id.
+const feedLogPrefixStem = logPrefixStem + "feed: "
+
+// FeedLogPrefix is the log prefix of feed id's drop rule (plan P10). The
+// kernel log reads "easywall feed: spamhaus-drop IN=…". The kernel refuses a
+// prefix longer than NF_LOG_PREFIXLEN - 1 = 127 bytes, and
+// TestFeedLogPrefixesFitTheKernel holds every id to that.
+func FeedLogPrefix(id string) string { return feedLogPrefixStem + id + " " }
+
+// ParseLogPrefix names the rule behind an NFLOG prefix and, for a feed's rule,
+// the feed. An id that is not a known feed id decodes as rule "feed" with no
+// id: the packet was refused by a feed, and which one is not a thing to guess.
+func ParseLogPrefix(prefix string) (rule, feed string) {
 	name, ok := strings.CutPrefix(prefix, logPrefixStem)
 	if !ok {
-		return PacketLogRuleOther
+		return PacketLogRuleOther, ""
 	}
 	name = strings.TrimRight(name, "\x00 ")
+	if id, ok := strings.CutPrefix(name, "feed:"); ok {
+		if id = strings.TrimSpace(id); KnownFeedID(id) {
+			return "feed", id
+		}
+		return "feed", ""
+	}
 	name = strings.ReplaceAll(strings.TrimSuffix(name, ":"), "-", "_")
 	// A rule 2.22 loaded keeps its prefix, "easywall blacklist: ", until the
 	// next apply.
 	name = CurrentListName(name)
 	if slices.Contains(PacketLogRules, name) {
-		return name
+		return name, ""
 	}
-	return PacketLogRuleOther
+	return PacketLogRuleOther, ""
+}
+
+// RuleFromPrefix names the rule behind an NFLOG prefix — ParseLogPrefix's
+// first half.
+func RuleFromPrefix(prefix string) string {
+	rule, _ := ParseLogPrefix(prefix)
+	return rule
 }
 
 const (

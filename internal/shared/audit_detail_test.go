@@ -84,3 +84,12 @@ func TestJoinCapped_BoundsTheLine(t *testing.T) {
 		t.Errorf("listed more than %d items: %q", maxDetailItems, got)
 	}
 }
+
+// Switching a feed on is a rules_saved entry like any other, and the line
+// names the feed that moved.
+func TestDescribeRuleChange_NamesTheFeeds(t *testing.T) {
+	got := DescribeRuleChange("feeds", Rules{Feeds: []string{"dshield"}}, Rules{Feeds: []string{"spamhaus-drop"}})
+	if got != "added spamhaus-drop, removed dshield" {
+		t.Errorf("detail = %q", got)
+	}
+}

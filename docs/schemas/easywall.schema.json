@@ -347,6 +347,18 @@
           "minimum": 1,
           "maximum": 10000,
           "default": 60
+        },
+        "log_feed_connections": {
+          "type": "boolean",
+          "description": "Log packets dropped by a feed, with the feed's id in the prefix.",
+          "default": false
+        },
+        "log_feed_connections_limit": {
+          "type": "integer",
+          "description": "Maximum log entries per minute for each feed and address family.",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 60
         }
       }
     }

@@ -563,9 +563,17 @@ func (d *Daemon) Stop() {
 func (d *Daemon) handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	data, err := io.ReadAll(io.LimitReader(conn, 1<<20)) // 1MB max
+	// One byte past the limit, so a request that is too long is refused as
+	// that. Cut at the limit, it used to reach json.Unmarshal truncated and be
+	// answered "invalid JSON command" — indistinguishable from a malformed one.
+	data, err := io.ReadAll(io.LimitReader(conn, shared.MaxMessageBytes+1))
 	if err != nil {
 		slog.Warn("read command error", "error", err)
+		return
+	}
+	if len(data) > shared.MaxMessageBytes {
+		slog.Warn("command refused: longer than the socket limit", "limit", shared.MaxMessageBytes)
+		d.sendError(conn, shared.ErrRequestTooLargeText)
 		return
 	}
 
@@ -838,6 +846,13 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 			return errResp(err)
 		}
 		return shared.Response{Success: true}
+
+	case shared.CmdUpdateFeed, shared.CmdGetFeeds:
+		// 2.23 Task 2 declares the two commands and their types; Task 4 writes
+		// the handlers. Until then they are answered, not "unknown command", so
+		// the web process can tell a core that has not got there yet from a
+		// command that does not exist.
+		return shared.Response{Success: false, Error: fmt.Sprintf("%s is not implemented yet", cmd.Type)}
 
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}

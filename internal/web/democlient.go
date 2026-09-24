@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -96,6 +97,11 @@ type demoState struct {
 	// Nothing advances it — there is no kernel here — so the dates are fixed
 	// relative to process start, which is also when the demo resets.
 	usage shared.UsageResult
+
+	// feeds are the copies the demo's core would hold, by feed id. Seeded for
+	// the two the catalogue says to start with, and never refreshed: demo mode
+	// constructs no fetcher (spec §3), so UPDATE_FEED is refused here.
+	feeds map[string]shared.FeedStatus
 
 	acceptance shared.AcceptanceStatus
 	lastApply  string // RFC3339, empty when never applied
@@ -220,6 +226,9 @@ func (d *demoState) seed() {
 			"# log + drop traffic to legacy admin port",
 			"tcp dport 10000 log prefix \"legacy-admin: \" drop",
 		},
+		// The two the Feeds card says to start with, so the public demo shows
+		// the feature switched on the way the documentation recommends.
+		Feeds: []string{"spamhaus-drop", "dshield"},
 	}
 	d.rules = shared.RulesState{
 		Current: example,
@@ -293,6 +302,19 @@ func (d *demoState) seed() {
 		LogBlockedLimit:              60,
 		LogBlocklist:                 true,
 		LogBlocklistLimit:            60,
+		LogFeed:                      true,
+		LogFeedLimit:                 60,
+	}
+	// Spamhaus DROP's size is the one measured for the catalogue, 1710 v4 plus
+	// 91 v6 (spec §1); DShield is always twenty /24s. Spamhaus polls every 12 h,
+	// DShield hourly, so the two show different checked times.
+	d.feeds = map[string]shared.FeedStatus{
+		"spamhaus-drop": {ID: "spamhaus-drop", Stored: true, Entries: 1801,
+			ChangedAt: ago(7 * time.Hour), CheckedAt: ago(7 * time.Hour),
+			Packets: 3412, CountersRead: true},
+		"dshield": {ID: "dshield", Stored: true, Entries: 20,
+			ChangedAt: ago(3 * time.Hour), CheckedAt: ago(38 * time.Minute),
+			Packets: 18873, CountersRead: true},
 	}
 	d.settings = shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
@@ -516,11 +538,52 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handleResume()
 	case shared.CmdLogEvent:
 		return d.handleLogEvent(cmd.Payload)
+	case shared.CmdGetFeeds:
+		return demoOK(d.feedStatusLocked())
+	case shared.CmdUpdateFeed:
+		// Nothing in the demo sends it: demo mode constructs no fetcher. A
+		// visitor's browser reaching the public demo must not be the thing that
+		// makes it fetch a list from the internet.
+		return demoErr(errors.New("the demo fetches no feeds"))
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
+
+// feedStatusLocked answers GET_FEEDS the way the core does: one status per id
+// that has a copy or is switched on in Current or Staged, in_kernel for the
+// ones in Current. A feed a visitor switches on has no copy, because nothing
+// here fetches one. contains_addr stays false: the seeded copies are counts,
+// not addresses. Caller holds d.mu.
+func (d *demoState) feedStatusLocked() shared.GetFeedsResult {
+	res := shared.GetFeedsResult{Feeds: []shared.FeedStatus{}}
+	seen := map[string]bool{}
+	add := func(id string) {
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+		st, ok := d.feeds[id]
+		if !ok {
+			st = shared.FeedStatus{ID: id}
+		}
+		st.InKernel = slices.Contains(d.rules.Current.Feeds, id)
+		if !st.InKernel {
+			st.Packets, st.CountersRead = 0, false
+		}
+		res.Feeds = append(res.Feeds, st)
+	}
+	for _, f := range shared.FeedCatalogue {
+		if _, ok := d.feeds[f.ID]; ok {
+			add(f.ID)
+		}
+	}
+	for _, id := range append(slices.Clone(d.rules.Current.Feeds), d.rules.Staged.Feeds...) {
+		add(id)
+	}
+	return res
+}
 
 func demoOK(data interface{}) shared.Response {
 	raw, err := json.Marshal(data)
@@ -670,6 +733,12 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 			return demoErr(fmt.Errorf("invalid forwarding rules: %w", err))
 		}
 		d.rules.Staged.Forwarding = rs
+	case "feeds":
+		var rs []string
+		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
+			return demoErr(fmt.Errorf("invalid feeds: %w", err))
+		}
+		d.rules.Staged.Feeds = rs
 	default:
 		return demoErr(fmt.Errorf("unknown rule type %q", generic.RuleType))
 	}

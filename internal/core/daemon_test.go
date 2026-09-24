@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -572,6 +573,53 @@ func TestLookupGroup_ParsesValidGroup(t *testing.T) {
 	}
 	if gid != 0 {
 		t.Errorf("root GID should be 0, got %d", gid)
+	}
+}
+
+// sendRaw writes exactly these bytes to the daemon socket and reads the reply.
+// The write runs beside the read, so a daemon that answers before it has read
+// everything cannot deadlock the test.
+func sendRaw(t *testing.T, socketPath string, data []byte) shared.Response {
+	t.Helper()
+	conn, err := net.DialTimeout("unix", socketPath, 5*time.Second)
+	if err != nil {
+		t.Fatalf("dial %s: %v", socketPath, err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	go func() {
+		_, _ = conn.Write(data)
+		_ = conn.(*net.UnixConn).CloseWrite()
+	}()
+	respData, err := io.ReadAll(conn)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	var resp shared.Response
+	if err := json.Unmarshal(respData, &resp); err != nil {
+		t.Fatalf("parse response %q: %v", respData, err)
+	}
+	return resp
+}
+
+// 2.23: a request of exactly MaxMessageBytes is read whole and dispatched; one
+// byte more is answered "request too large". It used to be cut at 1 MiB and
+// answered "invalid JSON command", a truncation that read as a malformed
+// message.
+func TestDaemonHandleConn_RequestLimitIsExact(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+	startTestSocket(t, d)
+
+	cmd, _ := json.Marshal(shared.Command{Type: shared.CmdGetStatus})
+	exact := append(cmd, bytes.Repeat([]byte(" "), shared.MaxMessageBytes-len(cmd))...)
+	if resp := sendRaw(t, cfg.SocketPath, exact); !resp.Success {
+		t.Fatalf("a request of exactly MaxMessageBytes was refused: %q", resp.Error)
+	}
+	resp := sendRaw(t, cfg.SocketPath, append(exact, ' '))
+	if resp.Success || resp.Error != shared.ErrRequestTooLargeText {
+		t.Errorf("one byte over the limit: %+v, want the error %q", resp, shared.ErrRequestTooLargeText)
 	}
 }
 

@@ -614,8 +614,8 @@ func TestDemo_CancelAcceptanceRollsBackNow(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 23 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 23 "+
+	if len(shared.AllCommandTypes) != 25 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 25 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 
@@ -792,5 +792,53 @@ func TestDemo_SeededAuditLogDescends(t *testing.T) {
 				i, d.auditLog[i].Action, d.auditLog[i].Time,
 				i-1, d.auditLog[i-1].Action, d.auditLog[i-1].Time)
 		}
+	}
+}
+
+// 2.23: the public demo shows the two feeds the card says to start with,
+// switched on and with a copy, so the blocklist page has something to render.
+// A feed a visitor switches on has none — nothing in the demo fetches — and
+// UPDATE_FEED is refused rather than pretending to store anything.
+func TestDemoAnswersTheFeedCommands(t *testing.T) {
+	d := newDemoState()
+	c := &CoreClient{demo: d}
+
+	res, err := c.GetFeeds("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]shared.FeedStatus{}
+	for _, f := range res.Feeds {
+		byID[f.ID] = f
+	}
+	for _, id := range []string{"spamhaus-drop", "dshield"} {
+		f := byID[id]
+		if !f.Stored || !f.InKernel || f.Entries == 0 || f.CheckedAt.IsZero() || !f.CountersRead {
+			t.Errorf("%s in the demo: %+v", id, f)
+		}
+	}
+	if len(res.Feeds) != 2 {
+		t.Errorf("the seeded demo reports %d feeds, want 2: %+v", len(res.Feeds), res.Feeds)
+	}
+
+	if err := c.SaveRules("feeds", []string{"spamhaus-drop", "dshield", "cins"}); err != nil {
+		t.Fatal(err)
+	}
+	res, _ = c.GetFeeds("")
+	var cins *shared.FeedStatus
+	for i := range res.Feeds {
+		if res.Feeds[i].ID == "cins" {
+			cins = &res.Feeds[i]
+		}
+	}
+	if cins == nil || cins.Stored || cins.InKernel {
+		t.Errorf("a feed staged in the demo reads %+v; it has no copy and is not in the kernel", cins)
+	}
+	if err := c.SaveRules("feeds", []string{"firehol-level1"}); err == nil {
+		t.Error("the demo staged a feed id the core would refuse")
+	}
+
+	if _, err := c.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield", Entries: []string{"192.0.2.0/24"}}); err == nil {
+		t.Error("the demo accepted UPDATE_FEED; demo mode fetches nothing and stores nothing")
 	}
 }

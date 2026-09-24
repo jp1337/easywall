@@ -109,6 +109,33 @@ func TestSaveStaged_Allowlist(t *testing.T) {
 	}
 }
 
+// Switching a feed on is a rule change like any other (spec D2): staged by id,
+// and refused by the core, not only by the web process, when the id is not one.
+func TestSaveStaged_Feeds(t *testing.T) {
+	store, _ := newTempStore(t)
+	if err := store.SaveStaged("feeds", []string{"spamhaus-drop", "own-2"}); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := store.GetState()
+	if got := state.Staged.Feeds; len(got) != 2 || got[0] != "spamhaus-drop" || got[1] != "own-2" {
+		t.Errorf("staged feeds = %v", got)
+	}
+	if len(state.Current.Feeds) != 0 {
+		t.Error("SaveStaged must not modify current")
+	}
+	for _, bad := range [][]string{{"firehol-level1"}, {"dshield", "dshield"}} {
+		if err := store.SaveStaged("feeds", bad); err == nil {
+			t.Errorf("staged %v; the core must refuse it", bad)
+		}
+	}
+	if err := store.SaveStaged("feeds", "not a list"); err == nil {
+		t.Error("expected error for wrong type in feeds case")
+	}
+	if state, _ := store.GetState(); len(state.Staged.Feeds) != 2 {
+		t.Errorf("a refused save changed the staged feeds to %v", state.Staged.Feeds)
+	}
+}
+
 func TestSaveStaged_Forwarding(t *testing.T) {
 	store, _ := newTempStore(t)
 	rules := []shared.ForwardingRule{{Protocol: "tcp", SourcePort: 8080, DestPort: 80}}

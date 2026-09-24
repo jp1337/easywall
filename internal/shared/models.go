@@ -66,6 +66,13 @@ type Rules struct {
 	Allowlist  []string         `json:"allowlist"`  // always-allowed source IPs / CIDRs
 	Forwarding []ForwardingRule `json:"forwarding"` // NAT port forwards
 	Custom     []string         `json:"custom"`     // raw nftables rule strings
+
+	// Feeds are the enabled feed ids — catalogue ids and own-1…own-3 — in the
+	// order they were switched on. Only the ids: a feed's contents are the
+	// core's feeds.json, never this file, which holds three copies of Rules
+	// and is re-marshalled on every status poll. omitempty keeps a rules.json
+	// written before 2.23 byte-identical until a feed is switched on.
+	Feeds []string `json:"feeds,omitempty"`
 }
 
 // IsEmpty reports whether this rule set says nothing at all.
@@ -86,7 +93,8 @@ func (r Rules) IsEmpty() bool {
 		len(r.Blocklist) == 0 &&
 		len(r.Allowlist) == 0 &&
 		len(r.Forwarding) == 0 &&
-		len(r.Custom) == 0
+		len(r.Custom) == 0 &&
+		len(r.Feeds) == 0
 }
 
 // RulesState holds the three-state rules system preventing lockouts.
@@ -153,15 +161,20 @@ type FirewallOptions struct {
 	// Logging of blocklisted connections
 	LogBlocklist      bool `toml:"log_blocklist_connections"`
 	LogBlocklistLimit int  `toml:"log_blocklist_connections_limit"`
+
+	// Logging of connections a feed refuses, before the drop. One log rule per
+	// feed and address family, each with its own rate.
+	LogFeed      bool `toml:"log_feed_connections"`
+	LogFeedLimit int  `toml:"log_feed_connections_limit"`
 }
 
-// LogsAnything reports whether any of the ten log switches is on. /blocked says
+// LogsAnything reports whether any of the eleven log switches is on. /blocked says
 // "nothing is switched on" when it is false, and TestLogsAnythingCountsEverySwitch
 // holds this to every `*_log` / `log_*` field by reflection.
 func (o FirewallOptions) LogsAnything() bool {
 	return o.SSHBruteForceLog || o.ICMPFloodLog || o.SYNFloodLog || o.TCPRSTFloodLog ||
 		o.PortScanLog || o.InvalidPacketsLog || o.FragmentsLog || o.BogonsLog ||
-		o.LogBlocklist || o.LogBlocked
+		o.LogBlocklist || o.LogFeed || o.LogBlocked
 }
 
 // FirewallLimit describes one numeric option: what it is called, the range it
@@ -236,6 +249,9 @@ var FirewallLimits = []FirewallLimit{
 	{"log_blocklist_connections_limit", 1, 10000, 60,
 		func(o *FirewallOptions) *bool { return &o.LogBlocklist },
 		func(o *FirewallOptions) *int { return &o.LogBlocklistLimit }},
+	{"log_feed_connections_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.LogFeed },
+		func(o *FirewallOptions) *int { return &o.LogFeedLimit }},
 }
 
 // InRange reports whether v is a value this limit may hold.

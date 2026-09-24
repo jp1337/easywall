@@ -323,3 +323,26 @@ func TestInAnyEntry_AMappedNetworkHoldsItsIPv4Addresses(t *testing.T) {
 		t.Error("11.1.2.3 is not in ::ffff:10.0.0.0/104")
 	}
 }
+
+// Spec §2: Rules.Feeds holds catalogue ids and own-1…own-3, each at most once.
+func TestValidateRules_Feeds(t *testing.T) {
+	for _, tc := range []struct {
+		feeds []string
+		want  string // "" = valid; else a fragment of the error
+	}{
+		{nil, ""},
+		{[]string{"spamhaus-drop", "own-1", "own-3", "tor-exits"}, ""},
+		{[]string{"firehol-level1"}, `feed "firehol-level1" is neither`},
+		{[]string{"own-4"}, `feed "own-4" is neither`},
+		{[]string{""}, `feed "" is neither`},
+		{[]string{"dshield", "cins", "dshield"}, `feed "dshield" is switched on twice`},
+	} {
+		err := ValidateRules(Rules{Feeds: tc.feeds})
+		switch {
+		case tc.want == "" && err != nil:
+			t.Errorf("%v: refused: %v", tc.feeds, err)
+		case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+			t.Errorf("%v: got %v, want an error containing %q", tc.feeds, err, tc.want)
+		}
+	}
+}

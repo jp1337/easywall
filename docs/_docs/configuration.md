@@ -256,6 +256,7 @@ browser and an editor. Neither reaches a `curl` or a hand-edited file:
 | `connection_limit_max` | 1–100000 | 100 |
 | `log_blocked_connections_limit` | 1–10000 | 60 |
 | `log_blocklist_connections_limit` | 1–10000 | 60 |
+| `log_feed_connections_limit` | 1–10000 | 60 |
 
 Out of range in the file is clamped and logged; out of range from the interface is
 refused with the key named — the same split as `acceptance.duration`.
@@ -267,12 +268,13 @@ refused with the key named — the same split as `acceptance.duration`.
 > from every source and dropping it. One number, entered on a page whose product
 > promises it cannot lock you out, with nothing logged.
 
-Two logging switches belong to no module and are set here as well:
+Three logging switches belong to no module and are set here as well:
 
 | | Logs | Rate |
 |---|---|---|
 | `log_blocked_connections` | everything the final policy drops | `log_blocked_connections_limit` `60`/min |
 | `log_blocklist_connections` | blocklist hits, before the drop | `log_blocklist_connections_limit` `60`/min |
+| `log_feed_connections` | feed hits, before the drop | `log_feed_connections_limit` `60`/min per feed and address family |
 
 ---
 

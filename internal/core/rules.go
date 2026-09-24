@@ -157,6 +157,14 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 			return err
 		}
 		state.Staged.Allowlist = v
+	case "feeds":
+		// Ids only; ValidateRules below refuses one nothing knows and one
+		// switched on twice. A feed's contents never pass through here.
+		var v []string
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+		state.Staged.Feeds = v
 	case "forwarding":
 		var v []shared.ForwardingRule
 		if err := json.Unmarshal(data, &v); err != nil {

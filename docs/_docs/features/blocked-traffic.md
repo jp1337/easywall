@@ -34,7 +34,7 @@ and switch one on. The two worth starting with:
 | Interface | The device it arrived on |
 | Source → Destination | Address, and the destination port if there is one |
 | Proto | `tcp`, `udp`, `icmp`, `icmpv6`, or a bare protocol number |
-| Rule | Which of the ten switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
+| Rule | Which of the eleven switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
 
 **Details** opens the rest: exact time, TCP flags, ICMP type and code, connection state, TTL, source
 port, chain and packet mark — whichever of these the packet carried.

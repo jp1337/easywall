@@ -131,6 +131,9 @@ func TestLogPrefixesMapToTheRulesTheyName(t *testing.T) {
 		logPrefixTCPRST:    "tcp_rst",
 		logPrefixBlocklist: "blocklist",
 		logPrefixDrop:      "drop",
+		// The feed rules' prefix is built per feed; Task 3 builds it with
+		// shared.FeedLogPrefix, which is what is tied here.
+		shared.FeedLogPrefix("spamhaus-drop"): "feed",
 	}
 	if len(want) != len(shared.PacketLogRules) {
 		t.Fatalf("mapped %d prefixes, want the %d rules PacketLogRules lists", len(want), len(shared.PacketLogRules))
