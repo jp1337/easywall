@@ -60,7 +60,7 @@ func TestTheOldListNamesAreGone(t *testing.T) {
 		"internal/shared/renamed_test.go":        7,
 		"internal/shared/docs_coverage_test.go":  2,
 		"internal/core/upgrade_222_test.go":      8,
-		"internal/web/renamed_routes_test.go":    11,
+		"internal/web/renamed_routes_test.go":    14,
 		"internal/shared/old_list_names_test.go": 6, // this file: the paths and comments above
 	}
 	// Paths that keep an old word in their name. The stub answers the old URL

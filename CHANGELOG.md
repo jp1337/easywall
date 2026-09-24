@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keys, `log_blocklist_connections` and `log_blocklist_connections_limit`.
   The schema and the documentation name only the new ones, and the next save
   from the interface writes them.
+- **Export the rules before upgrading if you might go back.** 2.22 reads a
+  `rules.json` written by 2.23 as an empty blocklist and allowlist, and an
+  `easywall.toml` saved by 2.23 as the blocklist log switched off.
 
 ## [2.22.0] — 2026-09-24
 

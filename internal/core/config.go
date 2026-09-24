@@ -104,8 +104,9 @@ func LoadConfig(path string) (*Config, error) {
 
 // readOldLogKeys reads the two [firewall] keys easywall.toml carried until
 // 2.22, log_blacklist_connections and log_blacklist_connections_limit, into
-// their 2.23 fields. The file is a conffile the operator may have edited, so
-// the old spelling has to keep working; it is read here and nowhere else, so
+// their 2.23 fields. The package generates this file once from a template and
+// never replaces it (docs-tech/packaging.md), so every upgraded host keeps the
+// old spelling until its next save; it is read here and nowhere else, so
 // FirewallOptions carries no second field that DiffConfig, the schema and the
 // documentation guards would each have to be taught to ignore. The next save
 // from the interface writes the new keys (saveLocked encodes the struct).
