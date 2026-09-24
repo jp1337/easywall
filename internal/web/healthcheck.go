@@ -32,6 +32,25 @@ func healthTarget(bindAddr string) (url, host string, err error) {
 	return "https://" + net.JoinHostPort(urlHost, port) + "/healthz", host, nil
 }
 
+// dialFrom is the local address a dial from healthTarget's host should bind
+// to, or nil to leave the choice to the kernel (host is empty or not a
+// parseable address — healthTarget never returns either, so this is only
+// reachable if that changes).
+//
+// netip.ParseAddr, not net.ParseIP: net.ParseIP returns nil for a zoned IPv6
+// literal ("fe80::1%eth0"), so a zoned bind_addr silently kept dialer.LocalAddr
+// unset and left the source to whatever the route happened to pick — a
+// link-local address is exactly the shape most likely to need the zone to be
+// routeable at all, so "peer = local by construction" held only by
+// coincidence for it.
+func dialFrom(host string) *net.TCPAddr {
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return nil
+	}
+	return &net.TCPAddr{IP: net.IP(addr.AsSlice()), Zone: addr.Zone()}
+}
+
 // HealthCheck asks this installation's /healthz and returns nil on a 200.
 // cfg comes from LoadConfig alone: Validate writes a session key, and a probe
 // that runs every ten seconds as root must write nothing.
@@ -49,8 +68,8 @@ func HealthCheck(cfg *Config) error {
 	// is whatever the route says: 127.0.0.2 is reached from 127.0.0.1, and a
 	// host with policy routing may pick another address entirely.
 	dialer := &net.Dialer{}
-	if ip := net.ParseIP(host); ip != nil {
-		dialer.LocalAddr = &net.TCPAddr{IP: ip}
+	if local := dialFrom(host); local != nil {
+		dialer.LocalAddr = local
 	}
 	client := &http.Client{
 		// Under the HEALTHCHECK's own 5s timeout, so a slow answer is reported
