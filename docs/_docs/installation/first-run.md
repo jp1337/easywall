@@ -140,26 +140,26 @@ session carries a fingerprint of the password hash it was issued under.
 
 ### If you lose the password
 
-There is no reset link. Recovery means shell access to the host:
+There is no reset link. Recovery means access to the host that holds
+`web.toml`, and it differs by install path:
 
-```bash
-sudo sed -i -E 's/^password[[:space:]]*=.*/password = ""/' /etc/easywall/web.toml
-sudo systemctl restart easywall-web
-```
+| | Debian / systemd | Docker |
+|---|---|---|
+| Edit | `sudo sed -i -E 's/^password[[:space:]]*=.*/password = ""/' /etc/easywall/web.toml` | `sudo sed -i -E 's/^password[[:space:]]*=.*/password = ""/' ./easywall-config/web.toml` |
+| Restart | `sudo systemctl restart easywall-web` | `docker compose restart easywall` |
 
-Clearing the `password` line reopens this page, and the restart prints a new setup token for it. The rules, the audit log and every
-setting are untouched — only the account is recreated.
+Clearing the `password` line reopens this page — with a fresh setup token,
+since clearing the account is exactly what makes the host a first run again.
+Read the new one the same way you read the first: `journalctl -u
+easywall-web -g 'setup token' | tail -1`, or `docker compose logs easywall |
+grep 'setup token' | tail -1`. The rules, the audit log and every other setting are
+untouched — only the account is recreated.
 
 ## Behind a reverse proxy
 
-easywall terminates TLS itself and does not trust `X-Forwarded-For`, deliberately:
-a client that can set its own source address defeats the login rate limiter.
-
-The consequence to know about: behind a proxy, **every sign-in attempt looks
-like it comes from the proxy**. The limit of five attempts per ten minutes is
-then shared by everyone. One person getting it wrong repeatedly locks the rest
-out until the budget refills. Reaching easywall directly, or on a private
-network, avoids it.
+Read [Behind a Reverse Proxy]({{ '/docs/installation/reverse-proxy/' | relative_url }}) —
+listing the proxy in `trusted_proxies` is what fixes the shared login limiter
+and the audit log both recording the proxy's own address.
 
 ## When it does not work
 
@@ -168,8 +168,8 @@ network, avoids it.
 | "That setup token does not match" | a typo, or easywall-web restarted after you copied it | fetch the newest line — see [The setup token](#the-setup-token) |
 | The setup page 404s | an account already exists | go to `/login`; clear the `password` line to start over |
 | "That is not a port number" | the SSH port is outside 1–65535 | |
-| "the choices could not be staged" | the core daemon was not reachable | `systemctl status easywall-core`, then set the ports by hand |
-| The browser warns about the certificate | it is self-signed on first start | accept it, or [configure your own]({{ '/docs/installation/debian/' | relative_url }}#your-own-certificate) |
+| "the choices could not be staged" | the core daemon was not reachable | `systemctl status easywall-core` (Debian) or `docker compose logs easywall` (Docker), then set the ports by hand |
+| The browser warns about the certificate | it is self-signed on first start | accept it, or configure your own — [Debian]({{ '/docs/installation/debian/' | relative_url }}#your-own-certificate) · [Docker]({{ '/docs/installation/docker/' | relative_url }}#your-own-certificate) |
 | Signed in, but every page says the core is unreachable | the socket is not reachable by the web user | `ls -l /run/easywall/core.sock` — it must be `root:easywall` |
 | "Too Many Requests" on sign-in | five failed attempts in ten minutes from your address | wait; one attempt is returned every two minutes |
 
