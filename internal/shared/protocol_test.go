@@ -2,6 +2,7 @@ package shared
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -71,5 +72,14 @@ func TestMaxMessageBytesCarriesAFullFeed(t *testing.T) {
 		if len(cmd) > MaxMessageBytes {
 			t.Errorf("%d entries like %s are %d bytes; MaxMessageBytes is %d", FeedMaxEntries, tc.entry, len(cmd), MaxMessageBytes)
 		}
+	}
+}
+
+// TestErrFeedShrankTextNamesThePercent keeps the refusal's wording and the
+// constant it describes from drifting apart.
+func TestErrFeedShrankTextNamesThePercent(t *testing.T) {
+	want := fmt.Sprintf("feed shrank below %d %% of the stored copy", FeedShrinkPercent)
+	if ErrFeedShrankText != want {
+		t.Errorf("ErrFeedShrankText = %q, want %q", ErrFeedShrankText, want)
 	}
 }

@@ -376,6 +376,13 @@ const ErrRequestTooLargeText = "request too large"
 // send. errors.Is finds it through the wrapping.
 var ErrRequestTooLarge = errors.New(ErrRequestTooLargeText)
 
+// ErrFeedShrankText is the exact Response.Error the core returns when an update
+// for a feed enabled in Current would leave fewer than FeedShrinkPercent of the
+// stored entries. The web process matches it to tell the operator how to accept
+// the smaller list: switch the feed off and apply, then on and apply — a feed
+// that is only staged is not held to the guard.
+const ErrFeedShrankText = "feed shrank below 70 % of the stored copy"
+
 // UpdateFeedPayload is the payload for CmdUpdateFeed.
 type UpdateFeedPayload struct {
 	ID string `json:"id"`
