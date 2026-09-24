@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -37,5 +38,31 @@ func TestFeedCommandsHaveTheirDeadlineClasses(t *testing.T) {
 	}
 	if got, want := CommandTimeout(CmdGetFeeds), defaultCommandTimeout; got != want {
 		t.Errorf("CommandTimeout(CmdGetFeeds) = %s, want %s", got, want)
+	}
+}
+
+// Why the limit is 4 MiB (plan P12): one UPDATE_FEED of FeedMaxEntries
+// entries fits at any IPv4 spelling — the longest is an 18-character /31,
+// 2 100 059 bytes in all — and at the IPv6 lengths real lists carry.
+//
+// Not at every IPv6 length, measured: 100 000 bare addresses of the longest
+// form (39 characters, "2fff:ffff:…") are 4 200 059 bytes, 5 755 over, and
+// as /128 prefixes 4 500 059. So the fetcher sends a full-length prefix as a
+// bare address, and a refresh that is still over is recorded as too large
+// (P12) — the largest IPv6 list offered today, blocklist.de, carries 454.
+func TestMaxMessageBytesCarriesAFullFeed(t *testing.T) {
+	for _, entry := range []string{"255.255.255.254/31", "2001:db8:1234:5678:9abc::def0"} {
+		entries := make([]string, FeedMaxEntries)
+		for i := range entries {
+			entries[i] = entry
+		}
+		payload, err := json.Marshal(UpdateFeedPayload{ID: OwnFeedID(MaxOwnFeeds), Entries: entries})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd, _ := json.Marshal(Command{Type: CmdUpdateFeed, Payload: payload})
+		if len(cmd) > MaxMessageBytes {
+			t.Errorf("%d entries like %s are %d bytes; MaxMessageBytes is %d", FeedMaxEntries, entry, len(cmd), MaxMessageBytes)
+		}
 	}
 }
