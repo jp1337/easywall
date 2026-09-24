@@ -1,7 +1,7 @@
 flowchart TD
-  P(["Incoming packet"]) --> L["Loopback"]
-  L --> F["Fragment drop, if on —<br/>IPv4, before reassembly"]
-  F --> V{"IPv6 mode"}
+  P(["Incoming packet"]) --> F["Fragment drop, if on —<br/>IPv4, before reassembly"]
+  F --> L["Loopback"]
+  L --> V{"IPv6 mode"}
   V -->|"IPv6, passthrough"| A1(["ACCEPT — all IPv6"])
   V -->|"IPv6, block"| X0(["DROP — all IPv6"])
   V -->|"IPv4, or IPv6 filtered"| R["Ping and reset rate limits"]
