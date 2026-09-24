@@ -197,7 +197,7 @@ What each one breaks:
 
 ## Logging
 
-Every module has its own `*_log` switch, plus two global ones. All of it is
+Every module has its own `*_log` switch, plus three global ones. All of it is
 rate-limited, which is what the `*_limit` values in messages per minute are for — a
 flood must not be able to fill the disk.
 
@@ -212,6 +212,7 @@ flood must not be able to fill the disk.
 | `drop_fragments_log` | Fragmented packets | `easywall fragment:` |
 | `bogon_filter_log` | Bogon sources | `easywall bogon:` |
 | `log_blocklist_connections` | Blocklist hits, before the drop | `easywall blocklist:` |
+| `log_feed_connections` | Feed hits, before the drop | `easywall feed: <id>` |
 | `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
 
 Everything these switches log appears on the

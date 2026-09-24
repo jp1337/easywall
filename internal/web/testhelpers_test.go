@@ -115,7 +115,7 @@ func (fc *fakeCore) serve() {
 func (fc *fakeCore) handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	data, err := io.ReadAll(io.LimitReader(conn, 1<<20))
+	data, err := io.ReadAll(io.LimitReader(conn, shared.MaxMessageBytes+1))
 	if err != nil {
 		return
 	}

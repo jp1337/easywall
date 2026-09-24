@@ -89,6 +89,20 @@ func ValidateRules(r Rules) error {
 			return fmt.Errorf("allowlist %q: %w", ip, err)
 		}
 	}
+	// A feed id becomes a set name and a counter id in the kernel (Task 3), and
+	// the core looks up its stored copy by it. An id nothing knows would build
+	// an empty set named after whatever the web process sent, and a second
+	// copy of one id would be two rules dropping the same traffic.
+	seenFeeds := make(map[string]bool, len(r.Feeds))
+	for _, id := range r.Feeds {
+		if !KnownFeedID(id) {
+			return fmt.Errorf("feed %q is neither a catalogue feed nor own-1 to own-%d", id, MaxOwnFeeds)
+		}
+		if seenFeeds[id] {
+			return fmt.Errorf("feed %q is switched on twice", id)
+		}
+		seenFeeds[id] = true
+	}
 	for i, rule := range r.Custom {
 		if err := validateCustomRule(rule); err != nil {
 			return fmt.Errorf("custom rule %d: %w", i+1, err)

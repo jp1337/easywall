@@ -12,16 +12,24 @@ import (
 // is immediate or it is not going to happen, whatever the command is.
 const DialTimeout = 5 * time.Second
 
-// maxResponse bounds what a reply may be. The daemon bounds requests the same
-// way; neither side reads an unbounded amount from the other.
-const maxResponse = 1 << 20
-
 // SendCommand sends one command to a core daemon socket and returns its reply.
 //
 // It lives in shared, not in internal/web, because there are two callers now: the
 // web process and the `easywall-core` console subcommands. The privileged binary
 // must not import the web package to reach its own daemon.
 func SendCommand(socketPath string, cmd Command) (Response, error) {
+	out, err := json.Marshal(cmd)
+	if err != nil {
+		return Response{}, fmt.Errorf("marshal command: %w", err)
+	}
+	// Refused here rather than sent: the core stops reading at the limit, so
+	// the rest of the write would fail with a broken pipe and the caller would
+	// never see the core's own "request too large".
+	if len(out) > MaxMessageBytes {
+		return Response{}, fmt.Errorf("send %s: %w: %d bytes, the limit is %d",
+			cmd.Type, ErrRequestTooLarge, len(out), MaxMessageBytes)
+	}
+
 	conn, err := net.DialTimeout("unix", socketPath, DialTimeout)
 	if err != nil {
 		return Response{}, fmt.Errorf("connect to core: %w", err)
@@ -33,10 +41,6 @@ func SendCommand(socketPath string, cmd Command) (Response, error) {
 	// giving up on work the core went on to finish — see CommandTimeout.
 	_ = conn.SetDeadline(time.Now().Add(CommandTimeout(cmd.Type)))
 
-	out, err := json.Marshal(cmd)
-	if err != nil {
-		return Response{}, fmt.Errorf("marshal command: %w", err)
-	}
 	if _, err := conn.Write(out); err != nil {
 		return Response{}, fmt.Errorf("send command: %w", err)
 	}
@@ -46,9 +50,14 @@ func SendCommand(socketPath string, cmd Command) (Response, error) {
 		_ = uc.CloseWrite()
 	}
 
-	data, err := io.ReadAll(io.LimitReader(conn, maxResponse))
+	// One byte past the limit, so a reply that is too long is an error that
+	// says so rather than JSON cut short and reported as unparseable.
+	data, err := io.ReadAll(io.LimitReader(conn, MaxMessageBytes+1))
 	if err != nil {
 		return Response{}, fmt.Errorf("read response: %w", err)
+	}
+	if len(data) > MaxMessageBytes {
+		return Response{}, fmt.Errorf("read response: longer than %d bytes", MaxMessageBytes)
 	}
 
 	var resp Response

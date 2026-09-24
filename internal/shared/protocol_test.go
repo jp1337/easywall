@@ -28,3 +28,14 @@ func TestGetHealthKeepsTheShortDeadlineForItsConsumer(t *testing.T) {
 		t.Errorf("CommandTimeout(CmdGetHealth) = %s, want %s", got, want)
 	}
 }
+
+// UPDATE_FEED takes the nft mutex to replace a live set and can queue behind an
+// apply for NftTimeout; GET_FEEDS renders a page and must not hang it.
+func TestFeedCommandsHaveTheirDeadlineClasses(t *testing.T) {
+	if got, want := CommandTimeout(CmdUpdateFeed), NftTimeout+defaultCommandTimeout; got != want {
+		t.Errorf("CommandTimeout(CmdUpdateFeed) = %s, want %s", got, want)
+	}
+	if got, want := CommandTimeout(CmdGetFeeds), defaultCommandTimeout; got != want {
+		t.Errorf("CommandTimeout(CmdGetFeeds) = %s, want %s", got, want)
+	}
+}

@@ -385,5 +385,8 @@ var blockedRuleOption = map[string]string{
 	"fragment":   "drop_fragments",
 	"bogon":      "bogon_filter",
 	"blocklist":  "",
-	"drop":       "",
+	// A feed is switched on on the blocklist page, not on /options; what
+	// /options has is the switch that logs it.
+	"feed": "log_feed_connections",
+	"drop": "",
 }

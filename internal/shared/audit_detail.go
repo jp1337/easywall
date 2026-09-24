@@ -29,6 +29,8 @@ func DescribeRuleChange(ruleType string, before, after Rules) string {
 		return describeListChange(before.Blocklist, after.Blocklist)
 	case "allowlist":
 		return describeListChange(before.Allowlist, after.Allowlist)
+	case "feeds":
+		return describeListChange(before.Feeds, after.Feeds)
 	case "tcp":
 		return describeCountChange(len(before.TCP), len(after.TCP), "port")
 	case "udp":

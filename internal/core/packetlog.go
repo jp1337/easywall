@@ -40,7 +40,7 @@ func entryFromAttribute(a nflog.Attribute, ifname func(uint32) string, now time.
 	}
 	e.Rule = shared.PacketLogRuleOther
 	if a.Prefix != nil {
-		e.Rule = shared.RuleFromPrefix(*a.Prefix)
+		e.Rule, e.Feed = shared.ParseLogPrefix(*a.Prefix)
 	}
 	// NFULA_TIMESTAMP is present only when the skb carried one; most do not.
 	e.Time = now.UTC()

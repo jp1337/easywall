@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Twenty-three command types:
+Twenty-five command types:
 
 | | |
 |---|---|
@@ -26,6 +26,60 @@ Twenty-three command types:
 | `GET_HEALTH` | whether the firewall is doing what it says — three facts evaluated in order, plus the last self-test's identity, no rule detail or counter values |
 | `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
 | `LOG_EVENT` | one of thirteen login events, from a fixed enum, for the audit log |
+| `UPDATE_FEED` | one enabled feed's new version, from the web process's fetcher; re-validated, stored, and swapped into the live set without an apply |
+| `GET_FEEDS` | counts, timestamps and counters per feed — never entries; with `addr`, which copies contain it |
+
+## Size
+
+`shared.MaxMessageBytes`, **4 MiB**, each way (1 MiB before 2.23). Both ends read
+one byte past it:
+
+| | Over the limit |
+|---|---|
+| request, at the core (`handleConn`) | answered `request too large` (`ErrRequestTooLargeText`), nothing dispatched. It used to be cut at the limit and answered `invalid JSON command` |
+| request, at the sender (`SendCommand`) | not sent: `ErrRequestTooLarge`. The core stops reading at the limit, so the rest of the write would end in a broken pipe instead of the answer |
+| reply, at `SendCommand` | `read response: longer than 4194304 bytes`, not truncated JSON |
+
+Why 4: 100 000 entries in one `UPDATE_FEED`. As bare IPv6 addresses that fits;
+as `/128` prefixes it does not, so the fetcher sends full-length prefixes as
+addresses (plan P12). `TestSendCommand_RequestLimitIsExact`,
+`TestSendCommand_ResponseLimitIsExact`, `TestDaemonHandleConn_RequestLimitIsExact`.
+
+## `UPDATE_FEED`
+
+Deadline class: long (`NftTimeout` + 5 s) — it takes the nft mutex to replace a
+live set. Payload `UpdateFeedPayload{id, entries, not_modified}`, reply
+`UpdateFeedResult{before, after, dropped, changed, loaded}`. The core trusts
+nothing in it, and checks in this order:
+
+| # | Check | On failure |
+|---|---|---|
+| 1 | panic is not engaged | refused, `panic mode is engaged` |
+| 2 | `id` is a catalogue id or `own-1`…`own-3`, enabled in Staged or Current | refused |
+| 3 | ≤ 100 000 entries, each parsed again with `netip`, `::ffff:` unmapped | refused |
+| 4 | not globally routable — RFC 1918, 100.64/10, 127/8, 169.254/16, 0/8, 224/3, the v6 equivalents | dropped and counted (`dropped`), not refused |
+| 5 | no prefix broader than /8 (v4) or /16 (v6) | the whole update refused |
+| 6 | at least 70 % of the stored count; a first load has none | refused |
+| 7 | written to `<data_dir>/feeds.json` atomically | error |
+| 8 | enabled in **Current**: under `m.mu` and the apply slot, counters booked, set flushed and refilled in ≤ 64 KiB chunks, one batch | error; nothing half-loaded |
+| 9 | audit entry `feed_updated` / `feed_refused`: id, before, after, dropped | — |
+
+Every refusal leaves the previous version in the kernel and on disk. An apply
+cycle holds the slot for its whole acceptance window; an update arriving then is
+refused with `ErrApplyInProgressText` (plan P7). `not_modified: true` is a 304:
+`checked_at` moves, nothing else (P8).
+
+## `GET_FEEDS`
+
+Deadline class: short. Payload `GetFeedsPayload{addr}`, may be empty. Reply
+`GetFeedsResult{feeds: [FeedStatus…]}`, one per id that is stored or enabled in
+Current ∪ Staged: `stored`, `entries`, `dropped`, `changed_at`, `checked_at`,
+`in_kernel`, `packets` and `counters_read` (the `_feed-<id>` counters, read live;
+`counters_read: false` when they could not be, P16), `allowlist_overlap`, and
+`contains_addr` for the `addr` asked about. No entries, no audit entry.
+
+Until Task 4 of 2.23 both commands have a `dispatch` case that answers an error;
+the types above are the contract.
 
 ## The one field that is not typed
 
