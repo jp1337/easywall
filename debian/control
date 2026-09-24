@@ -25,7 +25,7 @@ Description: Linux firewall management with a web interface
  communicates with the kernel via netlink, while an unprivileged web process
  serves the UI. Communication happens over a Unix socket.
  .
- Features include TCP/UDP port management, IP blacklists and whitelists,
+ Features include TCP/UDP port management, IP blocklists and allowlists,
  port forwarding, custom nftables rules, protection against SSH brute-force,
  SYN floods, ICMP floods, port scans, and more.
  .

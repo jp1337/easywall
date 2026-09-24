@@ -41,7 +41,7 @@ apply. Until 2.10 this page said there was nothing to apply while the options
 page was telling you to.
 
 Add and remove are `+`, `-` and `~` in the left column and carry no colour. A
-new blacklist entry is not good news, and a removed port is not a failure.
+new blocklist entry is not good news, and a removed port is not a failure.
 Colour on this page means firewall state, and it belongs to the line above the
 list.
 

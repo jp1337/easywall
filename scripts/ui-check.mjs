@@ -57,7 +57,7 @@ const USER = 'admin';
 const PASS = 'ui-check-password-2026';
 
 const PAGES = [
-  '/dashboard', '/blocked', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
+  '/dashboard', '/blocked', '/ports', '/ports?type=udp', '/blocklist', '/allowlist',
   '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
   '/notify', '/log', '/apply',
 ];
@@ -1991,11 +1991,11 @@ const screenshotArgs = screenshotMode
   : [];
 // The pages docs/assets/img/screens/ actually ships figures for — grep
 // `base="/assets/img/screens/` across docs/_docs to regenerate this list.
-// Deliberately narrower than PAGES: /whitelist and /system have no figure of
-// their own (filters.md reuses the blacklist/options shots), and shooting
+// Deliberately narrower than PAGES: /allowlist and /system have no figure of
+// their own (filters.md reuses the blocklist/options shots), and shooting
 // them here would add files nothing links to.
 const DEFAULT_SCREENSHOT_PAGES = [
-  '/dashboard', '/blocked', '/ports', '/blacklist', '/forwarding', '/custom',
+  '/dashboard', '/blocked', '/ports', '/blocklist', '/forwarding', '/custom',
   '/options', '/settings', '/password', '/log', '/notify', '/apply',
   '/apply-window',
 ];
@@ -2034,7 +2034,7 @@ async function seedPortsScreenshot(page) {
 // reason one breakpoint lower: `.page-grid` drops its 320px context column
 // below 1570px, so at 1440 every screenshot in docs/ showed the collapsed
 // layout — the aside cards stacked under the table instead of beside it, on
-// ports, blacklist, forwarding, custom and options alike. 1440 is still
+// ports, blocklist, forwarding, custom and options alike. 1440 is still
 // exercised, by WIDTHS above, where squeezing the layout is the whole point.
 // A screenshot is documentation, and documents the layout the design is
 // actually about.

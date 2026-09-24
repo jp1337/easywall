@@ -230,15 +230,15 @@ func TestIntegration_Apply_Docker_IPv4CustomNetwork(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// cidrDropMatch IPv6 CIDR path (blacklist with IPv6 CIDR)
+// cidrDropMatch IPv6 CIDR path (blocklist with IPv6 CIDR)
 // ---------------------------------------------------------------------------
 
-func TestIntegration_Apply_Blacklist_IPv6CIDR(t *testing.T) {
+func TestIntegration_Apply_Blocklist_IPv6CIDR(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
 	state := emptyState()
-	state.Current.Blacklist = []string{"2001:db8::/32"}
+	state.Current.Blocklist = []string{"2001:db8::/32"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -246,37 +246,37 @@ func TestIntegration_Apply_Blacklist_IPv6CIDR(t *testing.T) {
 	// IPv6 CIDR drop rule should be added.
 	count := ruleCount(t, m, "input")
 	if count != base+1 {
-		t.Errorf("expected %d rules (base + 1 IPv6 CIDR blacklist), got %d", base+1, count)
+		t.Errorf("expected %d rules (base + 1 IPv6 CIDR blocklist), got %d", base+1, count)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// addWhitelistRule plain IPv4/IPv6 paths
+// addAllowlistRule plain IPv4/IPv6 paths
 // ---------------------------------------------------------------------------
 
-func TestIntegration_Apply_Whitelist_PlainIPv4(t *testing.T) {
+func TestIntegration_Apply_Allowlist_PlainIPv4(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
 	// Plain IPv4 address (not CIDR) exercises the ip4 != nil branch.
 	state := emptyState()
-	state.Current.Whitelist = []string{"10.0.0.1", "192.168.1.100"}
+	state.Current.Allowlist = []string{"10.0.0.1", "192.168.1.100"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
 	count := ruleCount(t, m, "input")
 	if count != base+2 {
-		t.Errorf("expected %d rules (base + 2 plain IPv4 whitelist), got %d", base+2, count)
+		t.Errorf("expected %d rules (base + 2 plain IPv4 allowlist), got %d", base+2, count)
 	}
 }
 
-func TestIntegration_Apply_Whitelist_PlainIPv6(t *testing.T) {
+func TestIntegration_Apply_Allowlist_PlainIPv6(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
 	state := emptyState()
-	state.Current.Whitelist = []string{"2001:db8::1"}
+	state.Current.Allowlist = []string{"2001:db8::1"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestIntegration_Apply_Whitelist_PlainIPv6(t *testing.T) {
 	// IPv6 single-address accept rule should be added.
 	count := ruleCount(t, m, "input")
 	if count != base+1 {
-		t.Errorf("expected %d rules (base + 1 IPv6 whitelist), got %d", base+1, count)
+		t.Errorf("expected %d rules (base + 1 IPv6 allowlist), got %d", base+1, count)
 	}
 }
 

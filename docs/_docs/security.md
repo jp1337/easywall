@@ -220,7 +220,7 @@ easywall does none of them for you:
    your rules".
 
    The report does not see everything that decides reachability, though. A
-   blacklist entry, a custom rule, or IPv6 mode = `block` can each keep a
+   blocklist entry, a custom rule, or IPv6 mode = `block` can each keep a
    certificate authority out even when the row says open. Let's Encrypt
    prefers IPv6 when an AAAA record exists, and the report reads the ports
    table only.

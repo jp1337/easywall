@@ -117,7 +117,7 @@ func (s *RulesStore) getState() (shared.RulesState, error) {
 }
 
 // SaveStaged replaces the staged rule set for one rule type.
-// ruleType is one of: "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom".
+// ruleType is one of: "tcp", "udp", "blocklist", "allowlist", "forwarding", "custom".
 func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -145,18 +145,18 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 			return err
 		}
 		state.Staged.UDP = v
-	case "blacklist":
+	case "blocklist":
 		var v []string
 		if err := json.Unmarshal(data, &v); err != nil {
 			return err
 		}
-		state.Staged.Blacklist = v
-	case "whitelist":
+		state.Staged.Blocklist = v
+	case "allowlist":
 		var v []string
 		if err := json.Unmarshal(data, &v); err != nil {
 			return err
 		}
-		state.Staged.Whitelist = v
+		state.Staged.Allowlist = v
 	case "forwarding":
 		var v []shared.ForwardingRule
 		if err := json.Unmarshal(data, &v); err != nil {
@@ -347,8 +347,8 @@ func emptyState() shared.RulesState {
 	empty := shared.Rules{
 		TCP:        []shared.PortRule{},
 		UDP:        []shared.PortRule{},
-		Blacklist:  []string{},
-		Whitelist:  []string{},
+		Blocklist:  []string{},
+		Allowlist:  []string{},
 		Forwarding: []shared.ForwardingRule{},
 		Custom:     []string{},
 	}

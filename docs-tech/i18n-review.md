@@ -25,7 +25,7 @@ produces confusion, not a lockout or an open port.
 Six things are dangerous to get backwards in this codebase: which list is
 consulted first, what the acceptance window promises, what panic mode does and
 does not end, how the second factor and its recovery codes actually work, what
-blacklisting and whitelisting actually do to traffic, and whether demo mode
+blocklisting and allowlisting actually do to traffic, and whether demo mode
 touches a real firewall. Each is its own section below.
 
 Each row names an id from `locales/en.json` and gives its current English
@@ -40,10 +40,10 @@ independent of what any port rule says.
 
 | id | English text |
 |---|---|
-| `blacklist_subtitle` | Sources that are dropped before any other rule is evaluated. |
-| `blacklist_what_body` | The blacklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it. |
-| `blacklist_order_body` | This list is evaluated *before* the {}. An address that appears in both is dropped — a narrow allow inside a wide block does not work. |
-| `whitelist_order_note` | The {} is evaluated first: an address in both lists is dropped, not allowed. |
+| `blocklist_subtitle` | Sources that are dropped before any other rule is evaluated. |
+| `blocklist_what_body` | The blocklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it. |
+| `blocklist_order_body` | This list is evaluated *before* the {}. An address that appears in both is dropped — a narrow allow inside a wide block does not work. |
+| `allowlist_order_note` | The {} is evaluated first: an address in both lists is dropped, not allowed. |
 
 ## What the acceptance window promises
 
@@ -105,31 +105,31 @@ host — not a support request.
 | `totp_recovery_renewed` | New recovery codes issued. The previous eight no longer work. |
 | `totp_not_saved` | The code was right, but the second factor could not be saved. Check the disk and try again — this setup stays open. |
 
-## Blacklist and whitelist semantics
+## Blocklist and allowlist semantics
 
-What a block actually does to traffic, and that the whitelist skips the port
+What a block actually does to traffic, and that the allowlist skips the port
 rules — not the protection modules, which still run first. `internal/core/
 nftables.go:848–875` and `:1131–1144` (`addBogonFilter`, `addSSHBruteForce`)
 build the chain in that order: protection modules, then the Docker bridge,
-then the blacklist, then the whitelist, then the ports. The bogon filter is
-the single exception — it exempts the whitelist and the Docker bridge because
+then the blocklist, then the allowlist, then the ports. The bogon filter is
+the single exception — it exempts the allowlist and the Docker bridge because
 its own premise ("nothing legitimately has this source address") is what an
-operator contradicts by whitelisting a private network; nothing else in the
-chain makes an exception for the whitelist. `whitelist_section_desc` and
-`whitelist_narrow_body` said the opposite — "exempt from the protection
+operator contradicts by allowlisting a private network; nothing else in the
+chain makes an exception for the allowlist. `allowlist_section_desc` and
+`allowlist_narrow_body` said the opposite — "exempt from the protection
 modules" and "bypasses every protection module" — until this review caught it;
 see `internal/core/nftables_bogon_test.go:53` for the test that pins the one
 real exception.
 
 | id | English text |
 |---|---|
-| `blacklist_section_desc` | Nothing from these sources reaches an open port. |
-| `whitelist_subtitle` | Trusted sources that reach every port, including ports you never opened. |
-| `whitelist_section_desc` | Accepted before the port rules are consulted. The protection modules still run first — only the bogon filter makes an exception for this list. |
-| `whitelist_wayback_note` | A whitelisted source skips the port rules entirely, so it reaches services that are not listed under {} at all. |
-| `whitelist_narrow_body` | An entry here reaches every port, open or not. Prefer a single address over a range, and a range over a whole network. |
-| `tile_blacklist_note` | dropped before any rule |
-| `tile_whitelist_note` | bypass every port rule |
+| `blocklist_section_desc` | Nothing from these sources reaches an open port. |
+| `allowlist_subtitle` | Trusted sources that reach every port, including ports you never opened. |
+| `allowlist_section_desc` | Accepted before the port rules are consulted. The protection modules still run first — only the bogon filter makes an exception for this list. |
+| `allowlist_wayback_note` | An allowlisted source skips the port rules entirely, so it reaches services that are not listed under {} at all. |
+| `allowlist_narrow_body` | An entry here reaches every port, open or not. Prefer a single address over a range, and a range over a whole network. |
+| `tile_blocklist_note` | dropped before any rule |
+| `tile_allowlist_note` | bypass every port rule |
 
 ## Demo mode
 

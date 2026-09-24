@@ -80,7 +80,7 @@ func (c *CoreClient) GetRules() (*shared.RulesState, error) {
 }
 
 // SaveRules saves staged rules of the given type.
-// ruleType: "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"
+// ruleType: "tcp", "udp", "blocklist", "allowlist", "forwarding", "custom"
 func (c *CoreClient) SaveRules(ruleType string, rules interface{}) error {
 	payload, err := json.Marshal(shared.SaveRulesPayload{
 		RuleType: ruleType,

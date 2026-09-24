@@ -326,18 +326,18 @@ func TestRichText(t *testing.T) {
 		{"plain text passes through", "Nothing to mark up.", nil, "Nothing to mark up."},
 		{"backticks become code", "A single port is `443`.", nil,
 			"A single port is <code>443</code>."},
-		{"asterisks become emphasis", "Evaluated *before* the whitelist.", nil,
-			"Evaluated <em>before</em> the whitelist."},
+		{"asterisks become emphasis", "Evaluated *before* the allowlist.", nil,
+			"Evaluated <em>before</em> the allowlist."},
 		{"one link", "Staged until you {}.", []string{"/apply", "apply rules"},
 			`Staged until you <a class="link" href="/apply">apply rules</a>.`},
 		{"two links, in order", "Use the {} or a {}.",
-			[]string{"/whitelist", "whitelist", "/custom", "custom rule"},
-			`Use the <a class="link" href="/whitelist">whitelist</a> or a ` +
+			[]string{"/allowlist", "allowlist", "/custom", "custom rule"},
+			`Use the <a class="link" href="/allowlist">allowlist</a> or a ` +
 				`<a class="link" href="/custom">custom rule</a>.`},
 		// A translator may put the link first where English has it last. That is
 		// the whole reason the slot exists, so it has to work in any position.
-		{"link first", "{} is evaluated first.", []string{"/blacklist", "blacklist"},
-			`<a class="link" href="/blacklist">blacklist</a> is evaluated first.`},
+		{"link first", "{} is evaluated first.", []string{"/blocklist", "blocklist"},
+			`<a class="link" href="/blocklist">blocklist</a> is evaluated first.`},
 		{"markup and link together", "Add `443` under {}.", []string{"/ports", "port rules"},
 			`Add <code>443</code> under <a class="link" href="/ports">port rules</a>.`},
 		// A typo in a locale file must not blank the panel it sits in.

@@ -8,9 +8,9 @@ flowchart TD
   R --> H["Established connections<br/>and the ICMP policy"]
   H --> M["Protection modules<br/>scans · SYN flood · bogons"]
   M --> D["Docker bridge networks"]
-  D --> B{"On the blacklist?"}
+  D --> B{"On the blocklist?"}
   B -->|yes| X1(["DROP"])
-  B -->|no| W{"On the whitelist?"}
+  B -->|no| W{"On the allowlist?"}
   W -->|yes| A3(["ACCEPT — every port,<br/>open or not"])
   W -->|no| O{"Port open?"}
   O -->|yes| A4(["ACCEPT"])

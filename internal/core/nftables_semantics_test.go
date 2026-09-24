@@ -13,7 +13,7 @@ import (
 
 // The rest of the integration suite asserts rule *counts*: "expected base+3
 // rules, got 3". That catches a rule that was never added, and nothing else. A
-// blacklist entry that emitted ACCEPT instead of DROP, compared the destination
+// blocklist entry that emitted ACCEPT instead of DROP, compared the destination
 // address instead of the source, or read the wrong offset out of an IPv6
 // header would pass every one of those tests.
 //
@@ -181,34 +181,34 @@ func TestIntegration_ModuleLogging_OffEmitsNoLogRule(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Blacklist and whitelist — verdict and direction, not rule count
+// Blocklist and allowlist — verdict and direction, not rule count
 // ---------------------------------------------------------------------------
 
-func TestIntegration_Blacklist_DropsTheSourceAddress(t *testing.T) {
+func TestIntegration_Blocklist_DropsTheSourceAddress(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{"192.0.2.1"}
+	state.Current.Blocklist = []string{"192.0.2.1"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
 	rs := ruleset(t)
 	mustContain(t, rs, "ip saddr 192.0.2.1",
-		"a blacklist that matched the destination would block replies, not attackers")
+		"a blocklist that matched the destination would block replies, not attackers")
 	mustNotContain(t, rs, "ip daddr 192.0.2.1",
-		"the blacklist is about where a packet came from")
+		"the blocklist is about where a packet came from")
 
 	for _, line := range strings.Split(rs, "\n") {
 		if strings.Contains(line, "192.0.2.1") && !strings.Contains(line, "drop") {
-			t.Errorf("blacklist rule does not drop: %s", strings.TrimSpace(line))
+			t.Errorf("blocklist rule does not drop: %s", strings.TrimSpace(line))
 		}
 	}
 }
 
-func TestIntegration_Blacklist_IPv6UsesTheSourceOffset(t *testing.T) {
+func TestIntegration_Blocklist_IPv6UsesTheSourceOffset(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{"2001:db8::1"}
+	state.Current.Blocklist = []string{"2001:db8::1"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -216,13 +216,13 @@ func TestIntegration_Blacklist_IPv6UsesTheSourceOffset(t *testing.T) {
 	// Offset 8 is the source address in an IPv6 header; 24 is the destination.
 	// A count-based test cannot tell those apart.
 	mustContain(t, ruleset(t), "ip6 saddr 2001:db8::1",
-		"the IPv6 blacklist must read the source, at header offset 8")
+		"the IPv6 blocklist must read the source, at header offset 8")
 }
 
-func TestIntegration_Whitelist_AcceptsRatherThanDrops(t *testing.T) {
+func TestIntegration_Allowlist_AcceptsRatherThanDrops(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Whitelist = []string{"10.0.0.0/8"}
+	state.Current.Allowlist = []string{"10.0.0.0/8"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -231,34 +231,34 @@ func TestIntegration_Whitelist_AcceptsRatherThanDrops(t *testing.T) {
 	for _, line := range strings.Split(rs, "\n") {
 		if strings.Contains(line, "10.0.0.0/8") {
 			if !strings.Contains(line, "accept") {
-				t.Errorf("whitelist rule does not accept: %s", strings.TrimSpace(line))
+				t.Errorf("allowlist rule does not accept: %s", strings.TrimSpace(line))
 			}
 			return
 		}
 	}
-	t.Errorf("no rule for the whitelisted network\n--- ruleset ---\n%s", rs)
+	t.Errorf("no rule for the allowlisted network\n--- ruleset ---\n%s", rs)
 }
 
 // Order is the one property of a firewall ruleset that cannot be checked by
 // looking at any single rule. rule-order is documented on the landing page:
-// a blacklisted address is dropped before the whitelist is ever consulted.
-func TestIntegration_BlacklistIsEvaluatedBeforeWhitelist(t *testing.T) {
+// a blocklisted address is dropped before the allowlist is ever consulted.
+func TestIntegration_BlocklistIsEvaluatedBeforeAllowlist(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{"192.0.2.1"}
-	state.Current.Whitelist = []string{"192.0.2.0/24"}
+	state.Current.Blocklist = []string{"192.0.2.1"}
+	state.Current.Allowlist = []string{"192.0.2.0/24"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
 	rs := ruleset(t)
-	blacklistAt := strings.Index(rs, "192.0.2.1")
-	whitelistAt := strings.Index(rs, "192.0.2.0/24")
-	if blacklistAt < 0 || whitelistAt < 0 {
+	blocklistAt := strings.Index(rs, "192.0.2.1")
+	allowlistAt := strings.Index(rs, "192.0.2.0/24")
+	if blocklistAt < 0 || allowlistAt < 0 {
 		t.Fatalf("expected both rules\n--- ruleset ---\n%s", rs)
 	}
-	if blacklistAt > whitelistAt {
-		t.Errorf("whitelist precedes blacklist: a blacklisted host inside a whitelisted "+
+	if blocklistAt > allowlistAt {
+		t.Errorf("allowlist precedes blocklist: a blocklisted host inside an allowlisted "+
 			"range would be let through\n--- ruleset ---\n%s", rs)
 	}
 }
@@ -366,7 +366,7 @@ func TestIntegration_Enforcing_FalseWhenTheInputChainIsEmpty(t *testing.T) {
 func TestIntegration_Apply_RefusesAnUnparseableEntry(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{"192.0.2.1", "192.168.1.999"}
+	state.Current.Blocklist = []string{"192.0.2.1", "192.168.1.999"}
 
 	err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{})
 	if err == nil {
@@ -384,14 +384,14 @@ func TestIntegration_Apply_RefusalLeavesThePreviousRulesInPlace(t *testing.T) {
 	m := newIntegrationManager(t)
 
 	good := emptyState()
-	good.Current.Blacklist = []string{"192.0.2.1"}
+	good.Current.Blocklist = []string{"192.0.2.1"}
 	if err := m.Apply(good, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("first Apply: %v", err)
 	}
 	before := ruleset(t)
 
 	bad := emptyState()
-	bad.Current.Blacklist = []string{"not-an-address"}
+	bad.Current.Blocklist = []string{"not-an-address"}
 	if err := m.Apply(bad, shared.FirewallOptions{}, shared.NetworkSettings{}); err == nil {
 		t.Fatal("expected refusal")
 	}
@@ -401,7 +401,7 @@ func TestIntegration_Apply_RefusalLeavesThePreviousRulesInPlace(t *testing.T) {
 			before, after)
 	}
 	mustContain(t, ruleset(t), "ip saddr 192.0.2.1",
-		"the previously applied blacklist must survive a refused apply")
+		"the previously applied blocklist must survive a refused apply")
 }
 
 // ---------------------------------------------------------------------------
@@ -436,19 +436,19 @@ func TestIntegration_DropAnycast_MatchesTheDestinationAddressType(t *testing.T) 
 		"anycast is a property of the destination address, resolved through the FIB")
 }
 
-func TestIntegration_LogBlacklist_LabelsHitsBeforeDropping(t *testing.T) {
+func TestIntegration_LogBlocklist_LabelsHitsBeforeDropping(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{"192.0.2.1"}
-	opts := shared.FirewallOptions{LogBlacklist: true, LogBlacklistLimit: 20}
+	state.Current.Blocklist = []string{"192.0.2.1"}
+	opts := shared.FirewallOptions{LogBlocklist: true, LogBlocklistLimit: 20}
 	if err := m.Apply(state, opts, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
 	rs := ruleset(t)
-	mustContain(t, rs, `prefix "`+logPrefixBlacklist+`"`, "the switch is on")
+	mustContain(t, rs, `prefix "`+logPrefixBlocklist+`"`, "the switch is on")
 
-	logAt := strings.Index(rs, logPrefixBlacklist)
+	logAt := strings.Index(rs, logPrefixBlocklist)
 	dropAt := strings.Index(rs, "192.0.2.1 drop")
 	if logAt < 0 || dropAt < 0 {
 		t.Fatalf("expected a log rule and a drop rule\n--- ruleset ---\n%s", rs)
@@ -513,12 +513,12 @@ func TestIntegration_SSHFlaggedPort_IsMeteredAndReachable(t *testing.T) {
 // unfiltered and did the opposite. Each mode is a claim about all IPv6 traffic,
 // so each is checked against what the kernel ends up holding.
 func TestIntegration_IPv6Mode(t *testing.T) {
-	// A v6 blacklist entry and an open port: under filter both must appear,
+	// A v6 blocklist entry and an open port: under filter both must appear,
 	// under passthrough and block neither may be reachable, because the
 	// family-wide rule comes first.
 	state := func() shared.RulesState {
 		s := emptyState()
-		s.Current.Blacklist = []string{"2001:db8::1"}
+		s.Current.Blocklist = []string{"2001:db8::1"}
 		s.Current.TCP = []shared.PortRule{{Port: "443"}}
 		return s
 	}
@@ -530,7 +530,7 @@ func TestIntegration_IPv6Mode(t *testing.T) {
 			t.Fatalf("Apply: %v", err)
 		}
 		rs := ruleset(t)
-		mustContain(t, rs, "ip6 saddr 2001:db8::1", "the v6 blacklist entry belongs in the table")
+		mustContain(t, rs, "ip6 saddr 2001:db8::1", "the v6 blocklist entry belongs in the table")
 		mustContain(t, rs, "icmpv6", "IPv6 needs its ICMPv6 types to work at all")
 		mustNotContain(t, rs, "meta nfproto ipv6 accept", "filter mode waves nothing through")
 	})
@@ -545,11 +545,11 @@ func TestIntegration_IPv6Mode(t *testing.T) {
 		mustContain(t, rs, "meta nfproto ipv6 accept",
 			"passthrough means exactly this, and it is the whole feature")
 
-		// It has to come before the v6 blacklist, or the blacklist still bites
+		// It has to come before the v6 blocklist, or the blocklist still bites
 		// and "not filtered at all" is untrue again.
 		acceptAt := strings.Index(rs, "meta nfproto ipv6 accept")
-		blacklistAt := strings.Index(rs, "ip6 saddr 2001:db8::1")
-		if blacklistAt >= 0 && acceptAt > blacklistAt {
+		blocklistAt := strings.Index(rs, "ip6 saddr 2001:db8::1")
+		if blocklistAt >= 0 && acceptAt > blocklistAt {
 			t.Errorf("IPv6 is still filtered before it is waved through\n--- ruleset ---\n%s", rs)
 		}
 		// And loopback must still be first, ahead of it.
@@ -724,14 +724,14 @@ func TestIntegration_BogonFilter_CoversTheDocumentedRanges(t *testing.T) {
 func TestIntegration_ListComments_ProduceNoRulesAndBlockNothingElse(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{
+	state.Current.Blocklist = []string{
 		"# scanners seen in the fail2ban log",
 		"192.0.2.42",
 		"",
 		"# reported by the upstream provider",
 		"198.51.100.0/24",
 	}
-	state.Current.Whitelist = []string{
+	state.Current.Allowlist = []string{
 		"# the address I administer from",
 		"203.0.113.10",
 	}
@@ -743,7 +743,7 @@ func TestIntegration_ListComments_ProduceNoRulesAndBlockNothingElse(t *testing.T
 	rs := ruleset(t)
 	mustContain(t, rs, "ip saddr 192.0.2.42 drop", "the address after a comment is still blocked")
 	mustContain(t, rs, "ip saddr 198.51.100.0/24 drop", "so is the one after a blank line")
-	mustContain(t, rs, "ip saddr 203.0.113.10 accept", "and the whitelist entry still accepts")
+	mustContain(t, rs, "ip saddr 203.0.113.10 accept", "and the allowlist entry still accepts")
 	mustNotContain(t, rs, "scanners", "a comment is not a rule")
 	mustNotContain(t, rs, "fail2ban", "a comment is not a rule")
 }
@@ -753,13 +753,13 @@ func TestIntegration_ListComments_ProduceNoRulesAndBlockNothingElse(t *testing.T
 func TestIntegration_ListComments_DoNotMakeApplyRefuseTheSet(t *testing.T) {
 	m := newIntegrationManager(t)
 	state := emptyState()
-	state.Current.Blacklist = []string{"# a note", "", "192.0.2.1"}
+	state.Current.Blocklist = []string{"# a note", "", "192.0.2.1"}
 
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 		t.Fatalf("a list with comments must apply: %v", err)
 	}
 	// And an actual malformed address still refuses.
-	state.Current.Blacklist = []string{"# a note", "192.168.1.999"}
+	state.Current.Blocklist = []string{"# a note", "192.168.1.999"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err == nil {
 		t.Error("a malformed address must still be refused")
 	}

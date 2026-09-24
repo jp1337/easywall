@@ -170,15 +170,15 @@
     {{/* Rank two. These three change what the rules are; the three above are ways
          into the host. A list, not cards: three numbers are not three states. */}}
     <div class="rule-list mb-4">
-      <a class="rule-list-row" href="/blacklist">
-        <span class="rule-list-name">{{T "dashboard_blacklist"}}</span>
-        <span class="rule-list-count">{{.Counts.Blacklist}}</span>
-        <span class="rule-list-note">{{T "tile_blacklist_note"}}</span>
+      <a class="rule-list-row" href="/blocklist">
+        <span class="rule-list-name">{{T "dashboard_blocklist"}}</span>
+        <span class="rule-list-count">{{.Counts.Blocklist}}</span>
+        <span class="rule-list-note">{{T "tile_blocklist_note"}}</span>
       </a>
-      <a class="rule-list-row" href="/whitelist">
-        <span class="rule-list-name">{{T "dashboard_whitelist"}}</span>
-        <span class="rule-list-count">{{.Counts.Whitelist}}</span>
-        <span class="rule-list-note">{{T "tile_whitelist_note"}}</span>
+      <a class="rule-list-row" href="/allowlist">
+        <span class="rule-list-name">{{T "dashboard_allowlist"}}</span>
+        <span class="rule-list-count">{{.Counts.Allowlist}}</span>
+        <span class="rule-list-note">{{T "tile_allowlist_note"}}</span>
       </a>
       <a class="rule-list-row" href="/custom">
         <span class="rule-list-name">{{T "dashboard_custom"}}</span>
@@ -234,7 +234,7 @@
             <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
             {{T "dashboard_lockout_title"}}
           </h2>
-          <p>{{richText (T "dashboard_lockout_body") "/whitelist" (T "link_whitelist")}}</p>
+          <p>{{richText (T "dashboard_lockout_body") "/allowlist" (T "link_allowlist")}}</p>
         </div>
       </div>
     </div>

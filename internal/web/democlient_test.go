@@ -32,8 +32,8 @@ func TestDemoState_SeedsRules(t *testing.T) {
 	if len(d.rules.Current.TCP) == 0 {
 		t.Error("seed should include at least one TCP port rule")
 	}
-	if len(d.rules.Current.Whitelist) == 0 {
-		t.Error("seed should include at least one whitelist entry")
+	if len(d.rules.Current.Allowlist) == 0 {
+		t.Error("seed should include at least one allowlist entry")
 	}
 	if len(d.auditLog) == 0 {
 		t.Error("seed should include audit log entries")
@@ -180,14 +180,14 @@ func TestDemoSend_SaveRulesTCP(t *testing.T) {
 	}
 }
 
-func TestDemoSend_SaveRulesBlacklist(t *testing.T) {
+func TestDemoSend_SaveRulesBlocklist(t *testing.T) {
 	c := NewDemoClient()
-	if err := c.SaveRules("blacklist", []string{"10.0.0.1", "10.0.0.2"}); err != nil {
+	if err := c.SaveRules("blocklist", []string{"10.0.0.1", "10.0.0.2"}); err != nil {
 		t.Fatalf("SaveRules: %v", err)
 	}
 	state, _ := c.GetRules()
-	if len(state.Staged.Blacklist) != 2 {
-		t.Errorf("expected 2 blacklist entries, got %v", state.Staged.Blacklist)
+	if len(state.Staged.Blocklist) != 2 {
+		t.Errorf("expected 2 blocklist entries, got %v", state.Staged.Blocklist)
 	}
 }
 
@@ -416,8 +416,8 @@ func TestDemoSend_AuditEntriesSayWhatChanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := append(append([]string{}, before.Staged.Blacklist...), "198.51.100.77")
-	if err := c.SaveRules("blacklist", updated); err != nil {
+	updated := append(append([]string{}, before.Staged.Blocklist...), "198.51.100.77")
+	if err := c.SaveRules("blocklist", updated); err != nil {
 		t.Fatal(err)
 	}
 
@@ -472,7 +472,7 @@ func TestDemoSend_RejectsWhatTheCoreWouldReject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := c.SaveRules("blacklist", []string{"192.168.1.999"}); err == nil {
+	if err := c.SaveRules("blocklist", []string{"192.168.1.999"}); err == nil {
 		t.Error("a malformed address must be refused")
 	}
 	if err := c.SaveRules("tcp", []shared.PortRule{{Port: "80abc"}}); err == nil {
@@ -486,12 +486,12 @@ func TestDemoSend_RejectsWhatTheCoreWouldReject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after.Staged.Blacklist) != len(before.Staged.Blacklist) {
+	if len(after.Staged.Blocklist) != len(before.Staged.Blocklist) {
 		t.Error("a refused save must leave the staged set untouched")
 	}
 
 	// And what the core accepts still goes through, comments included.
-	if err := c.SaveRules("blacklist", []string{"# a note", "", "192.0.2.7"}); err != nil {
+	if err := c.SaveRules("blocklist", []string{"# a note", "", "192.0.2.7"}); err != nil {
 		t.Errorf("a valid list with comments must be accepted: %v", err)
 	}
 }

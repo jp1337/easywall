@@ -248,15 +248,15 @@ func TestDaemonDispatch_SaveRules_UDP(t *testing.T) {
 	}
 }
 
-func TestDaemonDispatch_SaveRules_Blacklist(t *testing.T) {
+func TestDaemonDispatch_SaveRules_Blocklist(t *testing.T) {
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	payload, _ := json.Marshal(shared.SaveRulesPayload{RuleType: "blacklist", Rules: []string{"192.168.1.1"}})
+	payload, _ := json.Marshal(shared.SaveRulesPayload{RuleType: "blocklist", Rules: []string{"192.168.1.1"}})
 	resp := d.dispatch(shared.Command{Type: shared.CmdSaveRules, Payload: payload})
 	if !resp.Success {
-		t.Fatalf("SaveRules blacklist: %s", resp.Error)
+		t.Fatalf("SaveRules blocklist: %s", resp.Error)
 	}
 }
 
@@ -325,7 +325,7 @@ func TestDaemonDispatch_ImportRules(t *testing.T) {
 	fw := newTestFirewall(t, cfg)
 	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
 
-	payload := []byte(`{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`)
+	payload := []byte(`{"tcp":[],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}`)
 	resp := d.dispatch(shared.Command{Type: shared.CmdImportRules, Payload: payload})
 	if !resp.Success {
 		t.Fatalf("ImportRules: %s", resp.Error)

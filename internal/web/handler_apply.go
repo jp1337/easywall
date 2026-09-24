@@ -15,7 +15,7 @@ import (
 // previewSetOrder is the order the rule sets appear in on the apply screen. The
 // sidebar's order, so the page reads the way the navigation is organised rather
 // than the way a struct happens to be declared.
-var previewSetOrder = []string{"tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"}
+var previewSetOrder = []string{"tcp", "udp", "blocklist", "allowlist", "forwarding", "custom"}
 
 type applyData struct {
 	Status  *shared.FirewallStatus

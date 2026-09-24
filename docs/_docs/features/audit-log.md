@@ -110,7 +110,7 @@ nothing. The `user` column says `web` for all thirteen.
 |---|---|
 | Timestamp | Clock time today, day and month before that. The full value is in the title attribute |
 | Action | The identifier, rendered in your language |
-| Rule type | `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `all` |
+| Rule type | `tcp`, `udp`, `blocklist`, `allowlist`, `forwarding`, `custom`, or `all` |
 | Detail | What changed — the addresses added and removed, or the settings that moved |
 | User | The **process** that wrote the entry, not the person — one of five values, listed below |
 
@@ -164,7 +164,7 @@ tail -f /var/log/easywall/audit.log
 ```
 
 ```json
-{"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blacklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
+{"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blocklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
 {"time":"2026-08-09T14:25:43Z","action":"options_saved","rule_type":"","detail":"changed port_scan, tcp_rst_flood","user":"web"}
 {"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"web"}
 {"time":"2026-08-10T06:14:07Z","action":"boot_enforced","rule_type":"all","detail":"daemon start","user":"core"}

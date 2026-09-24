@@ -121,7 +121,7 @@ func TestLogsAnythingCountsEverySwitch(t *testing.T) {
 	}
 }
 
-// The input chain is modules → blacklist → whitelist → ports → final drop
+// The input chain is modules → blocklist → allowlist → ports → final drop
 // (internal/core/nftables.go Apply; Reachable steps 5–9). An action is offered
 // only where it could have changed this packet's verdict.
 func remedyTCP(rule string) PacketLogEntry {
@@ -132,21 +132,21 @@ var remedyCases = []struct {
 	e    PacketLogEntry
 	want Remedy
 }{
-	{remedyTCP("drop"), Remedy{Whitelist: true, Blacklist: true, Open: true}},
-	{remedyTCP("bogon"), Remedy{Whitelist: true, Blacklist: true}},            // the bogon filter exempts the whitelist
-	{remedyTCP(PacketLogRuleOther), Remedy{Whitelist: true, Blacklist: true}}, // custom rules run after the whitelist
-	{remedyTCP("blacklist"), Remedy{}},                                        // the blacklist runs before the whitelist
-	{remedyTCP("ssh"), Remedy{Blacklist: true}},
-	{remedyTCP("syn_flood"), Remedy{Blacklist: true}},
-	{remedyTCP("tcp_rst"), Remedy{Blacklist: true}},
-	{remedyTCP("portscan"), Remedy{Blacklist: true}},
-	{remedyTCP("invalid"), Remedy{Blacklist: true}},
-	{remedyTCP("fragment"), Remedy{Blacklist: true}},
-	{PacketLogEntry{Rule: "icmp_flood", Proto: "icmp"}, Remedy{Blacklist: true}},
-	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Whitelist: true, Blacklist: true}},                           // no port to open
+	{remedyTCP("drop"), Remedy{Allowlist: true, Blocklist: true, Open: true}},
+	{remedyTCP("bogon"), Remedy{Allowlist: true, Blocklist: true}},            // the bogon filter exempts the allowlist
+	{remedyTCP(PacketLogRuleOther), Remedy{Allowlist: true, Blocklist: true}}, // custom rules run after the allowlist
+	{remedyTCP("blocklist"), Remedy{}},                                        // the blocklist runs before the allowlist
+	{remedyTCP("ssh"), Remedy{Blocklist: true}},
+	{remedyTCP("syn_flood"), Remedy{Blocklist: true}},
+	{remedyTCP("tcp_rst"), Remedy{Blocklist: true}},
+	{remedyTCP("portscan"), Remedy{Blocklist: true}},
+	{remedyTCP("invalid"), Remedy{Blocklist: true}},
+	{remedyTCP("fragment"), Remedy{Blocklist: true}},
+	{PacketLogEntry{Rule: "icmp_flood", Proto: "icmp"}, Remedy{Blocklist: true}},
+	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Allowlist: true, Blocklist: true}},                           // no port to open
 	{PacketLogEntry{Rule: "drop", Proto: "tcp", Hook: "forward", DstPort: 25}, Remedy{}},                              // the lists and port rules are input-chain only
-	{PacketLogEntry{Rule: "drop", Proto: "tcp", DstPort: 0, Hook: "input"}, Remedy{Whitelist: true, Blacklist: true}}, // tcp, but no port decoded — nothing to open
-	{PacketLogEntry{Rule: "drop", Proto: "132", DstPort: 9, Hook: "input"}, Remedy{Whitelist: true, Blacklist: true}}, // SCTP: a port, but no port rule speaks it
+	{PacketLogEntry{Rule: "drop", Proto: "tcp", DstPort: 0, Hook: "input"}, Remedy{Allowlist: true, Blocklist: true}}, // tcp, but no port decoded — nothing to open
+	{PacketLogEntry{Rule: "drop", Proto: "132", DstPort: 9, Hook: "input"}, Remedy{Allowlist: true, Blocklist: true}}, // SCTP: a port, but no port rule speaks it
 }
 
 func TestRemediesFollowTheChainOrder(t *testing.T) {

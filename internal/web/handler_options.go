@@ -85,8 +85,8 @@ func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 		DropAnycast:                  r.FormValue("drop_anycast") != "",
 		LogBlocked:                   r.FormValue("log_blocked_connections") != "",
 		LogBlockedLimit:              parseInt("log_blocked_connections_limit", 60),
-		LogBlacklist:                 r.FormValue("log_blacklist_connections") != "",
-		LogBlacklistLimit:            parseInt("log_blacklist_connections_limit", 60),
+		LogBlocklist:                 r.FormValue("log_blocklist_connections") != "",
+		LogBlocklistLimit:            parseInt("log_blocklist_connections_limit", 60),
 	}
 
 	// The same bounds the core enforces, checked here so the message names the

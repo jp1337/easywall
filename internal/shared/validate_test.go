@@ -48,7 +48,7 @@ func TestValidatePortRule(t *testing.T) {
 func TestValidateRules_InvalidForwardingProtocol(t *testing.T) {
 	r := Rules{
 		TCP: []PortRule{}, UDP: []PortRule{},
-		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Blocklist: []string{}, Allowlist: []string{}, Custom: []string{},
 		Forwarding: []ForwardingRule{{Protocol: "icmp", SourcePort: 80, DestPort: 8080}},
 	}
 	if err := ValidateRules(r); err == nil {
@@ -59,7 +59,7 @@ func TestValidateRules_InvalidForwardingProtocol(t *testing.T) {
 func TestValidateRules_InvalidForwardingPort(t *testing.T) {
 	r := Rules{
 		TCP: []PortRule{}, UDP: []PortRule{},
-		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Blocklist: []string{}, Allowlist: []string{}, Custom: []string{},
 		Forwarding: []ForwardingRule{{Protocol: "tcp", SourcePort: 0, DestPort: 80}},
 	}
 	if err := ValidateRules(r); err == nil {
@@ -70,7 +70,7 @@ func TestValidateRules_InvalidForwardingPort(t *testing.T) {
 func TestValidateRules_InvalidDestPort(t *testing.T) {
 	r := Rules{
 		TCP: []PortRule{}, UDP: []PortRule{},
-		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Blocklist: []string{}, Allowlist: []string{}, Custom: []string{},
 		Forwarding: []ForwardingRule{{Protocol: "tcp", SourcePort: 8080, DestPort: 0}},
 	}
 	if err := ValidateRules(r); err == nil {
@@ -82,8 +82,8 @@ func TestValidateRules_InvalidTCPPort(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{{Port: "99999"}},
 		UDP:        []PortRule{},
-		Blacklist:  []string{},
-		Whitelist:  []string{},
+		Blocklist:  []string{},
+		Allowlist:  []string{},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
@@ -96,8 +96,8 @@ func TestValidateRules_InvalidUDPPort(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{},
 		UDP:        []PortRule{{Port: "0"}},
-		Blacklist:  []string{},
-		Whitelist:  []string{},
+		Blocklist:  []string{},
+		Allowlist:  []string{},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
@@ -106,31 +106,31 @@ func TestValidateRules_InvalidUDPPort(t *testing.T) {
 	}
 }
 
-func TestValidateRules_InvalidBlacklistIP(t *testing.T) {
+func TestValidateRules_InvalidBlocklistIP(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{},
 		UDP:        []PortRule{},
-		Blacklist:  []string{"not-an-ip"},
-		Whitelist:  []string{},
+		Blocklist:  []string{"not-an-ip"},
+		Allowlist:  []string{},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
 	if err := ValidateRules(r); err == nil {
-		t.Error("expected error for invalid blacklist IP")
+		t.Error("expected error for invalid blocklist IP")
 	}
 }
 
-func TestValidateRules_InvalidWhitelistCIDR(t *testing.T) {
+func TestValidateRules_InvalidAllowlistCIDR(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{},
 		UDP:        []PortRule{},
-		Blacklist:  []string{},
-		Whitelist:  []string{"300.300.300.300"},
+		Blocklist:  []string{},
+		Allowlist:  []string{"300.300.300.300"},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
 	if err := ValidateRules(r); err == nil {
-		t.Error("expected error for invalid whitelist IP")
+		t.Error("expected error for invalid allowlist IP")
 	}
 }
 

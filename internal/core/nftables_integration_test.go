@@ -395,38 +395,38 @@ func TestIntegration_Apply_MultiplePortsAndProtocols(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Apply — blacklist / whitelist
+// Apply — blocklist / allowlist
 // ---------------------------------------------------------------------------
 
-func TestIntegration_Apply_Blacklist_AddsRules(t *testing.T) {
+func TestIntegration_Apply_Blocklist_AddsRules(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
 	state := emptyState()
-	state.Current.Blacklist = []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1"}
+	state.Current.Blocklist = []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
-		t.Fatalf("Apply with blacklist: %v", err)
+		t.Fatalf("Apply with blocklist: %v", err)
 	}
 
 	count := ruleCount(t, m, "input")
 	if count != base+3 {
-		t.Errorf("expected %d rules (base + 3 blacklist entries), got %d", base+3, count)
+		t.Errorf("expected %d rules (base + 3 blocklist entries), got %d", base+3, count)
 	}
 }
 
-func TestIntegration_Apply_Whitelist_AddsRules(t *testing.T) {
+func TestIntegration_Apply_Allowlist_AddsRules(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
 
 	state := emptyState()
-	state.Current.Whitelist = []string{"10.0.0.0/8", "172.16.0.0/12"}
+	state.Current.Allowlist = []string{"10.0.0.0/8", "172.16.0.0/12"}
 	if err := m.Apply(state, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
-		t.Fatalf("Apply with whitelist: %v", err)
+		t.Fatalf("Apply with allowlist: %v", err)
 	}
 
 	count := ruleCount(t, m, "input")
 	if count != base+2 {
-		t.Errorf("expected %d rules (base + 2 whitelist entries), got %d", base+2, count)
+		t.Errorf("expected %d rules (base + 2 allowlist entries), got %d", base+2, count)
 	}
 }
 
@@ -790,8 +790,8 @@ func TestIntegration_Apply_AllOptions(t *testing.T) {
 		{Port: "443"},
 	}
 	state.Current.UDP = []shared.PortRule{{Port: "53"}}
-	state.Current.Blacklist = []string{"203.0.113.0/24"}
-	state.Current.Whitelist = []string{"10.0.0.0/8"}
+	state.Current.Blocklist = []string{"203.0.113.0/24"}
+	state.Current.Allowlist = []string{"10.0.0.0/8"}
 	state.Current.Forwarding = []shared.ForwardingRule{
 		{Protocol: "tcp", SourcePort: 8080, DestPort: 80},
 	}

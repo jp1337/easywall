@@ -152,9 +152,9 @@ with static addressing that genuinely need neither.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and whitelist them |
-| `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
-| `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
+| `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and allowlist them |
+| `allow_bridge_networks` | bool | `true` | Allowlist auto-detected bridge network CIDRs |
+| `custom_networks` | list | `[]` | Additional CIDRs to allowlist unconditionally (processed when `enabled = true`) |
 | `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port |
 
 > **`enabled` ships `true` since 2.22.** A host with no `docker*`/`br-*`
@@ -255,7 +255,7 @@ browser and an editor. Neither reaches a `curl` or a hand-edited file:
 | `tcp_rst_flood_limit` | 1–10000 | 100 |
 | `connection_limit_max` | 1–100000 | 100 |
 | `log_blocked_connections_limit` | 1–10000 | 60 |
-| `log_blacklist_connections_limit` | 1–10000 | 60 |
+| `log_blocklist_connections_limit` | 1–10000 | 60 |
 
 Out of range in the file is clamped and logged; out of range from the interface is
 refused with the key named — the same split as `acceptance.duration`.
@@ -272,7 +272,7 @@ Two logging switches belong to no module and are set here as well:
 | | Logs | Rate |
 |---|---|---|
 | `log_blocked_connections` | everything the final policy drops | `log_blocked_connections_limit` `60`/min |
-| `log_blacklist_connections` | blacklist hits, before the drop | `log_blacklist_connections_limit` `60`/min |
+| `log_blocklist_connections` | blocklist hits, before the drop | `log_blocklist_connections_limit` `60`/min |
 
 ---
 

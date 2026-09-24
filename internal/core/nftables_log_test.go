@@ -96,7 +96,7 @@ func TestBuildersCarryTheSink(t *testing.T) {
 	ch := inputChainForTest(tbl)
 
 	m.addFinalLog(tbl, ch, shared.FirewallOptions{LogBlocked: true})
-	m.addBlacklistRule(tbl, ch, "192.0.2.1", shared.FirewallOptions{LogBlacklist: true})
+	m.addBlocklistRule(tbl, ch, "192.0.2.1", shared.FirewallOptions{LogBlocklist: true})
 
 	var logs int
 	for _, r := range rec.rules {
@@ -129,7 +129,7 @@ func TestLogPrefixesMapToTheRulesTheyName(t *testing.T) {
 		logPrefixICMPFlood: "icmp_flood",
 		logPrefixSSH:       "ssh",
 		logPrefixTCPRST:    "tcp_rst",
-		logPrefixBlacklist: "blacklist",
+		logPrefixBlocklist: "blocklist",
 		logPrefixDrop:      "drop",
 	}
 	if len(want) != len(shared.PacketLogRules) {
@@ -231,7 +231,7 @@ func TestLogPrefixesAreDocumented(t *testing.T) {
 		"icmp flood": logPrefixICMPFlood,
 		"ssh":        logPrefixSSH,
 		"tcp rst":    logPrefixTCPRST,
-		"blacklist":  logPrefixBlacklist,
+		"blocklist":  logPrefixBlocklist,
 		"drop":       logPrefixDrop,
 	}
 	for name, prefix := range prefixes {
@@ -242,23 +242,23 @@ func TestLogPrefixesAreDocumented(t *testing.T) {
 	}
 }
 
-// A blacklisted network is logged like a blacklisted address. It went to a
-// builder that took no log spec until 2.22, so log_blacklist_connections said
+// A blocklisted network is logged like a blocklisted address. It went to a
+// builder that took no log spec until 2.22, so log_blocklist_connections said
 // nothing about 10.0.0.0/8 while logging 10.0.0.1.
-func TestBlacklistLogsANetworkEntry(t *testing.T) {
+func TestBlocklistLogsANetworkEntry(t *testing.T) {
 	for _, entry := range []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1", "2001:db8::/32"} {
 		rec := &recordingConn{}
 		m := &NftablesManager{adder: rec}
 		tbl := easywallInetTableForTest()
-		m.addBlacklistRule(tbl, inputChainForTest(tbl), entry, shared.FirewallOptions{LogBlacklist: true})
+		m.addBlocklistRule(tbl, inputChainForTest(tbl), entry, shared.FirewallOptions{LogBlocklist: true})
 
 		if len(rec.rules) != 2 {
 			t.Errorf("%s: %d rules, want a log rule and a drop", entry, len(rec.rules))
 			continue
 		}
 		l := logOf(t, rec.rules[0].Exprs)
-		if string(l.Data) != logPrefixBlacklist {
-			t.Errorf("%s: the first rule logs %q, want %q", entry, l.Data, logPrefixBlacklist)
+		if string(l.Data) != logPrefixBlocklist {
+			t.Errorf("%s: the first rule logs %q, want %q", entry, l.Data, logPrefixBlocklist)
 		}
 		last := rec.rules[1].Exprs[len(rec.rules[1].Exprs)-1]
 		if v, ok := last.(*expr.Verdict); !ok || v.Kind != expr.VerdictDrop {

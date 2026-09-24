@@ -13,7 +13,7 @@ import (
 
 // demoShapes are the kinds of refusal a small internet-facing host actually
 // sees, on documentation addresses only (RFC 5737, RFC 3849). Every source
-// address avoids the demo's seeded blacklist and whitelist, so a visitor
+// address avoids the demo's seeded blocklist and allowlist, so a visitor
 // adding a source to one of those lists always sees a tangible change. Every
 // IPv4 documentation range falls into shared.BogonRanges and the demo runs
 // with Bogons: true, so on a real kernel these rows would be bogon drops; the
@@ -23,7 +23,7 @@ var demoShapes = []shared.PacketLogEntry{
 	{Rule: "portscan", Proto: "tcp", DstPort: 3389, TCPFlags: "FIN,PSH,URG", Src: netip.MustParseAddr("192.0.2.77")},
 	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.140")},
 	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("192.0.2.5")},
-	{Rule: "blacklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
+	{Rule: "blocklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
 	{Rule: "icmp_flood", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
 	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("192.0.2.200")},
 	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:5::17")},
@@ -180,7 +180,7 @@ func (d *demoState) seed() {
 			{Port: "123", Description: "NTP"},
 			{Port: "51820", Description: "WireGuard VPN"},
 		},
-		Blacklist: []string{
+		Blocklist: []string{
 			"# scanner ranges observed in fail2ban logs over the last 30d",
 			"192.0.2.42",
 			"192.0.2.118",
@@ -190,7 +190,7 @@ func (d *demoState) seed() {
 			"# IPv6 — block known ranges from compromised cloud tenant",
 			"2001:db8:bad::/48",
 		},
-		Whitelist: []string{
+		Allowlist: []string{
 			"# always-allow management — never lock these out",
 			"203.0.113.10",
 			"203.0.113.11",
@@ -291,8 +291,8 @@ func (d *demoState) seed() {
 		TCPRSTFloodLimit:             100,
 		LogBlocked:                   true,
 		LogBlockedLimit:              60,
-		LogBlacklist:                 true,
-		LogBlacklistLimit:            60,
+		LogBlocklist:                 true,
+		LogBlocklistLimit:            60,
 	}
 	d.settings = shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
@@ -361,13 +361,13 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		{-4 * time.Minute, "apply_accepted", "", "", "demo"},
 		{-4*time.Minute - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
 		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log", "demo"},
-		{-4 * time.Hour, "rules_saved", "blacklist", "+192.0.2.42", "demo"},
-		{-4*time.Hour - 12*time.Second, "rules_saved", "blacklist", "+192.0.2.118", "demo"},
+		{-4 * time.Hour, "rules_saved", "blocklist", "+192.0.2.42", "demo"},
+		{-4*time.Hour - 12*time.Second, "rules_saved", "blocklist", "+192.0.2.118", "demo"},
 		{-5 * time.Hour, "settings_saved", "", "docker_enabled", "demo"},
 		{-6 * time.Hour, "system_saved", "", "acceptance_duration=120", "demo"},
 		{-8 * time.Hour, "apply_accepted", "", "", "demo"},
 		{-8*time.Hour - 45*time.Second, "rules_saved", "forwarding", "+8443→443/tcp", "demo"},
-		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32", "demo"},
+		{-9 * time.Hour, "rules_saved", "allowlist", "+203.0.113.10/32", "demo"},
 		{-12 * time.Hour, "rules_saved", "udp", "+51820", "demo"},
 		{-14 * time.Hour, "rules_imported", "", "rules-2026-05-02.json", "demo"},
 		// The re-apply happened two minutes after the rollback it followed, which
@@ -646,18 +646,18 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 			return demoErr(fmt.Errorf("invalid udp rules: %w", err))
 		}
 		d.rules.Staged.UDP = rs
-	case "blacklist":
+	case "blocklist":
 		var rs []string
 		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
-			return demoErr(fmt.Errorf("invalid blacklist: %w", err))
+			return demoErr(fmt.Errorf("invalid blocklist: %w", err))
 		}
-		d.rules.Staged.Blacklist = rs
-	case "whitelist":
+		d.rules.Staged.Blocklist = rs
+	case "allowlist":
 		var rs []string
 		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
-			return demoErr(fmt.Errorf("invalid whitelist: %w", err))
+			return demoErr(fmt.Errorf("invalid allowlist: %w", err))
 		}
-		d.rules.Staged.Whitelist = rs
+		d.rules.Staged.Allowlist = rs
 	case "custom":
 		var rs []string
 		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
@@ -906,8 +906,8 @@ func (d *demoState) handleImportRules(payload []byte) shared.Response {
 		return demoErr(fmt.Errorf("import validation failed: %w", err))
 	}
 	d.rules.Staged = imported
-	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
-		len(imported.TCP), len(imported.UDP), len(imported.Blacklist), len(imported.Whitelist)))
+	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blocklist, %d allowlist",
+		len(imported.TCP), len(imported.UDP), len(imported.Blocklist), len(imported.Allowlist)))
 	return shared.Response{Success: true}
 }
 
