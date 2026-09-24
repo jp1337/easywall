@@ -49,6 +49,8 @@ trusted_proxies = []
 # so a proxy in front of easywall cannot pass a monitoring host through it —
 # list the proxy. An empty list turns the endpoint off entirely; leaving the key
 # out means the default above.
+# A link-local entry (fe80::/64) matches on every interface: an entry names
+# no interface, so it admits a neighbour on any link the endpoint listens on.
 #
 # EASYWALL_WEB_HEALTH_ALLOW sets the same list, comma-separated.
 #
