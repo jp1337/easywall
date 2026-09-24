@@ -187,6 +187,8 @@ Playwright suite in `test.yml`.
 | `ValidateCustom` | **reports the checker as unavailable** |
 | `GetHealth` | `ok`/`healthy`, or `fail`/`panic` while the demo's panic mode is on. The self-test reads `unprovable` with no kernel named |
 | `GetPacketLog` | a generated stream on documentation addresses, a few new packets a minute — see `demoPacketLog` |
+| `GetFeeds` | `spamhaus-drop` (1801 entries, 3412 packets) and `dshield` (20 entries, 18873 packets), both enabled with a copy; a feed staged in the demo is reported with no copy |
+| `UpdateFeed` | **refused** — demo mode constructs no fetcher, so nothing sends it |
 
 ## Adding a command
 

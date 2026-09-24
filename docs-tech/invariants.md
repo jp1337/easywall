@@ -560,6 +560,19 @@ code's own output, not hand-typed.
 | `TestA222PacketLogReplaysUnderTheNewRuleName` / `TestA222LogPrefixDecodesAsTheBlocklist` | a persisted 2.22 line and a kernel rule loaded by 2.22 both read as rule `blocklist` | the `/blocked` filter for the blocklist missed every row written before the upgrade |
 | `TestTheOldListAddressesMovePermanently` / `TestAPostToAnOldListAddressIsSaved` / `TestAnOldBlockedFilterReadsAsTheNewRule` / `TestAnOldRowActionStagesOnTheNewList` | old URLs answer 301, a POST to one is saved, a saved filter and a stale row action use the new name | a 301 on POST becomes a GET and drops the pasted list |
 
+## Other people's lists
+
+| Test | Holds | Because |
+|---|---|---|
+| `TestFeedCatalogueRowsAreComplete` | eight rows, unique ids that are never `own-N`, https data URLs, a format with a parser, a verdict and a false-positive level from the closed lists, polled no more than hourly | the core trusts an id, the web process fetches whatever a row names and parses it by the row's format; a row missing one of these fails at 3 a.m., not in review |
+| `TestEveryCatalogueFeedLinksToItsSourceAndTerms` | every row's `Homepage` and `Terms` are https and are not one of its data URLs | plan P17: the operator sees where a list comes from and on what terms. A data URL there would download 79 175 addresses into a browser tab and say nothing about who may use them |
+| `TestEveryCatalogueFeedSaysWhatItCosts` | every feed's verdict, false-positive level, *what it blocks* and *why* exist in `en` and `de`, plus both link labels, none empty, none with markup | spec §1: the cost of a list is data rendered beside its switch, not prose that drifts. The keys are computed, so `TestTemplatesOnlyUseTranslatedKeys` cannot see them |
+| `TestValidateRules_Feeds`, `TestSaveStaged_Feeds` | `Rules.Feeds` holds catalogue ids and `own-1`…`own-3`, each once — refused by the core, not only by the web process | an id becomes a set name and a counter id in the kernel; a duplicate would be two rules dropping the same traffic |
+| `TestFeedLogPrefixesFitTheKernel` | `FeedLogPrefix` of every catalogue id and of `own-3` is at most 127 bytes and reads back as itself | `NFTA_LOG_PREFIX` is `NLA_STRING` with `.len = NF_LOG_PREFIXLEN - 1` (`nft_log.c`, v6.12). One byte over and the kernel refuses the rule, and with it the whole apply |
+| `TestParseLogPrefix` | a feed row names its feed only when the id is one easywall knows | a custom rule logging `easywall feed: anything` into the group would otherwise put a made-up feed name on /blocked |
+| `TestSendCommand_RequestLimitIsExact`, `TestSendCommand_ResponseLimitIsExact`, `TestDaemonHandleConn_RequestLimitIsExact` | exactly `MaxMessageBytes` passes both ways; one byte more is `request too large` at the core, `ErrRequestTooLarge` before sending, and a named error on a reply | the limit used to truncate: a request cut at 1 MiB was answered *invalid JSON command*, a reply cut at 1 MiB was *unexpected end of JSON input* — both indistinguishable from a malformed message |
+| `TestDemo_AnswersEveryDeclaredCommand` (count 25), `TestDemoAnswersTheFeedCommands` | the demo reports the two recommended feeds with copies, a feed a visitor stages without one, and refuses `UPDATE_FEED` | demo mode constructs no fetcher (spec §3); a demo that pretended to store a feed would teach the wrong thing |
+
 ## Adding one
 
 The shape that works: **derive the list from the code, compare it against the
