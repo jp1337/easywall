@@ -79,7 +79,8 @@ services:
     # TestTheContainerHealthCheckHasOneDefinition asserts the two agree, field
     # by field, which is the drift the old rule was really guarding against.
     healthcheck:
-      test: ["CMD", "wget", "-q", "--no-check-certificate", "-O", "/dev/null", "https://127.0.0.1:12227/healthz"]
+      # Follows bind_addr — see the Dockerfile's HEALTHCHECK for why it is not a wget.
+      test: ["CMD-SHELL", "easywall-web -healthcheck"]
       interval: 10s
       timeout: 5s
       start_period: 15s

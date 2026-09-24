@@ -380,7 +380,28 @@ jobs:
           fi
           echo "ok  D: uid 100, gid 101, web/ writable by the web user and the core's directory not"
 
-          # C — the health check at a moved bind_addr: added with easywall-web -healthcheck (Task 4).
+          # C — the health check follows bind_addr. Moved onto the container's own
+          # address and another port, which refuses 127.0.0.1 and is on no
+          # health_allow, the container must still read healthy. That needs rules in
+          # the kernel first — a container that never applied is honestly not
+          # enforcing (see the HEALTHCHECK step above).
+          compose exec -T easywall sh -c 'cat > /var/lib/easywall/rules.json' <<'JSON'
+          {"current":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
+           "staged":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
+           "backup":{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}}
+          JSON
+          EASYWALL_CI_WEB_BIND="$ip:12228" compose up -d --no-build --pull never --force-recreate
+          health=""
+          for _ in $(seq 1 30); do
+            health=$(docker inspect -f '{{.State.Health.Status}}' easywall 2>/dev/null || echo missing)
+            [ "$health" = healthy ] && break
+            sleep 3
+          done
+          [ "$health" = healthy ] || {
+            docker inspect -f '{{json .State.Health}}' easywall || true
+            fail "bind_addr moved to $ip:12228: the container reads '$health', want healthy"
+          }
+          echo "ok  C: healthy with bind_addr on $ip:12228"
 
       - name: Clean up
         if: always()

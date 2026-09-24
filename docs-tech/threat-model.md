@@ -254,6 +254,20 @@ guard is a test rather than a comment: `TestHealthzIgnoresForwardingHeaders`
 asserts both directions — a forged loopback header from a remote peer stays 404,
 and a real loopback peer is not talked out of it by a header naming someone else.
 
+2.22 admits one more peer: the connection's own local address
+(`http.LocalAddrContextKey`). A completed handshake whose source is our own
+address is a process on this host, as trusted as loopback, and it is what
+`easywall-web -healthcheck` is on a specific bind — it dials from the target
+address so the kernel's source choice cannot change that. Not when the list is
+empty. `TestHealthzAdmitsItsOwnAddressAndNoOther` holds both edges.
+
+The rule is not scoped to loopback, and `health_allow` stops being the
+complete set of admitted peers once it is non-empty: any process on this
+host — including a same-host reverse proxy relaying a remote caller's
+traffic — reaches the bound address as its own peer and is admitted, whether
+or not it, or loopback, appears in the list. Only `health_allow = []` closes
+the endpoint to everyone on this host as well.
+
 404 and not 403, because not confirming the endpoint exists costs nothing when
 whoever is allowed gets the real answer. `degraded` answers 200: a `HEALTHCHECK`
 that restarted the container for it would restart a working firewall.

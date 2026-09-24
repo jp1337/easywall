@@ -97,8 +97,8 @@ since whoever is allowed gets the real answer anyway.
 
 | | |
 |---|---|
-| The image | `HEALTHCHECK` fetches `/healthz` every 10s, 15s start period, 3 retries |
-| `docker-compose.yml` | declares no block of its own and inherits the image's |
+| The image | `HEALTHCHECK` runs `easywall-web -healthcheck` every 10s, 15s start period, 3 retries — `/healthz` at the address `bind_addr` names |
+| `docker-compose.yml` | carries the same check under `healthcheck:`, because podman's default image format has nowhere to keep the image's; a test keeps the two identical |
 | `easywall-core.service` | `Type=notify` — `active (running)` means the socket exists |
 | | `WatchdogSec=60`, so a wedged daemon is restarted rather than left listening |
 
@@ -114,12 +114,16 @@ looked at the core's socket.
 state to whoever can read it. The gate reads the TCP peer, never a forwarding
 header, so nothing behind a proxy can claim to be loopback.
 
-> **Move `bind_addr` off loopback and you must widen this list to match.** The
-> image's own `HEALTHCHECK` asks `/healthz` at the bound address, and under
-> `network_mode: host` it arrives from that address rather than from `127.0.0.1`.
-> The default turns it away, and the symptom points at the wrong thing. The
-> container goes `unhealthy` while `easywall-core health` says `ok`: the
-> firewall is fine, and only the endpoint is closed. Add the bind address.
+> **Moving `bind_addr` needs nothing here.** The container's check asks
+> `/healthz` at the bound address and from it, and the endpoint admits a peer
+> that is its own local address. Widen the list for a monitoring host, not for
+> the check. `health_allow = []` still closes the endpoint to everyone,
+> the container's check included.
+>
+> **This is not a loopback exception.** Any process on this host that
+> connects to the bound address — a same-host reverse proxy relaying remote
+> traffic included — is admitted the same way; the list is not the complete
+> set of admitted peers unless it is `[]`.
 
 ```toml
 # /etc/easywall/web.toml
