@@ -13,11 +13,12 @@ import (
 
 func TestHealthTargetFollowsBindAddr(t *testing.T) {
 	for bind, want := range map[string]string{
-		"0.0.0.0:12227":       "https://127.0.0.1:12227/healthz",
-		":12228":              "https://127.0.0.1:12228/healthz",
-		"[::]:12227":          "https://127.0.0.1:12227/healthz",
-		"192.0.2.5:12228":     "https://192.0.2.5:12228/healthz",
-		"[2001:db8::1]:12227": "https://[2001:db8::1]:12227/healthz",
+		"0.0.0.0:12227":        "https://127.0.0.1:12227/healthz",
+		":12228":               "https://127.0.0.1:12228/healthz",
+		"[::]:12227":           "https://127.0.0.1:12227/healthz",
+		"192.0.2.5:12228":      "https://192.0.2.5:12228/healthz",
+		"[2001:db8::1]:12227":  "https://[2001:db8::1]:12227/healthz",
+		"[fe80::1%eth0]:12227": "https://[fe80::1%25eth0]:12227/healthz",
 	} {
 		if got, _, err := healthTarget(bind); err != nil || got != want {
 			t.Errorf("healthTarget(%q) = %q, %v; want %q", bind, got, err, want)
@@ -25,6 +26,27 @@ func TestHealthTargetFollowsBindAddr(t *testing.T) {
 	}
 	if _, _, err := healthTarget("no-port"); err == nil {
 		t.Error("a bind_addr with no port produced a target")
+	}
+}
+
+// Fix round 1: net.ParseIP returns nil for a zoned IPv6 literal, which left
+// dialer.LocalAddr unset for exactly the bind_addr shape most likely to need
+// it. dialFrom must use netip.ParseAddr and carry the zone through.
+func TestDialFromPinsAZonedIPv6HostAsTheSource(t *testing.T) {
+	got := dialFrom("fe80::1%eth0")
+	if got == nil {
+		t.Fatal("dialFrom of a zoned host returned nil, want a TCPAddr with the zone")
+	}
+	if got.Zone != "eth0" {
+		t.Errorf("Zone = %q, want %q", got.Zone, "eth0")
+	}
+	want := net.ParseIP("fe80::1")
+	if !got.IP.Equal(want) {
+		t.Errorf("IP = %v, want %v", got.IP, want)
+	}
+
+	if dialFrom("") != nil {
+		t.Error("dialFrom(\"\") should leave the source to the kernel, not pin to a zero address")
 	}
 }
 
