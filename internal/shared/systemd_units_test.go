@@ -3,6 +3,7 @@ package shared
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -232,4 +233,33 @@ func actedOn(body, unit, verb string) bool {
 		}
 	}
 	return false
+}
+
+// TestTheWebUnitCanWriteOnlyItsOwnStateDir: easywall-web.service lists
+// /var/lib/easywall/web in ReadWritePaths and not /var/lib/easywall itself.
+//
+// data_dir is root's since 2.22 — the web user could replace the core's files
+// and plant links root wrote through while it shared the directory. The mode
+// (0750) is the first wall; this is the second, and the kernel's: under
+// ProtectSystem=strict a path not listed is read-only to the unit whatever its
+// mode says, so a data_dir left group-writable by an older layout still cannot
+// be written from the web process.
+func TestTheWebUnitCanWriteOnlyItsOwnStateDir(t *testing.T) {
+	unit := unitFiles(t)["easywall-web.service"]
+	var paths []string
+	for _, line := range strings.Split(unit, "\n") {
+		if v, ok := strings.CutPrefix(strings.TrimSpace(line), "ReadWritePaths="); ok {
+			paths = append(paths, strings.Fields(v)...)
+		}
+	}
+	if !slices.Contains(paths, "/var/lib/easywall/web") {
+		t.Errorf("easywall-web.service ReadWritePaths %v does not list /var/lib/easywall/web: "+
+			"under ProtectSystem=strict the web process cannot keep its state", paths)
+	}
+	for _, p := range paths {
+		if strings.TrimLeft(p, "-+") == "/var/lib/easywall" {
+			t.Errorf("easywall-web.service ReadWritePaths lists %s: the core's data directory, "+
+				"writable again from the network-facing process", p)
+		}
+	}
 }

@@ -230,7 +230,7 @@ func TestIntegration_Apply_Docker_IPv4CustomNetwork(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// addCIDRDrop IPv6 CIDR path (blacklist with IPv6 CIDR)
+// cidrDropMatch IPv6 CIDR path (blacklist with IPv6 CIDR)
 // ---------------------------------------------------------------------------
 
 func TestIntegration_Apply_Blacklist_IPv6CIDR(t *testing.T) {

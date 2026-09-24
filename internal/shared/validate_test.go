@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -278,5 +279,47 @@ func TestValidateRules_AcceptsEveryKnownScope(t *testing.T) {
 		if err := ValidateRules(Rules{TCP: []PortRule{{Port: "25", Scope: s}}}); err != nil {
 			t.Errorf("scope %q was rejected: %v", s, err)
 		}
+	}
+}
+
+// ParseNetwork is what every rule builder and every containment check reads a
+// network entry with. A mapped network is the IPv4 network it names; every
+// other entry is the network it spells, masked.
+func TestParseNetwork_AMappedNetworkIsTheIPv4NetworkItNames(t *testing.T) {
+	for in, want := range map[string]string{
+		"::ffff:10.0.0.0/104":  "10.0.0.0/8",
+		"::FFFF:10.9.8.7/104":  "10.0.0.0/8",
+		"::ffff:192.0.2.1/128": "192.0.2.1/32",
+		" ::ffff:0:0/96 ":      "0.0.0.0/0",
+		"::ffff:10.0.0.0/95":   "::fffe:0:0/95", // shorter than the mapped prefix: an IPv6 network
+		"10.0.0.0/8":           "10.0.0.0/8",
+		"10.1.2.3/8":           "10.0.0.0/8",
+		"10.0.0.0/08":          "10.0.0.0/8", // ValidateIPOrCIDR accepts it, so this must
+		"2001:db8::/32":        "2001:db8::/32",
+	} {
+		got, err := ParseNetwork(in)
+		if err != nil || got.String() != want {
+			t.Errorf("ParseNetwork(%q) = %v, %v; want %s", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"", "10.0.0.1", "not a network", "10.0.0.0/33", "# note"} {
+		if p, err := ParseNetwork(in); err == nil {
+			t.Errorf("ParseNetwork(%q) = %v, want an error", in, p)
+		}
+	}
+}
+
+// The lockout check, the drop reasons and the trusted-proxy list all ask
+// InAnyEntry; the Docker-network steps ask inAnyCIDR. Both must agree with the
+// rule the kernel now holds for a mapped network.
+func TestInAnyEntry_AMappedNetworkHoldsItsIPv4Addresses(t *testing.T) {
+	entries := []string{"::ffff:10.0.0.0/104"}
+	in, out := netip.MustParseAddr("10.1.2.3"), netip.MustParseAddr("11.1.2.3")
+	if !InAnyEntry(in, entries) || !inAnyCIDR(in, entries) {
+		t.Errorf("10.1.2.3 is in ::ffff:10.0.0.0/104: InAnyEntry %v, inAnyCIDR %v",
+			InAnyEntry(in, entries), inAnyCIDR(in, entries))
+	}
+	if InAnyEntry(out, entries) || inAnyCIDR(out, entries) {
+		t.Error("11.1.2.3 is not in ::ffff:10.0.0.0/104")
 	}
 }

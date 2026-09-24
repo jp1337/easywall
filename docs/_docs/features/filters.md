@@ -21,13 +21,13 @@ The question most people arrive with. Details for each module are below.
 
 | Host | Turn on | Leave off |
 |---|---|---|
-| Public server, static address | Everything under Attack protection, plus the bogon filter | Fragment drop, unless you know your traffic |
+| Public server, static address | Everything under Attack protection but fragment drop, plus the bogon filter | Fragment drop — it breaks large DNS answers, [see below](#what-fragment-drop-breaks) |
 | Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
 | Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/options" ext="png"
-     alt="The firewall options page: a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle and its own parameters. A module that is switched on carries an edge down its left side." %}
+     alt="The firewall options page: a card naming which switches three kinds of host want, then a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle, its own parameters and a closed What does this change? disclosure. A module that is switched on carries an edge down its left side." %}
   <figcaption>Toggling a module here stages the change at once — the kernel does not see it until the next apply.</figcaption>
 </figure>
 
@@ -40,8 +40,14 @@ Two things come earlier still: loopback, always, and the [IPv6
 mode]({{ '/docs/features/system-settings/' | relative_url }}) — set to `passthrough` or
 `block`, IPv6 is decided before any module sees it.
 
+Two modules come right after the IPv6 mode, ahead of return traffic: **ICMP flood** and
+**TCP RST flood**. To conntrack, every ping after a source's first and every reset for
+a live connection *is* return traffic, and the accept would let them through unmetered.
+**Fragment drop** runs before all of it, in a chain of its own — see
+[what it breaks](#what-fragment-drop-breaks).
+
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: loopback first, then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then established connections and ICMP, then protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
@@ -55,6 +61,8 @@ Compiled into every rule set. There is no switch for these.
 | ICMPv4 | types 0, 3, 11, 12 | Echo reply, unreachable, TTL exceeded, parameter problem |
 | ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
 | ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
+
+**IPv4 pings are not answered, IPv6 pings are:** type 8 is not in the ICMPv4 list, and *ICMP flood* only limits the rate, it accepts nothing.
 
 ## The three chains
 
@@ -93,10 +101,10 @@ Two things cross that chain:
 | **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
 | **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |
 | **Invalid packets** | Packets conntrack cannot match to a connection | — | **on** |
-| **Fragment drop** | Fragmented **IPv4** packets | — | off |
+| **Fragment drop** | Fragmented **IPv4** packets to this host, before reassembly — [what it breaks](#what-fragment-drop-breaks) | — | off |
 | **Bogon filter** | Impossible **IPv4** source addresses on a non-loopback interface | — | off |
 | **Connection limit** | Simultaneous connections from one source above its cap | `connection_limit_max` — 100 | off |
-| **TCP RST flood** | Inbound RST packets from one source above its rate | `tcp_rst_flood_limit` — 100/s | off |
+| **TCP RST flood** | Inbound RST packets from one source above its rate, for a live connection or none | `tcp_rst_flood_limit` — 100/s | off |
 
 > **Every rate is counted per source address** — one kernel counter per address, in a
 > set whose entries expire when that source goes quiet. A flood from one host cannot
@@ -104,6 +112,23 @@ Two things cross that chain:
 >
 > Not true before 2.5.0: four modules held a single counter for the whole machine, so
 > five SSH attempts a minute from anywhere locked out the administrator too.
+
+Every module runs before the whitelist, so it applies to a whitelisted address like
+any other. Only the bogon filter exempts one.
+
+### What fragment drop breaks
+
+The kernel reassembles a fragmented packet before the `input` chain sees it. So this
+module has a chain of its own, `fragments`, at the prerouting hook, ahead of the
+reassembly. It drops IPv4 fragments addressed to this host. IPv6, loopback and traffic
+the host routes are left alone. A port forward to this host's address counts as
+traffic to this host.
+
+That breaks every reply too large for one packet. The one most hosts meet is a DNS
+answer over UDP carrying DNSSEC, and
+[RFC 8900](https://www.rfc-editor.org/rfc/rfc8900#section-6.5) asks operators not to
+filter fragments to or from a DNS server. Until 2.22 the rule sat in `input` and
+matched nothing.
 
 ### What the bogon filter drops
 
@@ -156,8 +181,19 @@ ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
 | **Drop multicast** | Traffic to a multicast group | off |
 | **Drop anycast** | Traffic to an anycast destination | off |
 
-> **Not on a LAN.** These carry DHCP, mDNS and IPv6 neighbour discovery. Safe to drop
-> on a public-facing host with a static address; disruptive nearly everywhere else.
+> **Not on a LAN.** Safe to drop on a public-facing host with a static address;
+> disruptive nearly everywhere else.
+
+What each one breaks:
+
+- **Broadcast** — a DHCP reply sent as a broadcast to a renewing client. A first lease
+  on `systemd-networkd` still arrives: it is read from a packet socket, before the
+  firewall sees it. Other DHCP clients are unmeasured.
+- **Multicast** — mDNS (Avahi, `.local` names), SSDP and DLNA, and every other
+  multicast. IPv6 neighbour discovery is not affected: it is decided earlier, under
+  [Always on](#always-on).
+- **Anycast** — only traffic to an address the kernel classifies as anycast. Most hosts
+  have none, and for them the switch changes nothing.
 
 ## Logging
 

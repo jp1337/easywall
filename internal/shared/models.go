@@ -510,7 +510,7 @@ type WebConfig struct {
 	BindAddr   string    `toml:"bind_addr"` // e.g. "0.0.0.0:12227"
 	SocketPath string    `toml:"socket_path"`
 	SSLDir     string    `toml:"ssl_dir"`
-	DataDir    string    `toml:"data_dir"` // writable dir for caches (e.g. version check)
+	DataDir    string    `toml:"data_dir"` // the data directory; this process's state is in <data_dir>/web
 	TLS        TLSConfig `toml:"tls"`
 	Language   string    `toml:"language"`    // default locale, e.g. "en"
 	SessionKey string    `toml:"session_key"` // HMAC key for gorilla/sessions

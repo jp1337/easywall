@@ -46,9 +46,14 @@ LABEL org.opencontainers.image.title="easywall" \
 # without this package, Go's time.LoadLocation fails for anything but "UTC"
 # and "Local" silently means UTC regardless of what TZ says, which is a TZ
 # variable that looks respected and is not.
+#
+# The ids are pinned to what alpine happened to assign when they were not:
+# 101 and 100, measured in the v2.21.1 image. Pinned so a bind-mounted
+# directory can be handed over with one stable `chown 100:101`, and unchanged
+# so no existing volume changes owner on upgrade.
 RUN apk add --no-cache nftables supervisor tini tzdata && \
-    addgroup -S easywall && \
-    adduser  -S -G easywall easywall
+    addgroup -S -g 101 easywall && \
+    adduser  -S -u 100 -G easywall easywall
 
 COPY --from=builder /out/easywall-core /usr/sbin/easywall-core
 COPY --from=builder /out/easywall-web  /usr/sbin/easywall-web
@@ -68,13 +73,18 @@ COPY config/*.toml /usr/share/easywall/config/
 # holds easywall.toml, which the root core reads. Handing the whole directory to
 # the unprivileged web user — as `chown -R easywall:easywall /etc/easywall` did
 # — let a network-facing process rewrite the configuration root loads.
-RUN mkdir -p /run/easywall /var/lib/easywall /var/log/easywall /etc/easywall/ssl && \
+# /var/lib/easywall is the core's in the same way, and the web keeps its state
+# in web/ inside it: until 2.22 the two shared one 0770 directory, and the web
+# user could replace the core's files there and plant links root wrote through.
+# A named volume is filled from this layout; the entrypoint repairs any other.
+RUN mkdir -p /run/easywall /var/lib/easywall/web /var/log/easywall /etc/easywall/ssl && \
     chown root:easywall /run/easywall     && chmod 750 /run/easywall && \
     chown root:easywall /etc/easywall     && chmod 750 /etc/easywall && \
     chown root:root     /etc/easywall/easywall.toml && chmod 600 /etc/easywall/easywall.toml && \
     chown easywall:easywall /etc/easywall/web.toml  && chmod 600 /etc/easywall/web.toml && \
     chown easywall:easywall /etc/easywall/ssl       && chmod 750 /etc/easywall/ssl && \
-    chown root:easywall /var/lib/easywall && chmod 770 /var/lib/easywall && \
+    chown root:easywall /var/lib/easywall && chmod 750 /var/lib/easywall && \
+    chown easywall:easywall /var/lib/easywall/web && chmod 700 /var/lib/easywall/web && \
     chown root:easywall /var/log/easywall && chmod 750 /var/log/easywall
 
 # Supervisor config
@@ -82,7 +92,7 @@ COPY docker/supervisord.conf /etc/supervisord.conf
 
 # The ownership above is set at build time and a bind mount replaces all of it.
 # The entrypoint restores it at start, which is what makes `docker compose up -d`
-# with the shipped ./config mount work at all — read its header.
+# with the shipped ./easywall-config mount work at all — read its header.
 COPY docker/entrypoint.sh /usr/local/bin/easywall-entrypoint
 RUN chmod 0755 /usr/local/bin/easywall-entrypoint
 
@@ -108,7 +118,7 @@ EXPOSE 12227
 #     fail/core_unreachable → 503, and a kernel that is not carrying the rules
 #     is fail/not_enforcing → 503.
 #
-# One wget therefore sees a dead web process, a dead core, and a firewall that
+# One request therefore sees a dead web process, a dead core, and a firewall that
 # has stopped filtering. The second command added no coverage — and it broke the
 # one state that must not restart anything. handler_health.go answers 200 for
 # `degraded` deliberately, because every cause of `degraded` is immune to a
@@ -139,14 +149,15 @@ EXPOSE 12227
 # path pull a published image or accepting a compose-level check, and both are
 # decisions past this release.
 #
-# The port is the other thing this line cannot adapt to. 12227 is written here
-# while bind_addr in web.toml is the operator's to change, and a container whose
-# interface moved reads `unhealthy` for ever — the check would be asking a port
-# nothing listens on. That is the one case where the compose `healthcheck:` this
-# repository otherwise refuses is the right answer, and docker-compose.yml says
-# so where the block used to be. It is not read from the config here because
-# this line is baked at build time and the port is not known until the container
-# starts.
+# `easywall-web -healthcheck` and not a wget, since 2.22. The wget was fixed at
+# https://127.0.0.1:12227, and bind_addr is the operator's: a specific address
+# refuses loopback and a moved port answers nothing, so the container read
+# `unhealthy` for ever on a firewall that was fine. The flag reads bind_addr at
+# run time — web.toml, then EASYWALL_WEB_BIND_ADDR — dials from that address,
+# and /healthz admits a peer that is its own local address. It writes nothing.
+#
+# Shell form, deliberately: build.yml runs `.Config.Healthcheck.Test[1]`, which
+# is the whole command only under CMD-SHELL.
 #
 # The self-test needs CAP_SYS_ADMIN to build the namespace it proves rules in,
 # and this image asks for NET_ADMIN and nothing else — so health reports the
@@ -154,7 +165,7 @@ EXPOSE 12227
 # container unhealthy: being unable to prove something is not the same as it
 # being broken. computeHealth's last branch is where that is decided.
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -q --no-check-certificate -O /dev/null https://127.0.0.1:12227/healthz
+  CMD easywall-web -healthcheck
 
 VOLUME ["/etc/easywall", "/var/lib/easywall", "/var/log/easywall"]
 

@@ -7,13 +7,10 @@ After=network.target
 [Service]
 Type=oneshot
 User=root
-# Group easywall for the same reason easywall-core.service uses it, and it is
-# load-bearing here too: the stamp this unit writes lands in
-# /var/lib/easywall/selftest.json, which is root:easywall 0770 because the web
-# user writes its caches in the same directory. With CapabilityBoundingSet=
-# below a root process has no CAP_DAC_OVERRIDE, so it reaches that directory on
-# the group membership or not at all — the exact fault that left rules.json
-# uncreated on a freshly installed package. See docs-tech/packaging.md.
+# Group easywall for the same reason easywall-core.service uses it. The stamp
+# this unit writes lands in /var/lib/easywall/selftest.json, in a directory
+# this root process owns (0750 root:easywall since 2.22). The group is for
+# the socket and the log directory. See docs-tech/packaging.md.
 Group=easywall
 
 # --if-stale, so this is a once-per-upgrade cost and not a once-per-boot one:

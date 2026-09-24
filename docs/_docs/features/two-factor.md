@@ -133,7 +133,7 @@ still asks for it:
 |---|---|
 | `totp_secret    = ""` | `web.toml` on the host |
 | `recovery_codes = []` | `web.toml` on the host |
-| delete `passkeys.json` | your `data_dir` — `/var/lib/easywall` unless you changed it |
+| delete `passkeys.json` | `web/` in your `data_dir` — `/var/lib/easywall/web` unless you changed it |
 
 Restart `easywall-web`. The password alone signs you in again — onto
 **Password → Second factor**, where you enrol a new one before the rest of the

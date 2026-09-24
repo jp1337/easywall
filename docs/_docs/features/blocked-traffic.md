@@ -34,10 +34,26 @@ and switch one on. The two worth starting with:
 | Interface | The device it arrived on |
 | Source → Destination | Address, and the destination port if there is one |
 | Proto | `tcp`, `udp`, `icmp`, `icmpv6`, or a bare protocol number |
-| Rule | Which of the ten switches refused it, or *Another rule* |
+| Rule | Which of the ten switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
 
-**Details** opens the rest: exact time, TCP flags, connection state, TTL, source
+**Details** opens the rest: exact time, TCP flags, ICMP type and code, connection state, TTL, source
 port, chain and packet mark — whichever of these the packet carried.
+
+## Why a default drop refused it
+
+*Default drop* means no switch refused the packet — nothing let it in. The line
+under it names what was missing, read from the rules applied **now**:
+
+| The line reads | Because |
+|---|---|
+| *Port 993/tcp is not open.* | no port rule covers it |
+| *993/tcp is open only for 10.0.0.0/8.* | a rule covers it, for other sources |
+| *… open only for traffic forwarded to a container* | the rule's scope is `forwarded` |
+| *IPv4 pings are not answered.* | echo request is not on the [always-on list]({{ '/docs/features/filters/' | relative_url }}#always-on) |
+| *ICMP type 13 is not accepted.* | nor is any other type off that list |
+| *… now — this arrived before it was.* | the rules changed since: the port, the whitelist, the blacklist, an ICMP type or the IPv6 mode |
+
+No line appears while the applied rules cannot be read.
 
 ## Narrow it down
 

@@ -136,11 +136,8 @@ jobs:
       # compose inherited the image's — the one measured here was the only one
       # there was. Since 2.19, docker-compose.yml carries its own healthcheck:
       # block (podman's OCI format has no healthcheck field, so `podman build`
-      # dropped it silently — see carried-forward.md), and this job does not
-      # run compose, so it measures the image's check only. The compose block
-      # is covered instead by TestTheContainerHealthCheckHasOneDefinition
-      # (internal/shared), which asserts the two agree field by field rather
-      # than by a container reaching healthy. See docs-tech/ci-and-release.md.
+      # dropped it silently — see carried-forward.md). This step measures the
+      # image's check; the next one, "compose, as documented", runs compose.
       #
       # Its own network namespace, not the host's. docker-compose.yml shares the
       # host's because nftables must reach host tables, and doing that here would
@@ -248,9 +245,172 @@ jobs:
           docker exec easywall-hc nft delete table inet easywall
           expect unhealthy "the nftables table deleted"
 
+      # ── A 2.21 data directory, taken apart safely ─────────────────────────
+      #
+      # Until 2.22 /var/lib/easywall was 0770 and shared with the web user, who
+      # could replace the core's files there and plant links root wrote through.
+      # The entrypoint now makes it root's (0750) and the web's state its own
+      # web/ (0700). A named volume or a bind mount from 2.21 still has the old
+      # shape, so this hands the image one — a web file to keep, a link where
+      # root writes, web/ itself a link to /etc, a panic marker, a FIFO, a core
+      # file replaced outright and hard-linked under a web name — and asserts
+      # each is dealt with, nothing is followed, and a second start finds
+      # nothing to do. stat runs in the same container, after the entrypoint,
+      # so it sees the /etc the link named.
+      - name: The entrypoint takes a 2.21 data directory apart safely
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          d="${{ runner.temp }}/easywall-data-2.21"
+          sudo rm -rf "$d"
+          sudo install -d -o 0 -g 101 -m 0770 "$d"
+          # The web's state, which must survive...
+          printf '{"step":42}' | sudo tee "$d/totp_replay.json" >/dev/null
+          # ...and what the old mode let the web user plant: a link where root
+          # writes, web/ itself a link to /etc, a panic marker, a FIFO where
+          # the core reads, and core files replaced outright — one of them
+          # hard-linked under a web name, so it would stay writable from web/.
+          sudo ln -s /etc/shadow "$d/last_apply"
+          sudo ln -s /etc "$d/web"
+          sudo touch "$d/panic" "$d/rules.json" "$d/usage.json"
+          sudo mkfifo "$d/selftest.json"
+          sudo ln "$d/usage.json" "$d/telemetry.json"
+          sudo chown -h 100:101 "$d/totp_replay.json" "$d/last_apply" "$d/web" "$d/panic" \
+            "$d/rules.json" "$d/usage.json" "$d/selftest.json"
+          sudo chmod 0666 "$d/rules.json" "$d/usage.json"
+
+          etc=$(docker run --rm -v "$d:/var/lib/easywall" easywall:dev stat -c '%u:%g %a' /etc)
+          [ "$etc" = "0:0 755" ] || fail "the container's /etc is '$etc' after the entrypoint met web -> /etc: it followed the link"
+          [ "$(sudo stat -c '%u:%g %a' "$d")" = "0:101 750" ] \
+            || fail "the data directory is $(sudo stat -c '%u:%g %a' "$d"), want 0:101 750 — the web user can still write the core's files"
+          # Owner, mode and link count: a chmod alone would leave the web
+          # user's inode, which its owner can go on writing in place.
+          [ "$(sudo stat -c '%u %a %h' "$d/rules.json")" = "0 600 1" ] \
+            || fail "rules.json is '$(sudo stat -c '%u %a %h' "$d/rules.json")', want a root-owned copy: '0 600 1'"
+          [ "$(sudo stat -c '%u %a %h' "$d/usage.json")" = "0 600 1" ] \
+            || fail "usage.json is '$(sudo stat -c '%u %a %h' "$d/usage.json")', want '0 600 1': still the web user's inode"
+          ! sudo test -p "$d/selftest.json" || fail "a FIFO the web user made survived"
+          [ "$(sudo stat -c %i "$d/web/telemetry.json")" != "$(sudo stat -c %i "$d/usage.json")" ] \
+            || fail "web/telemetry.json is still usage.json's inode"
+          if ! sudo test -d "$d/web" || sudo test -L "$d/web"; then fail "web/ is not a real directory"; fi
+          [ "$(sudo stat -c '%u:%g %a' "$d/web")" = "100:101 700" ] || fail "web/ is $(sudo stat -c '%u:%g %a' "$d/web"), want 100:101 700"
+          ! sudo test -L "$d/last_apply" || fail "the planted last_apply link is still there"
+          ! sudo test -e "$d/panic" || fail "a panic marker the web user made survived: the core would leave the firewall down"
+          [ "$(sudo cat "$d/web/totp_replay.json")" = '{"step":42}' ] || fail "the TOTP replay step did not move into web/"
+          echo "ok  a 2.21 data directory: made root's, web/ its own, the link removed and nothing followed"
+          again=$(docker run --rm -v "$d:/var/lib/easywall" easywall:dev true 2>&1)
+          case "$again" in *"/var/lib/easywall"*) fail "a second start still found something to repair: $again" ;; esac
+          echo "ok  a second start changed nothing"
+          sudo rm -rf "$d"
+
+      # ── compose, as documented ────────────────────────────────────────────
+      #
+      # The step above measures the image under a plain `docker run`. Nothing
+      # ran docker-compose.yml — the first command in the installation guide —
+      # and every 2.22 finding lived there: B (the first visitor owned the
+      # firewall), A (containers lost the network at the first apply), K (the
+      # mount put the account into the git checkout), D (a bind-mounted
+      # /var/lib/easywall the web user could not write, while healthy) and C
+      # (the health check ignored bind_addr). One assertion each, every one
+      # verified by breaking the code it covers.
+      #
+      # docker-compose.ci.yml changes three things and nothing else: the image
+      # just built, a bridge network with a fixed address instead of the host's
+      # (same reason as the step above), and empty bind mounts where compose has
+      # named volumes. ./easywall-config is used exactly as documented.
+      - name: compose, as documented
+        env:
+          EASYWALL_CI_STATE: ${{ runner.temp }}/easywall-compose
+        run: |
+          set -euo pipefail
+          compose() { docker compose -f docker-compose.yml -f docker-compose.ci.yml "$@"; }
+          fail() {
+            echo "::error::$*"
+            compose logs --no-log-prefix easywall 2>&1 | tail -40 || true
+            exit 1
+          }
+          ip=172.30.99.10
+
+          # The documented command, minus the build this job has already done.
+          compose up -d --no-build --pull never
+
+          # B — the token is in the log, and /firstrun refuses a claim without it.
+          token=""
+          for _ in $(seq 1 60); do
+            token=$(compose logs --no-log-prefix easywall 2>/dev/null | grep 'setup token' | tail -1 | jq -r '.token // empty' || true)
+            [ -n "$token" ] && break
+            sleep 1
+          done
+          [ -n "$token" ] || fail "no 'setup token' line in docker compose logs: nobody can complete /firstrun"
+          echo "ok  B: the log carries a setup token"
+
+          for _ in $(seq 1 40); do curl -sk -m 5 -o /dev/null "https://$ip:12227/firstrun" && break; sleep 0.5; done
+          form='username=ci&password=averysecurepass1!&password_confirm=averysecurepass1!&ssh_port=22'
+          code=$(curl -sk -m 5 -o /dev/null -w '%{http_code}' --data "$form" "https://$ip:12227/firstrun")
+          [ "$code" = 303 ] || fail "POST /firstrun without the token answered $code, want 303 back to the form"
+          # The other half, or the refusal above could be any rejection at all.
+          body=$(curl -sk -m 5 --data "$form" --data-urlencode "setup_token=$token" "https://$ip:12227/firstrun")
+          case "$body" in
+            *totp-secret*) echo "ok  B: /firstrun refuses a claim without the token and takes one with it" ;;
+            *) fail "POST /firstrun with the logged token did not reach the TOTP step" ;;
+          esac
+
+          # A — the seeded easywall.toml trusts Docker's bridges.
+          compose exec -T easywall sed -n '/^\[docker\]/,/^\[/p' /etc/easywall/easywall.toml \
+            | grep -Eq '^enabled[[:space:]]*=[[:space:]]*true' \
+            || fail "/etc/easywall/easywall.toml was not seeded with [docker] enabled = true"
+          echo "ok  A: [docker] enabled = true"
+
+          # K — ./easywall-config was seeded from the image and stays out of git.
+          for f in web.toml easywall.toml; do
+            sudo test -s "easywall-config/$f" || fail "the entrypoint did not seed ./easywall-config/$f from the image's defaults"
+          done
+          git check-ignore -q easywall-config/web.toml || fail "./easywall-config is not gitignored — the account is one 'git add' away"
+          dirty=$(sudo git -c safe.directory="$PWD" status --porcelain)
+          [ -z "$dirty" ] || fail "the compose run left the checkout dirty — secrets would be one 'git add' away: $dirty"
+          echo "ok  K: ./easywall-config seeded, and git sees nothing"
+
+          # D — the pinned ids; the web user writes its own web/ and not the core's directory.
+          compose exec -T easywall id easywall | grep -q 'uid=100(easywall) gid=101(easywall)' \
+            || fail "the easywall user is not uid 100 / gid 101: $(compose exec -T easywall id easywall)"
+          compose exec -T easywall su easywall -s /bin/sh -c 'test -w /var/lib/easywall/web' \
+            || fail "the easywall user cannot write its state directory in a bind-mounted /var/lib/easywall"
+          if compose exec -T easywall su easywall -s /bin/sh -c 'ln -s /etc/shadow /var/lib/easywall/last_apply' 2>/dev/null; then
+            fail "the easywall user can plant a link in the core's /var/lib/easywall"
+          fi
+          echo "ok  D: uid 100, gid 101, web/ writable by the web user and the core's directory not"
+
+          # C — the health check follows bind_addr. Moved onto the container's own
+          # address and another port, which refuses 127.0.0.1 and is on no
+          # health_allow, the container must still read healthy. That needs rules in
+          # the kernel first — a container that never applied is honestly not
+          # enforcing (see the HEALTHCHECK step above).
+          compose exec -T easywall sh -c 'cat > /var/lib/easywall/rules.json' <<'JSON'
+          {"current":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
+           "staged":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
+           "backup":{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}}
+          JSON
+          EASYWALL_CI_WEB_BIND="$ip:12228" compose up -d --no-build --pull never --force-recreate
+          health=""
+          for _ in $(seq 1 30); do
+            health=$(docker inspect -f '{{.State.Health.Status}}' easywall 2>/dev/null || echo missing)
+            [ "$health" = healthy ] && break
+            sleep 3
+          done
+          [ "$health" = healthy ] || {
+            docker inspect -f '{{json .State.Health}}' easywall || true
+            fail "bind_addr moved to $ip:12228: the container reads '$health', want healthy"
+          }
+          echo "ok  C: healthy with bind_addr on $ip:12228"
+
       - name: Clean up
         if: always()
-        run: docker rm -f easywall-hc || true
+        env:
+          EASYWALL_CI_STATE: ${{ runner.temp }}/easywall-compose
+        run: |
+          docker rm -f easywall-hc || true
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v || true
+          sudo rm -rf easywall-config "$EASYWALL_CI_STATE"
 
   # ── Validate Debian package can be built, installed and started ──────────
   #
@@ -486,10 +646,11 @@ jobs:
           check /etc/easywall/web.toml   easywall:easywall 600
           check /etc/easywall/easywall.toml root:root      600
           check /etc/easywall/ssl        easywall:easywall 750
-          # Shared between the two processes: the root core writes rules.json,
-          # the web user writes its caches. Owned by root with group write, so
-          # the core does not need CAP_DAC_OVERRIDE to reach it.
-          check /var/lib/easywall        root:easywall     770
+          # The core's: owned by root, so the core needs no CAP_DAC_OVERRIDE,
+          # and not group-writable, so the web user cannot replace what root
+          # reads there. The web keeps its state in its own web/ (2.22).
+          check /var/lib/easywall        root:easywall     750
+          check /var/lib/easywall/web    easywall:easywall 700
           # The three units, by installed path. A unit file that nothing
           # installs is a unit that does not exist on the machine, which is the
           # class of mistake that shipped this package with no binaries at all
@@ -617,11 +778,85 @@ jobs:
           # ssl/ is 0750 easywall:easywall, so only the web user and root can
           # see the certificate it generates — which is the point of it.
           docker exec easywall-test test -s /etc/easywall/ssl/cert.pem || { echo "::error::no certificate was generated"; exit 1; }
+          # 2.22: /firstrun refuses a claim without the setup token, so the
+          # token has to be where first-run.md and postinst send the operator.
+          # journal is captured, not piped straight into grep -q: under
+          # set -o pipefail (this step's shell), grep's early exit on the
+          # first match can SIGPIPE journalctl before it finishes writing,
+          # failing a step whose journal holds the line.
+          journal=$(docker exec easywall-test journalctl -u easywall-web --no-pager || true)
+          case "$journal" in
+            *'setup token'*) ;;
+            *) echo "::error::no 'setup token' line in the easywall-web journal — nobody can complete /firstrun"; exit 1 ;;
+          esac
           if docker exec --user easywall easywall-test sh -c 'echo x >> /etc/easywall/easywall.toml' 2>/dev/null; then
             echo "::error::the web user can write the core's configuration"
             exit 1
           fi
           echo "the core configuration is out of the web user's reach"
+
+      # ── An upgrade from the shared data directory ─────────────────────────
+      #
+      # Until 2.22 /var/lib/easywall was 0770 and shared with the web user, who
+      # could replace the core's files there and plant links that root wrote
+      # through. postinst now makes it root's (0750), gives the web process its
+      # own web/ (0700) and takes apart what the old mode allowed. This puts the
+      # 2.21 layout back on the installed package, does what that layout let the
+      # web user do — as that user — and runs postinst the way dpkg does on an
+      # upgrade. The fresh-install check above cannot see any of the repair
+      # branches, nor that none of them follows a link.
+      - name: An upgrade takes the shared data directory apart safely
+        run: |
+          docker exec -i easywall-test bash -s <<'EOF'
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          d=/var/lib/easywall
+          systemctl stop easywall-web.service easywall-core.service
+          # The 2.21 layout: one directory, 0770, shared, no web/.
+          rm -rf "$d/web"
+          chmod 0770 "$d"
+          # What it let the web user do, done as that user: keep its state here,
+          # replace a file of the core's, point last_apply at a file root would
+          # then write, make web/ a link to /etc, and engage panic mode.
+          runuser -u easywall -- sh -c '
+            d=/var/lib/easywall
+            printf "{\"step\":42}" > "$d/totp_replay.json"
+            printf "{}" > "$d/.x" && mv -f "$d/.x" "$d/usage.json"
+            ln -sf /etc/shadow "$d/last_apply"
+            ln -s /etc "$d/web"
+            : > "$d/panic"
+            chmod 0666 "$d/usage.json"
+            ln "$d/usage.json" "$d/telemetry.json"
+            mkfifo "$d/selftest.json"'
+
+          /var/lib/dpkg/info/easywall.postinst configure 2.21.1
+
+          [ "$(stat -c '%U:%G %a' "$d")" = "root:easywall 750" ] || fail "$d is $(stat -c '%U:%G %a' "$d") after the upgrade, want root:easywall 750"
+          if [ -L "$d/web" ] || [ ! -d "$d/web" ]; then fail "$d/web is not a real directory"; fi
+          [ "$(stat -c '%U:%G %a' "$d/web")" = "easywall:easywall 700" ] || fail "$d/web is $(stat -c '%U:%G %a' "$d/web"), want easywall:easywall 700"
+          [ "$(stat -c '%U:%G' /etc)" = "root:root" ] || fail "/etc is $(stat -c '%U:%G' /etc): postinst followed web -> /etc"
+          [ ! -L "$d/last_apply" ] || fail "the planted last_apply link survived the upgrade"
+          [ "$(stat -c %U "$d/usage.json")" = root ] || fail "usage.json still belongs to the web user, who can go on writing it in place"
+          [ "$(stat -c '%U %a %h' "$d/usage.json")" = "root 600 1" ] || fail "usage.json keeps the web user's inode"
+          [ ! -p "$d/selftest.json" ] || fail "a FIFO the web user made survived"
+          ! runuser -u easywall -- sh -c "echo x >> $d/web/telemetry.json && grep -q x $d/usage.json" || fail "web/telemetry.json still writes usage.json"
+          grep -q '"step":42' "$d/web/totp_replay.json" || fail "the TOTP replay step did not move into $d/web"
+          [ ! -e "$d/panic" ] || fail "a panic marker the web user made survived the upgrade: the core would leave the firewall down"
+          if runuser -u easywall -- ln -s /etc/shadow "$d/planted" 2>/dev/null; then fail "the web user can still plant a link in $d"; fi
+          runuser -u easywall -- test -w "$d/web" || fail "the web user cannot write its own $d/web"
+          echo "ok  the upgrade made $d root's, gave the web its own web/, and followed no link"
+
+          # Idempotent: a second configure finds nothing to do and says nothing about it.
+          again=$(/var/lib/dpkg/info/easywall.postinst configure 2.22.0 2>&1)
+          case "$again" in *"easywall: $d"*) fail "a second configure still found something to repair: $again" ;; esac
+          echo "ok  a second configure changed nothing"
+
+          for unit in easywall-core easywall-web; do
+            for _ in $(seq 1 20); do systemctl is-active --quiet $unit && break; sleep 0.5; done
+            systemctl is-active --quiet $unit || fail "$unit did not come back after the upgrade"
+          done
+          echo "ok  both services are running again"
+          EOF
 
       # The version reaches the binary. It is written in with -ldflags -X, which
       # does nothing at all when the target is a constant — as it was, so every

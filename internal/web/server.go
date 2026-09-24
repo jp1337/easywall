@@ -207,6 +207,12 @@ type Server struct {
 	statusMu     sync.Mutex
 	statusCached *shared.FirewallStatus
 	statusAt     time.Time
+
+	// setupToken is what /firstrun asks for before it creates the account:
+	// proof that the claimant can read this host's log. Set only when the
+	// process starts with no account, printed once, held nowhere else — a
+	// restart prints a new one, which is also the way back from a lost line.
+	setupToken string
 }
 
 // statusTTL is how long one GET_STATUS answer serves the per-render banner and
@@ -296,6 +302,8 @@ func NewServer(cfg *Config) (*Server, error) {
 		localeStatus = map[string]LocaleStatus{}
 	}
 
+	prepareStateDir(cfg.DataDir)
+
 	s := &Server{
 		cfg:                 cfg,
 		client:              client,
@@ -311,6 +319,18 @@ func NewServer(cfg *Config) (*Server, error) {
 		certs:               certs,
 	}
 	s.passkeyCount = func() int { return len(s.passkeys.all()) }
+
+	// Only while no account exists; automation that writes password directly
+	// never sees one. Warn, so it survives any log filter an operator sets, and
+	// the phrase "setup token" is what docs and CI grep for.
+	if cfg.IsFirstRun() {
+		raw, err := newTOTPSecret()
+		if err != nil {
+			return nil, fmt.Errorf("generate the setup token: %w", err)
+		}
+		s.setupToken = formatTOTPSecret(raw)
+		slog.Warn("first run: enter this setup token at /firstrun to create the account", "token", s.setupToken)
+	}
 
 	if !cfg.DemoMode {
 		s.telemetry = shared.NewReporter(cfg.TelemetryStatePath(), cfg.TelemetryEnabled)
@@ -1564,6 +1584,7 @@ func templateFuncs() template.FuncMap {
 		},
 		"actionTone": actionTone,
 		"richText":   richText,
+		"optHelp":    optionHelpFor, // the disclosure under each /options card; options_help.go
 		"shortTime":  shortTime,
 		"fullTime":   fullTime,
 		// dict lets a template pass named values into a translation that carries
@@ -1689,5 +1710,7 @@ func templateFuncs() template.FuncMap {
 			}
 			return ""
 		},
+		// The /options card a /blocked rule chip leads to, or nothing.
+		"blockedOption": func(rule string) string { return blockedRuleOption[rule] },
 	}
 }

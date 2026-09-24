@@ -109,7 +109,17 @@
        already uses (see the comment on .log-action in app.css). Neutral:
        no tone class, the same way an informational log action carries
        none. */}}
-  <td data-label="{{T "blocked_col_rule"}}"><span class="log-action">{{T (printf "blocked_rule_%s" .Rule)}}</span></td>
+  {{/* A module's chip leads to its card on /options (blockedOption); the
+       blacklist and the final drop are not switches and stay a span. A
+       default drop says why under the chip, read off the rules the kernel
+       holds now (shared.PacketLogEntry.DropReasonParsed). One .pkt-rule item, the
+       .pkt-act pattern: on a card the td is a flex row, and two children would
+       sit side by side. */}}
+  <td data-label="{{T "blocked_col_rule"}}"><div class="pkt-rule">
+    {{$label := T (printf "blocked_rule_%s" .Rule)}}
+    {{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}
+    {{if $.WhyKnown}}{{with .DropReasonParsed $.Rules $.Net}}{{if .Code}}<span class="pkt-why">{{T (printf "blocked_why_%s" .Code) .Params}}</span>{{end}}{{end}}{{end}}
+  </div></td>
   <td data-label="{{T "blocked_col_actions"}}"><div class="pkt-act">
     {{/* Quiet by colour, not by opacity (DESIGN.md § Tables, amended
          2.21.1): .pkt-actions .btn rests at ink-muted and comes to full
@@ -155,6 +165,7 @@
       <dl>
         <dt>{{T "blocked_detail_time"}}</dt><dd class="pkt-flow">{{fullTime .Time}}</dd>
         {{if .TCPFlags}}<dt>{{T "blocked_detail_flags"}}</dt><dd class="pkt-flow">{{.TCPFlags}}</dd>{{end}}
+        {{with .ICMP}}<dt>{{T "blocked_detail_icmp"}}</dt><dd class="pkt-flow">{{.Type}}/{{.Code}}</dd>{{end}}
         {{if .CtState}}<dt>{{T "blocked_detail_ct"}}</dt><dd class="pkt-flow">{{.CtState}}</dd>{{end}}
         <dt>{{T "blocked_detail_ttl"}}</dt><dd class="pkt-flow">{{.TTL}}</dd>
         {{if .SrcPort}}<dt>{{T "blocked_detail_sport"}}</dt><dd class="pkt-flow">{{.SrcPort}}</dd>{{end}}
@@ -168,7 +179,7 @@
 <tr><td colspan="6" class="text-center text-ink-subtle py-6">
   {{if .CoreErr}}{{T "core_unreachable"}} {{.CoreErr}}
   {{else if not .LoggingKnown}}{{T "blocked_core_unreachable"}}
-  {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#logging">{{T "blocked_empty_off_link"}}</a>
+  {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#opt-log_blocked_connections">{{T "blocked_empty_off_link"}}</a>
   {{else if .Filtered}}{{T "blocked_no_match"}}
   {{else if .Listening}}{{T "blocked_empty_quiet" (dict "Since" (shortTime (.Since.Format "2006-01-02T15:04:05Z07:00")))}}
   {{end}}

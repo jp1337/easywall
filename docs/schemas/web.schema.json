@@ -38,7 +38,7 @@
     },
     "data_dir": {
       "type": "string",
-      "description": "Writable directory for caches (e.g. version check). Defaults to /var/lib/easywall if empty.",
+      "description": "The data directory. easywall-web keeps its state in web/ inside it: passkeys, the TOTP replay guard, the version cache, the installation identifier. Defaults to /var/lib/easywall if empty.",
       "default": "/var/lib/easywall",
       "examples": ["/var/lib/easywall"]
     },
@@ -66,7 +66,7 @@
     },
     "totp_secret": {
       "type": "string",
-      "description": "Base32 shared secret for the account's second factor, written by the interface. Empty means no factor is enrolled. Clear this, recovery_codes and <data_dir>/passkeys.json to sign in with the password alone.",
+      "description": "Base32 shared secret for the account's second factor, written by the interface. Empty means no factor is enrolled. Clear this, recovery_codes and <data_dir>/web/passkeys.json to sign in with the password alone.",
       "default": ""
     },
     "recovery_codes": {

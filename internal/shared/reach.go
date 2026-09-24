@@ -150,6 +150,10 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		}
 	}
 
+	// Ahead of step 3 since 2.22 sit the ping and reset meters, which are rate
+	// limits and match no SYN; and ahead of the whole chain the fragment drop,
+	// in a prerouting chain of its own. A connection's SYN arrives in one piece.
+	//
 	// 3. established/related is not consulted: a new connection is not
 	// established, and that is the whole distinction this function is built on.
 	// 4. ICMP is irrelevant to a TCP connection.
@@ -218,6 +222,11 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		if !PortInRule(rule.Port, port) {
 			continue
 		}
+		// The input chain holds host-scoped rules only (nftables.go builds it
+		// from FiltersHost); a forwarded-only rule opens nothing here.
+		if !rule.FiltersHost() {
+			continue
+		}
 		if len(rule.Sources) == 0 {
 			return ReachOpen, ReasonPortOpen
 		}
@@ -269,7 +278,7 @@ func InAnyEntry(src netip.Addr, entries []string) bool {
 			}
 			continue
 		}
-		if pfx, err := netip.ParsePrefix(e); err == nil && pfx.Contains(src) {
+		if pfx, err := ParseNetwork(e); err == nil && pfx.Contains(src) {
 			return true
 		}
 	}
@@ -282,7 +291,7 @@ func inAnyCIDR(src netip.Addr, cidrs []string) bool {
 		if IsListComment(c) {
 			continue
 		}
-		if pfx, err := netip.ParsePrefix(strings.TrimSpace(c)); err == nil && pfx.Contains(src) {
+		if pfx, err := ParseNetwork(c); err == nil && pfx.Contains(src) {
 			return true
 		}
 	}

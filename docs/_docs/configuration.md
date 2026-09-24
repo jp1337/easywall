@@ -66,7 +66,7 @@ easywall-core --version     # easywall-core {{ site.version }}
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `socket_path` | string | `/run/easywall/core.sock` | Unix socket path — must be accessible to the `easywall` group |
-| `data_dir` | string | `/var/lib/easywall` | Directory for `rules.json` and version cache |
+| `data_dir` | string | `/var/lib/easywall` | Directory for `rules.json`, the apply state and the panic marker. Root's alone: the web process writes only `web/` inside it |
 | `log_dir` | string | `/var/log/easywall` | Directory for audit log and rule snapshots |
 
 ### `[acceptance]`
@@ -152,10 +152,20 @@ with static addressing that genuinely need neither.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `false` | Auto-detect Docker bridge interfaces and whitelist them |
+| `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and whitelist them |
 | `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
 | `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
 | `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port |
+
+> **`enabled` ships `true` since 2.22.** A host with no `docker*`/`br-*`
+> interface gets no rule change either way. One that has such an interface
+> and shipped `false` lost every container's network at the first apply.
+> The acceptance window is blind to that: it proves the operator's own
+> connection on the `input` chain, and container traffic crosses the
+> `forward` chain instead. Existing files keep whatever they already say;
+> only a fresh install or `--write-config` sees the new default. A
+> non-Docker `br-*` interface — OpenWrt's `br-lan` is one — is trusted too;
+> set `enabled = false` on a host like that.
 
 > **`published_ports` has no control in the interface, deliberately.** One press
 > could take every container on this host off the network. The acceptance window
@@ -275,12 +285,12 @@ Two logging switches belong to no module and are set here as well:
 | `bind_addr` | string | Listen address and port — e.g. `"0.0.0.0:12227"` or `"127.0.0.1:12227"` |
 | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
-| `data_dir` | string | Directory for the version cache and the installation identifier — defaults to `/var/lib/easywall` |
+| `data_dir` | string | The data directory, `/var/lib/easywall` by default. This process keeps its state in `web/` inside it: passkeys, the TOTP replay guard, the version cache, the installation identifier |
 | `language` | string | Fallback UI locale — any code `locales/` holds a catalogue for; `en`, `de` and `fr` ship. Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
 | `session_key` | string | Hex secret that signs the session cookie — `openssl rand -hex 32`, which is 64 characters. Optional: one is generated on first start and written back here if the key is missing, shorter than 32 characters, or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
-| `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this, `recovery_codes` and `<data_dir>/passkeys.json`, then restart, for password-only sign-in |
+| `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this, `recovery_codes` and `<data_dir>/web/passkeys.json`, then restart, for password-only sign-in |
 | `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
 | `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of four possible outbound requests; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
@@ -451,7 +461,7 @@ GET https://telemetry.wdkro.de/v1/count?id=<32 hex characters>&v=<version>
 | | |
 |---|---|
 | **Not** sent | the hostname, any address, any rule, any count of what you have configured |
-| The identifier | 16 random bytes generated on your machine, in `<data_dir>/telemetry.json`. Delete the file and the next report is a new installation as far as anyone can tell |
+| The identifier | 16 random bytes generated on your machine, in `<data_dir>/web/telemetry.json`. Delete the file and the next report is a new installation as far as anyone can tell |
 | Why random | a value derived from the hostname or machine-id can be reproduced by anyone who knows the host, which turns a count into a lookup |
 | At the far end | one line — timestamp, identifier, version — and a 204. **Your address is not recorded**: it rate-limits the endpoint and never reaches disk. Lines are kept 35 days, then only the rolled-up number |
 

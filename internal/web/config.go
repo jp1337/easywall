@@ -365,10 +365,16 @@ func (c *Config) Provenance(tomlKey string) (shared.Provenance, bool) {
 	return p, true
 }
 
+// StateDir is <data_dir>/web, the one directory this process writes its state
+// in — see statedir.go for why it is not data_dir itself.
+func (c *Config) StateDir() string {
+	return filepath.Join(c.DataDir, stateSubdir)
+}
+
 // VersionCachePath returns the path for the version check cache file.
 func (c *Config) VersionCachePath() string {
 	if c.DataDir != "" {
-		return c.DataDir + "/version_cache.json"
+		return c.StateDir() + "/version_cache.json"
 	}
 	return c.SSLDir + "/../version_cache.json"
 }
@@ -377,31 +383,31 @@ func (c *Config) VersionCachePath() string {
 // last-reported stamp.
 func (c *Config) TelemetryStatePath() string {
 	if c.DataDir != "" {
-		return c.DataDir + "/telemetry.json"
+		return c.StateDir() + "/telemetry.json"
 	}
 	return c.SSLDir + "/../telemetry.json"
 }
 
 // TOTPReplayPath returns the path for the last accepted TOTP step.
 //
-// In data_dir and not in web.toml: this changes once per login, and web.toml is
-// rewritten in place on a directory the packaged layout does not let this
-// process create a temp file in.
+// In <data_dir>/web and not in web.toml: this changes once per login, and
+// web.toml is rewritten in place on a directory the packaged layout does not
+// let this process create a temp file in.
 func (c *Config) TOTPReplayPath() string {
 	if c.DataDir != "" {
-		return c.DataDir + "/totp_replay.json"
+		return c.StateDir() + "/totp_replay.json"
 	}
 	return c.SSLDir + "/../totp_replay.json"
 }
 
 // PasskeysPath returns the path for the enrolled passkey store.
 //
-// In data_dir for the same reason as TOTPReplayPath, and more so: the
+// In <data_dir>/web for the same reason as TOTPReplayPath, and more so: the
 // signature counter changes on every passkey login, so this file is written
 // far more often than the TOTP replay step is.
 func (c *Config) PasskeysPath() string {
 	if c.DataDir != "" {
-		return c.DataDir + "/passkeys.json"
+		return c.StateDir() + "/passkeys.json"
 	}
 	return c.SSLDir + "/../passkeys.json"
 }

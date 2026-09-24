@@ -35,10 +35,33 @@ freshly installed package.
 | `/etc/easywall/easywall.toml` | `root:root` | 0600 | the root daemon's config. A network-facing process able to rewrite it defeats the two-process split |
 | `/etc/easywall/web.toml` | `easywall:easywall` | 0600 | the wizard and the password page rewrite it |
 | `/etc/easywall/ssl` | `easywall:easywall` | 0750 | the web process generates and renews its own certificate |
-| `/var/lib/easywall` | `root:easywall` | 0770 | **shared**: the core writes `rules.json`, the web user writes its caches |
+| `/var/lib/easywall` | `root:easywall` | 0750 | the core's: rules, apply state, panic marker. Traversable by the web user, not writable — see below |
+| `/var/lib/easywall/web` | `easywall:easywall` | 0700 | the web process's state: passkeys, TOTP replay, version cache, telemetry id |
 | `/var/log/easywall` | `root:easywall` | 0750 | audit log, rotated by logrotate |
 | `/run/easywall` | `root:easywall` | 0750 | created by systemd from the unit's `User=`/`Group=` |
 | `/lib/systemd/system/easywall-{core,web,selftest}.service` | `root:root` | 0644 | checked by installed path. A unit file nothing installs does not exist on the machine |
+
+## The data directory stopped being shared
+
+Until 2.22 `/var/lib/easywall` was `0770`, and the web user could replace the
+core's files in it and plant links root wrote through
+([threat model](threat-model.md#data_dir-is-roots)). `postinst` now sets `0750`
+first — from that line only root changes what is in it — then, with both
+services stopped by `prerm`:
+
+| It finds | It does |
+|---|---|
+| `web` that is not a real directory | removes it, before `install -d` could chown through it |
+| any link | removes it, never follows it |
+| one of the web's five file names, owned by the web user | copies it in root's directory, then renames the copy into `web/`. Never written into `web/` in place: the web user can swap a name there for a link between `install`'s chown and its chmod |
+| `panic` not owned by root | removes it: only the core makes one |
+| an entry that is not a regular file | removes it: the core never makes one here |
+| anything else not owned by root | replaces it with a root-owned copy, and names it |
+
+Every branch is a no-op on the next upgrade. `docker/entrypoint.sh` carries the
+same loop in the same order. build.yml runs both against a planted 2.21 layout:
+"An upgrade takes the shared data directory apart safely" (`build-deb`) and
+"The entrypoint takes a 2.21 data directory apart safely" (`build-docker`).
 
 ## Neither config is shipped under its own name
 
@@ -106,7 +129,7 @@ normally leans on without anyone noticing. Two things broke:
 
 The fix is not a wider capability set: the unit runs the daemon in the `easywall`
 **group**. The owner of a file may give it to a group it belongs to, no capability
-required, and the data directory is group-writable. `Group=easywall` in that unit
+required, and the data directory is root-owned. `Group=easywall` in that unit
 is load-bearing, and deleting it looks harmless.
 
 `ProtectSystem=full` is what gives `ReadWritePaths=` anything to do. Without it

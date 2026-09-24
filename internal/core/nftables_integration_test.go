@@ -446,15 +446,23 @@ func TestIntegration_Apply_InvalidPackets_AddsRule(t *testing.T) {
 	}
 }
 
+// The fragment drop is the one module outside the input chain, which never sees
+// a fragment (TestIntegration_FragmentDropDropsFragments). Its chain exists
+// only while the switch is on, so a host with it off keeps the table it had.
 func TestIntegration_Apply_Fragments_AddsRule(t *testing.T) {
 	m := newIntegrationManager(t)
 	base := baseInputRules(t, m)
+	if hasChainName(t, m, fragmentChainName) {
+		t.Errorf("the %s chain exists with drop_fragments off", fragmentChainName)
+	}
 
 	applyEmpty(t, m, shared.FirewallOptions{Fragments: true})
-	count := ruleCount(t, m, "input")
-
-	if count != base+1 {
-		t.Errorf("Fragments: expected %d rules, got %d", base+1, count)
+	if count := ruleCount(t, m, "input"); count != base {
+		t.Errorf("Fragments: the input chain went from %d rules to %d; the drop belongs in %s",
+			base, count, fragmentChainName)
+	}
+	if count := ruleCount(t, m, fragmentChainName); count != 1 {
+		t.Errorf("Fragments: expected 1 rule in %s, got %d", fragmentChainName, count)
 	}
 }
 

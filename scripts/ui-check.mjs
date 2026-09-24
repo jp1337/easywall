@@ -16,7 +16,10 @@
  *     missing asset gets caught across the whole app at once.
  *
  * Expects easywall-web already running in demo mode with no password set, so the
- * run starts at the first-run wizard and sets up its own account. Usage:
+ * run starts at the first-run wizard and sets up its own account. The wizard
+ * asks for the setup token easywall-web printed at start, which this reads out
+ * of web.log beside the config (EASYWALL_WEB_LOG overrides) — the file CI's ui
+ * job sends the server's output to. Usage:
  *
  *   EASYWALL_URL=https://127.0.0.1:12227 node scripts/ui-check.mjs
  *
@@ -40,7 +43,7 @@ import { chromium } from 'playwright-core';
 import { createHmac } from 'node:crypto';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import https from 'node:https';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -199,6 +202,39 @@ function readAcceptanceDurationMin() {
 // never waits anywhere near the real default of 120s.
 const WINDOW_SECONDS = readAcceptanceDurationMin();
 
+/**
+ * The setup token easywall-web printed at start, out of its JSON log. The last
+ * line that carries one, because a restart prints a new token and only the
+ * newest is valid. Since 2.22 /firstrun refuses step 1 without it, so a run
+ * that drives the wizard reads the log the way an operator does.
+ */
+function setupTokenIn(logText) {
+  let token = null;
+  for (const line of logText.split('\n')) {
+    if (!line.includes('setup token')) continue;
+    try {
+      token = JSON.parse(line).token || token;
+    } catch {
+      // not one of easywall-web's JSON lines
+    }
+  }
+  return token;
+}
+
+/** Polls read() until it yields a setup token; where names the source in the error. */
+async function waitForSetupToken(read, where, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const token = setupTokenIn(read());
+    if (token) return token;
+    if (Date.now() > deadline) {
+      throw new Error(`no "setup token" line in ${where} within ${timeoutMs}ms — ` +
+        '/firstrun refuses step 1 without it');
+    }
+    await sleep(250);
+  }
+}
+
 /** Polls an HTTPS URL, ignoring certificate errors, until it answers or times out. */
 async function waitForPort(url, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
@@ -236,6 +272,15 @@ async function setUpAccount(page) {
     console.log('  ok   an account already exists; skipping the wizard');
     return;
   }
+  const logPath = process.env.EASYWALL_WEB_LOG || join(dirname(CONFIG_PATH), 'web.log');
+  const token = await waitForSetupToken(() => {
+    try {
+      return readFileSync(logPath, 'utf8');
+    } catch {
+      return '';
+    }
+  }, logPath);
+  await page.fill('input[name=setup_token]', token);
   await page.fill('input[name=username]', USER);
   await page.fill('input[name=password]', PASS);
   await page.fill('input[name=password_confirm]', PASS);
@@ -920,6 +965,56 @@ async function checkBlockedTailHoldsStill(page) {
 }
 
 /**
+ * A tail that loses its session navigates to /login rather than swapping the
+ * login page into the table. The middleware answered htmx with a 303, which
+ * the XHR followed, and /login rendered inside /blocked's Time column.
+ */
+async function checkASignedOutTailNavigates(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  await page.mouse.move(1, 1);            // the tail pauses under the pointer
+  await ctx.clearCookies();               // the session is gone, as after a timeout
+  await page.waitForURL(/\/login$/, { timeout: 12000 }).catch(() => {});
+  const url = page.url();
+  const swapped = await page.locator('#blocked-rows form[action="/login"]').count();
+  await ctx.close();
+  if (swapped > 0) { fail('signed-out tail', 'the login form was swapped into #blocked-rows'); return; }
+  if (!url.endsWith('/login')) { fail('signed-out tail', `still at ${url} after the session ended`); return; }
+  console.log('  ok   a signed-out tail navigates to /login');
+}
+
+/**
+ * A default-drop row says why, and a module's chip leads to its card
+ * (2.23 G1, G4). The demo's shapes include a closed port, a port open only
+ * for other sources and an IPv4 ping, so every default-drop row on the page
+ * has a reason to give; one without is the defect, as is a sentence still
+ * carrying its message id or an unfilled placeholder.
+ */
+async function checkBlockedSaysWhy(page) {
+  await page.goto(`${BASE}/blocked?rule=drop`, { waitUntil: 'networkidle' });
+  const r = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#blocked-rows tr')].filter(tr => tr.querySelector('.log-action'));
+    const whys = rows.map(tr => (tr.querySelector('.pkt-why') || {}).textContent || '');
+    return { n: rows.length, missing: whys.filter(w => !w.trim()).length,
+      raw: whys.filter(w => w.includes('blocked_why_') || w.includes('<no value>')) };
+  });
+  if (r.n === 0) { fail('blocked reasons', 'no default-drop rows — the demo produced none'); return; }
+  if (r.missing) { fail('blocked reasons', `${r.missing} of ${r.n} default-drop rows give no reason`); return; }
+  if (r.raw.length) { fail('blocked reasons', `unrendered: ${r.raw[0]}`); return; }
+
+  await page.goto(`${BASE}/blocked?rule=portscan`, { waitUntil: 'networkidle' });
+  const href = await page.getAttribute('#blocked-rows a.log-action', 'href').catch(() => null);
+  if (!href || !href.startsWith('/options#opt-')) { fail('blocked reasons', `a port-scan chip leads to ${href}`); return; }
+  await page.goto(`${BASE}${href}`, { waitUntil: 'networkidle' });
+  if (await page.locator(`#${href.split('#')[1]}`).count() !== 1) {
+    fail('blocked reasons', `${href} names no card on /options`);
+    return;
+  }
+  console.log(`  ok   ${r.n} default-drop rows each say why; a module chip reaches its card`);
+}
+
+/**
  * A /blocked card at 390px in German keeps an address whole and its Details
  * clear of the buttons. The card's td is a flex row with overflow-wrap:
  * anywhere, so each link of the route used to be its own flex item and broke
@@ -964,6 +1059,50 @@ async function checkBlockedCardsKeepValuesWhole(browser, session) {
   if (bad.n === 0) { fail('blocked cards at 390px [de]', 'no rows to measure'); return; }
   if (bad.out.length) { fail('blocked cards at 390px [de]', bad.out.slice(0, 5).join('; ')); return; }
   console.log('  ok   blocked cards keep addresses whole and Details clear at 390px in German');
+}
+
+/**
+ * An open /options disclosure fits its card at 390px in German. The bogon
+ * filter's, because its German "Kann stören" line is the longest of the
+ * fourteen. .module is overflow: hidden, so a line running past the card is
+ * clipped in place — the page does not widen and no scroll container
+ * overflows, so neither check above can see it.
+ */
+async function checkOptionsDisclosureFits(browser, session) {
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session });
+  await ctx.addCookies([{ name: 'easywall_lang', value: 'de', url: BASE }]);
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await page.goto(`${BASE}/options`, { waitUntil: 'networkidle' });
+  const card = page.locator('#opt-bogon_filter');
+  await card.locator('.module-help summary').click();
+  const bad = await card.evaluate(el => {
+    const out = [];
+    const details = el.querySelector('.module-help');
+    if (!details.open) out.push('the disclosure did not open');
+    const lines = n => {
+      const r = document.createRange();
+      r.selectNodeContents(n);
+      return new Set([...r.getClientRects()].map(q => Math.round(q.top))).size;
+    };
+    if (lines(details.querySelector('summary')) > 1) out.push('the summary wraps');
+    const box = el.getBoundingClientRect();
+    for (const n of details.querySelectorAll('summary, dt, dd, a')) {
+      const what = `<${n.tagName.toLowerCase()}> "${n.textContent.trim().slice(0, 32)}"`;
+      const r = n.getBoundingClientRect();
+      if (r.width === 0) out.push(`${what} is not laid out`);
+      if (r.left < box.left - 0.5 || r.right > box.right + 0.5) out.push(`${what} runs past the card`);
+      if (n.scrollWidth > n.clientWidth + 1) out.push(`${what} is clipped`);
+    }
+    return out;
+  });
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  if (overflow > 0) bad.push(`the page scrolls ${overflow}px sideways`);
+  await checkContainersDoNotOverflow(page, 'de 390px, disclosure open', '/options');
+  await ctx.close();
+  if (bad.length) { fail('options disclosure at 390px [de]', bad.join('; ')); return; }
+  console.log('  ok   an open /options disclosure fits its card at 390px in German');
 }
 
 /**
@@ -1823,7 +1962,10 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
+  await checkBlockedSaysWhy(p);
+  await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
+  await checkOptionsDisclosureFits(browser, session);
   await checkAcceptanceWindow(p);
   await checkEnrolmentFlow(browser);
   await checkTheGate(browser);
@@ -2109,10 +2251,16 @@ async function takeWizardScreenshots(browser, theme) {
     `update_check = false`,
   ].join('\n'));
 
-  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  // stdout piped rather than inherited: the setup token is in it, and the
+  // wizard refuses step 1 without it. Still echoed, so the log reads as before.
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')],
+    { stdio: ['ignore', 'pipe', 'inherit'] });
+  let out = '';
+  proc.stdout.on('data', d => { out += d; process.stdout.write(d); });
   try {
     const base = `https://127.0.0.1:${port}`;
     await waitForPort(`${base}/firstrun`);
+    const token = await waitForSetupToken(() => out, "the wizard instance's output");
 
     const ctx = await screenshotContext(browser, theme);
     const page = await ctx.newPage();
@@ -2120,6 +2268,7 @@ async function takeWizardScreenshots(browser, theme) {
     await page.goto(`${base}/firstrun`, { waitUntil: 'load' });
     await shoot(page, 'firstrun', theme);
 
+    await page.fill('input[name=setup_token]', token);
     await page.fill('input[name=username]', USER);
     await page.fill('input[name=password]', PASS);
     await page.fill('input[name=password_confirm]', PASS);
@@ -2248,10 +2397,18 @@ try {
   await setup.close();
 
   if (screenshotMode) {
-    if (screenshotArgs.length) {
-      await takeScreenshots(browser, session, screenshotArgs);
-    } else {
+    // "firstrun" is not a path a signed-in session can visit: it names the
+    // three wizard screens, which takeWizardScreenshots shoots on its own
+    // throwaway instance.
+    const wizard = screenshotArgs.includes('/firstrun');
+    const paths = screenshotArgs.filter(a => a !== '/firstrun');
+    if (!screenshotArgs.length) {
       await takeFullScreenshotSet(browser, session);
+    } else {
+      if (paths.length) await takeScreenshots(browser, session, paths);
+      if (wizard) {
+        for (const theme of ['light', 'dark']) await takeWizardScreenshots(browser, theme);
+      }
     }
   } else {
     await runChecks(browser, session);

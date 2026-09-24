@@ -281,6 +281,8 @@ key  = ""
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+	// NewServer makes data_dir/web before it opens a store; so does this.
+	prepareStateDir(cfg.DataDir)
 	// Set a real hashed password for login tests
 	hash, err := HashPassword("testpassword123!")
 	if err != nil {
@@ -342,6 +344,17 @@ key  = ""
 	s.router = s.buildRouter(cfg)
 	return s
 }
+
+// testSetupToken is the setup token every first-run fixture holds, and
+// withSetupToken the form field that proves it. 32 base32 characters, the
+// 20 bytes newTOTPSecret draws. Every step-1 POST in this package carries it
+// unless the test is about the token: without it the request is refused
+// before any other field is read, and a test of the username check would go
+// green on the token check instead.
+const (
+	testSetupToken = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+	withSetupToken = "&setup_token=" + testSetupToken
+)
 
 // newFirstRunTestServer creates a Server in first-run mode (no password set).
 func newFirstRunTestServer(t *testing.T, fc *fakeCore) *Server {
@@ -406,6 +419,7 @@ key  = ""
 		tmpl:                tmpl,
 		version:             shared.NewChecker(cfg.VersionCachePath(), cfg.UpdateCheckEnabled()),
 		certs:               certs,
+		setupToken:          formatTOTPSecret(testSetupToken),
 	}
 	s.passkeyCount = func() int { return len(s.passkeys.all()) }
 	// Before buildRouter: it captures s.onLoginBlocked, which reaches for

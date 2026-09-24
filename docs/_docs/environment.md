@@ -53,7 +53,7 @@ the one in effect.
 | `EASYWALL_WEB_BIND_ADDR` | `bind_addr` | string | — | Listen address and port — e.g. `0.0.0.0:12227` |
 | `EASYWALL_WEB_SOCKET_PATH` | `socket_path` | string | — | Path to the core Unix socket — must match `easywall.toml` |
 | `EASYWALL_WEB_SSL_DIR` | `ssl_dir` | string | — | Directory where the auto-generated TLS cert/key are stored |
-| `EASYWALL_WEB_DATA_DIR` | `data_dir` | string | — | Directory for the version cache and the installation identifier |
+| `EASYWALL_WEB_DATA_DIR` | `data_dir` | string | — | The data directory; the web process keeps its state in `web/` inside it |
 | `EASYWALL_WEB_TLS_CERT` | `tls.cert` | string | — | Path to a custom TLS certificate PEM file |
 | `EASYWALL_WEB_TLS_KEY` | `tls.key` | string | — | Path to the matching private key PEM file |
 | `EASYWALL_WEB_LANGUAGE` | `language` | string | sidebar switch, per browser | Fallback UI locale — `en` or `de` |
@@ -145,7 +145,7 @@ services:
       - no-new-privileges:true
 
     volumes:
-      - ./config:/etc/easywall
+      - ./easywall-config:/etc/easywall
       - easywall_data:/var/lib/easywall
       - easywall_logs:/var/log/easywall
 

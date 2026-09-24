@@ -21,6 +21,10 @@ coverage*.html
 # SSL certificates (generated at runtime)
 ssl/
 
+# docker-compose.yml's /etc/easywall — the account, the session key and the
+# certificate live here once the container has started. Never commit it.
+/easywall-config/
+
 # Runtime data (generated at runtime)
 data/rules.json
 data/version_cache.json
