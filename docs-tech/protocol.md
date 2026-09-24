@@ -31,18 +31,19 @@ Twenty-five command types:
 
 ## Size
 
-`shared.MaxMessageBytes`, **4 MiB**, each way (1 MiB before 2.23). Both ends read
+`shared.MaxMessageBytes`, **8 MiB**, each way (1 MiB before 2.23). Both ends read
 one byte past it:
 
 | | Over the limit |
 |---|---|
 | request, at the core (`handleConn`) | answered `request too large` (`ErrRequestTooLargeText`), nothing dispatched. It used to be cut at the limit and answered `invalid JSON command` |
 | request, at the sender (`SendCommand`) | not sent: `ErrRequestTooLarge`. The core stops reading at the limit, so the rest of the write would end in a broken pipe instead of the answer |
-| reply, at `SendCommand` | `read response: longer than 4194304 bytes`, not truncated JSON |
+| reply, at `SendCommand` | `read response: longer than 8388608 bytes`, not truncated JSON |
 
-Why 4: 100 000 entries in one `UPDATE_FEED`. As bare IPv6 addresses that fits;
-as `/128` prefixes it does not, so the fetcher sends full-length prefixes as
-addresses (plan P12). `TestSendCommand_RequestLimitIsExact`,
+Why 8: 100 000 entries in one `UPDATE_FEED`. The longest IPv6 address, 100 000
+times, is 4 200 059 bytes bare and 4 600 059 as `/128` — both over 4 MiB, the
+first limit planned (plan P12). `TestMaxMessageBytesCarriesAFullFeed` pins both,
+`TestSendCommand_RequestLimitIsExact`,
 `TestSendCommand_ResponseLimitIsExact`, `TestDaemonHandleConn_RequestLimitIsExact`.
 
 ## `UPDATE_FEED`

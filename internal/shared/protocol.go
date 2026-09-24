@@ -358,12 +358,13 @@ type ValidateCustomResult struct {
 }
 
 // MaxMessageBytes bounds one request and one reply on the socket, each way.
-// Four MiB since 2.23: one UPDATE_FEED carries up to FeedMaxEntries prefixes,
-// and 100 000 IPv6 addresses are about 4.2 MB of JSON as prefixes and well
-// under four as bare addresses (plan P12). It was 1 MiB, and a longer request
+// Eight MiB since 2.23: one UPDATE_FEED carries up to FeedMaxEntries entries,
+// and 100 000 of the longest IPv6 addresses measure 4 200 059 bytes bare and
+// 4 600 059 as /128 prefixes — over four MiB either way (plan P12,
+// TestMaxMessageBytesCarriesAFullFeed). It was 1 MiB, and a longer request
 // was cut at the limit and answered "invalid JSON command" — a truncation
 // indistinguishable from a malformed message.
-const MaxMessageBytes = 4 << 20
+const MaxMessageBytes = 8 << 20
 
 // ErrRequestTooLargeText is the exact Response.Error the core returns for a
 // request longer than MaxMessageBytes. SendCommand refuses to send one in the
