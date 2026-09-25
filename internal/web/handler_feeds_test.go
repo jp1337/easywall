@@ -1,7 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"slices"
@@ -145,6 +148,39 @@ func TestSavingTheFeedsFetchesOnlyTheNewOnes(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 	if n := asked.Load(); n != 2 {
 		t.Errorf("%d first fetches for two newly switched-on feeds", n)
+	}
+}
+
+// Final review I2: an import that switches feeds on starts their first fetch
+// as the card does — only for the ids not staged before it, counted the same
+// way, as GET_FEEDS.
+func TestAnImportFetchesTheFeedsItSwitchesOn(t *testing.T) {
+	var all []shared.FeedStatus
+	for _, f := range shared.FeedCatalogue {
+		all = append(all, shared.FeedStatus{ID: f.ID, Stored: true})
+	}
+	s, fc, _ := feedsCore(t, shared.RulesState{Staged: shared.Rules{Feeds: []string{"dshield"}}}, all)
+	s.feeds = newFeedRunner(s.client, s.feedStore)
+	fc.SetResponse(shared.CmdImportRules, shared.Response{Success: true})
+	var asked atomic.Int32
+	fc.OnCommand(shared.CmdGetFeeds, func(shared.Command) { asked.Add(1) })
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	part, _ := mw.CreateFormFile("rules_file", "rules.json")
+	_, _ = part.Write([]byte(`{"feeds":["dshield","cins","spamhaus-drop"]}`))
+	_ = mw.Close()
+	req := httptest.NewRequest("POST", "/import", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.AddCookie(makeAuthCookie(t, s))
+	rec := httptest.NewRecorder()
+	s.router.ServeHTTP(rec, req)
+	assertRedirect(t, rec, "/dashboard")
+
+	waitUntil(t, 2*time.Second, func() bool { return asked.Load() >= 2 })
+	time.Sleep(150 * time.Millisecond)
+	if n := asked.Load(); n != 2 {
+		t.Errorf("%d first fetches for two newly imported feeds, want 2", n)
 	}
 }
 

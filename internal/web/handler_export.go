@@ -1,11 +1,15 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // handleExport streams the current rule set as a downloadable JSON file.
@@ -65,11 +69,27 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// What was staged before, so the import's newly switched-on feeds get their
+	// first fetch at once, as a switch in the Feeds card does (spec §3, final
+	// review I2). Unreadable, every imported feed counts as new: refreshNow
+	// does nothing for a feed the core already holds a copy of.
+	var before []string
+	if state, err := s.client.GetRules(); err == nil {
+		before = state.Staged.Feeds
+	}
 	if err := s.client.ImportRules(data); err != nil {
 		slog.Warn("import rules error", "error", err)
 		s.setFlash(w, r, "import_error")
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
+	}
+	// The core accepted it, so it parses as the core parsed it.
+	var imported shared.Rules
+	_ = json.Unmarshal(data, &imported)
+	for _, id := range imported.Feeds {
+		if !slices.Contains(before, id) {
+			s.refreshFeedNow(id)
+		}
 	}
 
 	s.setFlash(w, r, "import_success")
