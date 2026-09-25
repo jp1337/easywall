@@ -405,6 +405,7 @@
   {"id": "feeds_title", "translation": "Fremdlisten"},
   {"id": "feeds_start_with", "translation": "Am besten mit Spamhaus DROP und DShield beginnen."},
   {"id": "feeds_intro", "translation": "Listen von Angreifern, die andere veröffentlichen, geprüft nach der Erlaubnisliste. Jede ist aus, bis man sie einschaltet, und das Schalten wird vorgemerkt wie jede Regel."},
+  {"id": "feeds_refresh_note", "translation": "Eine Aktualisierung lädt die neue Kopie ohne Bestätigungsfenster — setze die Adresse, von der aus du diesen Host verwaltest, auf die Erlaubnisliste."},
   {"id": "feeds_demo_note", "translation": "Die Demo ruft keine Listen ab. Die Zeilen unten sind Beispiele, und eine hier eingeschaltete Fremdliste bleibt ungeladen."},
   {"id": "feeds_core_unread", "translation": "Der Core-Dienst hat nicht geantwortet; Einträge, Zeiten und Paketzähler fehlen deshalb."},
   {"id": "feeds_fact_verdict", "translation": "Einschätzung"},
