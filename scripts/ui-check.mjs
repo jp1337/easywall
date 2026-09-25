@@ -1038,7 +1038,7 @@ async function checkBlockedSaysWhy(page) {
  */
 async function checkFeedsCard(page) {
   await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
-  const rows = await page.locator('#feeds .module[id^="feed-"]').count();
+  const rows = await page.locator('#feeds tr[id^="feed-"]').count();
   if (rows < 8) { fail('feeds card', `${rows} feed rows on /blocklist, want the eight catalogue feeds`); return; }
   const badLinks = await page.$$eval('#feeds a[target="_blank"]', as => as
     .filter(a => !/\bnoopener\b/.test(a.rel) || !/\bnoreferrer\b/.test(a.rel) || !a.href.startsWith('https://'))

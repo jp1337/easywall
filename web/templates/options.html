@@ -40,9 +40,12 @@
           hx-post="/options"
           hx-swap="none">
 
-    <div class="group-head">
-      <h2 class="group-title">{{T "options_group_attack"}}</h2>
-      <span class="group-note">{{T "options_group_attack_note"}}</span>
+    <section class="card options-group" aria-labelledby="options-attack-title">
+    <div class="section-head">
+      <div class="section-head-text">
+        <h2 class="section-title" id="options-attack-title">{{T "options_group_attack"}}</h2>
+        <p class="section-desc">{{T "options_group_attack_note"}}</p>
+      </div>
     </div>
 
     <div class="module-grid">
@@ -225,10 +228,14 @@
       </div>
 
     </div>
+    </section>
 
-    <div class="group-head">
-      <h2 class="group-title">{{T "options_group_filter"}}</h2>
-      <span class="group-note">{{T "options_group_filter_note"}}</span>
+    <section class="card options-group" aria-labelledby="options-filter-title">
+    <div class="section-head">
+      <div class="section-head-text">
+        <h2 class="section-title" id="options-filter-title">{{T "options_group_filter"}}</h2>
+        <p class="section-desc">{{T "options_group_filter_note"}}</p>
+      </div>
     </div>
 
     <div class="module-grid">
@@ -318,6 +325,7 @@
       </div>
 
     </div>
+    </section>
 
     <div class="save-bar">
       <button type="submit" class="btn btn-primary">

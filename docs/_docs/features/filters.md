@@ -27,7 +27,7 @@ The question most people arrive with. Details for each module are below.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/options" ext="png"
-     alt="The firewall options page: a card naming which switches three kinds of host want, then a grid of protection module cards under Attack protection and Traffic filtering, each with a toggle, its own parameters and a closed What does this change? disclosure. A module that is switched on carries an edge down its left side." %}
+     alt="The firewall options page: a card naming which switches three kinds of host want, then two cards, Attack protection and Traffic filtering, with one row per protection module: its name and what it does, its parameters, its switch at the right edge and a closed What does this change? disclosure. A module that is switched on carries an edge down its left side." %}
   <figcaption>Toggling a module here stages the change at once — the kernel does not see it until the next apply.</figcaption>
 </figure>
 

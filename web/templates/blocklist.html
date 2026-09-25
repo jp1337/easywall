@@ -95,155 +95,169 @@
 {{template "foot" .}}
 {{end}}
 
-{{/* The Feeds card (spec §5): one .module per feed, the options page's card,
-     because a feed is the same kind of thing as a protection — on or off, with
-     a stated cost. The switch is the staged position; the State fact says
-     whether that is also what the kernel holds (D2). */}}
+{{/* The Feeds card (spec §5). A table, like every other list of rules here
+     (DESIGN.md § Tables): one row per feed, the facts an operator compares
+     across feeds in columns, the reasoning behind each one in its row's
+     Details — the disclosure /blocked already ships. The switch is the staged
+     position; State says whether that is also what the kernel holds (D2).
+     It was a grid of the options page's cards until the 2.23 review: a
+     second grammar on the page, stretched to the tallest card in each row. */}}
 {{define "feeds_card"}}
 {{$card := .Card}}{{$demo := .Demo}}
-<section id="feeds" aria-labelledby="feeds-title">
-  <div class="group-head">
-    <h2 class="group-title" id="feeds-title">{{T "feeds_title"}}</h2>
-    <span class="group-note">{{T "feeds_start_with"}}</span>
-  </div>
-  <p class="feeds-intro">{{T "feeds_intro"}} <strong>{{T "feeds_refresh_note"}}</strong></p>
-  {{if $demo}}<div role="status" class="alert mb-4"><span>{{T "feeds_demo_note"}}</span></div>{{end}}
-  {{if not $card.CoreRead}}<div role="alert" class="alert alert-warn mb-4"><span>{{T "feeds_core_unread"}}</span></div>{{end}}
-
+<section id="feeds" class="card feeds-section" aria-labelledby="feeds-title">
   <form method="POST" action="/blocklist/feeds">
-    <div class="module-grid">
-      {{range $card.Rows}}{{if or (not .Own) .Configured .Staged .Enabled}}{{template "feed_row" .}}{{end}}{{end}}
+    <div class="section-head">
+      <div class="section-head-text">
+        <h2 class="section-title" id="feeds-title">{{T "feeds_title"}}</h2>
+        <p class="section-desc">{{T "feeds_intro"}} {{T "feeds_start_with"}} <strong>{{T "feeds_refresh_note"}}</strong></p>
+      </div>
     </div>
-    <div class="save-bar">
-      <button type="submit" class="btn btn-primary">{{T "save"}}</button>
+    {{if $demo}}<div role="status" class="alert card-alert"><span>{{T "feeds_demo_note"}}</span></div>{{end}}
+    {{if not $card.CoreRead}}<div role="alert" class="alert alert-warn card-alert"><span>{{T "feeds_core_unread"}}</span></div>{{end}}
+    <div class="table-wrap">
+      <table class="table table-reflow feed-table">
+        <thead>
+          <tr>
+            <th class="col-flex">{{T "feeds_col_feed"}}</th>
+            <th>{{T "feeds_fact_verdict"}}</th>
+            <th>{{T "feeds_fact_state"}}</th>
+            <th>{{T "feeds_fact_status"}}</th>
+            <th class="col-count">{{T "feeds_fact_entries"}}</th>
+            <th class="col-count">{{T "feeds_col_packets"}}</th>
+            <th class="col-switch">{{T "feeds_col_on"}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range $card.Rows}}{{if or (not .Own) .Configured .Staged .Enabled}}{{template "feed_row" .}}{{end}}{{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="editor-foot">
+      <button type="submit" class="btn btn-primary">
+        <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+        {{T "save"}}
+      </button>
       <span class="save-bar-note">{{richText (T "staged_note") "/apply" (T "link_apply_rules")}}</span>
     </div>
   </form>
+</section>
 
-  <div class="group-head" id="own-feeds">
-    <h2 class="group-title">{{T "feeds_own_title"}}</h2>
-    <span class="group-note">{{T "feeds_own_note"}}</span>
+{{/* Own feeds: three rows of four fields, one form each — a row is saved on
+     its own, and the password is never written into the page: an empty field
+     keeps the stored one, and the placeholder only says one is stored. Not
+     autocomplete="current-password" or "username": the browser would offer
+     the easywall login for a stranger's list. */}}
+<section id="own-feeds" class="card feeds-section" aria-labelledby="own-feeds-title">
+  <div class="section-head">
+    <div class="section-head-text">
+      <h2 class="section-title" id="own-feeds-title">{{T "feeds_own_title"}}</h2>
+      <p class="section-desc">{{T "feeds_own_note"}} {{richText (T "feeds_own_url_help")}}</p>
+    </div>
   </div>
-  {{if $demo}}<div role="status" class="alert mb-4"><span>{{T "feeds_own_err_demo"}}</span></div>{{end}}
-  <div class="module-grid">
-    {{range $card.Rows}}{{if .Own}}
-    {{$typed := eq $card.OwnErrSlot .OwnN}}
-    {{/* The password is never written into the page: an empty field keeps
-         the stored one, and the placeholder only says one is stored. Not
-         autocomplete="current-password" or "username": the browser would
-         offer the easywall login for a stranger's list. */}}
-    <form method="POST" action="/blocklist/own-feeds" class="module">
-      <input type="hidden" name="n" value="{{.OwnN}}">
-      <div class="form-stack">
-        <div class="module-name">{{T "feeds_own_default" (dict "N" .OwnN)}}</div>
-        <div class="field">
-          <label class="field-label" for="own-{{.OwnN}}-name">{{T "feeds_own_name"}}</label>
-          <input type="text" id="own-{{.OwnN}}-name" name="name" maxlength="64" class="input w-full" autocomplete="off"
-                 value="{{if or .Configured $typed}}{{.Name}}{{end}}"{{if $demo}} disabled{{end}}>
-        </div>
-        <div class="field">
-          <label class="field-label" for="own-{{.OwnN}}-url">{{T "feeds_own_url"}}</label>
-          <input type="url" id="own-{{.OwnN}}-url" name="url" maxlength="2048" class="input input-data w-full" autocomplete="off"
-                 value="{{.URL}}"{{if $demo}} disabled{{end}}>
-          <p class="field-help">{{richText (T "feeds_own_url_help")}}</p>
-        </div>
-        <div class="field">
-          <label class="field-label" for="own-{{.OwnN}}-user">{{T "feeds_own_user"}}</label>
-          <input type="text" id="own-{{.OwnN}}-user" name="user" maxlength="256" class="input w-full" autocomplete="off"
-                 value="{{.User}}"{{if $demo}} disabled{{end}}>
-        </div>
-        <div class="field">
-          <label class="field-label" for="own-{{.OwnN}}-password">{{T "feeds_own_password"}}</label>
-          <input type="password" id="own-{{.OwnN}}-password" name="password" maxlength="256" class="input w-full" autocomplete="new-password"
-                 {{if .HasPassword}}placeholder="{{T "feeds_own_password_kept"}}"{{end}}{{if $demo}} disabled{{end}}>
-        </div>
-        {{if $typed}}<p class="field-error" role="alert">{{T $card.OwnErrKey}}</p>{{end}}
-        <div class="flex gap-2">
-          <button type="submit" class="btn btn-sm"{{if $demo}} disabled{{end}}>{{T "save"}}</button>
-          {{if .Configured}}<button type="submit" name="clear" value="1" class="btn btn-sm btn-danger"{{if $demo}} disabled{{end}}>{{T "feeds_own_remove"}}</button>{{end}}
-        </div>
-      </div>
-    </form>
-    {{end}}{{end}}
-  </div>
+  {{if $demo}}<div role="status" class="alert card-alert"><span>{{T "feeds_own_err_demo"}}</span></div>{{end}}
+  {{range $card.Rows}}{{if .Own}}
+  {{$typed := eq $card.OwnErrSlot .OwnN}}
+  <form method="POST" action="/blocklist/own-feeds" class="own-feed">
+    <input type="hidden" name="n" value="{{.OwnN}}">
+    <div class="own-feed-n">{{T "feeds_own_default" (dict "N" .OwnN)}}</div>
+    <div class="field">
+      <label class="field-label" for="own-{{.OwnN}}-name">{{T "feeds_own_name"}}</label>
+      <input type="text" id="own-{{.OwnN}}-name" name="name" maxlength="64" class="input input-sm w-full" autocomplete="off"
+             value="{{if or .Configured $typed}}{{.Name}}{{end}}"{{if $demo}} disabled{{end}}>
+    </div>
+    <div class="field">
+      <label class="field-label" for="own-{{.OwnN}}-url">{{T "feeds_own_url"}}</label>
+      <input type="url" id="own-{{.OwnN}}-url" name="url" maxlength="2048" class="input input-sm input-data w-full" autocomplete="off"
+             value="{{.URL}}"{{if $demo}} disabled{{end}}>
+    </div>
+    <div class="field">
+      <label class="field-label" for="own-{{.OwnN}}-user">{{T "feeds_own_user"}}</label>
+      <input type="text" id="own-{{.OwnN}}-user" name="user" maxlength="256" class="input input-sm w-full" autocomplete="off"
+             value="{{.User}}"{{if $demo}} disabled{{end}}>
+    </div>
+    <div class="field">
+      <label class="field-label" for="own-{{.OwnN}}-password">{{T "feeds_own_password"}}</label>
+      <input type="password" id="own-{{.OwnN}}-password" name="password" maxlength="256" class="input input-sm w-full" autocomplete="new-password"
+             {{if .HasPassword}}placeholder="{{T "feeds_own_password_kept"}}"{{end}}{{if $demo}} disabled{{end}}>
+    </div>
+    <div class="own-feed-actions">
+      <button type="submit" class="btn btn-sm"{{if $demo}} disabled{{end}}>{{T "save"}}</button>
+      {{if .Configured}}<button type="submit" name="clear" value="1" class="btn btn-sm btn-danger"{{if $demo}} disabled{{end}}>{{T "feeds_own_remove"}}</button>{{end}}
+    </div>
+    {{if $typed}}<p class="field-error own-feed-error" role="alert">{{T $card.OwnErrKey}}</p>{{end}}
+  </form>
+  {{end}}{{end}}
 </section>
 {{end}}
 
 {{define "feed_row"}}
 {{$on := or .Staged .Enabled}}
-<div class="module" id="feed-{{.ID}}">
-  <label class="module-head feed-head">
-    <span class="module-text">
-      <span class="module-name">{{if and .Own (not .Configured)}}{{T "feeds_own_default" (dict "N" .OwnN)}}{{else}}{{.Name}}{{end}}</span>
-      <span class="module-desc">{{if not .Own}}{{T .BlocksKey}}{{else if .Configured}}{{T "feeds_own_desc"}}{{else}}{{T "feeds_own_unconfigured"}}{{end}}</span>
-    </span>
-    <input type="checkbox" name="feed" value="{{.ID}}" class="toggle"{{if .Staged}} checked{{end}}>
-  </label>
-
-  {{/* The verdict as a mark and a word, never colour (DESIGN.md § Status);
-       the false positives and their why beside it; where the list comes from
-       and on what terms (P17). An own feed has none of the catalogue's, only
-       the host its address names — never the path, which may carry a key. */}}
-  <dl class="feed-facts">
-    {{if .Own}}
-    {{if .Host}}<dt>{{T "feeds_fact_source"}}</dt><dd class="font-data">{{.Host}}</dd>{{end}}
-    {{else}}
-    <dt>{{T "feeds_fact_verdict"}}</dt>
-    <dd><span class="log-action">{{if eq .Verdict "recommended"}}✓{{else if eq .Verdict "optional"}}•{{else}}✗{{end}} {{T (printf "feed_verdict_%s" .Verdict)}}</span></dd>
-    <dt>{{T "feeds_fact_fp"}}</dt>
-    <dd>{{T (printf "feed_fp_%s" .FalsePositives)}}. <span class="text-ink-muted">{{T .FPWhyKey}}</span></dd>
-    <dt>{{T "feeds_fact_links"}}</dt>
-    <dd><a class="link" href="{{.Homepage}}" target="_blank" rel="noopener noreferrer">{{T "feed_link_source"}}</a> <a class="link" href="{{.Terms}}" target="_blank" rel="noopener noreferrer">{{T "feed_link_terms"}}</a></dd>
-    {{end}}
-
+<tr id="feed-{{.ID}}">
+  <td class="col-flex feed-name-cell" data-label="{{T "feeds_col_feed"}}"><div class="feed-cell">
+    <div class="feed-title">{{if and .Own (not .Configured)}}{{T "feeds_own_default" (dict "N" .OwnN)}}{{else}}{{.Name}}{{end}}</div>
+    <div class="feed-desc">{{if not .Own}}{{T .BlocksKey}}{{else if .Configured}}{{T "feeds_own_desc"}}{{else}}{{T "feeds_own_unconfigured"}}{{end}}</div>
     {{if $on}}
-    <dt>{{T "feeds_fact_state"}}</dt>
-    <dd>{{if and .Staged .Enabled}}<span class="status-dot status-dot-wrap active static">{{T "feeds_state_on"}}</span>
-      {{else if .Staged}}<span class="status-dot status-dot-wrap pending static">{{T "feeds_state_staged_on"}}</span>
-      {{else}}<span class="status-dot status-dot-wrap pending static">{{T "feeds_state_staged_off"}}</span>{{end}}</dd>
-    <dt>{{T "feeds_fact_status"}}</dt>
-    <dd>{{$dot := "inactive"}}{{if or (eq .Status "updated") (eq .Status "unchanged")}}{{$dot = "active"}}{{else if eq .Status "failed_copy"}}{{$dot = "pending"}}{{else if eq .Status "failed_no_copy"}}{{$dot = "error"}}{{end}}<span class="status-dot status-dot-wrap static {{$dot}}">{{T (printf "feed_status_%s" .Status)}}</span></dd>
-    {{with .LastError}}<dt>{{T "feeds_fact_error"}}</dt><dd>{{T (printf "feed_error_%s" .) (dict "Status" $.HTTPStatus)}}</dd>{{end}}
-    {{if .CoreRead}}
-    <dt>{{T "feeds_fact_entries"}}</dt>
-    <dd class="font-data">{{if .Stored}}{{.Entries}}{{else}}—{{end}}</dd>
-    <dt>{{T "feeds_fact_changed"}}</dt>
-    <dd class="font-data">{{if .ChangedAt.IsZero}}—{{else}}<span title="{{fullTime .ChangedAt}}">{{shortTime (.ChangedAt.Format "2006-01-02T15:04:05Z07:00")}}</span>{{end}}</dd>
-    <dt>{{T "feeds_fact_checked"}}</dt>
-    <dd class="font-data">{{if .CheckedAt.IsZero}}—{{else}}<span title="{{fullTime .CheckedAt}}">{{shortTime (.CheckedAt.Format "2006-01-02T15:04:05Z07:00")}}</span>{{end}}</dd>
-    {{if and .Enabled .CountersRead}}
-    <dt>{{T "feeds_fact_packets"}}</dt>
-    <dd class="font-data">{{.Packets}}</dd>
+    {{if or (and .Enabled .CoreRead (not .Stored)) .Stale .AllowlistOverlap .FailedInARow .ShrankFrom .Rejected}}
+    <ul class="feed-warnings">
+      {{if and .Enabled .CoreRead (not .Stored)}}<li>{{T "feeds_warn_empty"}}</li>{{end}}
+      {{if .Stale}}<li>{{T "feeds_warn_stale"}}</li>{{end}}
+      {{with .AllowlistOverlap}}<li>{{T "feeds_warn_overlap" (dict "N" .)}}</li>{{end}}
+      {{with .FailedInARow}}<li>{{T "feeds_warn_failed" (dict "N" .)}}</li>{{end}}
+      {{/* Ruling X1: a list the core refused as too small keeps the live copy; the way to
+           take the smaller list is the one rule change that lifts the guard. */}}
+      {{if .ShrankFrom}}<li>{{T "feeds_warn_shrank" (dict "From" .ShrankFrom "To" .ShrankTo)}}</li>{{end}}
+      {{with .Rejected}}<li>{{T "feeds_warn_rejected" (dict "N" .)}}{{range $.RejectedSample}} <code>{{.}}</code>{{end}}</li>{{end}}
+    </ul>
     {{end}}
     {{end}}
-    {{end}}
-  </dl>
-
-  {{if $on}}
-  {{if or (and .Enabled .CoreRead (not .Stored)) .Stale .AllowlistOverlap .FailedInARow .ShrankFrom .Rejected}}
-  <ul class="feed-warnings">
-    {{if and .Enabled .CoreRead (not .Stored)}}<li>{{T "feeds_warn_empty"}}</li>{{end}}
-    {{if .Stale}}<li>{{T "feeds_warn_stale"}}</li>{{end}}
-    {{with .AllowlistOverlap}}<li>{{T "feeds_warn_overlap" (dict "N" .)}}</li>{{end}}
-    {{with .FailedInARow}}<li>{{T "feeds_warn_failed" (dict "N" .)}}</li>{{end}}
-    {{/* Ruling X1: a list the core refused as too small keeps the live copy; the way to
-         take the smaller list is the one rule change that lifts the guard. */}}
-    {{if .ShrankFrom}}<li>{{T "feeds_warn_shrank" (dict "From" .ShrankFrom "To" .ShrankTo)}}</li>{{end}}
-    {{with .Rejected}}<li>{{T "feeds_warn_rejected" (dict "N" .)}}{{range $.RejectedSample}} <code>{{.}}</code>{{end}}</li>{{end}}
-  </ul>
-  {{end}}
-  {{end}}
-
-  {{/* A ✗ feed is switched on only with this box ticked as well — checked by
-       the server (stagedFeeds), so a form posted without JavaScript is held to
-       it too. Once staged, the question has been answered. */}}
-  {{if and .ConfirmKey (not .Staged)}}
-  <div class="module-params">
+    {{/* A ✗ feed is switched on only with this box ticked as well — checked by
+         the server (stagedFeeds), so a form posted without JavaScript is held
+         to it too. Once staged, the question has been answered. */}}
+    {{if and .ConfirmKey (not .Staged)}}
     <label class="field-inline feed-confirm">
       <input type="checkbox" name="confirm" value="{{.ID}}" class="checkbox">
       <span>{{T .ConfirmKey}}</span>
     </label>
-  </div>
-  {{end}}
-</div>
+    {{end}}
+    {{/* Why the verdict, where the list comes from and on what terms (P17),
+         and what the last refresh changed. An own feed has none of the
+         catalogue's, only the host its address names — never the path,
+         which may carry a key. */}}
+    <details class="pkt-detail feed-detail">
+      <summary>{{T "blocked_detail"}}</summary>
+      <dl>
+        {{if .Own}}
+        {{if .Host}}<dt>{{T "feeds_fact_source"}}</dt><dd class="font-data">{{.Host}}</dd>{{end}}
+        {{else}}
+        <dt>{{T "feeds_fact_fp"}}</dt>
+        <dd>{{T (printf "feed_fp_%s" .FalsePositives)}}. <span class="text-ink-muted">{{T .FPWhyKey}}</span></dd>
+        <dt>{{T "feeds_fact_links"}}</dt>
+        <dd><a class="link" href="{{.Homepage}}" target="_blank" rel="noopener noreferrer">{{T "feed_link_source"}}</a> <a class="link" href="{{.Terms}}" target="_blank" rel="noopener noreferrer">{{T "feed_link_terms"}}</a></dd>
+        {{end}}
+        {{if $on}}
+        {{with .LastError}}<dt>{{T "feeds_fact_error"}}</dt><dd>{{T (printf "feed_error_%s" .) (dict "Status" $.HTTPStatus)}}</dd>{{end}}
+        {{if .CoreRead}}
+        <dt>{{T "feeds_fact_changed"}}</dt>
+        <dd class="font-data">{{if .ChangedAt.IsZero}}—{{else}}{{fullTime .ChangedAt}}{{end}}</dd>
+        <dt>{{T "feeds_fact_checked"}}</dt>
+        <dd class="font-data">{{if .CheckedAt.IsZero}}—{{else}}{{fullTime .CheckedAt}}{{end}}</dd>
+        {{if and .Enabled .CountersRead}}<dt>{{T "feeds_fact_packets"}}</dt><dd class="font-data">{{.Packets}}</dd>{{end}}
+        {{end}}
+        {{end}}
+      </dl>
+    </details>
+  </div></td>
+  {{/* The verdict as a mark and a word, never colour (DESIGN.md § Status). */}}
+  <td data-label="{{T "feeds_fact_verdict"}}">{{if .Own}}<span class="log-action">{{T "feeds_own_list"}}</span>{{else}}<span class="log-action">{{if eq .Verdict "recommended"}}✓{{else if eq .Verdict "optional"}}•{{else}}✗{{end}} {{T (printf "feed_verdict_%s" .Verdict)}}</span>{{end}}</td>
+  <td class="feed-state" data-label="{{T "feeds_fact_state"}}">{{if $on}}{{if and .Staged .Enabled}}<span class="status-dot status-dot-wrap active static">{{T "feeds_state_on"}}</span>
+    {{else if .Staged}}<span class="status-dot status-dot-wrap pending static">{{T "feeds_state_staged_on"}}</span>
+    {{else}}<span class="status-dot status-dot-wrap pending static">{{T "feeds_state_staged_off"}}</span>{{end}}{{else}}<span class="text-ink-subtle">{{T "feeds_state_off"}}</span>{{end}}</td>
+  <td data-label="{{T "feeds_fact_status"}}"><div class="feed-cell">{{if $on}}{{$dot := "inactive"}}{{if or (eq .Status "updated") (eq .Status "unchanged")}}{{$dot = "active"}}{{else if eq .Status "failed_copy"}}{{$dot = "pending"}}{{else if eq .Status "failed_no_copy"}}{{$dot = "error"}}{{end}}<span class="status-dot status-dot-wrap static {{$dot}}">{{T (printf "feed_status_%s" .Status)}}</span>
+    {{if and .CoreRead (not .CheckedAt.IsZero)}}<div class="feed-when font-data" title="{{fullTime .CheckedAt}}">{{shortTime (.CheckedAt.Format "2006-01-02T15:04:05Z07:00")}}</div>{{end}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</div></td>
+  <td class="col-count font-data" data-label="{{T "feeds_fact_entries"}}">{{if and $on .CoreRead .Stored}}{{.Entries}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td class="col-count font-data" data-label="{{T "feeds_col_packets"}}">{{if and $on .Enabled .CoreRead .CountersRead}}{{.Packets}}{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>
+  <td class="col-switch" data-label="{{T "feeds_col_on"}}">
+    <input type="checkbox" name="feed" aria-label="{{if .Name}}{{.Name}}{{else}}{{T "feeds_own_default" (dict "N" .OwnN)}}{{end}}" value="{{.ID}}" class="toggle"{{if .Staged}} checked{{end}}>
+  </td>
+</tr>
 {{end}}

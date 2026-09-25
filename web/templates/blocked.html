@@ -33,6 +33,12 @@
 
     <div class="card">
       {{$bad := .Bad}}
+      <div class="toolbar">
+        <h2 class="section-title">{{T "blocked_recent"}}</h2>
+        <span class="toolbar-spacer"></span>
+        {{with .Result}}<span class="toolbar-note">{{T "blocked_live_hint"}}</span>
+        <span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>{{end}}
+      </div>
       <form method="get" action="/blocked" class="pkt-filters" aria-label="{{T "blocked_filter_label"}}">
         <label class="pkt-field"><span>{{T "blocked_filter_src"}}</span>
           {{/* No placeholder: its computed colour is already --color-ink-subtle
@@ -62,12 +68,6 @@
       </form>
 
       {{if .Result}}
-      <div class="toolbar">
-        <h2 class="section-title">{{T "blocked_recent"}}</h2>
-        <span class="toolbar-spacer"></span>
-        <span class="toolbar-note">{{T "blocked_live_hint"}}</span>
-        {{with .Result}}<span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>{{end}}
-      </div>
       <div class="table-wrap">
         <table class="table table-reflow">
           <thead>
