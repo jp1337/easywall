@@ -123,6 +123,8 @@ nav:
         path: /docs/features/ports/
       - title: Blocklist
         path: /docs/features/blocklist/
+      - title: Feeds
+        path: /docs/features/feeds/
       - title: Allowlist
         path: /docs/features/allowlist/
       - title: Port Forwarding

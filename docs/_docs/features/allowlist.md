@@ -24,6 +24,9 @@ and **before** the port rules. An address on both lists is dropped. The full
 packet order, for all of it at once, is the `rule-order` diagram on the
 [blocklist page]({{ '/docs/features/blocklist/#the-order' | relative_url }}).
 
+The allowlist also beats every [feed]({{ '/docs/features/feeds/' | relative_url }}):
+an address on it is accepted even when a feed lists it.
+
 ## Your way back in
 
 Put the address you administer the host from on this list **before** you start

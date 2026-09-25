@@ -47,7 +47,7 @@ a live connection *is* return traffic, and the accept would let them through unm
 [what it breaks](#what-fragment-drop-breaks).
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
