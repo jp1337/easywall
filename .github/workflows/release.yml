@@ -10,8 +10,52 @@ permissions:
   packages: write
 
 jobs:
+  # v2.22.0, v2.23.0 and v2.23.1 were all tagged on a main commit whose Build run
+  # was red — a flaky check nobody saw, because a pull request's green run says
+  # nothing about the run of the merged tree. Required checks stop a knowingly
+  # red merge; this stops a release of one. It waits for every run main started
+  # for the tagged commit and refuses the tag unless all of them succeeded.
+  main-is-green:
+    name: main is green at the tag
+    runs-on: ubuntu-26.04
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: the tagged commit is on main, and main's runs of it passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SHA" origin/main \
+            || { echo "::error::$GITHUB_REF_NAME ($SHA) is not a commit on main"; exit 1; }
+          # Build, Test and Security run on every push to main; Docs and
+          # Publish edge are counted when they ran. 45 minutes covers a Build
+          # that started when the tag did.
+          for _ in $(seq 1 90); do
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$SHA&event=push&per_page=100" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main") | {name, status, conclusion, url: .html_url}]')
+            missing=$(jq -r '[("Build","Test","Security") as $w | select(all(.[]; .name != $w)) | $w] | join(", ")' <<<"$runs")
+            pending=$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")
+            if [ -z "$missing" ] && [ "$pending" = 0 ]; then
+              red=$(jq -r '.[] | select(.conclusion != "success") | "\(.name): \(.conclusion) \(.url)"' <<<"$runs")
+              [ -z "$red" ] || { echo "::error::main is not green at $SHA:"; echo "$red"; exit 1; }
+              jq -r '.[] | "ok  \(.name)"' <<<"$runs"
+              exit 0
+            fi
+            echo "waiting: missing [${missing:-none}], $pending still running"
+            sleep 30
+          done
+          echo "::error::main's runs of $SHA did not finish within 45 minutes"
+          exit 1
+
   goreleaser:
     name: GoReleaser
+    needs: main-is-green
     runs-on: ubuntu-26.04
 
     # Map secrets to env vars — secrets context is not available in step `if`,
@@ -168,10 +212,11 @@ jobs:
             exit 1
           }
           dpkg-deb --fsys-tarfile "$deb" | tar -xO ./usr/sbin/easywall-core > /tmp/core
-          file /tmp/core
+          kind=$(file /tmp/core)
+          echo "$kind"
           case "$arch" in
-            amd64) file /tmp/core | grep -q "x86-64" ;;
-            arm64) file /tmp/core | grep -q "aarch64" ;;
+            amd64) grep -q "x86-64" <<<"$kind" ;;
+            arm64) grep -q "aarch64" <<<"$kind" ;;
           esac || {
             echo "::error::the binary inside the $arch package is not $arch"
             exit 1
