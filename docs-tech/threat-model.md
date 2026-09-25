@@ -419,7 +419,10 @@ the password alone.
   lines of at most 80 bytes, 400 bytes a refresh. Its password is stored in plain
   text in `<data_dir>/web/feed_fetch.json`, `easywall` 0600 — the web process has
   to send it, so it cannot be hashed. Redirects and userinfo URLs are refused, so
-  the credentials go to the URL the operator typed and nowhere else.
+  the credentials go to the URL the operator typed and nowhere else. The row
+  shows only the host, but the edit form carries the full stored URL back into
+  the page for a signed-in session — path and query included, where a key may
+  sit (CrowdSec's integration id is one). The password is never written back.
 - A descriptor the web process held open across the upgrade. It is stopped by
   `prerm`, and every non-root file is replaced by a new root-owned inode, so
   none survives a package upgrade. A host process running as uid 100 beside a
