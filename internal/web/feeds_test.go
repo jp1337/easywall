@@ -361,6 +361,25 @@ func TestTheCoresAnswerNamesTheFailure(t *testing.T) {
 	}
 }
 
+// Final review M1: a refresh refused because panic mode is engaged says so,
+// and counts no failure — the list did nothing wrong, and a backoff would
+// delay the first refresh after resume by hours. The row still shows it.
+func TestPanicIsItsOwnReasonAndNoFailure(t *testing.T) {
+	h := newFeedHarness(t, true)
+	h.fc.SetResponse(shared.CmdUpdateFeed, errorRespFor(shared.ErrPanicEngagedText))
+	h.r.store.setFetchState("own-1", feedFetchState{Failures: 2, LastError: feedErrTimeout})
+	u := h.list("192.0.2.1\n")
+	h.r.refreshFrom("own-1", plainSource(u), false)
+	st := h.r.store.fetchState("own-1")
+	if st.LastError != feedErrPanic || st.Failures != 2 {
+		t.Errorf("under panic: %+v — want reason panic and the failure count left at 2", st)
+	}
+	st.Failures = 0
+	if got := feedStatusOf(st, true, true); got != FeedFailedCopy {
+		t.Errorf("a panic refusal with no failure counted renders %q, want %q", got, FeedFailedCopy)
+	}
+}
+
 // Spamhaus publishes v4 and v6 as two files. Both or neither: v6 is 91 of
 // ~1800 entries, so a v4-only update would pass the shrink guard and quietly
 // stop blocking every v6 network.

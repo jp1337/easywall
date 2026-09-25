@@ -435,6 +435,11 @@ func (r *feedRunner) deliver(id string, payload shared.UpdateFeedPayload, next f
 		st := r.store.fetchState(id)
 		st.ShrankFrom, st.ShrankTo = core.Entries, len(payload.Entries)
 		r.fail(id, st, &feedFailure{reason: feedErrShrank}, true)
+	case strings.Contains(err.Error(), shared.ErrPanicEngagedText):
+		// Final review M1: a human took the firewall down at the console. The
+		// row says so rather than "refused by the core's checks", and fail
+		// counts no failure — the list did nothing wrong.
+		r.fail(id, r.store.fetchState(id), &feedFailure{reason: feedErrPanic}, stored)
 	case strings.HasPrefix(err.Error(), "core error: "):
 		// The core's own audit entry (feed_refused) says which guard.
 		r.fail(id, r.store.fetchState(id), &feedFailure{reason: feedErrRefused}, stored)
@@ -451,7 +456,9 @@ func (r *feedRunner) fail(id string, st feedFetchState, err error, stored bool) 
 		f = &feedFailure{reason: feedErrUnreachable}
 	}
 	st.LastError, st.HTTPStatus = f.reason, f.status
-	st.Failures++
+	if f.reason != feedErrPanic {
+		st.Failures++
+	}
 	st.Status = FeedFailedNoCopy
 	if stored {
 		st.Status = FeedFailedCopy
@@ -688,12 +695,15 @@ func (s *Server) feedRows(state *shared.RulesState) []feedRow {
 // answer now, not the one at the time; when the core did not answer, the
 // status stored with the failure stands.
 func feedStatusOf(st feedFetchState, stored, coreRead bool) FeedStatusKind {
+	// A failure is on record: LastError is set with every one, and with the
+	// one that counts none (feedErrPanic).
+	failed := st.LastError != ""
 	switch {
-	case st.Failures > 0 && !coreRead:
+	case failed && !coreRead:
 		return st.Status
-	case st.Failures > 0 && stored:
+	case failed && stored:
 		return FeedFailedCopy
-	case st.Failures > 0:
+	case failed:
 		return FeedFailedNoCopy
 	case st.Status == FeedUpdated || st.Status == FeedUnchanged:
 		return st.Status

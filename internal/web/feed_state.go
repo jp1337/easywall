@@ -50,13 +50,14 @@ const (
 	feedErrRefused         = "refused"          // the core's guards refused it; the core's audit log says which
 	feedErrShrank          = "shrank"           // under 70 % of the live copy; ShrankFrom/ShrankTo say how far
 	feedErrCoreUnreachable = "core_unreachable" // the socket, not the list
+	feedErrPanic           = "panic"            // panic mode is engaged; not the list's fault, so no backoff
 )
 
 // AllFeedErrors is the vocabulary above, for the label guard.
 var AllFeedErrors = []string{
 	feedErrTimeout, feedErrUnreachable, feedErrTransfer, feedErrRedirected,
 	feedErrHTTPStatus, feedErrRateLimited, feedErrTooLarge, feedErrHTML,
-	feedErrEmpty, feedErrRefused, feedErrShrank, feedErrCoreUnreachable,
+	feedErrEmpty, feedErrRefused, feedErrShrank, feedErrCoreUnreachable, feedErrPanic,
 }
 
 // OwnFeed is a list the operator adds by URL (spec D8): plain text, fetched by
