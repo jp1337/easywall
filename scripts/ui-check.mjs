@@ -310,6 +310,14 @@ async function setUpAccount(page) {
   }
 }
 
+/** Enter a demo instance through its login card's one button (handleLoginDemo). */
+async function enterDemo(page) {
+  await Promise.all([
+    page.waitForLoadState('load'),
+    page.click("form[action='/login/demo'] button[type=submit]"),
+  ]);
+}
+
 /**
  * Sign in once. The result is reused by every context below.
  *
@@ -333,10 +341,7 @@ async function signIn(page) {
   // The demo is entered with a button and has no password form at all — see
   // handleLoginDemo. Every non-demo instance below still signs in with one.
   if (await page.$("form[action='/login/demo']")) {
-    await Promise.all([
-      page.waitForLoadState('load'),
-      page.click("form[action='/login/demo'] button[type=submit]"),
-    ]);
+    await enterDemo(page);
     if (page.url().includes('/login')) {
       throw new Error(`could not enter the demo: still at ${page.url()}`);
     }
@@ -428,15 +433,11 @@ async function checkEnrolmentFlow(browser) {
     const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
 
+    // A demo instance: entered with the button, never a password.
     await page.goto(`${base}/login`, { waitUntil: 'load' });
-    await page.fill('input[name=username]', USER);
-    await page.fill('input[name=password]', PASS);
-    await Promise.all([
-      page.waitForLoadState('load'),
-      page.click("form[action='/login'] button[type=submit]"),
-    ]);
+    await enterDemo(page);
     if (page.url().includes('/login')) {
-      fail('2fa setup', `could not sign in to the throwaway instance, still at ${page.url()}`);
+      fail('2fa setup', `could not enter the throwaway demo instance, still at ${page.url()}`);
       return;
     }
 
