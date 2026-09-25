@@ -186,7 +186,12 @@ func feedIDs(state shared.RulesState) []string {
 // the rollback reads. The web process keeps its ETag and tries again later.
 func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.UpdateFeedResult, error) {
 	// 1. Panic mode: nothing reaches the kernel, and nothing is stored for a
-	// resume to find either.
+	// resume to find either. Checked again once the slot is held (review
+	// finding 2): PANIC does not take the apply slot — it has to be able to
+	// interrupt a cycle that already holds it — so a marker written between
+	// this first check and beginApply succeeding would otherwise go
+	// unnoticed for the rest of the function, exactly the race apply()'s own
+	// re-check (firewall.go) exists for.
 	if f.PanicEngaged() {
 		return shared.UpdateFeedResult{}, ErrPanicEngaged
 	}
@@ -194,6 +199,9 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 		return shared.UpdateFeedResult{}, ErrApplyInProgress
 	}
 	defer f.endApply()
+	if f.PanicEngaged() {
+		return shared.UpdateFeedResult{}, ErrPanicEngaged
+	}
 
 	// 2. An id the core knows, switched on in Staged or Current. An unknown id
 	// is a web process doing something no version of it does, so it is audited
