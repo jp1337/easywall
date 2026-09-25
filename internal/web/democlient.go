@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 
 // demoShapes are the kinds of refusal a small internet-facing host actually
 // sees, on documentation addresses only (RFC 5737, RFC 3849). Every source
-// address avoids the demo's seeded blacklist and whitelist, so a visitor
+// address avoids the demo's seeded blocklist and allowlist, so a visitor
 // adding a source to one of those lists always sees a tangible change. Every
 // IPv4 documentation range falls into shared.BogonRanges and the demo runs
 // with Bogons: true, so on a real kernel these rows would be bogon drops; the
@@ -23,7 +24,7 @@ var demoShapes = []shared.PacketLogEntry{
 	{Rule: "portscan", Proto: "tcp", DstPort: 3389, TCPFlags: "FIN,PSH,URG", Src: netip.MustParseAddr("192.0.2.77")},
 	{Rule: "drop", Proto: "tcp", DstPort: 8080, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.140")},
 	{Rule: "drop", Proto: "udp", DstPort: 161, CtState: "new", Src: netip.MustParseAddr("192.0.2.5")},
-	{Rule: "blacklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
+	{Rule: "blocklist", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.42")},
 	{Rule: "icmp_flood", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.99")},
 	{Rule: "invalid", Proto: "tcp", DstPort: 443, TCPFlags: "ACK", Src: netip.MustParseAddr("192.0.2.200")},
 	{Rule: "drop", Proto: "tcp", DstPort: 23, TCPFlags: "SYN", CtState: "new", Family: 6, Src: netip.MustParseAddr("2001:db8:5::17")},
@@ -32,6 +33,9 @@ var demoShapes = []shared.PacketLogEntry{
 	// only for 203.0.113.0/24.
 	{Rule: "drop", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.61")},
 	{Rule: "drop", Proto: "tcp", DstPort: 8443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.88")},
+	// A feed's refusal (2.23): blocklist.de is switched on in the seeded
+	// rules, so its chip names it and leads to its row on /blocklist.
+	{Rule: "feed", Feed: "blocklist-de", Proto: "tcp", DstPort: 25, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.180")},
 }
 
 // demoEvery is how often the demo "refuses" something new — enough for the
@@ -96,6 +100,11 @@ type demoState struct {
 	// Nothing advances it — there is no kernel here — so the dates are fixed
 	// relative to process start, which is also when the demo resets.
 	usage shared.UsageResult
+
+	// feeds are the copies the demo's core would hold, by feed id. Seeded for
+	// the two the catalogue says to start with, and never refreshed: demo mode
+	// constructs no fetcher (spec §3), so UPDATE_FEED is refused here.
+	feeds map[string]shared.FeedStatus
 
 	acceptance shared.AcceptanceStatus
 	lastApply  string // RFC3339, empty when never applied
@@ -180,7 +189,7 @@ func (d *demoState) seed() {
 			{Port: "123", Description: "NTP"},
 			{Port: "51820", Description: "WireGuard VPN"},
 		},
-		Blacklist: []string{
+		Blocklist: []string{
 			"# scanner ranges observed in fail2ban logs over the last 30d",
 			"192.0.2.42",
 			"192.0.2.118",
@@ -190,7 +199,7 @@ func (d *demoState) seed() {
 			"# IPv6 — block known ranges from compromised cloud tenant",
 			"2001:db8:bad::/48",
 		},
-		Whitelist: []string{
+		Allowlist: []string{
 			"# always-allow management — never lock these out",
 			"203.0.113.10",
 			"203.0.113.11",
@@ -220,6 +229,12 @@ func (d *demoState) seed() {
 			"# log + drop traffic to legacy admin port",
 			"tcp dport 10000 log prefix \"legacy-admin: \" drop",
 		},
+		// The two the Feeds card says to start with, and three more, so the
+		// public demo's card shows every state a feed row has — see
+		// newDemoFeedStore for which row shows which. In Current as well as
+		// Staged, so the apply screen shows no feed change until a visitor
+		// makes one.
+		Feeds: []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised", "cins"},
 	}
 	d.rules = shared.RulesState{
 		Current: example,
@@ -291,8 +306,33 @@ func (d *demoState) seed() {
 		TCPRSTFloodLimit:             100,
 		LogBlocked:                   true,
 		LogBlockedLimit:              60,
-		LogBlacklist:                 true,
-		LogBlacklistLimit:            60,
+		LogBlocklist:                 true,
+		LogBlocklistLimit:            60,
+		LogFeed:                      true,
+		LogFeedLimit:                 60,
+	}
+	// Spamhaus DROP's size is the one measured for the catalogue, 1710 v4 plus
+	// 91 v6 (spec §1); DShield is always twenty /24s. Spamhaus polls every 12 h,
+	// DShield hourly, so the two show different checked times. The sizes of
+	// the other two are spec §1's as well. CINS has no copy: its fetches fail
+	// (newDemoFeedStore).
+	d.feeds = map[string]shared.FeedStatus{
+		"spamhaus-drop": {ID: "spamhaus-drop", Stored: true, Entries: 1801,
+			ChangedAt: ago(7 * time.Hour), CheckedAt: ago(7 * time.Hour),
+			Packets: 3412, CountersRead: true},
+		// One of its /24s holds an allowlisted address: the overlap warning.
+		"dshield": {ID: "dshield", Stored: true, Entries: 20,
+			ChangedAt: ago(3 * time.Hour), CheckedAt: ago(38 * time.Minute),
+			Packets: 18873, CountersRead: true, AllowlistOverlap: 1},
+		// The last good copy is four hours old; the three lists since were
+		// refused as a shrink (ruling X1).
+		"blocklist-de": {ID: "blocklist-de", Stored: true, Entries: 32002,
+			ChangedAt: ago(4 * time.Hour), CheckedAt: ago(4 * time.Hour),
+			Packets: 5210, CountersRead: true},
+		// Checked 25 minutes ago and the same for 34 days: Feodo's failure.
+		"et-compromised": {ID: "et-compromised", Stored: true, Entries: 686,
+			ChangedAt: ago(34 * 24 * time.Hour), CheckedAt: ago(25 * time.Minute),
+			Packets: 97, CountersRead: true},
 	}
 	d.settings = shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
@@ -361,13 +401,13 @@ func buildSeedAuditLog(now time.Time) []shared.AuditLogEntry {
 		{-4 * time.Minute, "apply_accepted", "", "", "demo"},
 		{-4*time.Minute - 30*time.Second, "rules_saved", "tcp", "+8443", "demo"},
 		{-3 * time.Hour, "options_saved", "", "ssh_brute_force_log", "demo"},
-		{-4 * time.Hour, "rules_saved", "blacklist", "+192.0.2.42", "demo"},
-		{-4*time.Hour - 12*time.Second, "rules_saved", "blacklist", "+192.0.2.118", "demo"},
+		{-4 * time.Hour, "rules_saved", "blocklist", "+192.0.2.42", "demo"},
+		{-4*time.Hour - 12*time.Second, "rules_saved", "blocklist", "+192.0.2.118", "demo"},
 		{-5 * time.Hour, "settings_saved", "", "docker_enabled", "demo"},
 		{-6 * time.Hour, "system_saved", "", "acceptance_duration=120", "demo"},
 		{-8 * time.Hour, "apply_accepted", "", "", "demo"},
 		{-8*time.Hour - 45*time.Second, "rules_saved", "forwarding", "+8443→443/tcp", "demo"},
-		{-9 * time.Hour, "rules_saved", "whitelist", "+203.0.113.10/32", "demo"},
+		{-9 * time.Hour, "rules_saved", "allowlist", "+203.0.113.10/32", "demo"},
 		{-12 * time.Hour, "rules_saved", "udp", "+51820", "demo"},
 		{-14 * time.Hour, "rules_imported", "", "rules-2026-05-02.json", "demo"},
 		// The re-apply happened two minutes after the rollback it followed, which
@@ -516,11 +556,86 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return d.handleResume()
 	case shared.CmdLogEvent:
 		return d.handleLogEvent(cmd.Payload)
+	case shared.CmdGetFeeds:
+		return demoOK(d.feedStatusLocked())
+	case shared.CmdUpdateFeed:
+		// Nothing in the demo sends it: demo mode constructs no fetcher. A
+		// visitor's browser reaching the public demo must not be the thing that
+		// makes it fetch a list from the internet.
+		return demoErr(errors.New("the demo fetches no feeds"))
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
 }
 
+// newDemoFeedStore is the demo's side of the feeds: what the web process
+// would remember about each refresh, held in memory and never written
+// (path ""): demo mode builds no fetcher, and saveOwnFeed refuses. With the
+// copies seeded above, the card shows every status and every warning:
+//
+//	spamhaus-drop   updated
+//	dshield         unchanged; 1 allowlist entry overlaps
+//	blocklist-de    failed, previous copy active; failed 3 times in a row;
+//	                refused as a shrink from 32 002 to 9 140
+//	et-compromised  unchanged; unchanged for 30 days; 2 lines not an address
+//	cins            failed, no copy; failed twice; in the kernel with an empty set
+//	any other       never fetched and "on once you apply", once a visitor
+//	                switches it on and saves
+//	own-1           configured and off: its host is the row's source
+func newDemoFeedStore(now time.Time) *feedStore {
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
+	return &feedStore{st: &feedStateFile{
+		OffsetSeconds: 1020,
+		Fetch: map[string]feedFetchState{
+			"spamhaus-drop": {Status: FeedUpdated, LastAttempt: ago(7 * time.Hour)},
+			"dshield":       {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
+			"blocklist-de": {Status: FeedFailedCopy, LastError: feedErrShrank, Failures: 3, LastAttempt: ago(20 * time.Minute),
+				ShrankFrom: 32002, ShrankTo: 9140},
+			"et-compromised": {Status: FeedUnchanged, LastAttempt: ago(25 * time.Minute),
+				Rejected: 2, RejectedSample: []string{"Rate limit exceeded.", "Try again in 10 minutes."}},
+			"cins": {Status: FeedFailedNoCopy, LastError: feedErrHTTPStatus, HTTPStatus: 503,
+				Failures: 2, LastAttempt: ago(50 * time.Minute)},
+		},
+		// No user and no password: nothing a visitor could read back.
+		Own: [shared.MaxOwnFeeds]OwnFeed{{Name: "CrowdSec Raw IP List",
+			URL: "https://admin.api.crowdsec.net/v1/integrations/demo/content"}},
+	}}
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
+
+// feedStatusLocked answers GET_FEEDS the way the core does: one status per id
+// that has a copy or is switched on in Current or Staged, in_kernel for the
+// ones in Current. A feed a visitor switches on has no copy, because nothing
+// here fetches one. contains_addr stays false: the seeded copies are counts,
+// not addresses. Caller holds d.mu.
+func (d *demoState) feedStatusLocked() shared.GetFeedsResult {
+	res := shared.GetFeedsResult{Feeds: []shared.FeedStatus{}}
+	seen := map[string]bool{}
+	add := func(id string) {
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+		st, ok := d.feeds[id]
+		if !ok {
+			st = shared.FeedStatus{ID: id}
+		}
+		st.InKernel = slices.Contains(d.rules.Current.Feeds, id)
+		if !st.InKernel {
+			st.Packets, st.CountersRead = 0, false
+		}
+		res.Feeds = append(res.Feeds, st)
+	}
+	for _, f := range shared.FeedCatalogue {
+		if _, ok := d.feeds[f.ID]; ok {
+			add(f.ID)
+		}
+	}
+	for _, id := range append(slices.Clone(d.rules.Current.Feeds), d.rules.Staged.Feeds...) {
+		add(id)
+	}
+	return res
+}
 
 func demoOK(data interface{}) shared.Response {
 	raw, err := json.Marshal(data)
@@ -646,18 +761,18 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 			return demoErr(fmt.Errorf("invalid udp rules: %w", err))
 		}
 		d.rules.Staged.UDP = rs
-	case "blacklist":
+	case "blocklist":
 		var rs []string
 		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
-			return demoErr(fmt.Errorf("invalid blacklist: %w", err))
+			return demoErr(fmt.Errorf("invalid blocklist: %w", err))
 		}
-		d.rules.Staged.Blacklist = rs
-	case "whitelist":
+		d.rules.Staged.Blocklist = rs
+	case "allowlist":
 		var rs []string
 		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
-			return demoErr(fmt.Errorf("invalid whitelist: %w", err))
+			return demoErr(fmt.Errorf("invalid allowlist: %w", err))
 		}
-		d.rules.Staged.Whitelist = rs
+		d.rules.Staged.Allowlist = rs
 	case "custom":
 		var rs []string
 		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
@@ -670,6 +785,12 @@ func (d *demoState) handleSaveRules(payload []byte) shared.Response {
 			return demoErr(fmt.Errorf("invalid forwarding rules: %w", err))
 		}
 		d.rules.Staged.Forwarding = rs
+	case "feeds":
+		var rs []string
+		if err := json.Unmarshal(generic.Rules, &rs); err != nil {
+			return demoErr(fmt.Errorf("invalid feeds: %w", err))
+		}
+		d.rules.Staged.Feeds = rs
 	default:
 		return demoErr(fmt.Errorf("unknown rule type %q", generic.RuleType))
 	}
@@ -906,8 +1027,8 @@ func (d *demoState) handleImportRules(payload []byte) shared.Response {
 		return demoErr(fmt.Errorf("import validation failed: %w", err))
 	}
 	d.rules.Staged = imported
-	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
-		len(imported.TCP), len(imported.UDP), len(imported.Blacklist), len(imported.Whitelist)))
+	d.audit("rules_imported", "", fmt.Sprintf("%d tcp, %d udp, %d blocklist, %d allowlist",
+		len(imported.TCP), len(imported.UDP), len(imported.Blocklist), len(imported.Allowlist)))
 	return shared.Response{Success: true}
 }
 

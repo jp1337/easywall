@@ -631,7 +631,7 @@ should find out here what became of it, not find a file that was always right.
 **A diff is structural, never chromatic.** The apply screen marks additions,
 removals and edits with `+`, `-` and `~` in the mono column and neutral chips, and
 the diff itself uses no hue at all. Green and red are firewall state: a new
-blacklist entry is not good news and a removed port is not a failure. Of what
+blocklist entry is not good news and a removed port is not a failure. Of what
 this release added to that screen, only the reachability verdict carries a
 state colour — `state-ok`, `state-warn`, `state-crit`, each with the dot *and*
 the word — alongside the acceptance status card's own dot, which already used
@@ -1441,7 +1441,7 @@ find yourself reaching for a coloured badge, you want a chip.
 **Amended in 2.22.** A chip can lead somewhere: on `/blocked` a module's rule
 chip is an `<a class="log-action">` to its card on `/options`. It keeps the chip's
 shape and takes the link's permanent underline, because the underline is what
-says it is a control. The blacklist and default-drop chips stay plain — no
+says it is a control. The blocklist and default-drop chips stay plain — no
 switch refused those packets.
 
 ### Tooltips

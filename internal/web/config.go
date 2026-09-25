@@ -388,6 +388,19 @@ func (c *Config) TelemetryStatePath() string {
 	return c.SSLDir + "/../telemetry.json"
 }
 
+// FeedStatePath returns the path for the feeds' fetch state and own feeds.
+//
+// Not feeds.json, which the spec first named it: stateFiles is also the list
+// prepareStateDir moves out of data_dir, and <data_dir>/feeds.json is the
+// core's copy of every feed. On a data_dir this process can write — the demo,
+// a manual install run as one user — the move would take the core's file.
+func (c *Config) FeedStatePath() string {
+	if c.DataDir != "" {
+		return c.StateDir() + "/feed_fetch.json"
+	}
+	return c.SSLDir + "/../feed_fetch.json"
+}
+
 // TOTPReplayPath returns the path for the last accepted TOTP step.
 //
 // In <data_dir>/web and not in web.toml: this changes once per login, and

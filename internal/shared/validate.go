@@ -73,21 +73,35 @@ func ValidateRules(r Rules) error {
 			seenIDs[rule.ID] = true
 		}
 	}
-	for _, ip := range r.Blacklist {
+	for _, ip := range r.Blocklist {
 		if IsListComment(ip) {
 			continue
 		}
 		if err := ValidateIPOrCIDR(ip); err != nil {
-			return fmt.Errorf("blacklist %q: %w", ip, err)
+			return fmt.Errorf("blocklist %q: %w", ip, err)
 		}
 	}
-	for _, ip := range r.Whitelist {
+	for _, ip := range r.Allowlist {
 		if IsListComment(ip) {
 			continue
 		}
 		if err := ValidateIPOrCIDR(ip); err != nil {
-			return fmt.Errorf("whitelist %q: %w", ip, err)
+			return fmt.Errorf("allowlist %q: %w", ip, err)
 		}
+	}
+	// A feed id becomes a set name and a counter id in the kernel (Task 3), and
+	// the core looks up its stored copy by it. An id nothing knows would build
+	// an empty set named after whatever the web process sent, and a second
+	// copy of one id would be two rules dropping the same traffic.
+	seenFeeds := make(map[string]bool, len(r.Feeds))
+	for _, id := range r.Feeds {
+		if !KnownFeedID(id) {
+			return fmt.Errorf("feed %q is neither a catalogue feed nor own-1 to own-%d", id, MaxOwnFeeds)
+		}
+		if seenFeeds[id] {
+			return fmt.Errorf("feed %q is switched on twice", id)
+		}
+		seenFeeds[id] = true
 	}
 	for i, rule := range r.Custom {
 		if err := validateCustomRule(rule); err != nil {
@@ -193,7 +207,7 @@ func validateCustomRule(rule string) error {
 // "check core connection"; and the demo represents the product to everyone who
 // has not installed it yet.
 //
-// They had three different answers. The editor validated with the blacklist's
+// They had three different answers. The editor validated with the blocklist's
 // rules, which accept a bare address and skip comments and blanks; the core
 // demanded net.ParseCIDR of every element including those; and the demo checked
 // nothing. So a blank line between two networks, a `#` note, or a bare address
@@ -253,14 +267,14 @@ func ValidateIPOrCIDR(s string) error {
 //
 // An IPv4-mapped network is the IPv4 network it names: ::ffff:10.0.0.0/104 is
 // 10.0.0.0/8. ValidateIPOrCIDR has always accepted that spelling and until 2.22
-// nothing turned it back, so the blacklist and the whitelist paired a 4-byte
+// nothing turned it back, so the blocklist and the allowlist paired a 4-byte
 // compare with a 16-byte mask and the kernel refused the whole rule set with
 // EINVAL, and a port rule's source list skipped it with a WARN.
 //
 // It parses with net.ParseCIDR, the parser ValidateIPOrCIDR uses, and not with
 // netip.ParsePrefix: the two disagree (10.0.0.0/08 passes one and not the
 // other), and a builder stricter than the validator skips an entry the
-// operator was told is fine — a blacklist line that blocks nothing.
+// operator was told is fine — a blocklist line that blocks nothing.
 func ParseNetwork(s string) (netip.Prefix, error) {
 	_, n, err := net.ParseCIDR(strings.TrimSpace(s))
 	if err != nil {

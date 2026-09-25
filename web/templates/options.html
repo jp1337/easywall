@@ -283,21 +283,38 @@
         {{template "opt_help" (optHelp "log_blocked_connections")}}
       </div>
 
-      <div class="module" id="opt-log_blacklist_connections">
+      <div class="module" id="opt-log_blocklist_connections">
         <label class="module-head">
           <span class="module-text">
-            <span class="module-name">{{T "opt_log_blacklist_connections"}}</span>
-            <span class="module-desc">{{T "opt_log_blacklist_connections_desc"}}</span>
+            <span class="module-name">{{T "opt_log_blocklist_connections"}}</span>
+            <span class="module-desc">{{T "opt_log_blocklist_connections_desc"}}</span>
           </span>
-          <input type="checkbox" name="log_blacklist_connections" class="toggle" {{if $o.LogBlacklist}}checked{{end}}>
+          <input type="checkbox" name="log_blocklist_connections" class="toggle" {{if $o.LogBlocklist}}checked{{end}}>
         </label>
         <div class="module-params">
           <label class="field-inline">
             <span>{{T "param_log_limit"}}</span>
-            <input type="number" name="log_blacklist_connections_limit" value="{{$o.LogBlacklistLimit}}" min="1" max="10000" class="input input-sm input-data">
+            <input type="number" name="log_blocklist_connections_limit" value="{{$o.LogBlocklistLimit}}" min="1" max="10000" class="input input-sm input-data">
           </label>
         </div>
-        {{template "opt_help" (optHelp "log_blacklist_connections")}}
+        {{template "opt_help" (optHelp "log_blocklist_connections")}}
+      </div>
+
+      <div class="module" id="opt-log_feed_connections">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">{{T "opt_log_feed_connections"}}</span>
+            <span class="module-desc">{{T "opt_log_feed_connections_desc"}}</span>
+          </span>
+          <input type="checkbox" name="log_feed_connections" class="toggle" {{if $o.LogFeed}}checked{{end}}>
+        </label>
+        <div class="module-params">
+          <label class="field-inline">
+            <span>{{T "param_log_limit"}}</span>
+            <input type="number" name="log_feed_connections_limit" value="{{$o.LogFeedLimit}}" min="1" max="10000" class="input input-sm input-data">
+          </label>
+        </div>
+        {{template "opt_help" (optHelp "log_feed_connections")}}
       </div>
 
     </div>

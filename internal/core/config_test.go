@@ -384,7 +384,7 @@ func TestValidate_RejectsAnUnknownIPv6Mode(t *testing.T) {
 
 // docker.custom_networks reaches addCIDRAccept, which returns quietly on
 // anything it cannot parse — so an unchecked entry was listed in the interface
-// as whitelisted and never became a rule.
+// as allowlisted and never became a rule.
 func TestSaveNetworkSettings_RejectsAnUnparseableDockerNetwork(t *testing.T) {
 	cfg := newTestConfig(t)
 	if err := cfg.Validate(); err != nil {

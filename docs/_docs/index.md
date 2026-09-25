@@ -29,10 +29,10 @@ Editing changes nothing. Applying changes everything — for 120 seconds. *Not* 
 
 ## The order rules are evaluated
 
-The one thing worth knowing before you write a rule. A whitelisted address reaches every port; a blacklisted one is dropped before the whitelist is ever consulted.
+The one thing worth knowing before you write a rule. An allowlisted address reaches every port; a blocklisted one is dropped before the allowlist is ever consulted.
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback, the IPv6 mode, ping and reset rate limits, established connections and ICMP, the other protection modules, Docker bridge networks, blacklist, whitelist, open ports, custom rules, chain policy drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback, the IPv6 mode, ping and reset rate limits, established connections and ICMP, the other protection modules, Docker bridge networks, blocklist, allowlist, the feeds you switched on, open ports, custom rules, chain policy drops." %}
 
 ## Where to start
 

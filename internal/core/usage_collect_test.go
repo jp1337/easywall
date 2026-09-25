@@ -19,13 +19,13 @@ func TestApplyCollectsBeforeItFlushes(t *testing.T) {
 	body := funcBody(t, coreSource(t, "firewall.go"), "firewall.go", "func (f *Firewall) apply(")
 
 	collects := indexesOf(body, "f.collectUsageBeforeWrite(")
-	writes := indexesOf(body, "f.nft.Apply(")
+	writes := indexesOf(body, "f.nft.ApplyWithFeeds(")
 	if len(collects) != 1 {
 		t.Fatalf("apply calls f.collectUsageBeforeWrite %d times, want exactly 1; the counters "+
 			"have to be booked once, before the write that resets them", len(collects))
 	}
 	if len(writes) != 1 {
-		t.Fatalf("apply calls f.nft.Apply %d times, want exactly 1; this guard compares "+
+		t.Fatalf("apply calls f.nft.ApplyWithFeeds %d times, want exactly 1; this guard compares "+
 			"against a single write", len(writes))
 	}
 	if collects[0] > writes[0] {
@@ -48,12 +48,12 @@ func TestARebuiltTableDoesNotLoseTheInterval(t *testing.T) {
 	body := funcBody(t, coreSource(t, "firewall.go"), "firewall.go", "func (f *Firewall) apply(")
 
 	resets := indexesOf(body, "f.resetUsageBaselines(")
-	writes := indexesOf(body, "f.nft.Apply(")
+	writes := indexesOf(body, "f.nft.ApplyWithFeeds(")
 	if len(resets) != 1 {
 		t.Fatalf("apply calls f.resetUsageBaselines %d times, want exactly 1", len(resets))
 	}
 	if len(writes) != 1 {
-		t.Fatalf("apply calls f.nft.Apply %d times, want exactly 1", len(writes))
+		t.Fatalf("apply calls f.nft.ApplyWithFeeds %d times, want exactly 1", len(writes))
 	}
 	if resets[0] < writes[0] {
 		t.Error("apply resets the usage baselines before the kernel write. nft.Apply returns " +
@@ -91,10 +91,16 @@ func TestTheUsageTickerIsWiredIntoTheDaemon(t *testing.T) {
 //
 // Two tokens count as destroying the counters:
 //
-//   - f.nft.Apply — deletes and recreates the table (see NftablesManager.reset),
-//     so every counter in it goes back to zero.
+//   - f.nft.ApplyWithFeeds — deletes and recreates the table, so every
+//     counter in it goes back to zero. (Apply, which passes no feeds, is for
+//     tests and the self-test; TestNoProductionCodeCallsApplyWithoutFeeds.)
 //   - f.nft.Reset — deletes the table outright. There is nothing to reset a
 //     baseline to afterwards; see panicLandedDuringWrite's comment.
+//
+// f.nft.ReplaceFeedSet writes the kernel too and is deliberately not a token
+// here: a set flush leaves every rule and its counter as they were
+// (TestIntegration_ARefreshKeepsTheCounter), so there is nothing to book.
+// TestTheRefreshWritesOnlyUnderTheSlot holds its one call site instead.
 //
 // What it cannot see is the same short list the panic guard names: a call kept
 // textually and wrapped in `if false`, and the call order beyond "before the
@@ -105,7 +111,7 @@ func TestTheUsageTickerIsWiredIntoTheDaemon(t *testing.T) {
 func TestEveryKernelWriteBooksTheCountersFirst(t *testing.T) {
 	const collect = "f.collectUsageBeforeWrite("
 	const reset = "f.resetUsageBaselines("
-	writes := []string{"f.nft.Apply(", "f.nft.Reset("}
+	writes := []string{"f.nft.ApplyWithFeeds(", "f.nft.Reset("}
 
 	sources := coreSources(t)
 

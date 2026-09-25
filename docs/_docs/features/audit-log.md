@@ -35,7 +35,7 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
 | 🔴 | `resume_restore_skipped` | Resume could not restore the rules | Resume cleared the panic marker but an apply held the slot, so the stored rules never made it back — the machine is left exactly as unfiltered as `boot_enforce_failed` describes |
 | 🟠 | `health_degraded` | Health degraded | An apply wrote a rule that easywall's own expression check cannot believe. The table went in anyway, and the rest of the chain is filtering — but one rule may match nothing, which is the class that let the established/related accept enforce nothing for five releases. The detail names the chain and the position; `easywall-core health` and the dashboard both report degraded until the next clean apply |
-| ⚪ | everything else | Rules saved, Options saved, Apply refused — panic mode is engaged, Stored, not written — panic, … | Something was staged, or an attempt changed nothing live |
+| ⚪ | everything else | Rules saved, Options saved, Apply refused — panic mode is engaged, Stored, not written — panic, Feed updated, Feed update refused, … | Something was staged, an attempt changed nothing live, or a feed's contents were refreshed — the detail names the feed and its entry counts |
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
 > running firewall untouched. The same goes for `apply_refused_panic` and
@@ -110,7 +110,7 @@ nothing. The `user` column says `web` for all thirteen.
 |---|---|
 | Timestamp | Clock time today, day and month before that. The full value is in the title attribute |
 | Action | The identifier, rendered in your language |
-| Rule type | `tcp`, `udp`, `blacklist`, `whitelist`, `forwarding`, `custom`, or `all` |
+| Rule type | `tcp`, `udp`, `blocklist`, `allowlist`, `forwarding`, `custom`, or `all` |
 | Detail | What changed — the addresses added and removed, or the settings that moved |
 | User | The **process** that wrote the entry, not the person — one of five values, listed below |
 
@@ -164,7 +164,7 @@ tail -f /var/log/easywall/audit.log
 ```
 
 ```json
-{"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blacklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
+{"time":"2026-08-09T14:25:41Z","action":"rules_saved","rule_type":"blocklist","detail":"added 203.0.113.7, removed 192.0.2.1","user":"web"}
 {"time":"2026-08-09T14:25:43Z","action":"options_saved","rule_type":"","detail":"changed port_scan, tcp_rst_flood","user":"web"}
 {"time":"2026-08-09T14:26:02Z","action":"apply_accepted","rule_type":"all","detail":"","user":"web"}
 {"time":"2026-08-10T06:14:07Z","action":"boot_enforced","rule_type":"all","detail":"daemon start","user":"core"}

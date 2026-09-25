@@ -19,15 +19,19 @@ import (
 // docs-tech/threat-model.md, "data_dir is root's".
 const stateSubdir = "web"
 
-// stateFiles is every name this process has kept directly in data_dir: the
-// four Config paths, and the copy passkeyStore sets aside when the store will
-// not parse. TestEveryWebStatePathIsInTheStateDir holds the list to the paths.
+// stateFiles is every name this process keeps in its state dir: the Config
+// paths, and the copy passkeyStore sets aside when the store will not parse.
+// All but feed_fetch.json (2.23) once lived directly in data_dir, and
+// prepareStateDir moves those; a name here must never be one of the core's
+// files in data_dir, or the move would take it. TestEveryWebStatePathIsInTheStateDir
+// holds the list to the paths.
 var stateFiles = []string{
 	"totp_replay.json",
 	"passkeys.json",
 	"passkeys.json.corrupt",
 	"version_cache.json",
 	"telemetry.json",
+	"feed_fetch.json",
 }
 
 // prepareStateDir creates <data_dir>/web and brings in any state file still

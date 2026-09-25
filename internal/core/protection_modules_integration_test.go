@@ -64,9 +64,9 @@ func TestIntegration_FragmentDropDropsFragments(t *testing.T) {
 	r.inNS(r.pidA, "ip", "link", "set", "va", "mtu", "1280")
 	r.run("ip", "link", "set", "va-r", "mtu", "1280")
 
-	// The whitelist, so an IPv4 echo request is accepted at all: type 8 is
+	// The allowlist, so an IPv4 echo request is accepted at all: type 8 is
 	// not in the ICMP accept list.
-	rules := shared.Rules{Whitelist: []string{"10.77.1.0/24"}}
+	rules := shared.Rules{Allowlist: []string{"10.77.1.0/24"}}
 	big := []string{"-c", "2", "-W", "1", "-M", "dont", "-s", "3000", "10.77.1.1"}
 	small := []string{"-c", "2", "-W", "1", "10.77.1.1"}
 
@@ -144,7 +144,7 @@ func TestIntegration_ICMPFloodMetersEveryEchoRequest(t *testing.T) {
 	r.run("ip", "-6", "addr", "add", "fd77:1::1/64", "dev", "va-r", "nodad")
 	r.inNS(r.pidA, "ip", "-6", "addr", "add", "fd77:1::2/64", "dev", "va", "nodad")
 
-	rules := shared.Rules{Whitelist: []string{"10.77.1.0/24"}}
+	rules := shared.Rules{Allowlist: []string{"10.77.1.0/24"}}
 	// Twenty in one second from one source, against a limit of one a second
 	// with a burst of one: two get through at most.
 	flood := func(to string) []string { return []string{"-c", "20", "-i", "0.05", "-W", "1", to} }
@@ -222,16 +222,16 @@ func TestIntegration_TheMetersPrecedeTheEstablishedAccept(t *testing.T) {
 	}
 }
 
-// log_blacklist_connections logged single addresses only: a network went to a
+// log_blocklist_connections logged single addresses only: a network went to a
 // builder that took no log spec.
-func TestIntegration_LogBlacklist_LabelsANetworkToo(t *testing.T) {
+func TestIntegration_LogBlocklist_LabelsANetworkToo(t *testing.T) {
 	m := newIntegrationManager(t)
-	applyRules(t, m, shared.Rules{Blacklist: []string{"198.51.100.0/24", "2001:db8::/32"}},
-		shared.FirewallOptions{LogBlacklist: true})
+	applyRules(t, m, shared.Rules{Blocklist: []string{"198.51.100.0/24", "2001:db8::/32"}},
+		shared.FirewallOptions{LogBlocklist: true})
 
 	input := chainText(t, "input")
 	for _, entry := range []string{"198.51.100.0/24", "2001:db8::/32"} {
-		logAt := indexOfRule(input, entry, `log prefix "`+logPrefixBlacklist+`"`)
+		logAt := indexOfRule(input, entry, `log prefix "`+logPrefixBlocklist+`"`)
 		dropAt := indexOfRule(input, entry, "drop")
 		if logAt < 0 || dropAt < 0 || logAt > dropAt {
 			t.Errorf("%s: log rule %d, drop %d; a network entry must be logged before it is dropped\n  %s",

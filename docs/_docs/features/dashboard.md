@@ -11,7 +11,7 @@ The landing page after signing in. It answers one question before any other:
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/dashboard" ext="png"
-     alt="The easywall dashboard: firewall status reading Active with a sentence explaining what that means, then acceptance state, pending changes, last apply and the last self-test; tiles counting TCP ports, UDP ports, blacklist, whitelist, custom rules and forwarding; and a recent-activity list." %}
+     alt="The easywall dashboard: firewall status reading Active with a sentence explaining what that means, then acceptance state, pending changes, last apply and the last self-test; tiles counting TCP ports, UDP ports, blocklist, allowlist, custom rules and forwarding; and a recent-activity list." %}
   <figcaption>Counts come from the rule set the kernel is loaded with, not from what is staged.</figcaption>
 </figure>
 
@@ -39,7 +39,7 @@ releases the stateful half matched no packet while every surface said active.
 
 ## The tiles
 
-Six counts — TCP ports, UDP ports, blacklist, whitelist, custom rules, port
+Six counts — TCP ports, UDP ports, blocklist, allowlist, custom rules, port
 forwarding — each linking to its page. They describe the **loaded** rule set. If
 you have staged an edit, the tile still shows what is enforced; that is the point
 of the number.

@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,8 +33,8 @@ func TestDemoState_SeedsRules(t *testing.T) {
 	if len(d.rules.Current.TCP) == 0 {
 		t.Error("seed should include at least one TCP port rule")
 	}
-	if len(d.rules.Current.Whitelist) == 0 {
-		t.Error("seed should include at least one whitelist entry")
+	if len(d.rules.Current.Allowlist) == 0 {
+		t.Error("seed should include at least one allowlist entry")
 	}
 	if len(d.auditLog) == 0 {
 		t.Error("seed should include audit log entries")
@@ -180,14 +181,14 @@ func TestDemoSend_SaveRulesTCP(t *testing.T) {
 	}
 }
 
-func TestDemoSend_SaveRulesBlacklist(t *testing.T) {
+func TestDemoSend_SaveRulesBlocklist(t *testing.T) {
 	c := NewDemoClient()
-	if err := c.SaveRules("blacklist", []string{"10.0.0.1", "10.0.0.2"}); err != nil {
+	if err := c.SaveRules("blocklist", []string{"10.0.0.1", "10.0.0.2"}); err != nil {
 		t.Fatalf("SaveRules: %v", err)
 	}
 	state, _ := c.GetRules()
-	if len(state.Staged.Blacklist) != 2 {
-		t.Errorf("expected 2 blacklist entries, got %v", state.Staged.Blacklist)
+	if len(state.Staged.Blocklist) != 2 {
+		t.Errorf("expected 2 blocklist entries, got %v", state.Staged.Blocklist)
 	}
 }
 
@@ -416,8 +417,8 @@ func TestDemoSend_AuditEntriesSayWhatChanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := append(append([]string{}, before.Staged.Blacklist...), "198.51.100.77")
-	if err := c.SaveRules("blacklist", updated); err != nil {
+	updated := append(append([]string{}, before.Staged.Blocklist...), "198.51.100.77")
+	if err := c.SaveRules("blocklist", updated); err != nil {
 		t.Fatal(err)
 	}
 
@@ -472,7 +473,7 @@ func TestDemoSend_RejectsWhatTheCoreWouldReject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := c.SaveRules("blacklist", []string{"192.168.1.999"}); err == nil {
+	if err := c.SaveRules("blocklist", []string{"192.168.1.999"}); err == nil {
 		t.Error("a malformed address must be refused")
 	}
 	if err := c.SaveRules("tcp", []shared.PortRule{{Port: "80abc"}}); err == nil {
@@ -486,12 +487,12 @@ func TestDemoSend_RejectsWhatTheCoreWouldReject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after.Staged.Blacklist) != len(before.Staged.Blacklist) {
+	if len(after.Staged.Blocklist) != len(before.Staged.Blocklist) {
 		t.Error("a refused save must leave the staged set untouched")
 	}
 
 	// And what the core accepts still goes through, comments included.
-	if err := c.SaveRules("blacklist", []string{"# a note", "", "192.0.2.7"}); err != nil {
+	if err := c.SaveRules("blocklist", []string{"# a note", "", "192.0.2.7"}); err != nil {
 		t.Errorf("a valid list with comments must be accepted: %v", err)
 	}
 }
@@ -614,8 +615,8 @@ func TestDemo_CancelAcceptanceRollsBackNow(t *testing.T) {
 // the browser and passes the suite — which is exactly how PANIC and RESUME
 // reached this file two tasks after they were added to the protocol.
 func TestDemo_AnswersEveryDeclaredCommand(t *testing.T) {
-	if len(shared.AllCommandTypes) != 23 {
-		t.Fatalf("the protocol declares %d commands; this test was written for 23 "+
+	if len(shared.AllCommandTypes) != 25 {
+		t.Fatalf("the protocol declares %d commands; this test was written for 25 "+
 			"and needs a second look before it can trust the count", len(shared.AllCommandTypes))
 	}
 
@@ -792,5 +793,58 @@ func TestDemo_SeededAuditLogDescends(t *testing.T) {
 				i, d.auditLog[i].Action, d.auditLog[i].Time,
 				i-1, d.auditLog[i-1].Action, d.auditLog[i-1].Time)
 		}
+	}
+}
+
+// 2.23: the public demo shows the two feeds the card says to start with,
+// switched on and with a copy, and three more that show the other states a
+// row has (newDemoFeedStore) — CINS in the kernel with no copy, because its
+// fetches fail. A feed a visitor switches on has none — nothing in the demo
+// fetches — and UPDATE_FEED is refused rather than pretending to store
+// anything.
+func TestDemoAnswersTheFeedCommands(t *testing.T) {
+	d := newDemoState()
+	c := &CoreClient{demo: d}
+
+	res, err := c.GetFeeds("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]shared.FeedStatus{}
+	for _, f := range res.Feeds {
+		byID[f.ID] = f
+	}
+	for _, id := range []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised"} {
+		f := byID[id]
+		if !f.Stored || !f.InKernel || f.Entries == 0 || f.CheckedAt.IsZero() || !f.CountersRead {
+			t.Errorf("%s in the demo: %+v", id, f)
+		}
+	}
+	if f := byID["cins"]; f.Stored || !f.InKernel {
+		t.Errorf("cins in the demo: %+v — switched on, and no copy", f)
+	}
+	if len(res.Feeds) != 5 {
+		t.Errorf("the seeded demo reports %d feeds, want 5: %+v", len(res.Feeds), res.Feeds)
+	}
+
+	if err := c.SaveRules("feeds", append(slices.Clone(d.rules.Current.Feeds), "tor-exits")); err != nil {
+		t.Fatal(err)
+	}
+	res, _ = c.GetFeeds("")
+	var tor *shared.FeedStatus
+	for i := range res.Feeds {
+		if res.Feeds[i].ID == "tor-exits" {
+			tor = &res.Feeds[i]
+		}
+	}
+	if tor == nil || tor.Stored || tor.InKernel {
+		t.Errorf("a feed staged in the demo reads %+v; it has no copy and is not in the kernel", tor)
+	}
+	if err := c.SaveRules("feeds", []string{"firehol-level1"}); err == nil {
+		t.Error("the demo staged a feed id the core would refuse")
+	}
+
+	if _, err := c.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield", Entries: []string{"192.0.2.0/24"}}); err == nil {
+		t.Error("the demo accepted UPDATE_FEED; demo mode fetches nothing and stores nothing")
 	}
 }

@@ -10,7 +10,7 @@ import (
 
 // An IPv4-mapped network is an IPv4 network written in the other family's
 // notation, and validation has always accepted it. Until 2.22 no builder
-// turned it back into IPv4: in the blacklist and the whitelist it produced a
+// turned it back into IPv4: in the blocklist and the allowlist it produced a
 // 4-byte address compare behind a 16-byte mask, and the kernel refused the
 // whole rule set with EINVAL; in a port rule's sources it was skipped with a
 // WARN, so the rule opened nothing. Each case here names where the entry sits
@@ -24,11 +24,11 @@ func TestIntegration_AMappedNetworkIsWrittenAsTheIPv4NetworkItNames(t *testing.T
 		chain string
 		want  []string
 	}{
-		{"blacklist", func(s *shared.RulesState) { s.Current.Blacklist = []string{mapped} },
+		{"blocklist", func(s *shared.RulesState) { s.Current.Blocklist = []string{mapped} },
 			shared.FirewallOptions{}, "input", []string{"ip saddr 10.0.0.0/8", "drop"}},
-		{"whitelist", func(s *shared.RulesState) { s.Current.Whitelist = []string{mapped} },
+		{"allowlist", func(s *shared.RulesState) { s.Current.Allowlist = []string{mapped} },
 			shared.FirewallOptions{}, "input", []string{"ip saddr 10.0.0.0/8", "accept"}},
-		{"whitelist, as a bogon exception", func(s *shared.RulesState) { s.Current.Whitelist = []string{mapped} },
+		{"allowlist, as a bogon exception", func(s *shared.RulesState) { s.Current.Allowlist = []string{mapped} },
 			shared.FirewallOptions{Bogons: true}, "bogon", []string{"ip saddr 10.0.0.0/8", "return"}},
 		{"port source", func(s *shared.RulesState) {
 			s.Current.TCP = []shared.PortRule{{Port: "2222", Sources: []string{mapped}}}

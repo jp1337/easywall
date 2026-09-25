@@ -28,7 +28,7 @@ const (
 
 // RuleDelta is one line of the rule diff.
 type RuleDelta struct {
-	Set   string    `json:"set"` // "tcp" "udp" "blacklist" "whitelist" "forwarding" "custom"
+	Set   string    `json:"set"` // "tcp" "udp" "blocklist" "allowlist" "feeds" "forwarding" "custom"
 	Kind  DeltaKind `json:"kind"`
 	Key   string    `json:"key"`   // "8443", "192.0.2.42", "8080->80/tcp", "#3"
 	Label string    `json:"label"` // the port description, when it has one
@@ -52,8 +52,9 @@ func DiffRules(current, staged Rules) []RuleDelta {
 	var out []RuleDelta
 	out = append(out, diffPorts("tcp", current.TCP, staged.TCP)...)
 	out = append(out, diffPorts("udp", current.UDP, staged.UDP)...)
-	out = append(out, diffList("blacklist", current.Blacklist, staged.Blacklist)...)
-	out = append(out, diffList("whitelist", current.Whitelist, staged.Whitelist)...)
+	out = append(out, diffList("blocklist", current.Blocklist, staged.Blocklist)...)
+	out = append(out, diffList("allowlist", current.Allowlist, staged.Allowlist)...)
+	out = append(out, diffFeeds(current.Feeds, staged.Feeds)...)
 	out = append(out, diffForwarding(current.Forwarding, staged.Forwarding)...)
 	out = append(out, diffCustom(current.Custom, staged.Custom)...)
 	return out
@@ -157,6 +158,21 @@ func diffList(set string, current, staged []string) []RuleDelta {
 	for _, entry := range listEntries(current) {
 		if !next[entry] {
 			out = append(out, RuleDelta{Set: set, Kind: DeltaRemoved, Key: entry})
+		}
+	}
+	return out
+}
+
+// diffFeeds compares the enabled feeds as a set — the order they were switched
+// on in decides nothing in the kernel, each is its own set and rule. The key is
+// the id; the label is what the interface calls it, so the apply screen says
+// "Spamhaus DROP" and "Own feed 2" rather than asking the operator to decode
+// "spamhaus-drop". An id nothing knows keeps no label.
+func diffFeeds(current, staged []string) []RuleDelta {
+	out := diffList("feeds", current, staged)
+	for i := range out {
+		if name := FeedDisplayName(out[i].Key); name != out[i].Key {
+			out[i].Label = name
 		}
 	}
 	return out

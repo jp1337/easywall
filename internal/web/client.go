@@ -80,7 +80,7 @@ func (c *CoreClient) GetRules() (*shared.RulesState, error) {
 }
 
 // SaveRules saves staged rules of the given type.
-// ruleType: "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"
+// ruleType: "tcp", "udp", "blocklist", "allowlist", "feeds", "forwarding", "custom"
 func (c *CoreClient) SaveRules(ruleType string, rules interface{}) error {
 	payload, err := json.Marshal(shared.SaveRulesPayload{
 		RuleType: ruleType,
@@ -441,4 +441,48 @@ func (c *CoreClient) ValidateCustom(rules []string) (map[int]string, error) {
 		return nil, err
 	}
 	return result.Errors, nil
+}
+
+// UpdateFeed hands the core a new version of one feed. The core re-checks
+// every entry; a refusal comes back as the error, with the core's reason.
+// A payload over shared.MaxMessageBytes is not sent at all: errors.Is(err,
+// shared.ErrRequestTooLarge).
+func (c *CoreClient) UpdateFeed(p shared.UpdateFeedPayload) (shared.UpdateFeedResult, error) {
+	var res shared.UpdateFeedResult
+	payload, err := json.Marshal(p)
+	if err != nil {
+		return res, fmt.Errorf("marshal payload: %w", err)
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdUpdateFeed, Payload: payload})
+	if err != nil {
+		return res, err
+	}
+	if !resp.Success {
+		return res, fmt.Errorf("core error: %s", resp.Error)
+	}
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		return res, fmt.Errorf("parse feed update: %w", err)
+	}
+	return res, nil
+}
+
+// GetFeeds returns what the core holds for each feed. addr, when not empty,
+// makes each status say whether its copy contains that address.
+func (c *CoreClient) GetFeeds(addr string) (shared.GetFeedsResult, error) {
+	var res shared.GetFeedsResult
+	payload, err := json.Marshal(shared.GetFeedsPayload{Addr: addr})
+	if err != nil {
+		return res, fmt.Errorf("marshal payload: %w", err)
+	}
+	resp, err := c.Send(shared.Command{Type: shared.CmdGetFeeds, Payload: payload})
+	if err != nil {
+		return res, err
+	}
+	if !resp.Success {
+		return res, fmt.Errorf("core error: %s", resp.Error)
+	}
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		return res, fmt.Errorf("parse feeds: %w", err)
+	}
+	return res, nil
 }

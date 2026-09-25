@@ -41,7 +41,7 @@ apply. Until 2.10 this page said there was nothing to apply while the options
 page was telling you to.
 
 Add and remove are `+`, `-` and `~` in the left column and carry no colour. A
-new blacklist entry is not good news, and a removed port is not a failure.
+new blocklist entry is not good news, and a removed port is not a failure.
 Colour on this page means firewall state, and it belongs to the line above the
 list.
 
@@ -121,7 +121,7 @@ machines you can physically reach — see
 | The apply failed outright | the kernel refused a rule — usually a [custom rule]({{ '/docs/features/custom-rules/' | relative_url }}) | `journalctl -u easywall-core` carries nft's own message |
 | `rollback_failed` in the log | the new rules did not take **and** the old ones did not come back | the worst outcome there is; check the daemon's log and the running table with `nft list table inet easywall` |
 | Your SSH dropped right after applying | that is the design | do nothing; the window restores the previous rules, and on a first apply it takes the firewall back down altogether — the audit log then reads `boot_not_configured` |
-| An apply is "already running" | one window is open | confirm it, or wait for it to expire |
+| "Another change is being written" | one window is open, or a [feed]({{ '/docs/features/feeds/' | relative_url }}) refresh is loading | confirm it, or wait for it to expire; after a refresh, press **Apply now** again |
 
 ---
 

@@ -124,3 +124,28 @@ func TestEveryFirewallLimitIsWiredToItsOwnField(t *testing.T) {
 		}
 	}
 }
+
+// A host upgraded from 2.22 keeps its easywall.toml, which has no
+// log_feed_connections_limit. Read as 0, /options rendered value="0" against
+// min="1" and the browser refused to submit the form — no option could be
+// saved. Every limit the file does not name loads as its default, which is in
+// the range the page's min/max advertise (TestTheAdvertisedLimitsAreTheOnes-
+// TheDaemonEnforces ties the two), and a 2.22 old-spelling limit still wins.
+func TestA222ConfigGetsTheNewLimitsDefault(t *testing.T) {
+	path := copyFixture(t, "easywall.toml")
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Firewall.LogFeedLimit; got != 60 {
+		t.Errorf("log_feed_connections_limit from a 2.22 file = %d, want its default 60", got)
+	}
+	if got := cfg.Firewall.LogBlocklistLimit; got != 25 {
+		t.Errorf("the fixture's old-spelling blocklist log limit, 25, read as %d", got)
+	}
+	for _, l := range shared.FirewallLimits {
+		if v := *l.Value(&cfg.Firewall); !l.InRange(v) {
+			t.Errorf("%s = %d after loading a 2.22 file; /options would refuse to submit it (%d..%d)", l.Key, v, l.Min, l.Max)
+		}
+	}
+}

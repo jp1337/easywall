@@ -20,8 +20,8 @@ var whyRules = Rules{
 		{Port: "25", Sources: []string{"2001:db8:1::/48"}},              // an IPv6 source opens nothing to IPv4
 	},
 	UDP:       []PortRule{{Port: "53"}},
-	Blacklist: []string{"192.0.2.66"},
-	Whitelist: []string{"# admins", "198.51.100.7", "192.0.2.9"}, // .9: whitelisted as IPv4 only, for the mapped-source case below
+	Blocklist: []string{"192.0.2.66"},
+	Allowlist: []string{"# admins", "198.51.100.7", "192.0.2.9"}, // .9: allowlisted as IPv4 only, for the mapped-source case below
 }
 
 func whyTCP(src string, port uint16) PacketLogEntry {
@@ -79,8 +79,8 @@ var dropReasonCases = []struct {
 		DropWhy{DropPortSources, map[string]any{"Port": uint16(25), "Proto": "tcp", "Sources": "2001:db8:1::/48"}}},
 	{"the same rule, from its IPv6 network", whyTCP("2001:db8:1::5", 25), v6Filter,
 		DropWhy{DropPortOpenNow, map[string]any{"Port": uint16(25), "Proto": "tcp"}}},
-	{"blacklisted since", whyTCP("192.0.2.66", 22), v6Filter, DropWhy{Code: DropBlacklistedNow}},
-	{"whitelisted since", whyTCP("198.51.100.7", 993), v6Filter, DropWhy{Code: DropWhitelistedNow}},
+	{"blocklisted since", whyTCP("192.0.2.66", 22), v6Filter, DropWhy{Code: DropBlocklistedNow}},
+	{"allowlisted since", whyTCP("198.51.100.7", 993), v6Filter, DropWhy{Code: DropAllowlistedNow}},
 	{"an IPv4 ping", whyICMP("icmp", 8), v6Filter, DropWhy{Code: DropIPv4Ping}},
 	{"an ICMP type nothing accepts", whyICMP("icmp", 13), v6Filter,
 		DropWhy{DropICMPType, map[string]any{"Proto": "ICMP", "Type": uint8(13)}}},
@@ -94,9 +94,9 @@ var dropReasonCases = []struct {
 		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMPv6", "Type": uint8(134)}}},
 	{"an IPv6 ping is accepted", whyICMP("icmpv6", 128), v6Filter,
 		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMPv6", "Type": uint8(128)}}},
-	{"a ping from a whitelisted source: the whitelist is the step", edited(whyICMP("icmp", 8), func(e *PacketLogEntry) {
+	{"a ping from an allowlisted source: the allowlist is the step", edited(whyICMP("icmp", 8), func(e *PacketLogEntry) {
 		e.Src = netip.MustParseAddr("198.51.100.7")
-	}), v6Filter, DropWhy{Code: DropWhitelistedNow}},
+	}), v6Filter, DropWhy{Code: DropAllowlistedNow}},
 	{"a protocol without ports", edited(whyTCP("203.0.113.9", 0), func(e *PacketLogEntry) { e.Proto = "47" }), v6Filter,
 		DropWhy{Code: DropNoPort}},
 	{"a later fragment: no port was read", whyTCP("203.0.113.9", 0), v6Filter, DropWhy{Code: DropNoPort}},
@@ -107,7 +107,7 @@ var dropReasonCases = []struct {
 		DropWhy{DropPortClosed, map[string]any{"Port": uint16(993), "Proto": "tcp"}}},
 	{"a module row names itself", edited(whyTCP("203.0.113.9", 22), func(e *PacketLogEntry) { e.Rule = "ssh" }), v6Filter, DropWhy{}},
 	{"no easywall rule logs in the forward chain", edited(whyTCP("203.0.113.9", 993), func(e *PacketLogEntry) { e.Hook = "forward" }), v6Filter, DropWhy{}},
-	{"an IPv4-mapped source in an IPv6 packet is not read as the IPv4 whitelist entry",
+	{"an IPv4-mapped source in an IPv6 packet is not read as the IPv4 allowlist entry",
 		edited(whyTCP("203.0.113.9", 993), func(e *PacketLogEntry) {
 			e.Family, e.Src = 6, netip.MustParseAddr("::ffff:192.0.2.9")
 		}), v6Filter,
@@ -152,7 +152,7 @@ func TestDropReasonReachesEveryCode(t *testing.T) {
 // actually proves parsing runs once is allocations: DropReasonParsed on an
 // already-parsed ParsedRules allocates a small, list-size-independent
 // constant (measured at 4 on this row: the Port/Proto map and the loop
-// variable, nothing that scales with the blacklist); re-parsing per call
+// variable, nothing that scales with the blocklist); re-parsing per call
 // would allocate a netip.Prefix slice sized to the list on every one of the
 // 100 runs AllocsPerRun makes. The timer stays as documentation of the
 // user-facing cost.
@@ -162,7 +162,7 @@ func TestParseRulesOnceHoldsA10000EntryList(t *testing.T) {
 		entries[i] = fmt.Sprintf("10.%d.%d.%d/32", i/65536%256, i/256%256, i%256)
 	}
 	big := whyRules
-	big.Blacklist = entries
+	big.Blocklist = entries
 	parsed := ParseRules(big)
 	row := whyTCP("203.0.113.9", 993)
 
@@ -176,6 +176,6 @@ func TestParseRulesOnceHoldsA10000EntryList(t *testing.T) {
 		row.DropReasonParsed(parsed, v6Filter)
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("200 rows against a 10,000-entry blacklist took %s parsed once; want well under 1s", elapsed)
+		t.Errorf("200 rows against a 10,000-entry blocklist took %s parsed once; want well under 1s", elapsed)
 	}
 }

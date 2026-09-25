@@ -150,7 +150,7 @@ func TestCheckSeesPastASecondConntrackLoad(t *testing.T) {
 
 // A bitwise that does not follow a conntrack load is an address mask or a TCP
 // flags mask, and this check has nothing to say about it. Without the
-// precedence test every whitelisted network in the table would be reported: an
+// precedence test every allowlisted network in the table would be reported: an
 // IPv4 netmask of /8 is 0xff000000, which names no conntrack state at all.
 func TestCheckIgnoresABitwiseThatIsNotACtStateMask(t *testing.T) {
 	r := &nftables.Rule{
@@ -177,7 +177,7 @@ func TestCheckIgnoresABitwiseThatIsNotACtStateMask(t *testing.T) {
 }
 
 // The bug in reach_integration_test.go:184: the SSH brute-force chain ended in
-// accept and was jumped to before the blacklist, so a blacklisted address could
+// accept and was jumped to before the blocklist, so a blocklisted address could
 // open SSH as long as it stayed under the rate limit. A jumped-to chain must
 // return or drop, and the exceptions are named in one list a reviewer sees.
 func TestCheckRejectsAJumpedChainThatAccepts(t *testing.T) {

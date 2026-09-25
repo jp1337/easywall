@@ -174,9 +174,9 @@ jobs:
 
           docker run -d --name easywall-hc --cap-add NET_ADMIN easywall:dev
           docker exec -i easywall-hc sh -c 'cat > /var/lib/easywall/rules.json' <<'JSON'
-          {"current":{"tcp":[{"port":"12227","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
-           "staged":{"tcp":[{"port":"12227","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
-           "backup":{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}}
+          {"current":{"tcp":[{"port":"12227","description":"easywall web","ssh":false}],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]},
+           "staged":{"tcp":[{"port":"12227","description":"easywall web","ssh":false}],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]},
+           "backup":{"tcp":[],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}}
           JSON
           docker restart easywall-hc
           expect healthy "a container with rules in the kernel and both processes up"
@@ -386,9 +386,9 @@ jobs:
           # the kernel first — a container that never applied is honestly not
           # enforcing (see the HEALTHCHECK step above).
           compose exec -T easywall sh -c 'cat > /var/lib/easywall/rules.json' <<'JSON'
-          {"current":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
-           "staged":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]},
-           "backup":{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}}
+          {"current":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]},
+           "staged":{"tcp":[{"port":"12228","description":"easywall web","ssh":false}],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]},
+           "backup":{"tcp":[],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}}
           JSON
           EASYWALL_CI_WEB_BIND="$ip:12228" compose up -d --no-build --pull never --force-recreate
           health=""

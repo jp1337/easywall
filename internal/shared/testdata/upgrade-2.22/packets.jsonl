@@ -1,0 +1,1 @@
+{"seq":1,"time":"2026-09-23T10:00:00Z","rule":"blacklist","hook":"input","family":4,"src":"203.0.113.9","dst":"198.51.100.1","proto":"tcp","dport":22,"ttl":57,"len":60}

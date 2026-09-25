@@ -48,7 +48,7 @@ toc: false
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/dashboard" ext="png"
-     alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP and UDP ports, blacklist, whitelist, custom rules and forwarding; recent-activity list." %}
+     alt="The easywall dashboard: firewall status with acceptance state, pending changes and last apply; tiles counting TCP and UDP ports, blocklist, allowlist, custom rules and forwarding; recent-activity list." %}
   <figcaption>The dashboard answers one question first: what is this firewall enforcing right now?</figcaption>
 </figure>
 
@@ -77,12 +77,12 @@ toc: false
 
 ## A firewall you keep your hands on
 
-Everything lives on your own box: ports TCP/UDP, blacklist and whitelist, port
+Everything lives on your own box: ports TCP/UDP, blocklist and allowlist, port
 forwarding, custom nftables rules, protection modules, a theft-proof audit log.
 No cloud, no account, no telemetry you did not agree to.
 
 * Ports — single or range, with per-rule SSH brute-force routing
-* Blacklist & whitelist — IPv4, IPv6, CIDR, evaluated before any port rule
+* Blocklist & allowlist — IPv4, IPv6, CIDR, evaluated before any port rule
 * Port forwarding — NAT redirects with protocol selection
 * Custom rules — raw nftables, syntax-checked before it is ever applied
 * Docker coexistence — owns `table inet easywall`, touches nothing else

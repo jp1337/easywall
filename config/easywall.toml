@@ -136,5 +136,7 @@ drop_anycast                     = false
 # ─── Logging ────────────────────────────────────────────────────────────────
 log_blocked_connections          = false
 log_blocked_connections_limit    = 60
-log_blacklist_connections        = false
-log_blacklist_connections_limit  = 60
+log_blocklist_connections        = false
+log_blocklist_connections_limit  = 60
+log_feed_connections             = false
+log_feed_connections_limit       = 60
