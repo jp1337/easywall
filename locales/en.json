@@ -438,6 +438,7 @@
   {"id": "feed_error_empty", "translation": "not one address in it"},
   {"id": "feed_error_refused", "translation": "refused by the core's checks; the audit log says which"},
   {"id": "feed_error_core_unreachable", "translation": "the core did not answer"},
+  {"id": "feed_error_panic", "translation": "panic mode is engaged — the firewall was taken down at the console"},
   {"id": "feeds_warn_empty", "translation": "In the kernel with an empty set: it blocks nothing until a copy arrives."},
   {"id": "feeds_warn_stale", "translation": "Unchanged for 30 days — a list that stops changing may no longer be maintained."},
   {"id": "feeds_warn_overlap", "translation": "Contains allowlist entries ({{.N}}), which stay reachable."},

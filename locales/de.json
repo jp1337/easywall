@@ -438,6 +438,7 @@
   {"id": "feed_error_empty", "translation": "keine einzige Adresse darin"},
   {"id": "feed_error_refused", "translation": "von den Prüfungen des Core-Dienstes abgelehnt; das Audit-Log sagt, von welcher"},
   {"id": "feed_error_core_unreachable", "translation": "der Core-Dienst hat nicht geantwortet"},
+  {"id": "feed_error_panic", "translation": "der Notfallmodus ist aktiv — die Firewall wurde an der Konsole abgeschaltet"},
   {"id": "feeds_warn_empty", "translation": "Im Kernel mit leerem Set: sie blockiert nichts, bis eine Kopie da ist."},
   {"id": "feeds_warn_stale", "translation": "Seit 30 Tagen unverändert — eine Liste, die sich nicht mehr ändert, wird vielleicht nicht mehr gepflegt."},
   {"id": "feeds_warn_overlap", "translation": "Enthält Einträge der Erlaubnisliste ({{.N}}); sie bleiben erreichbar."},
