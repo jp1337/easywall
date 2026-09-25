@@ -147,11 +147,16 @@ type NftablesManager struct {
 	// silent.
 	checksRun int
 
-	// sndbuf, when non-zero, is the send buffer feedSockOption gives every
-	// socket dialled for the flush in progress; sndbufCapped records that the
-	// kernel refused SO_SNDBUFFORCE. Both belong to flushLarge, under mu.
-	sndbuf       int
-	sndbufCapped bool
+	// sndbuf and rcvbuf, when non-zero, are the buffers sockBuffers gives
+	// every socket dialled for the flush in progress; the Capped flags record
+	// that the kernel refused SO_SNDBUFFORCE / SO_RCVBUFFORCE. rcvbufForTest,
+	// when non-zero, replaces the receive estimate. All belong to flushLarge,
+	// under mu.
+	sndbuf        int
+	sndbufCapped  bool
+	rcvbuf        int
+	rcvbufCapped  bool
+	rcvbufForTest int
 }
 
 // builtRecorder is the production adder: it records the rule and forwards it to
@@ -187,7 +192,7 @@ type ruleAdder interface {
 // NewNftablesManager creates a new manager and verifies netlink connectivity.
 func NewNftablesManager() (*NftablesManager, error) {
 	m := &NftablesManager{}
-	conn, err := nftables.New(nftables.WithSockOptions(m.feedSockOption))
+	conn, err := nftables.New(nftables.WithSockOptions(m.sockBuffers))
 	if err != nil {
 		return nil, fmt.Errorf("open netlink connection: %w", err)
 	}
@@ -218,7 +223,7 @@ func NewNftablesManager() (*NftablesManager, error) {
 // arriving through the guard built to prevent it.
 func NewNftablesManagerInNamespace(nsFD int) (*NftablesManager, error) {
 	m := &NftablesManager{nsFD: nsFD}
-	conn, err := nftables.New(nftables.WithNetNSFd(nsFD), nftables.WithSockOptions(m.feedSockOption))
+	conn, err := nftables.New(nftables.WithNetNSFd(nsFD), nftables.WithSockOptions(m.sockBuffers))
 	if err != nil {
 		return nil, fmt.Errorf("reach nftables in the self-test namespace: %w", err)
 	}
@@ -567,7 +572,7 @@ func (m *NftablesManager) reset() error {
 		Name:   tableName,
 		Family: nftables.TableFamilyINet,
 	})
-	if err := m.conn.Flush(); err != nil {
+	if err := m.flushLarge(0); err != nil {
 		// Ignore "no such table" errors — table may not exist yet.
 		_ = err
 	}
@@ -576,7 +581,7 @@ func (m *NftablesManager) reset() error {
 		Name:   tableName,
 		Family: nftables.TableFamilyINet,
 	})
-	return m.conn.Flush()
+	return m.flushLarge(0)
 }
 
 // Apply is ApplyWithFeeds with no feed contents: every enabled feed gets an
@@ -908,7 +913,14 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 
 	m.checkBuilt()
 	if err := m.flushLarge(feedBytes); err != nil {
-		// Refused whole: the kernel holds the previous table and its counters.
+		// The kernel's answers overflowing the receive buffer: they come
+		// after the commit, so the table is written (errNothingWritten says
+		// what an aborted batch's overflow costs).
+		if receiveOverflow(err) {
+			return err
+		}
+		// Refused whole, or never sent: the kernel holds the previous table
+		// and its counters.
 		return fmt.Errorf("%w (%w)", err, errNothingWritten)
 	}
 	// Apply custom rules via nft subprocess after all typed rules are committed.
@@ -935,7 +947,7 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 		// five releases. TestIntegration_TheBuiltTableHasNoFindings asserts
 		// checksRun == 2 so that collapsing the two is not silent.
 		m.checkBuilt()
-		if err := m.conn.Flush(); err != nil {
+		if err := m.flushLarge(0); err != nil {
 			return fmt.Errorf("add final log rule: %w", err)
 		}
 	}

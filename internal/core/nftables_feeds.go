@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"os"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -207,18 +210,26 @@ func (m *NftablesManager) addFeeds(t *nftables.Table, c *nftables.Chain, enabled
 	return batch, nil
 }
 
-// feedSockOption is the send-buffer half of plan P3, on every socket this
-// manager's connection dials. A batch is one sendmsg (mdlayher/netlink
-// conn_linux.go:106-119), and the kernel refuses one longer than the socket's
-// send buffer with EMSGSIZE (net/netlink/af_netlink.c:1857 @ v6.12) — 212 992
-// bytes by default, about 5 000 IPv4 ranges. m.sndbuf is set by the one flush
-// that carries feed elements and is zero otherwise.
+// sockBuffers sizes both buffers of every socket this manager's connection
+// dials for a flush (plan P3; 2.23.1). m.sndbuf and m.rcvbuf are set by
+// flushLarge for the flush in progress and are zero otherwise — a dump or a
+// list gets the stock socket.
 //
-// SO_SNDBUFFORCE needs CAP_NET_ADMIN in the initial user namespace; the core
-// has it. Refused, SO_SNDBUF still raises the buffer as far as
-// net.core.wmem_max allows, and m.sndbufCapped makes the EMSGSIZE that may
-// follow say why.
-func (m *NftablesManager) feedSockOption(c *netlink.Conn) error {
+// Send: a batch is one sendmsg (mdlayher/netlink conn_linux.go:106-119), and
+// the kernel refuses one longer than the send buffer with EMSGSIZE
+// (net/netlink/af_netlink.c:1857 @ v6.12).
+//
+// Receive: every message in the batch asks for an ack and every rule add also
+// for an echo (google/nftables v0.3.0 rule.go:159-163); the kernel queues them
+// all and delivers them after the commit (net/netfilter/nfnetlink.c
+// nfnetlink_rcv_batch @ v6.12). Past the receive buffer the rest is dropped
+// and recvmsg returns ENOBUFS — the table is already written.
+//
+// SO_SNDBUFFORCE / SO_RCVBUFFORCE need CAP_NET_ADMIN in the initial user
+// namespace; the core has it. Refused, SO_SNDBUF / SO_RCVBUF still raise the
+// buffers as far as net.core.wmem_max / rmem_max allow, and m.sndbufCapped /
+// m.rcvbufCapped make the EMSGSIZE or ENOBUFS that may follow say why.
+func (m *NftablesManager) sockBuffers(c *netlink.Conn) error {
 	if m.sndbuf == 0 {
 		return nil
 	}
@@ -233,43 +244,117 @@ func (m *NftablesManager) feedSockOption(c *netlink.Conn) error {
 	if err != nil {
 		return err
 	}
-	var serr error
+	var sndErr, rcvErr error
 	if err := raw.Control(func(fd uintptr) {
-		serr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_SNDBUFFORCE, m.sndbuf)
+		sndErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_SNDBUFFORCE, m.sndbuf)
+		rcvErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_RCVBUFFORCE, m.rcvbuf)
 	}); err != nil {
 		return err
 	}
-	if errors.Is(serr, unix.EPERM) {
+	if errors.Is(sndErr, unix.EPERM) {
 		m.sndbufCapped = true
-		return c.SetWriteBuffer(m.sndbuf)
+		sndErr = c.SetWriteBuffer(m.sndbuf)
 	}
-	return serr
+	if errors.Is(rcvErr, unix.EPERM) {
+		m.rcvbufCapped = true
+		rcvErr = c.SetReadBuffer(m.rcvbuf)
+	}
+	return errors.Join(sndErr, rcvErr)
 }
 
-// flushLarge is Flush for a batch that may carry up to batch bytes of feed
-// elements beyond the rules.
+// What one kernel rule costs the socket, measured rootless on Linux 7.2 with
+// every protection module on and port rules with two sources each: the
+// smallest SO_SNDBUF / SO_RCVBUF value (the kernel doubles it) that let the
+// apply through, at 151 and 391 kernel rules, as a line — 301 bytes a rule
+// sent, 915 a rule received (its ack and its echo). Twice that here, as the
+// margin; the stock default under both is the margin for everything that is
+// not a rule. The receive cost of the element calls' acks, measured with the
+// four root01xvp feeds (1.1 MB of elements), was about 1/100 of their bytes.
+const (
+	sndBytesPerRule = 2 * 301
+	rcvBytesPerRule = 2 * 915
+	rcvElemDivisor  = 100 / 2
+)
+
+// defaultSndbuf and defaultRcvbuf are net.core.wmem_default and rmem_default
+// on a stock kernel.
+const (
+	defaultSndbuf = 212992
+	defaultRcvbuf = 212992
+)
+
+// flushBuffers is the send and receive buffer for a flush of rules kernel
+// rules and batch bytes of feed elements.
+func flushBuffers(rules, batch int) (snd, rcv int) {
+	return defaultSndbuf + rules*sndBytesPerRule + batch,
+		defaultRcvbuf + rules*rcvBytesPerRule + batch/rcvElemDivisor
+}
+
+// flushLarge is Flush with both socket buffers sized for what is queued: the
+// rules this transaction built (an overestimate after the apply's own flush,
+// and harmless — a buffer is a limit, not an allocation) and batch bytes of
+// feed elements. Every flush this manager makes goes through it.
 func (m *NftablesManager) flushLarge(batch int) error {
-	if batch > 0 {
-		// The rules themselves fitted the default buffer before 2.23, so that
-		// is the margin on top of the elements.
-		m.sndbuf, m.sndbufCapped = batch+defaultSndbuf, false
-		defer func() { m.sndbuf = 0 }()
+	m.sndbuf, m.rcvbuf = flushBuffers(len(m.built), batch)
+	if m.rcvbufForTest != 0 {
+		m.rcvbuf = m.rcvbufForTest
 	}
+	m.sndbufCapped, m.rcvbufCapped = false, false
+	defer func() { m.sndbuf, m.rcvbuf = 0, 0 }()
 	err := m.conn.Flush()
-	if err != nil && m.sndbufCapped && errors.Is(err, unix.EMSGSIZE) {
-		return fmt.Errorf("%w: the feed sets need a %d-byte send buffer, and without "+
-			"CAP_NET_ADMIN the socket cannot be given more than net.core.wmem_max", err, m.sndbuf)
+	switch {
+	case err == nil:
+	case m.sndbufCapped && errors.Is(err, unix.EMSGSIZE):
+		return fmt.Errorf("%w: %s", err, capNote("send", m.sndbuf, "wmem_max", sysctlCore("wmem_max")))
+	case m.rcvbufCapped && receiveOverflow(err):
+		return fmt.Errorf("%w: %s", err, capNote("receive", m.rcvbuf, "rmem_max", sysctlCore("rmem_max")))
 	}
 	return err
 }
 
-// errNothingWritten marks an ApplyWithFeeds error from a batch the kernel
-// refused whole: the previous table, counters included, is still in force.
-// The rollback does not reset the usage baselines after one.
-var errNothingWritten = errors.New("nothing was written to the kernel")
+// receiveOverflow reports whether err is the socket's receive queue
+// overflowing while the kernel's answers were read — ENOBUFS from recvmsg,
+// which mdlayher/netlink v1.11.2 reports as an OpError "receive"
+// (conn.go:332). A send-side ENOBUFS is "send-messages" (conn.go:181): the
+// kernel could not allocate the batch (netlink_sendmsg, af_netlink.c @ v6.12)
+// and wrote nothing.
+func receiveOverflow(err error) bool {
+	var op *netlink.OpError
+	return errors.As(err, &op) && op.Op == "receive" && errors.Is(op.Err, unix.ENOBUFS)
+}
 
-// defaultSndbuf is net.core.wmem_default on a stock kernel.
-const defaultSndbuf = 212992
+// sysctlCore reads net.core.<name>; 0 when it cannot.
+func sysctlCore(name string) int {
+	b, err := os.ReadFile("/proc/sys/net/core/" + name) // #nosec G304 -- a fixed sysctl path
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return n
+}
+
+// capNote says why a capped buffer of need bytes was not enough. The sysctl
+// is named only when it is below the request (or unreadable, 0): above it, the
+// fallback gave the full request and the estimate itself was too small.
+func capNote(dir string, need int, sysctl string, limit int) string {
+	if limit > 0 && limit >= need {
+		return fmt.Sprintf("the socket was given the %d-byte %s buffer asked for, and the "+
+			"kernel needed more: the estimate is too small", need, dir)
+	}
+	return fmt.Sprintf("the flush needs a %d-byte %s buffer, and without CAP_NET_ADMIN the "+
+		"socket cannot be given more than net.core.%s", need, dir, sysctl)
+}
+
+// errNothingWritten marks an ApplyWithFeeds error from a batch the kernel
+// refused whole, or never received: the previous table, counters included,
+// is still in force. The rollback does not reset the usage baselines after
+// one. A receive overflow is never tagged: after a commit the answers it lost
+// came after the table was written
+// (TestIntegration_AReceiveOverflowIsNotNothingWritten). On an aborted batch
+// it is untagged too — google/nftables v0.3.0 returns ENOBUFS and drops the
+// error acks it had collected (conn.go:269-273), so the two cannot be told
+// apart — which costs one extra baseline reset.
+var errNothingWritten = errors.New("nothing was written to the kernel")
 
 // ReplaceFeedSet swaps both of a live feed's sets for these ranges without an
 // apply: a flush of each set and its new elements, in one batch, which the

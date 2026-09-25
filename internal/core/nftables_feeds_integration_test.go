@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -559,4 +560,105 @@ func TestIntegration_ARefusedRollbackKeepsTheBaselines(t *testing.T) {
 	if got := res.Usage[id].KernelPackets; got != 100 {
 		t.Errorf("the baseline is %d after a refused rollback, want 100 untouched", got)
 	}
+}
+
+// portRules is n TCP port rules from port first, each with an IPv4 and an IPv6
+// source — the shape of root01xvp's rule set, where 2.23.0 failed.
+func portRules(n, first int) shared.Rules {
+	r := shared.Rules{}
+	for i := 0; i < n; i++ {
+		r.TCP = append(r.TCP, shared.PortRule{ID: fmt.Sprintf("%012x", first+i), Port: strconv.Itoa(first + i),
+			Sources: []string{"198.51.100.0/24", "2001:db8::/32"}})
+	}
+	return r
+}
+
+// 2.23.1: the kernel answers every rule — an ack and an echo, queued after the
+// commit — and those answers overflowed the stock 212 992-byte receive buffer
+// at about a hundred kernel rules: ≈107 without feeds (2.22.0 already), ≈96
+// with root01xvp's four. root01xvp: ~107 rules and four feeds, nine
+// apply_failed. Both shapes must apply. Without CAP_NET_ADMIN
+// in the initial user namespace the buffers stop at net.core.rmem_max and
+// wmem_max; a host whose limits are below the need skips, and CI — root, with
+// requireSelftestEnv — fails instead.
+func TestIntegration_ARealisticRuleSetWithFeedsApplies(t *testing.T) {
+	feeds := FeedContents{
+		"blocklist-de":   syntheticFeed(25237, false, 1<<20),
+		"spamhaus-drop":  syntheticFeed(1800, false, 2<<20),
+		"et-compromised": syntheticFeed(679, false, 3<<20),
+		"dshield":        syntheticFeed(20, false, 4<<20),
+	}
+	withFeeds := portRules(40, 1000)
+	withFeeds.Feeds = []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised"}
+	for _, tc := range []struct {
+		name  string
+		rules shared.Rules
+		feeds FeedContents
+	}{
+		{"40 port rules and the four root01xvp feeds", withFeeds, feeds},
+		{"160 port rules, no feed", portRules(160, 1000), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newIntegrationManager(t)
+			err := m.ApplyWithFeeds(shared.RulesState{Current: tc.rules}, allProtectionModulesOn(),
+				shared.NetworkSettings{}, tc.feeds)
+			t.Logf("%s: %d kernel rules, sndbuf capped=%v, rcvbuf capped=%v: %v",
+				tc.name, len(m.built), m.sndbufCapped, m.rcvbufCapped, err)
+			if err != nil {
+				// Only a cap below what the manager asked for excuses a
+				// failure: an estimate too small fails here on any host.
+				batch := 0
+				for _, ps := range tc.feeds {
+					batch += feedElementBytes(splitFamilies(mergeRanges(ps)))
+				}
+				snd, rcv := flushBuffers(len(m.built), batch)
+				if (m.rcvbufCapped && sysctlInt(t, "rmem_max") < rcv) || (m.sndbufCapped && sysctlInt(t, "wmem_max") < snd) {
+					skipOrFailUnprovable(t, fmt.Sprintf("%s: the socket buffers cannot grow to %d/%d without root: %v",
+						tc.name, snd, rcv, err))
+				}
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+			if tc.feeds != nil && !setHolds(t, "feed-blocklist-de-v4", feeds["blocklist-de"][0].Addr()) {
+				t.Errorf("%s: the apply succeeded and blocklist-de's first address is not in its set", tc.name)
+			}
+		})
+	}
+}
+
+// 2.23.1: the acks and echoes come after the commit, so a flush that fails
+// receiving them has written the table. 2.23.0 tagged it errNothingWritten,
+// the rollback kept usage baselines describing a table that was gone, and the
+// audit log said nothing had been written. The receive buffer is forced small
+// here; 40 port rules also overflow the stock one.
+func TestIntegration_AReceiveOverflowIsNotNothingWritten(t *testing.T) {
+	m := newIntegrationManager(t)
+	if err := m.Apply(shared.RulesState{Current: portRules(1, 2000)}, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
+		t.Fatal(err)
+	}
+	m.rcvbufForTest = 4096
+	err := m.Apply(shared.RulesState{Current: portRules(40, 3000)}, allProtectionModulesOn(), shared.NetworkSettings{})
+	if !errors.Is(err, unix.ENOBUFS) {
+		t.Fatalf("a 4096-byte receive buffer returned %v, want ENOBUFS", err)
+	}
+	if errors.Is(err, errNothingWritten) {
+		t.Errorf("a receive overflow after the commit is tagged errNothingWritten: %v", err)
+	}
+	input := strings.Join(inputChainText(t, m), "\n")
+	if strings.Contains(input, "2000") || !strings.Contains(input, "3039") {
+		t.Errorf("after the overflow the input chain holds:\n%s\nwant the new rules (3000-3039), not the previous (2000)", input)
+	}
+}
+
+// sysctlInt reads net.core.<name>.
+func sysctlInt(t *testing.T, name string) int {
+	t.Helper()
+	b, err := os.ReadFile("/proc/sys/net/core/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
