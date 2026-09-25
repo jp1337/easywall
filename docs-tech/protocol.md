@@ -55,11 +55,11 @@ nothing in it, and checks in this order:
 
 | # | Check | On failure |
 |---|---|---|
-| 1 | panic is not engaged, and the apply slot is free | refused, `panic mode is engaged` / exactly `ErrApplyInProgressText` (P7) — the web resends that one later |
+| 1 | panic is not engaged (checked again once the apply slot is held, so PANIC landing between the two finds nothing to interrupt), and the slot is free | refused, `panic mode is engaged` / exactly `ErrApplyInProgressText` (P7) — the web resends that one later |
 | 2 | `id` is a catalogue id or `own-1`…`own-3`, enabled in Staged or Current | refused |
 | 3 | ≤ 100 000 entries, each parsed again with `netip`, `::ffff:` unmapped | refused; a bad entry is named by position, never quoted |
-| 4 | not globally routable — RFC 1918, 100.64/10, 127/8, 169.254/16, 0/8, 224/3; IPv6 outside 2000::/3 | dropped and counted (`dropped`); nothing left at all is refused |
-| 5 | no prefix broader than /8 (v4) or /16 (v6) — checked on every entry before the drop, so `0.0.0.0/0` refuses rather than vanishing | the whole update refused |
+| 4 | wholly inside non-global space — RFC 1918, 100.64/10, 127/8, 169.254/16, 0/8, 224/3; IPv6 outside 2000::/3 or inside 2001:db8::/32 (documentation) — checked **before** the breadth refusal, so a feed's own bogon documentation (FireHOL level1's `224.0.0.0/3`, `10.0.0.0/8`…) is dropped rather than refusing the whole update (review finding, D4-4 revision) | dropped and counted (`dropped`); nothing left at all is refused |
+| 5 | no prefix broader than /8 (v4) or /16 (v6) — only what row 4 left standing reaches this; `0.0.0.0/0` and `::/0` overlap non-global space without being wholly inside it, so they still refuse here | the whole update refused |
 | 6 | for a feed enabled in **Current** only: at least 70 % of the stored count. Staged-only or switched off, any size — off, apply, on is how a list that really shrank is accepted | refused, exactly `ErrFeedShrankText` |
 | 7 | enabled in **Current**, changed or not: loaded first — under `m.mu` and the apply slot, both sets flushed and refilled in ≤ 64 KiB chunks, one batch. No counter booking: a set flush leaves the rules' counters alone (`TestIntegration_ARefreshKeepsTheCounter`) | refused and audited with the kernel's reason; nothing stored, nothing half-loaded |
 | 8 | written to `<data_dir>/feeds.json` atomically — skipped when only `checked_at` moved (a 304, the same list again): the cache takes it | error; the kernel already holds the new copy |

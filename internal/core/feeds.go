@@ -37,10 +37,17 @@ var nonGlobalV4 = []netip.Prefix{
 // is dropped: the v6 equivalents of the list above, and then some.
 var globalV6 = netip.MustParsePrefix("2000::/3")
 
+// docV6 is IPv6's documentation range (RFC 3849), carved out of otherwise
+// global space so nobody ships it as a reachable address. Unlike IPv4's
+// TEST-NETs (RFC 5737) — real, if unrouted, addresses a feed may legitimately
+// carry as examples, and which nonGlobalV4 leaves alone — 2001:db8::/32 is
+// excluded here (review finding, D4-4 revision).
+var docV6 = netip.MustParsePrefix("2001:db8::/32")
+
 // isGlobal reports whether p lies in globally routed space.
 func isGlobal(p netip.Prefix) bool {
 	if p.Addr().Is6() {
-		return globalV6.Bits() <= p.Bits() && globalV6.Contains(p.Addr())
+		return globalV6.Bits() <= p.Bits() && globalV6.Contains(p.Addr()) && !docV6.Overlaps(p)
 	}
 	for _, n := range nonGlobalV4 {
 		if n.Overlaps(p) {
@@ -48,6 +55,34 @@ func isGlobal(p netip.Prefix) bool {
 		}
 	}
 	return true
+}
+
+// entirelyNonGlobal reports whether p lies wholly inside a single non-global
+// range — narrower than or equal to it — as opposed to merely overlapping
+// one. Spec §3 step 4 (the drop) runs on this before step 5 (the breadth
+// refusal): a feed that carries its own bogon documentation verbatim —
+// FireHOL level1 lists 224.0.0.0/3, 10.0.0.0/8 and 100.64.0.0/10 among its
+// entries — has those lines dropped and counted, not the whole update refused
+// as "broader than /8" (review finding, D4-4 revision; the earlier order was
+// the plan's own §3 reading, corrected by review).
+//
+// A prefix that only overlaps non-global space in part — broader than the
+// range, like 100.0.0.0/8 over 100.64.0.0/10, or unbounded like 0.0.0.0/0 and
+// ::/0 — is not "wholly inside" anything here; it still reaches the breadth
+// check, and isGlobal's overlap-based drop once that has passed.
+func entirelyNonGlobal(p netip.Prefix) bool {
+	if p.Addr().Is6() {
+		if !globalV6.Overlaps(p) {
+			return true
+		}
+		return docV6.Bits() <= p.Bits() && docV6.Contains(p.Addr())
+	}
+	for _, n := range nonGlobalV4 {
+		if n.Bits() <= p.Bits() && n.Contains(p.Addr()) {
+			return true
+		}
+	}
+	return false
 }
 
 // feedPrefix parses one entry the web process sent: a bare address or a
@@ -74,14 +109,18 @@ func feedPrefix(e string) (netip.Prefix, bool) {
 }
 
 // validateFeedEntries is spec §3 steps 3 to 5: at most FeedMaxEntries, each
-// parsed again, none broader than /8 or /16, and what is not globally routable
-// dropped and counted. It returns the kept prefixes deduplicated and sorted,
-// which is the form feeds.json stores and Changed compares.
+// parsed again, what is not globally routable dropped and counted, then none
+// of what remains broader than /8 or /16. It returns the kept prefixes
+// deduplicated and sorted, which is the form feeds.json stores and Changed
+// compares.
 //
-// The breadth check runs on every entry before any is dropped, not after the
-// drop spec §3 lists first: 0.0.0.0/0 overlaps private space, and dropped it
-// would pass as one uncounted entry of a working feed. A feed carrying it is
-// broken, and D6 refuses the whole update for exactly that.
+// The drop runs before the breadth check, not after (review finding, D4-4
+// revision): a prefix wholly inside non-global space — a feed's own bogon
+// documentation, like FireHOL level1's 224.0.0.0/3 — is dropped and counted
+// there, so the breadth check never sees it and never refuses the whole
+// update over it. 0.0.0.0/0 and ::/0 are not wholly inside any single
+// non-global range — they overlap all of them, and everything else — so they
+// still reach, and fail, the breadth check.
 func validateFeedEntries(entries []string) (kept []netip.Prefix, dropped int, err error) {
 	if len(entries) > shared.FeedMaxEntries {
 		return nil, 0, fmt.Errorf("%d entries; a feed may hold at most %d", len(entries), shared.FeedMaxEntries)
@@ -91,6 +130,10 @@ func validateFeedEntries(entries []string) (kept []netip.Prefix, dropped int, er
 		p, ok := feedPrefix(strings.TrimSpace(e))
 		if !ok {
 			return nil, 0, fmt.Errorf("entry %d is not an address or a prefix", i+1)
+		}
+		if entirelyNonGlobal(p) {
+			dropped++
+			continue
 		}
 		if (p.Addr().Is4() && p.Bits() < shared.FeedMaxBitsV4) || (p.Addr().Is6() && p.Bits() < shared.FeedMaxBitsV6) {
 			return nil, 0, fmt.Errorf("%s is broader than /%d (IPv4) or /%d (IPv6)", p, shared.FeedMaxBitsV4, shared.FeedMaxBitsV6)

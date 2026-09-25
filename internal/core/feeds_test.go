@@ -73,7 +73,11 @@ func readFeedsFile(t *testing.T, fw *Firewall) []byte {
 }
 
 // Spec §3 step 3–5: re-parsed, unmapped, masked, deduplicated, sorted; what is
-// not globally routable dropped and counted.
+// not globally routable dropped and counted. 2001:db8::/32 (RFC 3849's IPv6
+// documentation range) is dropped like the rest, not kept as a v6 TEST-NET
+// would be (review finding, D4-4 revision): unlike IPv4's TEST-NETs, which are
+// real if unrouted addresses a feed may legitimately carry, 2001:db8::/32 is
+// carved out of global space specifically so nobody ships it as reachable.
 func TestValidateFeedEntries(t *testing.T) {
 	kept, dropped, err := validateFeedEntries([]string{
 		"203.0.113.9", " 198.51.100.0/24 ", "198.51.100.77/24", "::ffff:192.0.2.1", "::ffff:192.0.2.0/120",
@@ -84,7 +88,7 @@ func TestValidateFeedEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"192.0.2.0/24", "192.0.2.1/32", "198.51.100.0/24", "203.0.113.9/32", "2001:db8::/32"}
+	want := []string{"192.0.2.0/24", "192.0.2.1/32", "198.51.100.0/24", "203.0.113.9/32"}
 	var got []string
 	for _, p := range kept {
 		got = append(got, p.String())
@@ -92,8 +96,46 @@ func TestValidateFeedEntries(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("kept %v, want %v", got, want)
 	}
-	if dropped != 14 {
-		t.Errorf("dropped %d, want 14", dropped)
+	if dropped != 15 {
+		t.Errorf("dropped %d, want 15", dropped)
+	}
+}
+
+// Review finding 1 (D4-4 revision, spec §3 step 4 before step 5): the
+// non-global drop runs before the breadth refusal, so a prefix wholly inside
+// non-global space is dropped and counted instead of refusing the whole
+// update. FireHOL level1 carries its own bogon block — 224.0.0.0/3, 10.0.0.0/8
+// and 100.64.0.0/10 among its entries, each matching (or narrower than) a
+// nonGlobalV4 range exactly — alongside real addresses; before this fix every
+// fetch of it was refused as "224.0.0.0/3 is broader than /8", nothing kept.
+func TestValidateFeedEntries_DropsNonGlobalBeforeRefusingBreadth(t *testing.T) {
+	kept, dropped, err := validateFeedEntries([]string{
+		"224.0.0.0/3", "10.0.0.0/8", "100.64.0.0/10", "1.2.3.0/24",
+	})
+	if err != nil {
+		t.Fatalf("FireHOL level1's bogon lines refused the whole update: %v", err)
+	}
+	if dropped != 3 {
+		t.Errorf("dropped %d, want 3 (the bogon lines)", dropped)
+	}
+	var got []string
+	for _, p := range kept {
+		got = append(got, p.String())
+	}
+	if want := []string{"1.2.3.0/24"}; !slices.Equal(got, want) {
+		t.Errorf("kept %v, want %v", got, want)
+	}
+}
+
+// A prefix that only overlaps non-global space in part — 0.0.0.0/0 and ::/0
+// overlap everything, including it — is not "wholly inside" any single
+// non-global range, so it is not silently dropped: it still reaches, and
+// fails, the breadth check.
+func TestValidateFeedEntries_ZeroRoutesStillRefuseOnBreadth(t *testing.T) {
+	for _, e := range []string{"0.0.0.0/0", "::/0"} {
+		if _, _, err := validateFeedEntries([]string{e}); err == nil {
+			t.Errorf("%s was accepted", e)
+		}
 	}
 }
 
@@ -357,12 +399,14 @@ func TestUpdateFeed_PrunesToCurrentStagedAndBackup(t *testing.T) {
 // the counters said to be unread when they could not be.
 func TestFeeds(t *testing.T) {
 	fw := feedFirewall(t, "dshield", "cins")
+	// 2001:db9::/32, not 2001:db8::/32 — the latter is IPv6's documentation
+	// range and, since the D4-4 revision, dropped rather than stored.
 	if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield",
-		Entries: []string{"198.51.100.0/24", "2001:db8::/32"}}, "test"); err != nil {
+		Entries: []string{"198.51.100.0/24", "2001:db9::/32"}}, "test"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fw.rules.SaveStaged("allowlist", []string{"198.51.100.7", "# the office", "203.0.113.0/24",
-		"198.51.0.0/16", "2001:db8:1::/48"}); err != nil {
+		"198.51.0.0/16", "2001:db9:1::/48"}); err != nil {
 		t.Fatal(err)
 	}
 
