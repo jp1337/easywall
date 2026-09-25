@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
-	"time"
 )
 
 // The trusted-proxy list, measured with a peer address the kernel assigned.
@@ -78,14 +77,20 @@ var harnessSeq atomic.Int64
 
 func newPeerHarness(t *testing.T) *peerHarness {
 	t.Helper()
-	for _, bin := range []string{"unshare", "nsenter", "ip", "bash", "timeout"} {
+	for _, bin := range []string{"sleep", "nsenter", "ip", "bash", "timeout"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			t.Skipf("skipping: %s is not installed, and this test opens a real TCP connection", bin)
 		}
 	}
 
 	h := &peerHarness{t: t}
-	cmd := exec.Command("unshare", "-n", "sleep", "120")
+	// Cloned into its own namespace, as internal/core/netns.go's startPeer is.
+	// `unshare -n sleep` was racy: /proc/<pid>/ns/net exists from the fork,
+	// before unshare has switched namespaces, so the veth moved "into" it by
+	// pid landed in this namespace and the new one came up empty — `Cannot find
+	// device "vp6"` on main (2026-09-16).
+	cmd := exec.Command("sleep", "120")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: syscall.CLONE_NEWNET}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("cannot create a network namespace: %v", err)
 	}
@@ -105,20 +110,6 @@ func newPeerHarness(t *testing.T) *peerHarness {
 		_, _ = cmd.Process.Wait()
 		_ = exec.Command("ip", "link", "del", h.near).Run()
 	})
-
-	ready := false
-	deadline := time.Now().Add(2 * time.Second)
-	for !ready && time.Now().Before(deadline) {
-		if _, err := os.Stat("/proc/" + h.pid + "/ns/net"); err == nil {
-			ready = true
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !ready {
-		t.Fatalf("/proc/%s/ns/net did not appear within 2s: the namespace holder "+
-			"never got its own network namespace", h.pid)
-	}
 
 	h.run("ip", "link", "add", h.far, "type", "veth", "peer", "name", h.near)
 	h.run("ip", "link", "set", h.far, "netns", h.pid)
