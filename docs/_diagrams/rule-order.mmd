@@ -12,7 +12,9 @@ flowchart TD
   B -->|yes| X1(["DROP"])
   B -->|no| W{"On the allowlist?"}
   W -->|yes| A3(["ACCEPT — every port,<br/>open or not"])
-  W -->|no| O{"Port open?"}
+  W -->|no| FD{"In a feed<br/>you switched on?"}
+  FD -->|yes| X3(["DROP"])
+  FD -->|no| O{"Port open?"}
   O -->|yes| A4(["ACCEPT"])
   O -->|no| C["Custom rules"]
   C --> X2(["DROP — chain policy"])
@@ -20,6 +22,7 @@ flowchart TD
   style X0 stroke:#f2555a
   style X1 stroke:#f2555a
   style X2 stroke:#f2555a
+  style X3 stroke:#f2555a
   style A1 stroke:#3ecf8e
   style A3 stroke:#3ecf8e
   style A4 stroke:#3ecf8e
