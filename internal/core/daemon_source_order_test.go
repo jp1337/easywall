@@ -137,7 +137,7 @@ func funcBody(t *testing.T, src, file, sigPrefix string) string {
 // call order beyond that, so moving apply's check below f.rollback does not fire
 // it, though the comment there says the order matters.
 func TestEveryKernelWriteIsFollowedByThePanicCheck(t *testing.T) {
-	const write = "f.nft.Apply("
+	const write = "f.nft.ApplyWithFeeds("
 	const check = "f.panicLandedDuringWrite("
 
 	sources := coreSources(t)
@@ -209,6 +209,22 @@ func TestEveryKernelWriteIsFollowedByThePanicCheck(t *testing.T) {
 			t.Errorf("%s contains %d calls to %s but this guard accounted for %d; a check "+
 				"outside the enumerated functions is not being asserted about at all",
 				file, got, check, accounted)
+		}
+	}
+}
+
+// Every production writer loads the feed sets (spec §3). Apply exists for the
+// 87 test call sites and the self-test's own table, and passes no feeds, so a
+// production call to it would rebuild the table with every enabled feed's set
+// empty — a firewall that stops blocking other people's lists at the next
+// rollback, and says nothing. The three writers above are held to
+// ApplyWithFeeds by name; this holds everything else in the package.
+func TestNoProductionCodeCallsApplyWithoutFeeds(t *testing.T) {
+	for file, src := range coreSources(t) {
+		if n := len(indexesOf(src, "nft.Apply(")); n > 0 {
+			t.Errorf("%s calls nft.Apply %d time(s); a kernel write outside the tests has to be "+
+				"ApplyWithFeeds with the stored feeds (f.feedContents), or every enabled feed's "+
+				"set is written empty", file, n)
 		}
 	}
 }
@@ -337,16 +353,17 @@ func corePackageDir(t *testing.T) string {
 //
 // The guard below used to name firewall.go and restore.go, which made it blind
 // to precisely what it exists to catch: a fourth writer of table inet easywall
-// added in a third file. Nothing exploited it — f.nft.Apply( occurs exactly
-// three times repo-wide — and a guard whose scope is a literal list is one
-// commit away from being wrong about its own subject.
+// added in a third file. Nothing exploited it — the write occurs exactly three
+// times repo-wide — and a guard whose scope is a literal list is one commit
+// away from being wrong about its own subject.
 //
 // *_test.go files are excluded deliberately, not merely by the easy glob
 // pattern, for two reasons that both have to hold or the exclusion is just
 // narrowing the guard again under a different name:
 //
-//   - This file is one of them. It contains the literal strings "f.nft.Apply("
-//     and "f.panicLandedDuringWrite(" in its own const declarations above, so a
+//   - This file is one of them. It contains the literal strings
+//     "f.nft.ApplyWithFeeds(" and "f.panicLandedDuringWrite(" in its own const
+//     declarations above, so a
 //     glob that read *_test.go would have the guard counting its own source
 //     code as kernel writes and checks — a guard tripping over the string it is
 //     searching for, not over the codebase.

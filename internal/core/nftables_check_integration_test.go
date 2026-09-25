@@ -3,6 +3,7 @@
 package core
 
 import (
+	"net/netip"
 	"reflect"
 	"testing"
 
@@ -61,7 +62,8 @@ func countTrueBoolFields(opts shared.FirewallOptions) int {
 // addSSHBruteForce meters something, a range so buildPortExprs takes its second
 // path, a source-restricted rule, a UDP port, a blocklist and an allowlist entry,
 // a private allowlist network so the bogon filter builds its exemption returns,
-// and a forward so the NAT prerouting chain exists. Custom rules are left out:
+// a forward so the NAT prerouting chain exists, and a feed so addFeeds builds
+// its sets, its log rule and its drop. Custom rules are left out:
 // they go through the nft CLI after the flush and never become expressions this
 // check can read.
 func fullExampleRules() shared.Rules {
@@ -75,6 +77,7 @@ func fullExampleRules() shared.Rules {
 		Blocklist:  []string{"198.51.100.7"},
 		Allowlist:  []string{"192.168.42.0/24"},
 		Forwarding: []shared.ForwardingRule{{Protocol: "tcp", SourcePort: 2222, DestPort: 22}},
+		Feeds:      []string{"spamhaus-drop"},
 		Custom:     []string{},
 	}
 }
@@ -156,7 +159,9 @@ func TestIntegration_TheBuiltTableHasNoFindings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newIntegrationManager(t)
 			state := shared.RulesState{Current: fullExampleRules(), Staged: fullExampleRules()}
-			if err := m.Apply(state, opts, tc.net); err != nil {
+			feeds := FeedContents{"spamhaus-drop": {
+				netip.MustParsePrefix("198.51.100.0/24"), netip.MustParsePrefix("2001:db8::/32")}}
+			if err := m.ApplyWithFeeds(state, opts, tc.net, feeds); err != nil {
 				t.Fatalf("Apply: %v", err)
 			}
 

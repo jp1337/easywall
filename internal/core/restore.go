@@ -134,7 +134,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	f.collectUsageBeforeWrite()
 
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
-	if err := f.nft.Apply(state, opts, nets); err != nil {
+	if err := f.nft.ApplyWithFeeds(state, opts, nets, f.feedContents(state.Current)); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
 		// the machine came up unfiltered and nobody can say why.
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",

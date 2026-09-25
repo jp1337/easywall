@@ -22,7 +22,7 @@ func TestFirewallApply_OpensTheWindowBeforeItWritesTheKernel(t *testing.T) {
 	body := firewallApplyBody(t)
 
 	start := regexp.MustCompile(`f\.acceptance\.Start\(`)
-	apply := regexp.MustCompile(`f\.nft\.Apply\(`)
+	apply := regexp.MustCompile(`f\.nft\.ApplyWithFeeds\(`)
 
 	startAt := start.FindAllStringIndex(body, -1)
 	applyAt := apply.FindAllStringIndex(body, -1)
@@ -35,7 +35,7 @@ func TestFirewallApply_OpensTheWindowBeforeItWritesTheKernel(t *testing.T) {
 			len(startAt))
 	}
 	if len(applyAt) != 1 {
-		t.Fatalf("want exactly one f.nft.Apply call in Firewall.apply, found %d; "+
+		t.Fatalf("want exactly one f.nft.ApplyWithFeeds call in Firewall.apply, found %d; "+
 			"this guard compares positions and cannot tell which one writes the kernel",
 			len(applyAt))
 	}
