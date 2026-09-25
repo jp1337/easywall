@@ -374,8 +374,8 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 	was, now := fallback, fallback
 	if fallback == nil {
 		hits, unknown := s.feedHits(addr, before)
-		was = s.verdictFor(before, *opts, *nets, addr, port, proxied, hits, unknown)
-		now = s.verdictFor(after, *opts, *nets, addr, port, proxied, hits, unknown)
+		was = s.verdictFor(r, before, *opts, *nets, addr, port, proxied, hits, unknown)
+		now = s.verdictFor(r, after, *opts, *nets, addr, port, proxied, hits, unknown)
 	}
 	if now.Verdict == shared.ReachBlocked && was.Verdict != shared.ReachBlocked {
 		return "blocked_refused_lockout"

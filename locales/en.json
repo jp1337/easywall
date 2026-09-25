@@ -465,6 +465,7 @@
   {"id": "feeds_own_err_name", "translation": "Not saved: a name needs 1 to 64 printable characters."},
   {"id": "feeds_own_err_url", "translation": "Not saved: the address must be https://, or http:// to this host, with no user or password in it."},
   {"id": "feeds_own_err_login", "translation": "Not saved: user and password are printable, at most 256 characters each, and the user has no colon."},
+  {"id": "feeds_own_err_password_again", "translation": "Not saved: this address needs its own password — type it."},
   {"id": "feeds_own_err_demo", "translation": "The public demo keeps no own feeds: a password typed here would be stored on its host."},
   {"id": "blocked_rule_feed_named", "translation": "Feed: {{.Name}}"},
 

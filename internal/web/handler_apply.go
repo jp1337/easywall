@@ -90,7 +90,7 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 	data := &applyData{Status: status}
 	switch {
 	case status.Acceptance == shared.AcceptancePending:
-		data.Live, data.LiveCount = s.liveChanges()
+		data.Live, data.LiveCount = s.liveChanges(r)
 	case status.HasPending:
 		data.Preview = s.buildPreview(r)
 	}
@@ -114,13 +114,14 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 // markup the preview uses. The heading is not the preview's — apply_live_title,
 // "Live now — unconfirmed", against apply_preview_title, "What changes" — because
 // the two say different things about the same rows.
-func (s *Server) liveChanges() ([]applyPreviewSet, int) {
+func (s *Server) liveChanges(r *http.Request) ([]applyPreviewSet, int) {
 	state, err := s.client.GetRules()
 	if err != nil {
 		slog.Warn("could not read the rules to list what is live", "error", err)
 		return nil, 0
 	}
 	deltas := shared.DiffRules(state.Backup, state.Current)
+	s.ownFeedDiffLabels(r, deltas)
 
 	var sets []applyPreviewSet
 	for _, set := range previewSetOrder {
@@ -155,6 +156,7 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 
 	p := &applyPreview{}
 	deltas := shared.DiffRules(state.Current, state.Staged)
+	s.ownFeedDiffLabels(r, deltas)
 	for _, set := range previewSetOrder {
 		var group []shared.RuleDelta
 		for _, d := range deltas {
@@ -206,6 +208,22 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 	return p
 }
 
+// ownFeedDiffLabels replaces an own feed's diff label. shared.DiffRules calls
+// shared.FeedDisplayName, which knows no locale or configured name and always
+// renders the English "Own feed N" (carry-in, controller ruling: an own feed
+// must never show that literal on a German page) — here it becomes the
+// operator's own name when set, else the localized default, the same as the
+// card and the /blocked chip.
+func (s *Server) ownFeedDiffLabels(r *http.Request, deltas []shared.RuleDelta) {
+	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	for i := range deltas {
+		if deltas[i].Set == "feeds" && ownFeedN(deltas[i].Key) > 0 {
+			deltas[i].Label = s.feedLabel(tFunc, deltas[i].Key)
+		}
+	}
+}
+
 // reachVerdict answers whether a new connection from the address this request
 // came from would still reach this interface once the staged set is live.
 //
@@ -221,7 +239,7 @@ func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 		return fallback
 	}
 	hits, unknown := s.feedHits(addr, staged)
-	return s.verdictFor(staged, o, n, addr, port, proxied, hits, unknown)
+	return s.verdictFor(r, staged, o, n, addr, port, proxied, hits, unknown)
 }
 
 // requestAddrAndPort resolves the request's address and this host's web port —
@@ -258,7 +276,7 @@ func (s *Server) requestAddrAndPort(r *http.Request) (addr netip.Addr, port uint
 // them — after asking s.feedHits only once: the two calls are for the same
 // address and (every caller today) the same staged.Feeds, so asking the core
 // twice would be asking it the identical question twice.
-func (s *Server) verdictFor(staged shared.Rules, o shared.FirewallOptions, n shared.NetworkSettings,
+func (s *Server) verdictFor(r *http.Request, staged shared.Rules, o shared.FirewallOptions, n shared.NetworkSettings,
 	addr netip.Addr, port uint16, proxied bool, hits, unknown []string) *applyVerdict {
 
 	local := addressIsLocal(addr)
@@ -281,9 +299,11 @@ func (s *Server) verdictFor(staged shared.Rules, o shared.FirewallOptions, n sha
 	// not a reason to leave the page saying "in the feed , which drops it".
 	if v.Reason == shared.ReasonInFeed {
 		// The first staged feed that holds it — the one whose rule comes first.
+		loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+		tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
 		for _, id := range staged.Feeds {
 			if slices.Contains(hits, id) {
-				v.Feed = shared.FeedDisplayName(id)
+				v.Feed = s.feedLabel(tFunc, id)
 				break
 			}
 		}

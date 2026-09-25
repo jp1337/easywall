@@ -313,6 +313,7 @@ func TestAnOwnFeedRefusalShowsBesideItsSlot(t *testing.T) {
 	for err, key := range map[error]string{
 		errOwnFeedName: "feeds_own_err_name", errOwnFeedURL: "feeds_own_err_url",
 		errOwnFeedLogin: "feeds_own_err_login", errOwnFeedDemo: "feeds_own_err_demo", errOwnFeedSlot: "save_error",
+		errOwnFeedPasswordAgain: "feeds_own_err_password_again",
 	} {
 		if got := ownFeedErrKey(err); got != key {
 			t.Errorf("%v → %q, want %q", err, got, key)
@@ -334,6 +335,51 @@ func TestAnOwnFeedRefusalShowsBesideItsSlot(t *testing.T) {
 	doAuthFormRequest(t, s, "/blocklist/own-feeds", "n=2&name=Mine&url=https%3A%2F%2Fexample.org%2Flist.txt&clear=1")
 	if _, ok := s.feedStore.ownFeed(2); ok {
 		t.Error("Remove did not clear the slot")
+	}
+}
+
+// Carry-in (controller ruling, Task 6 → Task 7): errOwnFeedPasswordAgain
+// (feed_state.go) fires both when a stored feed's host changes under an empty
+// password field and on a first save that gives a user but no password —
+// there being nothing to send either way. The save handler renders it beside
+// its slot like every other errOwnFeed*, and the password field stays empty:
+// the one field the page never writes back, refused or not.
+func TestAnOwnFeedNeedsItsPasswordRetypedForANewAddress(t *testing.T) {
+	s, _, _ := feedsCore(t, shared.RulesState{}, nil)
+
+	// A first save: a user with no password has nothing to send.
+	form := url.Values{"n": {"3"}, "name": {"Mine"}, "url": {"https://example.org/list.txt"}, "user": {"me"}}
+	body := doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()).Body.String()
+	if !strings.Contains(body, `<p class="field-error" role="alert">Not saved: this address needs its own password`) {
+		t.Fatalf("a first save with a user and no password does not say so:\n%s", body)
+	}
+	if pw := regexp.MustCompile(`<input type="password"[^>]*>`).FindAllString(body, -1); len(pw) != shared.MaxOwnFeeds {
+		t.Fatalf("%d password fields, want %d", len(pw), shared.MaxOwnFeeds)
+	} else {
+		for _, f := range pw {
+			if strings.Contains(f, "value=") {
+				t.Errorf("a password field carries a value: %s", f)
+			}
+		}
+	}
+	if _, ok := s.feedStore.ownFeed(3); ok {
+		t.Error("a refused first save was stored")
+	}
+
+	// Store it properly, then point it at a new host with the password field
+	// left empty: the old password must not follow it there.
+	form.Set("password", "first-pass")
+	assertRedirect(t, doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()), "/blocklist#own-feeds")
+	form2 := url.Values{"n": {"3"}, "name": {"Mine"}, "url": {"https://elsewhere.example.org/list.txt"}, "user": {"me"}}
+	body = doAuthFormRequest(t, s, "/blocklist/own-feeds", form2.Encode()).Body.String()
+	if !strings.Contains(body, `<p class="field-error" role="alert">Not saved: this address needs its own password`) {
+		t.Fatalf("a changed host with no retyped password does not say so:\n%s", body)
+	}
+	if strings.Contains(body, "first-pass") {
+		t.Error("the stored password was written back into the page")
+	}
+	if f, ok := s.feedStore.ownFeed(3); !ok || f.URL != "https://example.org/list.txt" || f.Password != "first-pass" {
+		t.Errorf("a refused save overwrote the stored address: %+v", f)
 	}
 }
 
