@@ -180,7 +180,15 @@ func (s *Server) handleOwnFeedPOST(w http.ResponseWriter, r *http.Request) {
 	// the one field not shown back (rejectIPList's reasoning).
 	// A URL refused for carrying a user and password is shown back without
 	// them: the password is the one thing never written into the page.
-	if u, err := url.Parse(f.URL); err == nil && u.User != nil {
+	// A URL that does not parse, or that carries an opaque part (review round
+	// 1, finding 1: "u:secret@host/x" parses with Opaque set and User nil —
+	// url.Parse's success and a nil User are not proof the string holds no
+	// credential), is not echoed at all: there is no way to strip a password
+	// from text this handler cannot make sense of, so the field comes back
+	// empty rather than risk one going out inside it.
+	if u, err := url.Parse(f.URL); err != nil || u.Opaque != "" {
+		f.URL = ""
+	} else if u.User != nil {
 		u.User = nil
 		f.URL = u.String()
 	}

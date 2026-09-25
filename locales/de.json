@@ -465,7 +465,7 @@
   {"id": "feeds_own_err_name", "translation": "Nicht gespeichert: ein Name braucht 1 bis 64 druckbare Zeichen."},
   {"id": "feeds_own_err_url", "translation": "Nicht gespeichert: die Adresse muss https:// sein, oder http:// zu diesem Host, ohne Benutzer oder Passwort darin."},
   {"id": "feeds_own_err_login", "translation": "Nicht gespeichert: Benutzer und Passwort sind druckbar, je höchstens 256 Zeichen, und der Benutzer enthält keinen Doppelpunkt."},
-  {"id": "feeds_own_err_password_again", "translation": "Nicht gespeichert: Diese Adresse braucht ein eigenes Passwort — bitte eingeben."},
+  {"id": "feeds_own_err_password_again", "translation": "Nicht gespeichert: diese Adresse braucht ein eigenes Passwort — bitte eingeben."},
   {"id": "feeds_own_err_demo", "translation": "Die öffentliche Demo speichert keine eigenen Fremdlisten: ein hier eingegebenes Passwort läge auf ihrem Host."},
   {"id": "blocked_rule_feed_named", "translation": "Fremdliste: {{.Name}}"},
 
