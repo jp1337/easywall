@@ -2341,29 +2341,33 @@ body {
   }
 
   /* ── Protection modules (options page) ───────────────────────────────────
-     Each firewall protection is a self-contained thing that is either on or
-     off and may carry its own parameters. As rows in one long list it took
-     1700px of scroll and gave no answer to the page's actual question — which
-     protections are active. As a grid of cards the answer is the shape of the
-     page: edged cards are on, plain ones are off. */
-  .module-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-    gap: 12px;
-  }
+     Each protection is a row in its group's card: what it does on the left,
+     its parameters beside it, its switch at the trailing edge, and the
+     disclosure under the description. A 2.22 grid of fourteen cards, each
+     with a header, a parameter band and a disclosure band, took 1500px and
+     made the page's one question — which protections are on — a search
+     across four columns. As rows the switches line up in one column.
+
+     The markup is still the card's: .module-head is a <label> wrapping its
+     own switch, so the text is the hit area; display: contents lets its two
+     children take their own grid cells while the label keeps both. */
+  .module-grid { display: block; }
 
   .module {
-    display: flex;
-    flex-direction: column;
-    background: var(--color-surface);
-    border: 1px solid var(--color-rule);
-    border-radius: var(--radius-xl);
-    overflow: hidden;
-    transition: border-color var(--motion-fast) var(--motion-ease),
-                box-shadow var(--motion-fast) var(--motion-ease);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "text params switch"
+      "help help   help";
+    align-items: center;
+    column-gap: 20px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--color-rule);
+    transition: background var(--motion-fast) var(--motion-ease);
   }
 
-  .module:hover { border-color: var(--color-rule-strong); }
+  .module:first-child { border-top: 0; }
+  .module:hover { background: var(--color-surface-raised); }
 
   /* The same 2px selection edge that marks the active nav item, so "this one
      is live" uses one vocabulary throughout the interface. */
@@ -2371,25 +2375,9 @@ body {
     box-shadow: inset 2px 0 0 var(--color-select-edge);
   }
 
-  .module:focus-within {
-    border-color: var(--color-focus-ring);
-  }
-
-  /* A <label> wrapping its own switch: the whole header is the hit area, so an
-     operator does not have to land on a 34px target at the far edge. */
-  /* flex: 1 so the header absorbs any height the grid row forces on the card
-     and the parameter band always sits flush at the bottom — otherwise bands
-     in the same row land at different heights whenever one description wraps. */
-  .module-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    flex: 1;
-    padding: 13px 15px;
-    cursor: pointer;
-  }
-
-  .module-text { display: block; min-width: 0; flex: 1; }
+  .module-head { display: contents; cursor: pointer; }
+  .module-text { grid-area: text; display: block; min-width: 0; cursor: pointer; }
+  .module-head > .toggle { grid-area: switch; }
 
   .module-name {
     display: block;
@@ -2401,6 +2389,7 @@ body {
   .module-desc {
     display: block;
     margin-top: 2px;
+    max-width: 75ch;
     font-size: 12.5px;
     line-height: 1.5;
     color: var(--color-ink-muted);
@@ -2408,90 +2397,119 @@ body {
 
   .module-params label { cursor: pointer; }
 
-  /* Parameters belong to the card, separated by a hairline — not stacked
-     underneath it on a darker fill, which read as a detached second row. */
+  /* Beside the description, on the row itself — not a band under it. */
   .module-params {
+    grid-area: params;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 9px 16px;
-    padding: 10px 15px;
-    border-top: 1px solid var(--color-rule);
-    background: var(--color-surface-raised);
+    gap: 8px 16px;
     font-size: 13px;
   }
 
   .module-params .input { width: 5.5rem; }
 
-  /* The disclosure at the foot of every card: what the switch protects
-     against, what it can break, when to want it. Closed by default — fourteen
-     open cards would be the 1700px list this grid replaced. Last in the card,
-     so with .module-head absorbing the row's spare height every summary sits on
-     its card's bottom edge and a row reads as one line. Summary type and the
-     dt/dd grid are .pkt-detail's, shared with /blocked; this adds only the band. */
-  .module-help {
-    padding: 9px 15px 11px;
-    border-top: 1px solid var(--color-rule);
-  }
+  /* Under the description, closed: the one-liner carries the decision and
+     the disclosure the reasoning. Summary type and the dt/dd grid are
+     .pkt-detail's, shared with /blocked. */
+  .module-help { grid-area: help; margin-top: 2px; }
 
   .module-help dd { max-width: 60ch; }
 
   .module-help .link { display: inline-block; margin-top: 8px; font-size: 12px; }
 
+  .options-group { margin-bottom: 16px; }
+
+  /* A phone has no room beside the description: the parameters go under it,
+     the switch stays at the edge where the thumb expects it. */
+  @media (max-width: 700px) {
+    .module {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "text   switch"
+        "params params"
+        "help   help";
+      row-gap: 8px;
+    }
+    .module-params { justify-content: flex-start; }
+  }
+
   /* ── Feeds (blocklist page) ──────────────────────────────────────────────
-     A feed is a .module: on or off, with a stated cost, like a protection.
-     What it adds is a band of facts — the catalogue's verdict and why, where
-     the list comes from, and what the last refresh left in the kernel — as a
-     label/value grid, so a phone reads it as the same card, one fact a line.
-     The warnings are words in the warning colour, under the facts. */
-  .feeds-intro {
-    margin: 0 0 12px;
-    max-width: 75ch;
-    font-size: 13px;
-    color: var(--color-ink-muted);
-  }
+     Two cards under the blocklist's own, in the page's grammar: a
+     .section-head, a table (DESIGN.md § Tables), a footer with the one Save.
+     They were a grid of the options page's module cards until the 2.23
+     review — a second design on one page, each card stretched to the tallest
+     in its row. The reasoning behind a verdict is in the row's Details, the
+     same disclosure /blocked uses; warnings stay visible under the name,
+     words in the warning colour. */
+  .feeds-section { margin-top: 16px; }
 
-  /* The head keeps its own height here and the facts take the row's spare
-     height instead, so a ✗ card's confirmation box sits on its bottom edge
-     rather than a gap opening under the name. */
-  .feed-head { flex: none; }
+  /* An alert inside a card, between its head and its table. */
+  .card-alert { margin: 12px 16px 0; }
 
-  /* fit-content(40%): "Blockiert seit dem letzten Anwenden" wraps in its own
-     column at 390px instead of squeezing the values to a word a line. */
-  .feed-facts {
-    flex: 1;
-    align-content: start;
-    display: grid;
-    grid-template-columns: fit-content(40%) minmax(0, 1fr);
-    gap: 5px 12px;
-    margin: 0;
-    padding: 10px 15px;
-    border-top: 1px solid var(--color-rule);
-    font-size: 12.5px;
-  }
+  .feed-table .col-count { width: 6.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+  .feed-table .col-switch { width: 1%; white-space: nowrap; }
+  .feed-table td { vertical-align: top; }
+  /* A state is two words at most; wrapping put its dot on a line of its own. */
+  .feed-table td.feed-state { white-space: nowrap; }
+  .feed-table td.col-switch { white-space: normal; }
 
-  .feed-facts dt { color: var(--color-ink-subtle); }
-  .feed-facts dd { margin: 0; overflow-wrap: break-word; min-width: 0; }
-  .feed-facts dd .link { margin-right: 10px; }
-  .feed-facts .status-dot { font-size: inherit; font-weight: 500; }
+  /* One child for the cell, so the reflowed card's flex row (label, value)
+     keeps the name, its description, warnings and Details stacked. */
+  .feed-cell { flex: 1; min-width: 0; }
+  .feed-title { font-weight: 600; }
+  .feed-desc { margin-top: 1px; font-size: 12.5px; color: var(--color-ink-muted); }
+  .feed-when { margin-top: 2px; font-size: 12px; color: var(--color-ink-subtle); }
+  .feed-table .status-dot { font-size: 13px; font-weight: 500; }
 
   .feed-warnings {
-    margin: 0;
-    padding: 0 15px 10px;
+    margin: 6px 0 0;
+    padding: 0;
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     font-size: 12.5px;
     color: var(--color-state-warn-on-wash);
   }
 
   .feed-warnings code { font-size: 11.5px; overflow-wrap: anywhere; }
 
-  /* A sentence, not "max conn 5": it wraps, and the box marks its first line. */
-  .feed-confirm { align-items: flex-start; }
+  .feed-detail { margin-top: 4px; }
+  .feed-detail dd .link { margin-right: 10px; }
+
+  /* A sentence, not "max conn 5": it sits under the feed's description, where
+     the decision it asks about is read, and the box marks its first line. */
+  .feed-confirm { align-items: flex-start; margin-top: 6px; font-size: 12.5px; }
   .feed-confirm > span { white-space: normal; color: var(--color-ink); }
   .feed-confirm > .checkbox { margin-top: 1.5px; flex-shrink: 0; }
+
+  /* Own feeds: one form a row, four fields and the row's own buttons. */
+  .own-feed {
+    display: grid;
+    grid-template-columns: 7rem minmax(9rem, 1fr) minmax(12rem, 2fr) minmax(8rem, 1fr) minmax(8rem, 1fr) 9.5rem;
+    gap: 8px 12px;
+    align-items: end;
+    padding: 12px 16px;
+    border-top: 1px solid var(--color-rule);
+  }
+
+  .own-feed:first-of-type { border-top: 0; }
+  .own-feed-n { align-self: center; padding-top: 18px; font-size: 13px; font-weight: 600; }
+  /* A fixed width, so a row with Remove lines up with the rows without it. */
+  .own-feed-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .own-feed-error { grid-column: 1 / -1; margin: 0; }
+
+  @media (max-width: 1100px) {
+    .own-feed { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .own-feed-n, .own-feed-actions, .own-feed-error { grid-column: 1 / -1; }
+    .own-feed-n { padding-top: 0; }
+  }
+
+  @media (max-width: 600px) {
+    .own-feed { grid-template-columns: minmax(0, 1fr); }
+  }
 
   /* ── Switch row ──────────────────────────────────────────────────────────
      For settings that are a plain on/off with no parameters. A <label>, so the
@@ -3368,12 +3386,16 @@ body {
     outline-offset: 2px;
     border-radius: 2px;
   }
+  /* The card's second toolbar row, under the title: the same padding and
+     hairline as .toolbar, so the fields sit inside the card like every other
+     table's controls. It had no padding at all and sat on the card's top edge. */
   .pkt-filters {
     display: flex;
     flex-wrap: wrap;
     gap: 8px 12px;
     align-items: flex-end;
-    margin-bottom: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-rule);
   }
   .pkt-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--color-ink-muted); }
   .pkt-field .input { width: 12rem; }
@@ -3830,4 +3852,14 @@ body {
   a.stat-tile:hover {
     transform: none;
   }
+}
+
+/* A feed's name heads its own card once the table reflows; a "Feed" label
+   beside it only takes the width its description needs. Its own block, under
+   the shared reflow's condition, so that block stays byte-for-byte the one
+   /ports copies (TestThePortsReflowIsTheSharedReflow). */
+@container (max-width: 940px) {
+  .table-reflow td.feed-name-cell::before { content: none; }
+  /* The count cells are set in the data face; their label is not data. */
+  .feed-table.table-reflow td.col-count::before { font-family: var(--font-ui); }
 }
