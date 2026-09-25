@@ -611,6 +611,7 @@ func newDemoTestServer(t *testing.T) *Server {
 	s := newTestServer(t, fc)
 	s.cfg.DemoMode = true
 	s.client = NewDemoClient()
+	s.feedStore = newDemoFeedStore(time.Now()) // what NewServer builds in demo mode
 
 	close(s.eventsStop)
 	s.events = newAuditEvents(s.client, true)

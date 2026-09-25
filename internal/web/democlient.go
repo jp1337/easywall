@@ -33,6 +33,9 @@ var demoShapes = []shared.PacketLogEntry{
 	// only for 203.0.113.0/24.
 	{Rule: "drop", Proto: "icmp", ICMP: &shared.PacketICMP{Type: 8}, CtState: "new", Src: netip.MustParseAddr("192.0.2.61")},
 	{Rule: "drop", Proto: "tcp", DstPort: 8443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.88")},
+	// A feed's refusal (2.23): blocklist.de is switched on in the seeded
+	// rules, so its chip names it and leads to its row on /blocklist.
+	{Rule: "feed", Feed: "blocklist-de", Proto: "tcp", DstPort: 25, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.180")},
 }
 
 // demoEvery is how often the demo "refuses" something new — enough for the
@@ -226,9 +229,12 @@ func (d *demoState) seed() {
 			"# log + drop traffic to legacy admin port",
 			"tcp dport 10000 log prefix \"legacy-admin: \" drop",
 		},
-		// The two the Feeds card says to start with, so the public demo shows
-		// the feature switched on the way the documentation recommends.
-		Feeds: []string{"spamhaus-drop", "dshield"},
+		// The two the Feeds card says to start with, and three more, so the
+		// public demo's card shows every state a feed row has — see
+		// newDemoFeedStore for which row shows which. In Current as well as
+		// Staged, so the apply screen shows no feed change until a visitor
+		// makes one.
+		Feeds: []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised", "cins"},
 	}
 	d.rules = shared.RulesState{
 		Current: example,
@@ -307,14 +313,25 @@ func (d *demoState) seed() {
 	}
 	// Spamhaus DROP's size is the one measured for the catalogue, 1710 v4 plus
 	// 91 v6 (spec §1); DShield is always twenty /24s. Spamhaus polls every 12 h,
-	// DShield hourly, so the two show different checked times.
+	// DShield hourly, so the two show different checked times. The sizes of
+	// the other two are spec §1's as well. CINS has no copy: its fetches fail
+	// (newDemoFeedStore).
 	d.feeds = map[string]shared.FeedStatus{
 		"spamhaus-drop": {ID: "spamhaus-drop", Stored: true, Entries: 1801,
 			ChangedAt: ago(7 * time.Hour), CheckedAt: ago(7 * time.Hour),
 			Packets: 3412, CountersRead: true},
+		// One of its /24s holds an allowlisted address: the overlap warning.
 		"dshield": {ID: "dshield", Stored: true, Entries: 20,
 			ChangedAt: ago(3 * time.Hour), CheckedAt: ago(38 * time.Minute),
-			Packets: 18873, CountersRead: true},
+			Packets: 18873, CountersRead: true, AllowlistOverlap: 1},
+		// The last good copy is four hours old; the three fetches since failed.
+		"blocklist-de": {ID: "blocklist-de", Stored: true, Entries: 32002,
+			ChangedAt: ago(4 * time.Hour), CheckedAt: ago(4 * time.Hour),
+			Packets: 5210, CountersRead: true},
+		// Checked 25 minutes ago and the same for 34 days: Feodo's failure.
+		"et-compromised": {ID: "et-compromised", Stored: true, Entries: 686,
+			ChangedAt: ago(34 * 24 * time.Hour), CheckedAt: ago(25 * time.Minute),
+			Packets: 97, CountersRead: true},
 	}
 	d.settings = shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
@@ -547,6 +564,33 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 		return demoErr(errors.New("the demo fetches no feeds"))
 	}
 	return demoErr(fmt.Errorf("unknown command %q", cmd.Type))
+}
+
+// newDemoFeedStore is the demo's side of the feeds: what the web process
+// would remember about each refresh, held in memory and never written
+// (path ""): demo mode builds no fetcher, and saveOwnFeed refuses. With the
+// copies seeded above, the card shows every status and every warning:
+//
+//	spamhaus-drop   updated
+//	dshield         unchanged; 1 allowlist entry overlaps
+//	blocklist-de    failed, previous copy active; failed 3 times in a row
+//	et-compromised  unchanged; unchanged for 30 days
+//	cins            failed, no copy; failed twice; in the kernel with an empty set
+//	any other       never fetched and "on once you apply", once a visitor
+//	                switches it on and saves
+func newDemoFeedStore(now time.Time) *feedStore {
+	ago := func(d time.Duration) time.Time { return now.Add(-d) }
+	return &feedStore{st: &feedStateFile{
+		OffsetSeconds: 1020,
+		Fetch: map[string]feedFetchState{
+			"spamhaus-drop":  {Status: FeedUpdated, LastAttempt: ago(7 * time.Hour)},
+			"dshield":        {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
+			"blocklist-de":   {Status: FeedFailedCopy, LastError: feedErrTimeout, Failures: 3, LastAttempt: ago(20 * time.Minute)},
+			"et-compromised": {Status: FeedUnchanged, LastAttempt: ago(25 * time.Minute)},
+			"cins": {Status: FeedFailedNoCopy, LastError: feedErrHTTPStatus, HTTPStatus: 503,
+				Failures: 2, LastAttempt: ago(50 * time.Minute)},
+		},
+	}}
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────

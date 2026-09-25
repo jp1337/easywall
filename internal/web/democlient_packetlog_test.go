@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -77,7 +78,9 @@ func TestDemoPacketSourcesAgreeWithTheDemoLists(t *testing.T) {
 			t.Errorf("%s is logged as a blocklist hit but the demo blocklist does not cover it", e.Src)
 		case e.Rule != "blocklist" && inBL:
 			t.Errorf("%s (%s) is covered by the demo blocklist, which drops it before %s could", e.Src, e.Rule, e.Rule)
-		case (e.Rule == "drop" || e.Rule == "bogon" || e.Rule == shared.PacketLogRuleOther) && shared.InAnyEntry(e.Src, wl):
+		case e.Rule == "feed" && !slices.Contains(d.rules.Current.Feeds, e.Feed):
+			t.Errorf("%s is logged by feed %q, which the demo has not switched on", e.Src, e.Feed)
+		case (e.Rule == "drop" || e.Rule == "bogon" || e.Rule == "feed" || e.Rule == shared.PacketLogRuleOther) && shared.InAnyEntry(e.Src, wl):
 			// Modules run before the allowlist, so an allowlisted source can be
 			// logged by ssh or portscan; it cannot be by what runs after.
 			t.Errorf("%s is allowlisted in the demo, so %s — which runs after the allowlist — could not have refused it", e.Src, e.Rule)

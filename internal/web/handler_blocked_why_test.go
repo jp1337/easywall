@@ -180,7 +180,9 @@ func TestEveryBlockedRuleLeadsToItsOption(t *testing.T) {
 		}
 	}
 	for r := range blockedRuleOption {
-		if r != "drop" && r != "blocklist" && blockedRuleOption[r] == "" {
+		// A feed's chip leads to its row on /blocklist instead:
+		// TestAFeedRowNamesItsFeedAndLeadsToIt.
+		if r != "drop" && r != "blocklist" && r != "feed" && blockedRuleOption[r] == "" {
 			t.Errorf("rule %q is a module but leads nowhere", r)
 		}
 	}
