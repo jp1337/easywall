@@ -324,7 +324,8 @@ func (d *demoState) seed() {
 		"dshield": {ID: "dshield", Stored: true, Entries: 20,
 			ChangedAt: ago(3 * time.Hour), CheckedAt: ago(38 * time.Minute),
 			Packets: 18873, CountersRead: true, AllowlistOverlap: 1},
-		// The last good copy is four hours old; the three fetches since failed.
+		// The last good copy is four hours old; the three lists since were
+		// refused as a shrink (ruling X1).
 		"blocklist-de": {ID: "blocklist-de", Stored: true, Entries: 32002,
 			ChangedAt: ago(4 * time.Hour), CheckedAt: ago(4 * time.Hour),
 			Packets: 5210, CountersRead: true},
@@ -573,7 +574,8 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 //
 //	spamhaus-drop   updated
 //	dshield         unchanged; 1 allowlist entry overlaps
-//	blocklist-de    failed, previous copy active; failed 3 times in a row
+//	blocklist-de    failed, previous copy active; failed 3 times in a row;
+//	                refused as a shrink from 32 002 to 9 140
 //	et-compromised  unchanged; unchanged for 30 days
 //	cins            failed, no copy; failed twice; in the kernel with an empty set
 //	any other       never fetched and "on once you apply", once a visitor
@@ -583,9 +585,10 @@ func newDemoFeedStore(now time.Time) *feedStore {
 	return &feedStore{st: &feedStateFile{
 		OffsetSeconds: 1020,
 		Fetch: map[string]feedFetchState{
-			"spamhaus-drop":  {Status: FeedUpdated, LastAttempt: ago(7 * time.Hour)},
-			"dshield":        {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
-			"blocklist-de":   {Status: FeedFailedCopy, LastError: feedErrTimeout, Failures: 3, LastAttempt: ago(20 * time.Minute)},
+			"spamhaus-drop": {Status: FeedUpdated, LastAttempt: ago(7 * time.Hour)},
+			"dshield":       {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
+			"blocklist-de": {Status: FeedFailedCopy, LastError: feedErrShrank, Failures: 3, LastAttempt: ago(20 * time.Minute),
+				ShrankFrom: 32002, ShrankTo: 9140},
 			"et-compromised": {Status: FeedUnchanged, LastAttempt: ago(25 * time.Minute)},
 			"cins": {Status: FeedFailedNoCopy, LastError: feedErrHTTPStatus, HTTPStatus: 503,
 				Failures: 2, LastAttempt: ago(50 * time.Minute)},

@@ -441,6 +441,8 @@
   {"id": "feeds_warn_stale", "translation": "Unchanged for 30 days — a list that stops changing may no longer be maintained."},
   {"id": "feeds_warn_overlap", "translation": "Contains allowlist entries ({{.N}}), which stay reachable."},
   {"id": "feeds_warn_failed", "translation": "Failed {{.N}} times in a row."},
+  {"id": "feed_error_shrank", "translation": "the list shrank below 70 % of the stored copy"},
+  {"id": "feeds_warn_shrank", "translation": "Refused: shrank from {{.From}} to {{.To}}. To accept the smaller list, switch the feed off and apply, then switch it on and apply."},
   {"id": "feeds_warn_rejected", "translation": "{{.N}} lines were not an address:"},
   {"id": "feed_ipsum_3_confirm", "translation": "I know this also refuses Tor users and cloud addresses that are on its lists."},
   {"id": "feed_hagezi_tif_confirm", "translation": "I know this also refuses Tor users and cloud hosts that are in its sources."},
