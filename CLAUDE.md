@@ -53,6 +53,7 @@ Each of these cost a release. They are not style preferences.
 | **A test is verified by breaking the code, not by reading it** | 2.12's reviews found seven tests that passed for the wrong reason — a sample equal to the shipped default, a fixture where the precedence rule carried the test, a key appended past a `[tls]` header into the wrong table, a recomputation with no guard. All seven were green, and all seven were found by mutating the implementation |
 | **A fix carries its documentation** | Both locales, the schema, the UI copy — or the next audit finds the mismatch you created |
 | **A release fixes what it caused. `carried-forward.md` is for what it *found*** | 2.15 clipped six port descriptions with its own new column, and deferring that would have shipped the defect this repository's rendered-check rule exists to catch. An entry may only be carried if it is proven to predate the branch — and *proven against the pre-branch base*, not against the branch head: 2.15 had a `check:prose` failure reported as pre-existing that its own Task 7 had introduced, and only a comparison against `origin/main` before the branch showed it |
+| **A release is finished when the live server has been read** ([field-checks](docs-tech/field-checks.md)) | 2.23.0 passed every gate and failed every apply on root01xvp: the tests used one port rule, the server 107. 2.23.1 shipped the same day, with a test shaped like the server |
 | **One source for the Go toolchain** | Five places disagreed for months; see [dependencies](docs-tech/dependencies.md) |
 
 ## The deeper documentation
@@ -66,6 +67,7 @@ Each of these cost a release. They are not style preferences.
 | [protocol](docs-tech/protocol.md) | the socket protocol: twenty-five commands, and the one field that is not typed |
 | [threat-model](docs-tech/threat-model.md) | session internals, the deliberate refusal of `X-Forwarded-For`, what is not defended |
 | [local-review](docs-tech/local-review.md) | running the interface with no core, no root, no nftables — and why that used to open on a certificate interstitial |
+| [field-checks](docs-tech/field-checks.md) | reading the live server after every rollout and weekly — what the field found that no gate did, what to read, and what never leaves the host |
 
 Contributor-facing rules — commit format, review checklist, adding a language —
 are in [CONTRIBUTING.md](CONTRIBUTING.md), and the design system is
