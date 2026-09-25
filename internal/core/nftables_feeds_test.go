@@ -352,3 +352,24 @@ func TestAFeedCounterIDIsReserved(t *testing.T) {
 		t.Error("set names")
 	}
 }
+
+// 2.23.1: the buffers every flush gets grow with every rule and every element
+// byte, and never drop below the stock default a flush had before.
+func TestFlushBuffersGrowWithTheBatch(t *testing.T) {
+	prevSnd, prevRcv := flushBuffers(0, 0)
+	if prevSnd < defaultSndbuf || prevRcv < defaultRcvbuf {
+		t.Fatalf("an empty flush gets %d/%d, below the stock %d/%d", prevSnd, prevRcv, defaultSndbuf, defaultRcvbuf)
+	}
+	for rules := 1; rules <= 1000; rules++ {
+		snd, rcv := flushBuffers(rules, 0)
+		if snd <= prevSnd || rcv <= prevRcv {
+			t.Fatalf("%d rules get %d/%d, not more than %d/%d for one fewer", rules, snd, rcv, prevSnd, prevRcv)
+		}
+		prevSnd, prevRcv = snd, rcv
+	}
+	s0, r0 := flushBuffers(100, 0)
+	s1, r1 := flushBuffers(100, 1<<20)
+	if s1 <= s0 || r1 <= r0 {
+		t.Errorf("a MiB of elements moves the buffers from %d/%d to %d/%d; both must grow", s0, r0, s1, r1)
+	}
+}
