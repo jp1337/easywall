@@ -1044,6 +1044,13 @@ var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, 
 	"selftest_passed": "audit_selftest_passed",
 	"selftest_failed": "audit_selftest_failed",
 	"health_degraded": "audit_health_degraded",
+
+	// 2.23's two feed events, written by the core's UpdateFeed: a new version
+	// of a feed stored (and loaded, when the feed is live), and one refused by
+	// its guards. Neutral — a refresh changes what a set holds, not whether
+	// the firewall is doing what it says.
+	"feed_updated": "audit_feed_updated",
+	"feed_refused": "audit_feed_refused",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall

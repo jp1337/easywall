@@ -292,6 +292,8 @@
   {"id": "audit_selftest_passed", "translation": "Self-test passed"},
   {"id": "audit_selftest_failed", "translation": "Self-test failed"},
   {"id": "audit_health_degraded", "translation": "Health degraded"},
+  {"id": "audit_feed_updated", "translation": "Feed updated"},
+  {"id": "audit_feed_refused", "translation": "Feed update refused"},
   {"id": "audit_login_ok", "translation": "Signed in"},
   {"id": "audit_login_failed", "translation": "Sign-in failed"},
   {"id": "audit_login_2fa_failed", "translation": "Second factor failed"},
