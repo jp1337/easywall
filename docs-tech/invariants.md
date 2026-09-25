@@ -552,13 +552,25 @@ code's own output, not hand-typed.
 
 | Test | Protects | Incident |
 |---|---|---|
-| `TestTheOldListNamesAreGone` | outside history and the fixtures, the old words appear exactly as often per file as the migration needs, and in no file name but the old-URL stub. Its exemptions are deliberate, not gaps: all of `CHANGELOG.md` including `[Unreleased]` (a changelog says what the old names were), every `docs-tech/plans/` and `docs-tech/specs/` file (a record of what was true when written), and `docs/assets/` (built output) | a rename by `sed` leaves the words in a new file the next release adds, and a reader deleted as "cleanup" breaks every upgrade from 2.22 without a failing test |
+| `TestTheOldListNamesAreGone` | outside history and the fixtures, the old words appear exactly as often per file as the migration needs, and in no file name but the old-URL stub. | a rename by `sed` leaves the words in a new file the next release adds, and a reader deleted as "cleanup" breaks every upgrade from 2.22 without a failing test |
 | `TestA222RulesFileReadsIntoTheNewNames` / `TestA222RulesFileIsMigratedByTheFirstSave` / `TestA222ExportImports` / `TestA222ExportImportsIntoTheStore` | all three copies in `rules.json`, and an export, decode in either spelling and are written in the new one | a renamed json tag reads a 2.22 file as an empty blocklist and allowlist — the allowlist that was the way back in, gone |
 | `TestARulesDocumentNamingAListBothWaysIsRefused` | one list under both names is an error, not a merge | either guess drops entries the operator can see in the file |
 | `TestA222ConfigReadsTheOldLogKeys` / `TestTheNewLogKeyWinsOverItsOldSpelling` | the two old `[firewall]` keys still switch the log and set its limit, with one warning; a present new key wins | a 2.22 `easywall.toml` is kept on every upgrade; without the reader, the log would have been switched off silently |
 | `TestA222AppliedConfigReadsTheOldFieldNames` | `applied-config.json` from 2.22 (Go field names, the old spelling) reads as the switch it recorded | /apply reported the log switch as a pending change on a host that had not changed it |
 | `TestA222PacketLogReplaysUnderTheNewRuleName` / `TestA222LogPrefixDecodesAsTheBlocklist` | a persisted 2.22 line and a kernel rule loaded by 2.22 both read as rule `blocklist` | the `/blocked` filter for the blocklist missed every row written before the upgrade |
 | `TestTheOldListAddressesMovePermanently` / `TestAPostToAnOldListAddressIsSaved` / `TestAnOldBlockedFilterReadsAsTheNewRule` / `TestAnOldRowActionStagesOnTheNewList` | old URLs answer 301, a POST to one is saved, a saved filter and a stale row action use the new name | a 301 on POST becomes a GET and drops the pasted list |
+
+`TestTheOldListNamesAreGone` skips these on purpose, not by oversight:
+
+| Skipped | Why |
+|---|---|
+| `CHANGELOG.md` (all of it, `[Unreleased]` included), `docs/_docs/changelog.md`, `debian/changelog` | a changelog records what the names were |
+| `docs-tech/plans/`, `docs-tech/specs/` | a record of what was true when written |
+| `internal/shared/testdata/upgrade-2.22/` | files the v2.22.0 code wrote, kept verbatim |
+| images, fonts, SVG, PDF, `htmx.min.js`, `style.css`, `docs/assets/` | binary or built output (`skipPath`, shared with the personal-address guard) |
+
+Every other file may carry the old words only as often as its entry in the
+test's `allowed` map says.
 
 ## Other people's lists
 

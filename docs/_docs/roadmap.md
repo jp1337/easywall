@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Twenty releases, ordered by exposure — proof and comprehension first now the holes are closed, then maintenance, then reach.
+description: Twenty-one releases, ordered by exposure — proof and comprehension first now the holes are closed, then maintenance, then reach.
 ---
 
 # Roadmap
