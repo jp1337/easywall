@@ -67,6 +67,7 @@ func newTestFirewall(t *testing.T, cfg *Config) *Firewall {
 		rules:      store,
 		acceptance: NewAcceptance(cfg.AcceptanceDuration()),
 		usage:      NewUsageStore(cfg.UsagePath()),
+		feeds:      NewFeedStore(cfg.FeedsPath()),
 	}
 }
 

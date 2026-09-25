@@ -292,6 +292,8 @@
   {"id": "audit_selftest_passed", "translation": "Selbsttest bestanden"},
   {"id": "audit_selftest_failed", "translation": "Selbsttest fehlgeschlagen"},
   {"id": "audit_health_degraded", "translation": "Zustand eingeschränkt"},
+  {"id": "audit_feed_updated", "translation": "Fremdliste aktualisiert"},
+  {"id": "audit_feed_refused", "translation": "Fremdliste nicht übernommen"},
   {"id": "audit_login_ok", "translation": "Angemeldet"},
   {"id": "audit_login_failed", "translation": "Anmeldung fehlgeschlagen"},
   {"id": "audit_login_2fa_failed", "translation": "Zweiter Faktor fehlgeschlagen"},

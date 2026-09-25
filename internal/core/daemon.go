@@ -847,12 +847,33 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		}
 		return shared.Response{Success: true}
 
-	case shared.CmdUpdateFeed, shared.CmdGetFeeds:
-		// 2.23 Task 2 declares the two commands and their types; Task 4 writes
-		// the handlers. Until then they are answered, not "unknown command", so
-		// the web process can tell a core that has not got there yet from a
-		// command that does not exist.
-		return shared.Response{Success: false, Error: fmt.Sprintf("%s is not implemented yet", cmd.Type)}
+	case shared.CmdUpdateFeed:
+		// Synchronous, like PANIC: the reply says whether the new version was
+		// stored and loaded, and that is only known once it has been.
+		var p shared.UpdateFeedPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		res, err := d.firewall.UpdateFeed(p, "web")
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(res)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdGetFeeds:
+		var p shared.GetFeedsPayload
+		if len(cmd.Payload) > 0 {
+			if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+				return errResp(fmt.Errorf("invalid payload: %w", err))
+			}
+		}
+		res, err := d.firewall.Feeds(p.Addr)
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(res)
+		return shared.Response{Success: true, Data: data}
 
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}

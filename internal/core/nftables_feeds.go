@@ -270,3 +270,35 @@ var errNothingWritten = errors.New("nothing was written to the kernel")
 
 // defaultSndbuf is net.core.wmem_default on a stock kernel.
 const defaultSndbuf = 212992
+
+// ReplaceFeedSet swaps both of a live feed's sets for these ranges without an
+// apply: a flush of each set and its new elements, in one batch, which the
+// kernel commits as one transaction — no packet meets an empty set
+// (TestIntegration_ARefreshNeverEmptiesTheSet). The rules and their counters
+// are not touched: flushing a set's elements leaves the rule that looks it up,
+// and its counter, as they were (TestIntegration_ARefreshKeepsTheCounter).
+//
+// It adds no table, chain or rule, so it cannot bring back a table panic mode
+// deleted: with the table gone, the batch fails and nothing is written
+// (TestIntegration_ARefreshCannotRecreateATornDownTable). That is why it
+// needs no panic re-check after it, where every ApplyWithFeeds has one.
+func (m *NftablesManager) ReplaceFeedSet(id string, ranges4, ranges6 []addrRange) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.conn == nil {
+		return fmt.Errorf("nftables connection not available")
+	}
+	t := &nftables.Table{Name: tableName, Family: nftables.TableFamilyINet}
+	for _, f := range addrFamilies {
+		set := feedSet(t, id, f)
+		ranges := ranges4
+		if f.nfproto == unix.NFPROTO_IPV6 {
+			ranges = ranges6
+		}
+		m.conn.FlushSet(set)
+		if err := m.addFeedElements(set, ranges); err != nil {
+			return err
+		}
+	}
+	return m.flushLarge(feedElementBytes(ranges4, ranges6))
+}

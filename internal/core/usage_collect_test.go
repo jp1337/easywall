@@ -97,6 +97,11 @@ func TestTheUsageTickerIsWiredIntoTheDaemon(t *testing.T) {
 //   - f.nft.Reset — deletes the table outright. There is nothing to reset a
 //     baseline to afterwards; see panicLandedDuringWrite's comment.
 //
+// f.nft.ReplaceFeedSet writes the kernel too and is deliberately not a token
+// here: a set flush leaves every rule and its counter as they were
+// (TestIntegration_ARefreshKeepsTheCounter), so there is nothing to book.
+// TestTheRefreshWritesOnlyUnderTheSlot holds its one call site instead.
+//
 // What it cannot see is the same short list the panic guard names: a call kept
 // textually and wrapped in `if false`, and the call order beyond "before the
 // write" / "after the write". Nor does it know that two writes in one function

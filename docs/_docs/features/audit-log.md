@@ -35,7 +35,7 @@ informational event is never tinted: a coloured tag would stop meaning anything.
 | 🟢 | `panic_resumed` | Panic mode ended | The console put the firewall back to filtering |
 | 🔴 | `resume_restore_skipped` | Resume could not restore the rules | Resume cleared the panic marker but an apply held the slot, so the stored rules never made it back — the machine is left exactly as unfiltered as `boot_enforce_failed` describes |
 | 🟠 | `health_degraded` | Health degraded | An apply wrote a rule that easywall's own expression check cannot believe. The table went in anyway, and the rest of the chain is filtering — but one rule may match nothing, which is the class that let the established/related accept enforce nothing for five releases. The detail names the chain and the position; `easywall-core health` and the dashboard both report degraded until the next clean apply |
-| ⚪ | everything else | Rules saved, Options saved, Apply refused — panic mode is engaged, Stored, not written — panic, … | Something was staged, or an attempt changed nothing live |
+| ⚪ | everything else | Rules saved, Options saved, Apply refused — panic mode is engaged, Stored, not written — panic, Feed updated, Feed update refused, … | Something was staged, an attempt changed nothing live, or a feed's contents were refreshed — the detail names the feed and its entry counts |
 
 > **`rules_saved` is neutral, not green.** Saving stages a change and leaves the
 > running firewall untouched. The same goes for `apply_refused_panic` and
