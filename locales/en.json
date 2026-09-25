@@ -405,6 +405,7 @@
   {"id": "feeds_title", "translation": "Feeds"},
   {"id": "feeds_start_with", "translation": "Start with Spamhaus DROP and DShield."},
   {"id": "feeds_intro", "translation": "Lists of attackers that other people publish, checked after your allowlist. Each is off until you switch it on, and switching is staged like any rule."},
+  {"id": "feeds_refresh_note", "translation": "A refresh loads a new copy without an acceptance window, so allowlist the address you manage this host from."},
   {"id": "feeds_demo_note", "translation": "The demo fetches no lists. The rows below are examples, and a feed switched on here stays never fetched."},
   {"id": "feeds_core_unread", "translation": "The core did not answer, so entries, times and packet counts are not shown."},
   {"id": "feeds_fact_verdict", "translation": "Verdict"},

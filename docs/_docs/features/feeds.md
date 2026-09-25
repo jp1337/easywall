@@ -23,6 +23,9 @@ allow stays reachable whatever a feed says.
    [allowlist]({{ '/docs/features/allowlist/' | relative_url }}) first.
 5. Press **Confirm rules** within the window, or the switch rolls back.
 
+Later refreshes load a new copy **without** an acceptance window. Allowlist the
+address you manage this host from, so no copy can lock you out.
+
 Nothing is switched on for you. To see whom a feed refuses, switch on
 *Log feeds* on the [options page]({{ '/docs/features/filters/' | relative_url }});
 its hits appear on [Blocked]({{ '/docs/features/blocked-traffic/' | relative_url }})

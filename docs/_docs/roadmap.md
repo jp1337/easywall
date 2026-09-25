@@ -323,6 +323,11 @@ firewall sees SSH brute force only, which blocklist.de and DShield already
 publish. Publishing addresses needs a GDPR balancing test, a delisting channel
 and an Art. 30 record.
 
+**Deferred: a refresh that would drop your own address.** A refresh loads with
+no acceptance window, so a later copy listing the address you manage the host
+from locks you out with no rollback. A guard that refuses such a copy needs a
+spec amendment and a later release. Until then, allowlist that address.
+
 ## Deliberately excluded
 
 | | |
