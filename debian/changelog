@@ -1,3 +1,30 @@
+easywall (2.23.0) unstable; urgency=medium
+
+  * Breaking: the blocklist's kernel log prefix is "easywall blocklist: ".
+    Anything that greps the kernel log or packets.log for the old prefix
+    finds nothing new.
+  * Breaking: 2.22 reads a rules.json written by 2.23 as an empty blocklist
+    and allowlist. Export the rules before upgrading if you might go back.
+  * New: eight curated feeds and up to three own feeds by URL, each
+    switched on individually, all off by default, checked after the
+    allowlist. Only the web process downloads; the core checks every list
+    it is sent and keeps the last good copy.
+  * New: UPDATE_FEED and GET_FEEDS on the socket; /apply names a feed that
+    holds your own address; /blocked names the feed that dropped a packet;
+    log_feed_connections and its limit.
+  * Change: the two lists are called blocklist and allowlist everywhere.
+    Old routes redirect, old TOML keys are still read with a warning, and
+    rules.json and exports are read in either spelling.
+  * Change: an apply is one kernel transaction; a refused apply leaves the
+    old rules live instead of an empty table.
+  * Change: the socket limit is 8 MiB each way, from 1 MiB.
+  * Change: an apply or resume can be refused for a moment while a feed
+    refresh holds the apply slot; try again.
+  * Fix: the guard against tracked personal addresses was red from the
+    release's first commit; the research notes no longer quote one.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Fri, 25 Sep 2026 20:00:00 +0200
+
 easywall (2.22.0) unstable; urgency=medium
 
   * Security: whoever finished /firstrun first owned the firewall, Docker

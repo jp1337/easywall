@@ -5,9 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.23.0] — 2026-09-25
 
 **Other people's lists.**
+
+Eight curated lists of attacking addresses, and up to three of your own, each
+switched on individually and all off by default. A feed is checked after your
+allowlist, so an address you allow stays reachable whatever a feed says. The
+lists' old names give way to blocklist and allowlist.
 
 ### Changed — read this before upgrading
 
@@ -33,6 +38,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Export the rules before upgrading if you might go back.** 2.22 reads a
   `rules.json` written by 2.23 as an empty blocklist and allowlist, and an
   `easywall.toml` saved by 2.23 as the blocklist log switched off.
+- **A `rules.json` that names one list under both spellings is refused, and
+  the core then reads no rules from it** — boot restores nothing and the
+  audit log says `boot_enforce_failed`, naming both keys. Keep one spelling,
+  the new one, and run `easywall-core resume`. Only a hand-edited file can
+  get there; nothing easywall writes does.
+
+### Added
+
+- **Eight feeds** — Spamhaus DROP, DShield, blocklist.de, CINS Army,
+  Emerging Threats compromised, IPsum, Hagezi threat intelligence IPs and
+  the Tor exit list — in a Feeds card on `/blocklist`, each with what it
+  blocks, how likely it is to refuse a legitimate client, a verdict (✓ • ✗),
+  and links to its source and its terms. A ✗ feed is staged only with a box
+  ticked that names whom it locks out. Switching a feed on or off is staged
+  and applied like any rule; a refresh loads without an acceptance window.
+  The page to start from is *Block known attackers with feeds*.
+- **Up to three own feeds** by URL: plain text, `https://`, or `http://` to a
+  loopback address, with optional Basic credentials, fetched once a day —
+  CrowdSec's *Raw IP List* integration among them. The password never reaches
+  the core, a log line or an export.
+- **The core checks every list it is sent.** Private and reserved ranges are
+  dropped; a list with more than 100 000 entries, a network broader than /8 or
+  /16, or under 70 % of the copy it replaces is refused whole, and the last
+  good copy stays active.
+- **`UPDATE_FEED` and `GET_FEEDS`**, the socket protocol's two new commands
+  (25 in all). Only the web process downloads; the core opens no connection.
+- **The lockout check knows about feeds.** `/apply` names the feed that
+  holds your own address, and says so when whether one does is not yet known.
+- **`/blocked` names the feed** that dropped a packet.
+- **`log_feed_connections`** and `log_feed_connections_limit` (1–10000,
+  default 60), the kernel log prefix `easywall feed: <id> `.
+
+### Changed
+
+- **The lists are called blocklist and allowlist** everywhere, as above.
+  The old routes redirect, and the old TOML keys are still read with a
+  warning.
+- **An apply is one kernel transaction.** The table is never without its
+  chains, not even for the moment a large feed takes to load, and a refused
+  apply leaves the old rules live instead of an empty table.
+- **The socket limit is 8 MiB each way**, from 1 MiB — enough for a full
+  feed of 100 000 IPv6 addresses.
+- **An apply or `easywall-core resume` can be refused for a moment** while a
+  feed refresh holds the apply slot — about 0.3 seconds, longer for a large
+  list. The page says an apply is already running; try again.
+- **`fr` names the lists *liste de blocage* and *liste d'autorisation*.**
+  Every new key in this release went into `en` and `de` only: `en` holds 866
+  keys, `fr` answers 455 of them (53 %), a gap of 411.
+
+### Fixed
+
+- The repository's guard against tracked personal addresses was red from this
+  release's first commit: the research notes quoted a list maintainer's
+  address. They now name the support channel instead.
 
 ## [2.22.0] — 2026-09-24
 
@@ -2503,7 +2562,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.22.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.23.0...HEAD
+[2.23.0]: https://github.com/jp1337/easywall/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/jp1337/easywall/compare/v2.21.1...v2.22.0
 [2.21.1]: https://github.com/jp1337/easywall/compare/v2.21.0...v2.21.1
 [2.21.0]: https://github.com/jp1337/easywall/compare/v2.20.1...v2.21.0
