@@ -56,7 +56,9 @@ else
 		"script will not do that for you." >&2
 fi
 
-# admin / ui-check-password-2026 is what scripts/ui-check.mjs signs in with.
+# admin / ui-check-password-2026: the demo itself is entered with a button (no
+# password), but scripts/ui-check.mjs reads this hash for the non-demo instances
+# it starts.
 # An earlier hand-written demo config used the username "ui-check" instead and
 # that mismatch cost a debugging detour, so this hash is for "admin" and
 # nothing else. Generated once with internal/web.HashPassword — argon2id is

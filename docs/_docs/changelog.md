@@ -82,6 +82,10 @@ which is the file GitHub and the release tooling read.
 
 - /options says that fragment drop also breaks a VPN tunnel whose packets are
   fragmented on the way, WireGuard among them — measured on a 2.23 production host.
+- The demo is entered with a button. Its login card has no password form, and
+  the credentials a public demo used to publish are not needed any more. The
+  route exists only with `demo_mode`; an installation still has no way in but
+  the password.
 
 [See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.23.1...HEAD)
 

@@ -310,6 +310,14 @@ async function setUpAccount(page) {
   }
 }
 
+/** Enter a demo instance through its login card's one button (handleLoginDemo). */
+async function enterDemo(page) {
+  await Promise.all([
+    page.waitForLoadState('load'),
+    page.click("form[action='/login/demo'] button[type=submit]"),
+  ]);
+}
+
 /**
  * Sign in once. The result is reused by every context below.
  *
@@ -330,6 +338,15 @@ async function setUpAccount(page) {
  */
 async function signIn(page) {
   await page.goto(`${BASE}/login`, { waitUntil: 'load' });
+  // The demo is entered with a button and has no password form at all — see
+  // handleLoginDemo. Every non-demo instance below still signs in with one.
+  if (await page.$("form[action='/login/demo']")) {
+    await enterDemo(page);
+    if (page.url().includes('/login')) {
+      throw new Error(`could not enter the demo: still at ${page.url()}`);
+    }
+    return;
+  }
   await page.fill('input[name=username]', USER);
   await page.fill('input[name=password]', PASS);
   const [response] = await Promise.all([
@@ -416,15 +433,11 @@ async function checkEnrolmentFlow(browser) {
     const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
 
+    // A demo instance: entered with the button, never a password.
     await page.goto(`${base}/login`, { waitUntil: 'load' });
-    await page.fill('input[name=username]', USER);
-    await page.fill('input[name=password]', PASS);
-    await Promise.all([
-      page.waitForLoadState('load'),
-      page.click("form[action='/login'] button[type=submit]"),
-    ]);
+    await enterDemo(page);
     if (page.url().includes('/login')) {
-      fail('2fa setup', `could not sign in to the throwaway instance, still at ${page.url()}`);
+      fail('2fa setup', `could not enter the throwaway demo instance, still at ${page.url()}`);
       return;
     }
 
@@ -2187,19 +2200,6 @@ async function takeScreenshots(browser, session, pages) {
 }
 
 /**
- * The signed-out login page, in one theme. No storageState, so this is always
- * the form itself — never a redirect to /dashboard — and a GET costs nothing
- * against the login rate limiter, which only counts the POST.
- */
-async function takeLoginScreenshot(browser, theme) {
-  const ctx = await screenshotContext(browser, theme);
-  const page = await ctx.newPage();
-  await page.goto(`${BASE}/login`, { waitUntil: 'load' });
-  await shoot(page, 'login', theme);
-  await ctx.close();
-}
-
-/**
  * Enabling 2FA from /password. Demo mode runs the whole flow and then
  * discards the write (see handler_2fa.go's IsDemo branch) — correct there,
  * but the page it renders says "not saved" and greys itself out, unlike
@@ -2245,7 +2245,11 @@ async function takeEnrolmentScreenshots(browser, theme) {
     const ctx = await screenshotContext(browser, theme);
     const page = await ctx.newPage();
 
+    // login-{light,dark}.png documents an installation's login, and the demo
+    // has none to show — it is entered with a button — so the shot is taken
+    // here, on this non-demo instance, before signing in.
     await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await shoot(page, 'login', theme);
     await page.fill('input[name=username]', USER);
     await page.fill('input[name=password]', PASS);
     await Promise.all([
@@ -2425,7 +2429,6 @@ async function takeFullScreenshotSet(browser, session) {
   await takeScreenshots(browser, session, DEFAULT_SCREENSHOT_PAGES);
   const notCaptured = [];
   for (const theme of ['light', 'dark']) {
-    await takeLoginScreenshot(browser, theme);
     await takeEnrolmentScreenshots(browser, theme);
     await takeWizardScreenshots(browser, theme);
     if (!(await takeVerifyScreenshot(browser, theme))) {

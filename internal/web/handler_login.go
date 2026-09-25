@@ -86,6 +86,25 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login/verify", http.StatusSeeOther)
 }
 
+// handleLoginDemo signs a visitor into the demo without a password.
+//
+// Registered only when demo_mode is set, so on an installation there is no
+// route here at all. Nothing behind a demo session reaches a firewall — the
+// client is the in-memory mock and every credential write is refused — so a
+// password guarded nothing, and typing one kept every browser review waiting
+// on a human. The check below is the second lock on a door that is not built
+// outside the demo.
+func (s *Server) handleLoginDemo(w http.ResponseWriter, r *http.Request) {
+	if !s.cfg.Demo() {
+		http.NotFound(w, r)
+		return
+	}
+	username, _ := s.cfg.Credentials()
+	s.grantSession(w, r, username)
+	s.recordLoginEvent(r, shared.EvLoginOK, 0)
+	http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+}
+
 // grantSession issues the session cookie a completed login earns.
 //
 // One place, because both the one-step and the two-step login end here and a
