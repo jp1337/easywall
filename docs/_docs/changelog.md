@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.23.1">2.23.1</a>
   <a href="#2.23.0">2.23.0</a>
   <a href="#2.22.0">2.22.0</a>
   <a href="#2.21.1">2.21.1</a>
@@ -73,7 +74,31 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.23.0" markdown="1">
+<details open id="2.23.1" markdown="1">
+<summary><strong>2.23.1</strong> · 2026-09-25 — The kernel answers every rule</summary>
+
+A patch to 2.23.0, from its first production rollout. The limit is older than
+2.23; 2.23 lowered it to where a real host sits, so both are fixed here.
+
+### Fixed
+
+- **An apply with more than about 150 kernel rules failed with "no buffer
+  space available"** — since at least 2.22, and with the curated feeds from
+  about 104. The kernel acknowledges every message of an apply and echoes
+  every rule back, after it has committed, and the core left the socket's
+  receive buffer at the stock 212 992 bytes. The core now sizes both socket
+  buffers for every write from what it sends. Without `CAP_NET_ADMIN` they
+  stop at `net.core.rmem_max` and `net.core.wmem_max`, and the error names
+  the one that stopped it.
+- **A failed apply no longer claims "nothing was written to the kernel" when
+  the kernel had committed it.** The rollback then resets the usage
+  baselines, as after any other write that reached the kernel.
+
+[See the code changes between 2.23.0 and 2.23.1](https://github.com/jp1337/easywall/compare/v2.23.0...v2.23.1)
+
+</details>
+
+<details id="2.23.0" markdown="1">
 <summary><strong>2.23.0</strong> · 2026-09-25 — Other people's lists</summary>
 
 Eight curated lists of attacking addresses, and up to three of your own, each

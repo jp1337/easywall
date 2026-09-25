@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.1] — 2026-09-25
+
+**The kernel answers every rule.**
+
+A patch to 2.23.0, from its first production rollout. The limit is older than
+2.23; 2.23 lowered it to where a real host sits, so both are fixed here.
+
+### Fixed
+
+- **An apply with more than about 150 kernel rules failed with "no buffer
+  space available"** — since at least 2.22, and with the curated feeds from
+  about 104. The kernel acknowledges every message of an apply and echoes
+  every rule back, after it has committed, and the core left the socket's
+  receive buffer at the stock 212 992 bytes. The core now sizes both socket
+  buffers for every write from what it sends. Without `CAP_NET_ADMIN` they
+  stop at `net.core.rmem_max` and `net.core.wmem_max`, and the error names
+  the one that stopped it.
+- **A failed apply no longer claims "nothing was written to the kernel" when
+  the kernel had committed it.** The rollback then resets the usage
+  baselines, as after any other write that reached the kernel.
+
 ## [2.23.0] — 2026-09-25
 
 **Other people's lists.**
@@ -2564,7 +2585,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.23.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.23.1...HEAD
+[2.23.1]: https://github.com/jp1337/easywall/compare/v2.23.0...v2.23.1
 [2.23.0]: https://github.com/jp1337/easywall/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/jp1337/easywall/compare/v2.21.1...v2.22.0
 [2.21.1]: https://github.com/jp1337/easywall/compare/v2.21.0...v2.21.1
