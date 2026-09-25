@@ -42,7 +42,10 @@ independent of what any port rule says.
 |---|---|
 | `blocklist_subtitle` | Sources that are dropped before any other rule is evaluated. |
 | `blocklist_what_body` | The blocklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it. |
-| `blocklist_order_body` | This list is evaluated *before* the {}. An address that appears in both is dropped — a narrow allow inside a wide block does not work. |
+| `blocklist_order_step_blocklist_desc` | Dropped. Nothing further down can let it in — not even an allowlist entry inside a blocked range. |
+| `blocklist_order_step_allowlist_desc` | Accepted — the feeds never see it. |
+| `blocklist_order_step_feeds_desc` | Dropped, unless the allowlist accepted it first. |
+| `allowlist_feeds_note` | The allowlist also comes before the {}: an address on it is accepted even when a feed lists it. |
 | `allowlist_order_note` | The {} is evaluated first: an address in both lists is dropped, not allowed. |
 
 ## What the acceptance window promises

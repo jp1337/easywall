@@ -384,7 +384,6 @@
   {"id": "iplist_forms_note", "translation": "Accepted forms: a single address `192.0.2.42`, a network `198.51.100.0/24`, or IPv6 in either form."},
   {"id": "blocklist_what_title", "translation": "What gets blocked"},
   {"id": "blocklist_what_body", "translation": "The blocklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it."},
-  {"id": "blocklist_order_body", "translation": "This list is evaluated *before* the {}. An address that appears in both is dropped — a narrow allow inside a wide block does not work."},
 
   {"id": "allowlist_subtitle", "translation": "Trusted sources that reach every port, including ports you never opened."},
   {"id": "allowlist_section", "translation": "Always-allowed addresses"},
@@ -398,7 +397,7 @@
   {"id": "allowlist_feeds_note", "translation": "The allowlist also comes before the {}: an address on it is accepted even when a feed lists it."},
   {"id": "link_feeds", "translation": "feeds"},
   {"id": "blocklist_order_step_blocklist", "translation": "Your blocklist"},
-  {"id": "blocklist_order_step_blocklist_desc", "translation": "Dropped. Nothing further down can let it in."},
+  {"id": "blocklist_order_step_blocklist_desc", "translation": "Dropped. Nothing further down can let it in — not even an allowlist entry inside a blocked range."},
   {"id": "blocklist_order_step_allowlist", "translation": "The allowlist"},
   {"id": "blocklist_order_step_allowlist_desc", "translation": "Accepted — the feeds never see it."},
   {"id": "blocklist_order_step_feeds", "translation": "The feeds"},

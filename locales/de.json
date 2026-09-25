@@ -384,7 +384,6 @@
   {"id": "iplist_forms_note", "translation": "Zulässige Formen: eine einzelne Adresse `192.0.2.42`, ein Netz `198.51.100.0/24` oder IPv6 in beiden Formen."},
   {"id": "blocklist_what_title", "translation": "Was gesperrt wird"},
   {"id": "blocklist_what_body", "translation": "Die Sperrliste wird zuerst geprüft. Eine hier eingetragene Adresse wird verworfen, auch wenn eine Port-Regel sie angenommen hätte."},
-  {"id": "blocklist_order_body", "translation": "Diese Liste wird *vor* der {} geprüft. Eine Adresse, die in beiden steht, wird verworfen — eine enge Freigabe innerhalb einer weiten Sperre funktioniert nicht."},
 
   {"id": "allowlist_subtitle", "translation": "Vertrauenswürdige Quellen, die jeden Port erreichen — auch nie geöffnete."},
   {"id": "allowlist_section", "translation": "Immer erlaubte Adressen"},
@@ -398,7 +397,7 @@
   {"id": "allowlist_feeds_note", "translation": "Die Erlaubnisliste kommt auch vor den {}: eine Adresse darauf wird angenommen, auch wenn eine Fremdliste sie führt."},
   {"id": "link_feeds", "translation": "Fremdlisten"},
   {"id": "blocklist_order_step_blocklist", "translation": "Die eigene Sperrliste"},
-  {"id": "blocklist_order_step_blocklist_desc", "translation": "Verworfen. Nichts weiter unten kann es hereinlassen."},
+  {"id": "blocklist_order_step_blocklist_desc", "translation": "Verworfen. Nichts weiter unten kann es hereinlassen — auch kein Eintrag der Erlaubnisliste in einem gesperrten Bereich."},
   {"id": "blocklist_order_step_allowlist", "translation": "Die Erlaubnisliste"},
   {"id": "blocklist_order_step_allowlist_desc", "translation": "Angenommen — die Fremdlisten sehen es nie."},
   {"id": "blocklist_order_step_feeds", "translation": "Die Fremdlisten"},

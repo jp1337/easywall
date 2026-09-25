@@ -316,6 +316,13 @@ func TestAnOwnFeedRefusalShowsBesideItsSlot(t *testing.T) {
 		}
 	}
 
+	// Refused for carrying credentials: shown back without them (R3#7).
+	form.Set("url", "https://u:url-secret@example.org/list.txt")
+	body = doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()).Body.String()
+	if strings.Contains(body, "url-secret") || !strings.Contains(body, `value="https://example.org/list.txt"`) {
+		t.Error("a URL refused for its credentials was written back with them")
+	}
+
 	form.Set("url", "https://example.org/list.txt")
 	assertRedirect(t, doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()), "/blocklist#own-feeds")
 	if f, ok := s.feedStore.ownFeed(2); !ok || f.Password != "hunter2-typed" {
@@ -446,5 +453,26 @@ func TestARefusedBlocklistSaveKeepsTheFeedsCard(t *testing.T) {
 	body := doAuthFormRequest(t, s, "/blocklist", "entries=not-an-address").Body.String()
 	if !strings.Contains(body, `action="/blocklist/feeds"`) || !strings.Contains(body, `value="dshield" class="toggle" checked`) {
 		t.Error("the Feeds card is missing after a refused blocklist save")
+	}
+}
+
+// Spec §5: the order-matters aside is the three steps, and only them — the
+// paragraph that repeated them is gone (ruling X8), and its concrete trap, an
+// allowlist entry inside a blocked range, is step 1's.
+func TestTheOrderAsideIsTheThreeSteps(t *testing.T) {
+	s, _, _ := feedsCore(t, shared.RulesState{}, nil)
+	body := doAuthRequest(t, s, "GET", "/blocklist", nil).Body.String()
+	aside := regexp.MustCompile(`(?s)Order matters\s*</h2>(.*?)</div>\s*</div>\s*</div>`).FindStringSubmatch(body)
+	if aside == nil {
+		t.Fatalf("no order-matters aside:\n%s", body)
+	}
+	if n := strings.Count(aside[1], `<li class="step">`); n != 3 {
+		t.Errorf("%d steps, want 3", n)
+	}
+	if !regexp.MustCompile(`</ol>\s*$`).MatchString(aside[1]) {
+		t.Errorf("something follows the steps:\n%s", aside[1])
+	}
+	if !strings.Contains(aside[1], "not even an allowlist entry inside a blocked range") {
+		t.Error("step 1 lost the concrete case")
 	}
 }
