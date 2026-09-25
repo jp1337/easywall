@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -160,6 +161,22 @@ func (s *Server) handleOwnFeedPOST(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.PostFormValue("clear") != "" {
 		f = OwnFeed{}
+	}
+	// Removing a slot whose id is staged or live would leave a switch that
+	// names nothing, and a kernel set nobody refreshes (final review M2): it
+	// is switched off, and applied, first. Unreadable, it is not removed.
+	if strings.TrimSpace(f.Name) == "" && strings.TrimSpace(f.URL) == "" && !s.cfg.DemoMode {
+		id := shared.OwnFeedID(n)
+		state, err := s.client.GetRules()
+		if err != nil || slices.Contains(state.Staged.Feeds, id) || slices.Contains(state.Current.Feeds, id) {
+			key := "feeds_own_err_in_use"
+			if err != nil {
+				key = "save_error"
+			}
+			s.setFlash(w, r, key)
+			http.Redirect(w, r, "/blocklist#own-feeds", http.StatusSeeOther)
+			return
+		}
 	}
 	err := s.saveOwnFeed(n, f)
 	if err == nil {

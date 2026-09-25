@@ -1547,6 +1547,7 @@ func templateFuncs() template.FuncMap {
 		"feeds_refused_confirm": true, "feeds_refused_unconfigured": true,
 		"feeds_own_err_name": true, "feeds_own_err_url": true, "feeds_own_err_login": true,
 		"feeds_own_err_password_again": true, "feeds_own_err_demo": true,
+		"feeds_own_err_in_use": true,
 		// Neither is a failure of the system: the operator asked for the window
 		// to end early, and either it did or it had already closed on its own.
 		"rules_rolled_back": true, "rollback_too_late": true,

@@ -725,6 +725,30 @@ func TestSavingAnOwnFeed(t *testing.T) {
 	}
 }
 
+// The boundary is scheme, host and port, not the host name alone (final
+// review): the same name on another port is another server — another
+// service, perhaps another tenant — and plain http to it sends the stored
+// credential in the clear. Each is refused with the password field empty.
+func TestSavingAnOwnFeedTreatsSchemeAndPortAsAnotherServer(t *testing.T) {
+	for _, c := range []struct{ stored, typed string }{
+		{"https://h.example.org:8443/list.txt", "https://h.example.org/list.txt"},
+		{"https://h.example.org/list.txt", "https://h.example.org:8443/list.txt"},
+		{"http://127.0.0.1/list.txt", "https://127.0.0.1/list.txt"},
+		{"https://127.0.0.1/list.txt", "http://127.0.0.1/list.txt"},
+	} {
+		s := newTestServer(t, newFakeCore(t))
+		if err := s.saveOwnFeed(1, OwnFeed{Name: "x", URL: c.stored, User: "u", Password: "SECRET"}); err != nil {
+			t.Fatalf("%s: %v", c.stored, err)
+		}
+		if err := s.saveOwnFeed(1, OwnFeed{Name: "x", URL: c.typed, User: "u"}); !errors.Is(err, errOwnFeedPasswordAgain) {
+			t.Errorf("%s → %s with the password field empty: %v, want errOwnFeedPasswordAgain", c.stored, c.typed, err)
+		}
+		if f, _ := s.feedStore.ownFeed(1); f.URL != c.stored || f.Password != "SECRET" {
+			t.Errorf("%s → %s: a refused save changed the stored feed: %+v", c.stored, c.typed, f)
+		}
+	}
+}
+
 // Review round 1, finding 1: "empty password keeps the stored one" must not
 // survive a change of scheme or host — otherwise a session holder points own
 // feed 1 at https://attacker.example/…, leaves the password blank, and the
