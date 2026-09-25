@@ -117,7 +117,11 @@
        sit side by side. */}}
   <td data-label="{{T "blocked_col_rule"}}"><div class="pkt-rule">
     {{$label := T (printf "blocked_rule_%s" .Rule)}}
-    {{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}
+    {{/* A feed's chip names the feed and leads to its row on the blocklist
+         page, where it is switched off; the allowlist button beside it is
+         the remedy (the feeds run after the allowlist). */}}
+    {{if eq .Rule "feed"}}{{$name := index $.FeedNames .Feed}}<a class="log-action" href="/blocklist#{{if .Feed}}feed-{{.Feed}}{{else}}feeds{{end}}">{{if $name}}{{T "blocked_rule_feed_named" (dict "Name" $name)}}{{else}}{{$label}}{{end}}</a>
+    {{else}}{{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}{{end}}
     {{if $.WhyKnown}}{{with .DropReasonParsed $.Rules $.Net}}{{if .Code}}<span class="pkt-why">{{T (printf "blocked_why_%s" .Code) .Params}}</span>{{end}}{{end}}{{end}}
   </div></td>
   <td data-label="{{T "blocked_col_actions"}}"><div class="pkt-act">

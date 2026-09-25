@@ -346,7 +346,11 @@ func NewServer(cfg *Config) (*Server, error) {
 	}
 
 	s.feedStore = newFeedStore(cfg.FeedStatePath())
-	if !cfg.DemoMode {
+	if cfg.DemoMode {
+		// In memory and never written: the demo's rows show every status a
+		// card can show, and nothing a visitor does changes them.
+		s.feedStore = newDemoFeedStore(time.Now())
+	} else {
 		s.feeds = newFeedRunner(client, s.feedStore)
 		s.feedStop = make(chan struct{})
 	}
@@ -599,6 +603,10 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 
 		r.Get("/blocklist", s.handleBlocklistGET)
 		r.Post("/blocklist", s.handleBlocklistPOST)
+		// The Feeds card and the own-feed slots, forms of their own on the
+		// same page (handler_feeds.go).
+		r.Post("/blocklist/feeds", s.handleFeedsPOST)
+		r.Post("/blocklist/own-feeds", s.handleOwnFeedPOST)
 
 		r.Get("/allowlist", s.handleAllowlistGET)
 		r.Post("/allowlist", s.handleAllowlistPOST)
@@ -1506,6 +1514,8 @@ func templateFuncs() template.FuncMap {
 		// A row action on /blocked staged its rule. Nothing is live yet, and
 		// the flash says so; it is still the action working.
 		"blocked_staged_allowlist": true, "blocked_staged_blocklist": true, "blocked_staged_port": true,
+		// An own feed's address is stored; switching it on is the card's.
+		"feeds_own_saved": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -1531,6 +1541,11 @@ func templateFuncs() template.FuncMap {
 		// window was open, which is the safety mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
+		// The Feeds card's refusals: each names what to tick or type, and
+		// nothing was staged or stored.
+		"feeds_refused_confirm": true, "feeds_refused_unconfigured": true,
+		"feeds_own_err_name": true, "feeds_own_err_url": true, "feeds_own_err_login": true,
+		"feeds_own_err_demo": true,
 		// Neither is a failure of the system: the operator asked for the window
 		// to end early, and either it did or it had already closed on its own.
 		"rules_rolled_back": true, "rollback_too_late": true,

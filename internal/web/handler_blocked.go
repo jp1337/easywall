@@ -51,6 +51,26 @@ type blockedRows struct {
 	Rules    shared.ParsedRules
 	Net      shared.NetworkSettings
 	WhyKnown bool
+
+	// FeedNames is what each feed a "feed" row names is called, by id — filled
+	// by feedNames, only when such a row is on screen.
+	FeedNames map[string]string
+}
+
+// feedNames fills rows.FeedNames for the "feed" rows on screen: the catalogue
+// name, or an own feed's configured one, in the request's language.
+func (s *Server) feedNames(r *http.Request, rows *blockedRows) {
+	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	for _, e := range rows.Entries {
+		if e.Rule != "feed" || e.Feed == "" {
+			continue
+		}
+		if rows.FeedNames == nil {
+			rows.FeedNames = map[string]string{}
+		}
+		rows.FeedNames[e.Feed] = s.feedLabel(tFunc, e.Feed)
+	}
 }
 
 // rulesNow fills rows' reason inputs, and asks only when a default-drop row is
@@ -196,6 +216,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.Listening = res.Listening
 		data.Rows.Since = res.Since
 		s.rulesNow(&data.Rows)
+		s.feedNames(r, &data.Rows)
 	}
 	// Only decides what the empty state and the header say. Unreadable, it
 	// says nothing rather than something false.
@@ -224,6 +245,7 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 		rows.Listening = res.Listening
 		rows.Since = res.Since
 		s.rulesNow(&rows)
+		s.feedNames(r, &rows)
 	} else {
 		slog.Debug("could not get the packet log for the live tail", "error", err)
 		rows.CoreErr = err.Error()
@@ -382,7 +404,9 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 // name, by the card's toml key — its anchor is opt-<key> (options.html). Every
 // rule in shared.PacketLogRules has an entry, and an empty one is a decision:
 // the blocklist and the final drop are not switches, so no card refused those
-// packets. TestEveryBlockedRuleLeadsToItsOption holds both halves.
+// packets. A feed is not a switch on /options either: its chip leads to the
+// feed's own row on the blocklist page instead (blocked.html).
+// TestEveryBlockedRuleLeadsToItsOption holds all of it.
 var blockedRuleOption = map[string]string{
 	"ssh":        "ssh_brute_force",
 	"icmp_flood": "icmp_flood",
@@ -393,8 +417,6 @@ var blockedRuleOption = map[string]string{
 	"fragment":   "drop_fragments",
 	"bogon":      "bogon_filter",
 	"blocklist":  "",
-	// A feed is switched on on the blocklist page, not on /options; what
-	// /options has is the switch that logs it.
-	"feed": "log_feed_connections",
-	"drop": "",
+	"feed":       "",
+	"drop":       "",
 }

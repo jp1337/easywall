@@ -14,6 +14,10 @@ type ipListData struct {
 	// shape the HTMX endpoint returns so both paths render through one
 	// template — the arrangement the custom rules editor already uses.
 	Validation *validationData
+
+	// Feeds is the Feeds card, on the blocklist page only; nil elsewhere and
+	// when the rules could not be read.
+	Feeds *feedsCard
 }
 
 // iplistValidation turns rejected lines into the fragment the editor renders.
@@ -36,12 +40,20 @@ func iplistValidation(errs []lineError) *validationData {
 // was wrong.
 func (s *Server) rejectIPList(w http.ResponseWriter, r *http.Request, page, raw string, errs []lineError) {
 	slog.Info("rejected address list", "list", page, "invalid_lines", len(errs))
-	s.setFlash(w, r, "save_invalid_entries")
-	s.render(w, r, page+".html", page, &ipListData{
+	data := &ipListData{
 		Title:      page,
 		Entries:    parseIPList(raw),
 		Validation: iplistValidation(errs),
-	})
+	}
+	if page == "blocklist" {
+		// The card below the editor stays on the page; it reads what is
+		// staged now, not the refused text.
+		if state, err := s.client.GetRules(); err == nil {
+			data.Feeds = s.feedsCard(state)
+		}
+	}
+	s.setFlash(w, r, "save_invalid_entries")
+	s.render(w, r, page+".html", page, data)
 }
 
 func (s *Server) handleBlocklistGET(w http.ResponseWriter, r *http.Request) {
@@ -54,6 +66,7 @@ func (s *Server) handleBlocklistGET(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "blocklist.html", "blocklist", &ipListData{
 		Title:   "blocklist",
 		Entries: state.Staged.Blocklist,
+		Feeds:   s.feedsCard(state),
 	})
 }
 

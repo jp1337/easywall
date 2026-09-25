@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -796,9 +797,11 @@ func TestDemo_SeededAuditLogDescends(t *testing.T) {
 }
 
 // 2.23: the public demo shows the two feeds the card says to start with,
-// switched on and with a copy, so the blocklist page has something to render.
-// A feed a visitor switches on has none — nothing in the demo fetches — and
-// UPDATE_FEED is refused rather than pretending to store anything.
+// switched on and with a copy, and three more that show the other states a
+// row has (newDemoFeedStore) — CINS in the kernel with no copy, because its
+// fetches fail. A feed a visitor switches on has none — nothing in the demo
+// fetches — and UPDATE_FEED is refused rather than pretending to store
+// anything.
 func TestDemoAnswersTheFeedCommands(t *testing.T) {
 	d := newDemoState()
 	c := &CoreClient{demo: d}
@@ -811,28 +814,31 @@ func TestDemoAnswersTheFeedCommands(t *testing.T) {
 	for _, f := range res.Feeds {
 		byID[f.ID] = f
 	}
-	for _, id := range []string{"spamhaus-drop", "dshield"} {
+	for _, id := range []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised"} {
 		f := byID[id]
 		if !f.Stored || !f.InKernel || f.Entries == 0 || f.CheckedAt.IsZero() || !f.CountersRead {
 			t.Errorf("%s in the demo: %+v", id, f)
 		}
 	}
-	if len(res.Feeds) != 2 {
-		t.Errorf("the seeded demo reports %d feeds, want 2: %+v", len(res.Feeds), res.Feeds)
+	if f := byID["cins"]; f.Stored || !f.InKernel {
+		t.Errorf("cins in the demo: %+v — switched on, and no copy", f)
+	}
+	if len(res.Feeds) != 5 {
+		t.Errorf("the seeded demo reports %d feeds, want 5: %+v", len(res.Feeds), res.Feeds)
 	}
 
-	if err := c.SaveRules("feeds", []string{"spamhaus-drop", "dshield", "cins"}); err != nil {
+	if err := c.SaveRules("feeds", append(slices.Clone(d.rules.Current.Feeds), "tor-exits")); err != nil {
 		t.Fatal(err)
 	}
 	res, _ = c.GetFeeds("")
-	var cins *shared.FeedStatus
+	var tor *shared.FeedStatus
 	for i := range res.Feeds {
-		if res.Feeds[i].ID == "cins" {
-			cins = &res.Feeds[i]
+		if res.Feeds[i].ID == "tor-exits" {
+			tor = &res.Feeds[i]
 		}
 	}
-	if cins == nil || cins.Stored || cins.InKernel {
-		t.Errorf("a feed staged in the demo reads %+v; it has no copy and is not in the kernel", cins)
+	if tor == nil || tor.Stored || tor.InKernel {
+		t.Errorf("a feed staged in the demo reads %+v; it has no copy and is not in the kernel", tor)
 	}
 	if err := c.SaveRules("feeds", []string{"firehol-level1"}); err == nil {
 		t.Error("the demo staged a feed id the core would refuse")

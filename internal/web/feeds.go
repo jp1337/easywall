@@ -559,6 +559,7 @@ type feedRow struct {
 	FalsePositives shared.FeedFalsePositives
 	BlocksKey      string // FeedLocaleKey(id, "blocks")
 	FPWhyKey       string // FeedLocaleKey(id, "fp_why")
+	ConfirmKey     string // FeedLocaleKey(id, "confirm") for a ✗ feed: whom it locks out; "" otherwise
 	Homepage       string // P17: the source link
 	Terms          string // P17: the terms link
 
@@ -628,12 +629,16 @@ func (s *Server) feedRows(state *shared.RulesState) []feedRow {
 
 	rows := make([]feedRow, 0, len(shared.FeedCatalogue)+shared.MaxOwnFeeds)
 	for _, f := range shared.FeedCatalogue {
-		rows = append(rows, feedRow{
+		row := feedRow{
 			ID: f.ID, Name: f.Name, Configured: true,
 			Verdict: f.Verdict, FalsePositives: f.FalsePositives,
 			BlocksKey: shared.FeedLocaleKey(f.ID, "blocks"), FPWhyKey: shared.FeedLocaleKey(f.ID, "fp_why"),
 			Homepage: f.Homepage, Terms: f.Terms, Interval: f.Interval,
-		})
+		}
+		if f.Verdict == shared.FeedDeliberate {
+			row.ConfirmKey = shared.FeedLocaleKey(f.ID, "confirm")
+		}
+		rows = append(rows, row)
 	}
 	for n := 1; n <= shared.MaxOwnFeeds; n++ {
 		id := shared.OwnFeedID(n)
