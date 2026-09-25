@@ -529,6 +529,12 @@ func (c *Config) SelftestStampPath() string {
 	return c.DataDir + "/selftest.json"
 }
 
+// FeedsPath returns the path of the core's own copy of every feed. See
+// feedstore.go.
+func (c *Config) FeedsPath() string {
+	return c.DataDir + "/feeds.json"
+}
+
 // PanicMarkerPath returns the path of the file that records panic mode.
 //
 // In the data directory rather than in this config file for two reasons, neither

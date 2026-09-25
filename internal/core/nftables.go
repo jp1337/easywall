@@ -146,6 +146,12 @@ type NftablesManager struct {
 	// later refactor collapsing the two checks into one would otherwise be
 	// silent.
 	checksRun int
+
+	// sndbuf, when non-zero, is the send buffer feedSockOption gives every
+	// socket dialled for the flush in progress; sndbufCapped records that the
+	// kernel refused SO_SNDBUFFORCE. Both belong to flushLarge, under mu.
+	sndbuf       int
+	sndbufCapped bool
 }
 
 // builtRecorder is the production adder: it records the rule and forwards it to
@@ -180,11 +186,12 @@ type ruleAdder interface {
 
 // NewNftablesManager creates a new manager and verifies netlink connectivity.
 func NewNftablesManager() (*NftablesManager, error) {
-	conn, err := nftables.New()
+	m := &NftablesManager{}
+	conn, err := nftables.New(nftables.WithSockOptions(m.feedSockOption))
 	if err != nil {
 		return nil, fmt.Errorf("open netlink connection: %w", err)
 	}
-	m := &NftablesManager{conn: conn}
+	m.conn = conn
 	m.adder = builtRecorder{m}
 	return m, nil
 }
@@ -210,11 +217,12 @@ func NewNftablesManager() (*NftablesManager, error) {
 // check that inspects nothing is the defect this release exists to prevent
 // arriving through the guard built to prevent it.
 func NewNftablesManagerInNamespace(nsFD int) (*NftablesManager, error) {
-	conn, err := nftables.New(nftables.WithNetNSFd(nsFD))
+	m := &NftablesManager{nsFD: nsFD}
+	conn, err := nftables.New(nftables.WithNetNSFd(nsFD), nftables.WithSockOptions(m.feedSockOption))
 	if err != nil {
 		return nil, fmt.Errorf("reach nftables in the self-test namespace: %w", err)
 	}
-	m := &NftablesManager{conn: conn, nsFD: nsFD}
+	m.conn = conn
 	m.adder = builtRecorder{m}
 	return m, nil
 }
@@ -539,10 +547,9 @@ func (m *NftablesManager) Reset() error {
 	return m.reset()
 }
 
-// reset is Reset's body, split out so Apply can call it without taking mu a
-// second time.
+// reset is Reset's body, split out so it runs under a lock its caller holds.
 //
-// Apply used to call Reset() directly. Once Apply itself took the lock for
+// Apply used to call Reset() directly, and until 2.23 called this. Once Apply itself took the lock for
 // the whole cycle, that became Apply calling m.mu.Lock() and then, from
 // inside the same goroutine, Reset() calling m.mu.Lock() again — a plain
 // sync.Mutex is not reentrant, so the second Lock never returns. That is a
@@ -550,7 +557,8 @@ func (m *NftablesManager) Reset() error {
 // does not time out, does not release beginApply's slot, and every method on
 // this type that also takes mu — including the one the dashboard's Status
 // polls every few seconds — hangs behind it forever. reset() assumes the
-// caller already holds mu; only Reset() and Apply() may call it.
+// caller already holds mu. Since 2.23 only Reset() calls it: ApplyWithFeeds
+// deletes and recreates the table inside its own transaction instead.
 func (m *NftablesManager) reset() error {
 	if m.conn == nil {
 		return fmt.Errorf("nftables connection not available")
@@ -571,14 +579,24 @@ func (m *NftablesManager) reset() error {
 	return m.conn.Flush()
 }
 
-// Apply translates the given RulesState and FirewallOptions into nftables
-// rules and installs them atomically via a single netlink Flush call.
+// Apply is ApplyWithFeeds with no feed contents: every enabled feed gets an
+// empty set. The tests and the self-test's own table call it; every production
+// writer calls ApplyWithFeeds with the stored copies
+// (TestNoProductionCodeCallsApplyWithoutFeeds).
+func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, netCfg shared.NetworkSettings) error {
+	return m.ApplyWithFeeds(state, opts, netCfg, nil)
+}
+
+// ApplyWithFeeds translates the given RulesState and FirewallOptions into
+// nftables rules and installs them via a single netlink Flush call, with the
+// sets of the feeds state.Current enables filled from feeds.
 //
 // netCfg carries the IPv6 disposition, Docker coexistence and the routing mode
 // as one value. They used to arrive as separate parameters and a third was one
 // parameter too many — the caller already holds them together, and the three
 // of them describe one configuration that has to reach the kernel intact.
-func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, netCfg shared.NetworkSettings) error {
+func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.FirewallOptions,
+	netCfg shared.NetworkSettings, feeds FeedContents) error {
 	// Held for the whole cycle, deliberately including applyCustomRules'
 	// subprocess below — up to NftTimeout (30s) — and not just the netlink
 	// calls. The custom rules assume the table Apply just built is still
@@ -632,8 +650,9 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	m.built = nil
 
 	ipv6, docker, routing := netCfg.IPv6, netCfg.Docker, netCfg.Routing
-	// Check the rules before Reset, not after: Reset deletes the table, so a
-	// failure past this point costs the working ruleset. The builders below
+	// Check the rules before anything is queued. Since 2.23 a batch the kernel
+	// refuses leaves the previous table in force, but a builder that skips an
+	// entry it cannot parse would still be accepted by the kernel. The builders below
 	// each guard their own parsing and return quietly when an address will not
 	// parse — which used to mean a malformed entry was listed in the interface
 	// as blocked while no rule for it ever existed. Refusing here makes that
@@ -664,14 +683,29 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		routing.Mode = shared.RoutingClosed
 	}
 
-	if err := m.reset(); err != nil {
-		return fmt.Errorf("reset table: %w", err)
+	if m.conn == nil {
+		return fmt.Errorf("reset table: nftables connection not available")
 	}
 
+	// Delete and recreate the table in the transaction that fills it, so the
+	// kernel swaps the old ruleset for the new one in one commit. Until 2.23
+	// this was reset() — a delete and an add, flushed on their own — and the
+	// table then had no chains, which filters nothing, until the rules' flush
+	// landed: about a millisecond. Feed sets made it a third and half of a
+	// second (100 000 elements, and the catalogue: 325 ms and 476 ms, best of five,
+	// TestIntegration_ApplyNeverLeavesTheTableWithoutChains), which this
+	// release does not get to cause. The first add makes the delete valid on a
+	// host with no table yet; AddTable does not fail on one that exists.
+	//
+	// A batch the kernel refuses now leaves the previous rules in force rather
+	// than an empty table, and the rollback that follows rewrites them.
 	table := &nftables.Table{
 		Name:   tableName,
 		Family: nftables.TableFamilyINet,
 	}
+	m.conn.AddTable(table)
+	m.conn.DelTable(table)
+	m.conn.AddTable(table)
 
 	// --- INPUT chain (base, default DROP) ---
 	inputChain := m.conn.AddChain(&nftables.Chain{
@@ -832,6 +866,15 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addAllowlistRule(table, inputChain, ip)
 	}
 
+	// Other people's lists, after the allowlist (spec D3): allowlisting an
+	// address is how an operator rescues it from a feed. Their elements go in
+	// this flush, not one of their own, so they add nothing to the moment the
+	// table has no chains beyond the time the kernel takes to load them.
+	feedBytes, err := m.addFeeds(table, inputChain, state.Current.Feeds, feeds, opts)
+	if err != nil {
+		return err
+	}
+
 	// Open TCP / UDP ports.
 	//
 	// FiltersHost and FiltersForwarded are the two halves of one decision — a
@@ -863,8 +906,9 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	}
 
 	m.checkBuilt()
-	if err := m.conn.Flush(); err != nil {
-		return err
+	if err := m.flushLarge(feedBytes); err != nil {
+		// Refused whole: the kernel holds the previous table and its counters.
+		return fmt.Errorf("%w (%w)", err, errNothingWritten)
 	}
 	// Apply custom rules via nft subprocess after all typed rules are committed.
 	if len(state.Current.Custom) > 0 {
@@ -1032,16 +1076,23 @@ func (m *NftablesManager) SetLogSink(s logSink) {
 // that acts. Both carry the same match, so what is logged is exactly what is
 // dropped.
 func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, match []expr.Any, action expr.Any, lg logSpec) {
+	m.addLogged(t, c, match, lg, nil, action)
+}
+
+// addLogged is addFiltered for a rule that acts with more than one expression
+// or carries a rule id: tag becomes the acting rule's UserData. The feed drops
+// use it for `counter drop` and their reserved id.
+func (m *NftablesManager) addLogged(t *nftables.Table, c *nftables.Chain, match []expr.Any, lg logSpec, tag []byte, action ...expr.Any) {
 	if lg.enabled {
 		logged := make([]expr.Any, 0, len(match)+2)
 		logged = append(logged, match...)
 		logged = append(logged, logExprs(lg.prefix, lg.perMinute, m.logSink)...)
 		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: logged})
 	}
-	acted := make([]expr.Any, 0, len(match)+1)
+	acted := make([]expr.Any, 0, len(match)+len(action))
 	acted = append(acted, match...)
-	acted = append(acted, action)
-	m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted})
+	acted = append(acted, action...)
+	m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted, UserData: tag})
 }
 
 // --- Helper builders ---
