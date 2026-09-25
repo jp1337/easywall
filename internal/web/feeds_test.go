@@ -498,6 +498,65 @@ func TestAPassRefreshesStagedAndCurrentOnce(t *testing.T) {
 	}
 }
 
+// Review Focus 1: a feed switched off while its update is held (P7), or
+// while its fetch is in flight. The held update is dropped, never resent; the
+// row shows no error. The failure itself stays — it drives the backoff, and
+// off-then-on must not be a way around a 429 (X7).
+func TestASwitchedOffFeedKeepsNoHeldUpdateAndShowsNoError(t *testing.T) {
+	h := newFeedHarness(t, true)
+	u := h.list("192.0.2.1\n")
+	// Held during an apply window.
+	h.fc.SetResponse(shared.CmdUpdateFeed, errorRespFor(shared.ErrApplyInProgressText))
+	h.r.refreshFrom("own-1", plainSource(u), false)
+	// In flight when it was switched off: the core refuses it as not enabled.
+	h.fc.SetResponse(shared.CmdUpdateFeed, errorRespFor("feed own-2 is not switched on"))
+	h.r.refreshFrom("own-2", plainSource(u), false)
+	// Rate limited just before it was switched off.
+	var limited atomic.Int32
+	busy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limited.Add(1)
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(busy.Close)
+	h.r.refreshFrom("own-3", plainSource(busy.URL), false)
+	if st := h.r.store.fetchState("own-3"); st.LastError != feedErrRateLimited || limited.Load() != 1 {
+		t.Fatalf("setup: own-3 %+v", st)
+	}
+
+	// All three off; the next pass sees rules without them.
+	h.fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
+	h.fc.SetResponse(shared.CmdUpdateFeed, successResp(shared.UpdateFeedResult{Changed: true}))
+	before := len(h.sent())
+	h.r.now = func() time.Time { return time.Now().Add(feedApplyRetry) }
+	h.r.pass()
+	if n := len(h.sent()); n != before {
+		t.Errorf("%d updates sent for feeds that are switched off", n-before)
+	}
+	h.r.mu.Lock()
+	_, held := h.r.pending["own-1"]
+	h.r.mu.Unlock()
+	if held {
+		t.Error("the held update of a switched-off feed is still held")
+	}
+
+	// The rows show no error…
+	s := &Server{client: h.r.client, feedStore: h.r.store}
+	for _, row := range s.feedRows(&shared.RulesState{}) {
+		if row.LastError != "" || row.Failures != 0 || row.FailedInARow != 0 ||
+			row.Status == FeedFailedCopy || row.Status == FeedFailedNoCopy {
+			t.Errorf("%s, switched off, shows an error: %+v", row.ID, row)
+		}
+	}
+	// …but the backoff runs on: switched on again inside it, nothing is sent.
+	h.r.refreshFrom("own-3", plainSource(busy.URL), true)
+	if n := limited.Load(); n != 1 {
+		t.Errorf("off and on again after a 429: %d requests, want still 1", n)
+	}
+	if st := h.r.store.fetchState("own-3"); st.Failures != 1 || st.LastError != feedErrRateLimited {
+		t.Errorf("the store forgot the backoff: %+v", st)
+	}
+}
+
 // ── what reaches the log, the file and the core ───────────────────────────
 
 func TestNoCredentialURLOrBodyReachesTheLog(t *testing.T) {
@@ -674,7 +733,7 @@ func TestFeedRowsMergeTheCoreAndThisProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := &shared.RulesState{
-		Staged:  shared.Rules{Feeds: []string{"spamhaus-drop", "dshield", "own-2"}},
+		Staged:  shared.Rules{Feeds: []string{"spamhaus-drop", "dshield", "cins", "blocklist-de", "own-2"}},
 		Current: shared.Rules{Feeds: []string{"spamhaus-drop"}},
 	}
 
@@ -710,6 +769,11 @@ func TestFeedRowsMergeTheCoreAndThisProcess(t *testing.T) {
 	if bd := byID["blocklist-de"]; bd.ShrankFrom != 32002 || bd.ShrankTo != 900 || bd.LastError != feedErrShrank {
 		t.Errorf("blocklist-de row %+v", bd)
 	}
+	for _, r := range s.feedRows(nil) {
+		if r.Staged || r.Enabled {
+			t.Errorf("no rules: row %+v", r)
+		}
+	}
 	if et := byID["et-compromised"]; et.Status != FeedNeverFetched || et.Staged {
 		t.Errorf("et row %+v", et)
 	}
@@ -724,9 +788,9 @@ func TestFeedRowsMergeTheCoreAndThisProcess(t *testing.T) {
 
 	// The core does not answer: the page still renders, and says it could not read the counts.
 	fc.SetResponse(shared.CmdGetFeeds, errorRespFor("busy"))
-	for _, r := range s.feedRows(nil) {
-		if r.CoreRead || r.Staged || r.Entries != 0 {
-			t.Errorf("no core, no rules: row %+v", r)
+	for _, r := range s.feedRows(state) {
+		if r.CoreRead || r.Entries != 0 {
+			t.Errorf("no core: row %+v", r)
 		}
 		if r.ID == "cins" && r.Status != FeedFailedCopy {
 			t.Errorf("no core: cins %s, want the status stored with the failure", r.Status)

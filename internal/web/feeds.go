@@ -145,11 +145,27 @@ func (r *feedRunner) pass() {
 		slog.Debug("feeds: rules not read; no refresh this pass", "error", err)
 		return
 	}
+	on := append(slices.Clone(state.Staged.Feeds), state.Current.Feeds...)
+	r.dropSwitchedOff(on)
 	now := r.now()
-	for _, id := range append(slices.Clone(state.Staged.Feeds), state.Current.Feeds...) {
+	for _, id := range on {
 		src, ok := r.source(id)
 		if ok && r.due(id, src.interval, now) {
 			r.refresh(id, false)
+		}
+	}
+}
+
+// dropSwitchedOff drops the update held for the apply window of every feed
+// no longer switched on, so it is never resent (Review Focus 1). The failure
+// stays in the store — it drives the backoff, and switching the feed off and
+// on again must not be a way around it (X7); feedRows hides it instead.
+func (r *feedRunner) dropSwitchedOff(on []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id := range r.pending {
+		if !slices.Contains(on, id) {
+			delete(r.pending, id)
 		}
 	}
 }
@@ -634,6 +650,13 @@ func (s *Server) feedRows(state *shared.RulesState) []feedRow {
 		r.AllowlistOverlap = c.AllowlistOverlap
 
 		st := s.feedStore.fetchState(r.ID)
+		if !r.Staged && !r.Enabled {
+			// Switched off: no error on the row — often it is the core's "not
+			// switched on" for a fetch that was in flight. The store keeps the
+			// failure for the backoff; only the display forgets it.
+			st.LastError, st.HTTPStatus, st.Failures, st.Status = "", 0, 0, ""
+			st.ShrankFrom, st.ShrankTo = 0, 0
+		}
 		r.Rejected, r.RejectedSample, r.LastAttempt = st.Rejected, st.RejectedSample, st.LastAttempt
 		r.ShrankFrom, r.ShrankTo = st.ShrankFrom, st.ShrankTo
 		r.LastError, r.HTTPStatus, r.Failures = st.LastError, st.HTTPStatus, st.Failures
