@@ -3,12 +3,13 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
-	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -36,7 +37,7 @@ type router struct {
 // It skips the test when the tools or the privileges are not there.
 func newRouter(t *testing.T) *router {
 	t.Helper()
-	for _, bin := range []string{"unshare", "nsenter", "ip", "ping"} {
+	for _, bin := range []string{"sleep", "nsenter", "ip", "ping"} {
 		if _, err := exec.LookPath(bin); err != nil {
 			t.Skipf("skipping: %s is not installed, and this test routes real packets", bin)
 		}
@@ -85,34 +86,31 @@ func newRouter(t *testing.T) *router {
 	r.inNS(r.pidB, "ip", "route", "add", "default", "via", "10.77.2.1")
 
 	if err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0o644); err != nil {
-		t.Skipf("skipping: cannot enable forwarding in this namespace: %v", err)
+		skipOrFailUnprovable(t, fmt.Sprintf("cannot enable forwarding in this namespace: %v", err))
 	}
 	return r
 }
 
 func (r *router) holdNamespace() (*exec.Cmd, string) {
 	r.t.Helper()
-	cmd := exec.Command("unshare", "-n", "sleep", "120")
+	// Cloned into its own namespace, as netns.go's startPeer is. `unshare -n
+	// sleep` was racy: /proc/<pid>/ns/net exists from the fork, before unshare
+	// has switched namespaces, so a veth moved "into" it by pid landed in this
+	// namespace and the new one came up empty — `Cannot find device "va"`, and
+	// a skip, on main (2026-09-25).
+	cmd := exec.Command("sleep", "120")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: syscall.CLONE_NEWNET}
 	if err := cmd.Start(); err != nil {
-		r.t.Skipf("skipping: cannot create a network namespace: %v", err)
+		skipOrFailUnprovable(r.t, fmt.Sprintf("cannot create a network namespace: %v", err))
 	}
-	// The namespace exists once unshare has execed sleep; give it a moment.
-	pid := strconv.Itoa(cmd.Process.Pid)
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat("/proc/" + pid + "/ns/net"); err == nil {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return cmd, pid
+	return cmd, strconv.Itoa(cmd.Process.Pid)
 }
 
 func (r *router) run(args ...string) {
 	r.t.Helper()
 	out, err := exec.Command(args[0], args[1:]...).CombinedOutput()
 	if err != nil {
-		r.t.Skipf("skipping: %s: %v: %s", strings.Join(args, " "), err, out)
+		skipOrFailUnprovable(r.t, fmt.Sprintf("%s: %v: %s", strings.Join(args, " "), err, out))
 	}
 }
 
