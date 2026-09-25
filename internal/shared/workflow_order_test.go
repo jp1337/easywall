@@ -370,3 +370,19 @@ func hasIntegrationTests(t *testing.T, dir string) bool {
 	}
 	return false
 }
+
+// v2.22.0, v2.23.0 and v2.23.1 were released from a main commit whose Build run
+// was red. The main-is-green job refuses such a tag; it only does so while the
+// job that publishes waits for it.
+func TestTheReleaseWaitsForAGreenMain(t *testing.T) {
+	release := repoFile(t, ".github", "workflows", "release.yml")
+	gate := jobBlock(t, release, "main-is-green")
+	for _, want := range []string{`"Build","Test","Security"`, `select(.conclusion != "success")`, "merge-base --is-ancestor"} {
+		if !strings.Contains(gate, want) {
+			t.Errorf("main-is-green no longer contains %s", want)
+		}
+	}
+	if !regexp.MustCompile(`(?m)^    needs: \[?main-is-green`).MatchString(jobBlock(t, release, "goreleaser")) {
+		t.Error("goreleaser does not need main-is-green: a tag on a red main would be released")
+	}
+}

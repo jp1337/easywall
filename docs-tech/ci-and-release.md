@@ -282,8 +282,13 @@ came back in 2.15 from a second cause — a `d.wg.Add` from a counter of zero,
 which the helper then papered over and the daemon has since been fixed not to
 make at all — and blocked a one-line dependency bump from merging; both
 reproductions are in [invariants](invariants.md). Required
-checks stop a *knowingly* red merge. Noticing a red `main` is a separate problem
-and is still unsolved.
+checks stop a *knowingly* red merge. Noticing a red `main` is a separate problem:
+it went unseen from the 2.22 merge to 2.23.1, three tags on a red Build (a
+`| grep -q` under `pipefail`, see [invariants](invariants.md)). `release.yml`'s
+first job, `main-is-green`, now waits for every run `main` started for the tagged
+commit and refuses the tag unless Build, Test and Security — and Docs or Publish
+edge, when they ran — all succeeded. A red `main` between releases is still only
+seen by whoever looks; the tag is where it can no longer slip through.
 
 ## Cutting a release
 
@@ -299,6 +304,8 @@ a brand-new commit has no passing checks, which is exactly what the rule says.
    `TestDocsVersionMatchesRelease` fails if they disagree.
 4. Open the pull request, let the thirteen run, merge it.
 5. Tag `vX.Y.Z` on the resulting `main` commit and push the tag. Tags are not
-   branches; the protection does not apply to them.
+   branches; the protection does not apply to them. `main-is-green` holds the
+   release until `main`'s runs of that commit finish, and fails it if one is red:
+   fix or re-run it, then re-run the release.
 6. Read the release run's log rather than the tick, and download one `.deb` to
    confirm it contains what it should.

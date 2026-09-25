@@ -355,10 +355,13 @@ jobs:
             *) fail "POST /firstrun with the logged token did not reach the TOTP step" ;;
           esac
 
-          # A — the seeded easywall.toml trusts Docker's bridges.
-          compose exec -T easywall sed -n '/^\[docker\]/,/^\[/p' /etc/easywall/easywall.toml \
-            | grep -Eq '^enabled[[:space:]]*=[[:space:]]*true' \
-            || fail "/etc/easywall/easywall.toml was not seeded with [docker] enabled = true"
+          # A — the seeded easywall.toml trusts Docker's bridges. Captured, then
+          # matched: piped into grep -q, compose exec died of SIGPIPE whenever the
+          # section arrived in two frames, and pipefail blamed a correct file
+          # (TestNoWorkflowPipesIntoAReaderThatStopsEarly).
+          section=$(compose exec -T easywall sed -n '/^\[docker\]/,/^\[/p' /etc/easywall/easywall.toml)
+          grep -Eq '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*true' <<<"$section" \
+            || fail "/etc/easywall/easywall.toml was not seeded with [docker] enabled = true: $section"
           echo "ok  A: [docker] enabled = true"
 
           # K — ./easywall-config was seeded from the image and stays out of git.
@@ -371,8 +374,9 @@ jobs:
           echo "ok  K: ./easywall-config seeded, and git sees nothing"
 
           # D — the pinned ids; the web user writes its own web/ and not the core's directory.
-          compose exec -T easywall id easywall | grep -q 'uid=100(easywall) gid=101(easywall)' \
-            || fail "the easywall user is not uid 100 / gid 101: $(compose exec -T easywall id easywall)"
+          ids=$(compose exec -T easywall id easywall)
+          grep -q 'uid=100(easywall) gid=101(easywall)' <<<"$ids" \
+            || fail "the easywall user is not uid 100 / gid 101: $ids"
           compose exec -T easywall su easywall -s /bin/sh -c 'test -w /var/lib/easywall/web' \
             || fail "the easywall user cannot write its state directory in a bind-mounted /var/lib/easywall"
           if compose exec -T easywall su easywall -s /bin/sh -c 'ln -s /etc/shadow /var/lib/easywall/last_apply' 2>/dev/null; then
@@ -511,10 +515,11 @@ jobs:
             exit 1
           }
           dpkg-deb --fsys-tarfile "$deb" | tar -xO ./usr/sbin/easywall-core > /tmp/core
-          file /tmp/core
+          kind=$(file /tmp/core)
+          echo "$kind"
           case "${{ matrix.arch }}" in
-            amd64) file /tmp/core | grep -q "x86-64" ;;
-            arm64) file /tmp/core | grep -q "aarch64" ;;
+            amd64) grep -q "x86-64" <<<"$kind" ;;
+            arm64) grep -q "aarch64" <<<"$kind" ;;
           esac || {
             echo "::error::the binary inside the ${{ matrix.arch }} package is not ${{ matrix.arch }}"
             exit 1
