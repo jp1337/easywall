@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#Unreleased">Unreleased</a>
   <a href="#2.23.1">2.23.1</a>
   <a href="#2.23.0">2.23.0</a>
   <a href="#2.22.0">2.22.0</a>
@@ -74,7 +75,19 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.23.1" markdown="1">
+<details open id="Unreleased" markdown="1">
+<summary><strong>Unreleased</strong> — A switch says what it breaks, tunnels included</summary>
+
+### Changed
+
+- /options says that fragment drop also breaks a VPN tunnel whose packets are
+  fragmented on the way, WireGuard among them — measured on a 2.23 production host.
+
+[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.23.1...HEAD)
+
+</details>
+
+<details id="2.23.1" markdown="1">
 <summary><strong>2.23.1</strong> · 2026-09-25 — The kernel answers every rule</summary>
 
 A patch to 2.23.0, from its first production rollout. The limit is older than
