@@ -441,6 +441,8 @@
   {"id": "feeds_warn_stale", "translation": "Seit 30 Tagen unverändert — eine Liste, die sich nicht mehr ändert, wird vielleicht nicht mehr gepflegt."},
   {"id": "feeds_warn_overlap", "translation": "Enthält Einträge der Erlaubnisliste ({{.N}}); sie bleiben erreichbar."},
   {"id": "feeds_warn_failed", "translation": "{{.N}}-mal in Folge fehlgeschlagen."},
+  {"id": "feed_error_shrank", "translation": "die Liste schrumpfte unter 70 % der gespeicherten Kopie"},
+  {"id": "feeds_warn_shrank", "translation": "Abgelehnt: von {{.From}} auf {{.To}} geschrumpft. Um die kleinere Liste zu übernehmen, die Fremdliste ausschalten und anwenden, dann einschalten und anwenden."},
   {"id": "feeds_warn_rejected", "translation": "{{.N}} Zeilen waren keine Adresse:"},
   {"id": "feed_ipsum_3_confirm", "translation": "Mir ist klar, dass das auch Tor-Nutzer und Cloud-Adressen abweist, die auf ihren Listen stehen."},
   {"id": "feed_hagezi_tif_confirm", "translation": "Mir ist klar, dass das auch Tor-Nutzer und Cloud-Hosts abweist, die in ihren Quellen stehen."},

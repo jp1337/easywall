@@ -220,12 +220,15 @@
   </dl>
 
   {{if $on}}
-  {{if or (and .Enabled .CoreRead (not .Stored)) .Stale .AllowlistOverlap .FailedInARow .Rejected}}
+  {{if or (and .Enabled .CoreRead (not .Stored)) .Stale .AllowlistOverlap .FailedInARow .ShrankFrom .Rejected}}
   <ul class="feed-warnings">
     {{if and .Enabled .CoreRead (not .Stored)}}<li>{{T "feeds_warn_empty"}}</li>{{end}}
     {{if .Stale}}<li>{{T "feeds_warn_stale"}}</li>{{end}}
     {{with .AllowlistOverlap}}<li>{{T "feeds_warn_overlap" (dict "N" .)}}</li>{{end}}
     {{with .FailedInARow}}<li>{{T "feeds_warn_failed" (dict "N" .)}}</li>{{end}}
+    {{/* Ruling X1: a list the core refused as too small keeps the live copy; the way to
+         take the smaller list is the one rule change that lifts the guard. */}}
+    {{if .ShrankFrom}}<li>{{T "feeds_warn_shrank" (dict "From" .ShrankFrom "To" .ShrankTo)}}</li>{{end}}
     {{with .Rejected}}<li>{{T "feeds_warn_rejected" (dict "N" .)}}{{range $.RejectedSample}} <code>{{.}}</code>{{end}}</li>{{end}}
   </ul>
   {{end}}

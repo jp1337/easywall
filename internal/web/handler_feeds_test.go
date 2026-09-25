@@ -162,6 +162,8 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 		{ID: "own-1", InKernel: true},
 	})
 	s.feedStore.setFetchState("cins", feedFetchState{Failures: 4, LastError: feedErrHTTPStatus, HTTPStatus: 503, Status: FeedFailedNoCopy})
+	s.feedStore.setFetchState("dshield", feedFetchState{Failures: 1, LastError: feedErrShrank, Status: FeedFailedCopy,
+		ShrankFrom: 20, ShrankTo: 3})
 	if err := s.saveOwnFeed(1, OwnFeed{Name: "CrowdSec", URL: "https://admin.example.net:8443/v1/integrations/SECRETID/content",
 		User: "machine", Password: "s3cr3t-p4ss"}); err != nil {
 		t.Fatal(err)
@@ -191,6 +193,7 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 		"the status":         {ci, "Failed — no copy yet"},
 		"the reason":         {ci, "the server answered 503"},
 		"an empty set":       {own, "In the kernel with an empty set"},
+		"a refused shrink":   {ds, "Refused: shrank from 20 to 3. To accept the smaller list, switch the feed off and apply, then switch it on and apply."},
 		"an own feed's host": {own, ">admin.example.net:8443<"},
 		"the verdict":        {sp, "✓ Recommended"},
 		"false positives":    {sp, "Practically none."},
@@ -358,7 +361,7 @@ func TestTheDemoCardShowsEveryState(t *testing.T) {
 	for _, want := range []string{
 		"Updated", "Unchanged", "Failed — the previous copy stays active", "Failed — no copy yet",
 		"Unchanged for 30 days", "Contains allowlist entries (1)", "Failed 3 times in a row.",
-		"In the kernel with an empty set", "no answer within 30 seconds", "the server answered 503",
+		"In the kernel with an empty set", "Refused: shrank from 32002 to 9140.", "the server answered 503",
 		"The demo fetches no lists.",
 	} {
 		if !strings.Contains(body, want) {
