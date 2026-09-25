@@ -330,13 +330,16 @@ func (s *Server) stageFromLog(r *http.Request) string {
 // lockoutRefusal answers whether staging after instead of before would take
 // the operator's way in away, and names why. Empty means go ahead.
 //
-// It asks reachVerdict — the function the apply screen asks — and not
-// shared.Reachable, because reachVerdict is what resolves the operator's
-// address through trusted_proxies and knows the address is local. Then it asks
-// the one thing reachVerdict cannot: whether the TCP peer is being blocklisted.
-// Behind a proxy the address in the log is the proxy's, and the verdict about
-// the operator's own address stays open while everyone who comes through that
-// proxy is cut off.
+// It asks the same question reachVerdict answers for the apply screen — same
+// address resolution through trusted_proxies, same feed lookup — twice, for
+// before and after. The two share the request's address and, for every row
+// action this handler stages, the same staged.Feeds (only the allow/block/port
+// lists change here), so the feed hits are fetched once and handed to both:
+// GET_FEEDS asked twice for the identical address would be the same answer
+// paid for twice. Then it asks the one thing reachVerdict cannot: whether the
+// TCP peer is being blocklisted. Behind a proxy the address in the log is the
+// proxy's, and the verdict about the operator's own address stays open while
+// everyone who comes through that proxy is cut off.
 func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) string {
 	opts, oErr := s.client.GetOptions()
 	nets, nErr := s.client.GetSettings()
@@ -345,8 +348,13 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 			"options", oErr, "settings", nErr)
 		return "blocked_refused_unknown"
 	}
-	was := s.reachVerdict(r, before, *opts, *nets)
-	now := s.reachVerdict(r, after, *opts, *nets)
+	addr, port, proxied, fallback := s.requestAddrAndPort(r)
+	was, now := fallback, fallback
+	if fallback == nil {
+		hits, unknown := s.feedHits(addr, before)
+		was = s.verdictFor(before, *opts, *nets, addr, port, proxied, hits, unknown)
+		now = s.verdictFor(after, *opts, *nets, addr, port, proxied, hits, unknown)
+	}
 	if now.Verdict == shared.ReachBlocked && was.Verdict != shared.ReachBlocked {
 		return "blocked_refused_lockout"
 	}
