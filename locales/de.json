@@ -662,6 +662,8 @@
   {"id": "reach_docker_bridge", "translation": "Deine Adresse liegt in dem Bereich, aus dem Docker automatisch Bridge-Netze vergibt. Die werden beim Anwenden erkannt und lassen sich von hier aus nicht auflisten."},
   {"id": "reach_blocklisted", "translation": "Deine Adresse steht auf der Sperrliste, die vor der Erlaubnisliste ausgewertet wird — auf beiden zu stehen bleibt blockiert."},
   {"id": "reach_allowlisted", "translation": "Deine Adresse steht auf der Erlaubnisliste und wird unabhängig von den Portregeln akzeptiert."},
+  {"id": "reach_in_feed", "translation": "Deine Adresse steht in der Fremdliste {{.Feed}}, die sie vor jeder Portregel verwirft. Trage sie in die Erlaubnisliste ein, um erreichbar zu bleiben."},
+  {"id": "reach_feeds_unreadable", "translation": "Fremdlisten sind eingeschaltet, und ob deine Adresse in einer davon steht, ist noch nicht bekannt: Der Kern konnte es nicht sagen, oder eine Liste wurde noch nicht abgerufen. Ihre Kopie wird ohne Bestätigungsfenster geladen, sobald sie eintrifft."},
   {"id": "reach_port_open", "translation": "Port {{.Port}} ist im vorgemerkten Regelsatz offen."},
   {"id": "reach_port_source_mismatch", "translation": "Port {{.Port}} ist nur für die Quelladressen offen, die seine Regel nennt — deine ist nicht darunter."},
   {"id": "reach_custom_rules", "translation": "Bis hierher hat nichts entschieden, und es gibt eigene Regeln. Die werden nach allem anderen angehängt und von hier aus nicht gelesen."},

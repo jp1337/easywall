@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -73,6 +74,9 @@ type applyVerdict struct {
 	Reason  shared.ReachReason
 	Addr    string
 	Port    string
+	// Feed names the feed that drops Addr, for ReasonInFeed: "your address
+	// is in the feed Spamhaus DROP".
+	Feed string
 }
 
 func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
@@ -230,14 +234,59 @@ func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: addr.String()}
 	}
 
-	verdict, reason := shared.Reachable(staged, o, n, addr, uint16(port),
-		proxied, addressIsLocal(addr))
-	return &applyVerdict{
-		Verdict: verdict,
-		Reason:  reason,
-		Addr:    addr.String(),
-		Port:    strconv.FormatUint(port, 10),
+	local := addressIsLocal(addr)
+	hits, unknown := s.feedHits(addr, staged)
+	verdict, reason := shared.Reachable(staged, o, n, addr, uint16(port), proxied, local, hits)
+	v := &applyVerdict{Verdict: verdict, Reason: reason, Addr: addr.String(), Port: strconv.FormatUint(port, 10)}
+	switch {
+	case len(unknown) > 0:
+		// Not "in none of them": that is the one claim this cannot make about
+		// a feed GET_FEEDS could not answer for, or one with no copy yet —
+		// whose copy then loads with no acceptance window (rulings X4). If
+		// being in all of them would change the answer, the answer is unknown;
+		// if it would not, it stands.
+		if worst, _ := shared.Reachable(staged, o, n, addr, uint16(port), proxied, local,
+			append(slices.Clone(hits), unknown...)); worst != verdict {
+			v.Verdict, v.Reason = shared.ReachUnknown, shared.ReasonFeedsUnreadable
+		}
+	case reason == shared.ReasonInFeed:
+		// The first staged feed that holds it — the one whose rule comes first.
+		for _, id := range staged.Feeds {
+			if slices.Contains(hits, id) {
+				v.Feed = shared.FeedDisplayName(id)
+				break
+			}
+		}
 	}
+	return v
+}
+
+// feedHits asks the core which stored copies hold addr (plan P9), and names
+// the staged feeds it cannot answer for: every one when GET_FEEDS fails, and
+// otherwise each with no stored copy. With no feed staged there is nothing to
+// ask, and nothing to fail.
+func (s *Server) feedHits(addr netip.Addr, staged shared.Rules) (hits, unknown []string) {
+	if len(staged.Feeds) == 0 {
+		return nil, nil
+	}
+	res, err := s.client.GetFeeds(addr.String())
+	if err != nil {
+		slog.Warn("cannot ask the core which feeds hold this address", "error", err)
+		return nil, staged.Feeds
+	}
+	stored := map[string]bool{}
+	for _, f := range res.Feeds {
+		stored[f.ID] = f.Stored
+		if f.ContainsAddr {
+			hits = append(hits, f.ID)
+		}
+	}
+	for _, id := range staged.Feeds {
+		if !stored[id] {
+			unknown = append(unknown, id)
+		}
+	}
+	return hits, unknown
 }
 
 // addressIsLocal reports whether addr is one of the addresses this host holds.

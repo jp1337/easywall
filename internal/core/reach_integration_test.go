@@ -66,6 +66,9 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 		// wantReason, when set, is checked against the reason Reachable returns.
 		// Zero value means "not checked" so the pre-existing cases are untouched.
 		wantReason shared.ReachReason
+		// feeds are the stored copies ApplyWithFeeds loads; the hits Reachable
+		// is given are the ids among them holding src, as GET_FEEDS answers.
+		feeds FeedContents
 	}{
 		{name: "the port is open", rules: shared.Rules{TCP: open}},
 		{name: "nothing is open", rules: shared.Rules{}},
@@ -110,16 +113,37 @@ func TestIntegration_ReachableAgreesWithTheKernel(t *testing.T) {
 				Custom: []string{fmt.Sprintf("tcp dport %d accept", port)},
 			},
 			wantReason: shared.ReasonCustomRules},
+		// 2.23: a feed drops after the allowlist and before the port.
+		{name: "the source is in a feed and the port is open",
+			rules:      shared.Rules{TCP: open, Feeds: []string{"dshield"}},
+			feeds:      FeedContents{"dshield": {netip.MustParsePrefix("10.77.1.0/24")}},
+			wantReason: shared.ReasonInFeed},
+		{name: "the source is in a feed and on the allowlist",
+			rules:      shared.Rules{TCP: open, Allowlist: []string{"10.77.1.2"}, Feeds: []string{"dshield"}},
+			feeds:      FeedContents{"dshield": {netip.MustParsePrefix("10.77.1.0/24")}},
+			wantReason: shared.ReasonAllowlisted},
+		{name: "a feed holds a neighbour, not the source",
+			rules:      shared.Rules{TCP: open, Feeds: []string{"dshield"}},
+			feeds:      FeedContents{"dshield": {netip.MustParsePrefix("10.77.1.3/32")}},
+			wantReason: shared.ReasonPortOpen},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			state := shared.RulesState{Current: tc.rules, Staged: tc.rules, Backup: tc.rules}
-			if err := m.Apply(state, tc.opts, tc.net); err != nil {
+			if err := m.ApplyWithFeeds(state, tc.opts, tc.net, tc.feeds); err != nil {
 				t.Fatalf("Apply: %v", err)
 			}
+			var hits []string
+			for id, ps := range tc.feeds {
+				for _, p := range ps {
+					if p.Contains(src) {
+						hits = append(hits, id)
+					}
+				}
+			}
 
-			verdict, reason := shared.Reachable(tc.rules, tc.opts, tc.net, src, port, false, false)
+			verdict, reason := shared.Reachable(tc.rules, tc.opts, tc.net, src, port, false, false, hits)
 			accepted := tcpReaches(t, r.pidA, "10.77.1.1", port)
 
 			if tc.wantReason != "" && reason != tc.wantReason {

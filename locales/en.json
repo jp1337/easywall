@@ -662,6 +662,8 @@
   {"id": "reach_docker_bridge", "translation": "Your address is in the range Docker allocates bridge networks from automatically. Those are detected when the rules are applied and cannot be listed from here."},
   {"id": "reach_blocklisted", "translation": "Your address is on the blocklist, which is consulted before the allowlist — being on both is still blocked."},
   {"id": "reach_allowlisted", "translation": "Your address is on the allowlist, which is accepted whatever the port rules say."},
+  {"id": "reach_in_feed", "translation": "Your address is in the feed {{.Feed}}, which drops it before any port rule. Add it to the allowlist to stay reachable."},
+  {"id": "reach_feeds_unreadable", "translation": "Feeds are switched on, and whether your address is in one of them is not known yet: the core could not say, or a feed has not been fetched. Its copy loads without an acceptance window when it arrives."},
   {"id": "reach_port_open", "translation": "Port {{.Port}} is open in the staged set."},
   {"id": "reach_port_source_mismatch", "translation": "Port {{.Port}} is open only to the source addresses its rule names, and yours is not one of them."},
   {"id": "reach_custom_rules", "translation": "Nothing above decided this, and there are custom rules. They are appended after everything else and are not read from here."},
