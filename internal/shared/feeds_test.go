@@ -98,3 +98,37 @@ func TestFeedIDs(t *testing.T) {
 		}
 	}
 }
+
+// Spec §1, row by row. The verdict decides whether staging a feed asks for the
+// ✗ confirmation, so a row moved from ✗ to • — or • to ✓ — is a feed switched
+// on without the operator being told whom it locks out.
+func TestFeedCatalogueMatchesSpecOne(t *testing.T) {
+	want := map[string]struct {
+		v        FeedVerdict
+		fp       FeedFalsePositives
+		interval time.Duration
+	}{
+		"spamhaus-drop":  {FeedRecommended, FalsePositivesNone, 12 * time.Hour},
+		"dshield":        {FeedRecommended, FalsePositivesNone, time.Hour},
+		"blocklist-de":   {FeedRecommended, FalsePositivesSome, time.Hour},
+		"cins":           {FeedOptional, FalsePositivesSome, time.Hour},
+		"et-compromised": {FeedOptional, FalsePositivesNotable, time.Hour},
+		"ipsum-3":        {FeedDeliberate, FalsePositivesYes, 24 * time.Hour},
+		"hagezi-tif":     {FeedDeliberate, FalsePositivesYes, 24 * time.Hour},
+		"tor-exits":      {FeedDeliberate, FalsePositivesByDesign, time.Hour},
+	}
+	if len(FeedCatalogue) != len(want) {
+		t.Fatalf("%d rows, spec §1 has %d", len(FeedCatalogue), len(want))
+	}
+	for _, f := range FeedCatalogue {
+		w, ok := want[f.ID]
+		if !ok {
+			t.Errorf("%s is not in spec §1", f.ID)
+			continue
+		}
+		if f.Verdict != w.v || f.FalsePositives != w.fp || f.Interval != w.interval {
+			t.Errorf("%s: verdict %s, false positives %s, every %s; spec §1 says %s, %s, %s",
+				f.ID, f.Verdict, f.FalsePositives, f.Interval, w.v, w.fp, w.interval)
+		}
+	}
+}

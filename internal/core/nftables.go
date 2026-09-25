@@ -868,8 +868,9 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 
 	// Other people's lists, after the allowlist (spec D3): allowlisting an
 	// address is how an operator rescues it from a feed. Their elements go in
-	// this flush, not one of their own, so they add nothing to the moment the
-	// table has no chains beyond the time the kernel takes to load them.
+	// the same transaction as the table and its chains, not a flush of their
+	// own: the kernel swaps the old ruleset for one whose feed sets are
+	// already full, and a load it refuses leaves the old one in force.
 	feedBytes, err := m.addFeeds(table, inputChain, state.Current.Feeds, feeds, opts)
 	if err != nil {
 		return err
