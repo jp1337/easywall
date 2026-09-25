@@ -1194,32 +1194,58 @@ A firewall protection is either on or off and may carry its own parameters. As r
 long list — which is how it was first built — fourteen of them took 1700px of scroll and
 answered none of the page's actual question: *which protections are active right now.*
 
-**Fourteen cards, eleven with parameters.** Both numbers appear in this file and they count
-different things; `options.html` renders fourteen `class="module"` cards and eleven
-`class="module-params"` blocks. *Eleven toggles* was wrong in three places until 2026-09-11.
+**Amended 2026-09-25 (2.23.2): rows again, but in cards.** 2.22 answered that with a grid
+of fourteen cards, each a header, a parameter band and a disclosure band. The maintainer's
+verdict after using it: not clear. Four columns of cards made *which are on* a search
+across a grid, and every card spent two hairlines and a band on its parameters. What was
+wrong with the first list was never that it was rows — it was one undivided list with
+nothing saying which rows belonged together.
 
-Each is a card in an `auto-fill` grid at `minmax(330px, 1fr)`. Name and switch in the header,
-one line saying what the module does — leading with what it breaks, where it breaks
-something, and parameters below a hairline **inside the card** —
-not on a darker band underneath it, which read as a detached second row. An active module
-carries a 2px `select-edge` inset on its left edge: the same device that marks the active
-nav item, so "this one is live" speaks one vocabulary throughout. The header is a `<label>`
-wrapping its own switch, so the whole card top is the hit area.
+So each group — *Attack protection*, *Traffic filtering* — is a `card` with a
+`section-head`, and each module is **one row** in it: name and one line of what it does on
+the left, its parameters beside it, its switch at the trailing edge. Every switch on the
+page lines up in one column, which is the column the page's question is asked of. Below
+700px the parameters drop under the description and the switch stays at the edge.
 
-**What a switch breaks is in the card, closed.** Every card ends in a native `<details>`
+**Fourteen rows, eleven with parameters.** `options.html` still renders fourteen
+`class="module"` elements and eleven `class="module-params"` blocks — the markup is the
+card's, so `/blocked`'s `#opt-<key>` links and `TestOptionsPageExplainsEveryModule` hold
+unchanged. The header is still a `<label>` wrapping its own switch; `display: contents`
+lets the text and the switch take their own grid cells while the label keeps both, so
+the text is still the hit area.
+
+An active module carries a 2px `select-edge` inset on its left edge: the same device that
+marks the active nav item, so "this one is live" speaks one vocabulary throughout.
+Parameters sit **on the row** — never on a darker band under it, which read as a detached
+second row in both the list and the cards.
+
+**What a switch breaks is in the row, closed.** Every module ends in a native `<details>`
 — *What does this change?* — with three lines, *protects against*, *can break*, *turn it
 on if*, and a link to that module's section of the published filters page. Closed by
-default: the one-liner carries the decision and the disclosure the reasoning, and
-fourteen open cards would be the 1700px list again. It is the card's last child and sits
+default: the one-liner carries the decision and the disclosure the reasoning. It sits
 outside the header's `<label>`: inside it, the summary would become part of the switch's
-accessible name.
-Its type and grid are `.pkt-detail`'s, the disclosure /blocked already ships. Above the
-grid, one `aside-card` names the switches each of three host types wants — text, not a
-preset, so there is no state to fall out of step with the table it copies. *Added
-2026-09-23 (2.22).*
+accessible name. Its type and grid are `.pkt-detail`'s, the disclosure /blocked already
+ships. Above the groups, one `aside-card` names the switches each of three host types
+wants — text, not a preset, so there is no state to fall out of step with the rows it
+copies. *Added 2026-09-23 (2.22).*
 
 The state is never carried by that edge alone — the switch itself shows its position, which
 is what a colour-blind operator and a screenshot both rely on.
+
+### Feeds
+
+**Added 2026-09-25 (2.23.2).** A feed is on or off with a stated cost, like a protection,
+and 2.23 drew it with the protection's card. On `/blocklist` that put a second grammar
+under the page's own — a bare heading and a four-column grid below a `card` with a
+`section-head` — and every card stretched to the tallest in its row. It is a **table**
+now, like every other list of rules (*Tables*): one row per feed; verdict, state, last
+refresh, entries and packets in columns an operator compares down; the switch last. What
+a verdict rests on — false positives, source and terms, the last error and times — is in
+the row's *Details*, `.pkt-detail` again. Warnings stay visible under the name, words in
+`state-warn`: something to act on is not hidden behind a click. A ✗ feed's confirmation
+box sits under its description, where the decision it asks about is read — in the switch
+column it had one word a line. *Own feeds* is a second card: one form a row, the fields
+side by side.
 
 ### Switch rows
 
@@ -1367,7 +1393,9 @@ rather than as the divider it is. Colour never carried that separation, and afte
 there is less colour available to carry anything.
 
 **The first labelled group carries neither device.** It follows the ungrouped *Dashboard*
-link rather than another group, and a rule there divides nothing. The rule is therefore
+link rather than another group, and a rule there divides nothing. Since 2.23.2 that group
+is *Activity* — Blocked and Audit Log, the two pages that say what happened. *Blocked*
+sat ungrouped under Dashboard from 2.21 on, the one link with no group. The rule is therefore
 written between labelled siblings rather than on a class, so a fourth group added later
 gets both devices without anyone having to remember them.
 

@@ -14,6 +14,7 @@
   {"id": "nav_logout",       "translation": "Se déconnecter"},
   {"id": "nav_light_mode",   "translation": "Mode clair"},
   {"id": "nav_group_rules",  "translation": "Règles"},
+  {"id": "nav_group_activity", "translation": "Activité"},
   {"id": "nav_group_system", "translation": "Système"},
 
   {"id": "login_title",      "translation": "Connexion"},
