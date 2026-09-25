@@ -5,12 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.23.2] — 2026-09-25
 
-**A switch says what it breaks, tunnels included.**
+**Three pages that looked like another program.**
+
+2.22 and 2.23 each added a page section in a grammar of its own, and neither
+was reviewed in a browser before it shipped. This release redraws them in the
+interface's own: cards with a header, tables for lists, one Save per form.
 
 ### Changed
 
+- **/blocklist's feeds are a table.** One row per list — verdict, state, last
+  refresh, entries, packets, switch — under a card header like the blocklist's
+  own. What a verdict rests on and the last error are in the row's Details;
+  warnings stay visible under the name. It was a four-column grid of cards,
+  each stretched to the tallest in its row. Own feeds are one row each.
+- **/options is one row per protection**, in a card per group: what it does,
+  its parameters, its switch in one column down the page. It was fourteen
+  cards in four columns, each with a parameter band under it.
+- **/blocked's filters sit inside the card**, under its title, like every other
+  table's controls. They sat on the card's top edge with no padding.
+- **Blocked and Audit Log have a group of their own**, *Activity*. Blocked was
+  the one link in the sidebar with no group.
 - /options says that fragment drop also breaks a VPN tunnel whose packets are
   fragmented on the way, WireGuard among them — measured on a 2.23 production host.
 - The demo is entered with a button. Its login card has no password form, and
@@ -2598,7 +2614,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.23.1...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.23.2...HEAD
+[2.23.2]: https://github.com/jp1337/easywall/compare/v2.23.1...v2.23.2
 [2.23.1]: https://github.com/jp1337/easywall/compare/v2.23.0...v2.23.1
 [2.23.0]: https://github.com/jp1337/easywall/compare/v2.22.0...v2.23.0
 [2.22.0]: https://github.com/jp1337/easywall/compare/v2.21.1...v2.22.0

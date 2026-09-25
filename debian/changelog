@@ -1,3 +1,15 @@
+easywall (2.23.2) unstable; urgency=medium
+
+  * /blocklist's feeds are a table, one row per list, and own feeds one
+    row each.
+  * /options is one row per protection, in a card per group.
+  * /blocked's filters sit inside the card, under its title.
+  * The sidebar groups Blocked and Audit Log under Activity.
+  * The demo is entered with a button; it has no password form.
+  * /options says fragment drop also breaks VPN tunnels (WireGuard).
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Fri, 25 Sep 2026 23:45:00 +0200
+
 easywall (2.23.1) unstable; urgency=medium
 
   * Fix: an apply with more than about a hundred kernel rules failed with

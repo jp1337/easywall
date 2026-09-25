@@ -16,7 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
-  <a href="#Unreleased">Unreleased</a>
+  <a href="#2.23.2">2.23.2</a>
   <a href="#2.23.1">2.23.1</a>
   <a href="#2.23.0">2.23.0</a>
   <a href="#2.22.0">2.22.0</a>
@@ -75,11 +75,27 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="Unreleased" markdown="1">
-<summary><strong>Unreleased</strong> — A switch says what it breaks, tunnels included</summary>
+<details open id="2.23.2" markdown="1">
+<summary><strong>2.23.2</strong> · 2026-09-25 — Three pages that looked like another program</summary>
+
+2.22 and 2.23 each added a page section in a grammar of its own, and neither
+was reviewed in a browser before it shipped. This release redraws them in the
+interface's own: cards with a header, tables for lists, one Save per form.
 
 ### Changed
 
+- **/blocklist's feeds are a table.** One row per list — verdict, state, last
+  refresh, entries, packets, switch — under a card header like the blocklist's
+  own. What a verdict rests on and the last error are in the row's Details;
+  warnings stay visible under the name. It was a four-column grid of cards,
+  each stretched to the tallest in its row. Own feeds are one row each.
+- **/options is one row per protection**, in a card per group: what it does,
+  its parameters, its switch in one column down the page. It was fourteen
+  cards in four columns, each with a parameter band under it.
+- **/blocked's filters sit inside the card**, under its title, like every other
+  table's controls. They sat on the card's top edge with no padding.
+- **Blocked and Audit Log have a group of their own**, *Activity*. Blocked was
+  the one link in the sidebar with no group.
 - /options says that fragment drop also breaks a VPN tunnel whose packets are
   fragmented on the way, WireGuard among them — measured on a 2.23 production host.
 - The demo is entered with a button. Its login card has no password form, and
@@ -87,7 +103,7 @@ which is the file GitHub and the release tooling read.
   route exists only with `demo_mode`; an installation still has no way in but
   the password.
 
-[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.23.1...HEAD)
+[See the code changes between 2.23.1 and 2.23.2](https://github.com/jp1337/easywall/compare/v2.23.1...v2.23.2)
 
 </details>
 

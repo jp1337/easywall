@@ -207,7 +207,7 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 	body := doAuthRequest(t, s, "GET", "/blocklist", nil).Body.String()
 	row := func(id string) string {
 		t.Helper()
-		m := regexp.MustCompile(`(?s)<div class="module" id="feed-` + regexp.QuoteMeta(id) + `">.*?\n</div>`).FindString(body)
+		m := regexp.MustCompile(`(?s)<tr id="feed-` + regexp.QuoteMeta(id) + `">.*?\n</tr>`).FindString(body)
 		if m == "" {
 			t.Fatalf("no row for %s:\n%s", id, body)
 		}
@@ -247,7 +247,9 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 	if !strings.Contains(sp, `value="spamhaus-drop" class="toggle" checked`) || strings.Contains(ds, `class="toggle" checked`) {
 		t.Error("the switch is not the staged position")
 	}
-	if off := row("blocklist-de"); strings.Contains(off, "Last refresh") || strings.Contains(off, "State") {
+	// The column headers say State and Last refresh for every row now; what an
+	// off feed must not carry is a state of its own or a refresh result.
+	if off := row("blocklist-de"); strings.Contains(off, "status-dot") || strings.Contains(off, "Changed") {
 		t.Errorf("a feed that is off shows refresh facts:\n%s", off)
 	}
 
@@ -283,7 +285,7 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 			t.Errorf("the placeholder does not say which slot has a password stored: %v", pw)
 		}
 	}
-	if !strings.Contains(body, `id="own-1-user" name="user" maxlength="256" class="input w-full" autocomplete="off"`) {
+	if !regexp.MustCompile(`<input [^>]*id="own-1-user"[^>]*autocomplete="off"`).MatchString(body) {
 		t.Error("the user field invites the browser's saved login")
 	}
 }
@@ -333,11 +335,10 @@ func TestAnOwnFeedRefusalShowsBesideItsSlot(t *testing.T) {
 		"user": {"me"}, "password": {"hunter2-typed"}}
 	rec := doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode())
 	body := rec.Body.String()
-	if rec.Code != 200 || !strings.Contains(body, `<p class="field-error" role="alert">Not saved: the address must be https://`) {
+	if rec.Code != 200 || !strings.Contains(body, `<p class="field-error own-feed-error" role="alert">Not saved: the address must be https://`) {
 		t.Fatalf("answered %d without the reason:\n%s", rec.Code, body)
 	}
-	if !strings.Contains(body, `value="http://example.org/list.txt"`) || !strings.Contains(body, `id="own-2-name" name="name" maxlength="64" class="input w-full" autocomplete="off"
-                 value="Mine"`) {
+	if !strings.Contains(body, `value="http://example.org/list.txt"`) || !regexp.MustCompile(`(?s)<input [^>]*id="own-2-name"[^>]*value="Mine"`).MatchString(body) {
 		t.Error("what was typed was thrown away")
 	}
 	if strings.Contains(body, "hunter2-typed") {
@@ -421,7 +422,7 @@ func TestAnOwnFeedNeedsItsPasswordRetypedForANewAddress(t *testing.T) {
 	assertRedirect(t, doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()), "/blocklist#own-feeds")
 	form2 := url.Values{"n": {"3"}, "name": {"Mine"}, "url": {"https://elsewhere.example.org/list.txt"}, "user": {"me"}}
 	body := doAuthFormRequest(t, s, "/blocklist/own-feeds", form2.Encode()).Body.String()
-	if !strings.Contains(body, `<p class="field-error" role="alert">Not saved: this address needs its own password`) {
+	if !strings.Contains(body, `<p class="field-error own-feed-error" role="alert">Not saved: this address needs its own password`) {
 		t.Fatalf("a changed host with no retyped password does not say so:\n%s", body)
 	}
 	if strings.Contains(body, "first-pass") {
