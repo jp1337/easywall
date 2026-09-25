@@ -404,10 +404,29 @@ func TestIntegration_ACertificateArrivesOverHTTP01(t *testing.T) {
 	// just margin, and the outer CI step's own -timeout 480s has room for it.
 	ctx, cancel := context.WithTimeout(t.Context(), 120*time.Second)
 	defer cancel()
+	//
+	// Dialled until the deadline, not once. autocert holds the first handshake
+	// open while it issues, and http.Server cuts a handshake at its smallest
+	// timeout — ReadTimeout, 15s. When Pebble fails the first validation and
+	// sleeps up to 4s before the next, issuance outlasts that: the handshake
+	// ends in EOF while autocert, on its own 5-minute context, finishes and
+	// caches the certificate (main, 2026-09-25: issued at +13s, EOF at +15s).
+	// A browser retries; so does this. No certificate within 120s still fails.
 	dialer := &tls.Dialer{Config: &tls.Config{ServerName: "easywall.test", RootCAs: pebble.issuingRoots}}
-	conn, err := dialer.DialContext(ctx, "tcp", integrationBindAddr)
-	if err != nil {
-		t.Fatalf("no certificate arrived: %v", err)
+	var conn net.Conn
+	for {
+		conn, err = dialer.DialContext(ctx, "tcp", integrationBindAddr)
+		if err == nil {
+			break
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("no certificate arrived: %v", err)
+		}
+		t.Logf("handshake ended before a certificate was ready, retrying: %v", err)
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+		}
 	}
 	defer func() { _ = conn.Close() }()
 
