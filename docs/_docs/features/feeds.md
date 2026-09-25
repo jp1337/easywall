@@ -112,9 +112,9 @@ The core also refuses, whole, a list of more than 100 000 entries, or one with a
 network broader than /8 (IPv4) or /16 (IPv6). Private and reserved ranges are
 dropped from every feed without a warning, and *Entries* counts what is left.
 
-*An apply is already running*, with no window open, means a feed refresh held
-the apply slot for a moment. That is under a second, even at the largest list the core accepts.
-Press **Apply now** again; `easywall-core resume` answers the same way.
+*Another change is being written*, with no window open, means a feed refresh
+held the apply slot for a moment. That is under a second, even at the largest list the core accepts.
+Press **Apply now** again; `easywall-core resume` waits for it on its own.
 
 ## Reference: the catalogue
 

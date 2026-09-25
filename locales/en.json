@@ -172,7 +172,7 @@
   {"id": "password_mismatch",    "translation": "Passwords do not match."},
   {"id": "internal_error",       "translation": "An internal error occurred."},
   {"id": "apply_error",          "translation": "Failed to apply rules."},
-  {"id": "apply_already_running", "translation": "An apply is already running and nothing was started a second time. Confirm it while the window is open, or wait for it to expire and the previous rules to come back."},
+  {"id": "apply_already_running", "translation": "Another change is being written — try again in a moment. If an acceptance window is open, confirm it or let it run out first."},
   {"id": "apply_panic_engaged", "translation": "Nothing was applied: panic mode is engaged. Run easywall-core resume on the machine to end it."},
   {"id": "accept_error",         "translation": "Failed to confirm rules."},
   {"id": "rules_accepted",       "translation": "Rules accepted and applied successfully."},

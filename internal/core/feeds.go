@@ -195,6 +195,19 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 	if f.PanicEngaged() {
 		return shared.UpdateFeedResult{}, ErrPanicEngaged
 	}
+	// Steps 3–5's parse runs before the slot is taken and is reported only
+	// under it, after step 2 (final review I1): at 100 000 entries it is most
+	// of a refresh's time, and a boot restore, a Docker reconcile or a RESUME
+	// waiting on the slot should not wait for it. It is pure — it reads no
+	// state and writes nothing — so running it early changes no answer.
+	var (
+		kept    []netip.Prefix
+		dropped int
+		vErr    error
+	)
+	if !p.NotModified {
+		kept, dropped, vErr = validateFeedEntries(p.Entries)
+	}
 	if !f.beginApply() {
 		return shared.UpdateFeedResult{}, ErrApplyInProgress
 	}
@@ -238,11 +251,10 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 		return res, f.feeds.Put(p.ID, stored, feedIDs(state))
 	}
 
-	// 3–5. Parsed again, bounded, stripped.
-	kept, dropped, err := validateFeedEntries(p.Entries)
-	if err != nil {
-		f.auditFeedRefused(p.ID, err.Error(), user)
-		return shared.UpdateFeedResult{}, fmt.Errorf("feed %s refused: %w", p.ID, err)
+	// 3–5. Parsed again, bounded, stripped — above, before the slot.
+	if vErr != nil {
+		f.auditFeedRefused(p.ID, vErr.Error(), user)
+		return shared.UpdateFeedResult{}, fmt.Errorf("feed %s refused: %w", p.ID, vErr)
 	}
 	// Nothing left is a broken list, not an empty one: the web process refuses
 	// a 200 with nothing it can parse, and this is the same refusal after the
