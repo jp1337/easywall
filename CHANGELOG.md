@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**A switch says what it breaks, tunnels included.**
+
+### Changed
+
+- /options says that fragment drop also breaks a VPN tunnel whose packets are
+  fragmented on the way, WireGuard among them — measured on a 2.23 production host.
+
 ## [2.23.1] — 2026-09-25
 
 **The kernel answers every rule.**
