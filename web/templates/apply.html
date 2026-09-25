@@ -37,7 +37,7 @@
             <span class="status-dot {{verdictDot .Verdict}}">{{T (printf "apply_verdict_%s" .Verdict)}}</span>
             <span class="verdict-addr">{{.Addr}} &rarr; :{{.Port}}</span>
           </div>
-          <p class="verdict-note">{{T (printf "reach_%s" .Reason) (dict "Port" .Port)}}</p>
+          <p class="verdict-note">{{T (printf "reach_%s" .Reason) (dict "Port" .Port "Feed" .Feed)}}</p>
           <p class="verdict-note">{{richText (T "apply_verdict_note")}}</p>
         </div>
         {{end}}
