@@ -553,6 +553,11 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Get("/login", s.handleLoginGET)
 		r.With(LoginRateLimit(s.clientAddr, s.onLoginBlocked)).Post("/login", s.handleLoginPOST)
+		// The demo's way in with no password — see handleLoginDemo. Not built
+		// at all outside demo_mode.
+		if cfg.DemoMode {
+			r.Post("/login/demo", s.handleLoginDemo)
+		}
 		// The second step. Outside RequireAuth because nobody is signed in yet,
 		// and with no rate limit of its own — see handleLoginVerifyPOST for the
 		// arithmetic that makes the password step's limit cover it.

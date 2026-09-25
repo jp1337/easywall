@@ -11,10 +11,13 @@ scripts/demo-server.sh
 No `easywall-core`, no root, no nftables — the server runs against an
 in-memory mock (`demo_mode = true`). State lives under
 `$EASYWALL_DEMO_DIR` (default `~/.local/share/easywall-demo`), the address
-under `$EASYWALL_DEMO_ADDR` (default `127.0.0.1:12227`). Signs in as
-`admin` / `ui-check-password-2026` — the same account `scripts/ui-check.mjs`
-uses, so a session started by hand and one driven by the script are
-interchangeable.
+under `$EASYWALL_DEMO_ADDR` (default `127.0.0.1:12227`). The login card is one
+**Enter the demo** button — no password — so the Chrome extension can review
+every page without a human signing in first: an agent does not type passwords
+into a browser, and that step used to park every review. The account
+(`admin` / `ui-check-password-2026`) still exists, because `check:ui` reads its
+hash to sign in to the non-demo instances it starts for the login, verify and
+enrolment screens.
 
 ## Driving it in a browser
 

@@ -21,7 +21,8 @@
   {"id": "login_username",   "translation": "Username"},
   {"id": "login_password",   "translation": "Password"},
   {"id": "login_submit",     "translation": "Sign in"},
-  {"id": "login_demo_notice", "translation": "Credentials are on the demo landing page. State resets when the server restarts."},
+  {"id": "login_demo_notice", "translation": "Nothing here reaches a firewall, so no password is needed. State resets when the server restarts."},
+  {"id": "login_demo_enter", "translation": "Enter the demo"},
 
   {"id": "verify_title",    "translation": "Second factor"},
   {"id": "passkey_login_button", "translation": "Use a passkey"},
