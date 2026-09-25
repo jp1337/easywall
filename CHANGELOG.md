@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - /options says that fragment drop also breaks a VPN tunnel whose packets are
   fragmented on the way, WireGuard among them — measured on a 2.23 production host.
+- The demo is entered with a button. Its login card has no password form, and
+  the credentials a public demo used to publish are not needed any more. The
+  route exists only with `demo_mode`; an installation still has no way in but
+  the password.
 
 ## [2.23.1] — 2026-09-25
 
