@@ -143,6 +143,8 @@ func ownFeedErrKey(err error) string {
 		return "feeds_own_err_url"
 	case errors.Is(err, errOwnFeedLogin):
 		return "feeds_own_err_login"
+	case errors.Is(err, errOwnFeedPasswordAgain):
+		return "feeds_own_err_password_again"
 	}
 	return "save_error" // no such slot (a forged form), or the state file was not written
 }

@@ -110,6 +110,52 @@ func TestHandleApplyGET_TheVerdictNamesTheFeed(t *testing.T) {
 	}
 }
 
+// Carry-in (controller ruling, Task 6 → Task 7): shared.FeedDisplayName
+// always renders the English literal "Own feed N" — it knows no locale and no
+// configured name. The lockout sentence (here) and the apply diff must use
+// the operator's own name once one is set, else a label in the page's own
+// language, never that literal on a German page.
+func TestReachVerdict_AnOwnFeedIsNamedInThePageLanguage(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	fc.SetResponse(shared.CmdGetFeeds, successResp(shared.GetFeedsResult{Feeds: []shared.FeedStatus{
+		{ID: "own-2", Stored: true, ContainsAddr: true},
+	}}))
+	staged := shared.Rules{TCP: open19999.TCP, Feeds: []string{"own-2"}}
+
+	req := httptest.NewRequest("GET", "/apply", nil)
+	req.RemoteAddr = "203.0.113.7:40000"
+	req.AddCookie(&http.Cookie{Name: LangCookie, Value: "de"})
+	if v := s.reachVerdict(req, staged, shared.FirewallOptions{}, shared.NetworkSettings{}); v.Feed != "Eigene Fremdliste 2" {
+		t.Errorf("an unconfigured own feed's German lockout name = %q, want the localized default, not the English literal", v.Feed)
+	}
+
+	// Configured, the operator's own name is used regardless of the page's
+	// language — it is theirs, not translated.
+	if err := s.saveOwnFeed(2, OwnFeed{Name: "CrowdSec", URL: "https://example.org/l.txt"}); err != nil {
+		t.Fatal(err)
+	}
+	if v := s.reachVerdict(req, staged, shared.FirewallOptions{}, shared.NetworkSettings{}); v.Feed != "CrowdSec" {
+		t.Errorf("a configured own feed's lockout name = %q, want its own name", v.Feed)
+	}
+
+	// The apply diff renders the same label, staging own-2 from nothing.
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{HasPending: true}))
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{Staged: staged}))
+	fc.SetResponse(shared.CmdGetOptions, successResp(shared.FirewallOptions{}))
+	fc.SetResponse(shared.CmdGetSettings, successResp(shared.NetworkSettings{}))
+	fc.SetResponse(shared.CmdGetAppliedConfig, successResp(shared.AppliedConfigResult{}))
+	authCookie := makeAuthCookie(t, s)
+	rec := doRequest(s, "GET", "/apply", nil, authCookie, &http.Cookie{Name: LangCookie, Value: "de"})
+	assertStatus(t, rec, http.StatusOK)
+	if body := rec.Body.String(); strings.Contains(body, "Own feed 2") {
+		t.Errorf("the apply diff shows the English literal on a German page:\n%s", body)
+	} else if !strings.Contains(body, "CrowdSec") {
+		t.Errorf("the apply diff does not name the own feed by its configured name:\n%s", body)
+	}
+}
+
 // Rulings X4: a staged feed with no stored copy yet — reported with Stored
 // false, or not listed at all — makes the verdict unknown where a hit would
 // change it: its copy arrives later and loads with no acceptance window.
