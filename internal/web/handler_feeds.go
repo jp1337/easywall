@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 
@@ -175,6 +176,12 @@ func (s *Server) handleOwnFeedPOST(w http.ResponseWriter, r *http.Request) {
 	// A field the operator can correct: the page again, with what they typed
 	// in its slot and the reason beside it — never the password, which is
 	// the one field not shown back (rejectIPList's reasoning).
+	// A URL refused for carrying a user and password is shown back without
+	// them: the password is the one thing never written into the page.
+	if u, err := url.Parse(f.URL); err == nil && u.User != nil {
+		u.User = nil
+		f.URL = u.String()
+	}
 	card := s.feedsCard(state)
 	for i := range card.Rows {
 		if row := &card.Rows[i]; row.Own && row.OwnN == n {

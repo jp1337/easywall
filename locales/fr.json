@@ -296,7 +296,6 @@
   {"id": "iplist_forms_note", "translation": "Formes acceptées : une adresse seule `192.0.2.42`, un réseau `198.51.100.0/24`, ou de l'IPv6 sous l'une ou l'autre forme."},
   {"id": "blocklist_what_title", "translation": "Ce qui est bloqué"},
   {"id": "blocklist_what_body", "translation": "La liste noire est évaluée en premier. Une adresse qui y figure est rejetée même si une règle de port l'aurait acceptée."},
-  {"id": "blocklist_order_body", "translation": "Cette liste est évaluée *avant* la {}. Une adresse présente dans les deux est rejetée — une autorisation étroite à l'intérieur d'un blocage large ne fonctionne pas."},
 
   {"id": "allowlist_subtitle", "translation": "Sources de confiance qui atteignent tous les ports, y compris ceux que vous n'avez jamais ouverts."},
   {"id": "allowlist_section", "translation": "Adresses toujours autorisées"},
