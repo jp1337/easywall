@@ -378,9 +378,10 @@ func (s *Server) handleApplyStart(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("apply rules error", "error", err)
 		// The core refuses a second apply while a window is open, and that is
 		// not a failure to report as one: it is the safety mechanism doing its
-		// job, and the operator's next move is to confirm the apply they already
-		// started. The page hides the Start button in that state, so getting
-		// here means a second tab, a double submit, or the back button.
+		// job. The page hides the Start button in that state, so getting here
+		// means a second tab, a double submit, the back button — or a feed
+		// refresh holding the slot for under a second, which the web process
+		// cannot tell apart, so the copy covers both.
 		flash := "apply_error"
 		switch {
 		case strings.Contains(err.Error(), shared.ErrApplyInProgressText):

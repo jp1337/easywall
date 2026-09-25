@@ -121,7 +121,7 @@ machines you can physically reach — see
 | The apply failed outright | the kernel refused a rule — usually a [custom rule]({{ '/docs/features/custom-rules/' | relative_url }}) | `journalctl -u easywall-core` carries nft's own message |
 | `rollback_failed` in the log | the new rules did not take **and** the old ones did not come back | the worst outcome there is; check the daemon's log and the running table with `nft list table inet easywall` |
 | Your SSH dropped right after applying | that is the design | do nothing; the window restores the previous rules, and on a first apply it takes the firewall back down altogether — the audit log then reads `boot_not_configured` |
-| An apply is "already running" | one window is open | confirm it, or wait for it to expire |
+| "Another change is being written" | one window is open, or a [feed]({{ '/docs/features/feeds/' | relative_url }}) refresh is loading | confirm it, or wait for it to expire; after a refresh, press **Apply now** again |
 
 ---
 

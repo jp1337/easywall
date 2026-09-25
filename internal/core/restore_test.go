@@ -110,6 +110,7 @@ func TestRestoreCurrent_NeverOpensAnAcceptanceWindow(t *testing.T) {
 // A restore takes the same slot an apply does, so the two cannot both be
 // writing the table.
 func TestRestoreCurrent_RefusedWhileAnApplyHoldsTheSlot(t *testing.T) {
+	shortenRestoreSlotWait(t, 100*time.Millisecond)
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 
@@ -121,6 +122,37 @@ func TestRestoreCurrent_RefusedWhileAnApplyHoldsTheSlot(t *testing.T) {
 	if err := fw.RestoreCurrent(RestoreReasonBoot); err != ErrApplyInProgress {
 		t.Errorf("want ErrApplyInProgress, got %v", err)
 	}
+}
+
+// shortenRestoreSlotWait sets how long RestoreCurrent waits for the slot, for
+// one test.
+func shortenRestoreSlotWait(t *testing.T, d time.Duration) {
+	t.Helper()
+	was := restoreSlotWait
+	restoreSlotWait = d
+	t.Cleanup(func() { restoreSlotWait = was })
+}
+
+// Final review I1: a feed refresh holds the slot for under a second, and the
+// Docker reconcile and RESUME that meet it wait for it instead of failing —
+// after a reboot that failure left containers unreachable.
+func TestRestoreCurrent_WaitsForASlotReleasedWithinTheWait(t *testing.T) {
+	shortenRestoreSlotWait(t, 2*time.Second)
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+
+	if !fw.beginApply() {
+		t.Fatal("could not claim the apply slot in the test")
+	}
+	time.AfterFunc(200*time.Millisecond, fw.endApply)
+
+	if err := fw.RestoreCurrent(RestoreReasonDockerBridge); errors.Is(err, ErrApplyInProgress) {
+		t.Errorf("a slot released after 200 ms of a 2 s wait still refused the restore: %v", err)
+	}
+	if !fw.beginApply() {
+		t.Error("the restore did not release the slot it waited for")
+	}
+	fw.endApply()
 }
 
 func TestFirewall_PanicEngagedReflectsTheMarker(t *testing.T) {
@@ -321,6 +353,7 @@ func TestApply_ExportedRefusesWhilePanicIsEngagedAndReleasesTheSlot(t *testing.T
 // write nothing: the operator was left with a log that said panic mode had
 // ended and no line anywhere saying the rules never came back.
 func TestResume_RecordsWhenAnApplyHoldsTheSlot(t *testing.T) {
+	shortenRestoreSlotWait(t, 100*time.Millisecond)
 	cfg := newTestConfig(t)
 	fw := newTestFirewall(t, cfg)
 

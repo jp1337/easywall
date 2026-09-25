@@ -1538,7 +1538,8 @@ func templateFuncs() template.FuncMap {
 		"notify_destination_required": true,
 		"notify_demo_no_send":         true,
 		// Nothing went wrong here: the core declined a second apply while a
-		// window was open, which is the safety mechanism working.
+		// window was open or a feed refresh was loading, which is the safety
+		// mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
 		// The Feeds card's refusals: each names what to tick or type, and

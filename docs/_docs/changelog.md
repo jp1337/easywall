@@ -126,9 +126,9 @@ lists' old names give way to blocklist and allowlist.
   CrowdSec's *Raw IP List* integration among them. The password never reaches
   the core, a log line or an export.
 - **The core checks every list it is sent.** Private and reserved ranges are
-  dropped; a list with more than 100 000 entries, a network broader than /8 or
-  /16, or under 70 % of the copy it replaces is refused whole, and the last
-  good copy stays active.
+  dropped; a list with more than 100 000 entries or a network broader than /8
+  or /16 is refused whole, and so is one under 70 % of the copy it replaces
+  while that feed is live. The last good copy stays active.
 - **`UPDATE_FEED` and `GET_FEEDS`**, the socket protocol's two new commands
   (25 in all). Only the web process downloads; the core opens no connection.
 - **The lockout check knows about feeds.** `/apply` names the feed that
@@ -147,10 +147,11 @@ lists' old names give way to blocklist and allowlist.
   apply leaves the old rules live instead of an empty table.
 - **The socket limit is 8 MiB each way**, from 1 MiB — enough for a full
   feed of 100 000 IPv6 addresses.
-- **An apply or `easywall-core resume` can be refused for a moment** while a
-  feed refresh holds the apply slot — under a second, even at the largest
-  list the core accepts. The page says an apply is already running; try
-  again.
+- **An apply can be refused for a moment** while a feed refresh holds the
+  apply slot — under a second, even at the largest list the core accepts.
+  The page says another change is being written; try again. A boot restore,
+  the Docker reconcile and `easywall-core resume` wait up to 5 seconds for
+  the slot instead.
 - **`fr` names the lists *liste de blocage* and *liste d'autorisation*.**
   Every new key in this release went into `en` and `de` only: `en` holds 866
   keys, `fr` answers 455 of them (53 %), a gap of 411.

@@ -207,6 +207,13 @@ func TestUpdateFeed_EveryRefusalLeavesThePreviousCopy(t *testing.T) {
 			}, want: shared.ErrPanicEngagedText},
 		{name: "the apply slot is held", p: shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(21)},
 			prepare: func(t *testing.T, fw *Firewall) { fw.beginApply() }, want: shared.ErrApplyInProgressText},
+		// The parse runs before the slot (I1) and is reported under it: a
+		// broken list the slot refuses is the slot's refusal, audited nowhere.
+		{name: "the apply slot is held and the list is broken", p: shared.UpdateFeedPayload{ID: "dshield",
+			Entries: append(hosts(20), "<html>")},
+			prepare: func(t *testing.T, fw *Firewall) { fw.beginApply() }, want: shared.ErrApplyInProgressText},
+		{name: "not switched on and the list is broken", p: shared.UpdateFeedPayload{ID: "cins",
+			Entries: append(hosts(20), "<html>")}, want: "not switched on"},
 		{name: "unknown id", p: shared.UpdateFeedPayload{ID: "firehol-level1", Entries: hosts(21)},
 			want: "not a feed id", audited: true},
 		{name: "not switched on", p: shared.UpdateFeedPayload{ID: "cins", Entries: hosts(21)},
@@ -556,6 +563,11 @@ func TestTheRefreshWritesOnlyUnderTheSlot(t *testing.T) {
 	if panics[0] > slots[0] || slots[0] > releases[0] || releases[0] > writes[0] {
 		t.Error("UpdateFeed must check the panic marker, then claim the apply slot and defer its release, " +
 			"and only then write the kernel")
+	}
+	// Final review I1: the 100 000-entry parse is not done holding the slot a
+	// boot restore, a Docker reconcile or a RESUME waits for.
+	if parse := indexesOf(body, "validateFeedEntries("); len(parse) != 1 || parse[0] > slots[0] {
+		t.Error("UpdateFeed must parse the entries once, before it claims the apply slot")
 	}
 }
 

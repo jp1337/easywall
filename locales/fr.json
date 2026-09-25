@@ -145,7 +145,7 @@
   {"id": "password_mismatch",    "translation": "Les mots de passe ne correspondent pas."},
   {"id": "internal_error",       "translation": "Une erreur interne s'est produite."},
   {"id": "apply_error",          "translation": "Échec de l'application des règles."},
-  {"id": "apply_already_running", "translation": "Une application est déjà en cours et rien n'a été lancé une seconde fois. Confirmez-la pendant que la fenêtre est ouverte, ou attendez son expiration et le retour des règles précédentes."},
+  {"id": "apply_already_running", "translation": "Une autre modification est en cours d'écriture — réessayez dans un instant. Si une fenêtre de confirmation est ouverte, confirmez-la ou laissez-la expirer d'abord."},
   {"id": "apply_panic_engaged", "translation": "Rien n'a été appliqué : le mode panique est activé. Exécutez easywall-core resume sur la machine pour y mettre fin."},
   {"id": "accept_error",         "translation": "Échec de la confirmation des règles."},
   {"id": "rules_accepted",       "translation": "Règles confirmées et appliquées avec succès."},
