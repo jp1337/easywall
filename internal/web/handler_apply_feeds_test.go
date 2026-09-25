@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -37,6 +38,24 @@ func TestReachVerdict_NamesTheFeedThatDropsTheOperator(t *testing.T) {
 	if cmd := fc.LastCommand(); cmd == nil || cmd.Type != shared.CmdGetFeeds ||
 		json.Unmarshal(cmd.Payload, &asked) != nil || asked.Addr != "203.0.113.7" {
 		t.Errorf("the core was asked %+v, want GET_FEEDS about 203.0.113.7", cmd)
+	}
+
+	// Fix round 1, Finding 1: a second staged feed with no answer yet must not
+	// swallow the name of the one that already decided it. Before the fix this
+	// fell into the "unknown" branch — which recomputes and finds the verdict
+	// unchanged (still blocked by spamhaus-drop) — and the naming, guarded by
+	// a switch case exclusive with "unknown", never ran: "in the feed , which
+	// drops it" instead of "in the feed Spamhaus DROP".
+	fc2 := newFakeCore(t)
+	s2 := newTestServer(t, fc2)
+	fc2.SetResponse(shared.CmdGetFeeds, successResp(shared.GetFeedsResult{Feeds: []shared.FeedStatus{
+		{ID: "cins", Stored: false}, {ID: "spamhaus-drop", Stored: true, ContainsAddr: true},
+		{ID: "dshield", Stored: true},
+	}}))
+	staged2 := shared.Rules{TCP: open19999.TCP, Feeds: []string{"cins", "spamhaus-drop", "dshield"}}
+	v2 := verdictFrom(t, s2, staged2)
+	if v2.Verdict != shared.ReachBlocked || v2.Reason != shared.ReasonInFeed || v2.Feed != "Spamhaus DROP" {
+		t.Errorf("verdict %+v, want blocked by Spamhaus DROP even with cins unanswered", v2)
 	}
 }
 
@@ -114,5 +133,28 @@ func TestReachVerdict_AFeedWithNoCopyYetIsUnknown(t *testing.T) {
 	fc.SetResponse(shared.CmdGetFeeds, successResp(shared.GetFeedsResult{Feeds: []shared.FeedStatus{{ID: "dshield", Stored: true}}}))
 	if v := verdictFrom(t, s, shared.Rules{TCP: open19999.TCP, Feeds: []string{"dshield"}}); v.Verdict != shared.ReachOpen {
 		t.Errorf("a stored copy without the address: %+v, want open", v)
+	}
+}
+
+// Fix round 1, Finding 2: staging a /blocked row action asks the lockout
+// question twice — before the edit and after — and both ask about the same
+// operator address with (for every row action this handler stages) the same
+// staged.Feeds. GET_FEEDS is asked once, not twice, for the two verdicts.
+func TestStageAsksGetFeedsOnlyOnceForTheLockoutCheck(t *testing.T) {
+	rules := shared.Rules{TCP: open19999.TCP, Feeds: []string{"dshield"}}
+	s, got, fc := stageCore(t, rules)
+	fc.SetResponse(shared.CmdGetFeeds, successResp(shared.GetFeedsResult{Feeds: []shared.FeedStatus{
+		{ID: "dshield", Stored: true},
+	}}))
+	asked := 0
+	fc.OnCommand(shared.CmdGetFeeds, func(shared.Command) { asked++ })
+
+	rec := postStage(t, s, url.Values{"act": {"blocklist"}, "addr": {"203.0.113.9"}}, "192.0.2.1", "")
+	assertRedirect(t, rec, "/blocked")
+	if !got.called {
+		t.Fatal("nothing was staged")
+	}
+	if asked != 1 {
+		t.Errorf("GET_FEEDS was asked %d times, want exactly 1", asked)
 	}
 }

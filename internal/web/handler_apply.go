@@ -216,6 +216,22 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 	o shared.FirewallOptions, n shared.NetworkSettings) *applyVerdict {
 
+	addr, port, proxied, fallback := s.requestAddrAndPort(r)
+	if fallback != nil {
+		return fallback
+	}
+	hits, unknown := s.feedHits(addr, staged)
+	return s.verdictFor(staged, o, n, addr, port, proxied, hits, unknown)
+}
+
+// requestAddrAndPort resolves the request's address and this host's web port —
+// the half of reachVerdict that costs no round trip to the core, so
+// lockoutRefusal can do it once and ask s.feedHits once for both verdicts it
+// compares, instead of paying for GET_FEEDS twice for the same address.
+//
+// verdict is non-nil only when resolution failed; addr, port and proxied are
+// then meaningless and the caller must return it as-is.
+func (s *Server) requestAddrAndPort(r *http.Request) (addr netip.Addr, port uint16, proxied bool, verdict *applyVerdict) {
 	rawAddr, proxied := s.clientAddr(r)
 	addr, err := netip.ParseAddr(rawAddr)
 	if err != nil {
@@ -225,31 +241,45 @@ func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 		// claim this page must never make by omission.
 		slog.Warn("cannot read the peer address, so the verdict is reach_no_address",
 			"remote_addr", r.RemoteAddr, "error", err)
-		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: rawAddr}
+		return netip.Addr{}, 0, proxied, &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: rawAddr}
 	}
 	rawPort := s.webPort()
-	port, err := strconv.ParseUint(rawPort, 10, 16)
+	parsedPort, err := strconv.ParseUint(rawPort, 10, 16)
 	if err != nil {
 		slog.Warn("cannot read the listening port, so the verdict is reach_no_address", "error", err)
-		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: addr.String()}
+		return netip.Addr{}, 0, proxied, &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: addr.String()}
 	}
+	return addr, uint16(parsedPort), proxied, nil
+}
+
+// verdictFor is reachVerdict's core, given the feed hits and unknown ids
+// already fetched. Split out so lockoutRefusal can call it twice — once for
+// the rules as they stand, once for what staging the row action would make
+// them — after asking s.feedHits only once: the two calls are for the same
+// address and (every caller today) the same staged.Feeds, so asking the core
+// twice would be asking it the identical question twice.
+func (s *Server) verdictFor(staged shared.Rules, o shared.FirewallOptions, n shared.NetworkSettings,
+	addr netip.Addr, port uint16, proxied bool, hits, unknown []string) *applyVerdict {
 
 	local := addressIsLocal(addr)
-	hits, unknown := s.feedHits(addr, staged)
-	verdict, reason := shared.Reachable(staged, o, n, addr, uint16(port), proxied, local, hits)
-	v := &applyVerdict{Verdict: verdict, Reason: reason, Addr: addr.String(), Port: strconv.FormatUint(port, 10)}
-	switch {
-	case len(unknown) > 0:
+	verdict, reason := shared.Reachable(staged, o, n, addr, port, proxied, local, hits)
+	v := &applyVerdict{Verdict: verdict, Reason: reason, Addr: addr.String(), Port: strconv.FormatUint(uint64(port), 10)}
+	if len(unknown) > 0 {
 		// Not "in none of them": that is the one claim this cannot make about
 		// a feed GET_FEEDS could not answer for, or one with no copy yet —
 		// whose copy then loads with no acceptance window (rulings X4). If
 		// being in all of them would change the answer, the answer is unknown;
 		// if it would not, it stands.
-		if worst, _ := shared.Reachable(staged, o, n, addr, uint16(port), proxied, local,
+		if worst, _ := shared.Reachable(staged, o, n, addr, port, proxied, local,
 			append(slices.Clone(hits), unknown...)); worst != verdict {
 			v.Verdict, v.Reason = shared.ReachUnknown, shared.ReasonFeedsUnreadable
 		}
-	case reason == shared.ReasonInFeed:
+	}
+	// Naming runs independently of the branch above: an unrelated feed with no
+	// answer yet must not swallow the name of the one that already decided it
+	// (Fix round 1, Finding 1) — a second staged feed answering "unknown" is
+	// not a reason to leave the page saying "in the feed , which drops it".
+	if v.Reason == shared.ReasonInFeed {
 		// The first staged feed that holds it — the one whose rule comes first.
 		for _, id := range staged.Feeds {
 			if slices.Contains(hits, id) {
