@@ -288,12 +288,21 @@ func (r *feedRunner) coreCopy(id string) shared.FeedStatus {
 	return shared.FeedStatus{}
 }
 
-// forget drops an update held for id. saveOwnFeed calls it when the slot's
-// list changes: the held entries and validators are the old list's.
+// forget drops an update held for id, and when it was first seen due.
+// saveOwnFeed calls it when the slot's list changes: the held entries and
+// validators are the old list's, and so is firstSeen — without clearing it,
+// a source pointed at a new address inherited a sighting from whenever a
+// pass first found the old one, days earlier, and firstFeedSlot computed a
+// slot already in the past, making the next tick pull it at once (review
+// round 1, finding 2). Clearing it here, rather than keeping the deleted
+// LastAttempt, treats an edited source as what it is — never yet pulled from
+// its new address — so it waits for a fresh install slot like any other
+// feed with no attempt on record (P25 governs only a feed's first pull).
 func (r *feedRunner) forget(id string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.pending, id)
+	delete(r.firstSeen, id)
 }
 
 // refresh fetches one feed, parses it and hands it to the core. With

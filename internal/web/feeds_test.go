@@ -648,9 +648,20 @@ func TestSavingAnOwnFeed(t *testing.T) {
 		t.Errorf("a rename forgot the validators: %+v", st)
 	}
 
-	// A new URL is another list: its failures and validators go.
-	if err := s.saveOwnFeed(1, OwnFeed{Name: "Renamed", URL: "https://example.org/other.txt", User: "u"}); err != nil {
+	// A new host is another server: its failures and validators go, and it
+	// needs the password typed again — the old one is not this server's to
+	// have (review round 1, finding 1).
+	if err := s.saveOwnFeed(1, OwnFeed{Name: "Renamed", URL: "https://example.org/other.txt", User: "u"}); !errors.Is(err, errOwnFeedPasswordAgain) {
+		t.Fatalf("new host, empty password: %v, want errOwnFeedPasswordAgain", err)
+	}
+	if f, _ := s.feedStore.ownFeed(1); f.Password != "p1" || f.URL != good.URL {
+		t.Errorf("a refused save changed the stored feed: %+v", f)
+	}
+	if err := s.saveOwnFeed(1, OwnFeed{Name: "Renamed", URL: "https://example.org/other.txt", User: "u", Password: "p2"}); err != nil {
 		t.Fatal(err)
+	}
+	if f, _ := s.feedStore.ownFeed(1); f.Password != "p2" {
+		t.Errorf("a typed password for the new host was not stored: %+v", f)
 	}
 	if st := s.feedStore.fetchState("own-1"); st.ETag != "" || st.Failures != 0 {
 		t.Errorf("a new URL kept the old list's state: %+v", st)
@@ -711,6 +722,69 @@ func TestSavingAnOwnFeed(t *testing.T) {
 	s.cfg.DemoMode = true
 	if err := s.saveOwnFeed(2, good); !errors.Is(err, errOwnFeedDemo) {
 		t.Errorf("demo: %v — a credential typed into the public demo would be kept on its host", err)
+	}
+}
+
+// Review round 1, finding 1: "empty password keeps the stored one" must not
+// survive a change of scheme or host — otherwise a session holder points own
+// feed 1 at https://attacker.example/…, leaves the password blank, and the
+// next fetch hands the stored credential to that host over Basic auth.
+func TestSavingAnOwnFeedRefusesAnEmptyPasswordWithAChangedHost(t *testing.T) {
+	s := newTestServer(t, newFakeCore(t))
+	s.feeds = newFeedRunner(s.client, s.feedStore)
+	defer func() { s.feeds = nil }()
+	good := OwnFeed{Name: "CrowdSec", URL: "https://admin.api.crowdsec.net/v1/integrations/abc/content", User: "u", Password: "SECRET"}
+	if err := s.saveOwnFeed(1, good); err != nil {
+		t.Fatal(err)
+	}
+
+	// A changed host with no typed password is refused; the stored one stays
+	// exactly where it was, still pointed at the original host.
+	attack := OwnFeed{Name: "CrowdSec", URL: "https://attacker.example/x", User: "u"}
+	if err := s.saveOwnFeed(1, attack); !errors.Is(err, errOwnFeedPasswordAgain) {
+		t.Fatalf("changed host, empty password: %v, want errOwnFeedPasswordAgain", err)
+	}
+	if f, _ := s.feedStore.ownFeed(1); f.URL != good.URL || f.Password != good.Password {
+		t.Fatalf("a refused save changed the stored feed: %+v", f)
+	}
+	if src, ok := s.feeds.source("own-1"); !ok || src.urls[0] != good.URL || src.password != good.Password {
+		t.Fatalf("source() after the refusal: %+v — the attacker's host must never see the stored password", src)
+	}
+
+	// The same host, a different path: the stored password still follows.
+	if err := s.saveOwnFeed(1, OwnFeed{Name: "CrowdSec", URL: "https://admin.api.crowdsec.net/v1/integrations/abc/other", User: "u"}); err != nil {
+		t.Fatal(err)
+	}
+	if f, _ := s.feedStore.ownFeed(1); f.Password != good.Password {
+		t.Errorf("same host, empty password: %+v, want the stored password kept", f)
+	}
+
+	// A changed host with a typed password is fine.
+	attack.Password = "NEW"
+	if err := s.saveOwnFeed(1, attack); err != nil {
+		t.Fatal(err)
+	}
+	if f, _ := s.feedStore.ownFeed(1); f.URL != attack.URL || f.Password != "NEW" {
+		t.Errorf("changed host, typed password: %+v", f)
+	}
+}
+
+// Review round 1, finding 2: editing an own feed's URL or user must not make
+// it due at once. saveOwnFeed drops the fetch state (LastAttempt goes to
+// zero) on such a change, which without this fix left firstSeen pointing at
+// whenever a pass first found the id — long before the edit — so the "wait
+// for the install slot" branch computed a slot far in the past and the very
+// next tick pulled it again, inside a CrowdSec-style 24 h window.
+func TestForgetClearsFirstSeenSoAnEditWaitsForAFreshSlot(t *testing.T) {
+	r := testRunner(t)
+	pinOffset(r.store, 5*time.Minute)
+	interval := 24 * time.Hour
+	longAgo := time.Now().Add(-72 * time.Hour)
+	r.due("own-1", interval, longAgo) // a pass found it three days ago
+	r.forget("own-1")                 // saveOwnFeed calls this on a URL/user change
+	now := time.Now()
+	if r.due("own-1", interval, now) {
+		t.Error("due right after an edit: a firstSeen from before the edit made the fresh source look overdue by three days")
 	}
 }
 

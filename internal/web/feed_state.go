@@ -199,6 +199,10 @@ var (
 	errOwnFeedURL   = errors.New("own feed URL: https, or http to this host only, with no credentials in it")
 	errOwnFeedLogin = errors.New("own feed user and password: printable, at most 256 characters, no ':' in the user")
 	errOwnFeedDemo  = errors.New("the demo keeps no own feeds")
+	// errOwnFeedPasswordAgain: an empty password field with a changed scheme
+	// or host — kept only when the address did not change (review round 1,
+	// finding 1).
+	errOwnFeedPasswordAgain = errors.New("own feed password: type it again for the new address")
 )
 
 // validOwnFeedURL is P14: https to any host; http only to a loopback host,
@@ -227,6 +231,21 @@ func validOwnFeedURL(raw string) bool {
 	return false
 }
 
+// sameOwnFeedHost reports whether two own-feed URLs share a scheme and host
+// (including port) — the boundary saveOwnFeed uses to decide whether a
+// stored password may follow a save without being retyped. A changed scheme
+// or host is a different server; keeping the old password there would hand
+// it to whatever "https://attacker.example/…" a session holder typed
+// (review round 1, finding 1).
+func sameOwnFeedHost(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	ua, erra := url.Parse(a)
+	ub, errb := url.Parse(b)
+	return erra == nil && errb == nil && ua.Scheme == ub.Scheme && ua.Host == ub.Host
+}
+
 func printable(s string, max int) bool {
 	if len(s) > max {
 		return false
@@ -248,9 +267,12 @@ func (s *Server) forgetPendingFeed(id string) {
 }
 
 // saveOwnFeed stores own feed n (1..3). An empty Password keeps the stored
-// one — the form never shows it back. An empty URL and name clear the slot.
-// A new URL or user forgets the old validators and failures: they described
-// another list.
+// one — the form never shows it back — but only when the scheme and host
+// (incl. port) are unchanged; a changed address with an empty password field
+// is refused with errOwnFeedPasswordAgain, never sent the old credential
+// (review round 1, finding 1). An empty URL and name clear the slot,
+// including any stored password. A new URL or user forgets the old
+// validators and failures: they described another list.
 func (s *Server) saveOwnFeed(n int, f OwnFeed) error {
 	if s.cfg.DemoMode {
 		// A public page; a credential typed into it would be kept on its host.
@@ -281,9 +303,14 @@ func (s *Server) saveOwnFeed(n int, f OwnFeed) error {
 		return errOwnFeedLogin
 	}
 	old := st.Own[n-1]
-	if f.User == "" {
+	switch {
+	case f.User == "":
 		f.Password = "" // no user, no credentials
-	} else if f.Password == "" {
+	case f.Password == "" && !sameOwnFeedHost(old.URL, f.URL):
+		// A changed scheme or host is a different server: an empty password
+		// field must not hand the old one to it (review round 1, finding 1).
+		return errOwnFeedPasswordAgain
+	case f.Password == "":
 		f.Password = old.Password
 	}
 	if f.URL != old.URL || f.User != old.User {
