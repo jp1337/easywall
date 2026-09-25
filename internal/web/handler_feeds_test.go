@@ -486,8 +486,9 @@ func TestTheDemoRefusesOwnFeedsAndSaysSo(t *testing.T) {
 	}
 }
 
-// The demo's card shows every status a row has but one, and every warning
-// (newDemoFeedStore's table); the fifth status is a visitor's own switch.
+// The demo's card shows every status a row has but one, every warning, and a
+// configured own feed (newDemoFeedStore's table); the fifth status is a
+// visitor's own switch.
 func TestTheDemoCardShowsEveryState(t *testing.T) {
 	s := newDemoTestServer(t)
 	body := doAuthRequest(t, s, "GET", "/blocklist", nil).Body.String()
@@ -496,6 +497,10 @@ func TestTheDemoCardShowsEveryState(t *testing.T) {
 		"Unchanged for 30 days", "Contains allowlist entries (1)", "Failed 3 times in a row.",
 		"In the kernel with an empty set", "Refused: shrank from 32002 to 9140.", "the server answered 503",
 		"The demo fetches no lists.",
+		// Final review M3: rejected lines with their sample, and an own feed
+		// configured, shown by its host.
+		"2 lines were not an address:", "<code>Rate limit exceeded.</code>",
+		"CrowdSec Raw IP List", `<dd class="font-data">admin.api.crowdsec.net</dd>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the demo's card never shows %q", want)

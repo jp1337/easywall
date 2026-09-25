@@ -576,10 +576,11 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 //	dshield         unchanged; 1 allowlist entry overlaps
 //	blocklist-de    failed, previous copy active; failed 3 times in a row;
 //	                refused as a shrink from 32 002 to 9 140
-//	et-compromised  unchanged; unchanged for 30 days
+//	et-compromised  unchanged; unchanged for 30 days; 2 lines not an address
 //	cins            failed, no copy; failed twice; in the kernel with an empty set
 //	any other       never fetched and "on once you apply", once a visitor
 //	                switches it on and saves
+//	own-1           configured and off: its host is the row's source
 func newDemoFeedStore(now time.Time) *feedStore {
 	ago := func(d time.Duration) time.Time { return now.Add(-d) }
 	return &feedStore{st: &feedStateFile{
@@ -589,10 +590,14 @@ func newDemoFeedStore(now time.Time) *feedStore {
 			"dshield":       {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
 			"blocklist-de": {Status: FeedFailedCopy, LastError: feedErrShrank, Failures: 3, LastAttempt: ago(20 * time.Minute),
 				ShrankFrom: 32002, ShrankTo: 9140},
-			"et-compromised": {Status: FeedUnchanged, LastAttempt: ago(25 * time.Minute)},
+			"et-compromised": {Status: FeedUnchanged, LastAttempt: ago(25 * time.Minute),
+				Rejected: 2, RejectedSample: []string{"Rate limit exceeded.", "Try again in 10 minutes."}},
 			"cins": {Status: FeedFailedNoCopy, LastError: feedErrHTTPStatus, HTTPStatus: 503,
 				Failures: 2, LastAttempt: ago(50 * time.Minute)},
 		},
+		// No user and no password: nothing a visitor could read back.
+		Own: [shared.MaxOwnFeeds]OwnFeed{{Name: "CrowdSec Raw IP List",
+			URL: "https://admin.api.crowdsec.net/v1/integrations/demo/content"}},
 	}}
 }
 
