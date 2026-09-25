@@ -39,8 +39,8 @@ func TestEveryPageIsDocumented(t *testing.T) {
 		"/dashboard":    "_docs/features/dashboard.md",
 		"/apply":        "_docs/features/apply.md",
 		"/ports":        "_docs/features/ports.md",
-		"/blacklist":    "_docs/features/blacklist.md",
-		"/whitelist":    "_docs/features/whitelist.md",
+		"/blocklist":    "_docs/features/blocklist.md",
+		"/allowlist":    "_docs/features/allowlist.md",
 		"/forwarding":   "_docs/features/forwarding.md",
 		"/custom":       "_docs/features/custom-rules.md",
 		"/options":      "_docs/features/filters.md",
@@ -58,6 +58,8 @@ func TestEveryPageIsDocumented(t *testing.T) {
 	// happening to look like one of these.
 	notAPage := map[string]string{
 		"/":              "redirects to /dashboard",
+		"/blacklist":     "301 to /blocklist, the page's name before 2.23",
+		"/whitelist":     "301 to /allowlist, the page's name before 2.23",
 		"/logout":        "an action, not a page — the behaviour is in security.md",
 		"/apply/status":  "polled by the apply page for the countdown",
 		"/log/filter":    "an htmx fragment of the audit log page",

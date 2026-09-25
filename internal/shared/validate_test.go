@@ -48,7 +48,7 @@ func TestValidatePortRule(t *testing.T) {
 func TestValidateRules_InvalidForwardingProtocol(t *testing.T) {
 	r := Rules{
 		TCP: []PortRule{}, UDP: []PortRule{},
-		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Blocklist: []string{}, Allowlist: []string{}, Custom: []string{},
 		Forwarding: []ForwardingRule{{Protocol: "icmp", SourcePort: 80, DestPort: 8080}},
 	}
 	if err := ValidateRules(r); err == nil {
@@ -59,7 +59,7 @@ func TestValidateRules_InvalidForwardingProtocol(t *testing.T) {
 func TestValidateRules_InvalidForwardingPort(t *testing.T) {
 	r := Rules{
 		TCP: []PortRule{}, UDP: []PortRule{},
-		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Blocklist: []string{}, Allowlist: []string{}, Custom: []string{},
 		Forwarding: []ForwardingRule{{Protocol: "tcp", SourcePort: 0, DestPort: 80}},
 	}
 	if err := ValidateRules(r); err == nil {
@@ -70,7 +70,7 @@ func TestValidateRules_InvalidForwardingPort(t *testing.T) {
 func TestValidateRules_InvalidDestPort(t *testing.T) {
 	r := Rules{
 		TCP: []PortRule{}, UDP: []PortRule{},
-		Blacklist: []string{}, Whitelist: []string{}, Custom: []string{},
+		Blocklist: []string{}, Allowlist: []string{}, Custom: []string{},
 		Forwarding: []ForwardingRule{{Protocol: "tcp", SourcePort: 8080, DestPort: 0}},
 	}
 	if err := ValidateRules(r); err == nil {
@@ -82,8 +82,8 @@ func TestValidateRules_InvalidTCPPort(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{{Port: "99999"}},
 		UDP:        []PortRule{},
-		Blacklist:  []string{},
-		Whitelist:  []string{},
+		Blocklist:  []string{},
+		Allowlist:  []string{},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
@@ -96,8 +96,8 @@ func TestValidateRules_InvalidUDPPort(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{},
 		UDP:        []PortRule{{Port: "0"}},
-		Blacklist:  []string{},
-		Whitelist:  []string{},
+		Blocklist:  []string{},
+		Allowlist:  []string{},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
@@ -106,31 +106,31 @@ func TestValidateRules_InvalidUDPPort(t *testing.T) {
 	}
 }
 
-func TestValidateRules_InvalidBlacklistIP(t *testing.T) {
+func TestValidateRules_InvalidBlocklistIP(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{},
 		UDP:        []PortRule{},
-		Blacklist:  []string{"not-an-ip"},
-		Whitelist:  []string{},
+		Blocklist:  []string{"not-an-ip"},
+		Allowlist:  []string{},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
 	if err := ValidateRules(r); err == nil {
-		t.Error("expected error for invalid blacklist IP")
+		t.Error("expected error for invalid blocklist IP")
 	}
 }
 
-func TestValidateRules_InvalidWhitelistCIDR(t *testing.T) {
+func TestValidateRules_InvalidAllowlistCIDR(t *testing.T) {
 	r := Rules{
 		TCP:        []PortRule{},
 		UDP:        []PortRule{},
-		Blacklist:  []string{},
-		Whitelist:  []string{"300.300.300.300"},
+		Blocklist:  []string{},
+		Allowlist:  []string{"300.300.300.300"},
 		Custom:     []string{},
 		Forwarding: []ForwardingRule{},
 	}
 	if err := ValidateRules(r); err == nil {
-		t.Error("expected error for invalid whitelist IP")
+		t.Error("expected error for invalid allowlist IP")
 	}
 }
 
@@ -321,5 +321,28 @@ func TestInAnyEntry_AMappedNetworkHoldsItsIPv4Addresses(t *testing.T) {
 	}
 	if InAnyEntry(out, entries) || inAnyCIDR(out, entries) {
 		t.Error("11.1.2.3 is not in ::ffff:10.0.0.0/104")
+	}
+}
+
+// Spec §2: Rules.Feeds holds catalogue ids and own-1…own-3, each at most once.
+func TestValidateRules_Feeds(t *testing.T) {
+	for _, tc := range []struct {
+		feeds []string
+		want  string // "" = valid; else a fragment of the error
+	}{
+		{nil, ""},
+		{[]string{"spamhaus-drop", "own-1", "own-3", "tor-exits"}, ""},
+		{[]string{"firehol-level1"}, `feed "firehol-level1" is neither`},
+		{[]string{"own-4"}, `feed "own-4" is neither`},
+		{[]string{""}, `feed "" is neither`},
+		{[]string{"dshield", "cins", "dshield"}, `feed "dshield" is switched on twice`},
+	} {
+		err := ValidateRules(Rules{Feeds: tc.feeds})
+		switch {
+		case tc.want == "" && err != nil:
+			t.Errorf("%v: refused: %v", tc.feeds, err)
+		case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+			t.Errorf("%v: got %v, want an error containing %q", tc.feeds, err, tc.want)
+		}
 	}
 }

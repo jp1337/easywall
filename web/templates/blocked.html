@@ -110,14 +110,18 @@
        no tone class, the same way an informational log action carries
        none. */}}
   {{/* A module's chip leads to its card on /options (blockedOption); the
-       blacklist and the final drop are not switches and stay a span. A
+       blocklist and the final drop are not switches and stay a span. A
        default drop says why under the chip, read off the rules the kernel
        holds now (shared.PacketLogEntry.DropReasonParsed). One .pkt-rule item, the
        .pkt-act pattern: on a card the td is a flex row, and two children would
        sit side by side. */}}
   <td data-label="{{T "blocked_col_rule"}}"><div class="pkt-rule">
     {{$label := T (printf "blocked_rule_%s" .Rule)}}
-    {{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}
+    {{/* A feed's chip names the feed and leads to its row on the blocklist
+         page, where it is switched off; the allowlist button beside it is
+         the remedy (the feeds run after the allowlist). */}}
+    {{if eq .Rule "feed"}}{{$name := index $.FeedNames .Feed}}<a class="log-action" href="/blocklist#{{if .Feed}}feed-{{.Feed}}{{else}}feeds{{end}}">{{if $name}}{{T "blocked_rule_feed_named" (dict "Name" $name)}}{{else}}{{$label}}{{end}}</a>
+    {{else}}{{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}{{end}}
     {{if $.WhyKnown}}{{with .DropReasonParsed $.Rules $.Net}}{{if .Code}}<span class="pkt-why">{{T (printf "blocked_why_%s" .Code) .Params}}</span>{{end}}{{end}}{{end}}
   </div></td>
   <td data-label="{{T "blocked_col_actions"}}"><div class="pkt-act">
@@ -132,16 +136,16 @@
          only how loud the row is before it is touched. */}}
     <div class="pkt-actions">
       {{$r := .Remedies}}
-      {{if $r.Whitelist}}
+      {{if $r.Allowlist}}
       <form method="post" action="/blocked/stage">
-        <input type="hidden" name="act" value="whitelist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
-        <button type="submit" class="btn btn-sm">{{T "blocked_action_whitelist"}}</button>
+        <input type="hidden" name="act" value="allowlist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_allowlist"}}</button>
       </form>
       {{end}}
-      {{if $r.Blacklist}}
+      {{if $r.Blocklist}}
       <form method="post" action="/blocked/stage">
-        <input type="hidden" name="act" value="blacklist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
-        <button type="submit" class="btn btn-sm">{{T "blocked_action_blacklist"}}</button>
+        <input type="hidden" name="act" value="blocklist"><input type="hidden" name="addr" value="{{.Src}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm">{{T "blocked_action_blocklist"}}</button>
       </form>
       {{end}}
       {{if $r.Open}}
@@ -150,13 +154,13 @@
         <button type="submit" class="btn btn-sm">{{T "blocked_action_open" (dict "Port" .DstPort)}}</button>
       </form>
       {{end}}
-      {{if eq .Rule "blacklist"}}
-      {{/* Only a blacklist row gets here: the blacklist is consulted before
-           the whitelist, so no action on this page could have let it through.
+      {{if eq .Rule "blocklist"}}
+      {{/* Only a blocklist row gets here: the blocklist is consulted before
+           the allowlist, so no action on this page could have let it through.
            What can is removing the entry, and that is the list page's job. */}}
-      <a href="/blacklist" class="btn btn-sm">{{T "blocked_action_edit_blacklist"}}</a>
+      <a href="/blocklist" class="btn btn-sm">{{T "blocked_action_edit_blocklist"}}</a>
       {{end}}
-      {{if not (or $r.Whitelist $r.Blacklist $r.Open (eq .Rule "blacklist"))}}
+      {{if not (or $r.Allowlist $r.Blocklist $r.Open (eq .Rule "blocklist"))}}
       <span class="text-ink-subtle">—</span>
       {{end}}
     </div>

@@ -605,22 +605,21 @@ func TestTheGateCannotBeWalkedPast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk the router: %v", err)
 	}
-	// 41 gated routes: the 40 routes chi registers inside the
-	// RequireAuth+RequireSecondFactor group — Task 16's own
-	// /password/2fa/enrol-unverified and the three /password/passkey/* routes
-	// (including the bare "/", whose entire handler is
-	// a redirect to the gated /dashboard, and which the gate intercepts
-	// before that handler ever runs), plus POST /logout, which isGatedRoute
-	// does not exclude. /logout is listed in `allowed` above only so this
-	// walk does not demand a gate header from it: server.go registers it in
-	// the public group, so RequireSecondFactor never runs on it and it can
-	// answer no other way. Nothing here proves the middleware's own
-	// "/logout" entry does anything — that is
-	// TestTheGateAllowlistIsExactAndNotAPrefix's job, which calls the
-	// middleware directly. A floor copied from the plan (15) would have passed while
-	// missing most of the actual group; a floor above the real count would
-	// fail on every run for no reason.
-	if checked < 41 {
+	t.Logf("walked %d gated routes", checked)
+	// The floor is the number the t.Logf above prints on the release branch —
+	// measured, not counted by hand: 53 at 2.23.0. Raise it in the release
+	// that adds a gated route. Every route chi registers inside the
+	// RequireAuth+RequireSecondFactor group counts (the bare "/", whose whole
+	// handler is a redirect to the gated /dashboard, among them), plus POST
+	// /logout, which isGatedRoute does not exclude. /logout is listed in
+	// `allowed` above only so this walk does not demand a gate header from it:
+	// server.go registers it in the public group, so RequireSecondFactor never
+	// runs on it. Nothing here proves the middleware's own "/logout" entry
+	// does anything — that is TestTheGateAllowlistIsExactAndNotAPrefix's job,
+	// which calls the middleware directly. A floor below the real count lets a
+	// route drop out of the group unnoticed (it stood at 41 while the walk
+	// found 47, then 53); a floor above it fails on every run for no reason.
+	if checked < 53 {
 		t.Fatalf("only %d gated routes were walked; the walk is not finding the authenticated group", checked)
 	}
 }

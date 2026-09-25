@@ -563,9 +563,17 @@ func (d *Daemon) Stop() {
 func (d *Daemon) handleConn(conn net.Conn) {
 	defer conn.Close()
 
-	data, err := io.ReadAll(io.LimitReader(conn, 1<<20)) // 1MB max
+	// One byte past the limit, so a request that is too long is refused as
+	// that. Cut at the limit, it used to reach json.Unmarshal truncated and be
+	// answered "invalid JSON command" — indistinguishable from a malformed one.
+	data, err := io.ReadAll(io.LimitReader(conn, shared.MaxMessageBytes+1))
 	if err != nil {
 		slog.Warn("read command error", "error", err)
+		return
+	}
+	if len(data) > shared.MaxMessageBytes {
+		slog.Warn("command refused: longer than the socket limit", "limit", shared.MaxMessageBytes)
+		d.sendError(conn, shared.ErrRequestTooLargeText)
 		return
 	}
 
@@ -776,9 +784,9 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 			return errResp(err)
 		}
 		WriteAuditLog(d.cfg.AuditLogPath(), "rules_imported", "all",
-			fmt.Sprintf("%d tcp, %d udp, %d blacklist, %d whitelist",
+			fmt.Sprintf("%d tcp, %d udp, %d blocklist, %d allowlist",
 				len(incoming.TCP), len(incoming.UDP),
-				len(incoming.Blacklist), len(incoming.Whitelist)), "web")
+				len(incoming.Blocklist), len(incoming.Allowlist)), "web")
 		return shared.Response{Success: true}
 
 	case shared.CmdValidateCustom:
@@ -838,6 +846,34 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 			return errResp(err)
 		}
 		return shared.Response{Success: true}
+
+	case shared.CmdUpdateFeed:
+		// Synchronous, like PANIC: the reply says whether the new version was
+		// stored and loaded, and that is only known once it has been.
+		var p shared.UpdateFeedPayload
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			return errResp(fmt.Errorf("invalid payload: %w", err))
+		}
+		res, err := d.firewall.UpdateFeed(p, "web")
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(res)
+		return shared.Response{Success: true, Data: data}
+
+	case shared.CmdGetFeeds:
+		var p shared.GetFeedsPayload
+		if len(cmd.Payload) > 0 {
+			if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+				return errResp(fmt.Errorf("invalid payload: %w", err))
+			}
+		}
+		res, err := d.firewall.Feeds(p.Addr)
+		if err != nil {
+			return errResp(err)
+		}
+		data, _ := json.Marshal(res)
+		return shared.Response{Success: true, Data: data}
 
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}

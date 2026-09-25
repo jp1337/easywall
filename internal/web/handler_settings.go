@@ -38,7 +38,7 @@ func (s *Server) handleSettingsPOST(w http.ResponseWriter, r *http.Request) {
 	// The core refuses an unparseable network, so this has to refuse exactly the
 	// same set — no more and no less.
 	//
-	// It used to check with validateIPListEntries, the blacklist's validator,
+	// It used to check with validateIPListEntries, the blocklist's validator,
 	// which accepts a bare address. The core stores these with net.ParseCIDR and
 	// does not, so `192.168.1.5` passed here, was refused there, and the operator
 	// was shown "Failed to save changes. Check core connection." with a core that

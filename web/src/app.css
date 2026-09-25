@@ -1458,7 +1458,7 @@ body {
      What changes, before the operator commits to finding out during the 120
      seconds. Structural marks and no hue at all: DESIGN.md reserves colour
      outside the blue family for firewall state, and a green/red diff would
-     break that twice over — a new blacklist entry is not good news and a
+     break that twice over — a new blocklist entry is not good news and a
      removed port is not a failure. The three state colours are on the verdict
      below, which genuinely is a state. */
   .diff { padding: 16px; }
@@ -2438,6 +2438,61 @@ body {
 
   .module-help .link { display: inline-block; margin-top: 8px; font-size: 12px; }
 
+  /* ── Feeds (blocklist page) ──────────────────────────────────────────────
+     A feed is a .module: on or off, with a stated cost, like a protection.
+     What it adds is a band of facts — the catalogue's verdict and why, where
+     the list comes from, and what the last refresh left in the kernel — as a
+     label/value grid, so a phone reads it as the same card, one fact a line.
+     The warnings are words in the warning colour, under the facts. */
+  .feeds-intro {
+    margin: 0 0 12px;
+    max-width: 75ch;
+    font-size: 13px;
+    color: var(--color-ink-muted);
+  }
+
+  /* The head keeps its own height here and the facts take the row's spare
+     height instead, so a ✗ card's confirmation box sits on its bottom edge
+     rather than a gap opening under the name. */
+  .feed-head { flex: none; }
+
+  /* fit-content(40%): "Blockiert seit dem letzten Anwenden" wraps in its own
+     column at 390px instead of squeezing the values to a word a line. */
+  .feed-facts {
+    flex: 1;
+    align-content: start;
+    display: grid;
+    grid-template-columns: fit-content(40%) minmax(0, 1fr);
+    gap: 5px 12px;
+    margin: 0;
+    padding: 10px 15px;
+    border-top: 1px solid var(--color-rule);
+    font-size: 12.5px;
+  }
+
+  .feed-facts dt { color: var(--color-ink-subtle); }
+  .feed-facts dd { margin: 0; overflow-wrap: break-word; min-width: 0; }
+  .feed-facts dd .link { margin-right: 10px; }
+  .feed-facts .status-dot { font-size: inherit; font-weight: 500; }
+
+  .feed-warnings {
+    margin: 0;
+    padding: 0 15px 10px;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12.5px;
+    color: var(--color-state-warn-on-wash);
+  }
+
+  .feed-warnings code { font-size: 11.5px; overflow-wrap: anywhere; }
+
+  /* A sentence, not "max conn 5": it wraps, and the box marks its first line. */
+  .feed-confirm { align-items: flex-start; }
+  .feed-confirm > span { white-space: normal; color: var(--color-ink); }
+  .feed-confirm > .checkbox { margin-top: 1.5px; flex-shrink: 0; }
+
   /* ── Switch row ──────────────────────────────────────────────────────────
      For settings that are a plain on/off with no parameters. A <label>, so the
      whole row is the hit area rather than only the switch at the far edge —
@@ -2896,7 +2951,7 @@ body {
     white-space: nowrap;
   }
 
-  /* ── List editor (blacklist / whitelist / custom rules) ──────────────────
+  /* ── List editor (blocklist / allowlist / custom rules) ──────────────────
      A textarea is the honest control for a list that may hold eight entries or
      eight hundred. What it lacked was a measure and any sense of how many
      entries it currently holds. */

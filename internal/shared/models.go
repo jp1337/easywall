@@ -62,10 +62,17 @@ type ForwardingRule struct {
 type Rules struct {
 	TCP        []PortRule       `json:"tcp"`
 	UDP        []PortRule       `json:"udp"`
-	Blacklist  []string         `json:"blacklist"`  // blocked source IPs / CIDRs
-	Whitelist  []string         `json:"whitelist"`  // always-allowed source IPs / CIDRs
+	Blocklist  []string         `json:"blocklist"`  // blocked source IPs / CIDRs
+	Allowlist  []string         `json:"allowlist"`  // always-allowed source IPs / CIDRs
 	Forwarding []ForwardingRule `json:"forwarding"` // NAT port forwards
 	Custom     []string         `json:"custom"`     // raw nftables rule strings
+
+	// Feeds are the enabled feed ids — catalogue ids and own-1…own-3 — in the
+	// order they were switched on. Only the ids: a feed's contents are the
+	// core's feeds.json, never this file, which holds three copies of Rules
+	// and is re-marshalled on every status poll. omitempty: a rules.json with
+	// no feed switched on carries no "feeds" key.
+	Feeds []string `json:"feeds,omitempty"`
 }
 
 // IsEmpty reports whether this rule set says nothing at all.
@@ -83,10 +90,11 @@ type Rules struct {
 func (r Rules) IsEmpty() bool {
 	return len(r.TCP) == 0 &&
 		len(r.UDP) == 0 &&
-		len(r.Blacklist) == 0 &&
-		len(r.Whitelist) == 0 &&
+		len(r.Blocklist) == 0 &&
+		len(r.Allowlist) == 0 &&
 		len(r.Forwarding) == 0 &&
-		len(r.Custom) == 0
+		len(r.Custom) == 0 &&
+		len(r.Feeds) == 0
 }
 
 // RulesState holds the three-state rules system preventing lockouts.
@@ -150,18 +158,23 @@ type FirewallOptions struct {
 	LogBlocked      bool `toml:"log_blocked_connections"`
 	LogBlockedLimit int  `toml:"log_blocked_connections_limit"`
 
-	// Logging of blacklisted connections
-	LogBlacklist      bool `toml:"log_blacklist_connections"`
-	LogBlacklistLimit int  `toml:"log_blacklist_connections_limit"`
+	// Logging of blocklisted connections
+	LogBlocklist      bool `toml:"log_blocklist_connections"`
+	LogBlocklistLimit int  `toml:"log_blocklist_connections_limit"`
+
+	// Logging of connections a feed refuses, before the drop. One log rule per
+	// feed and address family, each with its own rate.
+	LogFeed      bool `toml:"log_feed_connections"`
+	LogFeedLimit int  `toml:"log_feed_connections_limit"`
 }
 
-// LogsAnything reports whether any of the ten log switches is on. /blocked says
+// LogsAnything reports whether any of the eleven log switches is on. /blocked says
 // "nothing is switched on" when it is false, and TestLogsAnythingCountsEverySwitch
 // holds this to every `*_log` / `log_*` field by reflection.
 func (o FirewallOptions) LogsAnything() bool {
 	return o.SSHBruteForceLog || o.ICMPFloodLog || o.SYNFloodLog || o.TCPRSTFloodLog ||
 		o.PortScanLog || o.InvalidPacketsLog || o.FragmentsLog || o.BogonsLog ||
-		o.LogBlacklist || o.LogBlocked
+		o.LogBlocklist || o.LogFeed || o.LogBlocked
 }
 
 // FirewallLimit describes one numeric option: what it is called, the range it
@@ -233,9 +246,12 @@ var FirewallLimits = []FirewallLimit{
 	{"log_blocked_connections_limit", 1, 10000, 60,
 		func(o *FirewallOptions) *bool { return &o.LogBlocked },
 		func(o *FirewallOptions) *int { return &o.LogBlockedLimit }},
-	{"log_blacklist_connections_limit", 1, 10000, 60,
-		func(o *FirewallOptions) *bool { return &o.LogBlacklist },
-		func(o *FirewallOptions) *int { return &o.LogBlacklistLimit }},
+	{"log_blocklist_connections_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.LogBlocklist },
+		func(o *FirewallOptions) *int { return &o.LogBlocklistLimit }},
+	{"log_feed_connections_limit", 1, 10000, 60,
+		func(o *FirewallOptions) *bool { return &o.LogFeed },
+		func(o *FirewallOptions) *int { return &o.LogFeedLimit }},
 }
 
 // InRange reports whether v is a value this limit may hold.
@@ -422,8 +438,8 @@ type RoutingConfig struct {
 // DockerConfig controls Docker coexistence mode.
 type DockerConfig struct {
 	Enabled             bool     `toml:"enabled"`               // auto-detect Docker bridges
-	AllowBridgeNetworks bool     `toml:"allow_bridge_networks"` // whitelist detected bridge networks
-	CustomNetworks      []string `toml:"custom_networks"`       // additional networks to whitelist
+	AllowBridgeNetworks bool     `toml:"allow_bridge_networks"` // allowlist detected bridge networks
+	CustomNetworks      []string `toml:"custom_networks"`       // additional networks to allowlist
 
 	// PublishedPorts decides what happens to traffic this host forwards to a
 	// container. "open" is Docker's business, which is what it has always been;
@@ -537,11 +553,12 @@ type WebConfig struct {
 	// request an operator may reasonably want gone entirely rather than merely
 	// failing quietly.
 	//
-	// One of the four requests easywall can make. The others are Telemetry
-	// below, a notification to NotifyURL, and autocert fetching a certificate
-	// when TLSConfig.ACME is on — all three off unless switched on. The
-	// notification is the only one whose destination easywall does not name at
-	// all. docs/_docs/security.md lists all four.
+	// One of the five requests easywall can make. The others are Telemetry
+	// below, a notification to NotifyURL, the feeds switched on in Rules.Feeds,
+	// and autocert fetching a certificate when TLSConfig.ACME is on — all four
+	// off unless switched on. The notification and an own feed are the two
+	// whose destination easywall does not name. docs/_docs/security.md lists
+	// all five.
 	UpdateCheck *bool `toml:"update_check"`
 
 	// Telemetry records whether the operator agreed to easywall counting this

@@ -113,15 +113,15 @@ func TestLogsAnythingCountsEverySwitch(t *testing.T) {
 			t.Errorf("%s is on and LogsAnything() says nothing is logged", key)
 		}
 	}
-	if found != 10 {
-		t.Errorf("found %d log switches, want the ten filters.md documents", found)
+	if found != 11 {
+		t.Errorf("found %d log switches, want the eleven filters.md documents", found)
 	}
 	if (FirewallOptions{}).LogsAnything() {
 		t.Error("nothing is switched on and LogsAnything() says otherwise")
 	}
 }
 
-// The input chain is modules → blacklist → whitelist → ports → final drop
+// The input chain is modules → blocklist → allowlist → ports → final drop
 // (internal/core/nftables.go Apply; Reachable steps 5–9). An action is offered
 // only where it could have changed this packet's verdict.
 func remedyTCP(rule string) PacketLogEntry {
@@ -132,21 +132,22 @@ var remedyCases = []struct {
 	e    PacketLogEntry
 	want Remedy
 }{
-	{remedyTCP("drop"), Remedy{Whitelist: true, Blacklist: true, Open: true}},
-	{remedyTCP("bogon"), Remedy{Whitelist: true, Blacklist: true}},            // the bogon filter exempts the whitelist
-	{remedyTCP(PacketLogRuleOther), Remedy{Whitelist: true, Blacklist: true}}, // custom rules run after the whitelist
-	{remedyTCP("blacklist"), Remedy{}},                                        // the blacklist runs before the whitelist
-	{remedyTCP("ssh"), Remedy{Blacklist: true}},
-	{remedyTCP("syn_flood"), Remedy{Blacklist: true}},
-	{remedyTCP("tcp_rst"), Remedy{Blacklist: true}},
-	{remedyTCP("portscan"), Remedy{Blacklist: true}},
-	{remedyTCP("invalid"), Remedy{Blacklist: true}},
-	{remedyTCP("fragment"), Remedy{Blacklist: true}},
-	{PacketLogEntry{Rule: "icmp_flood", Proto: "icmp"}, Remedy{Blacklist: true}},
-	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Whitelist: true, Blacklist: true}},                           // no port to open
+	{remedyTCP("drop"), Remedy{Allowlist: true, Blocklist: true, Open: true}},
+	{remedyTCP("bogon"), Remedy{Allowlist: true, Blocklist: true}},            // the bogon filter exempts the allowlist
+	{remedyTCP(PacketLogRuleOther), Remedy{Allowlist: true, Blocklist: true}}, // custom rules run after the allowlist
+	{remedyTCP("blocklist"), Remedy{}},                                        // the blocklist runs before the allowlist
+	{remedyTCP("feed"), Remedy{Allowlist: true, Blocklist: true}},             // the feeds run after the allowlist (spec D3)
+	{remedyTCP("ssh"), Remedy{Blocklist: true}},
+	{remedyTCP("syn_flood"), Remedy{Blocklist: true}},
+	{remedyTCP("tcp_rst"), Remedy{Blocklist: true}},
+	{remedyTCP("portscan"), Remedy{Blocklist: true}},
+	{remedyTCP("invalid"), Remedy{Blocklist: true}},
+	{remedyTCP("fragment"), Remedy{Blocklist: true}},
+	{PacketLogEntry{Rule: "icmp_flood", Proto: "icmp"}, Remedy{Blocklist: true}},
+	{PacketLogEntry{Rule: "drop", Proto: "icmp"}, Remedy{Allowlist: true, Blocklist: true}},                           // no port to open
 	{PacketLogEntry{Rule: "drop", Proto: "tcp", Hook: "forward", DstPort: 25}, Remedy{}},                              // the lists and port rules are input-chain only
-	{PacketLogEntry{Rule: "drop", Proto: "tcp", DstPort: 0, Hook: "input"}, Remedy{Whitelist: true, Blacklist: true}}, // tcp, but no port decoded — nothing to open
-	{PacketLogEntry{Rule: "drop", Proto: "132", DstPort: 9, Hook: "input"}, Remedy{Whitelist: true, Blacklist: true}}, // SCTP: a port, but no port rule speaks it
+	{PacketLogEntry{Rule: "drop", Proto: "tcp", DstPort: 0, Hook: "input"}, Remedy{Allowlist: true, Blocklist: true}}, // tcp, but no port decoded — nothing to open
+	{PacketLogEntry{Rule: "drop", Proto: "132", DstPort: 9, Hook: "input"}, Remedy{Allowlist: true, Blocklist: true}}, // SCTP: a port, but no port rule speaks it
 }
 
 func TestRemediesFollowTheChainOrder(t *testing.T) {
@@ -166,6 +167,54 @@ func TestRemediesKnowsEveryRule(t *testing.T) {
 	for _, r := range PacketLogRules {
 		if !known[r] {
 			t.Errorf("rule %q has no row in TestRemediesFollowTheChainOrder — decide where it sits in the chain", r)
+		}
+	}
+}
+
+// Plan P10. The prefix carries the feed's id, and only an id the catalogue or
+// the own-feed slots know is believed: a custom rule logging "easywall feed:
+// anything" into easywall's group is a feed row with no feed named.
+func TestParseLogPrefix(t *testing.T) {
+	for _, tc := range []struct{ in, rule, feed string }{
+		{FeedLogPrefix("spamhaus-drop"), "feed", "spamhaus-drop"},
+		{FeedLogPrefix("own-3") + "\x00", "feed", "own-3"},
+		{"easywall feed: tor-exits", "feed", "tor-exits"},
+		{"easywall feed: own-9 ", "feed", ""},
+		{"easywall feed: ", "feed", ""},
+		{"easywall feed:", "feed", ""},
+		{"easywall blocklist: ", "blocklist", ""},
+		{"easywall syn-flood: ", "syn_flood", ""},
+		{"legacy-admin: spamhaus-drop", PacketLogRuleOther, ""},
+		{"", PacketLogRuleOther, ""},
+	} {
+		rule, feed := ParseLogPrefix(tc.in)
+		if rule != tc.rule || feed != tc.feed {
+			t.Errorf("ParseLogPrefix(%q) = %q, %q; want %q, %q", tc.in, rule, feed, tc.rule, tc.feed)
+		}
+		if got := RuleFromPrefix(tc.in); got != tc.rule {
+			t.Errorf("RuleFromPrefix(%q) = %q, want %q", tc.in, got, tc.rule)
+		}
+	}
+}
+
+// nfLogPrefixMax is NF_LOG_PREFIXLEN - 1: include/uapi/linux/netfilter/nf_log.h
+// defines NF_LOG_PREFIXLEN 128, and net/netfilter/nft_log.c declares
+// NFTA_LOG_PREFIX as NLA_STRING with .len = NF_LOG_PREFIXLEN - 1, which
+// lib/nlattr.c enforces on the string without its NUL (v6.12). One byte more
+// and the kernel refuses the rule, and with it the whole apply.
+const nfLogPrefixMax = 127
+
+func TestFeedLogPrefixesFitTheKernel(t *testing.T) {
+	ids := []string{OwnFeedID(MaxOwnFeeds)}
+	for _, f := range FeedCatalogue {
+		ids = append(ids, f.ID)
+	}
+	for _, id := range ids {
+		if p := FeedLogPrefix(id); len(p) > nfLogPrefixMax {
+			t.Errorf("FeedLogPrefix(%q) is %d bytes; the kernel takes %d", id, len(p), nfLogPrefixMax)
+		}
+		if rule, feed := ParseLogPrefix(FeedLogPrefix(id)); rule != "feed" || feed != id {
+			t.Errorf("FeedLogPrefix(%q) reads back as %q, %q", id, rule, feed)
 		}
 	}
 }

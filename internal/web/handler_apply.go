@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 // previewSetOrder is the order the rule sets appear in on the apply screen. The
 // sidebar's order, so the page reads the way the navigation is organised rather
 // than the way a struct happens to be declared.
-var previewSetOrder = []string{"tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"}
+var previewSetOrder = []string{"tcp", "udp", "blocklist", "allowlist", "feeds", "forwarding", "custom"}
 
 type applyData struct {
 	Status  *shared.FirewallStatus
@@ -73,6 +74,9 @@ type applyVerdict struct {
 	Reason  shared.ReachReason
 	Addr    string
 	Port    string
+	// Feed names the feed that drops Addr, for ReasonInFeed: "your address
+	// is in the feed Spamhaus DROP".
+	Feed string
 }
 
 func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +90,7 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 	data := &applyData{Status: status}
 	switch {
 	case status.Acceptance == shared.AcceptancePending:
-		data.Live, data.LiveCount = s.liveChanges()
+		data.Live, data.LiveCount = s.liveChanges(r)
 	case status.HasPending:
 		data.Preview = s.buildPreview(r)
 	}
@@ -110,13 +114,14 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 // markup the preview uses. The heading is not the preview's — apply_live_title,
 // "Live now — unconfirmed", against apply_preview_title, "What changes" — because
 // the two say different things about the same rows.
-func (s *Server) liveChanges() ([]applyPreviewSet, int) {
+func (s *Server) liveChanges(r *http.Request) ([]applyPreviewSet, int) {
 	state, err := s.client.GetRules()
 	if err != nil {
 		slog.Warn("could not read the rules to list what is live", "error", err)
 		return nil, 0
 	}
 	deltas := shared.DiffRules(state.Backup, state.Current)
+	s.ownFeedDiffLabels(r, deltas)
 
 	var sets []applyPreviewSet
 	for _, set := range previewSetOrder {
@@ -151,6 +156,7 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 
 	p := &applyPreview{}
 	deltas := shared.DiffRules(state.Current, state.Staged)
+	s.ownFeedDiffLabels(r, deltas)
 	for _, set := range previewSetOrder {
 		var group []shared.RuleDelta
 		for _, d := range deltas {
@@ -202,6 +208,22 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 	return p
 }
 
+// ownFeedDiffLabels replaces an own feed's diff label. shared.DiffRules calls
+// shared.FeedDisplayName, which knows no locale or configured name and always
+// renders the English "Own feed N" (carry-in, controller ruling: an own feed
+// must never show that literal on a German page) — here it becomes the
+// operator's own name when set, else the localized default, the same as the
+// card and the /blocked chip.
+func (s *Server) ownFeedDiffLabels(r *http.Request, deltas []shared.RuleDelta) {
+	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	for i := range deltas {
+		if deltas[i].Set == "feeds" && ownFeedN(deltas[i].Key) > 0 {
+			deltas[i].Label = s.feedLabel(tFunc, deltas[i].Key)
+		}
+	}
+}
+
 // reachVerdict answers whether a new connection from the address this request
 // came from would still reach this interface once the staged set is live.
 //
@@ -212,6 +234,22 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 	o shared.FirewallOptions, n shared.NetworkSettings) *applyVerdict {
 
+	addr, port, proxied, fallback := s.requestAddrAndPort(r)
+	if fallback != nil {
+		return fallback
+	}
+	hits, unknown := s.feedHits(addr, staged)
+	return s.verdictFor(r, staged, o, n, addr, port, proxied, hits, unknown)
+}
+
+// requestAddrAndPort resolves the request's address and this host's web port —
+// the half of reachVerdict that costs no round trip to the core, so
+// lockoutRefusal can do it once and ask s.feedHits once for both verdicts it
+// compares, instead of paying for GET_FEEDS twice for the same address.
+//
+// verdict is non-nil only when resolution failed; addr, port and proxied are
+// then meaningless and the caller must return it as-is.
+func (s *Server) requestAddrAndPort(r *http.Request) (addr netip.Addr, port uint16, proxied bool, verdict *applyVerdict) {
 	rawAddr, proxied := s.clientAddr(r)
 	addr, err := netip.ParseAddr(rawAddr)
 	if err != nil {
@@ -221,23 +259,84 @@ func (s *Server) reachVerdict(r *http.Request, staged shared.Rules,
 		// claim this page must never make by omission.
 		slog.Warn("cannot read the peer address, so the verdict is reach_no_address",
 			"remote_addr", r.RemoteAddr, "error", err)
-		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: rawAddr}
+		return netip.Addr{}, 0, proxied, &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: rawAddr}
 	}
 	rawPort := s.webPort()
-	port, err := strconv.ParseUint(rawPort, 10, 16)
+	parsedPort, err := strconv.ParseUint(rawPort, 10, 16)
 	if err != nil {
 		slog.Warn("cannot read the listening port, so the verdict is reach_no_address", "error", err)
-		return &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: addr.String()}
+		return netip.Addr{}, 0, proxied, &applyVerdict{Verdict: shared.ReachUnknown, Reason: shared.ReasonNoAddress, Addr: addr.String()}
 	}
+	return addr, uint16(parsedPort), proxied, nil
+}
 
-	verdict, reason := shared.Reachable(staged, o, n, addr, uint16(port),
-		proxied, addressIsLocal(addr))
-	return &applyVerdict{
-		Verdict: verdict,
-		Reason:  reason,
-		Addr:    addr.String(),
-		Port:    strconv.FormatUint(port, 10),
+// verdictFor is reachVerdict's core, given the feed hits and unknown ids
+// already fetched. Split out so lockoutRefusal can call it twice — once for
+// the rules as they stand, once for what staging the row action would make
+// them — after asking s.feedHits only once: the two calls are for the same
+// address and (every caller today) the same staged.Feeds, so asking the core
+// twice would be asking it the identical question twice.
+func (s *Server) verdictFor(r *http.Request, staged shared.Rules, o shared.FirewallOptions, n shared.NetworkSettings,
+	addr netip.Addr, port uint16, proxied bool, hits, unknown []string) *applyVerdict {
+
+	local := addressIsLocal(addr)
+	verdict, reason := shared.Reachable(staged, o, n, addr, port, proxied, local, hits)
+	v := &applyVerdict{Verdict: verdict, Reason: reason, Addr: addr.String(), Port: strconv.FormatUint(uint64(port), 10)}
+	if len(unknown) > 0 {
+		// Not "in none of them": that is the one claim this cannot make about
+		// a feed GET_FEEDS could not answer for, or one with no copy yet —
+		// whose copy then loads with no acceptance window (rulings X4). If
+		// being in all of them would change the answer, the answer is unknown;
+		// if it would not, it stands.
+		if worst, _ := shared.Reachable(staged, o, n, addr, port, proxied, local,
+			append(slices.Clone(hits), unknown...)); worst != verdict {
+			v.Verdict, v.Reason = shared.ReachUnknown, shared.ReasonFeedsUnreadable
+		}
 	}
+	// Naming runs independently of the branch above: an unrelated feed with no
+	// answer yet must not swallow the name of the one that already decided it
+	// (Fix round 1, Finding 1) — a second staged feed answering "unknown" is
+	// not a reason to leave the page saying "in the feed , which drops it".
+	if v.Reason == shared.ReasonInFeed {
+		// The first staged feed that holds it — the one whose rule comes first.
+		loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+		tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+		for _, id := range staged.Feeds {
+			if slices.Contains(hits, id) {
+				v.Feed = s.feedLabel(tFunc, id)
+				break
+			}
+		}
+	}
+	return v
+}
+
+// feedHits asks the core which stored copies hold addr (plan P9), and names
+// the staged feeds it cannot answer for: every one when GET_FEEDS fails, and
+// otherwise each with no stored copy. With no feed staged there is nothing to
+// ask, and nothing to fail.
+func (s *Server) feedHits(addr netip.Addr, staged shared.Rules) (hits, unknown []string) {
+	if len(staged.Feeds) == 0 {
+		return nil, nil
+	}
+	res, err := s.client.GetFeeds(addr.String())
+	if err != nil {
+		slog.Warn("cannot ask the core which feeds hold this address", "error", err)
+		return nil, staged.Feeds
+	}
+	stored := map[string]bool{}
+	for _, f := range res.Feeds {
+		stored[f.ID] = f.Stored
+		if f.ContainsAddr {
+			hits = append(hits, f.ID)
+		}
+	}
+	for _, id := range staged.Feeds {
+		if !stored[id] {
+			unknown = append(unknown, id)
+		}
+	}
+	return hits, unknown
 }
 
 // addressIsLocal reports whether addr is one of the addresses this host holds.
@@ -279,9 +378,10 @@ func (s *Server) handleApplyStart(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("apply rules error", "error", err)
 		// The core refuses a second apply while a window is open, and that is
 		// not a failure to report as one: it is the safety mechanism doing its
-		// job, and the operator's next move is to confirm the apply they already
-		// started. The page hides the Start button in that state, so getting
-		// here means a second tab, a double submit, or the back button.
+		// job. The page hides the Start button in that state, so getting here
+		// means a second tab, a double submit, the back button — or a feed
+		// refresh holding the slot for under a second, which the web process
+		// cannot tell apart, so the copy covers both.
 		flash := "apply_error"
 		switch {
 		case strings.Contains(err.Error(), shared.ErrApplyInProgressText):

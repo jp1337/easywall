@@ -79,6 +79,15 @@ func TestDecode_IPv4TCP(t *testing.T) {
 	}
 }
 
+// 2.23: a feed's rule names the feed after the stem, and the entry carries it.
+func TestDecode_AFeedRowNamesTheFeed(t *testing.T) {
+	e, ok := entryFromAttribute(attr(shared.FeedLogPrefix("spamhaus-drop")+"\x00",
+		ipv4(6, "203.0.113.9", "198.51.100.1", 0, tcp(51514, 22, 0x02))), noNames, time.Now())
+	if !ok || e.Rule != "feed" || e.Feed != "spamhaus-drop" {
+		t.Errorf("got rule %q feed %q (ok=%v)", e.Rule, e.Feed, ok)
+	}
+}
+
 func TestDecode_IPv6UDP(t *testing.T) {
 	e, ok := entryFromAttribute(attr("easywall bogon: ",
 		ipv6(17, "2001:db8::9", "2001:db8::1", udp(5353, 53))), noNames, time.Now())

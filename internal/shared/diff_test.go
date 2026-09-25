@@ -30,13 +30,13 @@ func TestDiffRules_ReorderingPortsIsNotAChange(t *testing.T) {
 }
 
 func TestDiffRules_ListsSkipCommentsAndBlanks(t *testing.T) {
-	cur := Rules{Blacklist: []string{"# scanners", "192.0.2.42", "", "192.0.2.118"}}
-	staged := Rules{Blacklist: []string{"192.0.2.118", "# a different note", "203.0.113.9"}}
+	cur := Rules{Blocklist: []string{"# scanners", "192.0.2.42", "", "192.0.2.118"}}
+	staged := Rules{Blocklist: []string{"192.0.2.118", "# a different note", "203.0.113.9"}}
 
 	got := DiffRules(cur, staged)
 	want := []RuleDelta{
-		{Set: "blacklist", Kind: DeltaAdded, Key: "203.0.113.9"},
-		{Set: "blacklist", Kind: DeltaRemoved, Key: "192.0.2.42"},
+		{Set: "blocklist", Kind: DeltaAdded, Key: "203.0.113.9"},
+		{Set: "blocklist", Kind: DeltaRemoved, Key: "192.0.2.42"},
 	}
 	assertDeltas(t, got, want)
 }
@@ -221,5 +221,26 @@ func assertDeltas(t *testing.T, got, want []RuleDelta) {
 		if got[i] != want[i] {
 			t.Errorf("delta %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+// A feed is switched on and off like a list entry, and the apply screen names
+// it: "Spamhaus DROP", "Own feed 2", not the id alone.
+func TestDiffRules_FeedsAreNamed(t *testing.T) {
+	cur := Rules{Feeds: []string{"dshield", "own-1"}}
+	staged := Rules{Feeds: []string{"own-1", "spamhaus-drop", "own-2"}}
+
+	got := DiffRules(cur, staged)
+	want := []RuleDelta{
+		{Set: "feeds", Kind: DeltaAdded, Key: "spamhaus-drop", Label: "Spamhaus DROP"},
+		{Set: "feeds", Kind: DeltaAdded, Key: "own-2", Label: "Own feed 2"},
+		{Set: "feeds", Kind: DeltaRemoved, Key: "dshield", Label: "DShield top block list"},
+	}
+	assertDeltas(t, got, want)
+
+	// An id no catalogue knows — a hand-edited rules.json — keeps its key and
+	// gains no label rather than repeating itself.
+	if got := DiffRules(Rules{}, Rules{Feeds: []string{"nope"}}); len(got) != 1 || got[0].Label != "" {
+		t.Errorf("an unknown feed id diffed as %+v", got)
 	}
 }

@@ -110,7 +110,7 @@ func TestParseIPList_ReturnsSliceNotNil(t *testing.T) {
 // list — so paste forty addresses with one typo among them and all forty were
 // gone, under a message saying "the line numbers are listed above the editor"
 // pointing at an empty panel.
-func TestHandleBlacklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing.T) {
+func TestHandleBlocklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
@@ -119,7 +119,7 @@ func TestHandleBlacklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
 
 	entries := "# a note I just wrote\n192.168.1.999\n203.0.113.77"
-	rec := doAuthFormRequest(t, s, "/blacklist", "entries="+urlEncode(entries))
+	rec := doAuthFormRequest(t, s, "/blocklist", "entries="+urlEncode(entries))
 
 	if reached {
 		t.Error("an invalid address list was forwarded to the core")
@@ -140,7 +140,7 @@ func TestHandleBlacklistPOST_RejectedListKeepsTheTextAndNamesTheLines(t *testing
 	}
 }
 
-func TestHandleWhitelistPOST_RejectedListKeepsTheText(t *testing.T) {
+func TestHandleAllowlistPOST_RejectedListKeepsTheText(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
@@ -148,7 +148,7 @@ func TestHandleWhitelistPOST_RejectedListKeepsTheText(t *testing.T) {
 	var reached bool
 	fc.OnCommand(shared.CmdSaveRules, func(shared.Command) { reached = true })
 
-	rec := doAuthFormRequest(t, s, "/whitelist", "entries="+urlEncode("203.0.113.10\nnot-an-address"))
+	rec := doAuthFormRequest(t, s, "/allowlist", "entries="+urlEncode("203.0.113.10\nnot-an-address"))
 
 	if reached {
 		t.Error("an invalid address list was forwarded to the core")

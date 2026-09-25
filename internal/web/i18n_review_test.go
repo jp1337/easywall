@@ -9,7 +9,7 @@ import (
 )
 
 // reviewListIDRe matches the id cell of a table row in docs-tech/i18n-review.md,
-// e.g. "| `blacklist_subtitle` | Sources that are... |". Anchored to the start
+// e.g. "| `blocklist_subtitle` | Sources that are... |". Anchored to the start
 // of the line so a backtick elsewhere in the row — the English text column
 // quotes `password`, `totp_secret` and the like — is never mistaken for an id.
 //

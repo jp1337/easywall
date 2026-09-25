@@ -28,6 +28,11 @@ type PacketLogEntry struct {
 	// Rule is one of PacketLogRules, or PacketLogRuleOther.
 	Rule string `json:"rule"`
 
+	// Feed is the feed id a "feed" row's prefix named — a catalogue id or
+	// own-N — and empty for every other rule, for a prefix naming an id no
+	// catalogue knows, and for every line a core before 2.23 wrote. Since 2.23.
+	Feed string `json:"feed,omitempty"`
+
 	// Hook is "input" or "forward", or empty when NFLOG did not say. Only an
 	// input packet can be let in by opening a port.
 	Hook  string `json:"hook,omitempty"`
@@ -64,22 +69,22 @@ type PacketICMP struct {
 }
 
 // Remedy says which of /blocked's three row actions are worth offering for a
-// packet: not "could this have let it through" — a blacklist entry never lets
+// packet: not "could this have let it through" — a blocklist entry never lets
 // a packet through, it blocks the source's next one — but "could this change
-// this packet's verdict, or block its source." The page offers only those: a
-// whitelist button on a port-scan row would promise something the chain
+// this packet's verdict, or block its source." The page offers only those: an
+// allowlist button on a port-scan row would promise something the chain
 // cannot do, and "open 3389" there invites the scanner.
 type Remedy struct {
-	Whitelist, Blacklist, Open bool
+	Allowlist, Blocklist, Open bool
 }
 
 // Remedies reads the answer off the input chain's order — protection modules,
-// then the blacklist, then the whitelist, then the port rules, then the final
-// drop (internal/core/nftables.go Apply; Reachable steps 5–9). If that order
+// then the blocklist, then the allowlist, then the feeds, then the port rules,
+// then the final drop (internal/core/nftables.go Apply; Reachable steps 5–9). If that order
 // changes, TestRemediesFollowTheChainOrder is the table to redo.
 func (e PacketLogEntry) Remedies() Remedy {
 	var r Remedy
-	// The whitelist, the blacklist and the port rules all live in the input
+	// The allowlist, the blocklist and the port rules all live in the input
 	// chain; a forwarded packet is decided by forwarded rules, which this page
 	// does not write. No easywall log rule sits in the forward chain today.
 	if e.Hook == "forward" {
@@ -87,16 +92,20 @@ func (e PacketLogEntry) Remedies() Remedy {
 	}
 	switch e.Rule {
 	case "drop", PacketLogRuleOther:
-		// The whitelist accepts before the final drop and before every custom
+		// The allowlist accepts before the final drop and before every custom
 		// rule (the nft CLI appends those after everything netlink wrote).
 		// Opening the port would rescue a custom-rule drop too; it is not
 		// offered, because it would override a rule the operator wrote.
-		r.Whitelist = true
+		r.Allowlist = true
 	case "bogon":
-		// addBogonFilter is given the whitelist as its exemption list.
-		r.Whitelist = true
+		// addBogonFilter is given the allowlist as its exemption list.
+		r.Allowlist = true
+	case "feed":
+		// The feeds are evaluated after the allowlist (spec D3): allowlisting
+		// the source is exactly what rescues it from somebody else's list.
+		r.Allowlist = true
 	}
-	r.Blacklist = e.Rule != "blacklist"
+	r.Blocklist = e.Rule != "blocklist"
 	r.Open = e.Rule == "drop" && e.DstPort != 0 &&
 		(e.Proto == "tcp" || e.Proto == "udp")
 	return r
@@ -113,8 +122,8 @@ const (
 	DropIPv6Blocked     DropReason = "ipv6_blocked"      // IPv6 is set to block now; it drops unlogged
 	DropIPv6Passthrough DropReason = "ipv6_passthrough"  // IPv6 is passed through now
 	DropICMPAcceptedNow DropReason = "icmp_accepted_now" // {Proto, Type}: the type is accepted now
-	DropBlacklistedNow  DropReason = "blacklisted_now"   // the source is on the blacklist now
-	DropWhitelistedNow  DropReason = "whitelisted_now"   // the source is on the whitelist now
+	DropBlocklistedNow  DropReason = "blocklisted_now"   // the source is on the blocklist now
+	DropAllowlistedNow  DropReason = "allowlisted_now"   // the source is on the allowlist now
 	DropIPv4Ping        DropReason = "ipv4_ping"         // an IPv4 echo request
 	DropICMPType        DropReason = "icmp_type"         // {Proto, Type}: not an accepted type
 	DropICMPUntyped     DropReason = "icmp_untyped"      // {Proto}: logged before 2.22 recorded the type
@@ -128,8 +137,8 @@ const (
 // AllDropReasons is the complete list; the interface's guard pins every one to
 // both strict locales.
 var AllDropReasons = []DropReason{
-	DropIPv6Blocked, DropIPv6Passthrough, DropICMPAcceptedNow, DropBlacklistedNow,
-	DropWhitelistedNow, DropIPv4Ping, DropICMPType, DropICMPUntyped, DropNoPort,
+	DropIPv6Blocked, DropIPv6Passthrough, DropICMPAcceptedNow, DropBlocklistedNow,
+	DropAllowlistedNow, DropIPv4Ping, DropICMPType, DropICMPUntyped, DropNoPort,
 	DropPortClosed, DropPortForwarded, DropPortSources, DropPortOpenNow,
 }
 
@@ -159,7 +168,7 @@ func ICMPv6Accepted(v6 IPv6Config) []uint8 {
 	return t
 }
 
-// ParsedRules is Rules with the blacklist, the whitelist and every port
+// ParsedRules is Rules with the blocklist, the allowlist and every port
 // rule's Sources already decoded into netip.Prefix. InAnyEntry reparses its
 // []string argument on every call; DropReason used to call it up to three
 // times per row, and /blocked/rows asks it of every on-screen row, every
@@ -170,8 +179,8 @@ func ICMPv6Accepted(v6 IPv6Config) []uint8 {
 // parsed once per request, both are unmeasurable. Use ParseRules to build
 // one; DropReasonParsed reads it.
 type ParsedRules struct {
-	Blacklist []netip.Prefix
-	Whitelist []netip.Prefix
+	Blocklist []netip.Prefix
+	Allowlist []netip.Prefix
 	TCP       []ParsedPortRule
 	UDP       []ParsedPortRule
 }
@@ -198,8 +207,8 @@ func ParseRules(r Rules) ParsedRules {
 		udp[i] = ParsedPortRule{PortRule: pr, ParsedSources: parseEntryList(pr.Sources)}
 	}
 	return ParsedRules{
-		Blacklist: parseEntryList(r.Blacklist),
-		Whitelist: parseEntryList(r.Whitelist),
+		Blocklist: parseEntryList(r.Blocklist),
+		Allowlist: parseEntryList(r.Allowlist),
 		TCP:       tcp,
 		UDP:       udp,
 	}
@@ -245,7 +254,7 @@ func inAnyParsedEntry(src netip.Addr, entries []netip.Prefix) bool {
 
 // DropReason is DropReasonParsed for a caller holding unparsed Rules — every
 // test in this package, and no production caller since ParseRules exists:
-// parsing the blacklist, the whitelist and every port rule's Sources afresh
+// parsing the blocklist, the allowlist and every port rule's Sources afresh
 // for each of a few hundred on-screen rows, every poll, is the cost
 // ParsedRules exists to avoid.
 func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
@@ -255,7 +264,7 @@ func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
 // DropReasonParsed walks the input chain in nft.Apply's order — the fragment
 // drop (prerouting, IPv4 fragments only), loopback, the IPv6 mode, the ping
 // and reset meters, established, the ICMP accepts, the other modules, the
-// Docker networks, the blacklist, the whitelist, the port rules, the custom
+// Docker networks, the blocklist, the allowlist, the port rules, the custom
 // rules, the final log — and names the first step that would decide this
 // packet differently now, or the step that was missing. pr is the rule set
 // the kernel holds (Current), already parsed once by ParseRules; n the
@@ -314,9 +323,9 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 		}
 	}
 
-	// The Docker networks accept before the blacklist (nftables.go's Apply:
+	// The Docker networks accept before the blocklist (nftables.go's Apply:
 	// the CIDR accepts render right after the optional modules, before the
-	// blacklist). Only CustomNetworks — the ones the operator named — can be
+	// blocklist). Only CustomNetworks — the ones the operator named — can be
 	// listed here; an auto-detected bridge is the gap the comment above names.
 	if n.Docker.Enabled {
 		for _, cidr := range n.Docker.CustomNetworks {
@@ -326,13 +335,13 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 		}
 	}
 
-	// The blacklist drops before the whitelist accepts; either one, now,
+	// The blocklist drops before the allowlist accepts; either one, now,
 	// decides this packet before any port rule.
-	if inAnyParsedEntry(src, pr.Blacklist) {
-		return DropWhy{Code: DropBlacklistedNow}
+	if inAnyParsedEntry(src, pr.Blocklist) {
+		return DropWhy{Code: DropBlocklistedNow}
 	}
-	if inAnyParsedEntry(src, pr.Whitelist) {
-		return DropWhy{Code: DropWhitelistedNow}
+	if inAnyParsedEntry(src, pr.Allowlist) {
+		return DropWhy{Code: DropAllowlistedNow}
 	}
 
 	switch {
@@ -389,15 +398,15 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 	return DropWhy{Code: DropPortClosed, Params: p}
 }
 
-// PacketLogRules are the ten log switches, by the name their prefix carries.
-// filters.md lists them in this order.
+// PacketLogRules are the eleven log switches, by the name their prefix
+// carries. filters.md lists them in this order.
 var PacketLogRules = []string{
 	"ssh", "icmp_flood", "syn_flood", "tcp_rst", "portscan",
-	"invalid", "fragment", "bogon", "blacklist", "drop",
+	"invalid", "fragment", "bogon", "blocklist", "feed", "drop",
 }
 
 // PacketLogRuleOther is a packet some other rule logged into easywall's group —
-// a custom rule, usually. Shown, and labelled as not one of the ten.
+// a custom rule, usually. Shown, and labelled as not one of the eleven.
 const PacketLogRuleOther = "other"
 
 // PacketLogProtos are the protocols the filter offers by name.
@@ -407,18 +416,45 @@ var PacketLogProtos = []string{"tcp", "udp", "icmp", "icmpv6"}
 // in nftables.go are "easywall <name>: ".
 const logPrefixStem = "easywall "
 
-// RuleFromPrefix names the rule behind an NFLOG prefix.
-func RuleFromPrefix(prefix string) string {
+// feedLogPrefixStem is the one prefix that carries a value: the feed's id.
+const feedLogPrefixStem = logPrefixStem + "feed: "
+
+// FeedLogPrefix is the log prefix of feed id's drop rule (plan P10). The
+// kernel log reads "easywall feed: spamhaus-drop IN=…". The kernel refuses a
+// prefix longer than NF_LOG_PREFIXLEN - 1 = 127 bytes, and
+// TestFeedLogPrefixesFitTheKernel holds every id to that.
+func FeedLogPrefix(id string) string { return feedLogPrefixStem + id + " " }
+
+// ParseLogPrefix names the rule behind an NFLOG prefix and, for a feed's rule,
+// the feed. An id that is not a known feed id decodes as rule "feed" with no
+// id: the packet was refused by a feed, and which one is not a thing to guess.
+func ParseLogPrefix(prefix string) (rule, feed string) {
 	name, ok := strings.CutPrefix(prefix, logPrefixStem)
 	if !ok {
-		return PacketLogRuleOther
+		return PacketLogRuleOther, ""
 	}
 	name = strings.TrimRight(name, "\x00 ")
-	name = strings.ReplaceAll(strings.TrimSuffix(name, ":"), "-", "_")
-	if slices.Contains(PacketLogRules, name) {
-		return name
+	if id, ok := strings.CutPrefix(name, "feed:"); ok {
+		if id = strings.TrimSpace(id); KnownFeedID(id) {
+			return "feed", id
+		}
+		return "feed", ""
 	}
-	return PacketLogRuleOther
+	name = strings.ReplaceAll(strings.TrimSuffix(name, ":"), "-", "_")
+	// A rule 2.22 loaded keeps its prefix, "easywall blacklist: ", until the
+	// next apply.
+	name = CurrentListName(name)
+	if slices.Contains(PacketLogRules, name) {
+		return name, ""
+	}
+	return PacketLogRuleOther, ""
+}
+
+// RuleFromPrefix names the rule behind an NFLOG prefix — ParseLogPrefix's
+// first half.
+func RuleFromPrefix(prefix string) string {
+	rule, _ := ParseLogPrefix(prefix)
+	return rule
 }
 
 const (

@@ -43,7 +43,7 @@ type blockedRows struct {
 
 	// What a default-drop row's reason is read against: the rules the kernel
 	// holds (Current), parsed once here rather than once per row (DropReason's
-	// InAnyEntry calls used to reparse the blacklist, the whitelist and every
+	// InAnyEntry calls used to reparse the blocklist, the allowlist and every
 	// port rule's Sources for each on-screen row, every poll — see Task 8's
 	// "Cost per poll"), and the network settings they were applied with.
 	// WhyKnown is false when either could not be read, and then no row carries
@@ -51,6 +51,26 @@ type blockedRows struct {
 	Rules    shared.ParsedRules
 	Net      shared.NetworkSettings
 	WhyKnown bool
+
+	// FeedNames is what each feed a "feed" row names is called, by id — filled
+	// by feedNames, only when such a row is on screen.
+	FeedNames map[string]string
+}
+
+// feedNames fills rows.FeedNames for the "feed" rows on screen: the catalogue
+// name, or an own feed's configured one, in the request's language.
+func (s *Server) feedNames(r *http.Request, rows *blockedRows) {
+	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
+	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	for _, e := range rows.Entries {
+		if e.Rule != "feed" || e.Feed == "" {
+			continue
+		}
+		if rows.FeedNames == nil {
+			rows.FeedNames = map[string]string{}
+		}
+		rows.FeedNames[e.Feed] = s.feedLabel(tFunc, e.Feed)
+	}
 }
 
 // rulesNow fills rows' reason inputs, and asks only when a default-drop row is
@@ -105,7 +125,9 @@ func blockedFilter(q url.Values) (shared.PacketLogFilter, string) {
 		Src:   strings.TrimSpace(q.Get("src")),
 		Dst:   strings.TrimSpace(q.Get("dst")),
 		Proto: q.Get("proto"),
-		Rule:  q.Get("rule"),
+		// A filter saved before 2.23 says rule=blacklist; read it as the rule's
+		// name now, and the redirect in handleBlocked moves the URL on.
+		Rule:  shared.CurrentListName(q.Get("rule")),
 		InDev: strings.TrimSpace(q.Get("in")),
 	}
 	if p := strings.TrimSpace(q.Get("port")); p != "" {
@@ -194,6 +216,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.Listening = res.Listening
 		data.Rows.Since = res.Since
 		s.rulesNow(&data.Rows)
+		s.feedNames(r, &data.Rows)
 	}
 	// Only decides what the empty state and the header say. Unreadable, it
 	// says nothing rather than something false.
@@ -222,6 +245,7 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 		rows.Listening = res.Listening
 		rows.Since = res.Since
 		s.rulesNow(&rows)
+		s.feedNames(r, &rows)
 	} else {
 		slog.Debug("could not get the packet log for the live tail", "error", err)
 		rows.CoreErr = err.Error()
@@ -256,7 +280,7 @@ func (s *Server) handleBlockedStage(w http.ResponseWriter, r *http.Request) {
 // none.
 //
 // The audit entry is the core's: SAVE_RULES writes rules_saved with the change
-// described, the same entry the blacklist page's own Save produces.
+// described, the same entry the blocklist page's own Save produces.
 func (s *Server) stageFromLog(r *http.Request) string {
 	state, err := s.client.GetRules()
 	if err != nil {
@@ -268,8 +292,9 @@ func (s *Server) stageFromLog(r *http.Request) string {
 	var payload any
 	var done string
 
-	switch act := r.FormValue("act"); act {
-	case "whitelist", "blacklist":
+	// A /blocked page left open across the upgrade posts the old list name.
+	switch act := shared.CurrentListName(r.FormValue("act")); act {
+	case "allowlist", "blocklist":
 		// One address, never a network: a network is a decision, and the list
 		// page is where it is typed. Unmapped and unzoned before anything reads
 		// it, so the guard and the kernel see the same spelling.
@@ -278,9 +303,9 @@ func (s *Server) stageFromLog(r *http.Request) string {
 			return "blocked_refused_invalid"
 		}
 		entry := addr.Unmap().WithZone("").String()
-		list := &next.Whitelist
-		if act == "blacklist" {
-			list = &next.Blacklist
+		list := &next.Allowlist
+		if act == "blocklist" {
+			list = &next.Blocklist
 		}
 		if shared.InAnyEntry(addr.Unmap().WithZone(""), *list) {
 			return "blocked_refused_already"
@@ -327,13 +352,16 @@ func (s *Server) stageFromLog(r *http.Request) string {
 // lockoutRefusal answers whether staging after instead of before would take
 // the operator's way in away, and names why. Empty means go ahead.
 //
-// It asks reachVerdict — the function the apply screen asks — and not
-// shared.Reachable, because reachVerdict is what resolves the operator's
-// address through trusted_proxies and knows the address is local. Then it asks
-// the one thing reachVerdict cannot: whether the TCP peer is being blacklisted.
-// Behind a proxy the address in the log is the proxy's, and the verdict about
-// the operator's own address stays open while everyone who comes through that
-// proxy is cut off.
+// It asks the same question reachVerdict answers for the apply screen — same
+// address resolution through trusted_proxies, same feed lookup — twice, for
+// before and after. The two share the request's address and, for every row
+// action this handler stages, the same staged.Feeds (only the allow/block/port
+// lists change here), so the feed hits are fetched once and handed to both:
+// GET_FEEDS asked twice for the identical address would be the same answer
+// paid for twice. Then it asks the one thing reachVerdict cannot: whether the
+// TCP peer is being blocklisted. Behind a proxy the address in the log is the
+// proxy's, and the verdict about the operator's own address stays open while
+// everyone who comes through that proxy is cut off.
 func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) string {
 	opts, oErr := s.client.GetOptions()
 	nets, nErr := s.client.GetSettings()
@@ -342,8 +370,13 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 			"options", oErr, "settings", nErr)
 		return "blocked_refused_unknown"
 	}
-	was := s.reachVerdict(r, before, *opts, *nets)
-	now := s.reachVerdict(r, after, *opts, *nets)
+	addr, port, proxied, fallback := s.requestAddrAndPort(r)
+	was, now := fallback, fallback
+	if fallback == nil {
+		hits, unknown := s.feedHits(addr, before)
+		was = s.verdictFor(r, before, *opts, *nets, addr, port, proxied, hits, unknown)
+		now = s.verdictFor(r, after, *opts, *nets, addr, port, proxied, hits, unknown)
+	}
 	if now.Verdict == shared.ReachBlocked && was.Verdict != shared.ReachBlocked {
 		return "blocked_refused_lockout"
 	}
@@ -353,7 +386,7 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 		return ""
 	}
 	peer = peer.Unmap().WithZone("")
-	if shared.InAnyEntry(peer, after.Blacklist) && !shared.InAnyEntry(peer, before.Blacklist) {
+	if shared.InAnyEntry(peer, after.Blocklist) && !shared.InAnyEntry(peer, before.Blocklist) {
 		// "Proxy" only when the peer is a configured trusted proxy — with or
 		// without a header naming a client behind it. Not clientAddr's proxied:
 		// that is header presence, and any untrusted caller can send a header
@@ -370,8 +403,10 @@ func (s *Server) lockoutRefusal(r *http.Request, before, after shared.Rules) str
 // blockedRuleOption is the /options card behind each rule a /blocked row can
 // name, by the card's toml key — its anchor is opt-<key> (options.html). Every
 // rule in shared.PacketLogRules has an entry, and an empty one is a decision:
-// the blacklist and the final drop are not switches, so no card refused those
-// packets. TestEveryBlockedRuleLeadsToItsOption holds both halves.
+// the blocklist and the final drop are not switches, so no card refused those
+// packets. A feed is not a switch on /options either: its chip leads to the
+// feed's own row on the blocklist page instead (blocked.html).
+// TestEveryBlockedRuleLeadsToItsOption holds all of it.
 var blockedRuleOption = map[string]string{
 	"ssh":        "ssh_brute_force",
 	"icmp_flood": "icmp_flood",
@@ -381,6 +416,7 @@ var blockedRuleOption = map[string]string{
 	"invalid":    "drop_invalid_packets",
 	"fragment":   "drop_fragments",
 	"bogon":      "bogon_filter",
-	"blacklist":  "",
+	"blocklist":  "",
+	"feed":       "",
 	"drop":       "",
 }

@@ -62,7 +62,7 @@ Step by step: [Applying rules]({{ '/docs/features/apply/' | relative_url }}).
 
 ## The socket protocol
 
-Twenty-three message kinds, declared as Go structs on both sides. Adding an
+Twenty-five message kinds, declared as Go structs on both sides. Adding an
 operation means adding a constant to both ends.
 
 One exception, worth knowing: `SaveRulesPayload.Rules` is an `interface{}` that the
@@ -88,6 +88,11 @@ whole protocol was.
 | `GET_HEALTH` | whether the firewall is doing what it says — three facts evaluated in order, plus the last self-test's identity |
 | `PANIC` · `RESUME` | tear the table down and record it · end that and restore |
 | `LOG_EVENT` | one of thirteen login events, from a fixed enum, for the audit log |
+| `UPDATE_FEED` | a new version of one feed, fetched by the web process; the core re-checks every entry before it stores or loads any |
+| `GET_FEEDS` | per feed: entry counts, when it changed and was checked, packets dropped — never the entries |
+
+A message is at most 8 MiB each way. A longer request is answered *request too
+large*.
 
 Full list: [`internal/shared/protocol.go`](https://github.com/jp1337/easywall/blob/main/internal/shared/protocol.go).
 

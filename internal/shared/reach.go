@@ -2,6 +2,7 @@ package shared
 
 import (
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -38,16 +39,20 @@ const (
 type ReachReason string
 
 const (
-	ReasonNoAddress          ReachReason = "no_address"
-	ReasonProxied            ReachReason = "proxied"
-	ReasonLoopback           ReachReason = "loopback"
-	ReasonIPv6Passthrough    ReachReason = "ipv6_passthrough"
-	ReasonIPv6Blocked        ReachReason = "ipv6_blocked"
-	ReasonBogonFilter        ReachReason = "bogon_filter"
-	ReasonDockerNetwork      ReachReason = "docker_network"
-	ReasonDockerBridge       ReachReason = "docker_bridge"
-	ReasonBlacklisted        ReachReason = "blacklisted"
-	ReasonWhitelisted        ReachReason = "whitelisted"
+	ReasonNoAddress       ReachReason = "no_address"
+	ReasonProxied         ReachReason = "proxied"
+	ReasonLoopback        ReachReason = "loopback"
+	ReasonIPv6Passthrough ReachReason = "ipv6_passthrough"
+	ReasonIPv6Blocked     ReachReason = "ipv6_blocked"
+	ReasonBogonFilter     ReachReason = "bogon_filter"
+	ReasonDockerNetwork   ReachReason = "docker_network"
+	ReasonDockerBridge    ReachReason = "docker_bridge"
+	ReasonBlocklisted     ReachReason = "blocklisted"
+	ReasonAllowlisted     ReachReason = "allowlisted"
+	ReasonInFeed          ReachReason = "in_feed"
+	// ReasonFeedsUnreadable is the caller's, not Reachable's: GET_FEEDS
+	// failed and the answer depends on whether this address is in a feed.
+	ReasonFeedsUnreadable    ReachReason = "feeds_unreadable"
 	ReasonPortOpen           ReachReason = "port_open"
 	ReasonPortSourceMismatch ReachReason = "port_source_mismatch"
 	ReasonCustomRules        ReachReason = "custom_rules"
@@ -59,8 +64,8 @@ const (
 var AllReachReasons = []ReachReason{
 	ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
 	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
-	ReasonBlacklisted, ReasonWhitelisted, ReasonPortOpen, ReasonCustomRules,
-	ReasonPortSourceMismatch, ReasonNoRule,
+	ReasonBlocklisted, ReasonAllowlisted, ReasonInFeed, ReasonFeedsUnreadable,
+	ReasonPortOpen, ReasonCustomRules, ReasonPortSourceMismatch, ReasonNoRule,
 }
 
 // BogonRanges are the source networks the bogon filter drops on any interface
@@ -109,9 +114,10 @@ var dockerPoolRanges = []string{"172.16.0.0/12"}
 // is one the host itself holds" — computed by the caller from
 // net.InterfaceAddrs(), which stays out of this package deliberately: this
 // function reasons about rules, not about which interfaces exist on the machine
-// it happens to run on.
+// it happens to run on. feedHits are the feed ids whose stored copy holds src
+// (GET_FEEDS with an address, plan P9); only those r switches on count.
 func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
-	src netip.Addr, port uint16, proxied, local bool) (ReachVerdict, ReachReason) {
+	src netip.Addr, port uint16, proxied, local bool, feedHits []string) (ReachVerdict, ReachReason) {
 
 	// Earlier than the chain, because no amount of rule evaluation fixes it: if
 	// the peer is a proxy then src is the proxy's address and not the operator's.
@@ -173,7 +179,7 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 	// the two worst outcomes available — a false alarm on every LAN request, or
 	// silence on a real lockout.
 	if o.Bogons && src.Is4() && inAnyCIDR(src, BogonRanges) &&
-		!InAnyEntry(src, r.Whitelist) && !inAnyCIDR(src, dockerNets) {
+		!InAnyEntry(src, r.Allowlist) && !inAnyCIDR(src, dockerNets) {
 		return ReachUnknown, ReasonBogonFilter
 	}
 
@@ -195,15 +201,24 @@ func Reachable(r Rules, o FirewallOptions, n NetworkSettings,
 		}
 	}
 
-	// 7. The blacklist drops, and it is consulted *before* the whitelist. An
+	// 7. The blocklist drops, and it is consulted *before* the allowlist. An
 	// operator's own address on both lists is blocked. That is the trap.
-	if InAnyEntry(src, r.Blacklist) {
-		return ReachBlocked, ReasonBlacklisted
+	if InAnyEntry(src, r.Blocklist) {
+		return ReachBlocked, ReasonBlocklisted
 	}
 
-	// 8. The whitelist accepts.
-	if InAnyEntry(src, r.Whitelist) {
-		return ReachOpen, ReasonWhitelisted
+	// 8. The allowlist accepts.
+	if InAnyEntry(src, r.Allowlist) {
+		return ReachOpen, ReasonAllowlisted
+	}
+
+	// 8½. The feeds drop, after the allowlist (spec D3) and before any port. A
+	// hit in a feed the staged rules do not switch on is a copy the core still
+	// keeps, not a rule.
+	for _, id := range r.Feeds {
+		if slices.Contains(feedHits, id) {
+			return ReachBlocked, ReasonInFeed
+		}
 	}
 
 	// 9. The port. TCP only: the interface is served over TCP, and a UDP rule for

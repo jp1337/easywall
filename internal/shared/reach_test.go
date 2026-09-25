@@ -24,6 +24,7 @@ func TestReachable(t *testing.T) {
 		src     netip.Addr
 		proxied bool
 		local   bool
+		hits    []string // feed ids whose copy holds src
 		verdict ReachVerdict
 		reason  ReachReason
 	}{
@@ -41,12 +42,12 @@ func TestReachable(t *testing.T) {
 		{name: "the same address without local still gets a real answer",
 			src: netip.MustParseAddr("192.168.1.5"), local: false,
 			verdict: ReachBlocked, reason: ReasonNoRule},
-		{name: "a zoned link-local address still matches a whitelist entry",
+		{name: "a zoned link-local address still matches an allowlist entry",
 			// netip.Addr equality and Prefix.Contains both refuse a zoned
 			// address outright; the zone has to come off before either runs.
-			rules:   Rules{Whitelist: []string{"fe80::1"}},
+			rules:   Rules{Allowlist: []string{"fe80::1"}},
 			src:     netip.MustParseAddr("fe80::1%eth0"),
-			verdict: ReachOpen, reason: ReasonWhitelisted},
+			verdict: ReachOpen, reason: ReasonAllowlisted},
 		{name: "ipv6 passthrough accepts before anything else",
 			net: NetworkSettings{IPv6: IPv6Config{Mode: IPv6Passthrough}}, src: v6,
 			verdict: ReachOpen, reason: ReasonIPv6Passthrough},
@@ -56,10 +57,10 @@ func TestReachable(t *testing.T) {
 		{name: "the bogon filter cannot be decided from here",
 			rules: open, opts: FirewallOptions{Bogons: true}, src: lan,
 			verdict: ReachUnknown, reason: ReasonBogonFilter},
-		{name: "a whitelisted source leaves the bogon chain before any drop",
-			rules: Rules{Whitelist: []string{"192.168.133.0/24"}},
+		{name: "an allowlisted source leaves the bogon chain before any drop",
+			rules: Rules{Allowlist: []string{"192.168.133.0/24"}},
 			opts:  FirewallOptions{Bogons: true}, src: lan,
-			verdict: ReachOpen, reason: ReasonWhitelisted},
+			verdict: ReachOpen, reason: ReasonAllowlisted},
 		{name: "a named docker network is accepted",
 			net: NetworkSettings{Docker: DockerConfig{Enabled: true,
 				CustomNetworks: []string{"172.20.0.0/16"}}},
@@ -80,11 +81,11 @@ func TestReachable(t *testing.T) {
 			net:     NetworkSettings{Docker: DockerConfig{Enabled: true, AllowBridgeNetworks: true}},
 			src:     netip.MustParseAddr("10.0.0.5"),
 			verdict: ReachBlocked, reason: ReasonNoRule},
-		{name: "blacklist is consulted before whitelist",
-			rules: Rules{Blacklist: []string{"203.0.113.7"}, Whitelist: []string{"203.0.113.7"}},
-			src:   pub, verdict: ReachBlocked, reason: ReasonBlacklisted},
-		{name: "a comment in the blacklist blocks nobody",
-			rules: Rules{Blacklist: []string{"# 203.0.113.7 was noisy last week"}, TCP: open.TCP},
+		{name: "blocklist is consulted before allowlist",
+			rules: Rules{Blocklist: []string{"203.0.113.7"}, Allowlist: []string{"203.0.113.7"}},
+			src:   pub, verdict: ReachBlocked, reason: ReasonBlocklisted},
+		{name: "a comment in the blocklist blocks nobody",
+			rules: Rules{Blocklist: []string{"# 203.0.113.7 was noisy last week"}, TCP: open.TCP},
 			src:   pub, verdict: ReachOpen, reason: ReasonPortOpen},
 		{name: "the port being open is the ordinary answer",
 			rules: open, src: pub, verdict: ReachOpen, reason: ReasonPortOpen},
@@ -100,6 +101,25 @@ func TestReachable(t *testing.T) {
 		{name: "a custom block of nothing but comments decides nothing",
 			rules: Rules{Custom: []string{"# nothing here yet", ""}}, src: pub,
 			verdict: ReachBlocked, reason: ReasonNoRule},
+		// Spec D3 and §4: feeds after the allowlist, before the ports.
+		{name: "in a staged feed, with the port open",
+			rules: Rules{TCP: open.TCP, Feeds: []string{"cins", "dshield"}}, src: pub, hits: []string{"dshield"},
+			verdict: ReachBlocked, reason: ReasonInFeed},
+		{name: "in a feed and on the allowlist: the allowlist is first",
+			rules: Rules{Allowlist: []string{"203.0.113.0/24"}, Feeds: []string{"dshield"}}, src: pub, hits: []string{"dshield"},
+			verdict: ReachOpen, reason: ReasonAllowlisted},
+		{name: "on the blocklist and in a feed: the blocklist is first",
+			rules: Rules{TCP: open.TCP, Blocklist: []string{"203.0.113.7"}, Feeds: []string{"dshield"}}, src: pub,
+			hits: []string{"dshield"}, verdict: ReachBlocked, reason: ReasonBlocklisted},
+		{name: "a hit in a feed the staged rules do not switch on",
+			rules: Rules{TCP: open.TCP, Feeds: []string{"cins"}}, src: pub, hits: []string{"dshield"},
+			verdict: ReachOpen, reason: ReasonPortOpen},
+		{name: "a feed that holds nothing of this address",
+			rules: Rules{TCP: open.TCP, Feeds: []string{"dshield"}}, src: pub,
+			verdict: ReachOpen, reason: ReasonPortOpen},
+		{name: "loopback outranks a feed",
+			rules: Rules{Feeds: []string{"dshield"}}, src: netip.MustParseAddr("127.0.0.1"), hits: []string{"dshield"},
+			verdict: ReachOpen, reason: ReasonLoopback},
 		{name: "nothing matched and the policy drops",
 			src: pub, verdict: ReachBlocked, reason: ReasonNoRule},
 		{name: "an address that will not parse says so",
@@ -108,7 +128,7 @@ func TestReachable(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			v, reason := Reachable(tc.rules, tc.opts, tc.net, tc.src, webPort, tc.proxied, tc.local)
+			v, reason := Reachable(tc.rules, tc.opts, tc.net, tc.src, webPort, tc.proxied, tc.local, tc.hits)
 			if v != tc.verdict || reason != tc.reason {
 				t.Errorf("got %s/%s, want %s/%s", v, reason, tc.verdict, tc.reason)
 			}
@@ -228,7 +248,7 @@ func TestReachable_PortSources(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			r := Rules{TCP: []PortRule{{Port: "12227", Sources: tc.sources}}}
-			v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, tc.src, port, false, false)
+			v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, tc.src, port, false, false, nil)
 			if v != tc.wantVerdict || reason != tc.wantReason {
 				t.Errorf("Reachable = (%s, %s), want (%s, %s)", v, reason, tc.wantVerdict, tc.wantReason)
 			}
@@ -245,7 +265,7 @@ func TestReachable_PortSources_AnUnrestrictedRuleWins(t *testing.T) {
 		{Port: "443", Sources: []string{"192.168.0.0/16"}},
 		{Port: "443"},
 	}}
-	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false)
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false, nil)
 	if v != ReachOpen || reason != ReasonPortOpen {
 		t.Errorf("Reachable = (%s, %s), want (open, port_open)", v, reason)
 	}
@@ -261,7 +281,7 @@ func TestReachable_PortSources_ACustomRuleOutranksTheRestriction(t *testing.T) {
 		TCP:    []PortRule{{Port: "443", Sources: []string{"192.168.0.0/16"}}},
 		Custom: []string{"tcp dport 443 accept"},
 	}
-	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false)
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false, nil)
 	if v != ReachUnknown || reason != ReasonCustomRules {
 		t.Errorf("Reachable = (%s, %s), want (unknown, custom_rules)", v, reason)
 	}
@@ -277,7 +297,7 @@ func TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller(t *testing
 		{Port: "443", Sources: []string{"192.168.0.0/16"}},
 		{Port: "443", Sources: []string{"203.0.113.0/24"}},
 	}}
-	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false)
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 443, false, false, nil)
 	if v != ReachOpen || reason != ReasonPortOpen {
 		t.Errorf("Reachable = (%s, %s), want (open, port_open)", v, reason)
 	}
@@ -290,7 +310,7 @@ func TestReachable_PortSources_ASecondRestrictedRuleCanCoverTheCaller(t *testing
 func TestReachable_AForwardedOnlyRuleDoesNotOpenTheHost(t *testing.T) {
 	src := netip.MustParseAddr("203.0.113.9")
 	r := Rules{TCP: []PortRule{{Port: "12227", Scope: ScopeForwarded}}}
-	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 12227, false, false)
+	v, reason := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 12227, false, false, nil)
 	if v != ReachBlocked || reason != ReasonNoRule {
 		t.Errorf("Reachable = (%s, %s), want (blocked, no_rule)", v, reason)
 	}
@@ -298,7 +318,7 @@ func TestReachable_AForwardedOnlyRuleDoesNotOpenTheHost(t *testing.T) {
 	// Both scopes, and the empty scope that means host, still open it.
 	for _, scope := range []PortScope{"", ScopeHost, ScopeBoth} {
 		r := Rules{TCP: []PortRule{{Port: "12227", Scope: scope}}}
-		if v, _ := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 12227, false, false); v != ReachOpen {
+		if v, _ := Reachable(r, FirewallOptions{}, NetworkSettings{}, src, 12227, false, false, nil); v != ReachOpen {
 			t.Errorf("scope %q: Reachable = %s, want open", scope, v)
 		}
 	}

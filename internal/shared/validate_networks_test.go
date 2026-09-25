@@ -32,7 +32,7 @@ func TestNetworkListsKeepCommentsAndBlanksTheEditorAllows(t *testing.T) {
 
 // The other half: what the editor must refuse, because the apply step turns it
 // into no rule at all. A bare address is the one that catches people — it is a
-// valid IP, so the blacklist's validator waves it through.
+// valid IP, so the blocklist's validator waves it through.
 func TestNetworkListsRefuseWhatWouldProduceNoRule(t *testing.T) {
 	for _, entry := range []string{
 		"192.168.1.5", // an address, not a network

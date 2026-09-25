@@ -40,7 +40,7 @@ package core
 //	                          would match them too — the mask could be reversed
 //	                          and the test would stay green.
 //	claims 2-4  router -> peer a *new* connection has to arrive at the peer for a
-//	                          port rule or a blacklist entry to have anything to
+//	                          port rule or a blocklist entry to have anything to
 //	                          say. Nothing listens inside the peer, which is what
 //	                          makes the measurement sharp rather than a problem:
 //	                          a SYN the chain accepts reaches the peer's TCP
@@ -138,7 +138,7 @@ func selftestClaims() []selftestClaim {
 		{"a reply on an established connection passes", proveEstablishedPasses},
 		{"an open port accepts a connection", proveOpenPortAccepts},
 		{"a closed port does not", proveClosedPortRefuses},
-		{"a blacklisted address does not reach an open port", proveBlacklistWins},
+		{"a blocklisted address does not reach an open port", proveBlocklistWins},
 		{"a forwarded rule opens one container port and the deny closes the rest",
 			proveForwardedPortFiltered},
 	}
@@ -476,18 +476,18 @@ func proveClosedPortRefuses() (bool, string, error) {
 	})
 }
 
-// proveBlacklistWins measures the blacklist against an open port.
+// proveBlocklistWins measures the blocklist against an open port.
 //
-// Apply puts the blacklist ahead of the port rules, so a source on the list
+// Apply puts the blocklist ahead of the port rules, so a source on the list
 // must not reach a port the table opens. The address on the list is this side's
 // end of the veth, which is the source of every probe.
 //
-// The control is the same table minus the one blacklist entry, so the two runs
+// The control is the same table minus the one blocklist entry, so the two runs
 // differ by exactly one rule. Without it a drop would also be what a harness
 // that stopped routing between the two applies looks like — and that is the
 // confusion reach_integration_test.go:184's comment records, where the
 // SSH brute-force chain's accept outranked the very list under test.
-func proveBlacklistWins() (bool, string, error) {
+func proveBlocklistWins() (bool, string, error) {
 	return withProof(func(p *proof) (bool, string, error) {
 		open := shared.Rules{TCP: []shared.PortRule{{
 			Port:        strconv.Itoa(selftestOpenPort),
@@ -501,8 +501,8 @@ func proveBlacklistWins() (bool, string, error) {
 			return false, "", err
 		}
 		if !crossed {
-			return false, "", fmt.Errorf("control refused: with %s not blacklisted, open port %d was "+
-				"still not answered, so a drop with the entry added would not be the blacklist's doing "+
+			return false, "", fmt.Errorf("control refused: with %s not blocklisted, open port %d was "+
+				"still not answered, so a drop with the entry added would not be the blocklist's doing "+
 				"and this claim cannot be settled. The harness is not implicated: if the rule that "+
 				"opens %d is the broken thing, \"an open port accepts a connection\" is the claim that "+
 				"reports it, and a false claim there outranks this one",
@@ -510,7 +510,7 @@ func proveBlacklistWins() (bool, string, error) {
 		}
 
 		blocked := open
-		blocked.Blacklist = []string{p.h.RouterAddr().String()}
+		blocked.Blocklist = []string{p.h.RouterAddr().String()}
 		if err := p.apply(blocked, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
 			return false, "", err
 		}
@@ -519,7 +519,7 @@ func proveBlacklistWins() (bool, string, error) {
 			return false, "", err
 		}
 		if crossed {
-			return false, fmt.Sprintf("%s is on the blacklist and still reached open port %d",
+			return false, fmt.Sprintf("%s is on the blocklist and still reached open port %d",
 				p.h.RouterAddr(), selftestOpenPort), nil
 		}
 		return true, "", nil

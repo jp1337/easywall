@@ -146,6 +146,12 @@ type NftablesManager struct {
 	// later refactor collapsing the two checks into one would otherwise be
 	// silent.
 	checksRun int
+
+	// sndbuf, when non-zero, is the send buffer feedSockOption gives every
+	// socket dialled for the flush in progress; sndbufCapped records that the
+	// kernel refused SO_SNDBUFFORCE. Both belong to flushLarge, under mu.
+	sndbuf       int
+	sndbufCapped bool
 }
 
 // builtRecorder is the production adder: it records the rule and forwards it to
@@ -180,11 +186,12 @@ type ruleAdder interface {
 
 // NewNftablesManager creates a new manager and verifies netlink connectivity.
 func NewNftablesManager() (*NftablesManager, error) {
-	conn, err := nftables.New()
+	m := &NftablesManager{}
+	conn, err := nftables.New(nftables.WithSockOptions(m.feedSockOption))
 	if err != nil {
 		return nil, fmt.Errorf("open netlink connection: %w", err)
 	}
-	m := &NftablesManager{conn: conn}
+	m.conn = conn
 	m.adder = builtRecorder{m}
 	return m, nil
 }
@@ -210,11 +217,12 @@ func NewNftablesManager() (*NftablesManager, error) {
 // check that inspects nothing is the defect this release exists to prevent
 // arriving through the guard built to prevent it.
 func NewNftablesManagerInNamespace(nsFD int) (*NftablesManager, error) {
-	conn, err := nftables.New(nftables.WithNetNSFd(nsFD))
+	m := &NftablesManager{nsFD: nsFD}
+	conn, err := nftables.New(nftables.WithNetNSFd(nsFD), nftables.WithSockOptions(m.feedSockOption))
 	if err != nil {
 		return nil, fmt.Errorf("reach nftables in the self-test namespace: %w", err)
 	}
-	m := &NftablesManager{conn: conn, nsFD: nsFD}
+	m.conn = conn
 	m.adder = builtRecorder{m}
 	return m, nil
 }
@@ -432,7 +440,7 @@ type RuleCounter struct {
 // One UI rule with three sources is three kernel rules — addPortAccept builds
 // one per source — so the figure for that port is their sum, and the id in each
 // rule's comment is what makes summing them possible. A rule with no comment is
-// skipped: the module rules, the blacklist, the whitelist and the Docker
+// skipped: the module rules, the blocklist, the allowlist and the Docker
 // exceptions all carry no id and are not what this counts. A scope = "both"
 // rule is the same arithmetic one chain wider: one kernel rule per chain, same
 // id, summed the same way — the rule is one rule, and the packets it accepted
@@ -539,10 +547,9 @@ func (m *NftablesManager) Reset() error {
 	return m.reset()
 }
 
-// reset is Reset's body, split out so Apply can call it without taking mu a
-// second time.
+// reset is Reset's body, split out so it runs under a lock its caller holds.
 //
-// Apply used to call Reset() directly. Once Apply itself took the lock for
+// Apply used to call Reset() directly, and until 2.23 called this. Once Apply itself took the lock for
 // the whole cycle, that became Apply calling m.mu.Lock() and then, from
 // inside the same goroutine, Reset() calling m.mu.Lock() again — a plain
 // sync.Mutex is not reentrant, so the second Lock never returns. That is a
@@ -550,7 +557,8 @@ func (m *NftablesManager) Reset() error {
 // does not time out, does not release beginApply's slot, and every method on
 // this type that also takes mu — including the one the dashboard's Status
 // polls every few seconds — hangs behind it forever. reset() assumes the
-// caller already holds mu; only Reset() and Apply() may call it.
+// caller already holds mu. Since 2.23 only Reset() calls it: ApplyWithFeeds
+// deletes and recreates the table inside its own transaction instead.
 func (m *NftablesManager) reset() error {
 	if m.conn == nil {
 		return fmt.Errorf("nftables connection not available")
@@ -571,14 +579,24 @@ func (m *NftablesManager) reset() error {
 	return m.conn.Flush()
 }
 
-// Apply translates the given RulesState and FirewallOptions into nftables
-// rules and installs them atomically via a single netlink Flush call.
+// Apply is ApplyWithFeeds with no feed contents: every enabled feed gets an
+// empty set. The tests and the self-test's own table call it; every production
+// writer calls ApplyWithFeeds with the stored copies
+// (TestNoProductionCodeCallsApplyWithoutFeeds).
+func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, netCfg shared.NetworkSettings) error {
+	return m.ApplyWithFeeds(state, opts, netCfg, nil)
+}
+
+// ApplyWithFeeds translates the given RulesState and FirewallOptions into
+// nftables rules and installs them via a single netlink Flush call, with the
+// sets of the feeds state.Current enables filled from feeds.
 //
 // netCfg carries the IPv6 disposition, Docker coexistence and the routing mode
 // as one value. They used to arrive as separate parameters and a third was one
 // parameter too many — the caller already holds them together, and the three
 // of them describe one configuration that has to reach the kernel intact.
-func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOptions, netCfg shared.NetworkSettings) error {
+func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.FirewallOptions,
+	netCfg shared.NetworkSettings, feeds FeedContents) error {
 	// Held for the whole cycle, deliberately including applyCustomRules'
 	// subprocess below — up to NftTimeout (30s) — and not just the netlink
 	// calls. The custom rules assume the table Apply just built is still
@@ -632,8 +650,9 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	m.built = nil
 
 	ipv6, docker, routing := netCfg.IPv6, netCfg.Docker, netCfg.Routing
-	// Check the rules before Reset, not after: Reset deletes the table, so a
-	// failure past this point costs the working ruleset. The builders below
+	// Check the rules before anything is queued. Since 2.23 a batch the kernel
+	// refuses leaves the previous table in force, but a builder that skips an
+	// entry it cannot parse would still be accepted by the kernel. The builders below
 	// each guard their own parsing and return quietly when an address will not
 	// parse — which used to mean a malformed entry was listed in the interface
 	// as blocked while no rule for it ever existed. Refusing here makes that
@@ -664,14 +683,29 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		routing.Mode = shared.RoutingClosed
 	}
 
-	if err := m.reset(); err != nil {
-		return fmt.Errorf("reset table: %w", err)
+	if m.conn == nil {
+		return fmt.Errorf("reset table: nftables connection not available")
 	}
 
+	// Delete and recreate the table in the transaction that fills it, so the
+	// kernel swaps the old ruleset for the new one in one commit. Until 2.23
+	// this was reset() — a delete and an add, flushed on their own — and the
+	// table then had no chains, which filters nothing, until the rules' flush
+	// landed: about a millisecond. Feed sets made it a third and half of a
+	// second (100 000 elements, and the catalogue: 325 ms and 476 ms, best of five,
+	// TestIntegration_ApplyNeverLeavesTheTableWithoutChains), which this
+	// release does not get to cause. The first add makes the delete valid on a
+	// host with no table yet; AddTable does not fail on one that exists.
+	//
+	// A batch the kernel refuses now leaves the previous rules in force rather
+	// than an empty table, and the rollback that follows rewrites them.
 	table := &nftables.Table{
 		Name:   tableName,
 		Family: nftables.TableFamilyINet,
 	}
+	m.conn.AddTable(table)
+	m.conn.DelTable(table)
+	m.conn.AddTable(table)
 
 	// --- INPUT chain (base, default DROP) ---
 	inputChain := m.conn.AddChain(&nftables.Chain{
@@ -799,7 +833,7 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	}
 	if opts.Bogons {
 		m.addBogonFilter(table, inputChain, opts,
-			append(append([]string(nil), state.Current.Whitelist...), dockerCIDRs...))
+			append(append([]string(nil), state.Current.Allowlist...), dockerCIDRs...))
 	}
 	if opts.SSHBruteForce {
 		m.addSSHBruteForce(table, inputChain, state.Current, opts)
@@ -817,19 +851,29 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 		m.addAnycastDrop(table, inputChain)
 	}
 
-	// Docker bridge whitelisting
+	// Docker bridge allowlisting
 	for _, cidr := range dockerCIDRs {
 		m.addCIDRAccept(table, inputChain, cidr)
 	}
 
-	// Blacklist (DROP before whitelist)
-	for _, ip := range state.Current.Blacklist {
-		m.addBlacklistRule(table, inputChain, ip, opts)
+	// Blocklist (DROP before allowlist)
+	for _, ip := range state.Current.Blocklist {
+		m.addBlocklistRule(table, inputChain, ip, opts)
 	}
 
-	// Whitelist (ACCEPT specific sources)
-	for _, ip := range state.Current.Whitelist {
-		m.addWhitelistRule(table, inputChain, ip)
+	// Allowlist (ACCEPT specific sources)
+	for _, ip := range state.Current.Allowlist {
+		m.addAllowlistRule(table, inputChain, ip)
+	}
+
+	// Other people's lists, after the allowlist (spec D3): allowlisting an
+	// address is how an operator rescues it from a feed. Their elements go in
+	// the same transaction as the table and its chains, not a flush of their
+	// own: the kernel swaps the old ruleset for one whose feed sets are
+	// already full, and a load it refuses leaves the old one in force.
+	feedBytes, err := m.addFeeds(table, inputChain, state.Current.Feeds, feeds, opts)
+	if err != nil {
+		return err
 	}
 
 	// Open TCP / UDP ports.
@@ -863,8 +907,9 @@ func (m *NftablesManager) Apply(state shared.RulesState, opts shared.FirewallOpt
 	}
 
 	m.checkBuilt()
-	if err := m.conn.Flush(); err != nil {
-		return err
+	if err := m.flushLarge(feedBytes); err != nil {
+		// Refused whole: the kernel holds the previous table and its counters.
+		return fmt.Errorf("%w (%w)", err, errNothingWritten)
 	}
 	// Apply custom rules via nft subprocess after all typed rules are committed.
 	if len(state.Current.Custom) > 0 {
@@ -957,7 +1002,7 @@ const (
 	logPrefixICMPFlood = "easywall icmp-flood: "
 	logPrefixSSH       = "easywall ssh: "
 	logPrefixTCPRST    = "easywall tcp-rst: "
-	logPrefixBlacklist = "easywall blacklist: "
+	logPrefixBlocklist = "easywall blocklist: "
 	logPrefixDrop      = "easywall drop: "
 )
 
@@ -1032,16 +1077,23 @@ func (m *NftablesManager) SetLogSink(s logSink) {
 // that acts. Both carry the same match, so what is logged is exactly what is
 // dropped.
 func (m *NftablesManager) addFiltered(t *nftables.Table, c *nftables.Chain, match []expr.Any, action expr.Any, lg logSpec) {
+	m.addLogged(t, c, match, lg, nil, action)
+}
+
+// addLogged is addFiltered for a rule that acts with more than one expression
+// or carries a rule id: tag becomes the acting rule's UserData. The feed drops
+// use it for `counter drop` and their reserved id.
+func (m *NftablesManager) addLogged(t *nftables.Table, c *nftables.Chain, match []expr.Any, lg logSpec, tag []byte, action ...expr.Any) {
 	if lg.enabled {
 		logged := make([]expr.Any, 0, len(match)+2)
 		logged = append(logged, match...)
 		logged = append(logged, logExprs(lg.prefix, lg.perMinute, m.logSink)...)
 		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: logged})
 	}
-	acted := make([]expr.Any, 0, len(match)+1)
+	acted := make([]expr.Any, 0, len(match)+len(action))
 	acted = append(acted, match...)
-	acted = append(acted, action)
-	m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted})
+	acted = append(acted, action...)
+	m.adder.AddRule(&nftables.Rule{Table: t, Chain: c, Exprs: acted, UserData: tag})
 }
 
 // --- Helper builders ---
@@ -1160,8 +1212,8 @@ func IsReservedRuleID(id string) bool {
 // which is the class of defect this release exists to prevent.
 //
 // So do not add the tag to the forward copy for symmetry. Untagged puts it in
-// exactly the category it belongs to, beside the module rules, the blacklist,
-// the whitelist and the Docker exceptions: rules with a counter, no id, and
+// exactly the category it belongs to, beside the module rules, the blocklist,
+// the allowlist and the Docker exceptions: rules with a counter, no id, and
 // nothing reading them by name. The counter is on both, because it costs
 // nothing and `nft list ruleset` is where an operator looks.
 //
@@ -1328,20 +1380,20 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 // addBogonFilter drops sources that cannot legitimately reach a public
 // interface — with an exception for the ones the operator has said can.
 //
-// exempt holds the whitelist and the Docker bridge networks. They are needed
+// exempt holds the allowlist and the Docker bridge networks. They are needed
 // here because both are lists of RFC-1918 addresses, which is exactly what this
-// module drops, and it runs first: with the filter on, whitelisting 192.168.1.0/24
+// module drops, and it runs first: with the filter on, allowlisting 192.168.1.0/24
 // or letting Docker's 172.17.0.0/16 through did nothing at all, because the
 // packet was already gone by the time either rule was reached. Measured against
 // a kernel — the drop for 172.16.0.0/12 sat at position 17 and the accept for
 // 172.17.0.0/16 at 23.
 //
 // The exceptions go in front of the drops rather than the whole module moving
-// after the whitelist, because the order the rest of the chain runs in is
+// after the allowlist, because the order the rest of the chain runs in is
 // documented on four pages and is right: a protection module *should* see a
 // packet before an accept rule does. What was wrong is narrower than that. This
 // module's premise is "nothing legitimately has this source address", and an
-// operator who whitelists a private network has just said otherwise about part
+// operator who allowlists a private network has just said otherwise about part
 // of it. Everything else in the range is still dropped.
 //
 // The drops live in their own chain so an exception can `return` from it and
@@ -1665,14 +1717,14 @@ func (m *NftablesManager) addSSHBruteForce(t *nftables.Table, c *nftables.Chain,
 	// ordinary traffic is not this chain's decision to make.
 	//
 	// This used to accept, and Apply adds the jump to the input chain *before*
-	// the blacklist — so a blacklisted address could SSH in as long as it stayed
+	// the blocklist — so a blocklisted address could SSH in as long as it stayed
 	// under the limit, and port 22 was accepted outright whenever the module was
 	// on and no rule opened it (sshPorts falls back to {"22"} above). A
-	// protection module that opens a port and overrules the blacklist is doing
+	// protection module that opens a port and overrules the blocklist is doing
 	// the opposite of its name.
 	//
-	// Returning puts the packet back where it came from: blacklist, then
-	// whitelist, then the port rules. Over-rate still drops in sshbrute-over, so
+	// Returning puts the packet back where it came from: blocklist, then
+	// allowlist, then the port rules. Over-rate still drops in sshbrute-over, so
 	// nothing about the metering changes.
 	m.adder.AddRule(&nftables.Rule{
 		Table: t,
@@ -2531,19 +2583,19 @@ func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, ci
 	})
 }
 
-func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain, ip string, opts shared.FirewallOptions) {
+func (m *NftablesManager) addBlocklistRule(t *nftables.Table, c *nftables.Chain, ip string, opts shared.FirewallOptions) {
 	if shared.IsListComment(ip) {
 		return // a note or a spacer, not an address
 	}
 
 	// opts was accepted and ignored here until 2.5.0, which is why the
-	// log_blacklist_connections switch produced nothing — and until 2.22 a
+	// log_blocklist_connections switch produced nothing — and until 2.22 a
 	// network entry still returned before this line, into a builder that took
 	// no log spec, so 10.0.0.0/8 was dropped without one.
 	lg := logSpec{
-		enabled:   opts.LogBlacklist,
-		prefix:    logPrefixBlacklist,
-		perMinute: opts.LogBlacklistLimit,
+		enabled:   opts.LogBlocklist,
+		prefix:    logPrefixBlocklist,
+		perMinute: opts.LogBlocklistLimit,
 	}
 
 	var match []expr.Any
@@ -2582,7 +2634,7 @@ func (m *NftablesManager) addBlacklistRule(t *nftables.Table, c *nftables.Chain,
 	m.addFiltered(t, c, match, &expr.Verdict{Kind: expr.VerdictDrop}, lg)
 }
 
-// cidrDropMatch is the source match for a blacklisted network, or nil when cidr
+// cidrDropMatch is the source match for a blocklisted network, or nil when cidr
 // does not parse. The expressions are byte for byte what addCIDRDrop wrote
 // before 2.22; only the verdict moved out, so addFiltered can put a log rule in
 // front of it.
@@ -2635,7 +2687,7 @@ func cidrDropMatch(cidr string) []expr.Any {
 	}
 }
 
-func (m *NftablesManager) addWhitelistRule(t *nftables.Table, c *nftables.Chain, ip string) {
+func (m *NftablesManager) addAllowlistRule(t *nftables.Table, c *nftables.Chain, ip string) {
 	if shared.IsListComment(ip) {
 		return // a note or a spacer, not an address
 	}

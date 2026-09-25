@@ -111,9 +111,9 @@ const ctStateAllBits = ctStateInvalid | ctStateEstablished | ctStateRelated | ct
 // acceptingChains names the jumped-to chains that are allowed to end in accept.
 // Passing nil means none is, which is the state easywall's own table should be
 // in: every module chain either drops or returns, so under-rate traffic falls
-// back into the input chain and meets the blacklist. The SSH chain accepted
-// until 2.16, which meant a blacklisted address could open SSH as long as it
-// stayed under the rate limit — a protection module outranking the blacklist.
+// back into the input chain and meets the blocklist. The SSH chain accepted
+// until 2.16, which meant a blocklisted address could open SSH as long as it
+// stayed under the rate limit — a protection module outranking the blocklist.
 // The parameter exists so a future chain that legitimately accepts is declared
 // in one list a reviewer reads, rather than by weakening the rule for all of
 // them.
@@ -176,7 +176,7 @@ func CheckRules(rules []*nftables.Rule, acceptingChains map[string]bool) []Findi
 				// or a TCP flags mask, and this check has nothing to say about
 				// either: a /8 netmask is 0xff000000, which names no conntrack
 				// state, so a check without this test would report every
-				// whitelisted network in the table.
+				// allowlisted network in the table.
 				if !precededByCtState(r.Exprs, i, v) {
 					continue
 				}

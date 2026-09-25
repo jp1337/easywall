@@ -11,8 +11,8 @@ import (
 type ruleCounts struct {
 	TCP        int
 	UDP        int
-	Blacklist  int
-	Whitelist  int
+	Blocklist  int
+	Allowlist  int
 	Custom     int
 	Forwarding int
 }
@@ -126,8 +126,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		data.Counts = &ruleCounts{
 			TCP:        len(rules.Current.TCP),
 			UDP:        len(rules.Current.UDP),
-			Blacklist:  countListEntries(rules.Current.Blacklist),
-			Whitelist:  countListEntries(rules.Current.Whitelist),
+			Blocklist:  countListEntries(rules.Current.Blocklist),
+			Allowlist:  countListEntries(rules.Current.Allowlist),
 			Custom:     countListEntries(rules.Current.Custom),
 			Forwarding: len(rules.Current.Forwarding),
 		}

@@ -25,10 +25,12 @@ const maxDetailItems = 6
 // operator looks for — which ones.
 func DescribeRuleChange(ruleType string, before, after Rules) string {
 	switch ruleType {
-	case "blacklist":
-		return describeListChange(before.Blacklist, after.Blacklist)
-	case "whitelist":
-		return describeListChange(before.Whitelist, after.Whitelist)
+	case "blocklist":
+		return describeListChange(before.Blocklist, after.Blocklist)
+	case "allowlist":
+		return describeListChange(before.Allowlist, after.Allowlist)
+	case "feeds":
+		return describeListChange(before.Feeds, after.Feeds)
 	case "tcp":
 		return describeCountChange(len(before.TCP), len(after.TCP), "port")
 	case "udp":

@@ -7,7 +7,7 @@ description: What the firewall refused, newest first — filtered, drilled into,
 # Blocked traffic
 
 The page shows every packet a log switch refused, newest first, and lets you
-whitelist, blacklist or open a port from the row that refused it.
+allowlist, blocklist or open a port from the row that refused it.
 
 ## Turn logging on
 
@@ -34,7 +34,7 @@ and switch one on. The two worth starting with:
 | Interface | The device it arrived on |
 | Source → Destination | Address, and the destination port if there is one |
 | Proto | `tcp`, `udp`, `icmp`, `icmpv6`, or a bare protocol number |
-| Rule | Which of the ten switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
+| Rule | Which of the eleven switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
 
 **Details** opens the rest: exact time, TCP flags, ICMP type and code, connection state, TTL, source
 port, chain and packet mark — whichever of these the packet carried.
@@ -51,7 +51,7 @@ under it names what was missing, read from the rules applied **now**:
 | *… open only for traffic forwarded to a container* | the rule's scope is `forwarded` |
 | *IPv4 pings are not answered.* | echo request is not on the [always-on list]({{ '/docs/features/filters/' | relative_url }}#always-on) |
 | *ICMP type 13 is not accepted.* | nor is any other type off that list |
-| *… now — this arrived before it was.* | the rules changed since: the port, the whitelist, the blacklist, an ICMP type or the IPv6 mode |
+| *… now — this arrived before it was.* | the rules changed since: the port, the allowlist, the blocklist, an ICMP type or the IPv6 mode |
 
 No line appears while the applied rules cannot be read.
 
@@ -69,17 +69,17 @@ port and a protocol the firewall can open:
 
 | Action | Does |
 |---|---|
-| **Whitelist** | Stages the source address on the whitelist |
-| **Blacklist** | Stages the source address on the blacklist |
+| **Allowlist** | Stages the source address on the allowlist |
+| **Blocklist** | Stages the source address on the blocklist |
 | **Open *port*** | Stages a port rule for the packet's destination port and protocol |
 
 | The packet was refused by | Offered | Why not the others |
 |---|---|---|
-| Default drop | whitelist · blacklist · open the port | — |
-| Bogon filter | whitelist · blacklist | a port rule runs after the filter |
-| Another rule (your custom rules) | whitelist · blacklist | opening the port would override a rule you wrote |
-| The blacklist | a link to the blacklist | the blacklist is checked before the whitelist |
-| A protection module (SSH, SYN, ICMP, RST, port scan, invalid, fragment) | blacklist | modules run before the whitelist and the ports |
+| Default drop | allowlist · blocklist · open the port | — |
+| Bogon filter | allowlist · blocklist | a port rule runs after the filter |
+| Another rule (your custom rules) | allowlist · blocklist | opening the port would override a rule you wrote |
+| The blocklist | a link to the blocklist | the blocklist is checked before the allowlist |
+| A protection module (SSH, SYN, ICMP, RST, port scan, invalid, fragment) | blocklist | modules run before the allowlist and the ports |
 
 The table pauses while you point at it or work in it, and catches up when you leave.
 
@@ -87,7 +87,7 @@ The table pauses while you point at it or work in it, and catches up when you le
 and links to [Apply]({{ '/docs/features/apply/' | relative_url }}); nothing
 reaches the kernel, and no acceptance window starts, until you go there.
 
-> **It will not let you lock yourself out.** Blacklisting the address you are
+> **It will not let you lock yourself out.** Blocklisting the address you are
 > signed in from — or, behind a reverse proxy, the proxy's address — is refused
 > with the reason, before anything is staged. The same check the apply screen
 > runs.

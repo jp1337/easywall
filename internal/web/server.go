@@ -158,6 +158,14 @@ type Server struct {
 	telemetryStop chan struct{}
 	telemetryOnce sync.Once
 
+	// feedStore is the feeds' web state — validators, failures, own feeds —
+	// read by the blocklist page in every mode. feeds fetches them: nil in
+	// demo mode, which makes no outbound request (spec §3).
+	feedStore *feedStore
+	feeds     *feedRunner
+	feedStop  chan struct{}
+	feedOnce  sync.Once
+
 	// events carries login events to the core without a request waiting on one.
 	events     *auditEvents
 	eventsStop chan struct{}
@@ -337,6 +345,16 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.telemetryStop = make(chan struct{})
 	}
 
+	s.feedStore = newFeedStore(cfg.FeedStatePath())
+	if cfg.DemoMode {
+		// In memory and never written: the demo's rows show every status a
+		// card can show, and nothing a visitor does changes them.
+		s.feedStore = newDemoFeedStore(time.Now())
+	} else {
+		s.feeds = newFeedRunner(client, s.feedStore)
+		s.feedStop = make(chan struct{})
+	}
+
 	s.events = newAuditEvents(client, cfg.DemoMode)
 	s.eventsStop = make(chan struct{})
 
@@ -445,6 +463,9 @@ func (s *Server) Start() error {
 	if s.telemetry != nil {
 		go s.telemetry.Run(s.telemetryStop)
 	}
+	if s.feeds != nil {
+		go s.feeds.run(s.feedStop)
+	}
 	go s.events.run(s.eventsStop)
 	go s.runNotifier(s.notifyStop)
 	// Empty paths: the certificate is supplied by TLSConfig.GetCertificate.
@@ -460,6 +481,9 @@ func (s *Server) Stop() {
 	s.stopACMEChallengeListener()
 	if s.telemetryStop != nil {
 		s.telemetryOnce.Do(func() { close(s.telemetryStop) })
+	}
+	if s.feedStop != nil {
+		s.feedOnce.Do(func() { close(s.feedStop) })
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -577,13 +601,26 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/ports", s.handlePortsGET)
 		r.Post("/ports", s.handlePortsPOST)
 
-		r.Get("/blacklist", s.handleBlacklistGET)
-		r.Post("/blacklist", s.handleBlacklistPOST)
+		r.Get("/blocklist", s.handleBlocklistGET)
+		r.Post("/blocklist", s.handleBlocklistPOST)
+		// The Feeds card and the own-feed slots, forms of their own on the
+		// same page (handler_feeds.go).
+		r.Post("/blocklist/feeds", s.handleFeedsPOST)
+		r.Post("/blocklist/own-feeds", s.handleOwnFeedPOST)
 
-		r.Get("/whitelist", s.handleWhitelistGET)
-		r.Post("/whitelist", s.handleWhitelistPOST)
+		r.Get("/allowlist", s.handleAllowlistGET)
+		r.Post("/allowlist", s.handleAllowlistPOST)
 
-		// Shared HTMX validation endpoint for both blacklist and whitelist.
+		// The pre-2.23 addresses: bookmarks, and links in anything written about
+		// easywall before the rename. A GET moves permanently. A POST is saved,
+		// not redirected — a tab left open across the upgrade still posts its
+		// form here, and a 301 turns a POST into a GET that drops the list.
+		r.Get("/blacklist", http.RedirectHandler("/blocklist", http.StatusMovedPermanently).ServeHTTP)
+		r.Post("/blacklist", s.handleBlocklistPOST)
+		r.Get("/whitelist", http.RedirectHandler("/allowlist", http.StatusMovedPermanently).ServeHTTP)
+		r.Post("/whitelist", s.handleAllowlistPOST)
+
+		// Shared HTMX validation endpoint for both blocklist and allowlist.
 		r.Post("/iplist/validate", s.handleIPListValidate)
 
 		r.Get("/forwarding", s.handleForwardingGET)
@@ -1015,6 +1052,13 @@ var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, 
 	"selftest_passed": "audit_selftest_passed",
 	"selftest_failed": "audit_selftest_failed",
 	"health_degraded": "audit_health_degraded",
+
+	// 2.23's two feed events, written by the core's UpdateFeed: a new version
+	// of a feed stored (and loaded, when the feed is live), and one refused by
+	// its guards. Neutral — a refresh changes what a set holds, not whether
+	// the firewall is doing what it says.
+	"feed_updated": "audit_feed_updated",
+	"feed_refused": "audit_feed_refused",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall
@@ -1165,7 +1209,7 @@ func wrapPairs(s, marker, element string, inner func(string) string) string {
 
 // inlineMarkup renders the two inline forms a translation may carry: `literal`
 // becomes <code>, *word* becomes <em>. Emphasis is not decoration here — "this
-// list is evaluated *before* the whitelist" is the whole point of the sentence —
+// list is evaluated *before* the allowlist" is the whole point of the sentence —
 // so a translator needs to be able to move it.
 func inlineMarkup(s string) string {
 	return wrapPairs(s, "`", "code", func(seg string) string {
@@ -1178,7 +1222,7 @@ func inlineMarkup(s string) string {
 // follow.
 //
 // Sentences like these used to be split into before/after fragments around the
-// anchor, which does not survive translation: German writes "Die Blacklist wird
+// anchor, which does not survive translation: German writes "Die Blocklist wird
 // zuerst ausgewertet" with the link first where English has it third. Keeping the
 // sentence whole leaves word order to the translator.
 //
@@ -1469,7 +1513,9 @@ func templateFuncs() template.FuncMap {
 		"passkey_added": true, "passkey_removed": true,
 		// A row action on /blocked staged its rule. Nothing is live yet, and
 		// the flash says so; it is still the action working.
-		"blocked_staged_whitelist": true, "blocked_staged_blacklist": true, "blocked_staged_port": true,
+		"blocked_staged_allowlist": true, "blocked_staged_blocklist": true, "blocked_staged_port": true,
+		// An own feed's address is stored; switching it on is the card's.
+		"feeds_own_saved": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,
@@ -1492,9 +1538,16 @@ func templateFuncs() template.FuncMap {
 		"notify_destination_required": true,
 		"notify_demo_no_send":         true,
 		// Nothing went wrong here: the core declined a second apply while a
-		// window was open, which is the safety mechanism working.
+		// window was open or a feed refresh was loading, which is the safety
+		// mechanism working.
 		"apply_already_running": true,
 		"demo_readonly":         true,
+		// The Feeds card's refusals: each names what to tick or type, and
+		// nothing was staged or stored.
+		"feeds_refused_confirm": true, "feeds_refused_unconfigured": true,
+		"feeds_own_err_name": true, "feeds_own_err_url": true, "feeds_own_err_login": true,
+		"feeds_own_err_password_again": true, "feeds_own_err_demo": true,
+		"feeds_own_err_in_use": true,
 		// Neither is a failure of the system: the operator asked for the window
 		// to end early, and either it did or it had already closed on its own.
 		"rules_rolled_back": true, "rollback_too_late": true,
@@ -1626,7 +1679,7 @@ func templateFuncs() template.FuncMap {
 		},
 		// The mark in the diff's mono column. Structural, never chromatic:
 		// DESIGN.md reserves colour outside the blue family for firewall state,
-		// and a green/red diff would break it twice over — a new blacklist entry
+		// and a green/red diff would break it twice over — a new blocklist entry
 		// is not good news and a removed port is not a failure.
 		"deltaMark": func(kind shared.DeltaKind) string {
 			switch kind {

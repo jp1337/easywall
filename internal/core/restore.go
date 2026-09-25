@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -49,6 +50,23 @@ func (f *Firewall) PanicEngaged() bool {
 // stayed unfiltered until somebody opened the interface and pressed Apply. The
 // dashboard reported it correctly — Status asks the kernel — but only to
 // somebody who was looking.
+// restoreSlotWait is how long RestoreCurrent waits for the apply slot: a feed
+// refresh holds it well under a second. A var so the tests can shorten it.
+var restoreSlotWait = 5 * time.Second
+
+// waitForApplySlot claims the apply slot, trying again every 50 ms until d has
+// passed.
+func (f *Firewall) waitForApplySlot(d time.Duration) bool {
+	deadline := time.Now().Add(d)
+	for !f.beginApply() {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return true
+}
+
 func (f *Firewall) RestoreCurrent(reason string) error {
 	if f.PanicEngaged() {
 		slog.Warn("panic mode is engaged, so the stored rules are not being restored; "+
@@ -60,10 +78,20 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// The same slot an apply takes, so a restore and an apply can never both be
 	// writing table inet easywall. At boot nothing competes; RESUME can arrive at
 	// any time.
-	if !f.beginApply() {
+	//
+	// A feed refresh takes it too, for under a second (final review I1): the
+	// restore waits restoreSlotWait for it rather than failing on it, which after
+	// a reboot left the Docker reconciler's one attempt refused and containers
+	// unreachable. An apply's acceptance window holds it for minutes, so the
+	// wait still ends in ErrApplyInProgress there, as before.
+	if !f.waitForApplySlot(restoreSlotWait) {
 		return ErrApplyInProgress
 	}
 	defer f.endApply()
+	// The wait is long enough for a console `panic` to land in it.
+	if f.PanicEngaged() {
+		return nil
+	}
 
 	state, err := f.rules.GetState()
 	if err != nil {
@@ -134,7 +162,7 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	f.collectUsageBeforeWrite()
 
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
-	if err := f.nft.Apply(state, opts, nets); err != nil {
+	if err := f.nft.ApplyWithFeeds(state, opts, nets, f.feedContents(state.Current)); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
 		// the machine came up unfiltered and nobody can say why.
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",

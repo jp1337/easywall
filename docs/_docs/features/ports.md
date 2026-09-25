@@ -65,7 +65,7 @@ everyone — what every rule written before 2.11 means, and still the default.
 | `# not decided yet` | nobody — a comment is not an address |
 
 Each usable entry becomes its own nft rule, matched on the source address before
-the port is tested. A [whitelist]({{ '/docs/features/whitelist/' | relative_url }})
+the port is tested. An [allowlist]({{ '/docs/features/allowlist/' | relative_url }})
 entry is still the way to allow an address on *every* port at once.
 
 > **A network is matched by its network address.** `10.9.9.9/24` is applied as
@@ -135,7 +135,7 @@ that is later corrected or removed leaves your rule exactly as it was.
 > **This page needs JavaScript.** Not only the catalogue button — the whole port
 > editor. Rows are collected in the browser and submitted as one field, which is
 > how this table has always worked, and the same is true of port forwarding. The
-> blacklist, whitelist and custom-rule pages are plain textareas and do not need
+> blocklist, allowlist and custom-rule pages are plain textareas and do not need
 > it.
 
 ## Mark your SSH port
@@ -152,8 +152,8 @@ rate-limits new connections per source address.
 > opens it. Before 2.11 a marked-nothing host had 22 accepted by the module alone.
 
 Each source address gets its own budget, so somebody else being rate-limited does not
-affect you. A [whitelist]({{ '/docs/features/whitelist/' | relative_url }}) entry does not
-exempt you from it, though — protection modules are consulted before the whitelist,
+affect you. An [allowlist]({{ '/docs/features/allowlist/' | relative_url }}) entry does not
+exempt you from it, though — protection modules are consulted before the allowlist,
 as the [rule order]({{ '/docs/features/filters/' | relative_url }}) shows.
 
 The mark alone does nothing unless the module is switched on under
@@ -181,7 +181,7 @@ Saving stages. Deleting stages too — the rule keeps working until you
 |---|---|---|
 | Port open, connection refused | Nothing is listening | `ss -tlnp \| grep <port>` |
 | Port listed, still blocked | Not applied yet | Go to **Apply rules** |
-| Blocked despite being open | The source is on the [blacklist]({{ '/docs/features/blacklist/' | relative_url }}), which is checked first | |
+| Blocked despite being open | The source is on the [blocklist]({{ '/docs/features/blocklist/' | relative_url }}), which is checked first | |
 | SSH drops right after Apply | That is the design — do nothing and the old rules come back | |
 | A published container port is refused | The rule's scope is *This host*, so it was written for the wrong chain | Set it to *Forwarded* and check `published_ports` |
-| Your own SSH is rate-limited | You hit your own brute-force budget | Wait a minute, or raise `ssh_brute_force_connection_limit`. The whitelist does **not** help: modules run before it |
+| Your own SSH is rate-limited | You hit your own brute-force budget | Wait a minute, or raise `ssh_brute_force_connection_limit`. The allowlist does **not** help: modules run before it |

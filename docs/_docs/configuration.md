@@ -152,9 +152,9 @@ with static addressing that genuinely need neither.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and whitelist them |
-| `allow_bridge_networks` | bool | `true` | Whitelist auto-detected bridge network CIDRs |
-| `custom_networks` | list | `[]` | Additional CIDRs to whitelist unconditionally (processed when `enabled = true`) |
+| `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and allowlist them |
+| `allow_bridge_networks` | bool | `true` | Allowlist auto-detected bridge network CIDRs |
+| `custom_networks` | list | `[]` | Additional CIDRs to allowlist unconditionally (processed when `enabled = true`) |
 | `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port |
 
 > **`enabled` ships `true` since 2.22.** A host with no `docker*`/`br-*`
@@ -255,7 +255,8 @@ browser and an editor. Neither reaches a `curl` or a hand-edited file:
 | `tcp_rst_flood_limit` | 1–10000 | 100 |
 | `connection_limit_max` | 1–100000 | 100 |
 | `log_blocked_connections_limit` | 1–10000 | 60 |
-| `log_blacklist_connections_limit` | 1–10000 | 60 |
+| `log_blocklist_connections_limit` | 1–10000 | 60 |
+| `log_feed_connections_limit` | 1–10000 | 60 |
 
 Out of range in the file is clamped and logged; out of range from the interface is
 refused with the key named — the same split as `acceptance.duration`.
@@ -267,12 +268,13 @@ refused with the key named — the same split as `acceptance.duration`.
 > from every source and dropping it. One number, entered on a page whose product
 > promises it cannot lock you out, with nothing logged.
 
-Two logging switches belong to no module and are set here as well:
+Three logging switches belong to no module and are set here as well:
 
 | | Logs | Rate |
 |---|---|---|
 | `log_blocked_connections` | everything the final policy drops | `log_blocked_connections_limit` `60`/min |
-| `log_blacklist_connections` | blacklist hits, before the drop | `log_blacklist_connections_limit` `60`/min |
+| `log_blocklist_connections` | blocklist hits, before the drop | `log_blocklist_connections_limit` `60`/min |
+| `log_feed_connections` | feed hits, before the drop | `log_feed_connections_limit` `60`/min per feed and address family |
 
 ---
 
@@ -419,26 +421,27 @@ fails with a key-mismatch error naming a certificate you never configured.
 
 ## Every request that leaves the host
 
-Four, and this is the whole list.
+Five, and this is the whole list.
 
-| | Update check | Counting installations | Notifications | A certificate |
-|---|---|---|---|---|
-| Key | `update_check` | `telemetry` | `notify_kind` | `tls.acme` |
-| Default | **on** | **off** until you switch it on | **off** until you switch it on | **off** until you switch it on |
-| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | `tls.acme_directory`, Let's Encrypt if unset |
-| How often | once a day | once a day | when something happens | on first need, then before expiry |
-| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall | `tls.hostname`, an account key made here, and `tls.acme_email` if set |
-| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface | `acme = false` — easywall then issues its own certificate |
+| | Update check | Counting installations | Notifications | Feeds | A certificate |
+|---|---|---|---|---|---|
+| Key | `update_check` | `telemetry` | `notify_kind` | none — **Blocklist** in the interface | `tls.acme` |
+| Default | **on** | **off** until you switch it on | **off** until you switch it on | **off**, each one | **off** until you switch it on |
+| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | each list's own address; an own feed's is yours | `tls.acme_directory`, Let's Encrypt if unset |
+| How often | once a day | once a day | when something happens | on the list's schedule, hourly to daily | on first need, then before expiry |
+| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall | a GET; an own feed's user and password to its own URL | `tls.hostname`, an account key made here, and `tls.acme_email` if set |
+| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface | the feed's switch | `acme = false` — easywall then issues its own certificate |
 
-`notify_url` is the only destination easywall does not name at all. The authority
-is a default you may replace; the other two are fixed. That is why the
-notification address is treated as a credential and kept in `web.toml` at `0600`,
-beside `session_key`.
+`notify_url` and an own feed's URL are the only destinations easywall does not
+name. The authority is a default you may replace; the rest are fixed. That is why
+the notification address is treated as a credential and kept in `web.toml` at
+`0600`, beside `session_key`, and why an own feed's password is never shown back.
 
-The first three never delay a page. The update check is served from a cache on
+The first four never delay a page. The update check is served from a cache on
 disk and refreshed in the background. A failure is remembered for an hour so a
 host with no route out is not retrying on every load. The count runs in the
-background and gives up after ten seconds. The certificate is the one that can
+background and gives up after ten seconds. A feed refreshes in the background
+too, and a failed refresh keeps the copy already loaded. The certificate is the one that can
 stop a page, because it is what serves it.
 
 ### The update check

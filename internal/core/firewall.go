@@ -108,6 +108,10 @@ type Firewall struct {
 	// file with the zero stamp, which is what an installation whose proof has
 	// not run looks like.
 	stamp *StampStore
+
+	// feeds owns DataDir/feeds.json, the core's copy of every feed. Every
+	// kernel write loads the enabled feeds' sets from it; see feedContents.
+	feeds *FeedStore
 }
 
 // ErrApplyInProgress is returned when an apply is asked for while a cycle is
@@ -193,6 +197,7 @@ func NewFirewall(cfg *Config) (*Firewall, error) {
 		reconcileWait: 90 * time.Second,
 		usage:         NewUsageStore(cfg.UsagePath()),
 		stamp:         NewStampStore(cfg.SelftestStampPath()),
+		feeds:         NewFeedStore(cfg.FeedsPath()),
 	}
 	f.lastApply = readLastApply(cfg.LastApplyPath())
 	return f, nil
@@ -442,7 +447,7 @@ func (f *Firewall) apply(user string) error {
 	}
 
 	// 5. Apply new rules to kernel
-	if err := f.nft.Apply(updatedState, opts, nets); err != nil {
+	if err := f.nft.ApplyWithFeeds(updatedState, opts, nets, f.feedContents(updatedState.Current)); err != nil {
 		// The window is open and nothing will ever confirm it. Without this the
 		// status stays pending for the full duration on a machine whose apply
 		// failed and was rolled back on the next line, and the interface counts
@@ -726,7 +731,7 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 			}
 			WriteAuditLog(f.cfg.AuditLogPath(), action, "all", detail, user)
 		} else {
-			applyErr = f.nft.Apply(previous, opts, nets)
+			applyErr = f.nft.ApplyWithFeeds(previous, opts, nets, f.feedContents(previous.Current))
 		}
 		if applyErr != nil {
 			slog.Error("rollback nftables failed", "error", applyErr)
@@ -741,11 +746,15 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 				failures = append(failures, "nftables: "+applyErr.Error())
 			}
 		}
-		// Whatever the write reported, the table it left is not the table the
-		// baselines describe: nft.Apply deletes and recreates it, and reports
-		// errors from two places that run after the ruleset is committed. Both
-		// outcomes want the baselines back at zero.
-		f.resetUsageBaselines()
+		// A rebuilt table is not the table the baselines describe, and
+		// ApplyWithFeeds reports errors from two places that run after the
+		// ruleset is committed — both want the baselines back at zero. A batch
+		// the kernel refused whole is the exception: it left the previous
+		// table and its counters, and zeroing the baselines would book their
+		// whole lifetime again at the next collect.
+		if !errors.Is(applyErr, errNothingWritten) {
+			f.resetUsageBaselines()
+		}
 		// The third writer of table inet easywall, and it races `panic` exactly
 		// like the other two. The marker was read a few statements ago; a console
 		// teardown landing between that read and this write leaves the previous
@@ -819,6 +828,31 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 		WriteAuditLog(f.cfg.AuditLogPath(), "rollback_failed", "all",
 			strings.Join(failures, "; "), user)
 	}
+}
+
+// feedContents loads the stored copies of the feeds r switches on, for a
+// kernel write. Rollback, boot, resume and the Docker reconcile all rebuild
+// the table through one of the three writers that call this, so a feed's set
+// comes back with them and nothing else has to remember it (spec §3).
+//
+// It never fails the write. An unreadable file means the enabled feeds get
+// empty sets — which blocks less, and says so in the journal — where an
+// error would make a rollback or a boot restore fail and leave the host with
+// no table at all.
+//
+// A nil store is a Firewall literal built by a test; NewFirewall always sets
+// one. The zero answer is the one Health gives a nil stamp store, for its
+// reason.
+func (f *Firewall) feedContents(r shared.Rules) FeedContents {
+	if f.feeds == nil || len(r.Feeds) == 0 {
+		return nil
+	}
+	contents, err := f.feeds.Contents(r.Feeds)
+	if err != nil {
+		slog.Error("could not read the stored feeds; their sets are written empty",
+			"path", f.cfg.FeedsPath(), "error", err)
+	}
+	return contents
 }
 
 // Accept signals that the admin confirmed the new rules work correctly, and

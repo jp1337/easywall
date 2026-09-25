@@ -57,7 +57,7 @@ const USER = 'admin';
 const PASS = 'ui-check-password-2026';
 
 const PAGES = [
-  '/dashboard', '/blocked', '/ports', '/ports?type=udp', '/blacklist', '/whitelist',
+  '/dashboard', '/blocked', '/ports', '/ports?type=udp', '/blocklist', '/allowlist',
   '/forwarding', '/custom', '/options', '/settings', '/system', '/password',
   '/notify', '/log', '/apply',
 ];
@@ -1015,6 +1015,58 @@ async function checkBlockedSaysWhy(page) {
 }
 
 /**
+ * The Feeds card on /blocklist (2.23 Task 7). A switch stages — the row then
+ * says it is on once applied, not that it is live — and a ✗ feed is refused
+ * without its own confirmation box, by the server, so this submits the form
+ * the way a browser without JavaScript would. Every source and terms link
+ * opens in a tab that cannot reach back (P17), and no password field carries
+ * a value. The demo is left as it was found: the feed switched on is
+ * switched off again.
+ */
+async function checkFeedsCard(page) {
+  await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
+  const rows = await page.locator('#feeds .module[id^="feed-"]').count();
+  if (rows < 8) { fail('feeds card', `${rows} feed rows on /blocklist, want the eight catalogue feeds`); return; }
+  const badLinks = await page.$$eval('#feeds a[target="_blank"]', as => as
+    .filter(a => !/\bnoopener\b/.test(a.rel) || !/\bnoreferrer\b/.test(a.rel) || !a.href.startsWith('https://'))
+    .map(a => a.outerHTML));
+  const links = await page.locator('#feeds a[target="_blank"]').count();
+  if (links < 16 || badLinks.length) { // a source and a terms link for each of the eight
+    fail('feeds card', `${links} source/terms links; without noopener noreferrer or https: ${badLinks[0] || 'none'}`);
+    return;
+  }
+  const echoed = await page.$$eval('#feeds input[type="password"]', ps => ps.filter(p => p.hasAttribute('value') || p.value !== '').length);
+  if (echoed) { fail('feeds card', `${echoed} password field(s) carry a value`); return; }
+
+  const tor = '#feed-tor-exits';
+  if (await page.isChecked(`${tor} input[name="feed"]`)) { fail('feeds card', 'Tor exits is already switched on in the demo'); return; }
+  await page.check(`${tor} input[name="feed"]`);
+  await Promise.all([page.waitForNavigation(), page.click('form[action="/blocklist/feeds"] button[type="submit"]')]);
+  if (await page.isChecked(`${tor} input[name="feed"]`)) {
+    fail('feeds card', 'a ✗ feed was staged without its confirmation box');
+    return;
+  }
+  if (!/Nothing was staged/.test(await page.locator('.alert').first().innerText())) {
+    fail('feeds card', 'the refusal of a ✗ feed without confirmation says nothing');
+    return;
+  }
+
+  await page.check(`${tor} input[name="feed"]`);
+  await page.check(`${tor} input[name="confirm"]`);
+  await Promise.all([page.waitForNavigation(), page.click('form[action="/blocklist/feeds"] button[type="submit"]')]);
+  const state = await page.locator(`${tor} .status-dot.pending`).first().innerText().catch(() => '');
+  const staged = await page.isChecked(`${tor} input[name="feed"]`);
+  await page.uncheck(`${tor} input[name="feed"]`);
+  await Promise.all([page.waitForNavigation(), page.click('form[action="/blocklist/feeds"] button[type="submit"]')]);
+  if (!staged || !/apply/i.test(state)) {
+    fail('feeds card', `a confirmed ✗ feed did not stage as "on once you apply": checked=${staged}, state "${state}"`);
+    return;
+  }
+  if (await page.isChecked(`${tor} input[name="feed"]`)) { fail('feeds card', 'Tor exits could not be switched off again'); return; }
+  console.log(`  ok   feeds card: ${rows} rows, ${links} links with rel, a ✗ feed refused unconfirmed, staged once confirmed`);
+}
+
+/**
  * A /blocked card at 390px in German keeps an address whole and its Details
  * clear of the buttons. The card's td is a flex row with overflow-wrap:
  * anywhere, so each link of the route used to be its own flex item and broke
@@ -1963,6 +2015,7 @@ async function runChecks(browser, session) {
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
   await checkBlockedSaysWhy(p);
+  await checkFeedsCard(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkOptionsDisclosureFits(browser, session);
@@ -1991,11 +2044,11 @@ const screenshotArgs = screenshotMode
   : [];
 // The pages docs/assets/img/screens/ actually ships figures for — grep
 // `base="/assets/img/screens/` across docs/_docs to regenerate this list.
-// Deliberately narrower than PAGES: /whitelist and /system have no figure of
-// their own (filters.md reuses the blacklist/options shots), and shooting
+// Deliberately narrower than PAGES: /allowlist and /system have no figure of
+// their own (filters.md reuses the blocklist/options shots), and shooting
 // them here would add files nothing links to.
 const DEFAULT_SCREENSHOT_PAGES = [
-  '/dashboard', '/blocked', '/ports', '/blacklist', '/forwarding', '/custom',
+  '/dashboard', '/blocked', '/ports', '/blocklist', '/forwarding', '/custom',
   '/options', '/settings', '/password', '/log', '/notify', '/apply',
   '/apply-window',
 ];
@@ -2034,7 +2087,7 @@ async function seedPortsScreenshot(page) {
 // reason one breakpoint lower: `.page-grid` drops its 320px context column
 // below 1570px, so at 1440 every screenshot in docs/ showed the collapsed
 // layout — the aside cards stacked under the table instead of beside it, on
-// ports, blacklist, forwarding, custom and options alike. 1440 is still
+// ports, blocklist, forwarding, custom and options alike. 1440 is still
 // exercised, by WIDTHS above, where squeezing the layout is the whole point.
 // A screenshot is documentation, and documents the layout the design is
 // actually about.

@@ -22,7 +22,7 @@ The question most people arrive with. Details for each module are below.
 | Host | Turn on | Leave off |
 |---|---|---|
 | Public server, static address | Everything under Attack protection but fragment drop, plus the bogon filter | Fragment drop — it breaks large DNS answers, [see below](#what-fragment-drop-breaks) |
-| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is whitelisted | Broadcast/multicast/anycast |
+| Behind NAT, or on a LAN | SSH brute-force, SYN flood, port scan, invalid packets. The bogon filter too, once your own network is allowlisted | Broadcast/multicast/anycast |
 | Container host | The defaults. The bogon filter is safe with Docker coexistence on — bridge networks are exempt | — |
 
 <figure class="docs-shot">
@@ -33,7 +33,7 @@ The question most people arrive with. Details for each module are below.
 
 ## Where the modules sit
 
-Before the blacklist, before the whitelist, before any port is considered. A module
+Before the blocklist, before the allowlist, before any port is considered. A module
 that drops a packet drops it whatever else you have allowed.
 
 Two things come earlier still: loopback, always, and the [IPv6
@@ -47,7 +47,7 @@ a live connection *is* return traffic, and the accept would let them through unm
 [what it breaks](#what-fragment-drop-breaks).
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blacklist which drops, then the whitelist which accepts every port, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
@@ -113,7 +113,7 @@ Two things cross that chain:
 > Not true before 2.5.0: four modules held a single counter for the whole machine, so
 > five SSH attempts a minute from anywhere locked out the administrator too.
 
-Every module runs before the whitelist, so it applies to a whitelisted address like
+Every module runs before the allowlist, so it applies to an allowlisted address like
 any other. Only the bogon filter exempts one.
 
 ### What fragment drop breaks
@@ -150,18 +150,18 @@ function at all.
 
 ### What it does not drop
 
-Anything on the whitelist, and any Docker bridge network, is exempt. Both are lists
+Anything on the allowlist, and any Docker bridge network, is exempt. Both are lists
 of RFC 1918 addresses, which is exactly what this filter drops. It runs before
 either of them, so switching it on used to turn both features off without saying so.
-Whitelisting `192.168.1.0/24` had no effect at all, and neither did letting Docker's
+Allowlisting `192.168.1.0/24` had no effect at all, and neither did letting Docker's
 `172.17.0.0/16` through.
 
-An exemption is narrow: it covers what you allowed and nothing more. Whitelist
+An exemption is narrow: it covers what you allowed and nothing more. Allowlist
 `192.168.1.0/24` and the rest of `192.168.0.0/16` is still dropped.
 
 ```
 # nft list chain inet easywall bogon
-ip saddr 192.168.1.0/24 return      ← whitelisted
+ip saddr 192.168.1.0/24 return      ← allowlisted
 ip saddr 172.17.0.0/16 return       ← Docker bridge
 ip saddr 10.0.0.0/8 drop
 ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
@@ -170,7 +170,7 @@ ip saddr 192.168.0.0/16 drop        ← the rest of the range, still dropped
 
 | Before switching it on | Why |
 |---|---|
-| Whitelist the address you administer from, if it is RFC 1918 | the exemption only covers what is on the list when the rules are applied |
+| Allowlist the address you administer from, if it is RFC 1918 | the exemption only covers what is on the list when the rules are applied |
 | Not on a DHCP server | a client requesting a lease has no address yet and sends from `0.0.0.0`, which this filter drops |
 
 ## Traffic filtering
@@ -197,7 +197,7 @@ What each one breaks:
 
 ## Logging
 
-Every module has its own `*_log` switch, plus two global ones. All of it is
+Every module has its own `*_log` switch, plus three global ones. All of it is
 rate-limited, which is what the `*_limit` values in messages per minute are for — a
 flood must not be able to fill the disk.
 
@@ -211,7 +211,8 @@ flood must not be able to fill the disk.
 | `drop_invalid_packets_log` | Packets in INVALID state | `easywall invalid:` |
 | `drop_fragments_log` | Fragmented packets | `easywall fragment:` |
 | `bogon_filter_log` | Bogon sources | `easywall bogon:` |
-| `log_blacklist_connections` | Blacklist hits, before the drop | `easywall blacklist:` |
+| `log_blocklist_connections` | Blocklist hits, before the drop | `easywall blocklist:` |
+| `log_feed_connections` | Feed hits, before the drop | `easywall feed: <id>` |
 | `log_blocked_connections` | Everything the final policy drops | `easywall drop:` |
 
 Everything these switches log appears on the

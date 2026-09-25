@@ -2,6 +2,7 @@ package shared
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -53,11 +54,15 @@ const defaultCommandTimeout = 5 * time.Second
 // failure for work the core goes on to finish. RESUME now shares PANIC's
 // deadline because it shares PANIC's queue.
 //
+// UPDATE_FEED joins them for PANIC's reason: it takes the nft mutex to replace
+// a live set, so it can queue behind an apply's nft subprocess for up to
+// NftTimeout, and it writes up to 100 000 elements while holding it.
+//
 // Everything else keeps the short deadline, because a status poll that hangs
 // for half a minute is its own problem.
 func CommandTimeout(cmd CommandType) time.Duration {
 	switch cmd {
-	case CmdImportRules, CmdValidateCustom, CmdPanic, CmdResume:
+	case CmdImportRules, CmdValidateCustom, CmdPanic, CmdResume, CmdUpdateFeed:
 		return NftTimeout + defaultCommandTimeout
 	default:
 		return defaultCommandTimeout
@@ -164,13 +169,28 @@ const (
 	// capability; it saves the wait.
 	CmdCancelAcceptance CommandType = "CANCEL_ACCEPTANCE"
 
-	// CmdGetPacketLog returns what the firewall refused: the packets the ten
+	// CmdGetPacketLog returns what the firewall refused: the packets the eleven
 	// log rules sent to easywall's NFLOG group, decoded by the core, filtered
 	// by PacketLogFilter, newest first.
 	//
 	// Read-only and answered out of memory, so it keeps the short deadline.
 	// No audit entry: reading the log is not an event, CmdGetLog's reasoning.
 	CmdGetPacketLog CommandType = "GET_PACKET_LOG"
+
+	// CmdUpdateFeed hands the core a new version of one enabled feed — the
+	// entries the web process fetched and parsed, or not_modified for a 304.
+	// The core trusts none of it: it re-parses every entry, drops what is not
+	// globally routable, refuses a prefix broader than /8 or /16 and a copy
+	// under 70 % of the stored one, stores what is left and, if the feed is in
+	// Current, replaces the kernel set's contents without an apply (spec §3).
+	// The long deadline — see CommandTimeout.
+	CmdUpdateFeed CommandType = "UPDATE_FEED"
+
+	// CmdGetFeeds returns what the core holds for each feed: counts,
+	// timestamps and counters, never entries. With an address it also says
+	// which copies contain it, which is how Reachable learns of a feed hit
+	// without a third command. Short deadline; no audit entry.
+	CmdGetFeeds CommandType = "GET_FEEDS"
 )
 
 // AllCommandTypes is the complete list of every command the protocol declares.
@@ -185,6 +205,7 @@ var AllCommandTypes = []CommandType{
 	CmdSaveSystem, CmdGetLog, CmdExportRules,
 	CmdImportRules, CmdValidateCustom, CmdGetAppliedConfig, CmdGetUsage,
 	CmdGetHealth, CmdPanic, CmdResume, CmdLogEvent, CmdGetPacketLog,
+	CmdUpdateFeed, CmdGetFeeds,
 }
 
 // LoginEvent is one of the thirteen things that can happen at the door. The
@@ -286,7 +307,7 @@ type Response struct {
 
 // SaveRulesPayload is the payload for CmdSaveRules.
 type SaveRulesPayload struct {
-	RuleType string      `json:"rule_type"` // "tcp", "udp", "blacklist", "whitelist", "forwarding", "custom"
+	RuleType string      `json:"rule_type"` // "tcp", "udp", "blocklist", "allowlist", "feeds", "forwarding", "custom"
 	Rules    interface{} `json:"rules"`
 }
 
@@ -334,4 +355,79 @@ type ValidateCustomPayload struct {
 // ValidateCustomResult holds per-rule validation errors (empty = all valid).
 type ValidateCustomResult struct {
 	Errors map[int]string `json:"errors"`
+}
+
+// MaxMessageBytes bounds one request and one reply on the socket, each way.
+// Eight MiB since 2.23: one UPDATE_FEED carries up to FeedMaxEntries entries,
+// and 100 000 of the longest IPv6 addresses measure 4 200 059 bytes bare and
+// 4 600 059 as /128 prefixes — over four MiB either way (plan P12,
+// TestMaxMessageBytesCarriesAFullFeed). It was 1 MiB, and a longer request
+// was cut at the limit and answered "invalid JSON command" — a truncation
+// indistinguishable from a malformed message.
+const MaxMessageBytes = 8 << 20
+
+// ErrRequestTooLargeText is the exact Response.Error the core returns for a
+// request longer than MaxMessageBytes. SendCommand refuses to send one in the
+// first place, with ErrRequestTooLarge, so the web process can record a feed
+// refresh as too large without a round trip.
+const ErrRequestTooLargeText = "request too large"
+
+// ErrRequestTooLarge is what SendCommand returns for a command it will not
+// send. errors.Is finds it through the wrapping.
+var ErrRequestTooLarge = errors.New(ErrRequestTooLargeText)
+
+// ErrFeedShrankText is the exact Response.Error the core returns when an update
+// for a feed enabled in Current would leave fewer than FeedShrinkPercent of the
+// stored entries. The web process matches it to tell the operator how to accept
+// the smaller list: switch the feed off and apply, then on and apply — a feed
+// that is only staged is not held to the guard.
+const ErrFeedShrankText = "feed shrank below 70 % of the stored copy"
+
+// UpdateFeedPayload is the payload for CmdUpdateFeed.
+type UpdateFeedPayload struct {
+	ID string `json:"id"`
+	// Entries are addresses or prefixes, canonical and deduplicated by the web
+	// process. The core parses each one again.
+	Entries []string `json:"entries,omitempty"`
+	// NotModified is a 304: the core moves checked_at and nothing else (P8).
+	NotModified bool `json:"not_modified,omitempty"`
+}
+
+// UpdateFeedResult is the reply to CmdUpdateFeed.
+type UpdateFeedResult struct {
+	Before  int  `json:"before"`  // stored entry count before
+	After   int  `json:"after"`   // after the core's own filtering
+	Dropped int  `json:"dropped"` // not globally routable, removed by the core
+	Changed bool `json:"changed"` // the stored prefix set differs from the previous one
+	Loaded  bool `json:"loaded"`  // the kernel set was replaced (the feed is in Current)
+}
+
+// GetFeedsPayload is the payload for CmdGetFeeds. Empty is allowed.
+type GetFeedsPayload struct {
+	// Addr, when set, makes each FeedStatus say whether its copy contains it.
+	Addr string `json:"addr,omitempty"`
+}
+
+// FeedStatus is what the core holds for one feed. Never its entries.
+type FeedStatus struct {
+	ID        string    `json:"id"`
+	Stored    bool      `json:"stored"` // a copy is in feeds.json
+	Entries   int       `json:"entries"`
+	Dropped   int       `json:"dropped"`
+	ChangedAt time.Time `json:"changed_at"`
+	CheckedAt time.Time `json:"checked_at"`
+	InKernel  bool      `json:"in_kernel"` // enabled in Current
+	// Packets is the _feed-<id> counters since the last apply; 0 and
+	// CountersRead false when they could not be read (P16).
+	Packets      uint64 `json:"packets"`
+	CountersRead bool   `json:"counters_read"`
+	// AllowlistOverlap is how many staged allowlist entries this copy covers:
+	// those stay reachable, because the allowlist is evaluated first.
+	AllowlistOverlap int  `json:"allowlist_overlap"`
+	ContainsAddr     bool `json:"contains_addr"`
+}
+
+// GetFeedsResult is the reply to CmdGetFeeds.
+type GetFeedsResult struct {
+	Feeds []FeedStatus `json:"feeds"` // one per id stored or enabled in Current ∪ Staged
 }

@@ -380,7 +380,7 @@ func TestCoreClient_ImportRules_Success(t *testing.T) {
 	fc.SetResponse(shared.CmdImportRules, shared.Response{Success: true})
 
 	client := NewCoreClient(fc.socketPath)
-	payload := []byte(`{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`)
+	payload := []byte(`{"tcp":[],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}`)
 	if err := client.ImportRules(payload); err != nil {
 		t.Fatalf("ImportRules: %v", err)
 	}

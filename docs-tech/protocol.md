@@ -6,7 +6,7 @@ per reply, connection closed after. Declared as Go structs on both sides in
 `internal/shared/protocol.go`; adding an operation means adding a constant to both
 ends.
 
-Twenty-three command types:
+Twenty-five command types:
 
 | | |
 |---|---|
@@ -26,6 +26,62 @@ Twenty-three command types:
 | `GET_HEALTH` | whether the firewall is doing what it says — three facts evaluated in order, plus the last self-test's identity, no rule detail or counter values |
 | `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
 | `LOG_EVENT` | one of thirteen login events, from a fixed enum, for the audit log |
+| `UPDATE_FEED` | one enabled feed's new version, from the web process's fetcher; re-validated, stored, and swapped into the live set without an apply |
+| `GET_FEEDS` | counts, timestamps and counters per feed — never entries; with `addr`, which copies contain it |
+
+## Size
+
+`shared.MaxMessageBytes`, **8 MiB**, each way (1 MiB before 2.23). Both ends read
+one byte past it:
+
+| | Over the limit |
+|---|---|
+| request, at the core (`handleConn`) | answered `request too large` (`ErrRequestTooLargeText`), nothing dispatched. It used to be cut at the limit and answered `invalid JSON command` |
+| request, at the sender (`SendCommand`) | not sent: `ErrRequestTooLarge`. The core stops reading at the limit, so the rest of the write would end in a broken pipe instead of the answer |
+| reply, at `SendCommand` | `read response: longer than 8388608 bytes`, not truncated JSON |
+
+Why 8: 100 000 entries in one `UPDATE_FEED`. The longest IPv6 address, 100 000
+times, is 4 200 059 bytes bare and 4 600 059 as `/128` — both over 4 MiB, the
+first limit planned (plan P12). `TestMaxMessageBytesCarriesAFullFeed` pins both,
+`TestSendCommand_RequestLimitIsExact`,
+`TestSendCommand_ResponseLimitIsExact`, `TestDaemonHandleConn_RequestLimitIsExact`.
+
+## `UPDATE_FEED`
+
+Deadline class: long (`NftTimeout` + 5 s) — it takes the nft mutex to replace a
+live set. Payload `UpdateFeedPayload{id, entries, not_modified}`, reply
+`UpdateFeedResult{before, after, dropped, changed, loaded}`. The core trusts
+nothing in it, and checks in this order:
+
+| # | Check | On failure |
+|---|---|---|
+| 1 | panic is not engaged (checked again once the apply slot is held, so PANIC landing between the two finds nothing to interrupt), and the slot is free | refused, `panic mode is engaged` / exactly `ErrApplyInProgressText` (P7) — the web resends that one later |
+| 2 | `id` is a catalogue id or `own-1`…`own-3`, enabled in Staged or Current | refused |
+| 3 | ≤ 100 000 entries, each parsed again with `netip`, `::ffff:` unmapped | refused; a bad entry is named by position, never quoted |
+| 4 | wholly inside non-global space — RFC 1918, 100.64/10, 127/8, 169.254/16, 0/8, 224/3; IPv6 outside 2000::/3 or inside 2001:db8::/32 (documentation) — checked **before** the breadth refusal, so a feed's own bogon documentation (FireHOL level1's `224.0.0.0/3`, `10.0.0.0/8`…) is dropped rather than refusing the whole update (review finding, D4-4 revision) | dropped and counted (`dropped`); nothing left at all is refused |
+| 5 | no prefix broader than /8 (v4) or /16 (v6) — only what row 4 left standing reaches this; `0.0.0.0/0` and `::/0` overlap non-global space without being wholly inside it, so they still refuse here | the whole update refused |
+| 6 | for a feed enabled in **Current** only: at least 70 % of the stored count. Staged-only or switched off, any size — off, apply, on is how a list that really shrank is accepted | refused, exactly `ErrFeedShrankText` |
+| 7 | enabled in **Current**, changed or not: loaded first — under `m.mu` and the apply slot, both sets flushed and refilled in ≤ 64 KiB chunks, one batch. No counter booking: a set flush leaves the rules' counters alone (`TestIntegration_ARefreshKeepsTheCounter`) | refused and audited with the kernel's reason; nothing stored, nothing half-loaded |
+| 8 | written to `<data_dir>/feeds.json` atomically — skipped when only `checked_at` moved (a 304, the same list again): the cache takes it | error; the kernel already holds the new copy |
+| 9 | audit `feed_updated` only when the copy changed; `feed_refused` for the data guards (3–6), a kernel refusal and an unknown id (without the id) | — |
+
+Every refusal leaves the previous version in the kernel and on disk. An apply
+cycle holds the slot for its whole acceptance window; an update arriving then is
+refused with `ErrApplyInProgressText` (plan P7). `not_modified: true` is a 304:
+`checked_at` moves, nothing else (P8).
+
+## `GET_FEEDS`
+
+Deadline class: short. Payload `GetFeedsPayload{addr}`, may be empty. Reply
+`GetFeedsResult{feeds: [FeedStatus…]}`, one per id that is stored or enabled in
+Current ∪ Staged: `stored`, `entries`, `dropped`, `changed_at`, `checked_at`,
+`in_kernel`, `packets` and `counters_read` (the `_feed-<id>` counters, read live;
+`counters_read: false` when they could not be, P16), `allowlist_overlap`, and
+`contains_addr` for the `addr` asked about. No entries, no audit entry.
+
+`stored` is true for every copy `feeds.json` holds — including one kept only
+because Backup names the feed (P13) — and the web process sends conditional
+requests only for those.
 
 ## The one field that is not typed
 
@@ -133,6 +189,8 @@ Playwright suite in `test.yml`.
 | `ValidateCustom` | **reports the checker as unavailable** |
 | `GetHealth` | `ok`/`healthy`, or `fail`/`panic` while the demo's panic mode is on. The self-test reads `unprovable` with no kernel named |
 | `GetPacketLog` | a generated stream on documentation addresses, a few new packets a minute — see `demoPacketLog` |
+| `GetFeeds` | `spamhaus-drop` (1801 entries, 3412 packets) and `dshield` (20 entries, 18873 packets), both enabled with a copy; a feed staged in the demo is reported with no copy |
+| `UpdateFeed` | **refused** — demo mode constructs no fetcher, so nothing sends it |
 
 ## Adding a command
 

@@ -1,4 +1,4 @@
-{{define "blacklist.html"}}
+{{define "allowlist.html"}}
 {{template "head" .}}
 {{template "sidebar" .}}
 <div class="main">
@@ -8,26 +8,26 @@
 
     <div class="page-header">
       <div class="page-header-text">
-        <h1 class="page-title">{{T "blacklist_title"}}</h1>
-        <p class="page-subtitle">{{T "blacklist_subtitle"}}</p>
+        <h1 class="page-title">{{T "allowlist_title"}}</h1>
+        <p class="page-subtitle">{{T "allowlist_subtitle"}}</p>
       </div>
     </div>
 
     {{with .Data}}
-    <form method="POST" action="/blacklist">
+    <form method="POST" action="/allowlist">
       <div class="page-grid">
         <div>
           <div class="card editor">
             <div class="section-head">
               <div class="section-head-text">
-                <h2 class="section-title">{{T "blacklist_section"}}</h2>
-                <p class="section-desc">{{T "blacklist_section_desc"}}</p>
+                <h2 class="section-title">{{T "allowlist_section"}}</h2>
+                <p class="section-desc">{{T "allowlist_section_desc"}}</p>
               </div>
             </div>
 
             <textarea name="entries" rows="14" id="iplist-input"
-                      aria-label="{{T "blacklist_section"}}"
-                      placeholder="192.168.1.100&#10;10.0.0.0/8&#10;2001:db8::/32"
+                      aria-label="{{T "allowlist_section"}}"
+                      placeholder="192.168.1.0/24&#10;10.0.0.1&#10;2001:db8::1"
                       hx-post="/iplist/validate"
                       hx-trigger="input changed delay:600ms, change delay:200ms"
                       hx-target="#iplist-errors"
@@ -55,19 +55,21 @@
         <div class="aside-stack">
           <div class="aside-card">
             <h2 class="aside-title">
-              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-              {{T "blacklist_what_title"}}
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1l-7 3v5c0 4.1 2.9 7.9 7 9 4.1-1.1 7-4.9 7-9V4l-7-3zm3.7 6.7l-4.2 4.2a.75.75 0 01-1.06 0L6.3 10.76a.75.75 0 011.06-1.06l1.61 1.6 3.67-3.66a.75.75 0 011.06 1.06z" clip-rule="evenodd"/></svg>
+              {{T "allowlist_wayback_title"}}
             </h2>
-            <p>{{T "blacklist_what_body"}}</p>
-            <p>{{richText (T "iplist_forms_note")}}</p>
+            <p>{{T "allowlist_wayback_body"}}</p>
+            <p>{{richText (T "allowlist_wayback_note") "/ports" (T "link_port_rules")}}</p>
           </div>
 
           <div class="aside-card">
             <h2 class="aside-title">
               <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
-              {{T "order_matters_title"}}
+              {{T "allowlist_narrow_title"}}
             </h2>
-            <p>{{richText (T "blacklist_order_body") "/whitelist" (T "link_whitelist")}}</p>
+            <p>{{T "allowlist_narrow_body"}}</p>
+            <p>{{richText (T "allowlist_order_note") "/blocklist" (T "link_blocklist")}}</p>
+            <p>{{richText (T "allowlist_feeds_note") "/blocklist#feeds" (T "link_feeds")}}</p>
           </div>
         </div>
       </div>

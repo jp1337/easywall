@@ -82,7 +82,22 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg.CoreConfig); err != nil {
+	meta, err := toml.Decode(string(data), &cfg.CoreConfig)
+	if err != nil {
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	// A limit the file does not name is its default, not zero. The package
+	// generates easywall.toml once and never replaces it, so a host upgraded
+	// from 2.22 has no log_feed_connections_limit: read as 0, /options rendered
+	// value="0" min="1", the browser refused to submit the form, and no option
+	// could be saved at all. Before readOldLogKeys, so a 2.22 file's
+	// old-spelling blocklist log limit still sets its limit.
+	for _, l := range shared.FirewallLimits {
+		if !meta.IsDefined("firewall", l.Key) {
+			*l.Value(&cfg.Firewall) = l.Default
+		}
+	}
+	if err := readOldLogKeys(data, &cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 	cfg.configPath = path
@@ -97,6 +112,53 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("environment: %w", err)
 	}
 	return &cfg, nil
+}
+
+// readOldLogKeys reads the two [firewall] keys easywall.toml carried until
+// 2.22, log_blacklist_connections and log_blacklist_connections_limit, into
+// their 2.23 fields. The package generates this file once from a template and
+// never replaces it (docs-tech/packaging.md), so every upgraded host keeps the
+// old spelling until its next save; it is read here and nowhere else, so
+// FirewallOptions carries no second field that DiffConfig, the schema and the
+// documentation guards would each have to be taught to ignore. The next save
+// from the interface writes the new keys (saveLocked encodes the struct).
+//
+// A new key that is present wins over its old one, and the warning says so.
+func readOldLogKeys(data []byte, c *shared.CoreConfig) error {
+	var old struct {
+		Firewall struct {
+			Log   *bool `toml:"log_blacklist_connections"`
+			Limit *int  `toml:"log_blacklist_connections_limit"`
+		} `toml:"firewall"`
+	}
+	meta, err := toml.Decode(string(data), &old)
+	if err != nil {
+		return err
+	}
+	var read, ignored []string
+	if v := old.Firewall.Log; v != nil {
+		if meta.IsDefined("firewall", "log_blocklist_connections") {
+			ignored = append(ignored, "log_blacklist_connections")
+		} else {
+			c.Firewall.LogBlocklist = *v
+			read = append(read, "log_blacklist_connections")
+		}
+	}
+	if v := old.Firewall.Limit; v != nil {
+		if meta.IsDefined("firewall", "log_blocklist_connections_limit") {
+			ignored = append(ignored, "log_blacklist_connections_limit")
+		} else {
+			c.Firewall.LogBlocklistLimit = *v
+			read = append(read, "log_blacklist_connections_limit")
+		}
+	}
+	if len(read)+len(ignored) > 0 {
+		slog.Warn("easywall.toml uses the [firewall] key names from before 2.23; "+
+			"rename log_blacklist_connections to log_blocklist_connections and "+
+			"log_blacklist_connections_limit to log_blocklist_connections_limit",
+			"read", read, "ignored_because_the_new_key_is_set", ignored)
+	}
+	return nil
 }
 
 // Validate checks all required fields and returns a descriptive error if
@@ -467,6 +529,12 @@ func (c *Config) SelftestStampPath() string {
 	return c.DataDir + "/selftest.json"
 }
 
+// FeedsPath returns the path of the core's own copy of every feed. See
+// feedstore.go.
+func (c *Config) FeedsPath() string {
+	return c.DataDir + "/feeds.json"
+}
+
 // PanicMarkerPath returns the path of the file that records panic mode.
 //
 // In the data directory rather than in this config file for two reasons, neither
@@ -499,8 +567,8 @@ func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	}
 	// Every entry has to be a network the apply step can turn into a rule.
 	// addCIDRAccept returns quietly on anything it cannot parse, so an unchecked
-	// entry was listed here as whitelisted and never reached the kernel — the
-	// same silent skip the blacklist had, in the direction where the operator
+	// entry was listed here as allowlisted and never reached the kernel — the
+	// same silent skip the blocklist had, in the direction where the operator
 	// finds out because something they expected to work does not.
 	if err := checkNetworkLists(s.Docker.CustomNetworks, s.Routing.Networks); err != nil {
 		return err

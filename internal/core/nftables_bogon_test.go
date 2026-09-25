@@ -9,7 +9,7 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// The bogon filter drops RFC-1918 sources, and both the whitelist and the
+// The bogon filter drops RFC-1918 sources, and both the allowlist and the
 // Docker bridge allowance are lists of RFC-1918 networks. The filter runs
 // first, so before the exceptions existed, switching it on silently turned both
 // of those features off — the packet was gone by the time either rule was
@@ -19,7 +19,7 @@ func TestIntegration_BogonFilterLetsThroughWhatTheOperatorAllowed(t *testing.T) 
 	m := newIntegrationManager(t)
 
 	state := emptyState()
-	state.Current.Whitelist = []string{
+	state.Current.Allowlist = []string{
 		"# the office",
 		"192.168.1.0/24",
 		"10.9.0.5",
@@ -50,7 +50,7 @@ func TestIntegration_BogonFilterLetsThroughWhatTheOperatorAllowed(t *testing.T) 
 	for _, allowed := range []string{"192.168.1.0/24", "10.9.0.5"} {
 		at := indexOfRule(rules, allowed, "return")
 		if at < 0 {
-			t.Errorf("%s is whitelisted but the bogon chain has no exception for it:\n%s",
+			t.Errorf("%s is allowlisted but the bogon chain has no exception for it:\n%s",
 				allowed, strings.Join(rules, "\n"))
 			continue
 		}
@@ -92,7 +92,7 @@ func TestIntegration_BogonFilterLetsThroughWhatTheOperatorAllowed(t *testing.T) 
 	}
 }
 
-// With no whitelist and no Docker networks the module is what it always was.
+// With no allowlist and no Docker networks the module is what it always was.
 func TestIntegration_BogonFilterWithoutExceptions(t *testing.T) {
 	m := newIntegrationManager(t)
 

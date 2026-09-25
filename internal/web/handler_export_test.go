@@ -94,7 +94,7 @@ func TestHandleImport_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create form file: %v", err)
 	}
-	_, _ = fmt.Fprint(fw, `{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`)
+	_, _ = fmt.Fprint(fw, `{"tcp":[],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}`)
 	_ = w.Close()
 
 	cookie := makeAuthCookie(t, s)
@@ -109,7 +109,7 @@ func TestHandleImport_Success(t *testing.T) {
 // A rule set big enough to matter still has to import. The handler documents a
 // 512 KB ceiling, but the global MaxBodySize middleware had already wrapped the
 // body at 64 KB, and the handler's own MaxBytesReader wrapped that limited
-// reader rather than replacing it — so the inner limit won. A blacklist of a few
+// reader rather than replacing it — so the inner limit won. A blocklist of a few
 // thousand addresses is an ordinary export from a busy host and it came back as
 // "no file uploaded", which blames the operator for a size problem.
 func TestHandleImport_AcceptsAFileLargerThanTheGlobalBodyLimit(t *testing.T) {
@@ -118,11 +118,11 @@ func TestHandleImport_AcceptsAFileLargerThanTheGlobalBodyLimit(t *testing.T) {
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdImportRules, shared.Response{Success: true})
 
-	blacklist := make([]string, 6000)
-	for i := range blacklist {
-		blacklist[i] = fmt.Sprintf("198.51.%d.%d", i/256, i%256)
+	blocklist := make([]string, 6000)
+	for i := range blocklist {
+		blocklist[i] = fmt.Sprintf("198.51.%d.%d", i/256, i%256)
 	}
-	payload, err := json.Marshal(shared.Rules{Blacklist: blacklist})
+	payload, err := json.Marshal(shared.Rules{Blocklist: blocklist})
 	if err != nil {
 		t.Fatalf("marshal rules: %v", err)
 	}

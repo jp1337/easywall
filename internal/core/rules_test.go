@@ -87,25 +87,52 @@ func TestSaveStaged_UDP(t *testing.T) {
 	}
 }
 
-func TestSaveStaged_Blacklist(t *testing.T) {
+func TestSaveStaged_Blocklist(t *testing.T) {
 	store, _ := newTempStore(t)
-	if err := store.SaveStaged("blacklist", []string{"1.2.3.4", "10.0.0.0/8"}); err != nil {
+	if err := store.SaveStaged("blocklist", []string{"1.2.3.4", "10.0.0.0/8"}); err != nil {
 		t.Fatal(err)
 	}
 	state, _ := store.GetState()
-	if len(state.Staged.Blacklist) != 2 {
-		t.Errorf("expected 2 blacklist entries, got %d", len(state.Staged.Blacklist))
+	if len(state.Staged.Blocklist) != 2 {
+		t.Errorf("expected 2 blocklist entries, got %d", len(state.Staged.Blocklist))
 	}
 }
 
-func TestSaveStaged_Whitelist(t *testing.T) {
+func TestSaveStaged_Allowlist(t *testing.T) {
 	store, _ := newTempStore(t)
-	if err := store.SaveStaged("whitelist", []string{"192.168.1.0/24"}); err != nil {
+	if err := store.SaveStaged("allowlist", []string{"192.168.1.0/24"}); err != nil {
 		t.Fatal(err)
 	}
 	state, _ := store.GetState()
-	if len(state.Staged.Whitelist) != 1 {
-		t.Errorf("expected 1 whitelist entry, got %d", len(state.Staged.Whitelist))
+	if len(state.Staged.Allowlist) != 1 {
+		t.Errorf("expected 1 allowlist entry, got %d", len(state.Staged.Allowlist))
+	}
+}
+
+// Switching a feed on is a rule change like any other (spec D2): staged by id,
+// and refused by the core, not only by the web process, when the id is not one.
+func TestSaveStaged_Feeds(t *testing.T) {
+	store, _ := newTempStore(t)
+	if err := store.SaveStaged("feeds", []string{"spamhaus-drop", "own-2"}); err != nil {
+		t.Fatal(err)
+	}
+	state, _ := store.GetState()
+	if got := state.Staged.Feeds; len(got) != 2 || got[0] != "spamhaus-drop" || got[1] != "own-2" {
+		t.Errorf("staged feeds = %v", got)
+	}
+	if len(state.Current.Feeds) != 0 {
+		t.Error("SaveStaged must not modify current")
+	}
+	for _, bad := range [][]string{{"firehol-level1"}, {"dshield", "dshield"}} {
+		if err := store.SaveStaged("feeds", bad); err == nil {
+			t.Errorf("staged %v; the core must refuse it", bad)
+		}
+	}
+	if err := store.SaveStaged("feeds", "not a list"); err == nil {
+		t.Error("expected error for wrong type in feeds case")
+	}
+	if state, _ := store.GetState(); len(state.Staged.Feeds) != 2 {
+		t.Errorf("a refused save changed the staged feeds to %v", state.Staged.Feeds)
 	}
 }
 
@@ -159,18 +186,18 @@ func TestSaveStaged_UDP_TypeMismatch(t *testing.T) {
 	}
 }
 
-func TestSaveStaged_Blacklist_TypeMismatch(t *testing.T) {
+func TestSaveStaged_Blocklist_TypeMismatch(t *testing.T) {
 	store, _ := newTempStore(t)
 	// []int{1,2,3} marshals to [1,2,3], can't unmarshal into []string
-	if err := store.SaveStaged("blacklist", []int{1, 2, 3}); err == nil {
-		t.Error("expected error for wrong type in blacklist case")
+	if err := store.SaveStaged("blocklist", []int{1, 2, 3}); err == nil {
+		t.Error("expected error for wrong type in blocklist case")
 	}
 }
 
-func TestSaveStaged_Whitelist_TypeMismatch(t *testing.T) {
+func TestSaveStaged_Allowlist_TypeMismatch(t *testing.T) {
 	store, _ := newTempStore(t)
-	if err := store.SaveStaged("whitelist", []int{1, 2, 3}); err == nil {
-		t.Error("expected error for wrong type in whitelist case")
+	if err := store.SaveStaged("allowlist", []int{1, 2, 3}); err == nil {
+		t.Error("expected error for wrong type in allowlist case")
 	}
 }
 
@@ -295,7 +322,7 @@ func TestExportStaged(t *testing.T) {
 
 func TestImportRules_Valid(t *testing.T) {
 	store, _ := newTempStore(t)
-	data := `{"tcp":[{"port":"80","description":"HTTP"}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`
+	data := `{"tcp":[{"port":"80","description":"HTTP"}],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}`
 	if err := store.ImportRules([]byte(data)); err != nil {
 		t.Fatalf("ImportRules failed: %v", err)
 	}
@@ -314,7 +341,7 @@ func TestImportRules_InvalidJSON(t *testing.T) {
 
 func TestImportRules_InvalidPort(t *testing.T) {
 	store, _ := newTempStore(t)
-	data := `{"tcp":[{"port":"99999"}],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`
+	data := `{"tcp":[{"port":"99999"}],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}`
 	if err := store.ImportRules([]byte(data)); err == nil {
 		t.Error("expected validation error for port 99999")
 	}
@@ -404,7 +431,7 @@ func TestExportStaged_GetStateError(t *testing.T) {
 
 func TestImportRules_GetStateError(t *testing.T) {
 	store := &RulesStore{path: "/nonexistent/rules.json"}
-	err := store.ImportRules([]byte(`{"tcp":[],"udp":[],"blacklist":[],"whitelist":[],"forwarding":[],"custom":[]}`))
+	err := store.ImportRules([]byte(`{"tcp":[],"udp":[],"blocklist":[],"allowlist":[],"forwarding":[],"custom":[]}`))
 	if err == nil {
 		t.Error("expected error when file is missing")
 	}
@@ -454,7 +481,7 @@ func TestWriteAuditLog_UnwritablePathWritesNothingAndDoesNotPanic(t *testing.T) 
 // and skips a line it cannot decode.
 func TestWriteAuditLog_RoundTripsThroughTheReader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "audit.log")
-	WriteAuditLog(path, "rules_saved", "blacklist", `added 203.0.113.7 "quoted", removed 192.0.2.1`, "web")
+	WriteAuditLog(path, "rules_saved", "blocklist", `added 203.0.113.7 "quoted", removed 192.0.2.1`, "web")
 
 	entries, err := readAuditLog(path, 10)
 	if err != nil {
@@ -464,7 +491,7 @@ func TestWriteAuditLog_RoundTripsThroughTheReader(t *testing.T) {
 		t.Fatalf("expected 1 entry, got %d", len(entries))
 	}
 	e := entries[0]
-	if e.Action != "rules_saved" || e.RuleType != "blacklist" || e.User != "web" {
+	if e.Action != "rules_saved" || e.RuleType != "blocklist" || e.User != "web" {
 		t.Errorf("fields did not survive the round trip: %+v", e)
 	}
 	if !strings.Contains(e.Detail, `"quoted"`) {
@@ -506,10 +533,10 @@ func TestSaveStaged_RejectsInvalidAddresses(t *testing.T) {
 		ruleType string
 		rules    interface{}
 	}{
-		{"blacklist octet out of range", "blacklist", []string{"192.168.1.999"}},
-		{"blacklist prefix out of range", "blacklist", []string{"10.0.0.0/33"}},
-		{"blacklist hostname", "blacklist", []string{"example.com"}},
-		{"whitelist malformed", "whitelist", []string{"10.0.0."}},
+		{"blocklist octet out of range", "blocklist", []string{"192.168.1.999"}},
+		{"blocklist prefix out of range", "blocklist", []string{"10.0.0.0/33"}},
+		{"blocklist hostname", "blocklist", []string{"example.com"}},
+		{"allowlist malformed", "allowlist", []string{"10.0.0."}},
 		{"tcp port out of range", "tcp", []shared.PortRule{{Port: "70000"}}},
 		{"forwarding bad protocol", "forwarding", []shared.ForwardingRule{
 			{Protocol: "sctp", SourcePort: 80, DestPort: 8080}}},
@@ -530,7 +557,7 @@ func TestSaveStaged_RejectsInvalidAddresses(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetState: %v", err)
 			}
-			if len(state.Staged.Blacklist)+len(state.Staged.Whitelist)+
+			if len(state.Staged.Blocklist)+len(state.Staged.Allowlist)+
 				len(state.Staged.TCP)+len(state.Staged.Forwarding) != 0 {
 				t.Errorf("a rejected save still persisted something: %+v", state.Staged)
 			}
@@ -544,15 +571,15 @@ func TestSaveStaged_AcceptsValidAddresses(t *testing.T) {
 		t.Fatalf("NewRulesStore: %v", err)
 	}
 	valid := []string{"192.0.2.1", "198.51.100.0/24", "2001:db8::1", "2001:db8::/32"}
-	if err := store.SaveStaged("blacklist", valid); err != nil {
+	if err := store.SaveStaged("blocklist", valid); err != nil {
 		t.Fatalf("SaveStaged rejected valid entries: %v", err)
 	}
 	state, err := store.GetState()
 	if err != nil {
 		t.Fatalf("GetState: %v", err)
 	}
-	if len(state.Staged.Blacklist) != len(valid) {
-		t.Errorf("expected %d entries, got %d", len(valid), len(state.Staged.Blacklist))
+	if len(state.Staged.Blocklist) != len(valid) {
+		t.Errorf("expected %d entries, got %d", len(valid), len(state.Staged.Blocklist))
 	}
 }
 
@@ -581,12 +608,12 @@ func TestSaveStaged_ConcurrentSavesDoNotLoseEachOther(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_ = store.SaveStaged("blacklist", []string{"192.0.2.1"})
+			_ = store.SaveStaged("blocklist", []string{"192.0.2.1"})
 		}()
 		go func() {
 			defer wg.Done()
 			<-start
-			_ = store.SaveStaged("whitelist", []string{"203.0.113.1"})
+			_ = store.SaveStaged("allowlist", []string{"203.0.113.1"})
 		}()
 		close(start)
 		wg.Wait()
@@ -595,7 +622,7 @@ func TestSaveStaged_ConcurrentSavesDoNotLoseEachOther(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetState: %v", err)
 		}
-		if len(state.Staged.Blacklist) == 0 || len(state.Staged.Whitelist) == 0 {
+		if len(state.Staged.Blocklist) == 0 || len(state.Staged.Allowlist) == 0 {
 			lost++
 		}
 	}
@@ -623,7 +650,7 @@ func TestRulesStore_ApplySequenceIsAtomicAgainstConcurrentSaves(t *testing.T) {
 		}()
 		go func() {
 			defer wg.Done()
-			_ = store.SaveStaged("blacklist", []string{"198.51.100.1"})
+			_ = store.SaveStaged("blocklist", []string{"198.51.100.1"})
 		}()
 	}
 	wg.Wait()
@@ -653,7 +680,7 @@ func TestExportImport_RoundTripsTheStagedSetIncludingComments(t *testing.T) {
 		t.Fatal(err)
 	}
 	staged := []string{"# from the abuse report", "192.0.2.42", "", "198.51.100.0/24"}
-	if err := store.SaveStaged("blacklist", staged); err != nil {
+	if err := store.SaveStaged("blocklist", staged); err != nil {
 		t.Fatal(err)
 	}
 
@@ -666,11 +693,11 @@ func TestExportImport_RoundTripsTheStagedSetIncludingComments(t *testing.T) {
 	if err := json.Unmarshal(data, &exported); err != nil {
 		t.Fatalf("the export is not valid JSON: %v", err)
 	}
-	if len(exported.Blacklist) != len(staged) {
-		t.Fatalf("the export lost lines: %+v", exported.Blacklist)
+	if len(exported.Blocklist) != len(staged) {
+		t.Fatalf("the export lost lines: %+v", exported.Blocklist)
 	}
-	if exported.Blacklist[0] != "# from the abuse report" {
-		t.Errorf("the export dropped the comment: %+v", exported.Blacklist)
+	if exported.Blocklist[0] != "# from the abuse report" {
+		t.Errorf("the export dropped the comment: %+v", exported.Blocklist)
 	}
 
 	// Importing it back into a fresh store reproduces what was staged.
@@ -682,12 +709,12 @@ func TestExportImport_RoundTripsTheStagedSetIncludingComments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(state.Staged.Blacklist) != len(staged) {
-		t.Errorf("the round trip lost lines: %+v", state.Staged.Blacklist)
+	if len(state.Staged.Blocklist) != len(staged) {
+		t.Errorf("the round trip lost lines: %+v", state.Staged.Blocklist)
 	}
 	for i := range staged {
-		if state.Staged.Blacklist[i] != staged[i] {
-			t.Errorf("line %d: got %q, want %q", i, state.Staged.Blacklist[i], staged[i])
+		if state.Staged.Blocklist[i] != staged[i] {
+			t.Errorf("line %d: got %q, want %q", i, state.Staged.Blocklist[i], staged[i])
 		}
 	}
 }

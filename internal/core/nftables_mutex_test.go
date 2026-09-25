@@ -7,12 +7,13 @@ import (
 	"github.com/jp1337/easywall/internal/shared"
 )
 
-// Apply calls reset() — not Reset() — for exactly one reason: Apply already
-// holds mu for the whole cycle, and a plain sync.Mutex is not reentrant. If
-// Apply called Reset() instead, the second Lock from the same goroutine would
-// never return. A nil connection is enough to prove this: reset() still runs,
-// still checks m.conn, and still returns promptly, all under the lock Apply
-// took first. Before the reset()/Reset() split, this test hung forever.
+// Apply holds mu for the whole cycle, and a plain sync.Mutex is not reentrant:
+// anything inside it that calls Reset() — or any other method that locks mu —
+// never returns. It called reset() for that reason until 2.23, and since then
+// deletes and recreates the table in its own transaction instead. A nil
+// connection is enough to prove the cycle returns: ApplyWithFeeds checks
+// m.conn and returns promptly, under the lock it took first. Before the
+// reset()/Reset() split, this test hung forever.
 //
 // This is the only unit-level test in this file. A nil-conn NftablesManager
 // cannot exercise the serialisation the mutex actually provides — Apply and
