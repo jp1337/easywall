@@ -2,8 +2,11 @@ package core
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net/netip"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -371,5 +374,41 @@ func TestFlushBuffersGrowWithTheBatch(t *testing.T) {
 	s1, r1 := flushBuffers(100, 1<<20)
 	if s1 <= s0 || r1 <= r0 {
 		t.Errorf("a MiB of elements moves the buffers from %d/%d to %d/%d; both must grow", s0, r0, s1, r1)
+	}
+}
+
+// 2.23.1 review: only a receive-side ENOBUFS is the answers after a commit. A
+// send-side one is the kernel failing to allocate the batch — nothing written
+// — and an error ack is the kernel's refusal.
+func TestReceiveOverflowIsOnlyTheReceiveSide(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"recvmsg ENOBUFS", &netlink.OpError{Op: "receive", Err: os.NewSyscallError("recvmsg", unix.ENOBUFS)}, true},
+		{"wrapped by flushLarge", fmt.Errorf("x: %w", &netlink.OpError{Op: "receive", Err: unix.ENOBUFS}), true},
+		{"sendmsg ENOBUFS", fmt.Errorf("SendMessages: %w", &netlink.OpError{Op: "send-messages", Err: os.NewSyscallError("sendmsg", unix.ENOBUFS)}), false},
+		{"an error ack", &netlink.OpError{Op: "receive", Err: unix.EEXIST}, false},
+		{"a bare errno", unix.ENOBUFS, false},
+	} {
+		if got := receiveOverflow(tc.err); got != tc.want {
+			t.Errorf("%s: receiveOverflow = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// 2.23.1 review: a capped buffer names the sysctl only when the sysctl is
+// what stopped it.
+func TestCapNoteNamesTheSysctlOnlyWhenItBit(t *testing.T) {
+	if got := capNote("receive", 500000, "rmem_max", 212992); !strings.Contains(got, "net.core.rmem_max") {
+		t.Errorf("a sysctl under the request: %q, want it named", got)
+	}
+	if got := capNote("receive", 500000, "rmem_max", 0); !strings.Contains(got, "net.core.rmem_max") {
+		t.Errorf("an unreadable sysctl: %q, want it named", got)
+	}
+	got := capNote("receive", 500000, "rmem_max", 4194304)
+	if strings.Contains(got, "rmem_max") || !strings.Contains(got, "estimate is too small") {
+		t.Errorf("a sysctl above the request: %q, want the estimate blamed and no sysctl", got)
 	}
 }
