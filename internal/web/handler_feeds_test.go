@@ -327,6 +327,24 @@ func TestAnOwnFeedRefusalShowsBesideItsSlot(t *testing.T) {
 		t.Error("a URL refused for its credentials was written back with them")
 	}
 
+	// Review round 1, finding 1: url.Parse succeeding and reporting no User
+	// is not proof the string holds no credential — a URL that does not
+	// parse at all, or one that parses as an opaque scheme (no "//") with the
+	// userinfo sitting inside Opaque instead of User, must not be echoed
+	// either. The field comes back empty rather than risk any of it going
+	// out.
+	for _, bad := range []string{
+		"https://u:leak1%zz@example.org/l", // invalid percent-escape: url.Parse fails
+		"https://u:leak2@exa mple.org/l",   // space in the host: url.Parse fails
+		"u:secret@host/x",                  // no "//": parses with Opaque set, User stays nil
+	} {
+		form.Set("url", bad)
+		body = doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()).Body.String()
+		if strings.Contains(body, "leak1") || strings.Contains(body, "leak2") || strings.Contains(body, "secret") {
+			t.Errorf("a URL refused for %q echoed a credential:\n%s", bad, body)
+		}
+	}
+
 	form.Set("url", "https://example.org/list.txt")
 	assertRedirect(t, doAuthFormRequest(t, s, "/blocklist/own-feeds", form.Encode()), "/blocklist#own-feeds")
 	if f, ok := s.feedStore.ownFeed(2); !ok || f.Password != "hunter2-typed" {
