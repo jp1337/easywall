@@ -48,8 +48,9 @@ demo mode active — using in-memory mock instead of core socket
 {"time":"…","level":"WARN","msg":"first run: enter this setup token at /firstrun to create the account","token":"ABCD EFGH …"}
 ```
 
-Finish the wizard yourself, then publish the credentials. A public demo that
-leaves the first run to its first visitor is what the token exists to prevent.
+Finish the wizard yourself. Visitors never need the account: the login card of a
+demo is a single **Enter the demo** button. A public demo that leaves the first run
+to its first visitor is what the token exists to prevent.
 
 > **Custom-rule syntax cannot be checked.** There is no `nft` binary, so the page says
 > live validation is not running rather than reporting a verdict it has no basis for.
@@ -61,11 +62,14 @@ leaves the first run to its first visitor is what the token exists to prevent.
 
 - A neutral **Demo** chip in the topbar of every page: *nothing reaches a real
   firewall; state resets periodically*
-- A notice on the login card pointing at the credentials
+- A login card with one **Enter the demo** button and no password form
 
-Neither weakens anything: demo mode does not disable authentication, CSRF, the CSP or
-the rate limiter. With no privileged process running, the worst case is confined to
-the unprivileged web process and its data directory.
+The button is a session without a password. That is the one thing demo mode
+relaxes: nothing behind it reaches a firewall, and every page that would write a
+credential refuses in demo mode. CSRF protection, the CSP and the rest stay as they
+are. The route does not exist on an installation — without `demo_mode` there is
+no way in but the password. With no privileged process running, the worst case is
+confined to the unprivileged web process and its data directory.
 
 ## Resetting it on a schedule
 

@@ -21,7 +21,8 @@
   {"id": "login_username",   "translation": "Benutzername"},
   {"id": "login_password",   "translation": "Passwort"},
   {"id": "login_submit",     "translation": "Anmelden"},
-  {"id": "login_demo_notice", "translation": "Die Zugangsdaten stehen auf der Demo-Startseite. Beim Neustart des Servers wird der Zustand zurückgesetzt."},
+  {"id": "login_demo_notice", "translation": "Nichts hier erreicht eine Firewall, deshalb braucht es kein Passwort. Beim Neustart des Servers wird der Zustand zurückgesetzt."},
+  {"id": "login_demo_enter", "translation": "Demo betreten"},
 
   {"id": "verify_title",    "translation": "Zweiter Faktor"},
   {"id": "passkey_login_button", "translation": "Passkey verwenden"},

@@ -20,7 +20,8 @@
   {"id": "login_username",   "translation": "Nom d'utilisateur"},
   {"id": "login_password",   "translation": "Mot de passe"},
   {"id": "login_submit",     "translation": "Se connecter"},
-  {"id": "login_demo_notice", "translation": "Les identifiants figurent sur la page de présentation de la démo. L'état est réinitialisé au redémarrage du serveur."},
+  {"id": "login_demo_notice", "translation": "Rien ici n'atteint un pare-feu, aucun mot de passe n'est donc nécessaire. L'état est réinitialisé au redémarrage du serveur."},
+  {"id": "login_demo_enter", "translation": "Entrer dans la démo"},
 
   {"id": "verify_title",    "translation": "Deuxième facteur"},
   {"id": "verify_prompt",   "translation": "Code de votre application, ou un code de récupération"},
