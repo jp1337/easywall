@@ -81,8 +81,9 @@ lists' old names give way to blocklist and allowlist.
 - **The socket limit is 8 MiB each way**, from 1 MiB — enough for a full
   feed of 100 000 IPv6 addresses.
 - **An apply or `easywall-core resume` can be refused for a moment** while a
-  feed refresh holds the apply slot — about 0.3 seconds, longer for a large
-  list. The page says an apply is already running; try again.
+  feed refresh holds the apply slot — under a second, even at the largest
+  list the core accepts. The page says an apply is already running; try
+  again.
 - **`fr` names the lists *liste de blocage* and *liste d'autorisation*.**
   Every new key in this release went into `en` and `de` only: `en` holds 866
   keys, `fr` answers 455 of them (53 %), a gap of 411.

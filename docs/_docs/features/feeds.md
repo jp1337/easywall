@@ -79,6 +79,10 @@ with no CrowdSec engine installed.
 | Free plan | one pull per 24 hours — easywall's interval for an own feed — and at most three lists |
 | Terms | the [CrowdSec EULA](https://booking.crowdsec.net/crowdsec-eula) applies to the data |
 
+CrowdSec's default *Pull limit* is 10 000 IPs per pull, and easywall fetches
+one page, so three subscribed lists can arrive partial. The limit is
+CrowdSec's, set on its side: see its [integration documentation](https://docs.crowdsec.net/u/integrations/intro).
+
 Already running a CrowdSec engine? Its `cs-blocklist-mirror` serves your own
 decisions locally: use `http://127.0.0.1:41412/security/blocklist`.
 
@@ -92,7 +96,7 @@ acceptance window; switching a feed on or off does.
 | Never fetched | no copy yet; switched on, it blocks nothing |
 | Updated | the last refresh brought a new version |
 | Unchanged | the server had nothing new |
-| Failed — the previous copy stays active | the *Error* line says why; the next try follows on its own |
+| Failed — the previous copy stays active | the *Error* line says why — *a web page, not a list* when the server sent HTML; the next try follows on its own |
 | Failed — no copy yet | as above, and the feed blocks nothing until a copy arrives |
 
 | Warning on the row | What to do |
@@ -102,14 +106,14 @@ acceptance window; switching a feed on or off does.
 | *Contains allowlist entries (N)* | nothing — those addresses stay reachable, which is the point of the order |
 | *Failed N times in a row* | read the *Error* line above it |
 | *Refused: shrank from N to M* | the core refuses a list under 70 % of the copy it holds. To take the smaller list, switch the feed off and apply, then on and apply |
-| *N lines were not an address* | the first five are shown; a web page instead of a list looks like this |
+| *N lines were not an address* | the first five are shown — often a notice from the server among the addresses, such as a rate-limit sentence |
 
 The core also refuses, whole, a list of more than 100 000 entries, or one with a
 network broader than /8 (IPv4) or /16 (IPv6). Private and reserved ranges are
 dropped from every feed without a warning, and *Entries* counts what is left.
 
 *An apply is already running*, with no window open, means a feed refresh held
-the apply slot for a moment — about 0.3 seconds, longer for a large list.
+the apply slot for a moment. That is under a second, even at the largest list the core accepts.
 Press **Apply now** again; `easywall-core resume` answers the same way.
 
 ## Reference: the catalogue
