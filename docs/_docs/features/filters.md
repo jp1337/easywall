@@ -130,6 +130,11 @@ answer over UDP carrying DNSSEC, and
 filter fragments to or from a DNS server. Until 2.22 the rule sat in `input` and
 matched nothing.
 
+The other is a tunnel. WireGuard runs over UDP, and when a path's MTU is smaller
+than its packets, each one arrives in fragments and is dropped. A production host
+measured it in 2.23: 60 fragments from its own WireGuard peer within one second. If
+the tunnel is your way into the host, leave this off or lower the tunnel's MTU.
+
 ### What the bogon filter drops
 
 A packet claiming to come from one of these, arriving on a real interface, is
