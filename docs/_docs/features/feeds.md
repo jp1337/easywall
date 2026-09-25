@@ -55,6 +55,8 @@ address or network per line, `#` and `;` start a comment.
 2. Press **Save**.
 3. Switch the feed on in **Feeds**, save, apply and confirm.
 
+**Remove** empties a slot only once its feed is switched off and applied.
+
 | The address may be | Refused |
 |---|---|
 | `https://` to any host | a user or password inside the URL — use the two fields |

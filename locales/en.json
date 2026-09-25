@@ -468,6 +468,7 @@
   {"id": "feeds_own_err_login", "translation": "Not saved: user and password are printable, at most 256 characters each, and the user has no colon."},
   {"id": "feeds_own_err_password_again", "translation": "Not saved: this address needs its own password — type it."},
   {"id": "feeds_own_err_demo", "translation": "The public demo keeps no own feeds: a password typed here would be stored on its host."},
+  {"id": "feeds_own_err_in_use", "translation": "Not removed: this feed is switched on. Switch it off and apply first."},
   {"id": "blocked_rule_feed_named", "translation": "Feed: {{.Name}}"},
 
   {"id": "forwarding_subtitle", "translation": "Redirect traffic arriving on one port to another port on this host."},

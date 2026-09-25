@@ -468,6 +468,7 @@
   {"id": "feeds_own_err_login", "translation": "Nicht gespeichert: Benutzer und Passwort sind druckbar, je höchstens 256 Zeichen, und der Benutzer enthält keinen Doppelpunkt."},
   {"id": "feeds_own_err_password_again", "translation": "Nicht gespeichert: diese Adresse braucht ein eigenes Passwort — bitte eingeben."},
   {"id": "feeds_own_err_demo", "translation": "Die öffentliche Demo speichert keine eigenen Fremdlisten: ein hier eingegebenes Passwort läge auf ihrem Host."},
+  {"id": "feeds_own_err_in_use", "translation": "Nicht entfernt: diese Fremdliste ist eingeschaltet. Schalte sie zuerst aus und wende die Regeln an."},
   {"id": "blocked_rule_feed_named", "translation": "Fremdliste: {{.Name}}"},
 
   {"id": "forwarding_subtitle", "translation": "Verkehr, der auf einem Port ankommt, auf einen anderen Port dieses Hosts umleiten."},

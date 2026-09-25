@@ -269,7 +269,8 @@ func (s *Server) forgetPendingFeed(id string) {
 // saveOwnFeed stores own feed n (1..3). An empty Password keeps the stored
 // one — the form never shows it back — but only when the scheme and host
 // (incl. port) are unchanged; a changed address with an empty password field
-// is refused with errOwnFeedPasswordAgain, never sent the old credential
+// and a password stored is refused with errOwnFeedPasswordAgain, never sent
+// the old credential
 // (review round 1, finding 1). An empty URL and name clear the slot,
 // including any stored password. A new URL or user forgets the old
 // validators and failures: they described another list.
@@ -306,9 +307,11 @@ func (s *Server) saveOwnFeed(n int, f OwnFeed) error {
 	switch {
 	case f.User == "":
 		f.Password = "" // no user, no credentials
-	case f.Password == "" && !sameOwnFeedHost(old.URL, f.URL):
+	case f.Password == "" && old.Password != "" && !sameOwnFeedHost(old.URL, f.URL):
 		// A changed scheme or host is a different server: an empty password
 		// field must not hand the old one to it (review round 1, finding 1).
+		// With no password stored there is none to hand over, and a user
+		// with an empty password saves as it did before (final review).
 		return errOwnFeedPasswordAgain
 	case f.Password == "":
 		f.Password = old.Password
