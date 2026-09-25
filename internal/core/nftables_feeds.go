@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"os"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -302,20 +305,55 @@ func (m *NftablesManager) flushLarge(batch int) error {
 	switch {
 	case err == nil:
 	case m.sndbufCapped && errors.Is(err, unix.EMSGSIZE):
-		return fmt.Errorf("%w: the batch needs a %d-byte send buffer, and without "+
-			"CAP_NET_ADMIN the socket cannot be given more than net.core.wmem_max", err, m.sndbuf)
-	case m.rcvbufCapped && errors.Is(err, unix.ENOBUFS):
-		return fmt.Errorf("%w: the kernel's answers need a %d-byte receive buffer, and without "+
-			"CAP_NET_ADMIN the socket cannot be given more than net.core.rmem_max", err, m.rcvbuf)
+		return fmt.Errorf("%w: %s", err, capNote("send", m.sndbuf, "wmem_max", sysctlCore("wmem_max")))
+	case m.rcvbufCapped && receiveOverflow(err):
+		return fmt.Errorf("%w: %s", err, capNote("receive", m.rcvbuf, "rmem_max", sysctlCore("rmem_max")))
 	}
 	return err
+}
+
+// receiveOverflow reports whether err is the socket's receive queue
+// overflowing while the kernel's answers were read — ENOBUFS from recvmsg,
+// which mdlayher/netlink v1.11.2 reports as an OpError "receive"
+// (conn.go:332). A send-side ENOBUFS is "send-messages" (conn.go:181): the
+// kernel could not allocate the batch (netlink_sendmsg, af_netlink.c @ v6.12)
+// and wrote nothing.
+func receiveOverflow(err error) bool {
+	var op *netlink.OpError
+	return errors.As(err, &op) && op.Op == "receive" && errors.Is(op.Err, unix.ENOBUFS)
+}
+
+// sysctlCore reads net.core.<name>; 0 when it cannot.
+func sysctlCore(name string) int {
+	b, err := os.ReadFile("/proc/sys/net/core/" + name) // #nosec G304 -- a fixed sysctl path
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return n
+}
+
+// capNote says why a capped buffer of need bytes was not enough. The sysctl
+// is named only when it is below the request (or unreadable, 0): above it, the
+// fallback gave the full request and the estimate itself was too small.
+func capNote(dir string, need int, sysctl string, limit int) string {
+	if limit > 0 && limit >= need {
+		return fmt.Sprintf("the socket was given the %d-byte %s buffer asked for, and the "+
+			"kernel needed more: the estimate is too small", need, dir)
+	}
+	return fmt.Sprintf("the flush needs a %d-byte %s buffer, and without CAP_NET_ADMIN the "+
+		"socket cannot be given more than net.core.%s", need, dir, sysctl)
 }
 
 // errNothingWritten marks an ApplyWithFeeds error from a batch the kernel
 // refused whole, or never received: the previous table, counters included,
 // is still in force. The rollback does not reset the usage baselines after
-// one. A receive-side ENOBUFS is not one — the answers it lost come after the
-// commit (TestIntegration_AReceiveOverflowIsNotNothingWritten).
+// one. A receive overflow is never tagged: after a commit the answers it lost
+// came after the table was written
+// (TestIntegration_AReceiveOverflowIsNotNothingWritten). On an aborted batch
+// it is untagged too — google/nftables v0.3.0 returns ENOBUFS and drops the
+// error acks it had collected (conn.go:269-273), so the two cannot be told
+// apart — which costs one extra baseline reset.
 var errNothingWritten = errors.New("nothing was written to the kernel")
 
 // ReplaceFeedSet swaps both of a live feed's sets for these ranges without an

@@ -1,8 +1,8 @@
 easywall (2.23.1) unstable; urgency=medium
 
-  * Fix: an apply with more than about 150 kernel rules failed with "no
-    buffer space available" (since at least 2.22; with the curated feeds
-    from about 104). The core now sizes both netlink socket buffers for
+  * Fix: an apply with more than about a hundred kernel rules failed with
+    "no buffer space available" (since at least 2.22; about 107 without
+    feeds, about 96 with four curated feeds). The core now sizes both netlink socket buffers for
     every write from what it sends.
   * Fix: a failed apply no longer claims nothing was written to the kernel
     when the kernel had committed it.

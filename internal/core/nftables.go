@@ -913,9 +913,10 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 
 	m.checkBuilt()
 	if err := m.flushLarge(feedBytes); err != nil {
-		// ENOBUFS is the kernel's answers overflowing the receive buffer,
-		// and they come after the commit: the table is written.
-		if errors.Is(err, unix.ENOBUFS) {
+		// The kernel's answers overflowing the receive buffer: they come
+		// after the commit, so the table is written (errNothingWritten says
+		// what an aborted batch's overflow costs).
+		if receiveOverflow(err) {
 			return err
 		}
 		// Refused whole, or never sent: the kernel holds the previous table

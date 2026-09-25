@@ -574,10 +574,10 @@ func portRules(n, first int) shared.Rules {
 }
 
 // 2.23.1: the kernel answers every rule — an ack and an echo, queued after the
-// commit — and on 2.23.0 those answers overflowed the stock 212 992-byte
-// receive buffer at about 104 kernel rules with the curated feeds and about
-// 150 without (2.22.0 had the second limit already). root01xvp: ~107 rules and
-// four feeds, nine apply_failed. Both shapes must apply. Without CAP_NET_ADMIN
+// commit — and those answers overflowed the stock 212 992-byte receive buffer
+// at about a hundred kernel rules: ≈107 without feeds (2.22.0 already), ≈96
+// with root01xvp's four. root01xvp: ~107 rules and four feeds, nine
+// apply_failed. Both shapes must apply. Without CAP_NET_ADMIN
 // in the initial user namespace the buffers stop at net.core.rmem_max and
 // wmem_max; a host whose limits are below the need skips, and CI — root, with
 // requireSelftestEnv — fails instead.

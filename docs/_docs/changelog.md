@@ -82,9 +82,9 @@ A patch to 2.23.0, from its first production rollout. The limit is older than
 
 ### Fixed
 
-- **An apply with more than about 150 kernel rules failed with "no buffer
-  space available"** — since at least 2.22, and with the curated feeds from
-  about 104. The kernel acknowledges every message of an apply and echoes
+- **An apply with more than about a hundred kernel rules failed with "no
+  buffer space available"** — since at least 2.22: about 107 without feeds,
+  about 96 with four curated feeds. The kernel acknowledges every message of an apply and echoes
   every rule back, after it has committed, and the core left the socket's
   receive buffer at the stock 212 992 bytes. The core now sizes both socket
   buffers for every write from what it sends. Without `CAP_NET_ADMIN` they
