@@ -82,6 +82,7 @@
   {"id": "firstrun_token_wrong",   "translation": "Dieses Einrichtungs-Token passt nicht. Kopiere es erneut aus dem Log — nach einem Neustart gilt nur das neueste."},
 
   {"id": "dashboard_title",        "translation": "Übersicht"},
+  {"id": "dashboard_unknown_bridge", "translation": "Das Docker-Netz {{.Iface}} ({{.CIDRs}}) existiert und steht nicht in den aktiven Regeln. Anwenden nimmt es auf."},
   {"id": "dashboard_status",       "translation": "Firewall-Status"},
   {"id": "dashboard_active",       "translation": "Aktiv"},
   {"id": "dashboard_pending",      "translation": "Ausstehende Änderungen"},

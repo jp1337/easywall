@@ -101,6 +101,28 @@ func TestRunSubcommand_StatusPrintsWhatTheKernelHolds(t *testing.T) {
 	}
 }
 
+// 2.24 D5: a Docker network the rules in force do not know is named, with the
+// action that fixes it, and the exit code does not change — the firewall is
+// enforcing.
+func TestRunSubcommand_StatusNamesAnUnknownBridge(t *testing.T) {
+	status, err := json.Marshal(shared.FirewallStatus{
+		Active: true, Acceptance: shared.AcceptanceIdle,
+		UnknownBridges: []shared.UnknownBridge{{Interface: "br-4f2a", CIDRs: []string{"172.20.0.0/24", "fd00:ea5e::/64"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := writeConfig(t, coreSocket(t, shared.Response{Success: true, Data: status}))
+	var out, errOut bytes.Buffer
+	if code := runSubcommand("status", []string{"-config", cfgPath}, &out, &errOut); code != 0 {
+		t.Fatalf("exit code %d: an unknown bridge is a warning, not a failure", code)
+	}
+	const want = "docker:     network br-4f2a (172.20.0.0/24, fd00:ea5e::/64) exists and is not in the rules in force: apply to name it"
+	if !strings.Contains(out.String(), want+"\n") {
+		t.Errorf("status does not name the bridge:\n  want %q\n  got:\n%s", want, out.String())
+	}
+}
+
 // `acceptance: idle` is two states in one word: a window waiting to be used,
 // and no window at all. A host with acceptance switched off applies rules that
 // nothing will ever undo, and until 2.20.1 the only surface recovery.md sends a

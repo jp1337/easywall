@@ -82,6 +82,7 @@
   {"id": "firstrun_token_wrong",   "translation": "That setup token does not match. Copy it again from the log — after a restart, only the newest one works."},
 
   {"id": "dashboard_title",        "translation": "Dashboard"},
+  {"id": "dashboard_unknown_bridge", "translation": "Docker network {{.Iface}} ({{.CIDRs}}) exists and is not in the rules in force. Apply to include it."},
   {"id": "dashboard_status",       "translation": "Firewall status"},
   {"id": "dashboard_active",       "translation": "Active"},
   {"id": "dashboard_pending",      "translation": "Pending changes"},
