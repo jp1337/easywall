@@ -74,11 +74,32 @@ provider firewall was doing for you.
 > acceptance window will not save you here: it proves your own connection, and
 > yours arrives on the `input` chain while your containers do not.
 
-> **Containers are reachable over IPv4 only, until [2.24]({{ '/docs/roadmap/' | relative_url }}).**
-> Every forwarded rule and every bridge rule is IPv4. An IPv6 client of a
-> container meets the `forward` chain's drop policy, under `open` and `filtered`
-> alike, and nothing in the interface says so. A Docker host that publishes ports
-> on `[::]` for IPv6 clients needs 2.24.
+### A Docker host with IPv6
+
+A user-defined bridge can carry a ULA `/64` (`fd…::/64`) beside its IPv4
+subnet:
+
+```bash
+docker network create --ipv6 --subnet 172.20.0.0/16 --subnet fd00:20::/64 mynet
+```
+
+Publish the port on both families — `-p 993:993` alone binds `0.0.0.0` only,
+`-p [::]:993:993` adds the IPv6 side. Docker needs `ip6tables` enabled in its
+own daemon config to write the matching `ip6` DNAT rules; that has been the
+default since Docker 27.
+
+Once the bridge exists, detection picks up its IPv6 network the same apply it
+picks up the IPv4 one. The forwarded port rules that already open a port for
+IPv4 open it for IPv6 too — one rule, two families, no separate IPv6 port rule
+to write. A bridge's own `fe80::` link-local address never counts as a
+container network, so it never opens anything on its own.
+
+`ipv6.mode = "block"` keeps IPv6 away from containers exactly as it does from
+the host: no IPv6 twin renders, no IPv6 deny, no IPv6 exception, whatever the
+bridge carries.
+
+Containers on an IPv6 bridge reach the host's own services over IPv6 as they
+already do over IPv4 — the input chain's bridge accept covers both families.
 
 ### A port published on a bridge gateway is still a published port
 
@@ -130,9 +151,7 @@ only containers should reach it — or set docker.published_ports = "open"
 |---|---|
 | Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
 | A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
-| **IPv4 only** | The DNAT rules are read in the `ip` family, so a port published on an IPv6 Docker network is never seen |
-| **Silence is not a clearance** | No line for such a port means it was not looked at, not that a rule covers it. Check an IPv6 published port by hand |
-| IPv6 is [2.24]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
+| **Both families** | Docker's `ip nat` and `ip6 nat` DNAT rules are read, so a port published only on IPv6 is named too |
 | No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
 
 | Also worth knowing | |
@@ -144,7 +163,8 @@ only containers should reach it — or set docker.published_ports = "open"
 | The ports page cannot see that state | It marks a forwarded rule inert while `published_ports` is `open`, because that key is one it can read. Whether a bridge was detected is known only in the core, so a forwarded rule under `filtered` with no bridge reads as enforced on that page while nothing is rendered. The log warning is the signal; check it after an apply |
 | Container-to-container and outbound are untouched | The deny matches only traffic whose destination is a container address and whose source is not |
 | A `routing.networks` peer loses reach to published ports | The deny is evaluated before those CIDR exceptions, so a peer you allowed there still needs a forwarded port rule. Expect this as an outage if `routing.networks` is set |
-| IPv6 is unaffected, before and after | Bridge detection is IPv4-only, so inbound IPv6 to a published container port already meets the drop policy. Use `custom_networks`. That holds for a rule naming no source; a forwarded rule naming an **IPv6** source has named a family, and accepts that traffic to anything the host routes |
+| IPv6 is filtered like IPv4 | Once a bridge carries a ULA or global IPv6 network, the deny and the forwarded rules cover it. Under `ipv6.mode = "block"` IPv6 never reaches a container |
+| A bridge the rules in force do not know is a warning | After `docker network create`, the dashboard and `easywall-core status` say *Docker network … exists and is not in the rules in force* until the next apply |
 
 > **Option 4 is "no containers", not "quiet containers".** The `forward` chain stays
 > closed, and a container's outbound traffic is routed through it like any other. This
