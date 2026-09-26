@@ -142,6 +142,12 @@ type demoState struct {
 	// packetStart is when the demo was created, used to generate a stream of
 	// refused packets in demoPacketLog.
 	packetStart time.Time
+
+	// unknownBridge mirrors core.Firewall.Status's UnknownBridges: true from
+	// seed() so a fresh demo shows the notice this release adds, cleared by
+	// the demo's own apply — only an apply that goes through names the
+	// network for real, and the demo should not show a notice forever.
+	unknownBridge bool
 }
 
 // newDemoState constructs the demo state machine and seeds it with a
@@ -378,6 +384,10 @@ func (d *demoState) seed() {
 	// the first number a visitor reads; opening on a last apply from two hours
 	// ago reads as an installation nobody is looking after.
 	d.lastApply = now.Add(-4 * time.Minute).Format(time.RFC3339)
+
+	// A fresh demo shows this release's notice without a visitor doing
+	// anything, the way 5432 and 9000 already do for their own releases.
+	d.unknownBridge = true
 }
 
 // buildSeedAuditLog returns ~18 plausible audit entries, newest first.
@@ -682,7 +692,19 @@ func (d *demoState) statusLocked() shared.FirewallStatus {
 		// reads its own config here: the demo must not advertise a window it
 		// will not open.
 		AcceptanceEnabled: d.system.Acceptance.Enabled,
+		UnknownBridges:    d.unknownBridgesLocked(),
 	}
+}
+
+// unknownBridgesLocked mirrors core.Firewall.Status's field: one Docker network
+// the rules in force do not know, until the demo's first apply names it — so
+// the dashboard's notice can be reviewed, and disappears the way it does on a
+// host.
+func (d *demoState) unknownBridgesLocked() []shared.UnknownBridge {
+	if !d.unknownBridge || d.panicMode {
+		return nil
+	}
+	return []shared.UnknownBridge{{Interface: "br-4f2a", CIDRs: []string{"172.20.0.0/24", "fd00:ea5e:4f2a::/64"}}}
 }
 
 // acceptanceReasonLocked mirrors core.Firewall.Status: the reason is only
@@ -830,6 +852,11 @@ func (d *demoState) handleApplyRules() shared.Response {
 	if d.acceptance == shared.AcceptancePending {
 		return shared.Response{Success: false, Error: shared.ErrApplyInProgressText}
 	}
+
+	// Only an apply that goes through names the network for real — a refused
+	// one leaves the notice up, the way a refused apply on a host leaves the
+	// rules in force unchanged.
+	d.unknownBridge = false
 
 	// Cancel any in-flight pending timer so we don't roll back twice.
 	if d.acceptanceTimer != nil {

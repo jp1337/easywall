@@ -1,6 +1,9 @@
 package shared
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // PortScope is the chain a port rule is evaluated in.
 //
@@ -896,7 +899,23 @@ type FirewallStatus struct {
 	// the status reported the first while its host was in the second, ten times
 	// over, with nothing in the status able to tell it apart.
 	AcceptanceEnabled bool `json:"acceptance_enabled"`
+	// UnknownBridges are Docker networks that exist now and are not in the
+	// rules in force — created after the last apply (spec 2.24 D5). What that
+	// means depends on routing.mode: more closed than intended under closed
+	// or networks, less under open. A warning, not a health state: the
+	// firewall enforces the ruleset it says it enforces, and one apply fixes it.
+	UnknownBridges []UnknownBridge `json:"unknown_bridges,omitempty"`
 }
+
+// UnknownBridge is one Docker bridge with networks the rules in force do not
+// name.
+type UnknownBridge struct {
+	Interface string   `json:"interface"`
+	CIDRs     []string `json:"cidrs"`
+}
+
+// CIDRList is the networks as one line, for the status line and the dashboard.
+func (b UnknownBridge) CIDRList() string { return strings.Join(b.CIDRs, ", ") }
 
 // FiltersHost reports whether this rule belongs in the input chain.
 //
