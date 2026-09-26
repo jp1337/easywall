@@ -3,9 +3,14 @@ package core
 import (
 	"context"
 	"log/slog"
+	"net"
+	"net/netip"
 	"strings"
 	"testing"
 
+	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
+	"github.com/google/nftables/xt"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -231,4 +236,83 @@ func TestNothingIsNamedWhileFilteringIsOff(t *testing.T) {
 				"warned about a port it is not closing: %q", line)
 		}
 	}
+}
+
+// The decoder against the dumped rules, with no kernel: `make test` runs this.
+func TestPublishedPortFromRuleReadsBothEncodings(t *testing.T) {
+	v6nets := []netip.Prefix{netip.MustParsePrefix("fd00:ea5e::/64")}
+	v4nets := []netip.Prefix{netip.MustParsePrefix("172.18.0.0/16")}
+	daddr6 := net.ParseIP("2001:db8::1").To16()
+	tgt6 := net.ParseIP("fd00:ea5e::4").To16()
+	for _, tc := range []struct {
+		name   string
+		family nftables.TableFamily
+		nets   []netip.Prefix
+		exprs  []expr.Any
+		want   publishedPort
+	}{
+		{"nft ip6 nat expression", nftables.TableFamilyIPv6, v6nets, []expr.Any{
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 24, Len: 16},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: daddr6},
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 53}},
+			&expr.Counter{},
+			&expr.Immediate{Register: 1, Data: net.ParseIP("fd00:ea5e::2").To16()},
+			&expr.Immediate{Register: 2, Data: []byte{0, 53}},
+			&expr.NAT{Type: expr.NATTypeDestNAT, Family: 10, RegAddrMin: 1, RegProtoMin: 2},
+		}, publishedPort{addr: "2001:db8::1", port: 53, containerPort: 53, proto: "udp"}},
+		{"ip6tables-nft xtables target", nftables.TableFamilyIPv6, v6nets, []expr.Any{
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 24, Len: 16},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: daddr6},
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 25}},
+			&expr.Counter{},
+			&expr.Target{Name: "DNAT", Rev: 2, Info: &xt.NatRange2{NatRange: xt.NatRange{
+				Flags: 3, MinIP: tgt6, MaxIP: tgt6, MinPort: 2525, MaxPort: 2525}}},
+		}, publishedPort{addr: "2001:db8::1", port: 25, containerPort: 2525, proto: "tcp"}},
+		{"iptables-nft xtables target", nftables.TableFamilyIPv4, v4nets, []expr.Any{
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{172, 17, 0, 1}},
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 53}},
+			&expr.Counter{},
+			&expr.Target{Name: "DNAT", Rev: 2, Info: &xt.NatRange2{NatRange: xt.NatRange{
+				Flags: 3, MinIP: net.ParseIP("172.18.0.2").To4(), MaxIP: net.ParseIP("172.18.0.2").To4(),
+				MinPort: 53, MaxPort: 53}}},
+		}, publishedPort{addr: "172.17.0.1", port: 53, containerPort: 53, proto: "udp"}},
+		{"xtables target with no port translates the address only", nftables.TableFamilyIPv4, v4nets, []expr.Any{
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+			&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x1b, 0x9e}},
+			&expr.Target{Name: "DNAT", Rev: 2, Info: &xt.NatRange2{NatRange: xt.NatRange{
+				Flags: 1, MinIP: net.ParseIP("172.18.0.9").To4(), MaxIP: net.ParseIP("172.18.0.9").To4()}}},
+		}, publishedPort{addr: "0.0.0.0", port: 7070, containerPort: 7070, proto: "tcp"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := publishedPortFromRule(&nftables.Rule{Exprs: tc.exprs}, tc.nets, tc.family)
+			if !ok || got != tc.want {
+				t.Errorf("publishedPortFromRule = %+v, %v; want %+v", got, ok, tc.want)
+			}
+		})
+	}
+}
+
+// The line names an IPv6 address the way an operator reads one.
+func TestAnIPv6PublishedPortIsNamed(t *testing.T) {
+	lines := applyWithPublishedPorts(t, shared.Rules{}, []string{"fd00:ea5e::/64"},
+		[]publishedPort{{addr: "::", port: 25, containerPort: 25, proto: "tcp"}})
+	const want = "25 published on :: with no forwarded rule"
+	for _, line := range lines {
+		if strings.Contains(line, want) {
+			return
+		}
+	}
+	t.Fatalf("an IPv6 published port was not named.\n  want: %q\n  got: %q", want, lines)
 }
