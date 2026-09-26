@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.24.1">2.24.1</a>
   <a href="#2.24.0">2.24.0</a>
   <a href="#2.23.2">2.23.2</a>
   <a href="#2.23.1">2.23.1</a>
@@ -76,7 +77,30 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.24.0" markdown="1">
+<details open id="2.24.1" markdown="1">
+<summary><strong>2.24.1</strong> · 2026-09-26 — A loopback publish is not a warning</summary>
+
+A patch to 2.24.0, from its first production rollout.
+
+### Fixed
+
+- **Ports published on loopback were named as having no forwarded rule.**
+  `-p 127.0.0.1:8081:80` is reached from the host only, and the host's own
+  connection never crosses the forward chain. The published-port warning
+  (working on Docker's default backend for the first time since 2.24.0) listed
+  eight such nginx back ends on the reporting host, all answering. Ports
+  published on `127.0.0.0/8` or `::1` are no longer named.
+
+### Documentation
+
+- Ansible's `community.docker.docker_container` binds `"25:25"` to `0.0.0.0`
+  only; it needs `default_host_ip: ""` to publish on both families.
+
+[See the code changes between 2.24.0 and 2.24.1](https://github.com/jp1337/easywall/compare/v2.24.0...v2.24.1)
+
+</details>
+
+<details id="2.24.0" markdown="1">
 <summary><strong>2.24.0</strong> · 2026-09-26 — Containers answer over IPv6</summary>
 
 A port Docker publishes on an IPv6 bridge was reachable over IPv4 only, and

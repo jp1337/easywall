@@ -331,3 +331,28 @@ func TestAnIPv6PublishedPortIsNamed(t *testing.T) {
 	}
 	t.Fatalf("an IPv6 published port was not named.\n  want: %q\n  got: %q", want, lines)
 }
+
+// A port published on loopback is reached from this host only, and that
+// connection never crosses the forward chain, so no forwarded rule is needed.
+// root01xvp's first apply under 2.24.0 named eight nginx back ends published
+// this way, all answering — a warning list an operator learns to ignore. The
+// 0.0.0.0 port beside them has to stay named, or the skip swallowed the check.
+func TestALoopbackPublishedPortIsNotNamed(t *testing.T) {
+	lines := applyWithPublishedPorts(t, shared.Rules{},
+		[]string{"172.17.0.0/16", "fd00:ea5e::/64"},
+		[]publishedPort{
+			{addr: "127.0.0.1", port: 8081, containerPort: 80, proto: "tcp"},
+			{addr: "127.0.0.53", port: 8082, containerPort: 8082, proto: "tcp"},
+			{addr: "::1", port: 8083, containerPort: 8083, proto: "tcp"},
+			{addr: "0.0.0.0", port: 25, containerPort: 25, proto: "tcp"},
+		})
+	var named []string
+	for _, line := range lines {
+		if strings.Contains(line, "published on") {
+			named = append(named, line)
+		}
+	}
+	if len(named) != 1 || !strings.Contains(named[0], "25 published on 0.0.0.0") {
+		t.Fatalf("want only the 0.0.0.0 port named, got: %q", named)
+	}
+}

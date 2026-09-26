@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2504,6 +2505,15 @@ func (m *NftablesManager) addForwardPortRules(
 // handful of lines, and the journal keeps all of them.
 func (m *NftablesManager) warnUnruledPublishedPorts(rules shared.Rules, cidrs []string) {
 	for _, p := range detectPublishedPortsFn(cidrs, m.nsFD) {
+		// `-p 127.0.0.1:8081:80` is reached from this host only, and the host's
+		// own connection goes output → DNAT → bridge: it never crosses the
+		// forward chain, so no forwarded rule is needed and none is asked for.
+		// Anything else addressed to 127.0.0.1 arrives from outside and the deny
+		// is right to drop it. root01xvp, 2.24.0: eight nginx back ends published
+		// this way, eight warnings for ports that all answered.
+		if a, err := netip.ParseAddr(p.addr); err == nil && a.IsLoopback() {
+			continue
+		}
 		if forwardedRuleCovers(rules, p) {
 			continue
 		}
