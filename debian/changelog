@@ -1,3 +1,11 @@
+easywall (2.24.1) unstable; urgency=medium
+
+  * A port Docker publishes on loopback is no longer named as having no
+    forwarded rule: the host's own connection never crosses the forward
+    chain.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Sat, 26 Sep 2026 20:00:00 +0200
+
 easywall (2.24.0) unstable; urgency=medium
 
   * A Docker bridge's IPv6 networks are detected and forwarded like its
