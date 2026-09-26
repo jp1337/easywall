@@ -98,14 +98,26 @@ same way it already forwards the IPv4 one.
 
 ### Changed
 
-- `ipv6.mode = "block"` also keeps IPv6 away from containers: no IPv6 twin,
-  deny or exception renders for a container network under it.
+- `ipv6.mode = "block"` removes IPv6 from the container networks the forward
+  chain is built over: no IPv6 twin, deny or exception renders for one. What
+  reaches a container after that follows `routing.mode` — the forward chain's
+  policy drop under `closed` or `networks` (unless `routing.networks` names a
+  network covering it), passed through to Docker's own `ip6tables` under
+  `open`.
 - Under `block`, a forwarded rule's own IPv6 sources no longer render either —
   the same statement `block` already makes about the host.
 - A container-network list with no usable network at all no longer renders
   forwarded accepts with no deny beside them.
+- On a host whose container networks are IPv6-only (`custom_networks` holding
+  only a ULA, say), the IPv4-pinned forwarded accept no longer renders either
+  — it used to render regardless, pinned to a family with nothing behind it.
 - Containers on an IPv6 bridge reach the host's own services over IPv6 as they
   already do over IPv4.
+- A non-Docker `br-*` bridge — OpenWrt's `br-lan`, an OpenStack `br-ex` — with
+  a global or unique-local IPv6 prefix is trusted the same way its IPv4
+  network already is, once `docker.enabled = true`: accepted on the input
+  chain, exempted both ways on the forward chain. Parity with the documented
+  IPv4 behaviour, not a new decision.
 
 ### Fixed
 

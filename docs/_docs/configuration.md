@@ -131,7 +131,7 @@ install). If ulogd2 already holds `12227`, the core logs
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `mode` | string | `"filter"` | What happens to IPv6: `filter` puts it through every rule, `passthrough` accepts it before any rule, `block` drops it except loopback. `block` also keeps IPv6 away from containers |
+| `mode` | string | `"filter"` | What happens to IPv6: `filter` puts it through every rule, `passthrough` accepts it before any rule, `block` drops it except loopback. `block` also removes IPv6 from the container networks the forward chain is built over — what then reaches a container follows `routing.mode` (drop under `closed`/`networks` unless `routing.networks` names it, passed through under `open`) |
 | `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 type 134 — required for SLAAC address autoconfiguration |
 | `icmp_allow_neighbor_advertisement` | bool | `true` | Allow ICMPv6 types 135/136 — required for Neighbor Discovery Protocol |
 
@@ -164,8 +164,10 @@ with static addressing that genuinely need neither.
 > connection on the `input` chain, and container traffic crosses the
 > `forward` chain instead. Existing files keep whatever they already say;
 > only a fresh install or `--write-config` sees the new default. A
-> non-Docker `br-*` interface — OpenWrt's `br-lan` is one — is trusted too;
-> set `enabled = false` on a host like that.
+> non-Docker `br-*` interface — OpenWrt's `br-lan` is one, an OpenStack
+> `br-ex` another — is trusted too. Its global or unique-local IPv6 prefixes
+> are trusted the same way since 2.24; set `enabled = false` on a host like
+> that.
 
 > **`published_ports` has no control in the interface, deliberately.** One press
 > could take every container on this host off the network. The acceptance window
