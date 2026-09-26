@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 
 	"github.com/google/nftables"
@@ -17,14 +18,34 @@ import (
 func buildForward(t *testing.T, docker shared.DockerConfig, routing shared.RoutingConfig,
 	rules shared.Rules, cidrs []string) []*nftables.Rule {
 	t.Helper()
+	got, _ := buildForwardMode(t, docker, routing, rules, cidrs, shared.IPv6Filter)
+	return got
+}
+
+// buildForwardMode is buildForward with the ipv6 mode named, and the container
+// networks buildForwardChain reports it rendered.
+func buildForwardMode(t *testing.T, docker shared.DockerConfig, routing shared.RoutingConfig,
+	rules shared.Rules, cidrs []string, mode shared.IPv6Mode) ([]*nftables.Rule, []string) {
+	t.Helper()
 	m := &NftablesManager{}
 	rec := &recordingConn{}
 	m.adder = rec
-	m.buildForwardChain(
+	nets := m.buildForwardChain(
 		&nftables.Table{Name: tableName, Family: nftables.TableFamilyINet},
 		&nftables.Chain{Name: "forward"},
-		rules, docker, routing, cidrs)
-	return rec.rules
+		rules, docker, routing, cidrs, mode)
+	return rec.rules, nets
+}
+
+// familiesOf returns the nfproto value every rule in rules tests, in order,
+// and 0 for a rule that tests none.
+func familiesOf(rules []*nftables.Rule) []byte {
+	var out []byte
+	for _, r := range rules {
+		fam, _ := ruleFamily(r.Exprs)
+		out = append(out, fam)
+	}
+	return out
 }
 
 func filteredDocker() shared.DockerConfig {
@@ -467,5 +488,138 @@ func TestForwardChain_TheAcceptNamesAnAddressFamily(t *testing.T) {
 					"deny beside it is IPv4-only", families, tc.want)
 			}
 		})
+	}
+}
+
+// D1: an IPv6 container network gets the forwarded accept a second time, in
+// its own family, and both come before the first deny.
+func TestForwardChain_AnIPv6ContainerNetworkGetsATwin(t *testing.T) {
+	rules, nets := buildForwardMode(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
+		shared.Rules{TCP: []shared.PortRule{{ID: "aaaaaaaaaaa1", Port: "25", Scope: shared.ScopeForwarded}}},
+		[]string{"172.17.0.0/16", "fd00:ea5e::/64"}, shared.IPv6Filter)
+
+	var accepts []byte
+	for _, r := range rules {
+		if ruleMatchesDport(r, 25) {
+			fam, _ := ruleFamily(r.Exprs)
+			accepts = append(accepts, fam)
+		}
+	}
+	if !slices.Equal(accepts, []byte{unix.NFPROTO_IPV4, unix.NFPROTO_IPV6}) {
+		t.Fatalf("port 25 renders with families %v, want one IPv4 and one IPv6 accept", accepts)
+	}
+	firstDrop := indexOfVerdict(t, rules, expr.VerdictDrop, 0)
+	for i, r := range rules {
+		if ruleMatchesDport(r, 25) && i > firstDrop {
+			t.Errorf("an accept for port 25 sits behind the deny at %d and can never be reached", firstDrop)
+		}
+	}
+	var drops []byte
+	for _, r := range rules {
+		if k, ok := ruleVerdict(r); ok && k == expr.VerdictDrop {
+			fam, _ := ruleFamily(r.Exprs)
+			drops = append(drops, fam)
+		}
+	}
+	if !slices.Equal(drops, []byte{unix.NFPROTO_IPV4, unix.NFPROTO_IPV6}) {
+		t.Errorf("the per-bridge denies carry families %v, want one per network", drops)
+	}
+	// The IPv6 bridge's own exceptions (spec §5): an accept testing an address
+	// in the IPv6 family and no port.
+	v6Exception := false
+	for _, r := range rules {
+		if k, ok := ruleVerdict(r); ok && k == expr.VerdictAccept && !ruleTestsTransportPort(r) {
+			if fam, _ := ruleFamily(r.Exprs); fam == unix.NFPROTO_IPV6 {
+				v6Exception = true
+			}
+		}
+	}
+	if !v6Exception {
+		t.Error("the IPv6 container network got no exception: its containers could not reach anything")
+	}
+	if !slices.Equal(nets, []string{"172.17.0.0/16", "fd00:ea5e::/64"}) {
+		t.Errorf("buildForwardChain reports it rendered %v", nets)
+	}
+}
+
+// A host whose only container network is IPv6 gets only the IPv6 copy: an
+// IPv4 accept would open the port for forwarded IPv4 with no IPv4 deny beside it.
+func TestForwardChain_OnlyAnIPv6NetworkRendersOnlyTheIPv6Copy(t *testing.T) {
+	rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
+		shared.Rules{TCP: []shared.PortRule{{Port: "25", Scope: shared.ScopeForwarded}}},
+		[]string{"fd00:ea5e::/64"})
+	for _, r := range rules {
+		if ruleMatchesDport(r, 25) {
+			if fam, _ := ruleFamily(r.Exprs); fam != unix.NFPROTO_IPV6 {
+				t.Errorf("port 25 renders an accept in family %d on a host with only an IPv6 container network", fam)
+			}
+		}
+	}
+}
+
+// D3: under block, nothing IPv6 renders in the forward chain for containers —
+// not the detected network, not a custom one, not the forwarded rule's twin,
+// not a forwarded rule's own IPv6 source — and the rendered networks say so.
+// (routing.networks is not a container network and is not part of D3.)
+func TestForwardChain_BlockKeepsIPv6AwayFromContainers(t *testing.T) {
+	docker := filteredDocker()
+	docker.CustomNetworks = []string{"2001:db8:c0::/64"}
+	cidrs := containerNetworks(docker, []string{"172.17.0.0/16", "fd00:ea5e::/64"}, shared.IPv6Block)
+	rules, nets := buildForwardMode(t, docker, shared.RoutingConfig{Mode: shared.RoutingClosed},
+		shared.Rules{TCP: []shared.PortRule{
+			{Port: "25", Scope: shared.ScopeForwarded},
+			{Port: "587", Scope: shared.ScopeForwarded, Sources: []string{"2001:db8::/32", "203.0.113.0/24"}},
+		}},
+		cidrs, shared.IPv6Block)
+
+	for i, fam := range familiesOf(rules) {
+		if fam == unix.NFPROTO_IPV6 {
+			t.Errorf("rule %d tests IPv6 under ipv6.mode = block: %#v", i, rules[i].Exprs)
+		}
+	}
+	if !slices.Equal(nets, []string{"172.17.0.0/16"}) {
+		t.Errorf("under block buildForwardChain reports it rendered %v, want only the IPv4 network", nets)
+	}
+	// The IPv4 half of the same rule is untouched.
+	found := false
+	for _, r := range rules {
+		if ruleMatchesDport(r, 587) {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the IPv4 source of a mixed forwarded rule disappeared with its IPv6 one")
+	}
+}
+
+// D2's second named exception: a container-network list with no usable network
+// (only a comment) rendered, in 2.23.2, forwarded accepts with no deny beside
+// them — a port opened for forwarded traffic to anything the host routes. Now
+// nothing renders. Not in the golden, which is 2.23.2's behaviour.
+func TestForwardChain_AListWithNoUsableNetworkRendersNoAccept(t *testing.T) {
+	rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
+		shared.Rules{TCP: []shared.PortRule{{Port: "25", Scope: shared.ScopeForwarded}}},
+		[]string{"# only a note"})
+	for _, r := range rules {
+		if ruleMatchesDport(r, 25) {
+			t.Fatalf("a forwarded accept rendered with no container network to deny beside it: %#v", r.Exprs)
+		}
+	}
+}
+
+// Review Focus 2: the twin is the same UI rule, so it carries the same id —
+// the counters and "last used" read both kernel rules as one.
+func TestForwardChain_TheTwinCarriesTheRulesID(t *testing.T) {
+	rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
+		shared.Rules{TCP: []shared.PortRule{{ID: "aaaaaaaaaaa1", Port: "25", Scope: shared.ScopeForwarded}}},
+		[]string{"172.17.0.0/16", "fd00:ea5e::/64"})
+	var tags [][]byte
+	for _, r := range rules {
+		if ruleMatchesDport(r, 25) {
+			tags = append(tags, r.UserData)
+		}
+	}
+	if len(tags) != 2 || !bytes.Equal(tags[0], tags[1]) || len(tags[0]) == 0 {
+		t.Errorf("the two copies of one forwarded rule carry userdata %x; both must carry the rule's id", tags)
 	}
 }

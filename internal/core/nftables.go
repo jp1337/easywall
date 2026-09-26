@@ -798,18 +798,18 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 
 	// Which Docker networks are allowed is settled before the modules run,
 	// because the bogon filter has to know about them: it drops RFC-1918
-	// sources, and a bridge network is one.
-	var dockerCIDRs []string
-	if docker.Enabled {
-		if docker.AllowBridgeNetworks {
-			dockerCIDRs = append(dockerCIDRs, detectDockerBridges()...)
-		}
-		dockerCIDRs = append(dockerCIDRs, docker.CustomNetworks...)
+	// sources, and a bridge network is one. One list for every consumer —
+	// see containerNetworks for D3.
+	var detected []string
+	if docker.Enabled && docker.AllowBridgeNetworks {
+		detected = detectDockerBridges()
 	}
+	dockerCIDRs := containerNetworks(docker, detected, ipv6.Mode)
 
 	// The whole forward chain, in one call, because its order is the correctness
 	// of 2.19 and nothing here can be unit-tested. See buildForwardChain.
-	m.buildForwardChain(table, forwardChain, state.Current, docker, routing, dockerCIDRs)
+	fwdNets := m.buildForwardChain(table, forwardChain, state.Current, docker, routing, dockerCIDRs, ipv6.Mode)
+	_ = fwdNets // recorded as what is in force by Task 4
 
 	// Optional protection modules
 	if opts.PortScan {
@@ -2256,7 +2256,9 @@ func forwardExceptionMatches(cidrs []string) [][]expr.Any {
 }
 
 // buildForwardChain writes every rule in the forward chain, in the one order
-// that makes them mean anything.
+// that makes them mean anything, and returns the container networks it was
+// built over (dockerCIDRs, already D3-filtered) — Task 4 records it as what is
+// in force, for the unknown-bridge comparison.
 //
 // It exists as a function rather than as a run of calls inside Apply because the
 // order is the correctness of this release and Apply cannot be unit-tested — it
@@ -2264,18 +2266,19 @@ func forwardExceptionMatches(cidrs []string) [][]expr.Any {
 // drives this directly through the recording adder, and it is the only thing
 // standing between this release and the defect it was written to fix.
 //
-//	ct state established,related     accept   ← replies, before anything can deny one
-//	<forwarded port rules>           accept   ← only under published_ports = "filtered"
-//	dst in bridge, src not in bridge drop     ← likewise; the rule that gives them meaning
-//	<bridge / routing CIDR matches>  accept
-//	                                 policy drop
+//	ct state established,related        accept   ← replies, before anything can deny one
+//	<forwarded port rules, per family>  accept   ← only under published_ports = "filtered"
+//	dst in bridge, src not in bridge    drop     ← likewise, once per family with a network
+//	<bridge / routing CIDR matches>     accept
+//	                                    policy drop
 //
 // With docker.published_ports at its default the middle two render nothing and
 // this is byte-for-byte the chain 2.18 built.
 func (m *NftablesManager) buildForwardChain(
 	t *nftables.Table, c *nftables.Chain, rules shared.Rules,
 	docker shared.DockerConfig, routing shared.RoutingConfig, dockerCIDRs []string,
-) {
+	ipv6 shared.IPv6Mode,
+) []string {
 	// What may cross: the Docker networks, always — the coexistence above
 	// reaches no container otherwise, and that must not depend on a key nobody
 	// has set yet — plus whatever routing.networks names. Under "open" the
@@ -2299,7 +2302,7 @@ func (m *NftablesManager) buildForwardChain(
 	// be a new rule in a chain 2.18 left empty, accepting forwarded traffic that
 	// 2.18's policy dropped.
 	if !forwardPortRulesRender(docker, dockerCIDRs) && len(exceptions) == 0 {
-		return
+		return dockerCIDRs
 	}
 
 	// Return traffic first, so a reply is not re-tested against the networks —
@@ -2310,8 +2313,9 @@ func (m *NftablesManager) buildForwardChain(
 	// the host loses the network at the next apply — and the acceptance window
 	// cannot see it, because SSH arrives on input.
 	m.addEstablishedAccept(t, c)
-	m.addForwardPortRules(t, c, rules, docker, dockerCIDRs)
+	m.addForwardPortRules(t, c, rules, docker, dockerCIDRs, ipv6)
 	m.addForwardExceptions(t, c, exceptions)
+	return dockerCIDRs
 }
 
 // forwardPortRulesRender is the question buildForwardChain has to answer before
@@ -2337,7 +2341,7 @@ func forwardPortRulesRender(docker shared.DockerConfig, cidrs []string) bool {
 // the two to disagree.
 func (m *NftablesManager) addForwardPortRules(
 	t *nftables.Table, c *nftables.Chain, rules shared.Rules,
-	docker shared.DockerConfig, cidrs []string,
+	docker shared.DockerConfig, cidrs []string, ipv6 shared.IPv6Mode,
 ) {
 	if !docker.FiltersPublishedPorts() {
 		return
@@ -2361,6 +2365,7 @@ func (m *NftablesManager) addForwardPortRules(
 		return
 	}
 
+	v4, v6 := cidrFamilies(cidrs)
 	for _, proto := range []struct {
 		name  string
 		rules []shared.PortRule
@@ -2369,9 +2374,37 @@ func (m *NftablesManager) addForwardPortRules(
 			if !rule.FiltersForwarded() {
 				continue
 			}
+			// Sources the operator named: one kernel rule per source, each
+			// in its own family. Under block an IPv6 source would carry IPv6
+			// to anything the host routes (spec D3).
 			for _, r := range portAcceptRules(t, c, proto.name, rule) {
-				r.Exprs = forwardFamilyPin(r.Exprs)
+				fam, named := ruleFamily(r.Exprs)
+				if !named {
+					continue // the source-less rule is emitted per family below
+				}
+				if fam == familyIPv6 && ipv6 == shared.IPv6Block {
+					continue
+				}
 				m.adder.AddRule(r)
+			}
+			// No source: one copy per family that has a container network
+			// (spec D1). portAcceptRules is called once per copy so no two
+			// kernel rules share an expression or a userdata slice — the trap
+			// its own tag() comment avoids (plan review #13).
+			for _, f := range []struct {
+				on  bool
+				fam byte
+			}{{v4, familyIPv4}, {v6, familyIPv6}} {
+				if !f.on {
+					continue
+				}
+				for _, r := range portAcceptRules(t, c, proto.name, rule) {
+					if _, named := ruleFamily(r.Exprs); named {
+						continue
+					}
+					r.Exprs = forwardFamilyPin(r.Exprs, f.fam)
+					m.adder.AddRule(r)
+				}
 			}
 		}
 	}
@@ -2502,33 +2535,6 @@ func forwardedRuleCovers(rules shared.Rules, p publishedPort) bool {
 		}
 	}
 	return false
-}
-
-// forwardFamilyPin pins a forwarded port accept to IPv4 unless it already names
-// an address family.
-//
-// portAcceptRules builds a rule with no sources as `meta l4proto tcp dport N
-// accept` and no address test at all, which in an inet table is both families.
-// In the input chain that is right: ipv6.Mode has already had its say above it,
-// and an open port is open on the addresses the host answers to. In the forward
-// chain it is not. The deny this accept is paired with comes from
-// detectDockerBridges, which returns IPv4 CIDRs only, so an unpinned accept
-// opens the named port for forwarded *IPv6* to anything the host routes — far
-// past the containers the rule is about, and traffic 2.18's policy drop
-// refused. The deny cannot take it back: it is IPv4-only, and it sits below.
-//
-// A rule that already carries a family test got it from cidrMatch over a source
-// the operator named, and keeps it. Naming an address is naming a family.
-func forwardFamilyPin(exprs []expr.Any) []expr.Any {
-	if len(exprs) > 1 {
-		if meta, ok := exprs[0].(*expr.Meta); ok && meta.Key == expr.MetaKeyNFPROTO {
-			return exprs
-		}
-	}
-	return append([]expr.Any{
-		&expr.Meta{Key: expr.MetaKeyNFPROTO, Register: 1},
-		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.NFPROTO_IPV4}},
-	}, exprs...)
 }
 
 func (m *NftablesManager) addCIDRAccept(t *nftables.Table, c *nftables.Chain, cidr string) {
