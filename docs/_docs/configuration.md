@@ -131,7 +131,7 @@ install). If ulogd2 already holds `12227`, the core logs
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `mode` | string | `"filter"` | What happens to IPv6: `filter` puts it through every rule, `passthrough` accepts it before any rule, `block` drops it except loopback |
+| `mode` | string | `"filter"` | What happens to IPv6: `filter` puts it through every rule, `passthrough` accepts it before any rule, `block` drops it except loopback. `block` also keeps IPv6 away from containers |
 | `icmp_allow_router_advertisement` | bool | `true` | Allow ICMPv6 type 134 — required for SLAAC address autoconfiguration |
 | `icmp_allow_neighbor_advertisement` | bool | `true` | Allow ICMPv6 types 135/136 — required for Neighbor Discovery Protocol |
 
@@ -155,7 +155,7 @@ with static addressing that genuinely need neither.
 | `enabled` | bool | `true` | Auto-detect Docker bridge interfaces and allowlist them |
 | `allow_bridge_networks` | bool | `true` | Allowlist auto-detected bridge network CIDRs |
 | `custom_networks` | list | `[]` | Additional CIDRs to allowlist unconditionally (processed when `enabled = true`) |
-| `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port |
+| `published_ports` | string | `"open"` | `open` or `filtered`. Under `filtered`, only a port rule with scope `forwarded` lets anything reach a published container port — covers IPv6 container networks too since 2.24 |
 
 > **`enabled` ships `true` since 2.22.** A host with no `docker*`/`br-*`
 > interface gets no rule change either way. One that has such an interface
