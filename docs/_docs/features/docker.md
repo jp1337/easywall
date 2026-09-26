@@ -74,6 +74,12 @@ provider firewall was doing for you.
 > acceptance window will not save you here: it proves your own connection, and
 > yours arrives on the `input` chain while your containers do not.
 
+> **Containers are reachable over IPv4 only, until [2.24]({{ '/docs/roadmap/' | relative_url }}).**
+> Every forwarded rule and every bridge rule is IPv4. An IPv6 client of a
+> container meets the `forward` chain's drop policy, under `open` and `filtered`
+> alike, and nothing in the interface says so. A Docker host that publishes ports
+> on `[::]` for IPv6 clients needs 2.24.
+
 ### A port published on a bridge gateway is still a published port
 
 `-p 172.17.0.1:53:53` publishes to the bridge, not to the world, so it reads
@@ -126,7 +132,7 @@ only containers should reach it — or set docker.published_ports = "open"
 | A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
 | **IPv4 only** | The DNAT rules are read in the `ip` family, so a port published on an IPv6 Docker network is never seen |
 | **Silence is not a clearance** | No line for such a port means it was not looked at, not that a rule covers it. Check an IPv6 published port by hand |
-| IPv6 is [2.29]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
+| IPv6 is [2.24]({{ '/docs/roadmap/' | relative_url }})'s | It arrives with the bridge detection this borrows its networks from, which is IPv4-only for the same reason |
 | No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
 
 | Also worth knowing | |
