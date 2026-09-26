@@ -67,6 +67,7 @@
   {"id": "firstrun_notice",        "translation": "C'est le seul compte. Réinitialiser un mot de passe perdu exige un accès shell au serveur."},
 
   {"id": "dashboard_title",        "translation": "Tableau de bord"},
+  {"id": "dashboard_unknown_bridge", "translation": "Le réseau Docker {{.Iface}} ({{.CIDRs}}) existe et ne figure pas dans les règles en vigueur. Appliquez-les pour l'inclure."},
   {"id": "dashboard_status",       "translation": "État du pare-feu"},
   {"id": "dashboard_active",       "translation": "Actif"},
   {"id": "dashboard_pending",      "translation": "Modifications en attente"},

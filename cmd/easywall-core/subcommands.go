@@ -255,6 +255,13 @@ func runStatus(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintln(stdout, "pending:    there are staged changes that are not live")
 	}
 
+	// A continuation of the state above, never a failure: the firewall is
+	// enforcing the ruleset it reports; one apply includes the network (2.24 D5).
+	for _, b := range status.UnknownBridges {
+		_, _ = fmt.Fprintf(stdout, "docker:     network %s (%s) exists and is not in the rules in force: "+
+			"apply to name it\n", b.Interface, b.CIDRList())
+	}
+
 	// A monitoring check has to be able to read this without parsing the words.
 	// Panic mode is a decision somebody made, so it is not a failure; a machine
 	// that is simply not filtering is.

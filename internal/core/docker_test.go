@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"net"
+	"slices"
 	"testing"
 )
 
@@ -89,7 +90,10 @@ func TestDetectDockerBridges_WithIPv4(t *testing.T) {
 	}
 }
 
-func TestDetectDockerBridges_IPv6Skipped(t *testing.T) {
+// D4: every bridge carries a link-local address. Counting it would make every
+// Docker host an IPv6 container host and render IPv6 twins everywhere — the
+// byte-identical promise for IPv4-only hosts would be gone on the first apply.
+func TestDetectDockerBridges_LinkLocalIsNeverAContainerNetwork(t *testing.T) {
 	_, ipnet6, _ := net.ParseCIDR("fe80::1/64")
 	fakeIface := net.Interface{Name: "br-abc123", Index: 99}
 
@@ -105,9 +109,36 @@ func TestDetectDockerBridges_IPv6Skipped(t *testing.T) {
 	}
 	defer func() { ifaceAddrsFn = oldAddrs }()
 
-	cidrs := detectDockerBridges()
-	if len(cidrs) != 0 {
-		t.Errorf("expected no CIDRs for IPv6-only interface, got %v", cidrs)
+	if cidrs := detectDockerBridges(); len(cidrs) != 0 {
+		t.Errorf("a bridge with only a link-local address was detected as %v", cidrs)
+	}
+}
+
+// A bridge's own address carries host bits — the gateway, fd00:ea5e::1 — and
+// the deny is written over the network. Masked, as the IPv4 half always was.
+func TestDetectDockerBridges_ULAIsMaskedToItsNetwork(t *testing.T) {
+	fakeIface := net.Interface{Name: "br-mail", Index: 7}
+	oldIfaces := netInterfacesFn
+	netInterfacesFn = func() ([]net.Interface, error) { return []net.Interface{fakeIface}, nil }
+	defer func() { netInterfacesFn = oldIfaces }()
+
+	oldAddrs := ifaceAddrsFn
+	ifaceAddrsFn = func(_ net.Interface) ([]net.Addr, error) {
+		return []net.Addr{
+			&net.IPNet{IP: net.ParseIP("172.20.0.1").To4(), Mask: net.CIDRMask(24, 32)},
+			&net.IPNet{IP: net.ParseIP("fd00:ea5e::1"), Mask: net.CIDRMask(64, 128)},
+			&net.IPNet{IP: net.ParseIP("fe80::42:acff:fe14:1"), Mask: net.CIDRMask(64, 128)},
+		}, nil
+	}
+	defer func() { ifaceAddrsFn = oldAddrs }()
+
+	got := detectDockerBridgeNets()
+	want := []bridgeNet{{Iface: "br-mail", CIDR: "172.20.0.0/24"}, {Iface: "br-mail", CIDR: "fd00:ea5e::/64"}}
+	if !slices.Equal(got, want) {
+		t.Errorf("detectDockerBridgeNets = %v, want %v", got, want)
+	}
+	if cidrs := detectDockerBridges(); !slices.Equal(cidrs, []string{"172.20.0.0/24", "fd00:ea5e::/64"}) {
+		t.Errorf("detectDockerBridges = %v, want the same networks as strings", cidrs)
 	}
 }
 
