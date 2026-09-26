@@ -294,6 +294,21 @@ func TestPublishedPortFromRuleReadsBothEncodings(t *testing.T) {
 			&expr.Target{Name: "DNAT", Rev: 2, Info: &xt.NatRange2{NatRange: xt.NatRange{
 				Flags: 1, MinIP: net.ParseIP("172.18.0.9").To4(), MaxIP: net.ParseIP("172.18.0.9").To4()}}},
 		}, publishedPort{addr: "0.0.0.0", port: 7070, containerPort: 7070, proto: "tcp"}},
+		// The guard, not just the shape: MinPort is set here but Flags does not
+		// carry NatRangeProtoSpecified, so a rule this old iptables writes with a
+		// leftover port value must still translate the address only. Reading
+		// MinPort unconditionally would report 80 as the container port instead
+		// of 7070, the number that actually arrived.
+		{"xtables target whose port is not flagged keeps the published port",
+			nftables.TableFamilyIPv4, v4nets, []expr.Any{
+				&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+				&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x1b, 0x9e}},
+				&expr.Target{Name: "DNAT", Rev: 2, Info: &xt.NatRange2{NatRange: xt.NatRange{
+					Flags: 1, MinIP: net.ParseIP("172.18.0.9").To4(), MaxIP: net.ParseIP("172.18.0.9").To4(),
+					MinPort: 80, MaxPort: 80}}},
+			}, publishedPort{addr: "0.0.0.0", port: 7070, containerPort: 7070, proto: "tcp"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, ok := publishedPortFromRule(&nftables.Rule{Exprs: tc.exprs}, tc.nets, tc.family)
