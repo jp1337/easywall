@@ -9,6 +9,7 @@ package core
 // it is part of the test (spec D4).
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -204,6 +205,14 @@ func TestIntegration_AnIPv6ClientReachesANamedContainerPortAndNoOther(t *testing
 		}
 	}
 
+	// D4 needs something to ignore: without a kernel fe80:: on br-ew6 when
+	// Apply reads it (addr_gen_mode none, disable_ipv6), the link-local check
+	// below would pass with nothing to catch.
+	if out, err := exec.Command("ip", "-6", "addr", "show", "dev", "br-ew6", "scope", "link").Output(); err != nil ||
+		!strings.Contains(string(out), "inet6 fe80:") {
+		skipOrFailUnprovable(t, "br-ew6 carries no fe80:: address, so D4 has nothing to ignore: "+string(out))
+	}
+
 	if err := m.Apply(shared.RulesState{Current: forwardedTCP(ipv6ForwardedPort)},
 		shared.FirewallOptions{}, filteredIPv6Settings(shared.IPv6Filter)); err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -234,8 +243,10 @@ func TestIntegration_BlockKeepsAnIPv6ClientAwayFromContainers(t *testing.T) {
 	m := newIntegrationManager(t)
 	r := newRouter6(t)
 	r.listenInB(ipv6ForwardedPort)
-	if !tcpReaches(t, r.pidA, "fd00:ea5e:77::2", ipv6ForwardedPort) {
-		skipOrFailUnprovable(t, "IPv6 did not cross before any table existed")
+	for _, addr := range []string{"fd00:ea5e:77::2", "10.78.2.2"} {
+		if !tcpReaches(t, r.pidA, addr, ipv6ForwardedPort) {
+			skipOrFailUnprovable(t, addr+" did not answer before any table existed")
+		}
 	}
 
 	if err := m.Apply(shared.RulesState{Current: forwardedTCP(ipv6ForwardedPort)},
@@ -256,8 +267,14 @@ func TestIntegration_BlockKeepsAnIPv6ClientAwayFromContainers(t *testing.T) {
 		t.Fatalf("reading the forward chain back: %v", err)
 	}
 	for _, rule := range fwd {
+		// ruleFamily sees only a rule that starts with meta nfproto + cmp;
+		// every forward-chain builder today emits exactly that shape.
 		if fam, ok := ruleFamily(rule.Exprs); ok && fam == unix.NFPROTO_IPV6 {
-			t.Errorf("under ipv6.mode = block the kernel's forward chain holds an IPv6 rule: %#v", rule.Exprs)
+			var exprs []string
+			for _, e := range rule.Exprs {
+				exprs = append(exprs, fmt.Sprintf("%T%+v", e, e))
+			}
+			t.Errorf("under ipv6.mode = block the kernel's forward chain holds an IPv6 rule: %s", strings.Join(exprs, " "))
 		}
 	}
 }
