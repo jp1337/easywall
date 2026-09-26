@@ -1047,24 +1047,11 @@ html, body {
     border-bottom: none;
   }
 
-  /* "Sign in with demo / demo" — a sentence with two literals in it. The whole
-     line used to be set in the mono face, which made the prose look like part
-     of the credential. Only the credentials are code. */
-  .content-body .docs-cta-credentials {
+  /* A line under the demo buttons, quieter than the paragraph above them. */
+  .content-body .docs-cta-note {
     margin: 1.25rem auto 0;
     font-size: 0.85rem;
     color: var(--text-subtle);
-  }
-
-  .docs-cta-credentials code {
-    color: var(--text);
-    background: var(--surface-2);
-    /* Was a hard-coded rgba(34,211,238,…) — the Aurora cyan, retired with
-       that palette and left behind here, so it was no longer related to
-       either theme. */
-    border: 1px solid var(--border);
-    padding: 1px 6px;
-    border-radius: 4px;
   }
 
   /* === Feature cards grid === */
@@ -2140,6 +2127,6 @@ article.content-body mark.pagefind-highlight {
   margin-inline: auto;
 }
 
-.content-body .docs-cta-credentials {
+.content-body .docs-cta-note {
   margin: 1.25rem auto 0;
 }
