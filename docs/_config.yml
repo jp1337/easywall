@@ -43,8 +43,6 @@ discord: https://discord.gg/3zJMvChvUA
 # and both landing-page buttons read them from here; README.md cannot, because
 # GitHub does not run Jekyll over it.
 demo_url: https://demo.easywall-project.org
-demo_user: demo
-demo_password: demo
 
 social:
   name: jp1337
