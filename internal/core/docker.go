@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"github.com/google/nftables/xt"
 	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/sys/unix"
 )
@@ -135,11 +136,10 @@ var dockerNATTables = map[string]bool{"nat": true, "docker": true}
 // published address is also what catches `-p 10.0.0.5:53:53`, published on a
 // host interface and DNAT'd into a bridge like any other.
 //
-// IPv4 only for now; Task 3 adds ip6: the tables are listed in the ip
-// family and the header offsets read an IPv4 packet. A published port on an
-// IPv6 network named in docker.custom_networks is closed by the deny — cidrMatch
-// renders a v6 one — and is not named here. That gap is inherited, not new, and
-// features/docker.md carries it for operators.
+// Both families: the tables are listed once in ip and once in ip6, and
+// publishedPortFromRule reads whichever header offsets that family's packets
+// carry. A published port on the ip6 family is named exactly like its IPv4
+// twin now — the gap features/docker.md used to carry for operators is closed.
 //
 // Its own netlink connection, deliberately: NftablesManager's is mid-transaction
 // when this runs, and a dump interleaved into a batch is not a risk worth the
@@ -176,33 +176,34 @@ func detectPublishedPorts(cidrs []string, nsFD int) []publishedPort {
 	}
 	conn, _ := nftables.New(opts...)
 
-	tables, err := conn.ListTablesOfFamily(nftables.TableFamilyIPv4)
-	if err != nil {
-		slog.Debug("published port detection: cannot list tables", "error", err)
-		return nil
-	}
-	chains, err := conn.ListChainsOfTableFamily(nftables.TableFamilyIPv4)
-	if err != nil {
-		slog.Debug("published port detection: cannot list chains", "error", err)
-		return nil
-	}
-
 	var out []publishedPort
-	for _, tbl := range tables {
-		if !dockerNATTables[tbl.Name] {
+	for _, fam := range []nftables.TableFamily{nftables.TableFamilyIPv4, nftables.TableFamilyIPv6} {
+		tables, err := conn.ListTablesOfFamily(fam)
+		if err != nil {
+			slog.Debug("published port detection: cannot list tables", "family", fam, "error", err)
 			continue
 		}
-		for _, ch := range chains {
-			if ch.Table == nil || ch.Table.Name != tbl.Name || ch.Table.Family != tbl.Family {
+		chains, err := conn.ListChainsOfTableFamily(fam)
+		if err != nil {
+			slog.Debug("published port detection: cannot list chains", "family", fam, "error", err)
+			continue
+		}
+		for _, tbl := range tables {
+			if !dockerNATTables[tbl.Name] {
 				continue
 			}
-			rules, err := conn.GetRules(tbl, ch)
-			if err != nil {
-				continue
-			}
-			for _, r := range rules {
-				if p, ok := publishedPortFromRule(r, nets); ok {
-					out = append(out, p)
+			for _, ch := range chains {
+				if ch.Table == nil || ch.Table.Name != tbl.Name || ch.Table.Family != tbl.Family {
+					continue
+				}
+				rules, err := conn.GetRules(tbl, ch)
+				if err != nil {
+					continue
+				}
+				for _, r := range rules {
+					if p, ok := publishedPortFromRule(r, nets, fam); ok {
+						out = append(out, p)
+					}
 				}
 			}
 		}
@@ -214,12 +215,17 @@ func detectPublishedPorts(cidrs []string, nsFD int) []publishedPort {
 // false for everything that is not one.
 //
 // What it is looking for is a destination NAT whose target address is inside one
-// of nets, and the destination port that reaches it:
+// of nets, and the destination port that reaches it. nft writes it as a nat
+// expression reading two registers:
 //
 //	ip daddr 172.17.0.1 meta l4proto udp udp dport 53 dnat to 172.18.0.2:53
 //
-// A rule with no `ip daddr` is published on every address, which is what
-// `-p 53:53` means and what 0.0.0.0 says here.
+// iptables-nft and ip6tables-nft — Docker's default backend — write the same
+// `-j DNAT` as an xtables target instead, which google/nftables decodes into an
+// *xt.NatRange2 (both encodings dumped from a live kernel, 2026-09-26; see
+// xtDNATTarget). A rule with no `ip daddr` / `ip6 daddr` is published on every
+// address, which is what `-p 53:53` means and what family reports here: 0.0.0.0
+// for ip, :: for ip6.
 //
 // Deliberately forgiving in one direction only. A comparison it cannot read
 // leaves that field unset and the rule is skipped if the field was required, so
@@ -227,12 +233,16 @@ func detectPublishedPorts(cidrs []string, nsFD int) []publishedPort {
 // payload it last saw is cleared by anything that is not the comparison against
 // it — a bitwise mask in between means `ip daddr 10.0.0.0/8`, a network and not
 // the single address this is about.
-func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix) (publishedPort, bool) {
+func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix, family nftables.TableFamily) (publishedPort, bool) {
 	p := publishedPort{addr: "0.0.0.0"}
+	if family == nftables.TableFamilyIPv6 {
+		p.addr = "::"
+	}
 	immediates := map[uint32][]byte{}
 	var lastPayload *expr.Payload
 	var lastMeta *expr.Meta
 	var nat *expr.NAT
+	var xtDNAT *expr.Target
 
 	for _, e := range r.Exprs {
 		payload, meta := lastPayload, lastMeta
@@ -247,6 +257,10 @@ func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix) (publishedPort
 			immediates[v.Register] = v.Data
 		case *expr.NAT:
 			nat = v
+		case *expr.Target:
+			if v.Name == "DNAT" {
+				xtDNAT = v
+			}
 		case *expr.Cmp:
 			if v.Op != expr.CmpOpEq {
 				continue
@@ -259,6 +273,9 @@ func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix) (publishedPort
 				payload.Offset == 16 && payload.Len == 4 && len(v.Data) == 4:
 				p.addr = net.IP(v.Data).String()
 			case payload.Base == expr.PayloadBaseNetworkHeader &&
+				payload.Offset == 24 && payload.Len == 16 && len(v.Data) == 16:
+				p.addr = net.IP(v.Data).String()
+			case payload.Base == expr.PayloadBaseNetworkHeader &&
 				payload.Offset == 9 && payload.Len == 1 && len(v.Data) == 1:
 				p.proto = protoName(v.Data[0])
 			case payload.Base == expr.PayloadBaseTransportHeader &&
@@ -267,25 +284,40 @@ func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix) (publishedPort
 			}
 		}
 	}
-
-	if nat == nil || nat.Type != expr.NATTypeDestNAT || p.port == 0 {
+	if p.port == 0 {
 		return publishedPort{}, false
 	}
 
-	// The translated port, from the register the NAT expression names for it.
-	// `dnat to 172.18.0.3:80` loads it as a 2-byte big-endian immediate into
-	// RegProtoMin — dumped from a live kernel, which is the only evidence worth
-	// writing a decoder against. `dnat to 172.18.0.3` with no port leaves
-	// RegProtoMin at 0 and translates the address only, so the container is
-	// reached on the number that arrived: the published port.
+	// The target and the translated port, from whichever encoding wrote the
+	// rule. nft writes a nat expression reading two registers; iptables-nft —
+	// Docker's default backend — writes an xtables DNAT target, which
+	// google/nftables decodes into an xt.NatRange2 (both dumped from a live
+	// kernel, 2026-09-26). No translated port means the container is reached on
+	// the number that arrived: the published one.
+	var target netip.Addr
+	var toPort uint16
+	switch {
+	case nat != nil && nat.Type == expr.NATTypeDestNAT:
+		a, ok := netip.AddrFromSlice(immediates[nat.RegAddrMin])
+		if !ok {
+			return publishedPort{}, false
+		}
+		target = a.Unmap()
+		if d := immediates[nat.RegProtoMin]; nat.RegProtoMin != 0 && len(d) == 2 {
+			toPort = binary.BigEndian.Uint16(d)
+		}
+	case xtDNAT != nil:
+		a, port, ok := xtDNATTarget(xtDNAT.Info)
+		if !ok {
+			return publishedPort{}, false
+		}
+		target, toPort = a, port
+	default:
+		return publishedPort{}, false
+	}
 	p.containerPort = p.port
-	if d := immediates[nat.RegProtoMin]; nat.RegProtoMin != 0 && len(d) == 2 {
-		p.containerPort = binary.BigEndian.Uint16(d)
-	}
-
-	target, ok := netip.AddrFromSlice(immediates[nat.RegAddrMin])
-	if !ok {
-		return publishedPort{}, false
+	if toPort != 0 {
+		p.containerPort = toPort
 	}
 	for _, n := range nets {
 		if n.Contains(target) {
@@ -293,6 +325,32 @@ func publishedPortFromRule(r *nftables.Rule, nets []netip.Prefix) (publishedPort
 		}
 	}
 	return publishedPort{}, false
+}
+
+// xtDNATTarget reads an xtables DNAT target's first address and, when the
+// rule translates it, its first port. Revisions 1 and 2 (xt.NatRange and
+// xt.NatRange2) are what iptables-nft writes; revision 0, the IPv4-only
+// multi-range compat structure, predates every iptables Docker supports and is
+// not read — a rule this cannot read is skipped, never guessed at.
+func xtDNATTarget(info xt.InfoAny) (netip.Addr, uint16, bool) {
+	var r *xt.NatRange
+	switch v := info.(type) {
+	case *xt.NatRange2:
+		r = &v.NatRange
+	case *xt.NatRange:
+		r = v
+	default:
+		return netip.Addr{}, 0, false
+	}
+	a, ok := netip.AddrFromSlice(r.MinIP)
+	if !ok {
+		return netip.Addr{}, 0, false
+	}
+	var port uint16
+	if xt.NatRangeFlags(r.Flags)&xt.NatRangeProtoSpecified != 0 {
+		port = r.MinPort
+	}
+	return a.Unmap(), port, true
 }
 
 // protoName names the two transport protocols a published port can use, and
