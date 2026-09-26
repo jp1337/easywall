@@ -98,7 +98,7 @@ No cloud, no account, no telemetry you did not agree to.
     <a href="{{ site.demo_url }}" class="btn btn-primary btn-lg" target="_blank" rel="noopener">Open the demo ↗</a>
     <a href="{{ '/docs/installation/requirements/' | relative_url }}" class="btn btn-soft btn-lg">Requirements</a>
   </div>
-  <p class="docs-cta-credentials">Sign in with <code>{{ site.demo_user }}</code> / <code>{{ site.demo_password }}</code></p>
+  <p class="docs-cta-note">No account needed: one button takes you in.</p>
 </section>
 
 ## Built as open source, for 2026
