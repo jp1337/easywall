@@ -1718,17 +1718,49 @@ async function checkFocusIsVisible(ctx, theme) {
         const el = document.activeElement;
         if (!el || el === document.body || !(el instanceof HTMLElement)) return null;
 
-        // The nearest ancestor that actually paints, which is what an indicator
-        // is seen against — not the element's own transparent background.
+        // What an indicator is seen against — not the element's own
+        // transparent background, and not the first ancestor with *any*
+        // paint either. A translucent wash is not the colour a reader sees;
+        // it is what that colour looks like once it is composited onto
+        // whatever is actually behind it. Reading it as if it were opaque —
+        // the previous version of this function, which stopped climbing at
+        // the first ancestor whose alpha was merely nonzero — reported
+        // /dashboard's unknown-bridge notice in dark mode as 1.92:1 against
+        // `rgb(229, 165, 75)`, the warn wash's own un-composited colour. The
+        // real backdrop is that wash over the canvas beneath it,
+        // `rgb(32, 26, 21)`, and the same ring is ~15:1 there.
+        //
+        // So every translucent layer between the element and the first
+        // *opaque* one is collected, then folded back in nearest-last, each
+        // one composited over what the walk has established is behind it.
+        const parseColor = str => {
+          const mm = str && str.match(/rgba?\(([^)]+)\)/);
+          if (!mm) return null;
+          const p = mm[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+          if (p.length < 3) return null;
+          return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+        };
         const backdrop = node => {
+          const layers = [];
           for (let n = node.parentElement; n; n = n.parentElement) {
-            const bg = getComputedStyle(n).backgroundColor;
-            const mm = bg.match(/rgba?\(([^)]+)\)/);
-            if (!mm) continue;
-            const p = mm[1].split(/[,\s/]+/).filter(Boolean).map(Number);
-            if (p.length < 4 || p[3] > 0) return bg;
+            const c = parseColor(getComputedStyle(n).backgroundColor);
+            if (!c || c.a === 0) continue;
+            layers.push(c);
+            if (c.a >= 1) break;                 // opaque: nothing behind it shows
           }
-          return getComputedStyle(document.body).backgroundColor;
+          let base = (layers.length && layers[layers.length - 1].a >= 1)
+            ? layers.pop()
+            : (parseColor(getComputedStyle(document.body).backgroundColor)
+              || { r: 255, g: 255, b: 255 });
+          for (let i = layers.length - 1; i >= 0; i--) {
+            const l = layers[i];
+            base = {
+              r: l.r * l.a + base.r * (1 - l.a),
+              g: l.g * l.a + base.g * (1 - l.a),
+              b: l.b * l.a + base.b * (1 - l.a),
+            };
+          }
+          return `rgb(${base.r}, ${base.g}, ${base.b})`;
         };
 
         const cs = getComputedStyle(el);
@@ -1825,12 +1857,36 @@ async function checkBlockedActionContrast(page, theme) {
   const c = await page.$eval('#blocked-rows .pkt-actions .btn', b => {
     let op = 1;
     for (let el = b; el; el = el.parentElement) op *= parseFloat(getComputedStyle(el).opacity);
-    let bg = null;
+    // Same compositing checkFocusIsVisible's backdrop() does, and for the same
+    // reason: the first ancestor with *any* paint is not necessarily opaque,
+    // and stopping there reads a translucent fill as if it were the colour on
+    // screen rather than what it looks like over whatever is behind it.
+    const parseColor = str => {
+      const mm = str && str.match(/rgba?\(([^)]+)\)/);
+      if (!mm) return null;
+      const p = mm[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+      if (p.length < 3) return null;
+      return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+    };
+    const layers = [];
     for (let el = b; el; el = el.parentElement) {
-      const v = getComputedStyle(el).backgroundColor;
-      if (v && v !== 'rgba(0, 0, 0, 0)' && v !== 'transparent') { bg = v; break; }
+      const col = parseColor(getComputedStyle(el).backgroundColor);
+      if (!col || col.a === 0) continue;
+      layers.push(col);
+      if (col.a >= 1) break;
     }
-    return { fg: getComputedStyle(b).color, bg, op };
+    let base = (layers.length && layers[layers.length - 1].a >= 1)
+      ? layers.pop()
+      : (parseColor(getComputedStyle(document.body).backgroundColor) || { r: 255, g: 255, b: 255 });
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const l = layers[i];
+      base = {
+        r: l.r * l.a + base.r * (1 - l.a),
+        g: l.g * l.a + base.g * (1 - l.a),
+        b: l.b * l.a + base.b * (1 - l.a),
+      };
+    }
+    return { fg: getComputedStyle(b).color, bg: `rgb(${base.r}, ${base.g}, ${base.b})`, op };
   });
   const fg = parseRGBA(c.fg), bg = parseRGBA(c.bg);
   const seen = compositeOver({ ...fg, a: fg.a * c.op }, bg);

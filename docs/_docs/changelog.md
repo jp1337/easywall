@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.24.0">2.24.0</a>
   <a href="#2.23.2">2.23.2</a>
   <a href="#2.23.1">2.23.1</a>
   <a href="#2.23.0">2.23.0</a>
@@ -75,7 +76,60 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.23.2" markdown="1">
+<details open id="2.24.0" markdown="1">
+<summary><strong>2.24.0</strong> · 2026-09-26 — Containers answer over IPv6</summary>
+
+A port Docker publishes on an IPv6 bridge was reachable over IPv4 only, and
+nothing in the interface said so. A production host running mail over IPv6
+through Docker was waiting on this release; it now forwards the IPv6 side the
+same way it already forwards the IPv4 one.
+
+### Added
+
+- **A Docker bridge's IPv6 networks are detected and forwarded.** Each
+  bridge's ULA and global IPv6 subnets are found the same apply as its IPv4
+  one, and a forwarded port rule opens the port in both families. A bridge's
+  own `fe80::` link-local address is never treated as a container network.
+- **A Docker network the rules in force do not know is named.** After
+  `docker network create`, the dashboard and `easywall-core status` say the
+  network exists and is not covered yet, until the next apply.
+- **The published-port check reads `ip6` too.** A port published only on an
+  IPv6 Docker network is now named in the log like its IPv4 counterpart.
+
+### Changed
+
+- `ipv6.mode = "block"` removes IPv6 from the container networks the forward
+  chain is built over: no IPv6 twin, deny or exception renders for one. What
+  reaches a container after that follows `routing.mode` — the forward chain's
+  policy drop under `closed` or `networks` (unless `routing.networks` names a
+  network covering it), passed through to Docker's own `ip6tables` under
+  `open`.
+- Under `block`, a forwarded rule's own IPv6 sources no longer render either —
+  the same statement `block` already makes about the host.
+- A container-network list with no usable network at all no longer renders
+  forwarded accepts with no deny beside them.
+- On a host whose container networks are IPv6-only (`custom_networks` holding
+  only a ULA, say), the IPv4-pinned forwarded accept no longer renders either
+  — it used to render regardless, pinned to a family with nothing behind it.
+- Containers on an IPv6 bridge reach the host's own services over IPv6 as they
+  already do over IPv4.
+- A non-Docker `br-*` bridge — OpenWrt's `br-lan`, an OpenStack `br-ex` — with
+  a global or unique-local IPv6 prefix is trusted the same way its IPv4
+  network already is, once `docker.enabled = true`: accepted on the input
+  chain, exempted both ways on the forward chain. Parity with the documented
+  IPv4 behaviour, not a new decision.
+
+### Fixed
+
+- **The published-port warning named nothing on hosts where Docker uses its
+  default iptables backend, since 2.20.1.** `iptables-nft` writes DNAT as an
+  xtables target, which the check did not read.
+
+[See the code changes between 2.23.2 and 2.24.0](https://github.com/jp1337/easywall/compare/v2.23.2...v2.24.0)
+
+</details>
+
+<details id="2.23.2" markdown="1">
 <summary><strong>2.23.2</strong> · 2026-09-25 — Three pages that looked like another program</summary>
 
 2.22 and 2.23 each added a page section in a grammar of its own, and neither

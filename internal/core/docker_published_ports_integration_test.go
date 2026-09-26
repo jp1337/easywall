@@ -146,3 +146,125 @@ func TestIntegration_ThePublishedPortDetectionReadsTheManagersNamespace(t *testi
 		}
 	}
 }
+
+// dockerNAT6Fixture is dockerNATFixture's ip6 twin: what Docker writes with
+// ip6tables enabled and a port published on [::].
+func dockerNAT6Fixture(t *testing.T) {
+	t.Helper()
+	const ruleset = `
+table ip6 nat {
+	chain DOCKER {
+		ip6 daddr 2001:db8::1 udp dport 53 counter dnat to [fd00:ea5e::2]:53
+		tcp dport 8080 counter dnat to [fd00:ea5e::3]:80
+		tcp dport 9999 counter dnat to [2001:db8::7]:9999
+		tcp dport 7070 counter dnat to fd00:ea5e::9
+	}
+}
+`
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(ruleset)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		skipOrFailUnprovable(t, "the ip6 nat table could not be written: "+err.Error()+": "+string(out))
+	}
+	t.Cleanup(func() { _ = exec.Command("nft", "delete", "table", "ip6", "nat").Run() })
+}
+
+// dockerIptablesFixture writes what Docker's default iptables backend writes:
+// the same DNAT rules through iptables-nft and ip6tables-nft, which encode
+// -j DNAT as an xtables target. The fixture above, written with nft -f,
+// produces the nat-expression encoding instead — which is why the check's
+// blindness to Docker's real rules went unnoticed from 2.20.1 to 2.24.
+func dockerIptablesFixture(t *testing.T) {
+	t.Helper()
+	for _, bin := range []string{"iptables-nft", "ip6tables-nft"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			skipOrFailUnprovable(t, bin+" is not installed, and it is what Docker's iptables backend runs")
+		}
+	}
+	for _, c := range [][]string{
+		{"iptables-nft", "-t", "nat", "-N", "DOCKER"},
+		{"iptables-nft", "-t", "nat", "-A", "DOCKER", "-d", "172.17.0.1/32", "-p", "udp", "-m", "udp",
+			"--dport", "53", "-j", "DNAT", "--to-destination", "172.18.0.2:53"},
+		{"iptables-nft", "-t", "nat", "-A", "DOCKER", "-p", "tcp", "-m", "tcp",
+			"--dport", "7070", "-j", "DNAT", "--to-destination", "172.18.0.9"},
+		{"ip6tables-nft", "-t", "nat", "-N", "DOCKER"},
+		{"ip6tables-nft", "-t", "nat", "-A", "DOCKER", "-d", "2001:db8::1/128", "-p", "tcp", "-m", "tcp",
+			"--dport", "25", "-j", "DNAT", "--to-destination", "[fd00:ea5e::4]:2525"},
+	} {
+		if out, err := exec.Command(c[0], c[1:]...).CombinedOutput(); err != nil {
+			skipOrFailUnprovable(t, strings.Join(c, " ")+": "+err.Error()+": "+string(out))
+		}
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("nft", "delete", "table", "ip", "nat").Run()
+		_ = exec.Command("nft", "delete", "table", "ip6", "nat").Run()
+	})
+}
+
+// D6's bug: Docker's own rules, as its default backend writes them, in both
+// families — and the warning an operator reads, end to end.
+func TestIntegration_DockersIptablesRulesAreReadAndNamed(t *testing.T) {
+	dockerIptablesFixture(t)
+
+	got := detectPublishedPorts([]string{"172.18.0.0/16", "fd00:ea5e::/64"}, 0)
+	want := map[string]bool{
+		"udp 53 on 172.17.0.1 -> 53":    false,
+		"tcp 7070 on 0.0.0.0 -> 7070":   false,
+		"tcp 25 on 2001:db8::1 -> 2525": false,
+	}
+	for _, p := range got {
+		key := p.proto + " " + strconv.Itoa(int(p.port)) + " on " + p.addr +
+			" -> " + strconv.Itoa(int(p.containerPort))
+		if _, expected := want[key]; !expected {
+			t.Errorf("reported %s, which the fixture did not publish", key)
+			continue
+		}
+		want[key] = true
+	}
+	for key, found := range want {
+		if !found {
+			t.Errorf("%s is in Docker's iptables rules and was not read; got %v", key, got)
+		}
+	}
+
+	var lines []string
+	prevLog := slog.Default()
+	slog.SetDefault(slog.New(recordingLogHandler{lines: &lines}))
+	t.Cleanup(func() { slog.SetDefault(prevLog) })
+	newIntegrationManager(t).warnUnruledPublishedPorts(shared.Rules{}, []string{"fd00:ea5e::/64"})
+	const line = "25 published on 2001:db8::1 reaches the container on 2525: no forwarded rule for 2525"
+	for _, l := range lines {
+		if strings.Contains(l, line) {
+			return
+		}
+	}
+	t.Errorf("the IPv6-only published port was not named.\n  want: %q\n  got: %q", line, lines)
+}
+
+// D6: a port published on IPv6 is read like its IPv4 twin. Without this the
+// check's silence about an IPv6 port is a false green, and features/docker.md
+// had to tell operators to check IPv6 by hand.
+func TestIntegration_IPv6PublishedPortsAreRead(t *testing.T) {
+	dockerNAT6Fixture(t)
+
+	got := detectPublishedPorts([]string{"fd00:ea5e::/64"}, 0)
+	want := map[string]bool{
+		"udp 53 on 2001:db8::1 -> 53": false,
+		"tcp 8080 on :: -> 80":        false,
+		"tcp 7070 on :: -> 7070":      false,
+	}
+	for _, p := range got {
+		key := p.proto + " " + strconv.Itoa(int(p.port)) + " on " + p.addr +
+			" -> " + strconv.Itoa(int(p.containerPort))
+		if _, expected := want[key]; !expected {
+			t.Errorf("reported %s, which is not a published container port", key)
+			continue
+		}
+		want[key] = true
+	}
+	for key, found := range want {
+		if !found {
+			t.Errorf("%s was published on IPv6 and not read; got %v", key, got)
+		}
+	}
+}

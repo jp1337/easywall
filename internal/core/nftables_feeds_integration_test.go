@@ -649,6 +649,43 @@ func TestIntegration_AReceiveOverflowIsNotNothingWritten(t *testing.T) {
 	}
 }
 
+// TestIntegration_AReceiveOverflowStillRecordsTheBakedBridges is the same
+// overflow as above, over an apply whose container networks change — a plain
+// apply, then one naming a Docker network, both committed to the kernel. The
+// table is written either way (proven above); BakedBridges must say so too,
+// because the unknown-bridge comparison (spec D5) reads it, and a receive
+// overflow used to leave it holding the *previous* apply's networks — the
+// table said "10.99.0.0/24 is in force" and BakedBridges still said "nothing
+// is".
+func TestIntegration_AReceiveOverflowStillRecordsTheBakedBridges(t *testing.T) {
+	m := newIntegrationManager(t)
+	if err := m.Apply(shared.RulesState{Current: portRules(1, 2000)}, shared.FirewallOptions{}, shared.NetworkSettings{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.BakedBridges(); len(got) != 0 {
+		t.Fatalf("BakedBridges after a Docker-less apply = %v, want none", got)
+	}
+
+	netCfg := shared.NetworkSettings{Docker: shared.DockerConfig{
+		Enabled:        true,
+		CustomNetworks: []string{"10.99.0.0/24"},
+	}}
+	m.rcvbufForTest = 4096
+	err := m.Apply(shared.RulesState{Current: portRules(40, 3000)}, allProtectionModulesOn(), netCfg)
+	if !errors.Is(err, unix.ENOBUFS) {
+		t.Fatalf("a 4096-byte receive buffer returned %v, want ENOBUFS", err)
+	}
+	if errors.Is(err, errNothingWritten) {
+		t.Errorf("a receive overflow after the commit is tagged errNothingWritten: %v", err)
+	}
+
+	got := m.BakedBridges()
+	if len(got) != 1 || got[0] != "10.99.0.0/24" {
+		t.Errorf("BakedBridges after the overflow = %v, want [10.99.0.0/24] — "+
+			"the table the assertion above proved was written", got)
+	}
+}
+
 // sysctlInt reads net.core.<name>.
 func sysctlInt(t *testing.T, name string) int {
 	t.Helper()
