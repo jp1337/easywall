@@ -44,6 +44,23 @@ func TestHandleDashboard_CoreUnavailable(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 }
 
+func TestDashboardNamesAnUnknownBridge(t *testing.T) {
+	fc := newFakeCore(t)
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
+		Active:         true,
+		UnknownBridges: []shared.UnknownBridge{{Interface: "br-4f2a", CIDRs: []string{"172.20.0.0/24"}}},
+	}))
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	body := doAuthRequest(t, s, "GET", "/dashboard", nil).Body.String()
+	// The notice's own markup, not a bare href: the sidebar always links /apply.
+	const want = `<span>Docker network br-4f2a (172.20.0.0/24) exists and is not in the rules in force. ` +
+		`Apply to include it. <a class="link" href="/apply">Apply Rules</a></span>`
+	if !strings.Contains(body, want) {
+		t.Errorf("the dashboard does not name the unknown bridge with its own link to apply:\n  want %q\n%s", want, body)
+	}
+}
+
 func TestHandleDashboard_WithVersionCache(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
