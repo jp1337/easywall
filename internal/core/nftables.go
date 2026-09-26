@@ -926,21 +926,27 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	}
 
 	m.checkBuilt()
-	if err := m.flushLarge(feedBytes); err != nil {
-		// The kernel's answers overflowing the receive buffer: they come
-		// after the commit, so the table is written (errNothingWritten says
-		// what an aborted batch's overflow costs).
-		if receiveOverflow(err) {
-			return err
+	flushErr := m.flushLarge(feedBytes)
+	// The table is in the kernel on a clean flush, and also on a receive
+	// overflow: that error is the kernel's answers overflowing the receive
+	// buffer, which arrive after the commit, so the table was already written
+	// (errNothingWritten says what an aborted batch's overflow costs instead).
+	// Recording fwdNets only on the nil-error path left a receive overflow
+	// with the previous apply's networks in BakedBridges() — the unknown-bridge
+	// status line would then compare against a record stale by one apply.
+	if flushErr == nil || receiveOverflow(flushErr) {
+		m.bakedMu.Lock()
+		m.bakedBridges = fwdNets
+		m.bakedMu.Unlock()
+	}
+	if flushErr != nil {
+		if receiveOverflow(flushErr) {
+			return flushErr
 		}
 		// Refused whole, or never sent: the kernel holds the previous table
 		// and its counters.
-		return fmt.Errorf("%w (%w)", err, errNothingWritten)
+		return fmt.Errorf("%w (%w)", flushErr, errNothingWritten)
 	}
-	// The table is in the kernel: these are now the networks in force.
-	m.bakedMu.Lock()
-	m.bakedBridges = fwdNets
-	m.bakedMu.Unlock()
 
 	// Apply custom rules via nft subprocess after all typed rules are committed.
 	if len(state.Current.Custom) > 0 {
@@ -2276,8 +2282,9 @@ func forwardExceptionMatches(cidrs []string) [][]expr.Any {
 
 // buildForwardChain writes every rule in the forward chain, in the one order
 // that makes them mean anything, and returns the container networks it was
-// built over (dockerCIDRs, already D3-filtered) — Task 4 records it as what is
-// in force, for the unknown-bridge comparison.
+// built over (dockerCIDRs, already D3-filtered) — ApplyWithFeeds records it,
+// once the flush has committed, as the networks in force (BakedBridges), for
+// the unknown-bridge comparison.
 //
 // It exists as a function rather than as a run of calls inside Apply because the
 // order is the correctness of this release and Apply cannot be unit-tested — it
