@@ -13,6 +13,12 @@ allow stays reachable whatever a feed says.
 {% include themed-figure.html base="/assets/diagrams/feed-order" ext="svg"
    alt="Four boxes in a row: your blocklist drops, then the allowlist accepts, then the feeds drop, then the port rules." %}
 
+> **A feed applies to every port, web ports included.** A fail2ban-sourced list
+> like blocklist.de blocks whatever address it names, wherever it connects. A
+> link-preview proxy or a search crawler fetching your site over 80 or 443 can
+> be on one too. Feeds are checked after your allowlist, so a verified
+> crawler's range belongs there, not in an exception you write per feed.
+
 ## Start with Spamhaus DROP and DShield
 
 1. Open **Blocklist** and scroll to **Feeds**.

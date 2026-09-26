@@ -1,3 +1,17 @@
+easywall (2.24.0) unstable; urgency=medium
+
+  * A Docker bridge's IPv6 networks are detected and forwarded like its
+    IPv4 ones; a container reachable on IPv6 needed 2.24.
+  * A Docker network the rules in force do not know is named on the
+    dashboard and by easywall-core status.
+  * The published-port check reads ip6 DNAT too.
+  * ipv6.mode = "block" also keeps IPv6 away from containers.
+  * Fix: the published-port warning named nothing on hosts where Docker
+    uses its default iptables backend (since 2.20.1) — iptables-nft
+    writes DNAT as an xtables target the check did not read.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Sat, 26 Sep 2026 12:00:00 +0200
+
 easywall (2.23.2) unstable; urgency=medium
 
   * /blocklist's feeds are a table, one row per list, and own feeds one

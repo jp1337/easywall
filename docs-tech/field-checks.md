@@ -13,6 +13,11 @@ together find what neither finds alone.
 | 2.23.0 | the failed apply said *nothing was written to the kernel* — the kernel had committed | 2.23.1 — a receive-side overflow is no longer tagged so |
 | 2.23.1 | 60 dropped fragments were the host's own WireGuard peer | /options and `filters.md` name tunnels beside DNSSEC |
 | 2.23.1 | IPv6 mail clients hung on a silent drop (AAAA record, IPv4-only ports) | roadmap 2.26: closed ports can answer (`reject`) |
+| 2.23.2 | feeds stopped 3,472 of 3,903 SSH drops (89 %) before the brute-force meter | feeds pre-empt sshbrute — documented behaviour, nothing to change |
+| 2.23.2 | 334 IPv6 default drops on mail ports (993/25/143/587/465/4190) in 11 h | the IPv4-only container gap — 2.24 |
+| 2.23.2 | feeds drop some legitimate fetchers on 80/443 (blocklist.de, CINS) | `feeds.md` note and allowlist recipe (2.24); a per-feed port scope is roadmap 2.36 |
+| 2.23.2 | IPv4 echo-request always meets policy drop | deliberate and documented (`filters.md`), no switch — roadmap 2.37 candidate: a switch to answer it |
+| 2.24 | the published-port warning never read Docker's `iptables-nft` DNAT — an xtables target, not the nft `nat` expression the check read — since 2.20.1 | fixed in 2.24 (Task 3) |
 
 ## When
 
