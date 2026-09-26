@@ -21,49 +21,65 @@ var ifaceAddrsFn = func(iface net.Interface) ([]net.Addr, error) {
 	return iface.Addrs()
 }
 
-// detectDockerBridges returns CIDR ranges for all Docker bridge networks
-// currently active on the system (e.g. "172.17.0.0/16").
+// bridgeNet is one container network: the interface it was found on and the
+// network, masked. The interface travels with it because the status line an
+// operator reads names the bridge (`br-4f2a`), not only its ranges.
+type bridgeNet struct {
+	Iface string
+	CIDR  string
+}
+
+// detectDockerBridgeNets returns the container networks of every Docker bridge
+// currently on the system: the IPv4 network and, since 2.24, every global or
+// unique-local IPv6 network of each address the bridge carries.
 //
 // Detection lists the host's network interfaces, keeps the ones named docker*
-// or br-, and takes the IPv4 network of each address they carry. The comment
-// here used to describe reading /proc/net/fib_trie, which nothing in this file
-// has ever opened.
-//
-// IPv4 only. A Docker network with IPv6 enabled is not detected, and has to go
-// in docker.custom_networks — see features/docker.md.
+// or br-, and masks each address to its network. A link-local address
+// (fe80::/10) is never a container network: every bridge has one, and counting
+// it would make every Docker host an IPv6 container host (spec D4).
 //
 // The name test is a prefix match, so any bridge called br-something counts,
 // Docker's or not. That is deliberate on a container host and worth knowing on
 // a router, where br-lan would also be accepted.
-func detectDockerBridges() []string {
+func detectDockerBridgeNets() []bridgeNet {
 	interfaces, err := netInterfacesFn()
 	if err != nil {
 		slog.Warn("docker bridge detection: cannot list interfaces", "error", err)
 		return nil
 	}
 
-	var cidrs []string
+	var nets []bridgeNet
 	for _, iface := range interfaces {
 		if !isDockerInterface(iface.Name) {
 			continue
 		}
-
 		addrs, err := ifaceAddrsFn(iface)
 		if err != nil {
 			continue
 		}
-
 		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				if v.IP.To4() != nil {
-					network := &net.IPNet{IP: v.IP.Mask(v.Mask), Mask: v.Mask}
-					cidrs = append(cidrs, network.String())
-				}
+			v, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
 			}
+			if v.IP.To4() == nil && (v.IP.To16() == nil || v.IP.IsLinkLocalUnicast()) {
+				continue
+			}
+			network := &net.IPNet{IP: v.IP.Mask(v.Mask), Mask: v.Mask}
+			nets = append(nets, bridgeNet{Iface: iface.Name, CIDR: network.String()})
 		}
 	}
+	return nets
+}
 
+// detectDockerBridges is detectDockerBridgeNets as the CIDR list every rule
+// builder takes. nil when nothing was found, as it always was: callers and the
+// boot reconciler tell "none" apart by length.
+func detectDockerBridges() []string {
+	var cidrs []string
+	for _, n := range detectDockerBridgeNets() {
+		cidrs = append(cidrs, n.CIDR)
+	}
 	return cidrs
 }
 
@@ -119,7 +135,7 @@ var dockerNATTables = map[string]bool{"nat": true, "docker": true}
 // published address is also what catches `-p 10.0.0.5:53:53`, published on a
 // host interface and DNAT'd into a bridge like any other.
 //
-// IPv4 only, like detectDockerBridges above it: the tables are listed in the ip
+// IPv4 only for now; Task 3 adds ip6: the tables are listed in the ip
 // family and the header offsets read an IPv4 packet. A published port on an
 // IPv6 network named in docker.custom_networks is closed by the deny — cidrMatch
 // renders a v6 one — and is not named here. That gap is inherited, not new, and
