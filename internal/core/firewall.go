@@ -969,6 +969,7 @@ func (f *Firewall) Status() shared.FirewallStatus {
 		// The same read the apply path makes (see acceptanceOn in apply), so a
 		// caller cannot be told a window exists by one and not by the other.
 		AcceptanceEnabled: f.cfg.SystemSettings().Acceptance.Enabled,
+		UnknownBridges:    f.unknownBridges(active),
 	}
 }
 

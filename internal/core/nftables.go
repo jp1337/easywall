@@ -157,6 +157,13 @@ type NftablesManager struct {
 	rcvbuf        int
 	rcvbufCapped  bool
 	rcvbufForTest int
+
+	// bakedMu guards bakedBridges on its own, not under mu: Status reads it on
+	// the dashboard's poll, and mu is held for a whole apply.
+	bakedMu sync.Mutex
+	// bakedBridges is the container networks the forward chain of the last
+	// successful write was built over, after ipv6.mode's filter (2.24 D5).
+	bakedBridges []string
 }
 
 // builtRecorder is the production adder: it records the rule and forwards it to
@@ -242,6 +249,14 @@ func (m *NftablesManager) LastFindings() []Finding {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]Finding(nil), m.lastFindings...)
+}
+
+// BakedBridges returns a copy of the container networks the rules in force
+// were built over.
+func (m *NftablesManager) BakedBridges() []string {
+	m.bakedMu.Lock()
+	defer m.bakedMu.Unlock()
+	return append([]string(nil), m.bakedBridges...)
 }
 
 // checkBuilt runs the expression check over everything built so far and records
@@ -809,7 +824,6 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	// The whole forward chain, in one call, because its order is the correctness
 	// of 2.19 and nothing here can be unit-tested. See buildForwardChain.
 	fwdNets := m.buildForwardChain(table, forwardChain, state.Current, docker, routing, dockerCIDRs, ipv6.Mode)
-	_ = fwdNets // recorded as what is in force by Task 4
 
 	// Optional protection modules
 	if opts.PortScan {
@@ -923,6 +937,11 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 		// and its counters.
 		return fmt.Errorf("%w (%w)", err, errNothingWritten)
 	}
+	// The table is in the kernel: these are now the networks in force.
+	m.bakedMu.Lock()
+	m.bakedBridges = fwdNets
+	m.bakedMu.Unlock()
+
 	// Apply custom rules via nft subprocess after all typed rules are committed.
 	if len(state.Current.Custom) > 0 {
 		if err := m.applyCustomRules(state.Current.Custom); err != nil {
