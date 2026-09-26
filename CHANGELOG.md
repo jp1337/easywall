@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.0] — 2026-09-26
+
+**Containers answer over IPv6.**
+
+A port Docker publishes on an IPv6 bridge was reachable over IPv4 only, and
+nothing in the interface said so. A production host running mail over IPv6
+through Docker was waiting on this release; it now forwards the IPv6 side the
+same way it already forwards the IPv4 one.
+
+### Added
+
+- **A Docker bridge's IPv6 networks are detected and forwarded.** Each
+  bridge's ULA and global IPv6 subnets are found the same apply as its IPv4
+  one, and a forwarded port rule opens the port in both families. A bridge's
+  own `fe80::` link-local address is never treated as a container network.
+- **A Docker network the rules in force do not know is named.** After
+  `docker network create`, the dashboard and `easywall-core status` say the
+  network exists and is not covered yet, until the next apply.
+- **The published-port check reads `ip6` too.** A port published only on an
+  IPv6 Docker network is now named in the log like its IPv4 counterpart.
+
+### Changed
+
+- `ipv6.mode = "block"` also keeps IPv6 away from containers: no IPv6 twin,
+  deny or exception renders for a container network under it.
+- Under `block`, a forwarded rule's own IPv6 sources no longer render either —
+  the same statement `block` already makes about the host.
+- A container-network list with no usable network at all no longer renders
+  forwarded accepts with no deny beside them.
+- Containers on an IPv6 bridge reach the host's own services over IPv6 as they
+  already do over IPv4.
+
+### Fixed
+
+- **The published-port warning named nothing on hosts where Docker uses its
+  default iptables backend, since 2.20.1.** `iptables-nft` writes DNAT as an
+  xtables target, which the check did not read.
+
 ## [2.23.2] — 2026-09-25
 
 **Three pages that looked like another program.**
@@ -2614,7 +2652,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.23.2...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.24.0...HEAD
+[2.24.0]: https://github.com/jp1337/easywall/compare/v2.23.2...v2.24.0
 [2.23.2]: https://github.com/jp1337/easywall/compare/v2.23.1...v2.23.2
 [2.23.1]: https://github.com/jp1337/easywall/compare/v2.23.0...v2.23.1
 [2.23.0]: https://github.com/jp1337/easywall/compare/v2.22.0...v2.23.0
