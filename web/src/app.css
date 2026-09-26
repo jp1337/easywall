@@ -1674,6 +1674,22 @@ body {
     border-color: var(--color-state-ok);
   }
 
+  /* `.link:focus-visible`'s ordinary ring is `--color-focus-ring`, which reads
+     as `ink` — near-white in dark mode, near-black in light mode, chosen to
+     sit on a page or card background. WCAG 1.4.11 is measured against what an
+     indicator composites onto, and a wash is translucent: the check reads its
+     *un-composited* colour, which for `--wash-warn` is the state colour
+     itself — a light amber in dark mode, a dark brown in light mode. The
+     ordinary ring lands 1.92:1 there in dark mode, short of 3:1, because it
+     was never chosen against this backdrop.
+     `--color-canvas` is the neutral scale's opposite pole from ink in both
+     themes — the same weight-and-edge language `.link:focus-visible` already
+     uses, no hue of its own — and clears 3:1 against all three wash colours
+     (ok/warn/crit) in both themes. */
+  .alert .link:focus-visible {
+    outline-color: var(--color-canvas);
+  }
+
   /* ── Panic banner ──────────────────────────────────────────────────────────
      Rendered from inside "topbar" (base.html), so every authenticated page
      carries it without asking. A strip, not a card: it sits flush under the
