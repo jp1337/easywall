@@ -2323,8 +2323,14 @@ func (m *NftablesManager) buildForwardChain(
 // this chain? It is deliberately the conjunction of that function's two guards
 // and not a third opinion — the two must agree, and three mutations hold them
 // together: deleting either guard, or widening this, turns a different test red.
+//
+// "cidrs is non-empty" is not the same question as "cidrs has a usable
+// network": a list holding only comments or an entry that does not parse is
+// non-empty and renders nothing (cidrFamilies returns false, false for it), so
+// the guard below reads the same families addForwardPortRules will.
 func forwardPortRulesRender(docker shared.DockerConfig, cidrs []string) bool {
-	return docker.FiltersPublishedPorts() && len(cidrs) > 0
+	v4, v6 := cidrFamilies(cidrs)
+	return docker.FiltersPublishedPorts() && (v4 || v6)
 }
 
 // addForwardPortRules renders the rules that let a named port reach a container,
@@ -2347,25 +2353,28 @@ func (m *NftablesManager) addForwardPortRules(
 		return
 	}
 
-	// No container network was detected or configured, so there is no deny to
-	// render — the loop at the foot of this function has nothing to iterate.
-	// The accepts alone would open, in the forward chain, ports 2.18 kept shut,
-	// and the interface would report them enforced: this release's own thesis,
-	// reproduced by the feature. Rendering nothing leaves the chain
-	// byte-identical to 2.18, which is the safe direction to fail in.
+	// No container network was detected or configured — or the list holds
+	// nothing usable, only comments or an entry that does not parse — so there
+	// is no deny to render — the loop at the foot of this function has nothing
+	// to iterate. The accepts alone would open, in the forward chain, ports
+	// 2.18 kept shut, and the interface would report them enforced: this
+	// release's own thesis, reproduced by the feature. Rendering nothing leaves
+	// the chain byte-identical to 2.18, which is the safe direction to fail in.
 	//
 	// Not a config error, which is why Validate does not cover this one:
 	// detection runs here, at apply, not at load. A host whose containers have
 	// not started yet legitimately has docker.enabled = true and no bridge, and
-	// reconcileDockerBridges re-applies when one appears.
-	if len(cidrs) == 0 {
+	// reconcileDockerBridges re-applies when one appears. forwardPortRulesRender
+	// asks the same question with the same function, so the two guards cannot
+	// drift apart.
+	v4, v6 := cidrFamilies(cidrs)
+	if !v4 && !v6 {
 		slog.Warn("docker.published_ports is \"filtered\" but no container network was found; " +
 			"the forwarded port rules are not in the ruleset. They render as soon as a bridge " +
 			"network is detected, or as soon as docker.custom_networks names one")
 		return
 	}
 
-	v4, v6 := cidrFamilies(cidrs)
 	for _, proto := range []struct {
 		name  string
 		rules []shared.PortRule

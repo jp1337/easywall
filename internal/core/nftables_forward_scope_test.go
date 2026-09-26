@@ -593,33 +593,62 @@ func TestForwardChain_BlockKeepsIPv6AwayFromContainers(t *testing.T) {
 }
 
 // D2's second named exception: a container-network list with no usable network
-// (only a comment) rendered, in 2.23.2, forwarded accepts with no deny beside
-// them — a port opened for forwarded traffic to anything the host routes. Now
-// nothing renders. Not in the golden, which is 2.23.2's behaviour.
+// (only a comment, or an entry that does not parse) rendered, in 2.23.2,
+// forwarded accepts with no deny beside them — a port opened for forwarded
+// traffic to anything the host routes. Now nothing renders, not even the
+// established accept: forwardPortRulesRender and addForwardPortRules read the
+// same cidrFamilies question, so a list that is non-empty but has nothing
+// usable is the same case as no list at all, and buildForwardChain's own
+// guard (len(exceptions) == 0 too, since forwardExceptionMatches skips the
+// same entries) never gets past its own early return. Not in the golden,
+// which is 2.23.2's behaviour.
 func TestForwardChain_AListWithNoUsableNetworkRendersNoAccept(t *testing.T) {
 	rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
 		shared.Rules{TCP: []shared.PortRule{{Port: "25", Scope: shared.ScopeForwarded}}},
-		[]string{"# only a note"})
-	for _, r := range rules {
-		if ruleMatchesDport(r, 25) {
-			t.Fatalf("a forwarded accept rendered with no container network to deny beside it: %#v", r.Exprs)
-		}
+		[]string{"# only a note", "not-a-cidr"})
+	if len(rules) != 0 {
+		t.Fatalf("a list with no usable network rendered %d rule(s), want an empty chain: %#v",
+			len(rules), rules)
 	}
 }
 
 // Review Focus 2: the twin is the same UI rule, so it carries the same id —
 // the counters and "last used" read both kernel rules as one.
+//
+// Equal is not enough. portAcceptRules is called once per copy specifically
+// so that no two kernel rules share an expression or a userdata backing
+// array — a mutation that instead derived the IPv6 twin by re-pinning the
+// IPv4 copy's own Exprs into a new slice would still carry an equal-by-value
+// id and pass a bytes.Equal check, while the two "rules" were, underneath,
+// one and the same kernel object: writing one through the netlink layer, or
+// truncating its slice, would corrupt the other.
 func TestForwardChain_TheTwinCarriesTheRulesID(t *testing.T) {
 	rules := buildForward(t, filteredDocker(), shared.RoutingConfig{Mode: shared.RoutingClosed},
 		shared.Rules{TCP: []shared.PortRule{{ID: "aaaaaaaaaaa1", Port: "25", Scope: shared.ScopeForwarded}}},
 		[]string{"172.17.0.0/16", "fd00:ea5e::/64"})
-	var tags [][]byte
+	var twins []*nftables.Rule
 	for _, r := range rules {
 		if ruleMatchesDport(r, 25) {
-			tags = append(tags, r.UserData)
+			twins = append(twins, r)
 		}
 	}
-	if len(tags) != 2 || !bytes.Equal(tags[0], tags[1]) || len(tags[0]) == 0 {
-		t.Errorf("the two copies of one forwarded rule carry userdata %x; both must carry the rule's id", tags)
+	if len(twins) != 2 {
+		t.Fatalf("port 25 rendered %d matching rule(s), want 2", len(twins))
+	}
+	tag0, tag1 := twins[0].UserData, twins[1].UserData
+	if !bytes.Equal(tag0, tag1) || len(tag0) == 0 {
+		t.Errorf("the two copies of one forwarded rule carry userdata %x; both must carry the rule's id", [][]byte{tag0, tag1})
+	}
+	if len(tag0) > 0 && len(tag1) > 0 && &tag0[0] == &tag1[0] {
+		t.Error("the two copies' userdata share a backing array: writing one through " +
+			"the netlink layer would corrupt the other")
+	}
+	for _, e0 := range twins[0].Exprs {
+		for _, e1 := range twins[1].Exprs {
+			if e0 == e1 {
+				t.Errorf("the two copies share an expression by pointer identity (%p): "+
+					"they are not two kernel rules but one rule aliased twice", e0)
+			}
+		}
 	}
 }
