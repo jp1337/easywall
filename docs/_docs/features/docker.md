@@ -88,7 +88,9 @@ Docker binds `0.0.0.0` *and* `[::]` — `docker ps` shows both. On a network
 with IPv6 enabled and `ip6tables` on, it writes the matching `ip6` DNAT rule
 the same way it writes the `ip` one. `-p [::]:993:993` publishes IPv6 *only*;
 use it deliberately, to keep a port off IPv4, not to "add" IPv6 to a plain
-publish. Docker needs `ip6tables` enabled in its own daemon config to write
+publish. Ansible's `community.docker.docker_container` is the exception: its
+`default_host_ip` is `0.0.0.0`, so `"25:25"` binds IPv4 only until it is set to
+`""`. Docker needs `ip6tables` enabled in its own daemon config to write
 the `ip6` DNAT rules; that has been the default since Docker 27.
 
 Once the bridge exists, detection picks up its IPv6 network the same apply it
@@ -161,6 +163,7 @@ only containers should reach it — or set docker.published_ports = "open"
 | Once per apply, every time | No folding of repeats. The apply you are reading the log of is the one that has to say it |
 | A sourced rule is named too | It covers only the sources it lists, which is never the whole set the deny closes — see the callout above |
 | **Both families** | Docker's `ip nat` and `ip6 nat` DNAT rules are read, so a port published only on IPv6 is named too |
+| Loopback publishes are not named | `-p 127.0.0.1:8081:80` is reached from the host only, and that connection never crosses the forward chain |
 | No Docker socket, no client library | A host whose Docker has stopped with its rules still loaded is exactly the host this is about |
 
 | Also worth knowing | |
