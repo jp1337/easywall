@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.1] — 2026-09-26
+
+**A loopback publish is not a warning.**
+
+A patch to 2.24.0, from its first production rollout.
+
+### Fixed
+
+- **Ports published on loopback were named as having no forwarded rule.**
+  `-p 127.0.0.1:8081:80` is reached from the host only, and the host's own
+  connection never crosses the forward chain. The published-port warning
+  (working on Docker's default backend for the first time since 2.24.0) listed
+  eight such nginx back ends on the reporting host, all answering. Ports
+  published on `127.0.0.0/8` or `::1` are no longer named.
+
+### Documentation
+
+- Ansible's `community.docker.docker_container` binds `"25:25"` to `0.0.0.0`
+  only; it needs `default_host_ip: ""` to publish on both families.
+
 ## [2.24.0] — 2026-09-26
 
 **Containers answer over IPv6.**
@@ -2664,7 +2684,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.24.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.24.1...HEAD
+[2.24.1]: https://github.com/jp1337/easywall/compare/v2.24.0...v2.24.1
 [2.24.0]: https://github.com/jp1337/easywall/compare/v2.23.2...v2.24.0
 [2.23.2]: https://github.com/jp1337/easywall/compare/v2.23.1...v2.23.2
 [2.23.1]: https://github.com/jp1337/easywall/compare/v2.23.0...v2.23.1
