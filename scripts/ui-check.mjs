@@ -1000,8 +1000,9 @@ async function checkASignedOutTailNavigates(browser, session) {
 /**
  * A default-drop row says why, and a module's chip leads to its card
  * (2.23 G1, G4). The demo's shapes include a closed port, a port open only
- * for other sources and an IPv4 ping, so every default-drop row on the page
- * has a reason to give; one without is the defect, as is a sentence still
+ * for other sources and an IPv4 ping refused by Answer pings, whose sentence
+ * links to the switch, so every default-drop row on the page has a reason to
+ * give; one without is the defect, as is a sentence still
  * carrying its message id or an unfilled placeholder.
  */
 async function checkBlockedSaysWhy(page) {
@@ -1024,7 +1025,15 @@ async function checkBlockedSaysWhy(page) {
     fail('blocked reasons', `${href} names no card on /options`);
     return;
   }
-  console.log(`  ok   ${r.n} default-drop rows each say why; a module chip reaches its card`);
+  await page.goto(`${BASE}/blocked?rule=drop&proto=icmp`, { waitUntil: 'networkidle' });
+  const pingHref = await page.getAttribute('#blocked-rows .pkt-why a.link', 'href').catch(() => null);
+  if (pingHref !== '/options#opt-icmp_allow_echo_request') { fail('blocked reasons', `a ping_off row leads to ${pingHref}`); return; }
+  await page.goto(`${BASE}${pingHref}`, { waitUntil: 'networkidle' });
+  if (await page.locator('#opt-icmp_allow_echo_request').count() !== 1) {
+    fail('blocked reasons', `${pingHref} names no card on /options`);
+    return;
+  }
+  console.log(`  ok   ${r.n} default-drop rows each say why; a module chip reaches its card; a refused ping reaches its switch`);
 }
 
 /**

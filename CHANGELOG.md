@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.0] — 2026-09-27
+
+**Ping gets an answer, if you want one.**
+
+### Added
+
+- **Answer pings** — one switch under Options, `[firewall] icmp_allow_echo_request`,
+  **on by default**: ICMP echo requests are answered in both families, behind
+  *ICMP flood*. A host whose `easywall.toml` predates the key reads it as on.
+  To let only your monitoring ping, switch it off and allowlist the monitoring
+  address — which opens every port to it, not only ping.
+
+### Changed
+
+- **IPv4 pings are answered after the upgrade.** Until now an IPv4 echo request
+  met the policy drop while an IPv6 one was answered, and neither had a switch.
+  Switching *Answer pings* off keeps IPv4 silent — and IPv6 too, unless
+  `ipv6.mode` is `passthrough`.
+- **Seven stateless ICMP accepts are gone:** ICMPv4 0, 3, 11, 12 and ICMPv6 1–4,
+  129. The return-traffic accept before them already admits the reply to this
+  host's own ping and every error about a connection it tracks — unreachable,
+  fragmentation needed, time exceeded — so path-MTU discovery and traceroute
+  work as before. What those rules still let in on their own was unsolicited
+  echo replies and errors about connections that do not exist.
+- **A blocklisted or feed-listed source gets no ping reply**, in either family.
+  The echo accept sits after the blocklist, the allowlist and the feeds; ICMPv6
+  echo requests used to be accepted right after return traffic, ahead of every
+  list, so a blocklisted address could ping this host over IPv6.
+- The Blocked page's *IPv4 pings are not answered* is now *Pings are switched
+  off under Options*, for either family, with a link to the switch.
+
 ## [2.24.1] — 2026-09-26
 
 **A loopback publish is not a warning.**
@@ -2684,7 +2715,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.24.1...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.25.0...HEAD
+[2.25.0]: https://github.com/jp1337/easywall/compare/v2.24.1...v2.25.0
 [2.24.1]: https://github.com/jp1337/easywall/compare/v2.24.0...v2.24.1
 [2.24.0]: https://github.com/jp1337/easywall/compare/v2.23.2...v2.24.0
 [2.23.2]: https://github.com/jp1337/easywall/compare/v2.23.1...v2.23.2

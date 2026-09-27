@@ -30,7 +30,9 @@ func TestEveryDropReasonSentenceIsFilled(t *testing.T) {
 		TCP:       []shared.PortRule{{Port: "22"}, {Port: "8443", Sources: []string{"10.0.0.0/8"}}, {Port: "9000", Scope: shared.ScopeForwarded}},
 		Blocklist: []string{"192.0.2.66"}, Allowlist: []string{"198.51.100.7"},
 	}
-	filter := shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Filter}}
+	filter := shared.AppliedConfig{Network: shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Filter}}}
+	pingOn := filter
+	pingOn.Firewall.ICMPAllowEchoRequest = true
 	tcp := func(src string, port uint16) shared.PacketLogEntry {
 		a := netip.MustParseAddr(src)
 		fam := uint8(4)
@@ -56,11 +58,11 @@ func TestEveryDropReasonSentenceIsFilled(t *testing.T) {
 		tcp("203.0.113.9", 9000).DropReason(rules, filter),
 		tcp("192.0.2.66", 22).DropReason(rules, filter),
 		tcp("198.51.100.7", 22).DropReason(rules, filter),
-		tcp("2001:db8::9", 22).DropReason(rules, shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Block}}),
-		tcp("2001:db8::9", 22).DropReason(rules, shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Passthrough}}),
+		tcp("2001:db8::9", 22).DropReason(rules, shared.AppliedConfig{Network: shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Block}}}),
+		tcp("2001:db8::9", 22).DropReason(rules, shared.AppliedConfig{Network: shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Passthrough}}}),
 		icmp(8, true).DropReason(rules, filter),
 		icmp(13, true).DropReason(rules, filter),
-		icmp(3, true).DropReason(rules, filter),
+		icmp(8, true).DropReason(rules, pingOn),
 		icmp(0, false).DropReason(rules, filter),
 		gre.DropReason(rules, filter),
 	}
@@ -215,5 +217,25 @@ func TestBlockedDetailsNameTheICMPType(t *testing.T) {
 	ping.ICMP = &shared.PacketICMP{Type: 8}
 	if body := whyCore(t, ping, shared.Rules{}, true); !strings.Contains(body, `<dt>ICMP type/code</dt><dd class="pkt-flow">8/0</dd>`) {
 		t.Errorf("the drill-down does not name the ICMP type:\n%s", body)
+	}
+}
+
+// 2.25: an echo request the switch refused says where the switch is. The
+// applied settings whyCore records have it off (zero FirewallOptions).
+func TestAPingRowLeadsToTheSwitch(t *testing.T) {
+	for _, tc := range []struct {
+		proto string
+		typ   uint8
+		fam   uint8
+		src   string
+	}{{"icmp", 8, 4, "203.0.113.9"}, {"icmpv6", 128, 6, "2001:db8::9"}} {
+		ping := samplePacket()
+		ping.Rule, ping.Proto, ping.DstPort, ping.SrcPort, ping.TCPFlags = "drop", tc.proto, 0, 0, ""
+		ping.Family, ping.Src = tc.fam, netip.MustParseAddr(tc.src)
+		ping.ICMP = &shared.PacketICMP{Type: tc.typ}
+		body := whyCore(t, ping, shared.Rules{}, true)
+		if !strings.Contains(body, `Pings are switched off under <a class="link" href="/options#opt-icmp_allow_echo_request">Options</a>.`) {
+			t.Errorf("%s: a refused ping does not lead to the switch:\n%s", tc.proto, body)
+		}
 	}
 }

@@ -62,6 +62,7 @@ func (s *Server) handleOptionsPOST(w http.ResponseWriter, r *http.Request) {
 		SSHBruteForceLog:             r.FormValue("ssh_brute_force_log") != "",
 		SSHBruteForceConnectionLimit: parseInt("ssh_brute_force_connection_limit", 5),
 		SSHBruteForceLogLimit:        parseInt("ssh_brute_force_log_limit", 60),
+		ICMPAllowEchoRequest:         r.FormValue("icmp_allow_echo_request") != "",
 		ICMPFlood:                    r.FormValue("icmp_flood") != "",
 		ICMPFloodLog:                 r.FormValue("icmp_flood_log") != "",
 		ICMPFloodConnectionLimit:     parseInt("icmp_flood_connection_limit", 10),

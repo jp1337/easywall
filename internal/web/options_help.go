@@ -28,6 +28,7 @@ func (o optionHelp) DocsURL() string     { return filtersDocsURL + "#" + o.Ancho
 // optionHelps is in the order options.html renders the cards.
 var optionHelps = []optionHelp{
 	{"ssh_brute_force", "attack-protection"},
+	{"icmp_allow_echo_request", "answering-pings"},
 	{"icmp_flood", "attack-protection"},
 	{"syn_flood", "attack-protection"},
 	{"port_scan", "attack-protection"},

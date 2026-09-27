@@ -199,6 +199,11 @@
           "maximum": 10000,
           "default": 60
         },
+        "icmp_allow_echo_request": {
+          "type": "boolean",
+          "description": "Answer pings: accept ICMP type 8 and ICMPv6 type 128 (the latter under ipv6.mode = \"filter\" only), behind the ICMP flood limit. A file without the key reads as true.",
+          "default": true
+        },
         "icmp_flood": {
           "type": "boolean",
           "description": "Enable ICMP flood prevention. Rate-limits echo requests — ICMP type 8 and ICMPv6 type 128 — counted separately for each source address.",

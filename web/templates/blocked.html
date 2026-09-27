@@ -122,7 +122,7 @@
          the remedy (the feeds run after the allowlist). */}}
     {{if eq .Rule "feed"}}{{$name := index $.FeedNames .Feed}}<a class="log-action" href="/blocklist#{{if .Feed}}feed-{{.Feed}}{{else}}feeds{{end}}">{{if $name}}{{T "blocked_rule_feed_named" (dict "Name" $name)}}{{else}}{{$label}}{{end}}</a>
     {{else}}{{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}{{end}}
-    {{if $.WhyKnown}}{{with .DropReasonParsed $.Rules $.Net}}{{if .Code}}<span class="pkt-why">{{T (printf "blocked_why_%s" .Code) .Params}}</span>{{end}}{{end}}{{end}}
+    {{if $.WhyKnown}}{{with .DropReasonParsed $.Rules $.Applied}}{{if eq .Code "ping_off"}}<span class="pkt-why">{{richText (T "blocked_why_ping_off") "/options#opt-icmp_allow_echo_request" (T "blocked_why_ping_off_link")}}</span>{{else if .Code}}<span class="pkt-why">{{T (printf "blocked_why_%s" .Code) .Params}}</span>{{end}}{{end}}{{end}}
   </div></td>
   <td data-label="{{T "blocked_col_actions"}}"><div class="pkt-act">
     {{/* Quiet by colour, not by opacity (DESIGN.md § Tables, amended
