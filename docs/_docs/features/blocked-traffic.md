@@ -49,8 +49,8 @@ under it names what was missing, read from the rules applied **now**:
 | *Port 993/tcp is not open.* | no port rule covers it |
 | *993/tcp is open only for 10.0.0.0/8.* | a rule covers it, for other sources |
 | *… open only for traffic forwarded to a container* | the rule's scope is `forwarded` |
-| *IPv4 pings are not answered.* | echo request is not on the [always-on list]({{ '/docs/features/filters/' | relative_url }}#always-on) |
-| *ICMP type 13 is not accepted.* | nor is any other type off that list |
+| *Pings are switched off under Options.* | [Answer pings]({{ '/docs/features/filters/' | relative_url }}#answering-pings) is off, in either family |
+| *ICMP type 13 is not accepted.* | a type nothing accepts on its own — see [Always on]({{ '/docs/features/filters/' | relative_url }}#always-on) |
 | *… now — this arrived before it was.* | the rules changed since: the port, the allowlist, the blocklist, an ICMP type or the IPv6 mode |
 
 No line appears while the applied rules cannot be read.

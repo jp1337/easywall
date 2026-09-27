@@ -262,36 +262,51 @@ func TestIntegration_Apply_ForwardPolicy_Drop(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Apply — base INPUT rules (loopback, established, ICMPv4)
+// Apply — base INPUT rules (loopback, established, the ICMP accepts)
 // ---------------------------------------------------------------------------
 
 func TestIntegration_Apply_BaseRules_Present(t *testing.T) {
 	m := newIntegrationManager(t)
 	applyEmpty(t, m, shared.FirewallOptions{})
 
-	// Minimum: loopback(1) + established(1) + ICMPv4 types {0,3,11,12}(4) = 6
-	count := ruleCount(t, m, "input")
-	if count < 6 {
-		t.Errorf("expected at least 6 base rules in input chain, got %d", count)
+	// Minimum: loopback(1) + established(1). No ICMP type is accepted on its
+	// own with the switch off and discovery off (2.25 D3).
+	if count := ruleCount(t, m, "input"); count < 2 {
+		t.Errorf("expected at least 2 base rules in input chain, got %d", count)
 	}
 }
 
-// The ICMPv6 exemptions belong to filter mode. Under block the traffic is gone
-// before they would be reached; comparing against block is what isolates them.
-func TestIntegration_Apply_ICMPv6_AddsRules_UnderFilterMode(t *testing.T) {
+// The switch adds ICMP type 8, and ICMPv6 type 128 only where IPv6 is
+// filtered: under block the IPv6 half is gone before it would be reached
+// (Review Focus 3). No removed type renders in any case.
+func TestIntegration_Apply_EchoAccepts_FollowTheIPv6Mode(t *testing.T) {
 	m := newIntegrationManager(t)
+	count := func(echo bool, mode shared.IPv6Mode) int {
+		t.Helper()
+		if err := m.Apply(emptyState(), shared.FirewallOptions{ICMPAllowEchoRequest: echo},
+			shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: mode}}); err != nil {
+			t.Fatalf("Apply: %v", err)
+		}
+		return ruleCount(t, m, "input")
+	}
+	if d := count(true, shared.IPv6Filter) - count(false, shared.IPv6Filter); d != 2 {
+		t.Errorf("under filter the switch adds %d rules; want 2 (ICMP 8, ICMPv6 128)", d)
+	}
+	if d := count(true, shared.IPv6Block) - count(false, shared.IPv6Block); d != 1 {
+		t.Errorf("under block the switch adds %d rules; want 1 (ICMP 8)", d)
+	}
 
-	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Block})
-	blocked := ruleCount(t, m, "input")
-
-	// 6 base ICMPv6 types (1,2,3,4,128,129), and block contributes one
-	// family-wide drop rule of its own.
-	applyEmptyIPv6(t, m, shared.IPv6Config{Mode: shared.IPv6Filter})
-	filtered := ruleCount(t, m, "input")
-
-	if filtered != blocked+5 {
-		t.Errorf("expected 6 ICMPv6 rules in place of block's single drop, got %d "+
-			"(filter=%d, block=%d)", filtered-blocked, filtered, blocked)
+	count(true, shared.IPv6Filter)
+	input := chainText(t, "input")
+	for _, want := range []string{"icmp type echo-request accept", "icmpv6 type echo-request accept"} {
+		if indexOfRule(input, want) < 0 {
+			t.Errorf("no %q\n  %s", want, strings.Join(input, "\n  "))
+		}
+	}
+	for _, gone := range []string{"echo-reply", "destination-unreachable", "time-exceeded", "parameter-problem", "packet-too-big"} {
+		if at := indexOfRule(input, gone); at >= 0 {
+			t.Errorf("rule %d still accepts %s statelessly: %s", at, gone, input[at])
+		}
 	}
 }
 

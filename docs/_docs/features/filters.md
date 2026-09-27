@@ -47,7 +47,7 @@ a live connection *is* return traffic, and the accept would let them through unm
 [what it breaks](#what-fragment-drop-breaks).
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and neighbour discovery, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then pings, when Answer pings is on, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
@@ -57,12 +57,20 @@ Compiled into every rule set. There is no switch for these.
 |---|---|---|
 | Default DROP | `policy drop` on `input` | Deny by default |
 | Loopback | `iif lo accept` | Local processes must reach each other |
-| Return traffic | `ct state {related, established} accept` | Replies to what you started |
-| ICMPv4 | types 0, 3, 11, 12 | Echo reply, unreachable, TTL exceeded, parameter problem |
-| ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
-| ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
+| Return traffic | `ct state {related, established} accept` | Replies to what you started, and every ICMP error about it — unreachable, fragmentation needed, time exceeded |
+| ICMPv6 discovery | types 133–136, when enabled | Neighbour discovery and address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
 
-**IPv4 pings are not answered, IPv6 pings are:** type 8 is not in the ICMPv4 list, and *ICMP flood* only limits the rate, it accepts nothing.
+No other ICMP type is accepted on its own, apart from [pings](#answering-pings). An echo reply is return traffic only when this host sent the echo, and an error only when it is about a connection conntrack tracks. An unsolicited reply, an error about nothing and a timestamp request meet the policy drop.
+
+## Answering pings
+
+| Switch — default | Accepts | Behind |
+|---|---|---|
+| `icmp_allow_echo_request` — **on** | ICMP type 8 and ICMPv6 type 128 — the latter when [IPv6]({{ '/docs/features/system-settings/' | relative_url }}) is set to filter | *ICMP flood*, which drops a source over its rate first; the blocklist and the feeds, which refuse a source before any ping is answered |
+
+Off, this host answers no ping — except over IPv6 under `ipv6.mode = "passthrough"`, which accepts all IPv6 before any rule. Its own pings still get their replies, and path-MTU discovery and traceroute still work: those are return traffic.
+
+**Only your monitoring may ping:** switch it off and put the monitoring address on the [allowlist]({{ '/docs/features/allowlist/' | relative_url }}). The allowlist accepts everything from that address — every port, not only ping.
 
 ## The three chains
 
@@ -97,6 +105,7 @@ Two things cross that chain:
 | Module | Drops | Tuning | Default |
 |---|---|---|---|
 | **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/docs/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
+| **Answer pings** | Nothing — it accepts ICMP type 8 and ICMPv6 type 128; [what else ICMP gets](#answering-pings) | — | **on** |
 | **ICMP flood** | Echo requests from one source above its rate — ICMP type 8 and ICMPv6 type 128 | `icmp_flood_connection_limit` — 10/s | **on** |
 | **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
 | **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |

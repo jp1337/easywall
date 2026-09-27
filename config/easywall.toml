@@ -92,6 +92,12 @@ ssh_brute_force_log              = false
 ssh_brute_force_connection_limit = 5
 ssh_brute_force_log_limit        = 60
 
+# ─── Answer pings ───────────────────────────────────────────────────────────
+# ICMP echo requests, IPv4 and IPv6. Everything else ICMP a host needs — the
+# reply to its own ping, unreachable, fragmentation needed, time exceeded — is
+# return traffic and accepted without a switch.
+icmp_allow_echo_request          = true
+
 # ─── ICMP flood prevention ──────────────────────────────────────────────────
 icmp_flood                       = true
 icmp_flood_log                   = false

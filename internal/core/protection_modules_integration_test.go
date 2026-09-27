@@ -30,9 +30,15 @@ func pingReceived(t *testing.T, r *router, args ...string) int {
 	t.Helper()
 	cmd := exec.Command("nsenter", append([]string{"-t", r.pidA, "-n", "ping", "-q"}, args...)...)
 	out, _ := cmd.CombinedOutput()
+	return pingSummary(t, out)
+}
+
+// pingSummary reads ping's "N received" line.
+func pingSummary(t *testing.T, out []byte) int {
+	t.Helper()
 	m := regexp.MustCompile(`(\d+) received`).FindSubmatch(out)
 	if m == nil {
-		t.Fatalf("ping %v printed no summary:\n%s", args, out)
+		t.Fatalf("ping printed no summary:\n%s", out)
 	}
 	n, _ := strconv.Atoi(string(m[1]))
 	return n
@@ -64,8 +70,8 @@ func TestIntegration_FragmentDropDropsFragments(t *testing.T) {
 	r.inNS(r.pidA, "ip", "link", "set", "va", "mtu", "1280")
 	r.run("ip", "link", "set", "va-r", "mtu", "1280")
 
-	// The allowlist, so an IPv4 echo request is accepted at all: type 8 is
-	// not in the ICMP accept list.
+	// The allowlist, so an IPv4 echo request is accepted at all:
+	// FirewallOptions{} has Answer pings off.
 	rules := shared.Rules{Allowlist: []string{"10.77.1.0/24"}}
 	big := []string{"-c", "2", "-W", "1", "-M", "dont", "-s", "3000", "10.77.1.1"}
 	small := []string{"-c", "2", "-W", "1", "10.77.1.1"}
@@ -144,12 +150,14 @@ func TestIntegration_ICMPFloodMetersEveryEchoRequest(t *testing.T) {
 	r.run("ip", "-6", "addr", "add", "fd77:1::1/64", "dev", "va-r", "nodad")
 	r.inNS(r.pidA, "ip", "-6", "addr", "add", "fd77:1::2/64", "dev", "va", "nodad")
 
-	rules := shared.Rules{Allowlist: []string{"10.77.1.0/24"}}
+	rules := shared.Rules{}
 	// Twenty in one second from one source, against a limit of one a second
 	// with a burst of one: two get through at most.
 	flood := func(to string) []string { return []string{"-c", "20", "-i", "0.05", "-W", "1", to} }
 
-	applyRules(t, m, rules, shared.FirewallOptions{})
+	// Answer pings, not the allowlist: the meter has to precede the accept it
+	// limits (2.25 D5).
+	applyRules(t, m, rules, shared.FirewallOptions{ICMPAllowEchoRequest: true})
 	for _, to := range []string{"10.77.1.1", "fd77:1::1"} {
 		if got := pingReceived(t, r, flood(to)...); got < 18 {
 			t.Fatalf("control: %d of 20 pings to %s answered with the module off; "+
@@ -157,7 +165,7 @@ func TestIntegration_ICMPFloodMetersEveryEchoRequest(t *testing.T) {
 		}
 	}
 
-	applyRules(t, m, rules, shared.FirewallOptions{ICMPFlood: true, ICMPFloodConnectionLimit: 1})
+	applyRules(t, m, rules, shared.FirewallOptions{ICMPAllowEchoRequest: true, ICMPFlood: true, ICMPFloodConnectionLimit: 1})
 	for _, to := range []string{"10.77.1.1", "fd77:1::1"} {
 		if got := pingReceived(t, r, flood(to)...); got > 4 {
 			t.Errorf("%d of 20 pings to %s answered under a limit of 1/s\n"+

@@ -124,7 +124,7 @@ const (
 	DropICMPAcceptedNow DropReason = "icmp_accepted_now" // {Proto, Type}: the type is accepted now
 	DropBlocklistedNow  DropReason = "blocklisted_now"   // the source is on the blocklist now
 	DropAllowlistedNow  DropReason = "allowlisted_now"   // the source is on the allowlist now
-	DropIPv4Ping        DropReason = "ipv4_ping"         // an IPv4 echo request
+	DropPingOff         DropReason = "ping_off"          // an echo request, either family, with Answer pings off
 	DropICMPType        DropReason = "icmp_type"         // {Proto, Type}: not an accepted type
 	DropICMPUntyped     DropReason = "icmp_untyped"      // {Proto}: logged before 2.22 recorded the type
 	DropNoPort          DropReason = "no_port"           // no port a rule could match
@@ -138,7 +138,7 @@ const (
 // both strict locales.
 var AllDropReasons = []DropReason{
 	DropIPv6Blocked, DropIPv6Passthrough, DropICMPAcceptedNow, DropBlocklistedNow,
-	DropAllowlistedNow, DropIPv4Ping, DropICMPType, DropICMPUntyped, DropNoPort,
+	DropAllowlistedNow, DropPingOff, DropICMPType, DropICMPUntyped, DropNoPort,
 	DropPortClosed, DropPortForwarded, DropPortSources, DropPortOpenNow,
 }
 
@@ -149,16 +149,34 @@ type DropWhy struct {
 	Params map[string]any
 }
 
-// ICMPv4Accepted and ICMPv6Accepted are the types addICMPRules accepts
-// (internal/core/nftables.go). Written twice, once here and once as kernel
-// rules; core's TestICMPAcceptsAreTheListsDropReasonReads builds the rules and
-// compares them with these, so the two cannot drift.
-var ICMPv4Accepted = []uint8{0, 3, 11, 12}
+// ICMPv4Accepted and ICMPv6Accepted are the types the input chain accepts on
+// their own — the one list both the kernel rules and /blocked's reasons are
+// built from (2.25 D7). internal/core/nftables.go renders them in two places:
+// discovery right after established (addICMPRules), the echo requests after
+// the blocklist, the allowlist and the feeds (addEchoAccepts). Nothing else ICMP needs a type
+// accept: the established,related accept before these admits the reply to
+// this host's own echo (established) and every error about a flow conntrack
+// tracks (related) — unreachable, fragmentation needed, time exceeded. Until
+// 2.25 ICMPv4 0, 3, 11, 12 and ICMPv6 1–4, 129 were accepted here too, which
+// after that accept admitted only unsolicited replies and errors about no
+// connection (D3).
+//
+// ICMPv4Accepted is the echo request when the switch says so.
+func ICMPv4Accepted(echo bool) []uint8 {
+	if echo {
+		return []uint8{8}
+	}
+	return nil
+}
 
-// ICMPv6Accepted depends on the two discovery settings. Consulted only in
-// filter mode — the other two decide IPv6 before any ICMP rule.
-func ICMPv6Accepted(v6 IPv6Config) []uint8 {
-	t := []uint8{1, 2, 3, 4, 128, 129}
+// ICMPv6Accepted adds neighbour discovery behind its two settings; conntrack
+// leaves those untracked, so no ct state accept admits them (D4). Consulted
+// only in filter mode — the other two decide IPv6 before any ICMP rule.
+func ICMPv6Accepted(echo bool, v6 IPv6Config) []uint8 {
+	var t []uint8
+	if echo {
+		t = append(t, 128)
+	}
 	if v6.ICMPAllowRouterAdvertisement {
 		t = append(t, 133, 134)
 	}
@@ -257,8 +275,8 @@ func inAnyParsedEntry(src netip.Addr, entries []netip.Prefix) bool {
 // parsing the blocklist, the allowlist and every port rule's Sources afresh
 // for each of a few hundred on-screen rows, every poll, is the cost
 // ParsedRules exists to avoid.
-func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
-	return e.DropReasonParsed(ParseRules(r), n)
+func (e PacketLogEntry) DropReason(r Rules, a AppliedConfig) DropWhy {
+	return e.DropReasonParsed(ParseRules(r), a)
 }
 
 // DropReasonParsed walks the input chain in nft.Apply's order — the fragment
@@ -267,8 +285,9 @@ func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
 // Docker networks, the blocklist, the allowlist, the port rules, the custom
 // rules, the final log — and names the first step that would decide this
 // packet differently now, or the step that was missing. pr is the rule set
-// the kernel holds (Current), already parsed once by ParseRules; n the
-// network settings it was applied with.
+// the kernel holds (Current), already parsed once by ParseRules; a the
+// configuration it was applied with — the options for Answer pings, the
+// network settings for the rest.
 //
 // Steps it does not ask about: the fragment drop, loopback, the meters and
 // established cannot reach the final drop; a module that refuses logs under
@@ -276,12 +295,13 @@ func (e PacketLogEntry) DropReason(r Rules, n NetworkSettings) DropWhy {
 // the Docker networks, only CustomNetworks is consulted — the auto-detected
 // bridges cannot be listed from the web process, so a packet from one still
 // reads as whatever port or list reason would otherwise apply.
-func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) DropWhy {
+func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, a AppliedConfig) DropWhy {
 	// The final log is in the input chain only; no easywall rule logs in the
 	// forward chain, so a forwarded "drop" row has no step here to name.
 	if e.Rule != "drop" || e.Hook == "forward" {
 		return DropWhy{}
 	}
+	n := a.Network
 	// Unmapped and unzoned for the list lookups, as Reachable does — except
 	// for a Family 6 packet, which stays un-unmapped: the kernel's IPv4 list
 	// entries match NFPROTO_IPV4 only, and an IPv4-mapped source in an IPv6
@@ -312,15 +332,9 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 		}
 	}
 
-	// The ICMP accepts, before every module.
-	if icmp && e.ICMP != nil {
-		accepted := ICMPv4Accepted
-		if e.Proto == "icmpv6" {
-			accepted = ICMPv6Accepted(n.IPv6)
-		}
-		if slices.Contains(accepted, e.ICMP.Type) {
-			return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
-		}
+	// Neighbour discovery, right after established and before every module.
+	if e.Proto == "icmpv6" && e.ICMP != nil && slices.Contains(ICMPv6Accepted(false, n.IPv6), e.ICMP.Type) {
+		return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
 	}
 
 	// The Docker networks accept before the blocklist (nftables.go's Apply:
@@ -344,13 +358,20 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, n NetworkSettings) Drop
 		return DropWhy{Code: DropAllowlistedNow}
 	}
 
+	// Answer pings, after the lists that refuse a source (nftables.go's
+	// addEchoAccepts).
+	echo := icmp && e.ICMP != nil && (e.Proto == "icmp" && e.ICMP.Type == 8 || e.Proto == "icmpv6" && e.ICMP.Type == 128)
+	if echo && a.Firewall.ICMPAllowEchoRequest {
+		return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
+	}
+
 	switch {
 	case icmp && e.ICMP == nil:
 		return DropWhy{Code: DropICMPUntyped, Params: map[string]any{"Proto": label}}
-	case icmp && e.Proto == "icmp" && e.ICMP.Type == 8:
-		// Not in ICMPv4Accepted, and ICMP flood only rate-limits: it jumps
-		// when a source is over its rate and accepts nothing under it.
-		return DropWhy{Code: DropIPv4Ping}
+	case echo:
+		// Not accepted above, so Answer pings is off: ICMP flood only
+		// rate-limits, it accepts nothing under its rate.
+		return DropWhy{Code: DropPingOff}
 	case icmp:
 		return DropWhy{Code: DropICMPType, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
 	case (e.Proto != "tcp" && e.Proto != "udp") || e.DstPort == 0:

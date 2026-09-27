@@ -1,3 +1,13 @@
+easywall (2.25.0) unstable; urgency=medium
+
+  * Pings are answered in IPv4 and IPv6, behind a new switch that is on by
+    default (Options, Answer pings; [firewall] icmp_allow_echo_request).
+    An upgraded host answers IPv4 pings from now on.
+  * The stateless ICMP accepts the return-traffic rule already covered are
+    gone: ICMPv4 0, 3, 11, 12 and ICMPv6 1-4, 129.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Sun, 27 Sep 2026 22:18:09 +0200
+
 easywall (2.24.1) unstable; urgency=medium
 
   * A port Docker publishes on loopback is no longer named as having no

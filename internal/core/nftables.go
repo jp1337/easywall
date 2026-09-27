@@ -908,6 +908,11 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	// invisible in the diff because the forward chain still looked right. A
 	// rule reaching neither chain, or both when it asked for one, is a rule
 	// whose behaviour does not match what the interface shows for it.
+	// Answer pings, after every list that refuses a source: a blocklisted or
+	// feed-listed address gets no reply (2.25). The ICMP flood meter above
+	// still sees every echo request first (D5).
+	m.addEchoAccepts(table, inputChain, opts.ICMPAllowEchoRequest, ipv6)
+
 	for _, rule := range state.Current.TCP {
 		if !rule.FiltersHost() {
 			continue
@@ -1287,62 +1292,56 @@ func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Ch
 	})
 }
 
+// addICMPRules accepts neighbour discovery, right after the established
+// accept: conntrack leaves it untracked (2.25 D4), and it is link-local, so no
+// list below has anything to say about it.
 func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv6 shared.IPv6Config) {
-	// ICMPv4 types to accept
-	icmpv4Types := []byte{0, 3, 11, 12}
-	for _, icmpType := range icmpv4Types {
-		m.adder.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseTransportHeader,
-					Offset:       0,
-					Len:          1,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{icmpType}},
-				&expr.Verdict{Kind: expr.VerdictAccept},
-			},
-		})
-	}
-
 	// Only filter mode consults these: under passthrough IPv6 was already
 	// accepted, under block it was already dropped, and either way this rule
 	// would never be reached.
 	if ipv6.Mode != shared.IPv6Filter {
 		return
 	}
-
-	// ICMPv6 types to accept
-	icmpv6Types := []byte{1, 2, 3, 4, 128, 129}
-	if ipv6.ICMPAllowRouterAdvertisement {
-		icmpv6Types = append(icmpv6Types, 133, 134)
+	for _, typ := range shared.ICMPv6Accepted(false, ipv6) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMPV6, typ)
 	}
-	if ipv6.ICMPAllowNeighborAdvertisement {
-		icmpv6Types = append(icmpv6Types, 135, 136)
-	}
+}
 
-	for _, icmpType := range icmpv6Types {
-		m.adder.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMPV6}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseTransportHeader,
-					Offset:       0,
-					Len:          1,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{icmpType}},
-				&expr.Verdict{Kind: expr.VerdictAccept},
+// addEchoAccepts accepts the echo request, when the switch says so — the
+// other half of shared.ICMPv4Accepted and ICMPv6Accepted (2.25 D1, D7). Apply
+// places it after the blocklist, the allowlist and the feeds: beside the
+// discovery accepts it answered a blocklisted source, and every later ping of
+// that sweep is established.
+func (m *NftablesManager) addEchoAccepts(t *nftables.Table, c *nftables.Chain, echo bool, ipv6 shared.IPv6Config) {
+	for _, typ := range shared.ICMPv4Accepted(echo) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMP, typ)
+	}
+	if ipv6.Mode != shared.IPv6Filter {
+		return
+	}
+	// The echo half only; discovery is addICMPRules'.
+	for _, typ := range shared.ICMPv6Accepted(echo, shared.IPv6Config{}) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMPV6, typ)
+	}
+}
+
+func (m *NftablesManager) addICMPTypeAccept(t *nftables.Table, c *nftables.Chain, proto, typ byte) {
+	m.adder.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: c,
+		Exprs: []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{proto}},
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseTransportHeader,
+				Offset:       0,
+				Len:          1,
 			},
-		})
-	}
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{typ}},
+			&expr.Verdict{Kind: expr.VerdictAccept},
+		},
+	})
 }
 
 func (m *NftablesManager) addInvalidPacketDrop(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
