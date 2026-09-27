@@ -18,6 +18,8 @@ together find what neither finds alone.
 | 2.23.2 | feeds drop some legitimate fetchers on 80/443 (blocklist.de, CINS) | `feeds.md` note and allowlist recipe (2.24); a per-feed port scope is roadmap 2.36 |
 | 2.23.2 | IPv4 echo-request always meets policy drop | deliberate and documented (`filters.md`), no switch — roadmap 2.37 candidate: a switch to answer it |
 | 2.24 | the published-port warning never read Docker's `iptables-nft` DNAT — an xtables target, not the nft `nat` expression the check read — since 2.20.1 | fixed in 2.24 (Task 3) |
+| 2.24.0 | the published-port warning named 8 ports published on 127.0.0.1 only (nginx back ends), all answering | 2.24.1 — loopback binds skipped; the host's own connection never crosses forward |
+| 2.24.1 | IPv6 on 25: 0 connects for the first hours, then 23 of 396 (≈6 %) in 15 h, 0 drops | senders had cached the AAAA as unreachable; nothing to change. 993/143/465/587 proven from outside |
 
 ## When
 
