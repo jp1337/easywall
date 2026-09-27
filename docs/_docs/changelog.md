@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.25.0">2.25.0</a>
   <a href="#2.24.1">2.24.1</a>
   <a href="#2.24.0">2.24.0</a>
   <a href="#2.23.2">2.23.2</a>
@@ -77,7 +78,36 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.24.1" markdown="1">
+<details open id="2.25.0" markdown="1">
+<summary><strong>2.25.0</strong> · 2026-09-27 — Ping gets an answer, if you want one</summary>
+
+### Added
+
+- **Answer pings** — one switch under Options, `[firewall] icmp_allow_echo_request`,
+  **on by default**: ICMP echo requests are answered in both families, behind
+  *ICMP flood*. A host whose `easywall.toml` predates the key reads it as on.
+  To let only your monitoring ping, switch it off and allowlist the monitoring
+  address — which opens every port to it, not only ping.
+
+### Changed
+
+- **IPv4 pings are answered after the upgrade.** Until now an IPv4 echo request
+  met the policy drop while an IPv6 one was answered, and neither had a switch.
+  Switching *Answer pings* off keeps IPv4 silent — and now IPv6 too.
+- **Seven stateless ICMP accepts are gone:** ICMPv4 0, 3, 11, 12 and ICMPv6 1–4,
+  129. The return-traffic accept before them already admits the reply to this
+  host's own ping and every error about a connection it tracks — unreachable,
+  fragmentation needed, time exceeded — so path-MTU discovery and traceroute
+  work as before. What those rules still let in on their own was unsolicited
+  echo replies and errors about connections that do not exist.
+- The Blocked page's *IPv4 pings are not answered* is now *Pings are switched
+  off under Options*, for either family, with a link to the switch.
+
+[See the code changes between 2.24.1 and 2.25.0](https://github.com/jp1337/easywall/compare/v2.24.1...v2.25.0)
+
+</details>
+
+<details id="2.24.1" markdown="1">
 <summary><strong>2.24.1</strong> · 2026-09-26 — A loopback publish is not a warning</summary>
 
 A patch to 2.24.0, from its first production rollout.
