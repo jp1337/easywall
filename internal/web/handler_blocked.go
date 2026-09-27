@@ -45,11 +45,11 @@ type blockedRows struct {
 	// holds (Current), parsed once here rather than once per row (DropReason's
 	// InAnyEntry calls used to reparse the blocklist, the allowlist and every
 	// port rule's Sources for each on-screen row, every poll — see Task 8's
-	// "Cost per poll"), and the network settings they were applied with.
+	// "Cost per poll"), and the configuration they were applied with.
 	// WhyKnown is false when either could not be read, and then no row carries
 	// a reason — none is better than one computed from a guess.
 	Rules    shared.ParsedRules
-	Net      shared.NetworkSettings
+	Applied  shared.AppliedConfig
 	WhyKnown bool
 
 	// FeedNames is what each feed a "feed" row names is called, by id — filled
@@ -94,7 +94,7 @@ func (s *Server) rulesNow(rows *blockedRows) {
 		slog.Debug("no drop reasons: the applied settings are not known", "error", err)
 		return
 	}
-	rows.Rules, rows.Net, rows.WhyKnown = shared.ParseRules(state.Current), applied.Config.Network, true
+	rows.Rules, rows.Applied, rows.WhyKnown = shared.ParseRules(state.Current), applied.Config, true
 }
 
 // blockedForm is what the filter form shows back: the raw fields as typed,

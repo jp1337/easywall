@@ -45,18 +45,21 @@ func whyICMP(proto string, typ uint8) PacketLogEntry {
 func edited(e PacketLogEntry, f func(*PacketLogEntry)) PacketLogEntry { f(&e); return e }
 
 var (
-	v6Filter      = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter}}
-	v6FilterRA    = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter, ICMPAllowRouterAdvertisement: true}}
-	v6Block       = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Block}}
-	v6Passthrough = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Passthrough}}
-	v6DockerNet   = NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter},
-		Docker: DockerConfig{Enabled: true, CustomNetworks: []string{"172.20.0.0/16"}}}
+	v6Filter      = AppliedConfig{Network: NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter}}}
+	v6FilterRA    = AppliedConfig{Network: NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter, ICMPAllowRouterAdvertisement: true}}}
+	v6Block       = AppliedConfig{Network: NetworkSettings{IPv6: IPv6Config{Mode: IPv6Block}}}
+	v6Passthrough = AppliedConfig{Network: NetworkSettings{IPv6: IPv6Config{Mode: IPv6Passthrough}}}
+	v6DockerNet   = AppliedConfig{Network: NetworkSettings{IPv6: IPv6Config{Mode: IPv6Filter},
+		Docker: DockerConfig{Enabled: true, CustomNetworks: []string{"172.20.0.0/16"}}}}
+	// Answer pings on (2.25); every configuration above has it off.
+	pingOn      = AppliedConfig{Firewall: FirewallOptions{ICMPAllowEchoRequest: true}, Network: v6Filter.Network}
+	pingOnBlock = AppliedConfig{Firewall: FirewallOptions{ICMPAllowEchoRequest: true}, Network: v6Block.Network}
 )
 
 var dropReasonCases = []struct {
 	name string
 	e    PacketLogEntry
-	n    NetworkSettings
+	n    AppliedConfig
 	want DropWhy
 }{
 	{"no rule for the port", whyTCP("203.0.113.9", 993), v6Filter,
@@ -81,18 +84,25 @@ var dropReasonCases = []struct {
 		DropWhy{DropPortOpenNow, map[string]any{"Port": uint16(25), "Proto": "tcp"}}},
 	{"blocklisted since", whyTCP("192.0.2.66", 22), v6Filter, DropWhy{Code: DropBlocklistedNow}},
 	{"allowlisted since", whyTCP("198.51.100.7", 993), v6Filter, DropWhy{Code: DropAllowlistedNow}},
-	{"an IPv4 ping", whyICMP("icmp", 8), v6Filter, DropWhy{Code: DropIPv4Ping}},
+	{"an IPv4 ping, switch off", whyICMP("icmp", 8), v6Filter, DropWhy{Code: DropPingOff}},
+	{"an IPv6 ping, switch off", whyICMP("icmpv6", 128), v6Filter, DropWhy{Code: DropPingOff}},
+	{"an IPv4 ping, switch on now", whyICMP("icmp", 8), pingOn,
+		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMP", "Type": uint8(8)}}},
+	{"an unsolicited echo reply: conntrack admits only replies to this host's own", whyICMP("icmp", 0), pingOn,
+		DropWhy{DropICMPType, map[string]any{"Proto": "ICMP", "Type": uint8(0)}}},
+	{"an IPv6 ping under block, switch on: the mode is the step", whyICMP("icmpv6", 128), pingOnBlock,
+		DropWhy{Code: DropIPv6Blocked}},
 	{"an ICMP type nothing accepts", whyICMP("icmp", 13), v6Filter,
 		DropWhy{DropICMPType, map[string]any{"Proto": "ICMP", "Type": uint8(13)}}},
-	{"an accepted ICMP type", whyICMP("icmp", 3), v6Filter,
-		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMP", "Type": uint8(3)}}},
+	{"an unreachable is no type accept: conntrack admits the genuine ones", whyICMP("icmp", 3), v6Filter,
+		DropWhy{DropICMPType, map[string]any{"Proto": "ICMP", "Type": uint8(3)}}},
 	{"a 2.21 ICMP line, no type", edited(whyICMP("icmp", 8), func(e *PacketLogEntry) { e.ICMP = nil }), v6Filter,
 		DropWhy{DropICMPUntyped, map[string]any{"Proto": "ICMP"}}},
 	{"router advertisement, discovery off", whyICMP("icmpv6", 134), v6Filter,
 		DropWhy{DropICMPType, map[string]any{"Proto": "ICMPv6", "Type": uint8(134)}}},
 	{"router advertisement, discovery on now", whyICMP("icmpv6", 134), v6FilterRA,
 		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMPv6", "Type": uint8(134)}}},
-	{"an IPv6 ping is accepted", whyICMP("icmpv6", 128), v6Filter,
+	{"an IPv6 ping, switch on now", whyICMP("icmpv6", 128), pingOn,
 		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMPv6", "Type": uint8(128)}}},
 	{"a ping from an allowlisted source: the allowlist is the step", edited(whyICMP("icmp", 8), func(e *PacketLogEntry) {
 		e.Src = netip.MustParseAddr("198.51.100.7")
