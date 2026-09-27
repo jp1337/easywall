@@ -75,6 +75,17 @@
         {{template "opt_help" (optHelp "ssh_brute_force")}}
       </div>
 
+      <div class="module" id="opt-icmp_allow_echo_request">
+        <label class="module-head">
+          <span class="module-text">
+            <span class="module-name">{{T "opt_icmp_allow_echo_request"}}</span>
+            <span class="module-desc">{{T "opt_icmp_allow_echo_request_desc"}}</span>
+          </span>
+          <input type="checkbox" name="icmp_allow_echo_request" class="toggle" {{if $o.ICMPAllowEchoRequest}}checked{{end}}>
+        </label>
+        {{template "opt_help" (optHelp "icmp_allow_echo_request")}}
+      </div>
+
       <div class="module" id="opt-icmp_flood">
         <label class="module-head">
           <span class="module-text">

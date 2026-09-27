@@ -345,6 +345,7 @@
   {"id": "param_log_limit", "translation": "Limite journal/min"},
   {"id": "param_limit_per_s", "translation": "Limite/s"},
   {"id": "opt_ssh_brute_force", "translation": "Force brute SSH"},
+  {"id": "opt_icmp_allow_echo_request", "translation": "Répondre aux pings"},
   {"id": "opt_icmp_flood", "translation": "Inondation ICMP"},
   {"id": "opt_syn_flood", "translation": "Inondation SYN"},
   {"id": "opt_port_scan", "translation": "Détection de balayage de ports"},
