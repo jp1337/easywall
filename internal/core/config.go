@@ -97,6 +97,13 @@ func LoadConfig(path string) (*Config, error) {
 			*l.Value(&cfg.Firewall) = l.Default
 		}
 	}
+	// A switch that ships on is on for a file that predates it. The package
+	// never replaces easywall.toml, so every host upgraded from 2.24 has no
+	// icmp_allow_echo_request, and read as false IPv6 pings — answered until
+	// then — would stop without anybody choosing it (2.25 D2).
+	if !meta.IsDefined("firewall", "icmp_allow_echo_request") {
+		cfg.Firewall.ICMPAllowEchoRequest = shared.CoreDefault().Firewall.ICMPAllowEchoRequest
+	}
 	if err := readOldLogKeys(data, &cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}

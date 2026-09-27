@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -203,5 +204,45 @@ func TestA222ExportImportsIntoTheStore(t *testing.T) {
 	state, _ := s.GetState()
 	if len(state.Staged.Blocklist) != 4 || len(state.Staged.Allowlist) != 2 {
 		t.Errorf("imported blocklist %q, allowlist %q", state.Staged.Blocklist, state.Staged.Allowlist)
+	}
+}
+
+// 2.25 D2: a file from before the key answers pings. The 2.22 fixture has no
+// icmp_allow_echo_request, like every easywall.toml the package generated
+// before 2.25 and never replaced (docs-tech/packaging.md). A missing bool
+// decodes to false, and false here would stop IPv6 pings on every upgraded
+// host without anybody choosing it.
+func TestAConfigWithoutTheEchoKeyAnswersPings(t *testing.T) {
+	raw, err := os.ReadFile(upgradeFixturePath("easywall.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "icmp_allow_echo_request") {
+		t.Fatal("the fixture names the key; it no longer stands for a file from before 2.25")
+	}
+	c, err := LoadConfig(upgradeFixturePath("easywall.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.FirewallOptions().ICMPAllowEchoRequest {
+		t.Error("a file without icmp_allow_echo_request reads it as off; the shipped default is on")
+	}
+}
+
+// And a file that names the key is read, in both positions.
+func TestTheEchoKeyIsReadWhenItIsThere(t *testing.T) {
+	for _, want := range []bool{false, true} {
+		path := filepath.Join(t.TempDir(), "easywall.toml")
+		body := fmt.Sprintf("[firewall]\nicmp_allow_echo_request = %t\n", want)
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		c, err := LoadConfig(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := c.FirewallOptions().ICMPAllowEchoRequest; got != want {
+			t.Errorf("icmp_allow_echo_request = %t in the file, %t after LoadConfig", want, got)
+		}
 	}
 }
