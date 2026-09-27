@@ -57,12 +57,20 @@ Compiled into every rule set. There is no switch for these.
 |---|---|---|
 | Default DROP | `policy drop` on `input` | Deny by default |
 | Loopback | `iif lo accept` | Local processes must reach each other |
-| Return traffic | `ct state {related, established} accept` | Replies to what you started |
-| ICMPv4 | types 0, 3, 11, 12 | Echo reply, unreachable, TTL exceeded, parameter problem |
-| ICMPv6 | types 1–4, 128, 129 | The minimum IPv6 needs to work at all |
-| ICMPv6 discovery | types 133–136, when enabled | Address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
+| Return traffic | `ct state {related, established} accept` | Replies to what you started, and every ICMP error about it — unreachable, fragmentation needed, time exceeded |
+| ICMPv6 discovery | types 133–136, when enabled | Neighbour discovery and address autoconfiguration — see [network settings]({{ '/docs/features/system-settings/' | relative_url }}) |
 
-**IPv4 pings are not answered, IPv6 pings are:** type 8 is not in the ICMPv4 list, and *ICMP flood* only limits the rate, it accepts nothing.
+No other ICMP type is accepted on its own, apart from [pings](#answering-pings). An echo reply is return traffic only when this host sent the echo, and an error only when it is about a connection conntrack tracks. An unsolicited reply, an error about nothing and a timestamp request meet the policy drop.
+
+## Answering pings
+
+| Switch — default | Accepts | Behind |
+|---|---|---|
+| `icmp_allow_echo_request` — **on** | ICMP type 8 and ICMPv6 type 128 — the latter when [IPv6]({{ '/docs/features/system-settings/' | relative_url }}) is set to filter | *ICMP flood*, which drops a source over its rate first |
+
+Off, this host answers no ping. Its own pings still get their replies, and path-MTU discovery and traceroute still work: those are return traffic.
+
+**Only your monitoring may ping:** switch it off and put the monitoring address on the [allowlist]({{ '/docs/features/allowlist/' | relative_url }}). The allowlist accepts everything from that address — every port, not only ping.
 
 ## The three chains
 

@@ -810,7 +810,7 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	}
 
 	m.addEstablishedAccept(table, inputChain)
-	m.addICMPRules(table, inputChain, ipv6)
+	m.addICMPRules(table, inputChain, opts.ICMPAllowEchoRequest, ipv6)
 
 	// Which Docker networks are allowed is settled before the modules run,
 	// because the bogon filter has to know about them: it drops RFC-1918
@@ -1287,26 +1287,11 @@ func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Ch
 	})
 }
 
-func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv6 shared.IPv6Config) {
-	// ICMPv4 types to accept
-	icmpv4Types := []byte{0, 3, 11, 12}
-	for _, icmpType := range icmpv4Types {
-		m.adder.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseTransportHeader,
-					Offset:       0,
-					Len:          1,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{icmpType}},
-				&expr.Verdict{Kind: expr.VerdictAccept},
-			},
-		})
+// addICMPRules accepts the types shared.ICMPv4Accepted and ICMPv6Accepted
+// list — see there for why that is all ICMP needs (2.25 D3, D7).
+func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, echo bool, ipv6 shared.IPv6Config) {
+	for _, typ := range shared.ICMPv4Accepted(echo) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMP, typ)
 	}
 
 	// Only filter mode consults these: under passthrough IPv6 was already
@@ -1315,34 +1300,28 @@ func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv
 	if ipv6.Mode != shared.IPv6Filter {
 		return
 	}
-
-	// ICMPv6 types to accept
-	icmpv6Types := []byte{1, 2, 3, 4, 128, 129}
-	if ipv6.ICMPAllowRouterAdvertisement {
-		icmpv6Types = append(icmpv6Types, 133, 134)
+	for _, typ := range shared.ICMPv6Accepted(echo, ipv6) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMPV6, typ)
 	}
-	if ipv6.ICMPAllowNeighborAdvertisement {
-		icmpv6Types = append(icmpv6Types, 135, 136)
-	}
+}
 
-	for _, icmpType := range icmpv6Types {
-		m.adder.AddRule(&nftables.Rule{
-			Table: t,
-			Chain: c,
-			Exprs: []expr.Any{
-				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMPV6}},
-				&expr.Payload{
-					DestRegister: 1,
-					Base:         expr.PayloadBaseTransportHeader,
-					Offset:       0,
-					Len:          1,
-				},
-				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{icmpType}},
-				&expr.Verdict{Kind: expr.VerdictAccept},
+func (m *NftablesManager) addICMPTypeAccept(t *nftables.Table, c *nftables.Chain, proto, typ byte) {
+	m.adder.AddRule(&nftables.Rule{
+		Table: t,
+		Chain: c,
+		Exprs: []expr.Any{
+			&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{proto}},
+			&expr.Payload{
+				DestRegister: 1,
+				Base:         expr.PayloadBaseTransportHeader,
+				Offset:       0,
+				Len:          1,
 			},
-		})
-	}
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{typ}},
+			&expr.Verdict{Kind: expr.VerdictAccept},
+		},
+	})
 }
 
 func (m *NftablesManager) addInvalidPacketDrop(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions) {
