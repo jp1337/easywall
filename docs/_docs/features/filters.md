@@ -47,7 +47,7 @@ a live connection *is* return traffic, and the accept would let them through unm
 [what it breaks](#what-fragment-drop-breaks).
 
 {% include themed-figure.html base="/assets/diagrams/rule-order" ext="svg"
-   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and ICMP, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then open ports, then custom rules, and finally the chain policy which drops." %}
+   alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and neighbour discovery, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then pings, when Answer pings is on, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 ## Always on
 
@@ -66,9 +66,9 @@ No other ICMP type is accepted on its own, apart from [pings](#answering-pings).
 
 | Switch — default | Accepts | Behind |
 |---|---|---|
-| `icmp_allow_echo_request` — **on** | ICMP type 8 and ICMPv6 type 128 — the latter when [IPv6]({{ '/docs/features/system-settings/' | relative_url }}) is set to filter | *ICMP flood*, which drops a source over its rate first |
+| `icmp_allow_echo_request` — **on** | ICMP type 8 and ICMPv6 type 128 — the latter when [IPv6]({{ '/docs/features/system-settings/' | relative_url }}) is set to filter | *ICMP flood*, which drops a source over its rate first; the blocklist and the feeds, which refuse a source before any ping is answered |
 
-Off, this host answers no ping. Its own pings still get their replies, and path-MTU discovery and traceroute still work: those are return traffic.
+Off, this host answers no ping — except over IPv6 under `ipv6.mode = "passthrough"`, which accepts all IPv6 before any rule. Its own pings still get their replies, and path-MTU discovery and traceroute still work: those are return traffic.
 
 **Only your monitoring may ping:** switch it off and put the monitoring address on the [allowlist]({{ '/docs/features/allowlist/' | relative_url }}). The allowlist accepts everything from that address — every port, not only ping.
 

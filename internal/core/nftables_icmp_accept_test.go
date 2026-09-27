@@ -9,14 +9,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// icmpAcceptTypes builds addICMPRules' rules and reads the accepted types back
-// out, by protocol.
+// icmpAcceptTypes builds addEchoAccepts' and addICMPRules' rules and reads
+// the accepted types back out, by protocol.
 func icmpAcceptTypes(t *testing.T, echo bool, v6 shared.IPv6Config) map[byte][]uint8 {
 	t.Helper()
 	rec := &recordingConn{}
 	m := &NftablesManager{adder: rec}
 	tbl := easywallInetTableForTest()
-	m.addICMPRules(tbl, inputChainForTest(tbl), echo, v6)
+	ch := inputChainForTest(tbl)
+	m.addEchoAccepts(tbl, ch, echo, v6)
+	m.addICMPRules(tbl, ch, v6)
 	got := map[byte][]uint8{}
 	for _, r := range rec.rules {
 		var cmps []*expr.Cmp
@@ -43,7 +45,8 @@ var icmpV6Configs = []shared.IPv6Config{
 }
 
 // /blocked says "ICMP type N is not accepted" from shared.ICMPv4Accepted and
-// shared.ICMPv6Accepted, and addICMPRules renders the same two lists (D7).
+// shared.ICMPv6Accepted, and addEchoAccepts with addICMPRules renders the same
+// two lists (D7).
 // Building the rules and reading the types back keeps it that way, for both
 // positions of the switch and every IPv6 configuration.
 func TestICMPAcceptsAreTheListsDropReasonReads(t *testing.T) {
