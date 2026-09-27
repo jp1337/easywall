@@ -810,7 +810,7 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	}
 
 	m.addEstablishedAccept(table, inputChain)
-	m.addICMPRules(table, inputChain, opts.ICMPAllowEchoRequest, ipv6)
+	m.addICMPRules(table, inputChain, ipv6)
 
 	// Which Docker networks are allowed is settled before the modules run,
 	// because the bogon filter has to know about them: it drops RFC-1918
@@ -908,6 +908,11 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	// invisible in the diff because the forward chain still looked right. A
 	// rule reaching neither chain, or both when it asked for one, is a rule
 	// whose behaviour does not match what the interface shows for it.
+	// Answer pings, after every list that refuses a source: a blocklisted or
+	// feed-listed address gets no reply (2.25). The ICMP flood meter above
+	// still sees every echo request first (D5).
+	m.addEchoAccepts(table, inputChain, opts.ICMPAllowEchoRequest, ipv6)
+
 	for _, rule := range state.Current.TCP {
 		if !rule.FiltersHost() {
 			continue
@@ -1287,20 +1292,35 @@ func (m *NftablesManager) addEstablishedAccept(t *nftables.Table, c *nftables.Ch
 	})
 }
 
-// addICMPRules accepts the types shared.ICMPv4Accepted and ICMPv6Accepted
-// list — see there for why that is all ICMP needs (2.25 D3, D7).
-func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, echo bool, ipv6 shared.IPv6Config) {
-	for _, typ := range shared.ICMPv4Accepted(echo) {
-		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMP, typ)
-	}
-
+// addICMPRules accepts neighbour discovery, right after the established
+// accept: conntrack leaves it untracked (2.25 D4), and it is link-local, so no
+// list below has anything to say about it.
+func (m *NftablesManager) addICMPRules(t *nftables.Table, c *nftables.Chain, ipv6 shared.IPv6Config) {
 	// Only filter mode consults these: under passthrough IPv6 was already
 	// accepted, under block it was already dropped, and either way this rule
 	// would never be reached.
 	if ipv6.Mode != shared.IPv6Filter {
 		return
 	}
-	for _, typ := range shared.ICMPv6Accepted(echo, ipv6) {
+	for _, typ := range shared.ICMPv6Accepted(false, ipv6) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMPV6, typ)
+	}
+}
+
+// addEchoAccepts accepts the echo request, when the switch says so — the
+// other half of shared.ICMPv4Accepted and ICMPv6Accepted (2.25 D1, D7). Apply
+// places it after the blocklist, the allowlist and the feeds: beside the
+// discovery accepts it answered a blocklisted source, and every later ping of
+// that sweep is established.
+func (m *NftablesManager) addEchoAccepts(t *nftables.Table, c *nftables.Chain, echo bool, ipv6 shared.IPv6Config) {
+	for _, typ := range shared.ICMPv4Accepted(echo) {
+		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMP, typ)
+	}
+	if ipv6.Mode != shared.IPv6Filter {
+		return
+	}
+	// The echo half only; discovery is addICMPRules'.
+	for _, typ := range shared.ICMPv6Accepted(echo, shared.IPv6Config{}) {
 		m.addICMPTypeAccept(t, c, unix.IPPROTO_ICMPV6, typ)
 	}
 }

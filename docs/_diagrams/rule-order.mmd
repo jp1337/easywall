@@ -5,7 +5,7 @@ flowchart TD
   V -->|"IPv6, passthrough"| A1(["ACCEPT — all IPv6"])
   V -->|"IPv6, block"| X0(["DROP — all IPv6"])
   V -->|"IPv4, or IPv6 filtered"| R["Ping and reset rate limits"]
-  R --> H["Established connections<br/>and the ICMP policy"]
+  R --> H["Established connections<br/>and neighbour discovery"]
   H --> M["Protection modules<br/>scans · SYN flood · bogons"]
   M --> D["Docker bridge networks"]
   D --> B{"On the blocklist?"}
@@ -14,7 +14,9 @@ flowchart TD
   W -->|yes| A3(["ACCEPT — every port,<br/>open or not"])
   W -->|no| FD{"In a feed<br/>you switched on?"}
   FD -->|yes| X3(["DROP"])
-  FD -->|no| O{"Port open?"}
+  FD -->|no| E{"Ping, with<br/>Answer pings on?"}
+  E -->|yes| A5(["ACCEPT"])
+  E -->|no| O{"Port open?"}
   O -->|yes| A4(["ACCEPT"])
   O -->|no| C["Custom rules"]
   C --> X2(["DROP — chain policy"])
@@ -26,3 +28,4 @@ flowchart TD
   style A1 stroke:#3ecf8e
   style A3 stroke:#3ecf8e
   style A4 stroke:#3ecf8e
+  style A5 stroke:#3ecf8e

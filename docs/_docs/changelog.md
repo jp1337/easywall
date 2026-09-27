@@ -93,13 +93,18 @@ which is the file GitHub and the release tooling read.
 
 - **IPv4 pings are answered after the upgrade.** Until now an IPv4 echo request
   met the policy drop while an IPv6 one was answered, and neither had a switch.
-  Switching *Answer pings* off keeps IPv4 silent — and now IPv6 too.
+  Switching *Answer pings* off keeps IPv4 silent — and IPv6 too, unless
+  `ipv6.mode` is `passthrough`.
 - **Seven stateless ICMP accepts are gone:** ICMPv4 0, 3, 11, 12 and ICMPv6 1–4,
   129. The return-traffic accept before them already admits the reply to this
   host's own ping and every error about a connection it tracks — unreachable,
   fragmentation needed, time exceeded — so path-MTU discovery and traceroute
   work as before. What those rules still let in on their own was unsolicited
   echo replies and errors about connections that do not exist.
+- **A blocklisted or feed-listed source gets no ping reply**, in either family.
+  The echo accept sits after the blocklist, the allowlist and the feeds; ICMPv6
+  echo requests used to be accepted right after return traffic, ahead of every
+  list, so a blocklisted address could ping this host over IPv6.
 - The Blocked page's *IPv4 pings are not answered* is now *Pings are switched
   off under Options*, for either family, with a link to the switch.
 

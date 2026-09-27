@@ -224,3 +224,28 @@ func icmpChecksum(b []byte) uint16 {
 	}
 	return ^uint16(s)
 }
+
+// Final review, 2.25: the echo accepts sit after the blocklist and the feeds.
+// Placed with the ICMP accepts right after established, they answered a
+// blocklisted source — and every later ping of that sweep is established —
+// against blocklist.md's "consulted before every other rule that can accept a
+// packet".
+func TestIntegration_ABlocklistedSourceGetsNoPingReply(t *testing.T) {
+	m := newIntegrationManager(t)
+	r := dualStackRouter(t)
+	applyRules(t, m, shared.Rules{Blocklist: []string{r.addrA, "fd77:1::2"}},
+		shared.FirewallOptions{ICMPAllowEchoRequest: true})
+	for _, to := range []string{"10.77.1.1", "fd77:1::1"} {
+		if got := pingReceived(t, r, "-c", "3", "-i", "0.2", "-W", "1", to); got != 0 {
+			t.Errorf("%d of 3 pings from a blocklisted source to %s answered\n  %s",
+				got, to, strings.Join(chainText(t, "input"), "\n  "))
+		}
+	}
+	input := chainText(t, "input")
+	block := indexOfRule(input, r.addrA, "drop")
+	for _, echo := range []string{"icmp type echo-request accept", "icmpv6 type echo-request accept"} {
+		if at := indexOfRule(input, echo); at < block {
+			t.Errorf("%q is rule %d, the blocklist drop %d; the blocklist must come first", echo, at, block)
+		}
+	}
+}

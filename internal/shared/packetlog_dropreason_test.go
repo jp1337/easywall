@@ -90,6 +90,9 @@ var dropReasonCases = []struct {
 		DropWhy{DropICMPAcceptedNow, map[string]any{"Proto": "ICMP", "Type": uint8(8)}}},
 	{"an unsolicited echo reply: conntrack admits only replies to this host's own", whyICMP("icmp", 0), pingOn,
 		DropWhy{DropICMPType, map[string]any{"Proto": "ICMP", "Type": uint8(0)}}},
+	{"a ping from a blocklisted source, switch on: the blocklist is the step", edited(whyICMP("icmp", 8), func(e *PacketLogEntry) {
+		e.Src = netip.MustParseAddr("192.0.2.66")
+	}), pingOn, DropWhy{Code: DropBlocklistedNow}},
 	{"an IPv6 ping under block, switch on: the mode is the step", whyICMP("icmpv6", 128), pingOnBlock,
 		DropWhy{Code: DropIPv6Blocked}},
 	{"an ICMP type nothing accepts", whyICMP("icmp", 13), v6Filter,

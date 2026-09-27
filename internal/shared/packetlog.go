@@ -149,9 +149,11 @@ type DropWhy struct {
 	Params map[string]any
 }
 
-// ICMPv4Accepted and ICMPv6Accepted are the types addICMPRules accepts
-// (internal/core/nftables.go) — the one list both the kernel rules and
-// /blocked's reasons are built from (2.25 D7). Nothing else ICMP needs a type
+// ICMPv4Accepted and ICMPv6Accepted are the types the input chain accepts on
+// their own — the one list both the kernel rules and /blocked's reasons are
+// built from (2.25 D7). internal/core/nftables.go renders them in two places:
+// discovery right after established (addICMPRules), the echo requests after
+// the blocklist, the allowlist and the feeds (addEchoAccepts). Nothing else ICMP needs a type
 // accept: the established,related accept before these admits the reply to
 // this host's own echo (established) and every error about a flow conntrack
 // tracks (related) — unreachable, fragmentation needed, time exceeded. Until
@@ -330,15 +332,9 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, a AppliedConfig) DropWh
 		}
 	}
 
-	// The ICMP accepts, before every module.
-	if icmp && e.ICMP != nil {
-		accepted := ICMPv4Accepted(a.Firewall.ICMPAllowEchoRequest)
-		if e.Proto == "icmpv6" {
-			accepted = ICMPv6Accepted(a.Firewall.ICMPAllowEchoRequest, n.IPv6)
-		}
-		if slices.Contains(accepted, e.ICMP.Type) {
-			return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
-		}
+	// Neighbour discovery, right after established and before every module.
+	if e.Proto == "icmpv6" && e.ICMP != nil && slices.Contains(ICMPv6Accepted(false, n.IPv6), e.ICMP.Type) {
+		return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
 	}
 
 	// The Docker networks accept before the blocklist (nftables.go's Apply:
@@ -362,10 +358,17 @@ func (e PacketLogEntry) DropReasonParsed(pr ParsedRules, a AppliedConfig) DropWh
 		return DropWhy{Code: DropAllowlistedNow}
 	}
 
+	// Answer pings, after the lists that refuse a source (nftables.go's
+	// addEchoAccepts).
+	echo := icmp && e.ICMP != nil && (e.Proto == "icmp" && e.ICMP.Type == 8 || e.Proto == "icmpv6" && e.ICMP.Type == 128)
+	if echo && a.Firewall.ICMPAllowEchoRequest {
+		return DropWhy{Code: DropICMPAcceptedNow, Params: map[string]any{"Proto": label, "Type": e.ICMP.Type}}
+	}
+
 	switch {
 	case icmp && e.ICMP == nil:
 		return DropWhy{Code: DropICMPUntyped, Params: map[string]any{"Proto": label}}
-	case icmp && (e.Proto == "icmp" && e.ICMP.Type == 8 || e.Proto == "icmpv6" && e.ICMP.Type == 128):
+	case echo:
 		// Not accepted above, so Answer pings is off: ICMP flood only
 		// rate-limits, it accepts nothing under its rate.
 		return DropWhy{Code: DropPingOff}
