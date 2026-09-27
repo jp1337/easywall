@@ -231,6 +231,7 @@ reference.
 | Module | Switch — default | Tuning | Logging |
 |---|---|---|---|
 | SSH brute-force | `ssh_brute_force` — **on** | `ssh_brute_force_connection_limit` `5`/min | `ssh_brute_force_log`, `ssh_brute_force_log_limit` `60`/min |
+| Answer pings | `icmp_allow_echo_request` — **on** | — | — |
 | ICMP flood | `icmp_flood` — **on** | `icmp_flood_connection_limit` `10`/s | `icmp_flood_log`, `icmp_flood_log_limit` `60`/min |
 | SYN flood | `syn_flood` — **on** | `syn_flood_limit` `100`/s | `syn_flood_log` |
 | Port scan | `port_scan` — **on** | — | `port_scan_log` |
@@ -242,6 +243,8 @@ reference.
 | Broadcast | `drop_broadcast` — off | — | — |
 | Multicast | `drop_multicast` — off | — | — |
 | Anycast | `drop_anycast` — off | — | — |
+
+A file without `icmp_allow_echo_request` — every `easywall.toml` from before 2.25 — reads it as on.
 
 Every number above has a permitted range, and it is the daemon that holds it.
 The `max` on the options page and the `maximum` in the JSON Schema are hints to a

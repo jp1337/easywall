@@ -116,6 +116,11 @@ type FirewallOptions struct {
 	SSHBruteForceConnectionLimit int  `toml:"ssh_brute_force_connection_limit"`
 	SSHBruteForceLogLimit        int  `toml:"ssh_brute_force_log_limit"`
 
+	// Answer pings: accept ICMP type 8 and ICMPv6 type 128 (2.25). On by
+	// default, and on for a file that predates the key — LoadConfig sees to
+	// that, because a missing bool decodes to false.
+	ICMPAllowEchoRequest bool `toml:"icmp_allow_echo_request"`
+
 	// ICMP flood prevention
 	ICMPFlood                bool `toml:"icmp_flood"`
 	ICMPFloodLog             bool `toml:"icmp_flood_log"`
