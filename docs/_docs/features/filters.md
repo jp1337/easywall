@@ -105,6 +105,7 @@ Two things cross that chain:
 | Module | Drops | Tuning | Default |
 |---|---|---|---|
 | **SSH brute-force** | New SSH connections from one source above its rate. Applies to ports marked *SSH protection* on the [ports page]({{ '/docs/features/ports/' | relative_url }}), and to 22 if none is marked | `ssh_brute_force_connection_limit` — 5/min | **on** |
+| **Answer pings** | Nothing — it accepts ICMP type 8 and ICMPv6 type 128; [what else ICMP gets](#answering-pings) | — | **on** |
 | **ICMP flood** | Echo requests from one source above its rate — ICMP type 8 and ICMPv6 type 128 | `icmp_flood_connection_limit` — 10/s | **on** |
 | **SYN flood** | New TCP connections from one source above its rate | `syn_flood_limit` — 100/s | **on** |
 | **Port scan detection** | Seven impossible TCP flag combinations: NULL, FIN alone, SYN+FIN, RST+FIN, SYN+RST, XMAS and all-flags — none of which a real client sends | — | **on** |

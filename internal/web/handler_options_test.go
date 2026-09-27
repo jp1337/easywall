@@ -110,3 +110,24 @@ func TestHandleOptionsPOST_ReadsEveryOption(t *testing.T) {
 		}
 	}
 }
+
+// Review Focus 1: a tab opened before 2.25 posts no icmp_allow_echo_request,
+// and an unticked checkbox is an absent field — so the save switches pings
+// off. What catches it is the apply preview, which names every option that
+// changes (TestDiffConfigReachesEveryOption); this pins the half that is ours.
+func TestAnOptionsFormWithoutTheSwitchSavesPingsOff(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdSaveOptions, shared.Response{Success: true})
+
+	doAuthFormRequest(t, s, "/options", "icmp_flood=on")
+	cmd := fc.LastCommand()
+	var saved shared.FirewallOptions
+	if cmd == nil || cmd.Type != shared.CmdSaveOptions || json.Unmarshal(cmd.Payload, &saved) != nil {
+		t.Fatalf("no SAVE_OPTIONS reached the core: %+v", cmd)
+	}
+	if saved.ICMPAllowEchoRequest {
+		t.Error("a form without the field saved pings on; an absent checkbox is off")
+	}
+}
