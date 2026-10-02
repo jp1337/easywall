@@ -63,6 +63,15 @@
      button — see themeScript's own comment for why that flag is not set from
      app.js instead — and app.js submits the form on change so a working script
      never shows the button at all. */}}
+{{/* The public demo is a service with an operator, and German law wants that
+     operator's notice one click from every page. Demo mode only: a self-hosted
+     installation is its owner's, and this notice names somebody else. */}}
+{{define "legallinks"}}
+{{if .Demo}}
+<p class="legal-links"><a href="https://easywall-project.org/legal-notice/">{{T "legal_notice"}}</a> · <a href="https://easywall-project.org/privacy/">{{T "legal_privacy"}}</a></p>
+{{end}}
+{{end}}
+
 {{define "langswitch"}}
 {{if .Langs}}
 <form method="POST" action="/language" class="lang-switch">
@@ -218,6 +227,9 @@
       </button>
     </form>
   </div>
+  {{/* Outside .nav-footer: check:ui holds that the footer has no anchor, so
+       sign out can never become a GET link again. */}}
+  {{template "legallinks" .}}
 </nav>
 <div class="overlay" id="overlay"></div>
 {{end}}
