@@ -22,6 +22,9 @@
 #                           real typos. en.json, the source of truth locale,
 #                           has none.
 #   ./locales/fr.json       same, French (137 hits)
+#   ./docs/datenschutz.md   the German privacy policy, same reasoning as
+#                           de.json; /privacy/ is its English twin and is
+#                           checked
 #   ./docs-tech/plans       dated, historical implementation logs. Several
 #                           quote German UI strings verbatim while reviewing
 #                           i18n (Adresse, deine, vor, Sie, oder, ...) and are
@@ -30,7 +33,7 @@
 #                           docs/_docs/changelog.md by exact path.
 #   ./docs-tech/specs       same as plans
 [codespell]
-skip = ./docs/_site,./node_modules,./.git,./docs/Gemfile.lock,./docs/assets/css/style.css,./web/static,./docs/vendor,./go.sum,./locales/de.json,./locales/fr.json,./docs-tech/plans,./docs-tech/specs
+skip = ./docs/_site,./node_modules,./.git,./docs/Gemfile.lock,./docs/assets/css/style.css,./web/static,./docs/vendor,./go.sum,./locales/de.json,./locales/fr.json,./docs/datenschutz.md,./docs-tech/plans,./docs-tech/specs
 
 # Every entry below is a real word codespell misreads as a typo of something
 # else, verified by hand against every hit in this corpus (see
