@@ -507,6 +507,23 @@ body {
     outline-offset: -2px;
   }
 
+  /* Demo mode only: the operator's legal notice and privacy policy. */
+  .legal-links {
+    margin: 0;
+    padding: 0 8px 10px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--color-ink-subtle);
+  }
+
+  .auth-footer .legal-links {
+    padding: 8px 0 0;
+  }
+
+  .legal-links a {
+    color: inherit;
+  }
+
   /* ── Theme switch (sidebar) ────────────────────────────────────────────── */
   .theme-toggle {
     display: flex;

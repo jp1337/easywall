@@ -35,6 +35,8 @@
   {"id": "recovery_left",   "translation": "Wiederherstellungscode verwendet. Noch {{.N}} übrig — neue erzeugen Sie unter Passwort."},
   {"id": "recovery_not_consumed", "translation": "Wiederherstellungscode akzeptiert, konnte aber nicht als verbraucht markiert werden und funktioniert weiterhin. Prüfen Sie den Speicherplatz und erzeugen Sie neue Codes unter Passwort."},
 
+  {"id": "legal_notice",     "translation": "Impressum"},
+  {"id": "legal_privacy",    "translation": "Datenschutz"},
   {"id": "demo_label",       "translation": "Demo"},
   {"id": "demo_notice",      "translation": "Nichts erreicht eine echte Firewall; der Zustand wird regelmäßig zurückgesetzt."},
   {"id": "demo_readonly",    "translation": "Das ist die Demo — das Formular funktioniert, die Änderung wird nicht gespeichert."},
