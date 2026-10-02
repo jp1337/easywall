@@ -35,6 +35,8 @@
   {"id": "recovery_left",   "translation": "Recovery code used. {{.N}} left — make new ones under Password."},
   {"id": "recovery_not_consumed", "translation": "Recovery code accepted, but it could not be marked as used and will work again. Check the disk and make new codes under Password."},
 
+  {"id": "legal_notice",     "translation": "Legal notice"},
+  {"id": "legal_privacy",    "translation": "Privacy"},
   {"id": "demo_label",       "translation": "Demo"},
   {"id": "demo_notice",      "translation": "Nothing reaches a real firewall; state resets periodically."},
   {"id": "demo_readonly",    "translation": "This is the demo — the form works, the change is not saved."},

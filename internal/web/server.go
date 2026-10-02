@@ -752,6 +752,14 @@ func (s *Server) recordLoginEvent(r *http.Request, ev shared.LoginEvent, left in
 // supplied by the server when it builds the router, so middleware.go stays free
 // of the client.
 func (s *Server) onLoginBlocked(ip string, proxied bool) {
+	// The demo is public and keeps no visitor's address — its audit log records
+	// none, and docs/privacy.md promises the same of its log. This line went to
+	// stdout, and from there into the host's journal and log server.
+	if s.cfg.DemoMode {
+		slog.Warn("login rate limit exceeded")
+	} else {
+		slog.Warn("login rate limit exceeded", "ip", ip)
+	}
 	if s.events == nil {
 		return
 	}

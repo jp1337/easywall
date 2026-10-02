@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -204,7 +203,8 @@ type rateBucket struct {
 // release removes. It is removed only for peers on the trusted list: with an
 // empty list the key is the peer, exactly as before.
 //
-// onBlocked may be nil.
+// onBlocked may be nil. It is also where a refusal is logged: the server knows
+// whether it is the public demo, which must not write the address down.
 func LoginRateLimit(resolve func(*http.Request) (string, bool),
 	onBlocked func(ip string, proxied bool)) func(http.Handler) http.Handler {
 	// Start the cleanup goroutine exactly once for the process lifetime,
@@ -241,7 +241,6 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 			loginLimiter.mu.Unlock()
 
 			if !allowed {
-				slog.Warn("login rate limit exceeded", "ip", ip)
 				if onBlocked != nil {
 					onBlocked(ip, proxied)
 				}
