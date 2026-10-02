@@ -68,7 +68,7 @@
      installation is its owner's, and this notice names somebody else. */}}
 {{define "legallinks"}}
 {{if .Demo}}
-<p class="legal-links"><a href="https://easywall-project.org/legal-notice/">{{T "legal_notice"}}</a> · <a href="https://easywall-project.org/privacy/">{{T "legal_privacy"}}</a></p>
+<p class="legal-links"><a href="https://easywall-project.org/legal-notice/">{{T "legal_notice"}}</a> · <a href="https://easywall-project.org/{{if eq .Lang "de"}}datenschutz{{else}}privacy{{end}}/">{{T "legal_privacy"}}</a></p>
 {{end}}
 {{end}}
 

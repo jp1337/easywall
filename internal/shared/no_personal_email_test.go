@@ -57,6 +57,10 @@ func TestNoPersonalEmailAddressesAreTracked(t *testing.T) {
 			// The whole address, never the domain: a person's address at the
 			// same domain must still fail. See the note above.
 			return true
+		case lower == "info@easywall-project.org":
+			// The project's own role address, which § 5 DDG requires the legal
+			// notice to print. Whole address again, never the domain.
+			return true
 		}
 		// Reserved for documentation and tests; can never reach a person.
 		for _, suffix := range []string{".example", ".invalid", ".test", ".localhost",

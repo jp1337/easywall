@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -95,5 +96,14 @@ func TestOnlyTheDemoLinksTheLegalNotice(t *testing.T) {
 				t.Errorf("demo=%v: /login links %s = %v, want %v", demo, href, got, demo)
 			}
 		}
+	}
+}
+
+// A German visitor is sent to the German policy, not the English one.
+func TestTheDemoLinksTheGermanPrivacyPolicyInGerman(t *testing.T) {
+	s := newDemoTestServer(t)
+	body := doRequest(s, "GET", "/login", nil, &http.Cookie{Name: LangCookie, Value: "de"}).Body.String()
+	if !strings.Contains(body, "https://easywall-project.org/datenschutz/") {
+		t.Error("the German demo does not link /datenschutz/")
 	}
 }
