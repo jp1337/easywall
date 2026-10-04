@@ -103,6 +103,13 @@ repository and are deliberately not published here.
 
 **Not** as a public issue, and **not** on Discord —
 [GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new).
+Research is welcome and unpaid; responsible reports are credited.
+
+## Written by an AI agent
+
+Welcome, if it says so: begin the issue or pull request description with
+`> [!WARNING]` and `> AI-generated` on two lines. Such posts are labelled
+`ai-generated` for review, not refused.
 
 ## Asking rather than reporting
 

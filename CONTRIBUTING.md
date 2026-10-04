@@ -76,6 +76,19 @@ Breaking changes: add `BREAKING CHANGE:` in the footer.
 
 5. Wait for CI to pass and a maintainer review.
 
+## AI-assisted contributions
+
+Welcome, if they say so. An issue or pull request written by an AI agent begins with:
+
+```markdown
+> [!WARNING]
+> AI-generated
+```
+
+`AGENTS.md` and the templates ask agents for it; `.github/workflows/ai-disclosure.yml` labels
+what carries it `ai-generated`. The label is a signal for review, not a block: a bot posting
+through the API without reading the repository, or a human pasting model output, is not caught.
+
 ## Adding a Language
 
 1. Copy `locales/en.json` to `locales/<lang>.json`
@@ -229,4 +242,4 @@ not when a new Go appears.
 ## Security Issues
 
 Please see [SECURITY.md](SECURITY.md) — do not open public issues for
-security vulnerabilities.
+security vulnerabilities. Research is welcome and unpaid; responsible reports are credited.
