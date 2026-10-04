@@ -29,9 +29,9 @@ Use **[GitHub Security Advisories](https://github.com/jp1337/easywall/security/a
 | Patch for critical issues | ≤ 14 days |
 | Public disclosure | After patch is released |
 
-### Recognition
+### Research is welcome, and unpaid
 
-Responsible disclosure is acknowledged in the release notes and in the security advisory. Thank you for helping keep easywall and its users safe.
+You may test easywall and report what you find. There is no payment: easywall is a volunteer project, and every report serves the people who rely on it. With your consent, we credit you in the security advisory and the release notes. Test on your own installation, never on other people's.
 
 ---
 

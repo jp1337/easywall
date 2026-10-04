@@ -1,6 +1,6 @@
 # CI and release
 
-Six workflows. The question worth asking about each is not *does it pass* but
+Seven workflows. The question worth asking about each is not *does it pass* but
 *what would it catch* — this repository has shipped a package with no executables,
 a container built by an untested compiler, and a version string the linker never
 wrote, all behind green ticks.
@@ -13,6 +13,7 @@ wrote, all behind green ticks.
 | `docs.yml` | changes under `docs/` | the site builds (PR) and deploys to Pages (main) |
 | `publish-edge.yml` | push to `main` | multi-arch image to three registries as `:edge` and `:sha-…` |
 | `release.yml` | a `v*.*.*` tag | GoReleaser, then one `.deb` per architecture uploaded as a release asset, then one Discord embed |
+| `ai-disclosure.yml` | an issue or pull request opened or edited | nothing about the code: it labels `ai-generated` a description that begins with the disclosure `AGENTS.md` asks for. `pull_request_target`, so it checks nothing out and reads the text only from `env`. Catches only bots that read the repository |
 
 Pull-request runs cancel their predecessors (`concurrency` with
 `cancel-in-progress` gated on `github.event_name == 'pull_request'`). Deliberately
