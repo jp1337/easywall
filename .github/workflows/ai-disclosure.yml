@@ -1,0 +1,32 @@
+name: AI disclosure
+
+# Labels an issue or pull request whose description carries the disclosure that
+# AGENTS.md and the templates ask AI agents for. pull_request_target runs with a
+# write token, so nothing from the fork is checked out or run: the text is only
+# read from an environment variable and matched. A here-string, not a pipe —
+# TestNoWorkflowPipesIntoAReaderThatStopsEarly.
+on:
+  issues:
+    types: [opened, edited]
+  pull_request_target:
+    types: [opened, edited]
+
+permissions: {}
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Label when the disclosure is present
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          TEXT: ${{ github.event.issue.body || github.event.pull_request.body }}
+        run: |
+          if grep -Pzq '\[!WARNING\][ \t]*\n>[ \t]*AI-generated' <<<"${TEXT//$'\r'/}"; then
+            gh api -X POST "repos/$GH_REPO/issues/$NUMBER/labels" -f "labels[]=ai-generated" >/dev/null
+          fi

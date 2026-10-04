@@ -22,7 +22,7 @@ Every apply reverts itself after 120 seconds unless it is confirmed.
 | `docs/` | the published site — easywall-project.org. **Only this directory is published** |
 | `docs-tech/` | this documentation. For whoever maintains the repository; never published |
 | `debian/`, `systemd/`, `docker/` | packaging |
-| `.github/workflows/` | six workflows; what each proves is in [ci-and-release](docs-tech/ci-and-release.md) |
+| `.github/workflows/` | seven workflows; what each proves is in [ci-and-release](docs-tech/ci-and-release.md) |
 
 ## Commands
 
@@ -60,7 +60,7 @@ Each of these cost a release. They are not style preferences.
 
 | | |
 |---|---|
-| [ci-and-release](docs-tech/ci-and-release.md) | the six workflows, what each one actually proves, and the path from a tag to the release assets |
+| [ci-and-release](docs-tech/ci-and-release.md) | the seven workflows, what each one actually proves, and the path from a tag to the release assets |
 | [packaging](docs-tech/packaging.md) | `debian/`, the trap that shipped a package with no binaries, the permission layout, the capability story |
 | [dependencies](docs-tech/dependencies.md) | Renovate's configuration rule by rule, and why the `go` directive is left alone |
 | [invariants](docs-tech/invariants.md) | every guard test, what it protects, and the incident that produced it |

@@ -387,3 +387,5 @@ disclosure. Four root causes, and what replaced each:
 **Not as a public issue.** Use
 [GitHub Security Advisories](https://github.com/jp1337/easywall/security/advisories/new)
 for private disclosure — see [SECURITY.md](https://github.com/jp1337/easywall/blob/main/SECURITY.md).
+Research is welcome and unpaid; with your consent, a responsible report is credited in
+the advisory and the release notes. Test on your own installation, never on someone else's.

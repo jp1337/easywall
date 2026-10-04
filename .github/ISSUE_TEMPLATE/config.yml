@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a vulnerability (private)
+    url: https://github.com/jp1337/easywall/security/advisories/new
+    about: Never in a public issue. Research is welcome and unpaid; we credit every responsible report.
+  - name: A question rather than a defect
+    url: https://discord.gg/3zJMvChvUA
+    about: Ask on Discord.
