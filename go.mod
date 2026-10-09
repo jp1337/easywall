@@ -9,7 +9,7 @@ go 1.26.0
 // above, so every workflow, the release and the Debian package compile with
 // exactly this toolchain; Renovate keeps the line current on its own, which is
 // the whole reason it is here rather than spelled out in ten workflow steps.
-toolchain go1.27.1
+toolchain go1.27.2
 
 require (
 	github.com/BurntSushi/toml v1.6.0
