@@ -67,7 +67,7 @@ jobs:
           cache: true
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
       - name: Run govulncheck
         run: govulncheck ./...
@@ -84,7 +84,7 @@ jobs:
           cache: true
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 
       # -tests is what makes -tags do anything here. Everything behind the
       # integration tag is a _test.go file, and gosec skips test files unless
@@ -97,8 +97,11 @@ jobs:
       # the additions are file-permission and file-inclusion warnings about
       # tests writing into t.TempDir(). If that buries the ones that matter,
       # the answer is a rule filter, not dropping the tag again.
+      #
+      # -no-fail rather than `|| true`: findings are judged below, after the
+      # upload, and a gosec that crashes still fails here.
       - name: Run gosec
-        run: gosec -tests -tags integration -fmt sarif -out gosec-results.sarif ./... || true
+        run: gosec -no-fail -tests -tags integration -fmt sarif -out gosec-results.sarif ./...
 
       # Test files are scanned and their findings are not raised as alerts.
       #
@@ -139,3 +142,20 @@ jobs:
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec-results.sarif
+
+      # The gate. Until 2.25.1 nothing here could fail: `|| true` on the run,
+      # and the required check "gosec" is this job — the code-scanning check of
+      # the same name, which does judge alerts, is not required. A G204 planted
+      # in internal/shared left every step green. Any finding in shipped code
+      # fails now: when this was written there were none outside test files
+      # (192 inside), so a new one is new. A false positive gets a `#nosec Gxxx -- reason`
+      # at the line, the way the tree already does.
+      - name: No finding in shipped code
+        run: |
+          set -euo pipefail
+          n=$(jq '[.runs[].results[]] | length' gosec-results.sarif)
+          if [ "$n" -gt 0 ]; then
+            jq -r '.runs[].results[] | "::error file=\(.locations[0].physicalLocation.artifactLocation.uri),line=\(.locations[0].physicalLocation.region.startLine)::gosec \(.ruleId): \(.message.text)"' gosec-results.sarif
+            exit 1
+          fi
+          echo "no gosec finding in shipped code"
