@@ -137,7 +137,7 @@ It names the process. There were four from 2.7; 2.17's self-test added the fifth
 |---|---|
 | `web` | the web interface — every rule, option and setting change, and every apply you start from a page |
 | `core` | the daemon itself, for work no operator asked for in the moment: the boot restore and the restore that follows the end of panic mode |
-| `console` | `easywall-core panic` or `resume`, carried out by the running daemon on the console's behalf |
+| `console` | `easywall-core panic` or `resume`, carried out by the running daemon on the console's behalf. Only a root caller gets this far; anyone else is refused before anything is written |
 | `console-no-daemon` | the same two commands with no daemon running, where the console tool writes the marker and the entry itself — the lockout path, so it says which process was there |
 | `selftest` | `easywall-core selftest`, run by `easywall-selftest.service` before the daemon exists or by hand at a shell. Neither `core` nor `console` is true of it: the proof runs in that binary and the daemon it precedes never sees it |
 

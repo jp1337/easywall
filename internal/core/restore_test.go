@@ -365,7 +365,7 @@ func TestResume_RecordsWhenAnApplyHoldsTheSlot(t *testing.T) {
 	}
 	defer fw.endApply()
 
-	err := fw.Resume("console")
+	_, err := fw.Resume("console")
 	if !errors.Is(err, ErrApplyInProgress) {
 		t.Errorf("Resume() while an apply holds the slot = %v, want ErrApplyInProgress", err)
 	}
@@ -389,7 +389,7 @@ func TestResume_ClearsTheMarker(t *testing.T) {
 		t.Fatalf("EngagePanic: %v", err)
 	}
 
-	_ = fw.Resume("console") // the restore fails on the nil connection; the clear must not
+	_, _ = fw.Resume("console") // the restore fails on the nil connection; the clear must not
 
 	if PanicEngaged(cfg.PanicMarkerPath()) {
 		t.Error("resume must clear the marker even when the restore that follows fails")
@@ -894,5 +894,42 @@ func TestRollback_FirstApplyTeardownFailureIsReportedHonestly(t *testing.T) {
 	}
 	if !strings.Contains(got.Detail, "could not be taken down (") {
 		t.Errorf("the folded entry must carry the error it folded in, got %q", got.Detail)
+	}
+}
+
+// Resume reports what it did, and audits only an end that happened. A RESUME
+// with nothing engaged used to write panic_resumed — which the web process sends
+// as a Panic-mode-ended notification — and the console promised restored rules
+// on a host where nothing had ever been applied.
+func TestResume_ReportsWhatItActuallyDid(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg) // never configured: RestoreCurrent writes nothing
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatal(err)
+	}
+	res, err := fw.Resume("console")
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if !res.WasEngaged || res.Restored {
+		t.Errorf("engaged, never configured: got %+v, want WasEngaged and not Restored", res)
+	}
+
+	res, err = fw.Resume("console")
+	if err != nil {
+		t.Fatalf("second Resume: %v", err)
+	}
+	if res.WasEngaged || res.Restored {
+		t.Errorf("not engaged, never configured: got %+v, want neither", res)
+	}
+	n := 0
+	for _, a := range auditActions(t, cfg) {
+		if a == "panic_resumed" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("panic_resumed written %d times for one engaged and one idle RESUME, want 1", n)
 	}
 }

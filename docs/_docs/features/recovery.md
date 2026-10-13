@@ -53,6 +53,10 @@ easywall-core panic     # take the firewall down, right now
 easywall-core resume    # end panic mode and put the stored rules back
 ```
 
+`panic` and `resume` need root. The daemon refuses both from any other user —
+the web interface's own account included — with `only root at the console may
+send this command`.
+
 ### `status`
 
 ```
@@ -133,7 +137,16 @@ Panic mode is over and the stored rules are back in force.
 ```
 
 `resume` clears the marker and restores `Current` — the same restore a restart
-performs, run on demand. If the daemon is not running, `resume` can only clear
+performs, run on demand. The line it prints says what actually happened:
+
+| Panic mode was | Rules ever applied | `resume` says |
+|---|---|---|
+| engaged | yes | *Panic mode is over and the stored rules are back in force.* |
+| engaged | no | panic mode is over, and there were no rules to put back |
+| not engaged | yes | it was not engaged; the stored rules were written again |
+| not engaged | no | it was not engaged; nothing changed |
+
+Only the first two write `panic_resumed` to the audit log. If the daemon is not running, `resume` can only clear
 the marker; it says so, and names the command to start the service so the
 restore actually happens.
 

@@ -24,7 +24,7 @@ Twenty-five command types:
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
 | `GET_USAGE` | what each port rule has carried, keyed by rule id, and when the figures were read |
 | `GET_HEALTH` | whether the firewall is doing what it says — three facts evaluated in order, plus the last self-test's identity, no rule detail or counter values |
-| `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore |
+| `PANIC` · `RESUME` | tear the table down and record it as deliberate · end that and restore. **Root peers only** (`SO_PEERCRED`, read in `handleConn`): anyone else, `easywall-web` included, is answered `ErrConsoleOnlyText` and nothing runs. Until 2.25.1 any client of the socket could send both. `RESUME` answers `ResumeResult` — whether panic mode was engaged, and whether the restore wrote anything |
 | `LOG_EVENT` | one of thirteen login events, from a fixed enum, for the audit log |
 | `UPDATE_FEED` | one enabled feed's new version, from the web process's fetcher; re-validated, stored, and swapped into the live set without an apply |
 | `GET_FEEDS` | counts, timestamps and counters per feed — never entries; with `addr`, which copies contain it |
