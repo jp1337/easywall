@@ -313,6 +313,7 @@ row here is one of those ways.
 | `TestEveryEnvKeyIsMarkedOrExplicitlyHasNoControl` | every key a variable names is either marked in the interface or listed with a reason why it has no control | a marker nobody notices is missing is the trap this release exists to remove, one release later |
 | `TestTheMarkedTemplatesCallTheMarker` | a template the code claims marks a key actually calls the shared provenance block | the claim and the template can drift independently — `TestEveryEnvKeyIsMarkedOrExplicitlyHasNoControl` only checks that some template is named, not that the named template still renders the marker it is credited with |
 | `TestSettingFormsSaveOnSubmitAndCanBeSubmittedWithoutAScript` | a settings form saves on submit, and has a button to submit it with | three pages posted on every `change` *and* carried a Save button that reported a write already done; the fourth, the telemetry toggle, had no button at all, so a script-free operator could move a consent switch and never store it |
+| `TestLoadConfig_AMissingAcceptanceDurationIsTheDefault` | a file without `acceptance.duration` (or without `[acceptance]`) gets the shipped 120 | it read 0, `Validate` refused 0, and the daemon would not start over a key documented as defaulting to 120 |
 
 ## The firewall proves what it says
 
