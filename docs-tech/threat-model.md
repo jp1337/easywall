@@ -286,8 +286,11 @@ whole /24, with no credential.
 ## Rate limiting
 
 `LoginRateLimit`: a token bucket per resolved client, 5 tokens refilling one every
-2 minutes. Buckets unused for 15 minutes are swept by a goroutine started once per
-process.
+10 minutes — at most 5 in any ten minutes, the number the second factor's bound of
+fifteen rests on. Until 2.25.1 it refilled one every 2 minutes: 9 rounds and 27
+code attempts in ten minutes, invisible to a test that never moved the clock.
+Buckets unused for 15 minutes are swept by a goroutine started once per
+process; longer than the window, so a sweep never hands out more than five.
 
 Only the login path is limited. The rest of the interface is behind
 authentication, and the protection modules in the firewall itself are what limit
