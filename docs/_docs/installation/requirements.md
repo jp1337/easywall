@@ -19,6 +19,7 @@ description: What the host needs, what it does not, and which install path to ta
 | init | none — Docker | `supervisord` runs both processes inside the container |
 | Architecture | amd64 or arm64 | binaries shipped for both |
 | RAM | ~32 MB | both processes, idle |
+| RAM, signing in | ~200 MB peak | one password check (Argon2id, 64 MiB) at a time, however many arrive |
 | Disk | ~20 MB | binaries, assets, config |
 | Privilege | `CAP_NET_ADMIN` | the core needs it to write rules. The web process does not |
 

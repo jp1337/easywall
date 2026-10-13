@@ -203,6 +203,20 @@ var defaultArgon2Params = argon2Params{
 	keyLength:   32,
 }
 
+// argon2Slots is how many Argon2id runs may hold their 64 MiB at once; the
+// rest wait for a slot, which costs a goroutine and not 64 MiB. Unbounded, ten
+// parallel sign-in attempts took the process to 668 MiB (runtime Sys), on
+// hosts docs/_docs/installation/requirements.md sizes at ~32 MB idle.
+var argon2Slots = make(chan struct{}, 1)
+
+// idKey is argon2.IDKey behind argon2Slots. Every hash this process computes
+// goes through here, or the bound above stops being one.
+func idKey(password, salt []byte, p argon2Params) []byte {
+	argon2Slots <- struct{}{}
+	defer func() { <-argon2Slots }()
+	return argon2.IDKey(password, salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+}
+
 // HashPassword returns an argon2id encoded hash of the given password.
 func HashPassword(password string) (string, error) {
 	p := defaultArgon2Params
@@ -211,7 +225,7 @@ func HashPassword(password string) (string, error) {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
 
-	hash := argon2.IDKey([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	hash := idKey([]byte(password), salt, p)
 
 	b64salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64hash := base64.RawStdEncoding.EncodeToString(hash)
@@ -263,7 +277,7 @@ func VerifyPassword(password, encodedHash string) bool {
 			"to reopen the first-run wizard", "reason", err.Error())
 		return false
 	}
-	other := argon2.IDKey([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	other := idKey([]byte(password), salt, p)
 	return subtle.ConstantTimeCompare(hash, other) == 1
 }
 
