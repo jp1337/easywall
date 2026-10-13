@@ -22,7 +22,7 @@ The landing page after signing in. It answers one question before any other:
 | **Active** | the rules are live and the stateful half is matching packets |
 | **Degraded** | still filtering, but something is measurably off |
 | **Not enforcing** | the kernel is not carrying easywall's rules |
-| **Pending changes** | something is staged that the running firewall does not have — go to [Apply]({{ '/docs/features/apply/' | relative_url }}) |
+| **Pending changes** | something is staged that the running firewall does not have — go to [Apply]({{ '/docs/features/apply/' | relative_url }}). A comment or a reordered list alone changes no rule and does not count; it is saved and goes live with the next apply |
 | **Acceptance** | whether the [window]({{ '/docs/features/system-settings/' | relative_url }}) is on, and whether one is open right now |
 | **Last applied** | when the running set was last pushed |
 | **Self-test** | what the four claims about the rule builder last proved on this kernel |
