@@ -273,6 +273,31 @@ func MaxBodySize(n int64, overrides map[string]int64) func(http.Handler) http.Ha
 	}
 }
 
+// RequireReadableForm refuses a POST whose form the server could not read.
+//
+// Every handler reads its fields with FormValue, which swallows ParseForm's
+// error and answers "" — and to a list editor "" is the operator clearing the
+// list. A body over its limit, or one with a broken escape, saved the
+// blocklist as nothing and flashed "saved"; the validators answered "ok".
+// Parsing once here, before any handler runs, turns that into a refusal that
+// changes nothing. Inside the signed-in group, so nobody reads a body before
+// the session is checked. A multipart body is left to its handler: ParseForm
+// does not read one, and /import reports its own size error.
+func RequireReadableForm(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if err := r.ParseForm(); isBodyTooLarge(err) {
+				http.Error(w, "Request Entity Too Large", http.StatusRequestEntityTooLarge)
+				return
+			} else if err != nil {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // isBodyTooLarge reports whether err came from a body hitting its size limit,
 // however deeply the multipart or form parser has wrapped it.
 func isBodyTooLarge(err error) bool {
