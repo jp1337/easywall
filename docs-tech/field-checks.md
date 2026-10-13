@@ -21,6 +21,7 @@ together find what neither finds alone.
 | 2.24.0 | the published-port warning named 8 ports published on 127.0.0.1 only (nginx back ends), all answering | 2.24.1 — loopback binds skipped; the host's own connection never crosses forward |
 | 2.24.1 | IPv6 on 25: 0 connects for the first hours, then 23 of 396 (≈6 %) in 15 h, 0 drops | senders had cached the AAAA as unreachable; nothing to change. 993/143/465/587 proven from outside |
 | 2.25.1 | blocklist.de held 5 of Bingbot's 28 published ranges, 1 of GPTBot's 18 and 2 of Googlebot's 317; no other feed held any. 0 drops from them in the ring | `feeds.md` names the crawlers and both remedies; the operator switched blocklist.de off |
+| 2.25.1 | `/blocked` showed no new rows for minutes in Firefox while the core logged them; the 5-s polls went out. traefik advertised Alt-Svc h3=":442", but UDP 442 had no endpoints — ArgoCD's client-side apply drops the 8443/UDP containerPort (strategic-merge key is containerPort only) and still reports Synced. With network.http.http3.enable=false the rows updated | cluster fix (ServerSideApply on the traefik app) in the k8s repository; easywall's tail now sends what is new (2.25.2) and marks /blocked/rows Cache-Control: no-store |
 
 ## When
 
