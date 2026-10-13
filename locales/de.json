@@ -480,6 +480,7 @@
   {"id": "countries_crawlers_link", "translation": "Was es nicht kann"},
   {"id": "countries_col_country", "translation": "Land"},
   {"id": "countries_none", "translation": "Kein Land ist blockiert."},
+  {"id": "countries_select_prompt", "translation": "Land wählen…"},
   {"id": "countries_add_label", "translation": "Zu blockierendes Land"},
   {"id": "countries_add", "translation": "Hinzufügen"},
   {"id": "countries_remove", "translation": "Entfernen"},
