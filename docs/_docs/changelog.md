@@ -132,7 +132,9 @@ which is the file GitHub and the release tooling read.
 - **A failed package upgrade left the firewall disabled after the next
   reboot,** and every upgrade re-enabled a web interface the operator had
   switched off. `prerm` disabled the services on upgrade and `postinst` had no
-  `abort-upgrade`; the scripts now carry `#DEBHELPER#`.
+  `abort-upgrade`; the scripts now carry `#DEBHELPER#`. A package operation also
+  resets the units' start limit: an install, a failed upgrade and its retry
+  inside a minute were a fourth start, and systemd refused it.
 - **`easywall-web` would not start while the core was stopped**
   (`226/NAMESPACE`), so the interface that reports "core unreachable" was the
   one that was missing. `ReadWritePaths=-/run/easywall`.
