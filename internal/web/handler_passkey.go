@@ -283,9 +283,9 @@ func (s *Server) passkeyUnavailableReason() string {
 // domain, and the library's own Config.validate does not itself reject an
 // empty one, so this checks it before asking the library to build anything.
 //
-// Built per call rather than once at startup, because the hostname is
-// configuration and configuration is reloadable — a value captured at
-// startup is a value that disagrees with web.toml after an edit.
+// Built per call, which is cheap and keeps no second copy of the hostname. This
+// used to say configuration is reloadable; it is not — web.toml is read once
+// at startup (cmd/easywall-web), so a changed tls.hostname needs a restart.
 func (s *Server) webAuthn() (*webauthn.WebAuthn, error) {
 	host := s.cfg.Hostname()
 	if host == "" {
