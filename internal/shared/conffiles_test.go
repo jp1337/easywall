@@ -71,3 +71,27 @@ func TestNeitherConfigIsShippedAsAConffile(t *testing.T) {
 		}
 	}
 }
+
+// dh_fixperms resets every file in the package to 0644, or 0755 if it is
+// executable, and debian/rules does not override it — so an `install -m` with
+// any other mode states a permission the .deb does not have. The two config
+// templates said 0640 and shipped 0644, measured with dpkg-deb -c.
+func TestDebianRulesModesAreWhatShips(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "debian", "rules"))
+	if err != nil {
+		t.Fatalf("read debian/rules: %v", err)
+	}
+	if strings.Contains(string(b), "override_dh_fixperms") {
+		t.Skip("debian/rules overrides dh_fixperms; the modes it states may hold")
+	}
+	modes := regexp.MustCompile(`install\s+-m\s*(\d+)`).FindAllStringSubmatch(string(b), -1)
+	if len(modes) == 0 {
+		t.Fatal("no `install -m` in debian/rules: this guard is reading nothing")
+	}
+	for _, m := range modes {
+		if m[1] != "0644" && m[1] != "0755" {
+			t.Errorf("debian/rules installs a file -m %s; dh_fixperms makes it 0644 or 0755, "+
+				"so the package does not carry the mode this line states", m[1])
+		}
+	}
+}

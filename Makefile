@@ -39,7 +39,7 @@ release:
 
 ## Run all tests with race detector
 test:
-	go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
+	go test -race -coverprofile=coverage.out -covermode=atomic ./cmd/... ./internal/...
 	go tool cover -html=coverage.out -o coverage.html
 
 ## Lint via golangci-lint
