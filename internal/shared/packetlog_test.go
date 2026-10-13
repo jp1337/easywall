@@ -209,6 +209,9 @@ func TestFeedLogPrefixesFitTheKernel(t *testing.T) {
 	for _, f := range FeedCatalogue {
 		ids = append(ids, f.ID)
 	}
+	for _, cc := range CountryCodes {
+		ids = append(ids, CountryFeedID(cc))
+	}
 	for _, id := range ids {
 		if p := FeedLogPrefix(id); len(p) > nfLogPrefixMax {
 			t.Errorf("FeedLogPrefix(%q) is %d bytes; the kernel takes %d", id, len(p), nfLogPrefixMax)
