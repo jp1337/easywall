@@ -714,9 +714,12 @@ jobs:
       # disabled unit is a proof that never runs, and that is precisely the
       # silence this release exists to remove.
       #
-      # Its result is deliberately not asserted. The container has no
-      # CAP_SYS_ADMIN, so the proof records "unprovable" here, and
-      # SuccessExitStatus=0 1 2 means that is a success as far as ordering is
+      # Its result is deliberately not asserted. This said the container has
+      # no CAP_SYS_ADMIN and the proof records "unprovable" here; the container
+      # is --privileged, CapEff 000001ffffffffff, CAP_SYS_ADMIN included, and in
+      # a privileged ubuntu:24.04 podman container the unit ran under its own
+      # sandbox and recorded "passed". Whatever it records here,
+      # SuccessExitStatus=0 1 2 makes it a success as far as ordering is
       # concerned — the core came up regardless, which the step above just
       # checked. What CI proves about the four claims is proven in test.yml's
       # integration job, under sudo, with EASYWALL_REQUIRE_SELFTEST set.
