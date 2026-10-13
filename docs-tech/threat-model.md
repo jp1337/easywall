@@ -291,6 +291,15 @@ fifteen rests on. Until 2.25.1 it refilled one every 2 minutes: 9 rounds and 27
 code attempts in ten minutes, invisible to a test that never moved the clock.
 Buckets unused for 15 minutes are swept by a goroutine started once per
 process; longer than the window, so a sweep never hands out more than five.
+An IPv6 client is keyed by its /64 — a subscriber picks any address in it, and
+keyed per address 200 attempts from one /64 all passed. The map holds at most
+4096 buckets; a new key at the ceiling evicts an arbitrary one, which gains a
+caller nothing: forcing evictions takes 4096 fresh budgets of its own.
+
+Each attempt that passes costs a 64 MiB Argon2id run. `argon2Slots` lets one run
+at a time and queues the rest as goroutines, not allocations: ten parallel
+attempts took the process to 668 MiB before, ~200 MB peak after (the Go heap
+holds about three runs' worth between collections).
 
 Only the login path is limited. The rest of the interface is behind
 authentication, and the protection modules in the firewall itself are what limit

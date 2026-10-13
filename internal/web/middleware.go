@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -187,6 +188,29 @@ const (
 	loginBudgetRefill = 10 * time.Minute
 )
 
+// loginMaxBuckets bounds the limiter's map, whose size is the number of
+// addresses a stranger chooses to send from. It grew without limit: 20,000
+// /64s made 20,000 buckets.
+const loginMaxBuckets = 4096
+
+// limiterKey is the address a login budget belongs to: an IPv4 address, or
+// the /64 an IPv6 one is in. A single subscriber is routed a whole /64 and
+// picks any address in it, so keying on the full address let one host send
+// 200 attempts from 200 addresses, every one of them let through — and each
+// a 64 MiB Argon2id run.
+func limiterKey(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	a = a.Unmap()
+	if a.Is4() {
+		return a.String()
+	}
+	p, _ := a.WithZone("").Prefix(64)
+	return p.String()
+}
+
 // loginClock is the limiter's clock, so a test can walk it through ten minutes.
 var loginClock = time.Now
 
@@ -239,15 +263,25 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 			ip, proxied := resolve(r)
 
 			now := loginClock()
+			key := limiterKey(ip)
 			loginLimiter.mu.Lock()
-			b, ok := loginLimiter.buckets[ip]
+			b, ok := loginLimiter.buckets[key]
+			if !ok && len(loginLimiter.buckets) >= loginMaxBuckets {
+				// Evict any one. A caller who can force evictions already
+				// holds loginMaxBuckets fresh budgets of its own, so a reset
+				// bucket buys it nothing it did not have.
+				for k := range loginLimiter.buckets {
+					delete(loginLimiter.buckets, k)
+					break
+				}
+			}
 			if !ok {
 				// 5 tokens, one back every 10 minutes: at most 5 in any ten
 				// minutes, which is what security.md's fifteen code attempts
 				// rest on. It refilled one every 2 minutes, which is 9 password
 				// rounds in ten minutes — 27 code attempts, not 15.
 				b = &rateBucket{lim: rate.NewLimiter(rate.Every(loginBudgetRefill), loginBudget)}
-				loginLimiter.buckets[ip] = b
+				loginLimiter.buckets[key] = b
 			}
 			b.lastSeen = now
 			allowed := b.lim.AllowN(now, 1)

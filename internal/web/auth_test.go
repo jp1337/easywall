@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHashPassword_ProducesArgon2idFormat(t *testing.T) {
@@ -276,4 +277,27 @@ func isPasswordFloorLiteral(e ast.Expr) bool {
 		return false
 	}
 	return lit.Value == "11" || lit.Value == "12"
+}
+
+// One Argon2id run at a time. Unbounded, ten parallel sign-in attempts took the
+// process to 668 MiB; a check that cannot get the slot has to wait for it.
+func TestPasswordHashingWaitsForTheSlot(t *testing.T) {
+	hash, err := HashPassword("correcthorsebatterystaple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	argon2Slots <- struct{}{} // somebody else's run
+	done := make(chan bool)
+	go func() { done <- VerifyPassword("correcthorsebatterystaple", hash) }()
+
+	select {
+	case <-done:
+		<-argon2Slots
+		t.Fatal("a password was checked while the only slot was taken")
+	case <-time.After(300 * time.Millisecond):
+	}
+	<-argon2Slots
+	if !<-done {
+		t.Error("the check that waited for the slot did not verify the right password")
+	}
 }
