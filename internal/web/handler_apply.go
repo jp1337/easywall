@@ -379,9 +379,9 @@ func addressIsLocal(addr netip.Addr) bool {
 // no copy of, "" when there is none. Applying then would load its set empty,
 // and the copy would arrive with the next refresh, after the window was
 // confirmed: with no acceptance window, and the operator's address may be in
-// it (2.26). known is false when the core could not say. A list keeps the
-// behaviour it had: the countries are the ones refreshFeedNow fetches in the
-// background a moment after they are switched on.
+// it (2.26). known is false when the core could not say. Catalogue and own
+// feeds keep their 2.23 behaviour by decision: the ruling (B1) is about
+// countries only.
 func (s *Server) countryWithoutCopy() (cc string, known bool) {
 	state, err := s.client.GetRules()
 	if err != nil {
