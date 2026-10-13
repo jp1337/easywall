@@ -36,6 +36,14 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 // set is the one thing an operator legitimately uploads by the hundred kilobyte.
 const maxImportBytes = 512 * 1024
 
+// maxListFormBytes is the body limit of every editor an imported list lands in.
+// Form encoding writes a byte as up to three (%3A for every colon of an IPv6
+// address, %0D%0A for each line break), so 3x maxImportBytes is what saving an
+// imported list back can take; the rest is room for the form's other fields.
+// These routes had the site-wide 64 KiB, and a blocklist /import accepted could
+// not be saved again from its own page.
+const maxListFormBytes = 4 * maxImportBytes
+
 // handleImport reads an uploaded JSON file and passes it to the core for validation and import.
 func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	// The body limit is set by the MaxBodySize middleware, which knows this

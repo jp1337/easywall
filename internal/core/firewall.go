@@ -369,8 +369,30 @@ func (f *Firewall) apply(user string) error {
 		_ = SaveSnapshot(f.cfg.LogDir, snap)
 	}
 
-	// 3. Promote staged → current in state
+	// One snapshot of the configuration for the whole apply, so the rules that
+	// reach the kernel describe a single configuration rather than whatever each
+	// field happened to hold as it was read — and so recordAppliedConfig below
+	// records exactly what nft.Apply was given, not whatever f.cfg holds by the
+	// time it runs. The acceptance switch is read from the same snapshot, for
+	// the same reason, and before the promote, because it decides whether the
+	// promote is provisional.
+	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
+	acceptanceOn := f.cfg.SystemSettings().Acceptance.Enabled
+
+	// 3. Promote staged → current in state — provisionally, when a window will
+	// judge it. The marker goes down first, so there is no instant at which the
+	// file holds an unconfirmed Current that a restart would mistake for a
+	// confirmed one. See unconfirmed.go.
+	if acceptanceOn {
+		if err := markUnconfirmed(f.cfg.UnconfirmedMarkerPath()); err != nil {
+			WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
+				"the apply could not be marked unconfirmed, so nothing was applied: "+err.Error(), user)
+			return fmt.Errorf("mark apply unconfirmed: %w", err)
+		}
+	}
 	if err := f.rules.PromoteStaged(); err != nil {
+		// Nothing was promoted, so there is nothing for a restart to revert.
+		clearUnconfirmed(f.cfg.UnconfirmedMarkerPath())
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
 			"the staged rules could not be promoted, so nothing was applied: "+err.Error(), user)
 		return fmt.Errorf("promote staged rules: %w", err)
@@ -381,7 +403,8 @@ func (f *Firewall) apply(user string) error {
 		// The promote above succeeded, so the stored Current is already the set
 		// this apply was trying out — and this return leaves it there. The entry
 		// says so, because "nothing was applied" would be false: nothing reached
-		// the kernel, and the file did change.
+		// the kernel, and the file did change. The unconfirmed marker stays
+		// with it, so the next restore puts Backup back rather than enforce it.
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_failed", "all",
 			"the rules could not be re-read after promoting them; nothing reached the "+
 				"kernel, and the stored rules now hold the set this apply was trying: "+err.Error(), user)
@@ -390,15 +413,6 @@ func (f *Firewall) apply(user string) error {
 
 	// 4. The acceptance window opens *before* the kernel write.
 	//
-	// One snapshot of the configuration for the whole apply, so the rules that
-	// reach the kernel describe a single configuration rather than whatever each
-	// field happened to hold as it was read — and so recordAppliedConfig below
-	// records exactly what nft.Apply was given, not whatever f.cfg holds by the
-	// time it runs. The acceptance switch is read from the same snapshot, for
-	// the same reason.
-	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
-	acceptanceOn := f.cfg.SystemSettings().Acceptance.Enabled
-
 	// acceptance.enabled was never read until 2.5.0. The system settings page
 	// offers the switch and documents "Off — an apply is final. There is no
 	// automatic way back", but the window ran regardless: an operator who
@@ -443,7 +457,20 @@ func (f *Firewall) apply(user string) error {
 		// Pending with nothing left to roll it back: the interface counts down
 		// forever, and the next apply is poisoned too, because Start is
 		// idempotent on Pending and its Wait then sees a deadline already past.
-		defer f.acceptance.Reset()
+		//
+		// Only a window still Pending, though. This was an unconditional
+		// Reset(), so the outcome Wait had just recorded — accepted, or
+		// rolled_back with its reason — was idle again the instant apply
+		// returned. Visible for milliseconds: the notifier, which polls every
+		// 15 s, never saw either, so notify_on_accepted and
+		// notify_on_rolled_back never fired, and the interface's
+		// rolled-back wording never showed outside the demo. The outcome now
+		// stands until the next Start.
+		defer func() {
+			if f.acceptance.Status() == shared.AcceptancePending {
+				f.acceptance.Reset()
+			}
+		}()
 	}
 
 	// 5. Apply new rules to kernel
@@ -565,11 +592,9 @@ func (f *Firewall) apply(user string) error {
 
 	if !accepted {
 		// Read right where the literal used to sit: Reason() is either what Start
-		// set ("timeout") or what an operator rollback overwrote it to before
-		// Cancel woke Wait up ("cancelled by operator"). The deferred Reset() above
-		// only clears status, not reason, and runs at function exit anyway, so
-		// nothing races this read — it stays here, next to the write, so the two
-		// obviously agree.
+		// set ("timeout") or what a cancel overwrote it to before waking Wait up
+		// (operator, panic mode, core stopped). Nothing races this read — it
+		// stays here, next to the write, so the two obviously agree.
 		reason := f.acceptance.Reason()
 		slog.Warn("acceptance ended without confirmation — rolling back", "reason", reason)
 		WriteAuditLog(f.cfg.AuditLogPath(), "apply_rolledback", "all", reason, user)
@@ -577,6 +602,8 @@ func (f *Firewall) apply(user string) error {
 		return nil
 	}
 
+	// Confirmed: Current is no longer provisional.
+	clearUnconfirmed(f.cfg.UnconfirmedMarkerPath())
 	f.setLastApply(time.Now())
 	WriteAuditLog(f.cfg.AuditLogPath(), "apply_accepted", "all", "", user)
 	slog.Info("rules applied and accepted", "user", user)
@@ -624,6 +651,11 @@ func (f *Firewall) rollback(previous shared.RulesState, user string) {
 	if revertErr != nil {
 		slog.Error("rollback rules file failed", "error", revertErr)
 		failures = append(failures, "rules file: "+revertErr.Error())
+	} else {
+		// Current is the confirmed set again. On a failed revert the marker
+		// stays, so the next restore tries again rather than enforce the
+		// unconfirmed set.
+		clearUnconfirmed(f.cfg.UnconfirmedMarkerPath())
 	}
 
 	// The check that makes Panic's marker authoritative rather than advisory,
@@ -888,7 +920,7 @@ func (f *Firewall) Rollback() bool {
 // Used by Panic, which must not latch: an installation that panics and then
 // resumes has to be able to apply again. Shutdown wants ShutdownAcceptance.
 func (f *Firewall) CancelAcceptance() {
-	f.acceptance.Cancel()
+	f.acceptance.CancelForPanic()
 }
 
 // ShutdownAcceptance ends an open window and prevents a later one, for a daemon

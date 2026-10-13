@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -252,7 +254,8 @@ func (d *Daemon) Start() error {
 
 	// The counter ticker, tracked in wg for the same reason as the reconciler:
 	// Stop waits for it to notice d.quit rather than leaving it reading netlink
-	// into a closed daemon. It returns immediately when usage.interval is 0.
+	// into a closed daemon. It keeps running at usage.interval = 0, so a SIGHUP
+	// can switch it back on.
 	if d.track() {
 		go func() {
 			defer d.wg.Done()
@@ -583,6 +586,21 @@ func (d *Daemon) handleConn(conn net.Conn) {
 		return
 	}
 
+	// PANIC and RESUME are the console's. The socket is root:easywall 0660, so
+	// the group alone admits easywall-web; until this check any client of the
+	// socket could tear the firewall down or re-arm it, and the audit log said
+	// "console" either way. The kernel's view of the peer decides, not the
+	// request.
+	if cmd.Type == shared.CmdPanic || cmd.Type == shared.CmdResume {
+		uid, pid, err := peerCred(conn)
+		if err != nil || uid != 0 {
+			slog.Warn("console-only command refused", "command", cmd.Type,
+				"peer_uid", uid, "peer_pid", pid, "error", err)
+			d.sendError(conn, shared.ErrConsoleOnlyText)
+			return
+		}
+	}
+
 	resp := d.dispatch(cmd)
 	out, _ := json.Marshal(resp)
 	_, _ = conn.Write(out)
@@ -832,10 +850,12 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdResume:
-		if err := d.firewall.Resume("console"); err != nil {
+		res, err := d.firewall.Resume("console")
+		if err != nil {
 			return errResp(err)
 		}
-		return shared.Response{Success: true}
+		data, _ := json.Marshal(res)
+		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdLogEvent:
 		var p shared.LogEventPayload
@@ -878,6 +898,31 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 	default:
 		return shared.Response{Success: false, Error: fmt.Sprintf("unknown command: %s", cmd.Type)}
 	}
+}
+
+// peerCred is the uid and pid of the process on the other end of conn, as the
+// kernel recorded them at connect (SO_PEERCRED). Anything that is not a Unix
+// socket has no such record and is an error, never uid 0.
+func peerCred(conn net.Conn) (uid uint32, pid int32, err error) {
+	uc, ok := conn.(*net.UnixConn)
+	if !ok {
+		return 0, 0, fmt.Errorf("peer credentials: not a Unix socket (%T)", conn)
+	}
+	raw, err := uc.SyscallConn()
+	if err != nil {
+		return 0, 0, fmt.Errorf("peer credentials: %w", err)
+	}
+	var cred *unix.Ucred
+	var credErr error
+	if err := raw.Control(func(fd uintptr) {
+		cred, credErr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
+	}); err != nil {
+		return 0, 0, fmt.Errorf("peer credentials: %w", err)
+	}
+	if credErr != nil {
+		return 0, 0, fmt.Errorf("peer credentials: %w", credErr)
+	}
+	return cred.Uid, cred.Pid, nil
 }
 
 func (d *Daemon) sendError(conn net.Conn, msg string) {
@@ -988,8 +1033,9 @@ func tailFile(path string, max int64) ([]byte, bool, error) {
 
 // maxCustomRules bounds how many statements one request may ask the daemon to
 // check. Well above any real rule set — the editor is a textarea and a long one
-// holds a few dozen lines — and far below what a 64 KB form body can carry,
-// which is about three thousand.
+// holds a few dozen lines — and far below what the editor's form body can
+// carry: about three thousand at the 64 KB it once had, tens of thousands at
+// the import-sized limit it has had since 2.25.1.
 const maxCustomRules = 256
 
 // validateCustomRules checks the rules with "nft --check" and returns a map of

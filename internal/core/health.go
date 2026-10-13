@@ -176,8 +176,10 @@ func computeHealth(in healthInputs) shared.HealthResult {
 	// The class is narrow, and this is the reason it is narrow rather than an
 	// assurance that it is: all three need a host with inbound traffic and *no
 	// completed inbound connection whatsoever*, and one completed inbound TCP
-	// connection defuses all three at once. Asking `/healthz` is itself a
-	// completed inbound TCP connection. So is an admin session. A host that
+	// connection defuses all three at once. An admin session is one. Asking
+	// `/healthz` is one only from another machine: the Docker HEALTHCHECK and
+	// any probe on the host itself arrive on loopback, which is accepted before
+	// the established rule and never reaches its counter. A host that
 	// nobody monitors and nobody administers can produce this; a host that
 	// anybody watches cannot, and the second kind is the kind that has somebody
 	// to mislead.
@@ -268,7 +270,11 @@ func (f *Firewall) Health() shared.HealthResult {
 		if IsReservedRuleID(id) {
 			continue
 		}
-		ports += c.Packets
+		// The input chain's share only, to match the established counter. All of
+		// Packets used to be summed here, forward chain included, and a host whose
+		// inbound traffic all went to containers read stateful_dead with nothing
+		// wrong — measured in TestIntegration_ForwardedTrafficAloneIsNotAStatefulDeadFirewall.
+		ports += c.InputPackets
 	}
 
 	// NewFirewall always builds a StampStore, but the tests in this package

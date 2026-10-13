@@ -150,7 +150,7 @@ proxy's own address. See [Security]({{ '/docs/security/' | relative_url }}).
 | State | Reason | What it means |
 |---|---|---|
 | `ok` | `healthy` | rules are live and the stateful half is matching packets |
-| `degraded` | `stateful_dead` | ports counted packets, the established rule counted none |
+| `degraded` | `stateful_dead` | ports on the host itself counted packets, the established rule counted none |
 | `degraded` | `build_findings` | a rule reached the kernel that the expression check could not believe |
 | `degraded` | `selftest_failed` | the self-test disproved a claim about the rule builder |
 | `fail` | `not_enforcing` | the kernel is not carrying easywall's rules |
@@ -159,7 +159,9 @@ proxy's own address. See [Security]({{ '/docs/security/' | relative_url }}).
 
 `stateful_dead` is the defect this release exists to catch. It needs both halves:
 `established == 0` on a host with no traffic is honest, so the alarm also wants
-the port counters to have moved.
+the port counters to have moved. Only the input chain counts on either side:
+traffic to containers passes the `forward` chain and moves neither. Until 2.25.1
+it moved the port side, and a host serving only containers read `stateful_dead`.
 
 `core_unreachable` comes from the web process and never from the core. A crashed
 core says nothing about the kernel, which may still be filtering perfectly.

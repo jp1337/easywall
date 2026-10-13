@@ -325,6 +325,15 @@ type CancelResult struct {
 	Cancelled bool `json:"cancelled"`
 }
 
+// ResumeResult is returned for CmdResume: what the core actually did, so the
+// console can say so. WasEngaged is false for a RESUME with no panic mode to
+// end; Restored is false when nothing has ever been applied here, and the
+// restore therefore wrote nothing.
+type ResumeResult struct {
+	WasEngaged bool `json:"was_engaged"`
+	Restored   bool `json:"restored"`
+}
+
 // ErrApplyInProgressText is the exact Response.Error the core returns when
 // APPLY_RULES arrives while a cycle is already running.
 //
@@ -371,6 +380,11 @@ const MaxMessageBytes = 8 << 20
 // first place, with ErrRequestTooLarge, so the web process can record a feed
 // refresh as too large without a round trip.
 const ErrRequestTooLargeText = "request too large"
+
+// ErrConsoleOnlyText is the exact Response.Error the core returns for PANIC or
+// RESUME from a peer that is not root. Those two are the console's: the web
+// process shares the socket's group and must not be able to send them.
+const ErrConsoleOnlyText = "only root at the console may send this command"
 
 // ErrRequestTooLarge is what SendCommand returns for a command it will not
 // send. errors.Is finds it through the wrapping.

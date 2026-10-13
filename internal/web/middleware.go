@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -104,9 +106,73 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 				redirectRefused(w, r, "/login")
 				return
 			}
-			next.ServeHTTP(w, r)
+			if backgroundRequest(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			rw := &renewingWriter{ResponseWriter: w, r: r, sess: sess}
+			next.ServeHTTP(rw, r)
+			rw.renew() // a handler that wrote nothing at all
 		})
 	}
+}
+
+// renewSession re-signs an authenticated session, so its lifetime counts from
+// now: privacy.md and security.md say a session ends ten minutes after last
+// use. Only flash-writing actions used to save it, so a session browsed with
+// GETs ended ten minutes after sign-in — and an operator watching a long
+// acceptance window was sent to /login at the moment they went to confirm.
+//
+// Only for a session sessionUser has accepted. A revoked one never gets here,
+// which is what keeps the revocation record's one-lifetime retention sound.
+func renewSession(w http.ResponseWriter, r *http.Request, sess *sessions.Session) {
+	if err := sess.Save(r, w); err != nil {
+		slog.Warn("could not renew the session", "error", err)
+	}
+}
+
+// renewingWriter renews the session as the response starts, unless the
+// handler already saved it — a flash, a re-stamp after a password change. Two
+// Set-Cookie headers for one name is a response whose meaning depends on the
+// reader keeping the last one; one header is not.
+type renewingWriter struct {
+	http.ResponseWriter
+	r    *http.Request
+	sess *sessions.Session
+	done bool
+}
+
+func (w *renewingWriter) renew() {
+	if w.done {
+		return
+	}
+	w.done = true
+	for _, c := range w.Header().Values("Set-Cookie") {
+		if strings.HasPrefix(c, SessionName+"=") {
+			return
+		}
+	}
+	renewSession(w.ResponseWriter, w.r, w.sess)
+}
+
+func (w *renewingWriter) WriteHeader(code int) {
+	w.renew()
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *renewingWriter) Write(b []byte) (int, error) {
+	w.renew()
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *renewingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// backgroundRequest reports a GET a page makes on its own — htmx polling
+// /blocked/rows, app.js fetching /apply/status — rather than one the operator
+// made. Those do not renew a session, or an open tab would keep it alive for
+// ever. The apply screen renews explicitly while a window is open.
+func backgroundRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet && (isHTMX(r) || r.Header.Get("Sec-Fetch-Dest") == "empty")
 }
 
 // RequireSecondFactor sends an authenticated operator with no second factor to
@@ -181,6 +247,58 @@ var loginLimiter = struct {
 	buckets map[string]*rateBucket
 }{buckets: make(map[string]*rateBucket)}
 
+// The login budget: loginBudget attempts, one returned every loginBudgetRefill.
+const (
+	loginBudget       = 5
+	loginBudgetRefill = 10 * time.Minute
+)
+
+// loginMaxBuckets bounds the limiter's map, whose size is the number of
+// addresses a stranger chooses to send from. It grew without limit: 20,000
+// /64s made 20,000 buckets. ~190 bytes each, so ~12 MB at the ceiling.
+//
+// At the ceiling a new address is refused, never let in by evicting another:
+// random eviction was tried, and cycling through more addresses than the map
+// holds reset an exhausted budget every time. Only sweepLoginBuckets frees a
+// slot, and only a bucket that limits nobody. The cost, documented in
+// security.md: while 65,536 sources are live, a source not among them waits.
+const loginMaxBuckets = 65536
+
+// sweepLoginBuckets drops the buckets that limit nobody: refilled to the full
+// budget, so indistinguishable from a new one, or unused for 15 minutes —
+// longer than the ten-minute window, so a fresh bucket after that still lets
+// no window hold more than loginBudget.
+func sweepLoginBuckets(now time.Time) {
+	loginLimiter.mu.Lock()
+	defer loginLimiter.mu.Unlock()
+	for k, b := range loginLimiter.buckets {
+		if now.Sub(b.lastSeen) > 15*time.Minute || b.lim.TokensAt(now) >= loginBudget {
+			delete(loginLimiter.buckets, k)
+		}
+	}
+}
+
+// limiterKey is the address a login budget belongs to: an IPv4 address, or
+// the /64 an IPv6 one is in. A single subscriber is routed a whole /64 and
+// picks any address in it, so keying on the full address let one host send
+// 200 attempts from 200 addresses, every one of them let through — and each
+// a 64 MiB Argon2id run.
+func limiterKey(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ip
+	}
+	a = a.Unmap()
+	if a.Is4() {
+		return a.String()
+	}
+	p, _ := a.WithZone("").Prefix(64)
+	return p.String()
+}
+
+// loginClock is the limiter's clock, so a test can walk it through ten minutes.
+var loginClock = time.Now
+
 type rateBucket struct {
 	lim      *rate.Limiter
 	lastSeen time.Time
@@ -211,16 +329,10 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 	// regardless of how many times this middleware factory is called (e.g. in tests).
 	loginLimiter.once.Do(func() {
 		go func() {
-			ticker := time.NewTicker(5 * time.Minute)
+			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for range ticker.C {
-				loginLimiter.mu.Lock()
-				for ip, b := range loginLimiter.buckets {
-					if time.Since(b.lastSeen) > 15*time.Minute {
-						delete(loginLimiter.buckets, ip)
-					}
-				}
-				loginLimiter.mu.Unlock()
+				sweepLoginBuckets(loginClock())
 			}
 		}()
 	})
@@ -229,15 +341,26 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip, proxied := resolve(r)
 
+			now := loginClock()
+			key := limiterKey(ip)
 			loginLimiter.mu.Lock()
-			b, ok := loginLimiter.buckets[ip]
-			if !ok {
-				// 5 tokens, refills at 1 token per 2 minutes (5 per 10 min)
-				b = &rateBucket{lim: rate.NewLimiter(rate.Every(2*time.Minute), 5)}
-				loginLimiter.buckets[ip] = b
+			b, ok := loginLimiter.buckets[key]
+			allowed := false
+			switch {
+			case !ok && len(loginLimiter.buckets) >= loginMaxBuckets:
+				// Refused, not let in by evicting a bucket — see loginMaxBuckets.
+			case !ok:
+				// 5 tokens, one back every 10 minutes: at most 5 in any ten
+				// minutes, which is what security.md's fifteen code attempts
+				// rest on. It refilled one every 2 minutes, which is 9 password
+				// rounds in ten minutes — 27 code attempts, not 15.
+				b = &rateBucket{lim: rate.NewLimiter(rate.Every(loginBudgetRefill), loginBudget)}
+				loginLimiter.buckets[key] = b
+				fallthrough
+			default:
+				b.lastSeen = now
+				allowed = b.lim.AllowN(now, 1)
 			}
-			b.lastSeen = time.Now()
-			allowed := b.lim.Allow()
 			loginLimiter.mu.Unlock()
 
 			if !allowed {
@@ -271,6 +394,31 @@ func MaxBodySize(n int64, overrides map[string]int64) func(http.Handler) http.Ha
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// RequireReadableForm refuses a POST whose form the server could not read.
+//
+// Every handler reads its fields with FormValue, which swallows ParseForm's
+// error and answers "" — and to a list editor "" is the operator clearing the
+// list. A body over its limit, or one with a broken escape, saved the
+// blocklist as nothing and flashed "saved"; the validators answered "ok".
+// Parsing once here, before any handler runs, turns that into a refusal that
+// changes nothing. Inside the signed-in group, so nobody reads a body before
+// the session is checked. A multipart body is left to its handler: ParseForm
+// does not read one, and /import reports its own size error.
+func RequireReadableForm(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			if err := r.ParseForm(); isBodyTooLarge(err) {
+				http.Error(w, "Request Entity Too Large", http.StatusRequestEntityTooLarge)
+				return
+			} else if err != nil {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // isBodyTooLarge reports whether err came from a body hitting its size limit,

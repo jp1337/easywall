@@ -26,6 +26,12 @@ confirmed, or by surviving a rollback nobody had to trigger. Restoring it is not
 a new change taking effect unconfirmed — refusing to restore it would be the
 actual change, and the one nobody asked for.
 
+One case would break that: the core dying *inside* a window — killed, out of
+memory, a power cut — before it could roll back. An apply therefore leaves a
+marker (`unconfirmed` in `data_dir`) until its window has an outcome. A start
+that finds it puts back the set in force before that apply first, and logs
+`apply_rolledback` with detail `core stopped`.
+
 A window here could not work even if you wanted it to. Nobody is present at boot
 to confirm, so it would expire. The rollback would install `Backup`, which
 nobody confirmed either. There is no second window behind that one to catch it.
@@ -52,6 +58,10 @@ easywall-core status    # is the firewall enforcing, and since when?
 easywall-core panic     # take the firewall down, right now
 easywall-core resume    # end panic mode and put the stored rules back
 ```
+
+`panic` and `resume` need root. The daemon refuses both from any other user —
+the web interface's own account included — with `only root at the console may
+send this command`.
 
 ### `status`
 
@@ -133,7 +143,16 @@ Panic mode is over and the stored rules are back in force.
 ```
 
 `resume` clears the marker and restores `Current` — the same restore a restart
-performs, run on demand. If the daemon is not running, `resume` can only clear
+performs, run on demand. The line it prints says what actually happened:
+
+| Panic mode was | Rules ever applied | `resume` says |
+|---|---|---|
+| engaged | yes | *Panic mode is over and the stored rules are back in force.* |
+| engaged | no | panic mode is over, and there were no rules to put back |
+| not engaged | yes | it was not engaged; the stored rules were written again |
+| not engaged | no | it was not engaged; nothing changed |
+
+Only the first two write `panic_resumed` to the audit log. If the daemon is not running, `resume` can only clear
 the marker; it says so, and names the command to start the service so the
 restore actually happens.
 

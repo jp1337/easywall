@@ -95,10 +95,24 @@ func TestValidateCoreConfig_MissingLogDir(t *testing.T) {
 	}
 }
 
-func TestValidateCoreConfig_InvalidAcceptanceDuration(t *testing.T) {
-	cfg := newCoreCfgWith("/run/x", "/data", "/log", 0)
-	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "acceptance") {
-		t.Errorf("expected acceptance error, got: %v", err)
+// A file with no acceptance.duration gets the shipped 120 s, the default
+// configuration.md documents. It used to read as 0, and Validate refused 0, so
+// the daemon would not start over a key the documentation calls optional.
+func TestLoadConfig_AMissingAcceptanceDurationIsTheDefault(t *testing.T) {
+	for name, body := range map[string]string{
+		"no key":     "socket_path = \"/run/x\"\ndata_dir = \"/d\"\nlog_dir = \"/l\"\n[acceptance]\nenabled = true\n",
+		"no section": "socket_path = \"/run/x\"\ndata_dir = \"/d\"\nlog_dir = \"/l\"\n",
+	} {
+		cfg, err := LoadConfig(writeTempCoreConfig(t, body))
+		if err != nil {
+			t.Fatalf("%s: LoadConfig: %v", name, err)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("%s: Validate refused a file that only omits acceptance.duration: %v", name, err)
+		}
+		if got, want := cfg.Acceptance.Duration, shared.CoreDefault().Acceptance.Duration; got != want || want != 120 {
+			t.Errorf("%s: duration = %d, want the shipped default %d (120)", name, got, want)
+		}
 	}
 }
 
@@ -329,6 +343,8 @@ func TestValidateCoreConfig_ClampsAnOutOfRangeDuration(t *testing.T) {
 	cases := []struct {
 		configured, want int
 	}{
+		{-5, shared.AcceptanceDurationMin},
+		{0, shared.AcceptanceDurationMin},
 		{5, shared.AcceptanceDurationMin},
 		{9, shared.AcceptanceDurationMin},
 		{10, 10},

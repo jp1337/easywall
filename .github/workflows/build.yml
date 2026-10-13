@@ -493,10 +493,22 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y devscripts debhelper
 
+      # Built as <version>+ci, a version the source does not carry. The check
+      # "the version was compiled in" compares the binary with the changelog,
+      # and the changelog's own version equals the default in version.go — so
+      # a binary the -X never reached reported exactly what was expected, and
+      # a misspelt target in debian/rules stayed green. Measured with
+      # -X …shared.CurrentVersoin. Only this job's package carries the suffix;
+      # release.yml builds the changelog as it is.
       - name: Build .deb
         env:
           DEB_BUILD_OPTIONS: nocheck
-        run: dpkg-buildpackage -us -uc -b -d
+        run: |
+          set -euo pipefail
+          v=$(dpkg-parsechangelog --show-field Version)
+          { printf 'easywall (%s+ci) UNRELEASED; urgency=medium\n\n  * CI build.\n\n -- CI <ci@invalid>  %s\n\n' "$v" "$(date -R)"; cat debian/changelog; } > changelog.ci
+          mv changelog.ci debian/changelog
+          dpkg-buildpackage -us -uc -b -d
 
       - name: Collect .deb
         run: mkdir -p dist && mv ../*.deb dist/
@@ -542,6 +554,11 @@ jobs:
       # runner — see the job-level comment for why. Docker is preinstalled on
       # both runner flavours and ubuntu:24.04 is multi-arch, so the same
       # recipe works unmodified on ubuntu-24.04-arm.
+      #
+      # The image ships /usr/sbin/policy-rc.d answering 101 — "start nothing",
+      # for image builds. deb-systemd-invoke honours it, so with it in place
+      # postinst would start no service here, while no host has one. It is
+      # removed: this container plays a host.
       - name: Start a systemd container
         run: |
           docker run -d --name easywall-test \
@@ -549,7 +566,7 @@ jobs:
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
             -v "${{ github.workspace }}/dist:/dist:ro" \
             ubuntu:24.04 \
-            bash -c "apt-get -o Acquire::ForceIPv4=true update && apt-get -o Acquire::ForceIPv4=true install -y systemd systemd-sysv curl python3 && exec /sbin/init"
+            bash -c "rm -f /usr/sbin/policy-rc.d && apt-get -o Acquire::ForceIPv4=true update && apt-get -o Acquire::ForceIPv4=true install -y systemd systemd-sysv curl python3 && exec /sbin/init"
 
       # See the job-level comment: postinst only starts the services once
       # /run/systemd/system exists, which only happens once systemd is truly
@@ -697,9 +714,12 @@ jobs:
       # disabled unit is a proof that never runs, and that is precisely the
       # silence this release exists to remove.
       #
-      # Its result is deliberately not asserted. The container has no
-      # CAP_SYS_ADMIN, so the proof records "unprovable" here, and
-      # SuccessExitStatus=0 1 2 means that is a success as far as ordering is
+      # Its result is deliberately not asserted. This said the container has
+      # no CAP_SYS_ADMIN and the proof records "unprovable" here; the container
+      # is --privileged, CapEff 000001ffffffffff, CAP_SYS_ADMIN included, and in
+      # a privileged ubuntu:24.04 podman container the unit ran under its own
+      # sandbox and recorded "passed". Whatever it records here,
+      # SuccessExitStatus=0 1 2 makes it a success as far as ordering is
       # concerned — the core came up regardless, which the step above just
       # checked. What CI proves about the four claims is proven in test.yml's
       # integration job, under sudo, with EASYWALL_REQUIRE_SELFTEST set.
@@ -873,6 +893,7 @@ jobs:
         run: |
           set -euo pipefail
           want=$(dpkg-parsechangelog --show-field Version)
+          case "$want" in *+ci) ;; *) echo "::error::the package is $want, not a +ci build: this check cannot tell a working -X from the source default"; exit 1 ;; esac
           for bin in easywall-core easywall-web; do
             got=$(docker exec easywall-test /usr/sbin/$bin --version | awk '{print $2}')
             echo "$bin --version -> $got (package $want)"
@@ -881,6 +902,52 @@ jobs:
               exit 1
             }
           done
+
+      # A failed upgrade has to leave the old version running, and an upgrade
+      # has to leave a unit the administrator disabled disabled. Neither held
+      # until 2.25.1: prerm disabled both services on `upgrade` and postinst had
+      # no `abort-upgrade`, so a 2.25.0 whose upgrade failed stayed installed
+      # with the firewall disabled — gone at the next boot — and every upgrade
+      # re-enabled the web interface. Both are dh_installsystemd's now, and
+      # TestMaintainerScriptsKeepTheDebhelperMarker keeps its snippets in the
+      # scripts; this measures what they do.
+      - name: A failed upgrade leaves the firewall running
+        run: |
+          docker exec -i easywall-test bash -s <<'EOF'
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          up() { for _ in $(seq 1 20); do systemctl is-active --quiet "$1" && return 0; sleep 0.5; done; return 1; }
+          deb=$(ls /dist/*.deb)
+          v=$(dpkg-deb --field "$deb" Version)
+          w=$(mktemp -d)
+          dpkg-deb -R "$deb" "$w/p"
+          # The same package twice more, under a later version: once as it is, once with
+          # a preinst that fails at its end — after anything it stops.
+          sed -i "s/^Version: .*/Version: $v+ci1/" "$w/p/DEBIAN/control"
+          dpkg-deb -b "$w/p" "$w/ok.deb" >/dev/null
+          [ -f "$w/p/DEBIAN/preinst" ] || printf '#!/bin/sh\n' > "$w/p/DEBIAN/preinst"
+          printf 'exit 1\n' >> "$w/p/DEBIAN/preinst"
+          chmod 0755 "$w/p/DEBIAN/preinst"
+          sed -i "s/^Version: .*/Version: $v+ci2/" "$w/p/DEBIAN/control"
+          dpkg-deb -b "$w/p" "$w/fail.deb" >/dev/null
+
+          if dpkg -i "$w/fail.deb" >/dev/null 2>&1; then fail "the upgrade meant to fail succeeded; this step measures nothing"; fi
+          st=$(dpkg-query -W -f='${Status} ${Version}' easywall)
+          [ "$st" = "install ok installed $v" ] || fail "after a failed upgrade the package is '$st'"
+          for u in easywall-core easywall-web; do
+            e=$(systemctl is-enabled $u.service || true)
+            [ "$e" = enabled ] && up $u || fail "$u is $e/$(systemctl is-active $u.service || true) after a failed upgrade: the old version is installed and the firewall does not come back at the next boot"
+          done
+          echo "ok  a failed upgrade left $v installed with both services enabled and running"
+
+          systemctl disable --now easywall-web.service 2>/dev/null
+          dpkg -i "$w/ok.deb" >/dev/null 2>&1 || fail "the upgrade to $v+ci1 failed"
+          e=$(systemctl is-enabled easywall-web.service || true)
+          [ "$e" = disabled ] || fail "easywall-web is '$e' after an upgrade: it re-enabled a web interface the administrator disabled"
+          up easywall-core || fail "easywall-core did not come back after the upgrade"
+          echo "ok  an upgrade kept a disabled easywall-web disabled and the core came back"
+          systemctl enable --now easywall-web.service 2>/dev/null
+          EOF
 
       - name: Stop the container
         if: always()

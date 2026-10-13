@@ -276,6 +276,34 @@ func TestIntegration_Apply_BaseRules_Present(t *testing.T) {
 	}
 }
 
+// What the blocklist and allowlist pages promise about order. The interface used
+// to say the blocklist drops "before any other rule" and the allowlist survives
+// "every protection module"; both were false, and an IPv6 entry under
+// passthrough did nothing while the page said it was blocked.
+func TestIntegration_Apply_ListsSitBehindPassthroughAndTheModules(t *testing.T) {
+	m := newIntegrationManager(t)
+	state := emptyState()
+	state.Current.Blocklist = []string{"2001:db8::66"}
+	state.Current.Allowlist = []string{"192.0.2.1"}
+	opts := shared.FirewallOptions{SSHBruteForce: true, ConnectionLimit: true}
+	if err := m.Apply(state, opts, shared.NetworkSettings{IPv6: shared.IPv6Config{Mode: shared.IPv6Passthrough}}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	input := inputChainText(t, m)
+	pass, block := indexOfRule(input, "meta nfproto ipv6 accept"), indexOfRule(input, "2001:db8::66", "drop")
+	if pass < 0 || block < 0 || pass > block {
+		t.Errorf("passthrough accept at %d, IPv6 blocklist drop at %d: blocklist.md says passthrough comes first\n%s",
+			pass, block, strings.Join(input, "\n"))
+	}
+	allow := indexOfRule(input, "192.0.2.1", "accept")
+	for _, module := range []string{"jump sshbrute", "@connlimit-v4"} {
+		if at := indexOfRule(input, module); at < 0 || at > allow {
+			t.Errorf("%s at %d, allowlist accept at %d: allowlist.md says the modules run first\n%s",
+				module, at, allow, strings.Join(input, "\n"))
+		}
+	}
+}
+
 // The switch adds ICMP type 8, and ICMPv6 type 128 only where IPv6 is
 // filtered: under block the IPv6 half is gone before it would be reached
 // (Review Focus 3). No removed type renders in any case.

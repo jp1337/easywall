@@ -365,7 +365,7 @@ func TestResume_RecordsWhenAnApplyHoldsTheSlot(t *testing.T) {
 	}
 	defer fw.endApply()
 
-	err := fw.Resume("console")
+	_, err := fw.Resume("console")
 	if !errors.Is(err, ErrApplyInProgress) {
 		t.Errorf("Resume() while an apply holds the slot = %v, want ErrApplyInProgress", err)
 	}
@@ -389,7 +389,7 @@ func TestResume_ClearsTheMarker(t *testing.T) {
 		t.Fatalf("EngagePanic: %v", err)
 	}
 
-	_ = fw.Resume("console") // the restore fails on the nil connection; the clear must not
+	_, _ = fw.Resume("console") // the restore fails on the nil connection; the clear must not
 
 	if PanicEngaged(cfg.PanicMarkerPath()) {
 		t.Error("resume must clear the marker even when the restore that follows fails")
@@ -894,5 +894,119 @@ func TestRollback_FirstApplyTeardownFailureIsReportedHonestly(t *testing.T) {
 	}
 	if !strings.Contains(got.Detail, "could not be taken down (") {
 		t.Errorf("the folded entry must carry the error it folded in, got %q", got.Detail)
+	}
+}
+
+// Resume reports what it did, and audits only an end that happened. A RESUME
+// with nothing engaged used to write panic_resumed — which the web process sends
+// as a Panic-mode-ended notification — and the console promised restored rules
+// on a host where nothing had ever been applied.
+func TestResume_ReportsWhatItActuallyDid(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg) // never configured: RestoreCurrent writes nothing
+
+	if err := EngagePanic(cfg.PanicMarkerPath()); err != nil {
+		t.Fatal(err)
+	}
+	res, err := fw.Resume("console")
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if !res.WasEngaged || res.Restored {
+		t.Errorf("engaged, never configured: got %+v, want WasEngaged and not Restored", res)
+	}
+
+	res, err = fw.Resume("console")
+	if err != nil {
+		t.Fatalf("second Resume: %v", err)
+	}
+	if res.WasEngaged || res.Restored {
+		t.Errorf("not engaged, never configured: got %+v, want neither", res)
+	}
+	n := 0
+	for _, a := range auditActions(t, cfg) {
+		if a == "panic_resumed" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("panic_resumed written %d times for one engaged and one idle RESUME, want 1", n)
+	}
+}
+
+// A core that died inside an acceptance window must not come back enforcing
+// the set nobody confirmed.
+//
+// apply promotes Staged into Current on disk before the window opens, and only
+// a window that ran to its end ever rolled that back. kill -9, the OOM killer,
+// the systemd watchdog or a power cut inside the window left Current holding
+// the unconfirmed set, and this restore enforced it with no window at all.
+// The file state below is exactly what apply leaves at the moment the window
+// opens; a fresh Firewall over the same data directory is the restarted core.
+func TestRestoreCurrent_RevertsAnApplyAPreviousRunNeverConfirmed(t *testing.T) {
+	cfg := newTestConfig(t)
+	dead := newTestFirewall(t, cfg)
+	configureTestFirewall(t, dead) // confirmed: 22
+
+	if err := dead.rules.SaveStaged("tcp", []shared.PortRule{{Port: "443"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := dead.rules.BackupCurrent(); err != nil {
+		t.Fatal(err)
+	}
+	if err := markUnconfirmed(cfg.UnconfirmedMarkerPath()); err != nil {
+		t.Fatal(err)
+	}
+	if err := dead.rules.PromoteStaged(); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted := newTestFirewall(t, cfg)
+	_ = restarted.RestoreCurrent(RestoreReasonBoot) // the nil netlink conn fails the kernel half
+
+	state, err := restarted.rules.GetState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Current.TCP) != 1 || state.Current.TCP[0].Port != "22" {
+		t.Errorf("Current after restart = %+v, want the confirmed 22 back", state.Current.TCP)
+	}
+	if len(state.Staged.TCP) != 1 || state.Staged.TCP[0].Port != "443" {
+		t.Errorf("Staged after restart = %+v, want the operator's 443 kept", state.Staged.TCP)
+	}
+	if _, err := os.Stat(cfg.UnconfirmedMarkerPath()); !os.IsNotExist(err) {
+		t.Errorf("the marker is still there after the revert (stat: %v)", err)
+	}
+	st := restarted.Status()
+	if st.Acceptance != shared.AcceptanceRolledBack || st.AcceptanceReason != ReasonCoreStopped {
+		t.Errorf("status = %s/%q, want rolled_back/%q", st.Acceptance, st.AcceptanceReason, ReasonCoreStopped)
+	}
+	var found bool
+	for _, e := range auditEntries(t, cfg) {
+		if e.Action == "apply_rolledback" && e.Detail == ReasonCoreStopped {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no apply_rolledback/%q entry; got %v", ReasonCoreStopped, auditActions(t, cfg))
+	}
+}
+
+// Without the marker nothing is reverted: a Current that went through a whole
+// window is restored as it stands.
+func TestRestoreCurrent_LeavesAConfirmedCurrentAlone(t *testing.T) {
+	cfg := newTestConfig(t)
+	fw := newTestFirewall(t, cfg)
+	configureTestFirewall(t, fw)
+	if err := fw.rules.BackupCurrent(); err != nil { // Backup == Current; make them differ
+		t.Fatal(err)
+	}
+	_ = fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "443"}})
+	_ = fw.rules.PromoteStaged() // confirmed 443 over a backup of 22, no marker
+
+	_ = newTestFirewall(t, cfg).RestoreCurrent(RestoreReasonBoot)
+	state, _ := fw.rules.GetState()
+	if len(state.Current.TCP) != 1 || state.Current.TCP[0].Port != "443" {
+		t.Errorf("a confirmed Current was reverted: %+v", state.Current.TCP)
 	}
 }

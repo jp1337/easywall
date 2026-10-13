@@ -104,6 +104,12 @@ func LoadConfig(path string) (*Config, error) {
 	if !meta.IsDefined("firewall", "icmp_allow_echo_request") {
 		cfg.Firewall.ICMPAllowEchoRequest = shared.CoreDefault().Firewall.ICMPAllowEchoRequest
 	}
+	// The window length a file does not name is the shipped 120 s, as
+	// configuration.md documents. It read as 0, Validate refused 0, and the
+	// daemon would not start over a key the documentation calls optional.
+	if !meta.IsDefined("acceptance", "duration") {
+		cfg.Acceptance.Duration = shared.CoreDefault().Acceptance.Duration
+	}
 	if err := readOldLogKeys(data, &cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
@@ -180,12 +186,12 @@ func (c *Config) Validate() error {
 	if c.LogDir == "" {
 		return fmt.Errorf("log_dir is required")
 	}
-	if c.Acceptance.Duration <= 0 {
-		return fmt.Errorf("acceptance.duration must be > 0 (seconds)")
-	}
 	// A file written by hand, or by an older version that accepted anything, is
 	// brought into range rather than kept from starting: the daemon refusing to
-	// come up is a worse outcome than a window of a different length.
+	// come up is a worse outcome than a window of a different length. That
+	// includes 0 and below, which were refused until 2.25.1 although
+	// configuration.md said every out-of-range value is clamped. Clamping them
+	// up to the minimum is the safe direction: a short window rolls back.
 	if !shared.ValidAcceptanceDuration(c.Acceptance.Duration) {
 		clamped := min(max(c.Acceptance.Duration, shared.AcceptanceDurationMin), shared.AcceptanceDurationMax)
 		slog.Warn("acceptance.duration is out of range; using the nearest permitted value",
@@ -552,6 +558,12 @@ func (c *Config) FeedsPath() string {
 // over the socket would let it do. See panicmode.go.
 func (c *Config) PanicMarkerPath() string {
 	return c.DataDir + "/panic"
+}
+
+// UnconfirmedMarkerPath returns the path of the file that says the stored
+// Current holds a set no acceptance window has confirmed yet. See unconfirmed.go.
+func (c *Config) UnconfirmedMarkerPath() string {
+	return c.DataDir + "/unconfirmed"
 }
 
 // SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.

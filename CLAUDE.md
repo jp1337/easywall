@@ -29,7 +29,7 @@ Every apply reverts itself after 120 seconds unless it is confirmed.
 ```bash
 make build            # both binaries into bin/
 make test lint        # what CI runs first
-go test ./internal/...            # unit tests, including the guard tests
+go test ./cmd/... ./internal/...  # unit tests, including the guard tests
 sudo go test -tags integration ./internal/core/...   # against a real kernel
 
 npm run build:css     # web/static/style.css      — committed

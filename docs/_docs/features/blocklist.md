@@ -1,16 +1,17 @@
 ---
 layout: default
 title: Blocklist
-description: A list of addresses that are dropped before anything else is considered.
+description: A list of addresses that are dropped before the allowlist, the feeds and the port rules are considered.
 redirect_from:
   - /docs/features/blacklist/
 ---
 
 # Blocklist
 
-A list of addresses that are dropped. It is consulted before every other rule
-that can accept a packet, which is the only thing about it you really need to
-remember.
+A list of addresses that are dropped. It is consulted before the allowlist, the
+feeds and the port rules. It is **not** consulted before loopback, established
+connections, neighbour discovery and Docker networks — and under
+`ipv6.mode = "passthrough"` it never sees IPv6 at all (diagram below).
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/blocklist" ext="png"
@@ -24,7 +25,7 @@ remember.
    alt="Decision flow for an incoming packet: the fragment drop first, when it is on; then loopback; then the IPv6 mode, which accepts or drops all IPv6 outright unless it is set to filter; then the ping and reset rate limits, then established connections and neighbour discovery, then the other protection modules, then Docker bridge networks, then the blocklist which drops, then the allowlist which accepts every port, then the feeds you switched on which drop, then pings, when Answer pings is on, then open ports, then custom rules, and finally the chain policy which drops." %}
 
 **The blocklist wins.** An address on both lists is dropped, because the blocklist is
-evaluated first. A narrow allow inside a wide block does not work — take the entry off
+evaluated before the allowlist. A narrow allow inside a wide block does not work — take the entry off
 the blocklist instead.
 
 > **Fixed in 2.11.** The SSH brute-force chain is consulted before the blocklist
@@ -62,6 +63,7 @@ The counter under the editor counts real entries — comments and blanks do not 
 | Symptom | Cause |
 |---|---|
 | A blocklisted address still gets through | The connection was already established; the list only affects new ones |
+| A blocklisted IPv6 address still gets through | `ipv6.mode = "passthrough"` accepts all IPv6 before the blocklist. Use `filter` |
 | An address you also allowlisted is still blocked | The blocklist is checked first, and it wins. Take the entry off the blocklist |
 | Nothing changed after saving | Saving stages. It goes live on [Apply]({{ '/docs/features/apply/' | relative_url }}) |
 | The editor names a line number | That line is not a valid address or CIDR; the message says why |

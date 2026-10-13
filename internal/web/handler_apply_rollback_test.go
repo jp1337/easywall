@@ -115,3 +115,14 @@ func TestAuditDetailKeys_HasTheOperatorRollbackEntry(t *testing.T) {
 			"view shows the core's raw token beside translated ones")
 	}
 }
+
+// The two reasons a window can end with besides a timeout and the operator:
+// core.ReasonPanic and core.ReasonCoreStopped, written verbatim here because
+// this package does not import the core.
+func TestAuditDetailKeys_HasThePanicAndCoreStoppedEntries(t *testing.T) {
+	for _, token := range []string{"panic mode", "core stopped"} {
+		if _, ok := auditDetailKeys[token]; !ok {
+			t.Errorf("auditDetailKeys has no entry for %q, so the log view shows the core's raw token", token)
+		}
+	}
+}

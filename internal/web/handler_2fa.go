@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -174,7 +175,10 @@ func (s *Server) handle2FAConfirm(w http.ResponseWriter, r *http.Request) {
 	// The wide window first, so a right code with a wrong clock gets a diagnosis
 	// rather than "wrong code". The fault is on the server; the message must not
 	// point at the human.
-	_, offset, hit := matchTOTP(raw, time.Now(), r.FormValue("code"), totpWindowEnrol)
+	//
+	// Trimmed, as /firstrun/confirm and /login/verify already were: the raw
+	// field refused a pasted "123456 " as wrong and marked the enrolment failed.
+	_, offset, hit := matchTOTP(raw, time.Now(), strings.TrimSpace(r.FormValue("code")), totpWindowEnrol)
 	switch {
 	case !hit:
 		// Marked failed before the re-render regardless of wasFirstFactor: an

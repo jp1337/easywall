@@ -701,6 +701,25 @@ func runResume(cfg *core.Config, _ opts, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "easywall-core: %s\n", resp.Error)
 		return exitFailed
 	}
-	_, _ = fmt.Fprintln(stdout, "Panic mode is over and the stored rules are back in force.")
+	// Said from the reply, not assumed from Success: this line used to promise
+	// "the stored rules are back in force" after every RESUME, including on an
+	// installation where nothing had ever been applied and nothing was written.
+	var res shared.ResumeResult
+	if err := json.Unmarshal(resp.Data, &res); err != nil {
+		_, _ = fmt.Fprintln(stdout, "Panic mode is over. Run `easywall-core status` to see what is in force.")
+		return exitOK
+	}
+	switch {
+	case res.WasEngaged && res.Restored:
+		_, _ = fmt.Fprintln(stdout, "Panic mode is over and the stored rules are back in force.")
+	case res.WasEngaged:
+		_, _ = fmt.Fprintln(stdout, "Panic mode is over. Nothing has ever been applied here, so there were")
+		_, _ = fmt.Fprintln(stdout, "no rules to put back: the first apply in the web interface starts filtering.")
+	case res.Restored:
+		_, _ = fmt.Fprintln(stdout, "Panic mode was not engaged. The stored rules were written again and are in force.")
+	default:
+		_, _ = fmt.Fprintln(stdout, "Panic mode was not engaged, and nothing has ever been applied here.")
+		_, _ = fmt.Fprintln(stdout, "Nothing changed.")
+	}
 	return exitOK
 }

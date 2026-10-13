@@ -49,6 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const langSelect = document.getElementById('lang-select');
   if (langSelect) langSelect.addEventListener('change', () => langSelect.form.submit());
 
+  // The dashboard's Import button is a file picker; choosing a file sends it.
+  // This was an inline onchange attribute, which the CSP blocks — choosing a
+  // file did nothing at all.
+  const rulesFile = document.querySelector('input[name="rules_file"]');
+  if (rulesFile) rulesFile.addEventListener('change', () => rulesFile.form.submit());
+
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
   const menuBtn = document.getElementById('menu-btn');
@@ -340,8 +346,8 @@ function initRuleEditor() {
    A port table can hold fifty entries; scrolling to find one is the wrong
    interaction. Filtering happens in the browser because the rows are already
    here — a round trip would be slower and would discard unsaved edits. */
-function updateRuleCount() {
-  const tbody = document.getElementById('rules-tbody');
+function updateRuleCount(tbodyId = 'rules-tbody') {
+  const tbody = document.getElementById(tbodyId);
   const out   = document.getElementById('rules-count');
   if (!tbody || !out) return;
   const all     = [...tbody.querySelectorAll('tr[data-idx]')];
@@ -473,7 +479,7 @@ function initForwardingEditor() {
 
   tbody.addEventListener('click', e => {
     const del = e.target.closest('.del-rule');
-    if (del) { del.closest('tr').remove(); syncHidden(); }
+    if (del) { del.closest('tr').remove(); syncHidden(); updateRuleCount('fwd-tbody'); }
   });
 
   if (addBtn) {
@@ -485,6 +491,9 @@ function initForwardingEditor() {
       tbody.appendChild(tr);
       tr.querySelector('.f-src')?.focus();
       syncHidden();
+      // The counter is the ports page's: it was rendered once and never moved,
+      // so it read "4 rules" over six rows until the page was reloaded.
+      updateRuleCount('fwd-tbody');
     });
   }
 
@@ -580,22 +589,34 @@ function initApplyStatus() {
     if (rollbackBtn) rollbackBtn.toggleAttribute('hidden', !pending);
 
     // rolled_back is terminal — stop polling and show the error banner.
-    // accepted is NOT terminal: Reset() returns the state to idle within milliseconds,
-    // so keep polling and let the UI transition naturally to idle.
+    // accepted stands until the next apply too, but polling on is harmless:
+    // the next window starts from this page's own button.
     if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
 
       // The core (and the demo) write the literal string "cancelled by
       // operator" only when the operator clicked Roll back now; anything
-      // else — including a fresh install's empty string — is a timeout. Before
+      // else — a timeout, a core that stopped or died inside the window, a fresh
+      // install's empty string — is a window that closed unconfirmed. Before
       // this, every rollback announced "acceptance timeout" here, including
       // the one the operator had just caused by clicking the button — because
       // a timeout used to be the only way a window could end. Written as an
       // if/else of two literal str() calls, not a computed key, so
       // TestClientStringsCoverWhatAppJSAsksFor can see both keys are actually
       // used and clientStringKeys is not shipping dead weight.
+      // Panic mode is the third story: the stored rules went back, the table
+      // stays down, and "apply again" is refused until resume.
       const operator = data.acceptance_reason === 'cancelled by operator';
-      const toast = operator ? str('apply_rolled_back_operator_toast') : str('apply_rolled_back_toast');
+      const panicked = data.acceptance_reason === 'panic mode';
+      let toast = str('apply_rolled_back_toast');
+      let leadText = str('apply_lead_rolled_back');
+      if (operator) {
+        toast = str('apply_rolled_back_operator_toast');
+        leadText = str('apply_lead_rolled_back_operator');
+      } else if (panicked) {
+        toast = str('apply_rolled_back_panic_toast');
+        leadText = str('apply_lead_rolled_back_panic');
+      }
       statusEl.insertAdjacentHTML('afterend',
         `<div role="alert" class="alert alert-crit mt-3"><span>${esc(toast)}</span></div>`);
 
@@ -605,9 +626,7 @@ function initApplyStatus() {
       // dot that this same render() had just changed to "Rolled back" — the
       // poll owns the dot, so it has to own the sentence under it too.
       const lead = document.querySelector('.apply-lead');
-      if (lead) {
-        lead.textContent = operator ? str('apply_lead_rolled_back_operator') : str('apply_lead_rolled_back');
-      }
+      if (lead) lead.textContent = leadText;
     }
   };
 
@@ -716,9 +735,12 @@ function initApplyChip() {
       data = null; // falls through to the unknown branch below
     }
 
-    // idle and accepted both mean confirmed: Reset() returns the status to idle
-    // within milliseconds of an Accept, so by the time this asks, a confirmed
-    // window reads as either one.
+    // The core used to reset the outcome to idle within milliseconds of a
+    // window closing, so a rollback read as idle here and this chip said
+    // "Confirmed" for it. The outcome now stands until the next apply, so a
+    // rollback reaches the branch below as rolled_back. idle still counts as
+    // confirmed: after a window it is only an apply whose kernel write failed
+    // before Wait, which the /apply flash reports.
     const rolledBack = data && data.acceptance === 'rolled_back';
     const confirmed   = data && (data.acceptance === 'accepted' || data.acceptance === 'idle');
 

@@ -453,6 +453,10 @@ func (m *NftablesManager) Enforcing() bool {
 type RuleCounter struct {
 	Packets uint64
 	Bytes   uint64
+	// InputPackets is the part of Packets the input chain counted. Health
+	// compares it, and only it, with the established accept, whose one tagged
+	// copy is in the input chain.
+	InputPackets uint64
 }
 
 // RuleCounters reads the packet counters off the input and forward chains and
@@ -532,6 +536,9 @@ func (m *NftablesManager) RuleCounters() (map[string]RuleCounter, error) {
 				if counter, isCounter := e.(*expr.Counter); isCounter {
 					c.Packets += counter.Packets
 					c.Bytes += counter.Bytes
+					if ch.Name == inputChainName {
+						c.InputPackets += counter.Packets
+					}
 				}
 			}
 			out[id] = c

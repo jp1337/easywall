@@ -202,12 +202,22 @@ func TestLoginVerify_APasswordChangeInvalidatesAPendingState(t *testing.T) {
 // state costs one password round; those are capped at 5 per 10 minutes per
 // address. That is 15 code attempts per 10 minutes per address — and the
 // sixteenth does not get through.
+//
+// The clock moves. This used to run all six rounds in the same instant, where
+// a bucket of five refilling every two minutes looks exactly like "five per ten
+// minutes" — and it is not: over a real ten minutes it let 9 rounds through,
+// 27 code attempts. Every window of ten minutes in half an hour is counted.
 func TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)
 	hash, _ := HashPassword("testpassword123!")
 	s.cfg.Password = hash
 	enrol(t, s)
+
+	resetLoginLimiter()
+	now := time.Unix(1_800_000_000, 0)
+	loginClock = func() time.Time { return now }
+	t.Cleanup(func() { loginClock = time.Now; resetLoginLimiter() })
 
 	const addr = "203.0.113.200:44444"
 	post := func(path, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
@@ -222,30 +232,36 @@ func TestLoginVerify_TheSixteenthCodeAttemptDoesNotGetThrough(t *testing.T) {
 		return rec
 	}
 
-	attempts := 0
-	for round := 1; round <= 6; round++ {
+	// A password round every 30 seconds for half an hour; each one let through
+	// spends its three code attempts.
+	var granted []time.Time
+	for step := 0; step < 60; step, now = step+1, now.Add(30*time.Second) {
 		login := post("/login", "username=admin&password=testpassword123%21")
 		if login.Code == http.StatusTooManyRequests {
-			if attempts != pendingMaxAttempts*5 {
-				t.Fatalf("the limiter refused password round %d after %d code attempts, want %d",
-					round, attempts, pendingMaxAttempts*5)
-			}
-			return
+			continue
 		}
+		granted = append(granted, now)
 		cookies := login.Result().Cookies()
 		for i := 0; i < pendingMaxAttempts; i++ {
-			rec := post("/login/verify", "code=000000", cookies...)
-			attempts++
-			if attempts > pendingMaxAttempts*5 {
-				t.Fatalf("code attempt %d got through; the second step is a six-digit brute force", attempts)
-			}
-			if c := rec.Result().Cookies(); len(c) > 0 {
-				cookies = c
-			}
+			post("/login/verify", "code=000000", cookies...)
 		}
 	}
-	t.Fatalf("six password rounds were allowed; the limiter is not bounding the second step "+
-		"(%d code attempts)", attempts)
+
+	if len(granted) < 5 {
+		t.Fatalf("only %d password rounds were let through at all; the login itself is broken", len(granted))
+	}
+	for i, from := range granted {
+		rounds := 0
+		for _, g := range granted[i:] {
+			if g.Sub(from) < 10*time.Minute {
+				rounds++
+			}
+		}
+		if attempts := rounds * pendingMaxAttempts; attempts > pendingMaxAttempts*5 {
+			t.Fatalf("%d code attempts in the ten minutes from +%v; security.md promises %d",
+				attempts, from.Sub(granted[0]), pendingMaxAttempts*5)
+		}
+	}
 }
 
 // The verify page is the fourth include site of the language switcher. Whoever

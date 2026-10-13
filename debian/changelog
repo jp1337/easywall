@@ -1,3 +1,16 @@
+easywall (2.25.1) unstable; urgency=high
+
+  * A core that died inside the acceptance window no longer comes back
+    enforcing the unconfirmed set; the last confirmed set is restored.
+  * PANIC and RESUME are accepted from root only.
+  * A failed upgrade no longer leaves the services disabled; maintainer
+    scripts carry #DEBHELPER# and handle abort-upgrade.
+  * easywall-web starts while the core is stopped.
+  * Saving a long list no longer empties it.
+  * Go 1.27.2 (GO-2026-6617).
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Tue, 13 Oct 2026 08:30:00 +0200
+
 easywall (2.25.0) unstable; urgency=medium
 
   * Pings are answered in IPv4 and IPv6, behind a new switch that is on by
