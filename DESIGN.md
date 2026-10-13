@@ -1247,6 +1247,14 @@ box sits under its description, where the decision it asks about is read — in 
 column it had one word a line. *Own feeds* is a second card: one form a row, the fields
 side by side.
 
+### The live tail
+
+**Added 2026-10-13 (2.25.2).** /blocked's newest batch carries `.pkt-new`: a
+2 px inset rule in `ink` on the row's first cell — news, not a verdict, so no
+state colour — and a 200 ms fade-in that `prefers-reduced-motion` drops. The
+mark moves to the next batch; it is never the only carrier of the
+information, which the state line and a polite status region say in words.
+
 ### Switch rows
 
 For a setting that is a plain on/off with no parameters. Name, one-line description, switch
