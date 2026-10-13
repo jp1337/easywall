@@ -668,3 +668,27 @@ func TestSaveNotificationsRollsBackAFailedWrite(t *testing.T) {
 		t.Errorf("the file lost the value the successful save wrote:\n%s", raw)
 	}
 }
+
+// health_allow = [] is the one way to close /healthz, and a stored value beats
+// the environment. Both held separately and not together: applyEnv read the
+// empty list as "nothing stored", so EASYWALL_WEB_HEALTH_ALLOW reopened the
+// endpoint the file had closed. An absent key must still let the variable win.
+func TestAnExplicitlyEmptyHealthAllowBeatsTheEnvironment(t *testing.T) {
+	t.Setenv("EASYWALL_WEB_HEALTH_ALLOW", "10.0.0.0/8")
+
+	cfg, err := LoadConfig(writeTempConfig(t, "health_allow = []\n"+validConfigContent))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.HealthAllow) != 0 {
+		t.Errorf("health_allow = [] with the variable set gave %v, want the empty list", cfg.HealthAllow)
+	}
+
+	cfg, err = LoadConfig(writeTempConfig(t, validConfigContent))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.HealthAllow) != 1 || cfg.HealthAllow[0] != "10.0.0.0/8" {
+		t.Errorf("an absent health_allow with the variable set gave %v, want the variable's", cfg.HealthAllow)
+	}
+}
