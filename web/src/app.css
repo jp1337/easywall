@@ -3443,6 +3443,12 @@ body {
      ink-muted clears 4.5:1 in both themes and comes to full ink when the row
      is hovered or holds focus. */
   .pkt-actions .btn { color: var(--color-ink-muted); }
+  /* The live tail's latest batch: a rule in ink, not a state colour — a new
+     row is news, not a verdict — faded in at the slow token. The
+     reduced-motion block drops the fade; the rule stays. */
+  #blocked-rows tr.pkt-new > td:first-child { box-shadow: inset 2px 0 0 var(--color-ink); }
+  #blocked-rows tr.pkt-new { animation: pkt-new-in 200ms cubic-bezier(0.2, 0, 0.2, 1); }
+  @keyframes pkt-new-in { from { opacity: 0; } to { opacity: 1; } }
   .table tbody tr:hover .pkt-actions .btn,
   .table tbody tr:focus-within .pkt-actions .btn { color: var(--color-ink); }
 
