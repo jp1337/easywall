@@ -131,7 +131,7 @@ real exception.
 | `allowlist_section_desc` | Accepted before the port rules are consulted. The protection modules still run first — only the bogon filter makes an exception for this list. |
 | `allowlist_wayback_note` | An allowlisted source skips the port rules entirely, so it reaches services that are not listed under {} at all. |
 | `allowlist_narrow_body` | An entry here reaches every port, open or not. Prefer a single address over a range, and a range over a whole network. |
-| `tile_blocklist_note` | dropped before any rule |
+| `tile_blocklist_note` | dropped before the allowlist |
 | `tile_allowlist_note` | bypass every port rule |
 
 ## Demo mode
