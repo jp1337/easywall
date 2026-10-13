@@ -35,11 +35,17 @@ func (f *Firewall) PanicEngaged() bool {
 // acceptance window.
 //
 // The missing window looks like a breach of easywall's central promise and is
-// not one. Current is, by definition, a rule set that has already survived an
-// acceptance window: it got there through PromoteStaged, which runs only inside
-// an apply, and an apply that was not confirmed rolls Current back. Restoring it
-// changes nothing about the machine's intended state. Refusing to restore it is
-// what changes something.
+// not one. Current is a rule set that has already survived an acceptance
+// window: it got there through PromoteStaged, which runs only inside an apply,
+// and an apply that was not confirmed rolls Current back. Restoring it changes
+// nothing about the machine's intended state. Refusing to restore it is what
+// changes something.
+//
+// That used to be stated as "by definition", and it was false for one case: a
+// core that died inside the window never rolled Current back, so this function
+// enforced the unconfirmed set permanently. The unconfirmed marker is what now
+// makes the claim true — revertUnconfirmed below puts Backup back first
+// whenever the previous run left a window open.
 //
 // A window here could not work even if it were wanted. Nobody is present at boot
 // to confirm, so it would expire; the rollback would install `backup`, which
@@ -91,6 +97,17 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// The wait is long enough for a console `panic` to land in it.
 	if f.PanicEngaged() {
 		return nil
+	}
+
+	// A window the previous run of the core never closed: Current holds a set
+	// nobody confirmed, so it goes back to Backup before anything is restored.
+	// See unconfirmed.go. Refusing on an error, rather than restoring, because
+	// what would be restored is exactly the set that may have locked the
+	// operator out.
+	if err := f.revertUnconfirmed(); err != nil {
+		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",
+			fmt.Sprintf("%s: %s", reason, err.Error()), "core")
+		return err
 	}
 
 	state, err := f.rules.GetState()

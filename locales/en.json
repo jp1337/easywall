@@ -707,6 +707,7 @@
   {"id": "apply_lead_accepted", "translation": "The rules are confirmed and stay in place."},
   {"id": "apply_lead_rolled_back", "translation": "The window closed without a confirmation, so the previous rules were restored. Nothing you staged was lost — review it and apply again."},
   {"id": "apply_lead_rolled_back_operator", "translation": "You rolled the change back, so the previous rules are live again. Nothing you staged was lost — review it and apply again."},
+  {"id": "apply_lead_rolled_back_panic", "translation": "Panic mode ended the window. The stored rules are back to the set in force before this apply, and the table stays down until panic mode is ended at the console. Nothing you staged was lost."},
   {"id": "apply_lead_staged", "translation": "You have staged changes that the running firewall does not have yet."},
   {"id": "apply_lead_clean", "translation": "The running firewall matches what is staged. There is nothing to apply."},
   {"id": "apply_confirm_action", "translation": "Confirm rules"},
@@ -715,6 +716,7 @@
   {"id": "apply_staged_warning", "translation": "Staged changes are waiting. They do nothing until you apply them."},
   {"id": "apply_rolled_back_toast", "translation": "Rules were rolled back — acceptance timeout."},
   {"id": "apply_rolled_back_operator_toast", "translation": "Rules were rolled back at your request."},
+  {"id": "apply_rolled_back_panic_toast", "translation": "The window was ended by panic mode."},
   {"id": "apply_how_title", "translation": "How applying works"},
   {"id": "apply_step1_title", "translation": "Rules go live"},
   {"id": "apply_step1_desc", "translation": "The staged set is pushed to the kernel immediately and starts filtering traffic."},
@@ -930,6 +932,8 @@
 
   {"id": "audit_detail_timeout", "translation": "Acceptance window expired"},
   {"id": "audit_detail_cancelled_by_operator", "translation": "Rolled back by the operator"},
+  {"id": "audit_detail_panic_mode", "translation": "Ended by panic mode"},
+  {"id": "audit_detail_core_stopped", "translation": "Core stopped inside the window"},
   {"id": "audit_detail_via_proxy", "translation": "via proxy"},
 
   {"id": "og_description", "translation": "Linux firewall management with a web interface. Go, nftables, security-first."}

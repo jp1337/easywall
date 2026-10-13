@@ -580,8 +580,8 @@ function initApplyStatus() {
     if (rollbackBtn) rollbackBtn.toggleAttribute('hidden', !pending);
 
     // rolled_back is terminal — stop polling and show the error banner.
-    // accepted is NOT terminal: Reset() returns the state to idle within milliseconds,
-    // so keep polling and let the UI transition naturally to idle.
+    // accepted stands until the next apply too, but polling on is harmless:
+    // the next window starts from this page's own button.
     if (data.acceptance === 'rolled_back') {
       if (timer) { clearInterval(timer); timer = null; }
 
@@ -594,8 +594,19 @@ function initApplyStatus() {
       // if/else of two literal str() calls, not a computed key, so
       // TestClientStringsCoverWhatAppJSAsksFor can see both keys are actually
       // used and clientStringKeys is not shipping dead weight.
+      // Panic mode is the third story: the stored rules went back, the table
+      // stays down, and "apply again" is refused until resume.
       const operator = data.acceptance_reason === 'cancelled by operator';
-      const toast = operator ? str('apply_rolled_back_operator_toast') : str('apply_rolled_back_toast');
+      const panicked = data.acceptance_reason === 'panic mode';
+      let toast = str('apply_rolled_back_toast');
+      let leadText = str('apply_lead_rolled_back');
+      if (operator) {
+        toast = str('apply_rolled_back_operator_toast');
+        leadText = str('apply_lead_rolled_back_operator');
+      } else if (panicked) {
+        toast = str('apply_rolled_back_panic_toast');
+        leadText = str('apply_lead_rolled_back_panic');
+      }
       statusEl.insertAdjacentHTML('afterend',
         `<div role="alert" class="alert alert-crit mt-3"><span>${esc(toast)}</span></div>`);
 
@@ -605,9 +616,7 @@ function initApplyStatus() {
       // dot that this same render() had just changed to "Rolled back" — the
       // poll owns the dot, so it has to own the sentence under it too.
       const lead = document.querySelector('.apply-lead');
-      if (lead) {
-        lead.textContent = operator ? str('apply_lead_rolled_back_operator') : str('apply_lead_rolled_back');
-      }
+      if (lead) lead.textContent = leadText;
     }
   };
 
@@ -716,9 +725,12 @@ function initApplyChip() {
       data = null; // falls through to the unknown branch below
     }
 
-    // idle and accepted both mean confirmed: Reset() returns the status to idle
-    // within milliseconds of an Accept, so by the time this asks, a confirmed
-    // window reads as either one.
+    // The core used to reset the outcome to idle within milliseconds of a
+    // window closing, so a rollback read as idle here and this chip said
+    // "Confirmed" for it. The outcome now stands until the next apply, so a
+    // rollback reaches the branch below as rolled_back. idle still counts as
+    // confirmed: after a window it is only an apply whose kernel write failed
+    // before Wait, which the /apply flash reports.
     const rolledBack = data && data.acceptance === 'rolled_back';
     const confirmed   = data && (data.acceptance === 'accepted' || data.acceptance === 'idle');
 

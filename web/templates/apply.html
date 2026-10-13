@@ -142,6 +142,8 @@
                    second way for the window to end. */}}
               {{if eq .Status.AcceptanceReason "cancelled by operator"}}
               {{T "apply_lead_rolled_back_operator"}}
+              {{else if eq .Status.AcceptanceReason "panic mode"}}
+              {{T "apply_lead_rolled_back_panic"}}
               {{else}}
               {{T "apply_lead_rolled_back"}}
               {{end}}

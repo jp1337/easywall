@@ -1286,6 +1286,8 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 var auditDetailKeys = map[string]string{
 	"timeout":               "audit_detail_timeout",
 	"cancelled by operator": "audit_detail_cancelled_by_operator",
+	"panic mode":            "audit_detail_panic_mode",
+	"core stopped":          "audit_detail_core_stopped",
 }
 
 // detailLabel translates a detail the core wrote from a known vocabulary, and
@@ -1469,8 +1471,8 @@ var clientStringKeys = []string{
 	"demo_readonly",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
-	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",
-	"apply_lead_rolled_back", "apply_lead_rolled_back_operator",
+	"apply_rolled_back_toast", "apply_rolled_back_operator_toast", "apply_rolled_back_panic_toast",
+	"apply_lead_rolled_back", "apply_lead_rolled_back_operator", "apply_lead_rolled_back_panic",
 	"apply_chip_confirmed", "apply_chip_rolled_back",
 	"ports_port_hint", "ports_desc_hint", "ports_sources_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",
