@@ -111,6 +111,13 @@ skips test files unless asked. Measured: 41 files either way without it, 148 wit
 Test-file findings are then filtered out of the SARIF with `jq` — they are printed
 in the log first, so the number is visible if anyone ever wants to act on them.
 
+**What remains fails the job.** Until 2.25.1 nothing in it could: `|| true` on the
+run, and the required check `gosec` is this Actions job — the code-scanning check
+of the same name, which does judge alerts, is not required. A G204 planted in
+shipped code left every step green. Now any finding outside a test file is red;
+a false positive takes a `#nosec Gxxx -- reason` at the line. The tools are pinned,
+and Renovate moves them — see [dependencies](dependencies.md).
+
 ### `docs.yml`
 
 | Job | Note |
