@@ -137,7 +137,9 @@ function initListCounter(inputId, outId, one, many) {
    A poll already in flight when that happens is not swapped in either; `after`
    has not moved, so the next poll fetches the same rows again.
    The pointer counts only on devices that hover: on a phone :hover sticks
-   after a tap. The first rows into a page that had none are new, and marked.
+   after a tap. Only a page that never had rows marks its first fill as new;
+   once it has held rows, a later whole-view swap (an error row, a renumbered
+   ring) is not news.
    Ceiling: a screen reader's browse cursor does not move focus, so it is not
    seen here. */
 function initBlockedTail() {
@@ -182,7 +184,7 @@ function initBlockedTail() {
   document.body.addEventListener('htmx:beforeSwap', e => {
     if (e.detail.elt !== rows) return;
     if (why() !== 'on') { e.detail.shouldSwap = false; return; }
-    hadRows = !!newest();
+    hadRows = hadRows || !!newest();
   });
   document.body.addEventListener('htmx:afterSwap', e => {
     if (e.detail.elt !== rows || e.detail.xhr.status !== 200) return;
