@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -15,14 +17,24 @@ import (
 // the named file, so the test works wherever `go test` was invoked from.
 func repoFile(t *testing.T, parts ...string) string {
 	t.Helper()
+	data, err := os.ReadFile(repoPath(t, parts...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// repoPath is where repoFile found the file.
+func repoPath(t *testing.T, parts ...string) string {
+	t.Helper()
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
 	rel := filepath.Join(parts...)
 	for i := 0; i < 5; i++ {
-		if data, err := os.ReadFile(filepath.Join(dir, rel)); err == nil {
-			return string(data)
+		if _, err := os.Stat(filepath.Join(dir, rel)); err == nil {
+			return filepath.Join(dir, rel)
 		}
 		dir = filepath.Dir(dir)
 	}
@@ -163,5 +175,132 @@ func TestShippedCoreConfigUsesTheCurrentIPv6Key(t *testing.T) {
 	if meta.IsDefined("ipv6", "enabled") {
 		t.Error("config/easywall.toml still sets the obsolete ipv6.enabled; a fresh " +
 			"install would take the migration path and warn about its own packaging on every start")
+	}
+}
+
+// An editor shows the schema's "default" as the value a missing key gets. It
+// said docker.enabled defaults to false while the daemon detects Docker by
+// default, and nothing compared the two. Deprecated keys are skipped: they are
+// read for migration only and have no default of their own.
+func TestTheSchemaDefaultsAreTheShippedDefaults(t *testing.T) {
+	for _, tc := range []struct {
+		file string
+		def  any
+	}{
+		{"easywall.schema.json", CoreDefault()},
+		{"web.schema.json", WebDefault()},
+	} {
+		var schema map[string]any
+		if err := json.Unmarshal([]byte(repoFile(t, "docs", "schemas", tc.file)), &schema); err != nil {
+			t.Fatalf("%s does not parse: %v", tc.file, err)
+		}
+		compareSchemaDefaults(t, tc.file+": ", schema, reflect.ValueOf(tc.def))
+	}
+}
+
+func compareSchemaDefaults(t *testing.T, path string, schema map[string]any, v reflect.Value) {
+	t.Helper()
+	props, _ := schema["properties"].(map[string]any)
+	for key, raw := range props {
+		prop := raw.(map[string]any)
+		field, ok := fieldByTOMLKey(v, key)
+		if !ok || prop["deprecated"] == true {
+			continue // a key missing from the struct is TestEveryConfigKeyIsInTheSchema's
+		}
+		if _, nested := prop["properties"]; nested {
+			compareSchemaDefaults(t, path+key+".", prop, reflect.Indirect(field))
+			continue
+		}
+		want, ok := prop["default"]
+		if !ok {
+			continue
+		}
+		// An unset *bool is off and a nil slice is empty: the JSON that means the
+		// same thing to the daemon.
+		got := field.Interface()
+		switch {
+		case field.Kind() == reflect.Pointer && field.IsNil():
+			got = reflect.Zero(field.Type().Elem()).Interface()
+		case field.Kind() == reflect.Slice && field.IsNil():
+			got = []any{}
+		}
+		g, _ := json.Marshal(got)
+		w, _ := json.Marshal(want)
+		if string(g) != string(w) {
+			t.Errorf("%s%s: schema default %s, shipped default %s", path, key, w, g)
+		}
+	}
+}
+
+func fieldByTOMLKey(v reflect.Value, key string) (reflect.Value, bool) {
+	for i := 0; i < v.NumField(); i++ {
+		if strings.Split(v.Type().Field(i).Tag.Get("toml"), ",")[0] == key {
+			return v.Field(i), true
+		}
+	}
+	return reflect.Value{}, false
+}
+
+// The language enum is what an editor accepts for language; it said en and de
+// while fr shipped, so a valid language = "fr" was flagged as an error.
+func TestTheSchemaLanguagesAreTheShippedCatalogues(t *testing.T) {
+	var schema struct {
+		Properties struct {
+			Language struct {
+				Enum []string `json:"enum"`
+			} `json:"language"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal([]byte(repoFile(t, "docs", "schemas", "web.schema.json")), &schema); err != nil {
+		t.Fatal(err)
+	}
+	files, err := filepath.Glob(filepath.Join(filepath.Dir(repoPath(t, "locales", "en.json")), "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shipped []string
+	for _, f := range files {
+		if name := strings.TrimSuffix(filepath.Base(f), ".json"); name != "status" {
+			shipped = append(shipped, name)
+		}
+	}
+	got := append([]string(nil), schema.Properties.Language.Enum...)
+	sort.Strings(got)
+	if !reflect.DeepEqual(got, shipped) {
+		t.Errorf("web.schema.json language enum %v, locales/ ships %v", got, shipped)
+	}
+}
+
+// configuration.md said "Three flags, and nothing else" while easywall-web also
+// took -healthcheck and easywall-core five subcommands. Every flag either main
+// defines, and every subcommand, must be named in its "The command line"
+// section.
+func TestEveryCommandLineFlagIsDocumented(t *testing.T) {
+	page := repoFile(t, "docs", "_docs", "configuration.md")
+	start := strings.Index(page, "## The command line")
+	if start < 0 {
+		t.Fatal(`configuration.md has no "## The command line" section`)
+	}
+	section := page[start:]
+	if end := strings.Index(section[3:], "\n## "); end >= 0 {
+		section = section[:end+3]
+	}
+	flagRe := regexp.MustCompile(`flag\.(?:Bool|String|Int|Duration)\("([a-z-]+)"`)
+	for _, f := range []string{"cmd/easywall-core/main.go", "cmd/easywall-web/main.go"} {
+		for _, m := range flagRe.FindAllStringSubmatch(repoFile(t, f), -1) {
+			if !strings.Contains(section, "`-"+m[1]) {
+				t.Errorf("%s defines -%s; configuration.md's command-line section does not name it", f, m[1])
+			}
+		}
+	}
+	subRe := regexp.MustCompile(`(?m)^\t\{"([a-z]+)", "`)
+	subs := subRe.FindAllStringSubmatch(repoFile(t, "cmd", "easywall-core", "subcommands.go"), -1)
+	if len(subs) == 0 {
+		t.Fatal("found no subcommands in cmd/easywall-core/subcommands.go — the table's shape changed")
+	}
+	for _, m := range subs {
+		if !strings.Contains(section, "`"+m[1]+"`") {
+			t.Errorf("easywall-core has the subcommand %s; configuration.md's command-line section does not name it", m[1])
+		}
 	}
 }
