@@ -40,8 +40,8 @@ independent of what any port rule says.
 
 | id | English text |
 |---|---|
-| `blocklist_subtitle` | Sources that are dropped before any other rule is evaluated. |
-| `blocklist_what_body` | The blocklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it. |
+| `blocklist_subtitle` | Sources that are dropped before the allowlist, the feeds and the port rules are evaluated. |
+| `blocklist_what_body` | The blocklist is evaluated before the allowlist and the port rules. An address listed here is dropped even if a port rule would have accepted it. Under `ipv6.mode = "passthrough"` an IPv6 entry does nothing: all IPv6 is accepted before this list. |
 | `blocklist_order_step_blocklist_desc` | Dropped. Nothing further down can let it in — not even an allowlist entry inside a blocked range. |
 | `blocklist_order_step_allowlist_desc` | Accepted — the feeds never see it. |
 | `blocklist_order_step_feeds_desc` | Dropped, unless the allowlist accepted it first. |
