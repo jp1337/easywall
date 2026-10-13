@@ -49,7 +49,7 @@ func (s *Server) rejectIPList(w http.ResponseWriter, r *http.Request, page, raw 
 		// The card below the editor stays on the page; it reads what is
 		// staged now, not the refused text.
 		if state, err := s.client.GetRules(); err == nil {
-			data.Feeds = s.feedsCard(state)
+			data.Feeds = s.feedsCard(state, ResolveLang(s.bundle, r, s.cfg.Language))
 		}
 	}
 	s.setFlash(w, r, "save_invalid_entries")
@@ -66,7 +66,7 @@ func (s *Server) handleBlocklistGET(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "blocklist.html", "blocklist", &ipListData{
 		Title:   "blocklist",
 		Entries: state.Staged.Blocklist,
-		Feeds:   s.feedsCard(state),
+		Feeds:   s.feedsCard(state, ResolveLang(s.bundle, r, s.cfg.Language)),
 	})
 }
 

@@ -550,12 +550,18 @@ func (s *Server) refreshFeedNow(id string) {
 	}
 }
 
-// feedRow is one row of the Feeds card: everything Task 7 renders for a feed.
+// feedRow is one row of the Feeds card, or of the Countries card: everything
+// either renders for a feed.
 type feedRow struct {
 	ID   string
-	Name string // the catalogue's; an own feed's own name, or "Own feed N" for an empty slot
+	Name string // the catalogue's; an own feed's own name, or "Own feed N" for an empty slot; a country's in the page's language
 	Own  bool
 	OwnN int // 1..3 for an own feed
+
+	// Country is a row of the Countries card (2.26); Code is its ISO code in
+	// capitals, shown beside the name.
+	Country bool
+	Code    string
 
 	// Configured is false only for an own-feed slot with no URL: an enabled
 	// id there renders "not configured" (P14).
@@ -618,7 +624,8 @@ type feedRow struct {
 }
 
 // feedRows is the Feeds card: the catalogue in its order, then the three own
-// feed slots. state is the page's own GET_RULES answer, nil when it failed.
+// feed slots, then every country switched on in Staged or Current (2.26). state
+// is the page's own GET_RULES answer, nil when it failed.
 func (s *Server) feedRows(state *shared.RulesState) []feedRow {
 	var staged, current []string
 	if state != nil {
@@ -659,6 +666,14 @@ func (s *Server) feedRows(state *shared.RulesState) []feedRow {
 			}
 		}
 		rows = append(rows, row)
+	}
+	for _, id := range append(slices.Clone(staged), current...) {
+		if !shared.IsCountryFeedID(id) || slices.ContainsFunc(rows, func(r feedRow) bool { return r.ID == id }) {
+			continue
+		}
+		f, _ := shared.CatalogueFeedByID(id)
+		rows = append(rows, feedRow{ID: id, Name: f.Name, Country: true, Code: f.Name, Configured: true,
+			Homepage: f.Homepage, Terms: f.Terms, Interval: f.Interval})
 	}
 
 	now := time.Now()

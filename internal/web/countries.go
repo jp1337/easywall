@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/jp1337/easywall/internal/shared"
 	"golang.org/x/text/language"
 	"golang.org/x/text/language/display"
+	"golang.org/x/text/unicode/norm"
 )
 
 // The Countries card on /blocklist (2.26, spec §2). A country is a feed with
@@ -25,6 +27,20 @@ func countryName(lang, cc string) string {
 		}
 	}
 	return strings.ToUpper(cc)
+}
+
+// nameSortKey orders the countries' names the way a reader looks one up:
+// "Ägypten" beside "Afghanistan", "États-Unis" among the E's — the accents
+// taken off, the case folded. Not x/text/collate, which adds 1.5 MB to the
+// web binary for an order that differs from this one in no name x/text has
+// in en, de or fr (TestCountriesSortTheWayAReaderLooksThemUp).
+func nameSortKey(s string) string {
+	return strings.ToLower(strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
+		return r
+	}, norm.NFD.String(s)))
 }
 
 // countriesNext is what a save of the Countries card stages: before with add

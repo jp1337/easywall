@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 )
 
 // Spec §2: the Countries card stages the country subset of Rules.Feeds and
@@ -234,6 +237,92 @@ func TestApplyWaitsForACountrysFirstCopy(t *testing.T) {
 		body := doRequest(s, "GET", "/apply", nil, rec.Result().Cookies()[0], makeAuthCookie(t, s), lc).Body.String()
 		if !strings.Contains(body, want) {
 			t.Errorf("%s: no %q in\n%s", lang, want, body)
+		}
+	}
+}
+
+// Spec D10: the card lists the countries switched on in Staged or Current,
+// named in the page's language, each with the facts a feed row has; the
+// select offers every other country. Nothing about a country is in the
+// Feeds card.
+func TestTheCountriesCardShowsOnlyTheSwitchedOnCountries(t *testing.T) {
+	s, _, _ := feedsCore(t, shared.RulesState{
+		Staged:  shared.Rules{Feeds: []string{"dshield", "country-de", "country-us"}},
+		Current: shared.Rules{Feeds: []string{"country-cn", "country-de"}},
+	}, []shared.FeedStatus{
+		{ID: "country-de", Stored: true, Entries: 11837, InKernel: true, Packets: 42, CountersRead: true},
+		{ID: "country-cn", Stored: true, Entries: 7549, InKernel: true},
+	})
+	body := doRequest(s, "GET", "/blocklist", nil, makeAuthCookie(t, s), &http.Cookie{Name: LangCookie, Value: "de"}).Body.String()
+	row := func(id string) string {
+		t.Helper()
+		m := regexp.MustCompile(`(?s)<tr id="` + id + `">.*?\n</tr>`).FindString(body)
+		if m == "" {
+			t.Fatalf("no row for %s:\n%s", id, body)
+		}
+		return m
+	}
+	de, cn, us := row("country-de"), row("country-cn"), row("country-us")
+	for what, c := range map[string]struct{ in, text string }{
+		"its name":         {de, "Deutschland"},
+		"its code":         {de, ">DE<"},
+		"on and live":      {de, "Aktiv"},
+		"its entries":      {de, ">11837<"},
+		"its packets":      {de, ">42<"},
+		"live, not staged": {cn, "Aus, sobald angewendet — bis dahin aktiv"},
+		"staged, not live": {us, "An, sobald angewendet"},
+		"its remove":       {de, `name="remove" value="country-de"`},
+		"its source":       {de, `href="https://github.com/ipverse/country-ip-blocks"`},
+	} {
+		if !strings.Contains(c.in, c.text) {
+			t.Errorf("%s: %q missing from\n%s", what, c.text, c.in)
+		}
+	}
+	if strings.Contains(cn, `name="remove"`) {
+		t.Error("a country already switched off offers Remove")
+	}
+	if strings.Contains(body, `id="feed-country-`) {
+		t.Error("a country is in the Feeds card")
+	}
+	opts := regexp.MustCompile(`<option value="(country-[a-z]{2})">`).FindAllStringSubmatch(body, -1)
+	if len(opts) != len(shared.CountryCodes)-2 {
+		t.Errorf("%d countries offered, want every one not staged (%d)", len(opts), len(shared.CountryCodes)-2)
+	}
+	for _, o := range opts {
+		if o[1] == "country-de" || o[1] == "country-us" {
+			t.Errorf("%s is staged and still offered", o[1])
+		}
+	}
+	if a, p := strings.Index(body, ">Österreich (AT)<"), strings.Index(body, ">Pakistan (PK)<"); a < 0 || p < 0 || a > p {
+		t.Errorf("Österreich at %d, Pakistan at %d: an umlaut sorts with its letter", a, p)
+	}
+}
+
+func TestTheCountriesCardSaysWhenNoneIsOn(t *testing.T) {
+	s, _, _ := feedsCore(t, shared.RulesState{}, nil)
+	body := doAuthRequest(t, s, "GET", "/blocklist", nil).Body.String()
+	if !strings.Contains(body, "No country is blocked.") || strings.Contains(body, `<tr id="country-`) {
+		t.Errorf("an empty Countries card:\n%s", body)
+	}
+	if n := strings.Count(body, `<option value="country-`); n != len(shared.CountryCodes) {
+		t.Errorf("%d countries offered, want %d", n, len(shared.CountryCodes))
+	}
+}
+
+// nameSortKey stands in for x/text/collate, which costs the web binary 1.5 MB
+// (measured 2026-10-13). It may do so only while it orders every name x/text
+// has the way collation does, in every language the interface ships.
+func TestCountriesSortTheWayAReaderLooksThemUp(t *testing.T) {
+	for _, lang := range []string{"en", "de", "fr"} {
+		var names []string
+		for _, cc := range shared.CountryCodes {
+			names = append(names, countryName(lang, cc))
+		}
+		want := slices.Clone(names)
+		collate.New(language.Make(lang)).SortStrings(want)
+		slices.SortFunc(names, func(a, b string) int { return strings.Compare(nameSortKey(a), nameSortKey(b)) })
+		if !slices.Equal(names, want) {
+			t.Errorf("%s: the order differs from collation:\n got %q\nwant %q", lang, names, want)
 		}
 	}
 }
