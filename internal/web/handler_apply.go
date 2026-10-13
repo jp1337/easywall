@@ -469,6 +469,14 @@ func (s *Server) handleApplyStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// The poll is a background request, which renews nothing — except while a
+	// window is open. An operator watching a long window is using the session,
+	// and one that ran out under them turned "Confirm" into /login and the
+	// apply into a rollback. Bounded by the window, at most an hour.
+	if status.Acceptance == shared.AcceptancePending {
+		sess, _ := s.store.Get(r, SessionName)
+		renewSession(w, r, sess)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	if encErr := json.NewEncoder(w).Encode(status); encErr != nil {
 		slog.Warn("encode status response", "error", encErr)

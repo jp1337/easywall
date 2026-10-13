@@ -100,11 +100,6 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	cfg.configPath = path
 	cfg.fileConfig = cfg.WebConfig // before the overlay, deliberately
-	prov, err := shared.ApplyWebEnv(&cfg.WebConfig)
-	if err != nil {
-		return nil, fmt.Errorf("environment: %w", err)
-	}
-	cfg.provenance = prov
 
 	// health_allow absent is not health_allow empty.
 	//
@@ -116,10 +111,17 @@ func LoadConfig(path string) (*Config, error) {
 	// way an operator has of turning the endpoint off, and TOML keeps the two
 	// apart: an absent key leaves the field nil, `health_allow = []` does not.
 	//
-	// After the overlay, so EASYWALL_WEB_HEALTH_ALLOW is not overwritten by it.
+	// Before the overlay, so applyEnv sees an absent key as the default it
+	// stands for — and only `= []` as an empty list, which beats
+	// EASYWALL_WEB_HEALTH_ALLOW like any stored value.
 	if cfg.HealthAllow == nil {
 		cfg.HealthAllow = shared.WebDefault().HealthAllow
 	}
+	prov, err := shared.ApplyWebEnv(&cfg.WebConfig)
+	if err != nil {
+		return nil, fmt.Errorf("environment: %w", err)
+	}
+	cfg.provenance = prov
 	return &cfg, nil
 }
 

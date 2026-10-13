@@ -5,10 +5,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHashPassword_ProducesArgon2idFormat(t *testing.T) {
@@ -276,4 +278,58 @@ func isPasswordFloorLiteral(e ast.Expr) bool {
 		return false
 	}
 	return lit.Value == "11" || lit.Value == "12"
+}
+
+// One Argon2id run at a time. Unbounded, ten parallel sign-in attempts took the
+// process to 668 MiB; a check that cannot get the slot has to wait for it.
+func TestPasswordHashingWaitsForTheSlot(t *testing.T) {
+	hash, err := HashPassword("correcthorsebatterystaple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	argon2Slots <- struct{}{} // somebody else's run
+	done := make(chan bool)
+	go func() { done <- VerifyPassword("correcthorsebatterystaple", hash) }()
+
+	select {
+	case <-done:
+		<-argon2Slots
+		t.Fatal("a password was checked while the only slot was taken")
+	case <-time.After(300 * time.Millisecond):
+	}
+	<-argon2Slots
+	if !<-done {
+		t.Error("the check that waited for the slot did not verify the right password")
+	}
+}
+
+// A sign-in that cannot get the hashing slot is answered, not queued for ever.
+// A flood from many sources can hold the slot; a backlog without a limit put
+// the operator's own attempt behind all of it, still waiting after the flood.
+func TestASignInThatCannotGetTheSlotIsAnswered503(t *testing.T) {
+	s := newTestServer(t, newFakeCore(t))
+	hash, _ := HashPassword("testpassword123!")
+	s.cfg.Password = hash
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+	prev := loginHashWait
+	loginHashWait = 100 * time.Millisecond
+	t.Cleanup(func() { loginHashWait = prev })
+
+	argon2Slots <- struct{}{} // the flood's run
+	got := make(chan int, 1)
+	go func() {
+		got <- doFormRequest(s, "POST", "/login", "username=admin&password=testpassword123%21").Code
+	}()
+	select {
+	case code := <-got:
+		<-argon2Slots
+		if code != http.StatusServiceUnavailable {
+			t.Errorf("a sign-in with the slot taken got %d, want 503", code)
+		}
+	case <-time.After(3 * time.Second):
+		<-argon2Slots
+		<-got
+		t.Fatal("a sign-in with the slot taken was still waiting after 3 s")
+	}
 }

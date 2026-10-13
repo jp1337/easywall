@@ -14,7 +14,7 @@ access to misuse.
 | | |
 |---|---|
 | Cookie | `easywall`, signed with `session_key`, `HttpOnly` · `Secure` · `SameSite=Lax` |
-| Lifetime | `SessionLifetime` = 600 s, in `internal/web/auth.go` |
+| Lifetime | `SessionLifetime` = 600 s after last use, in `internal/web/auth.go`. `RequireAuth` re-signs the cookie on every request that is not `backgroundRequest` (an htmx or `fetch` GET); `/apply/status` also renews while a window is pending |
 | Constructed by | `newSessionStore` — the **only** place a store is built |
 | Password change | every other session is refused at once |
 | Logout | `POST /logout` — that session's identifier is recorded as revoked |
@@ -33,6 +33,11 @@ interface, with nothing to see. Measured before the fix: `/dashboard` answered 2
 with a cookie 29 days old, and 200 again after the logout record had been swept.
 
 `store.MaxAge()` sets both halves. Write that, never `Options.MaxAge`.
+
+Renewal on use (2.25.1; before it, only a flash renewed, so a session browsed
+with GETs ended 600 s after sign-in) does not loosen this: `RequireAuth`
+renews only a session `sessionUser` accepted, so a revoked cookie is never
+re-signed and still dies one lifetime after the logout at the latest.
 
 **That closed the cookie-age half and only that half**, and this page claimed the
 whole failure closed for three releases. The retention rests on a second
@@ -286,8 +291,34 @@ whole /24, with no credential.
 ## Rate limiting
 
 `LoginRateLimit`: a token bucket per resolved client, 5 tokens refilling one every
-2 minutes. Buckets unused for 15 minutes are swept by a goroutine started once per
-process.
+10 minutes — at most 5 in any ten minutes, the number the second factor's bound of
+fifteen rests on. Until 2.25.1 it refilled one every 2 minutes: 9 rounds and 27
+code attempts in ten minutes, invisible to a test that never moved the clock.
+Buckets unused for 15 minutes are swept by a goroutine started once per
+process; longer than the window, so a sweep never hands out more than five.
+An IPv6 client is keyed by its /64 — a subscriber picks any address in it, and
+keyed per address 200 attempts from one /64 all passed. The price is the NAT
+one IPv4 always had: whoever shares the /64 shares the budget.
+
+The map holds at most 65,536 buckets (~12 MB). At the ceiling a new key is
+**refused**, never let in by evicting another. Random eviction was the first
+version, and cycling ten times the ceiling's worth of keys reset an exhausted
+budget every time (`TestFloodingTheLimiterDoesNotResetABudget`). Only the
+sweep frees a slot, every minute, and only a bucket that limits nobody: back to
+the full budget, or idle 15 minutes. The price: a source not yet tracked waits
+while 65,536 others are live.
+
+Each attempt that passes costs a 64 MiB Argon2id run. `argon2Slots` lets one run
+at a time; the rest wait as goroutines, not allocations: ten parallel attempts
+took the process to 668 MiB before, ~200 MB peak after (the Go heap holds about
+three runs' worth between collections). A sign-in waits at most
+`loginHashWait` (5 s) or until its client leaves, then gets `503`, so a flood
+leaves no backlog behind it. The price: during one, the operator's sign-in can
+be the `503`, and it has already spent a token. A cap is the only alternative to
+a flood that ends in the OOM killer.
+
+"Five in any ten minutes" means a half-open window: a sixth at exactly +600 s
+gets through, which is the next window.
 
 Only the login path is limited. The rest of the interface is behind
 authentication, and the protection modules in the firewall itself are what limit
