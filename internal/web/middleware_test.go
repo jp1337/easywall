@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
@@ -770,5 +771,103 @@ func TestTheGateAllowlistIsExactAndNotAPrefix(t *testing.T) {
 				t.Errorf("answered %d; the request did not reach the handler behind the gate", rec.Code)
 			}
 		})
+	}
+}
+
+// An IPv6 subscriber is routed a /64 and may send from any address in it, so
+// the budget is the /64's. Measured before: 200 attempts from 200 addresses in
+// one /64, all 200 let through. IPv4 stays per address.
+func TestTheLoginBudgetIsPerSlash64(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+	h := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	try := func(addr string) int {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = addr
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+
+	for i := 1; i <= 6; i++ {
+		code := try(fmt.Sprintf("[2001:db8:1:2::%x]:4000", i))
+		if i <= 5 && code != http.StatusOK {
+			t.Fatalf("attempt %d from the /64 got %d, want 200", i, code)
+		}
+		if i == 6 && code != http.StatusTooManyRequests {
+			t.Errorf("a sixth address in the same /64 got %d, want 429", code)
+		}
+	}
+	if code := try("[2001:db8:1:3::1]:4000"); code != http.StatusOK {
+		t.Errorf("the next /64 got %d, want its own budget", code)
+	}
+	for i := 1; i <= 6; i++ {
+		if code := try(fmt.Sprintf("198.51.100.%d:4000", i)); code != http.StatusOK {
+			t.Errorf("IPv4 address %d got %d; IPv4 is keyed per address", i, code)
+		}
+	}
+}
+
+// The map holds one bucket per address a stranger chooses; it is bounded.
+func TestTheLoginLimiterMapIsBounded(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+	h := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	for i := 0; i < loginMaxBuckets+500; i++ {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = fmt.Sprintf("[2001:db8:%x:%x::1]:4000", i>>16, i&0xffff)
+		h.ServeHTTP(httptest.NewRecorder(), r)
+	}
+	loginLimiter.mu.Lock()
+	n := len(loginLimiter.buckets)
+	loginLimiter.mu.Unlock()
+	if n > loginMaxBuckets {
+		t.Errorf("%d buckets after %d addresses, want at most %d", n, loginMaxBuckets+500, loginMaxBuckets)
+	}
+
+	// At the ceiling a new address waits; once the sweep has something that
+	// limits nobody to drop, it gets in.
+	try := func() int {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = "198.51.100.77:4000"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	if code := try(); code != http.StatusTooManyRequests {
+		t.Errorf("a new address at the ceiling got %d, want 429", code)
+	}
+	sweepLoginBuckets(time.Now().Add(16 * time.Minute))
+	if code := try(); code != http.StatusOK {
+		t.Errorf("a new address after the sweep got %d, want 200", code)
+	}
+}
+
+// The map's ceiling must not be a way to reset a budget. Evicting at random,
+// it was: exhaust one address, send from enough others to cycle the map, and
+// the first address was let through again.
+func TestFloodingTheLimiterDoesNotResetABudget(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+	h := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	try := func(addr string) int {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = addr
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+
+	for i := 0; i < loginBudget; i++ {
+		try("203.0.113.50:4000")
+	}
+	for i := 0; i < 10*loginMaxBuckets; i++ {
+		try(fmt.Sprintf("[2001:db8:%x:%x::1]:4000", i>>16, i&0xffff))
+	}
+	if code := try("203.0.113.50:4000"); code != http.StatusTooManyRequests {
+		t.Errorf("an exhausted address got %d after a flood of new ones, want 429", code)
 	}
 }
