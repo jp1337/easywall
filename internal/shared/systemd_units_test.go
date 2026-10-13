@@ -111,19 +111,17 @@ func TestCapSysAdminIsGrantedByExactlyOneUnit(t *testing.T) {
 //
 // So the check is driven by the directory listing rather than by a list somebody
 // maintains: every systemd/*.service has to be installed by debian/rules and by
-// the Makefile's install target, and has to be enabled by postinst and disabled
-// by prerm. Adding a unit and forgetting one of those four is otherwise
-// completely silent.
+// the Makefile's install target, and named on a dh_installsystemd line in
+// debian/rules, which is what enables, starts and stops it. Adding a unit and
+// forgetting one of those three is otherwise completely silent. The unit's
+// name is required on that line because both calls name their units: a unit
+// left off them is installed and never enabled.
 //
-// **Four, and not five.** This comment said "enabled, started, stopped and
-// disabled" while the table below held four rows, and the review measured what
-// that cost: deleting the `systemctl stop` line from debian/prerm leaves this
-// suite green. `systemctl start` is not checked here either — build.yml's
-// install-verify job catches that half with `is-active`, and nothing at all
-// checks the stop. A guard described as covering more than it does is this
-// release's own subject, so the description is corrected rather than the table
-// quietly extended: adding a row is a change to what `make test` demands of
-// the maintainer scripts, and belongs in a change of its own.
+// Until 2.25.1 the third was two rows — `systemctl enable` in postinst and
+// `systemctl disable` in prerm — hand-written beside debhelper rather than
+// through it; see TestMaintainerScriptsKeepTheDebhelperMarker for what that
+// cost. build.yml's install-verify job still catches a unit that does not
+// start, with `is-active`.
 func TestEveryUnitIsInstalledAndManaged(t *testing.T) {
 	root := repoRoot(t)
 
@@ -144,10 +142,8 @@ func TestEveryUnitIsInstalledAndManaged(t *testing.T) {
 	}{
 		{filepath.Join("debian", "rules"), "install",
 			"the .deb would not contain the unit at all"},
-		{filepath.Join("debian", "postinst"), "systemctl enable",
+		{filepath.Join("debian", "rules"), "dh_installsystemd",
 			"the unit would be on disk and never enabled, so it would not run at boot"},
-		{filepath.Join("debian", "prerm"), "systemctl disable",
-			"removing the package would leave an enabled unit pointing at a deleted binary"},
 		{"Makefile", "install",
 			"`make install` would produce a host missing the unit the package installs"},
 	} {
@@ -160,6 +156,41 @@ func TestEveryUnitIsInstalledAndManaged(t *testing.T) {
 				t.Errorf("no %q line in %s names %s: %s", f.verb, f.path, name, f.consequence)
 			}
 		}
+	}
+}
+
+// dh_installsystemd writes the code that enables, starts and stops the units
+// into a maintainer script only where that script has a #DEBHELPER# line. A
+// script without one drops it, and nothing says so: debhelper just leaves the
+// snippet out.
+//
+// postinst and prerm had none until 2.25.1 and did the work by hand with
+// systemctl. Measured in an ubuntu:24.04 systemd container: a 2.25.0 whose
+// upgrade failed in the new preinst stayed "install ok installed" with
+// easywall-core and easywall-web disabled and stopped — prerm had disabled them
+// on `upgrade`, and postinst had no `abort-upgrade` to undo it — so the
+// firewall did not come back at the next boot. And every upgrade re-enabled a
+// web interface the administrator had disabled. build.yml's "A failed upgrade
+// leaves the firewall running" step measures both on the built package.
+func TestMaintainerScriptsKeepTheDebhelperMarker(t *testing.T) {
+	found := 0
+	for _, name := range []string{"preinst", "postinst", "prerm", "postrm"} {
+		b, err := os.ReadFile(filepath.Join(repoRoot(t), "debian", name)) // #nosec G304 -- a fixed list of repository paths
+		if os.IsNotExist(err) {
+			continue // debhelper generates the script whole
+		}
+		if err != nil {
+			t.Fatalf("read debian/%s: %v", name, err)
+		}
+		found++
+		if !slices.Contains(strings.Split(string(b), "\n"), "#DEBHELPER#") {
+			t.Errorf("debian/%s has no line reading #DEBHELPER#, so dh_installsystemd's "+
+				"snippets are dropped from it: units are not enabled, started or stopped "+
+				"by the package, and a failed upgrade leaves them as the script left them", name)
+		}
+	}
+	if found == 0 {
+		t.Fatal("no maintainer script under debian/: this guard is reading nothing")
 	}
 }
 
