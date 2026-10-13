@@ -273,7 +273,11 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 	// takes any size — which is how an operator accepts a list that really
 	// did shrink, or an own feed whose URL now names a shorter list: switch
 	// it off and apply, switch it on, and the next fetch is stored.
-	if had && inCurrent && shrinks(stored.Entries, len(kept)) {
+	// A country is exempt (2.26): it arrives as one aggregated.json, and a
+	// truncated document fails to parse, so the web parser rejects the whole
+	// body and truncation never reaches here. A country of a few prefixes that
+	// loses one (an RIR transfer) is a real shrink, and 3 -> 2 is under 70 %.
+	if had && inCurrent && !shared.IsCountryFeedID(p.ID) && shrinks(stored.Entries, len(kept)) {
 		f.auditFeedRefused(p.ID, fmt.Sprintf("%d entries is under %d %% of the %d stored",
 			len(kept), shared.FeedShrinkPercent, stored.Entries), user)
 		return shared.UpdateFeedResult{}, errors.New(shared.ErrFeedShrankText)

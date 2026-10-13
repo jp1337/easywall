@@ -39,14 +39,11 @@ is struck through and kept as the record of what was ruled and when.
 
 ## From 2.26
 
-Found while reviewing Countries. (b) and (c) are proven against `cebe8910`, the
-commit the branch was cut from. (a) is a **contract hole** in the sense of the
-exception below: the guard works as written, and its contract is narrower than a
-country's size assumes.
+Found while reviewing Countries, proven against `cebe8910`, the commit the branch
+was cut from.
 
 | | |
 |---|---|
-| **The shrink guard counts prefixes** | `internal/core/feeds.go` (step 6) refuses a refresh when `shrinks(stored.Entries, len(kept))`, i.e. `after*100 < before*70`, for a copy in Current. Measured by the arithmetic: 3 → 2 prefixes is refused (200 < 210), 2 → 1 too, 4 → 2 too; 10 → 7 is not. A country of one to three prefixes that loses or merges one gets `ErrFeedShrank` on every refresh, the old copy stays, and its row reads "shrank". Closing it is a decision about the guard's contract: exempt small counts, or compare address counts, which needs the stored copy's size in addresses. Where a reader meets it: nowhere yet, so this entry is the only place |
 | **`TestIntegration_AFeedWithNoCopyHasAnEmptySet` can pass vacuously** | the teardown check ends in `out, _ := exec.Command("nft", "list", "sets", "inet").CombinedOutput()`; if `nft` fails, `out` is empty and "a feed set outlived the teardown" cannot fire. Predates 2.26: `a1787c1a9`, 2026-09-25 |
 | **`shortTime` prints an English month in the German UI** | `internal/web/server.go` formats `"2 Jan 15:04"` with Go's fixed English month names, so `de` reads "13 Oct 09:12". Predates 2.26; the feed rows only show it more often |
 
