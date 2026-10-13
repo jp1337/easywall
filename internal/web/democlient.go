@@ -634,6 +634,13 @@ func (d *demoState) feedStatusLocked() shared.GetFeedsResult {
 		st, ok := d.feeds[id]
 		if !ok {
 			st = shared.FeedStatus{ID: id}
+			if shared.IsCountryFeedID(id) {
+				// Nothing here fetches, and /apply refuses a country with no
+				// copy: one visitor's country would block every visitor's apply.
+				now := time.Now()
+				st = shared.FeedStatus{ID: id, Stored: true, Entries: 3,
+					ChangedAt: now.Add(-24 * time.Hour), CheckedAt: now.Add(-time.Hour)}
+			}
 		}
 		st.InKernel = slices.Contains(d.rules.Current.Feeds, id)
 		if !st.InKernel {
