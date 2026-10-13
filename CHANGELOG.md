@@ -5,6 +5,103 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.1] — 2026-10-13
+
+**A bug bounty: what looked right and did nothing.**
+
+### Security
+
+- **A core that died inside the acceptance window came back enforcing the set
+  nobody confirmed — permanently, with no window.** Apply promotes the new set
+  to disk before the window opens, and only a window that ran to its end ever
+  took it back; a watchdog kill, the OOM killer, `kill -9` or a power cut
+  inside the 120 seconds skipped that. Measured in a network namespace: port 22
+  confirmed, a 443-only set applied, the core abandoned mid-window — the
+  restart enforced `tcp dport 443` and nothing for 22. A marker written before
+  the promote now makes the next start restore the last confirmed set and
+  record `apply_rolledback` / `core stopped`.
+- **The web process could engage and end panic mode.** `PANIC` and `RESUME`
+  were accepted from any client of the `root:easywall` socket and audited as
+  "console". The core now asks the kernel who is connected (`SO_PEERCRED`) and
+  refuses both from anyone but root. `easywall-core panic` and `resume` need
+  root, as `recovery.md` already said.
+- **The second-factor bound was 27 attempts in ten minutes, not the 15
+  `security.md` promises.** The login bucket refilled one round every two
+  minutes; it now refills one every ten. The test that "proved" 15 ran every
+  round in the same instant.
+- **One IPv6 /64 had unlimited sign-in attempts, and ten concurrent sign-ins
+  cost 660 MiB.** The budget is now per /64 (IPv4 per address), the limiter's
+  table is bounded and refuses new sources at the ceiling instead of evicting a
+  live budget, and argon2id hashes one password at a time; a sign-in that
+  cannot get the slot within 5 s is answered 503.
+- Go 1.27.2 and `golang.org/x/net` 0.60.0 (GO-2026-6617, HTTP/2 crash);
+  `dompurify` 3.4.17 and `katex` 0.18.11 in the documentation build.
+
+### Fixed
+
+- **Saving a long blocklist, allowlist or custom-rule list emptied it and said
+  "saved".** A form over 64 KiB could not be parsed, the handler read an empty
+  field, validated it and stored nothing. Reached by saving an imported list
+  unchanged — measured: 6,000 entries → 0. Every form the server cannot read
+  is now refused (413 / 400) before a handler runs, and the list editors accept
+  2 MiB, enough for anything `/import` takes.
+- **Choosing a file under *Import rules* did nothing.** The dashboard submitted
+  it with an inline `onchange`, which the Content-Security-Policy has blocked
+  since 2.0.0. A guard now refuses inline event handlers in templates.
+- **`notify_on_accepted` and `notify_on_rolled_back` never fired, and the
+  rolled-back state was visible for milliseconds.** The core reset its status
+  to idle as soon as apply returned; the 15-second notifier never saw the
+  outcome. The outcome now stands until the next apply. The web tests had
+  passed against a mock that kept the state the real core did not.
+- A window ended by panic mode or by stopping the core was audited as
+  "timeout"; it now says `panic mode` or `core stopped`. A click on *Confirm*
+  racing the deadline could report success for a window that rolled back.
+- **A failed package upgrade left the firewall disabled after the next
+  reboot,** and every upgrade re-enabled a web interface the operator had
+  switched off. `prerm` disabled the services on upgrade and `postinst` had no
+  `abort-upgrade`; the scripts now carry `#DEBHELPER#`.
+- **`easywall-web` would not start while the core was stopped**
+  (`226/NAMESPACE`), so the interface that reports "core unreachable" was the
+  one that was missing. `ReadWritePaths=-/run/easywall`.
+- A missing `acceptance.duration` stopped the core from starting; it is 120,
+  as documented, and 0 or a negative value is clamped like any other value out
+  of range.
+- `SIGHUP` did not change `[usage] interval`, and `interval = 0` at start
+  switched usage collection off until a restart.
+- A host whose inbound traffic is all forwarded to containers reported
+  `degraded` / `stateful_dead`.
+- A session expired ten minutes after sign-in when only pages were read;
+  it now ends ten minutes after last use, as `privacy.md` says. An open
+  acceptance window keeps it alive.
+- `easywall-core resume` said "the stored rules are back in force" when
+  nothing had been restored, and a resume with no panic mode engaged still
+  sent a *panic mode ended* notification.
+- `health_allow = []` lost to `EASYWALL_WEB_HEALTH_ALLOW`.
+- A comment-only change to a list showed *Unapplied changes* beside an empty
+  preview; a port moved between host and forwarded scope did the same.
+- A pasted 2FA code with a trailing space was refused during enrolment and
+  counted as a failure. The forwarding page's rule counter did not follow
+  added or removed rows. A list's leading blank line was lost on every save.
+
+### Documentation
+
+- **The blocklist is not consulted before every other rule.** Loopback, an
+  IPv6 `passthrough`, container networks and established connections come
+  first — under `ipv6.mode = "passthrough"` an IPv6 blocklist entry does
+  nothing. **The allowlist does not outrank the protection modules**: SSH
+  brute-force, SYN flood, port scan, invalid packets and the connection limit
+  drop before it. The UI copy and the pages now say so.
+- The JSON schemas gave `docker.enabled` a default of `false` and refused
+  `language = "fr"`; a guard now compares them with the shipped defaults and
+  catalogues. `web.toml` counted four outbound requests, the schema two — there
+  are five. The command line has `-healthcheck` and five subcommands.
+
+### CI
+
+- The required `gosec` check could not fail (`|| true`); the security tools are
+  pinned and visible to Renovate. The Debian job's version check could not
+  fail either. The 32 tests of the console subcommands ran in no workflow.
+
 ## [2.25.0] — 2026-09-27
 
 **Ping gets an answer, if you want one.**
@@ -2715,7 +2812,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.25.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.25.1...HEAD
+[2.25.1]: https://github.com/jp1337/easywall/compare/v2.25.0...v2.25.1
 [2.25.0]: https://github.com/jp1337/easywall/compare/v2.24.1...v2.25.0
 [2.24.1]: https://github.com/jp1337/easywall/compare/v2.24.0...v2.24.1
 [2.24.0]: https://github.com/jp1337/easywall/compare/v2.23.2...v2.24.0
