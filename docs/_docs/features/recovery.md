@@ -53,6 +53,10 @@ easywall-core panic     # take the firewall down, right now
 easywall-core resume    # end panic mode and put the stored rules back
 ```
 
+`panic` and `resume` need root. The daemon refuses both from any other user —
+the web interface's own account included — with `only root at the console may
+send this command`.
+
 ### `status`
 
 ```

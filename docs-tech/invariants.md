@@ -80,6 +80,7 @@ enough, and a unit test writes the one field a real request does not choose.
 | `TestIntegration_TheCallerCannotNameATrustedProxyAsItself` | the rightmost-untrusted walk; naming a trusted address in the header does not hand the caller that identity | the smaller bypass — the caller picks its own address by writing the proxy's, and gets a fresh rate-limit budget per attempt |
 | `TestIntegration_TheLimiterKeysOnTheResolvedClient` | the bucket key is the resolved client both ways: one budget for an untrusted peer however it rewrites the header, one per client behind a trusted one | either half alone — a shared budget that was the point of the release, or a per-header budget that is the bypass |
 | `TestTheIntegrationJobCoversEveryTaggedPackage` | every package with an integration-tagged test is in the workflow's `go test` path | the five above green in CI and never executed — the job ran `./internal/core/...` alone |
+| `TestSocket_PanicAndResumeAreRefusedFromANonRootPeer`, `TestPeerUID_IsTheConnectingProcess` | `PANIC` and `RESUME` on the socket only from a peer whose `SO_PEERCRED` uid is 0; every other command still open to the group | until 2.25.1 any client of the `root:easywall 0660` socket — `easywall-web` included — could tear the firewall down or re-arm it, audited as `console` |
 
 ## One source for a version
 
