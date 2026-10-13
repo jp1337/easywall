@@ -172,6 +172,32 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 	}
 	sort.Strings(names)
 
+	// The sentences elsewhere that count them too — the shipped web.toml, the
+	// schema an editor shows, the code. web.toml said "four" and the schema
+	// "two" while both pages said five: they were not part of this test.
+	aside := regexp.MustCompile(`(?i)\bof the (\w+) requests easywall\b`)
+	for _, dir := range []string{"config", "docs/schemas", "docs/_docs", "internal"} {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || strings.HasSuffix(path, "_test.go") || d.Name() == "changelog.md" {
+				return err
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, m := range aside.FindAllStringSubmatch(string(raw), -1) {
+				if !strings.EqualFold(m[1], want) {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("%s says %q; the tree makes %d (%s)", rel, m[0], len(rows), strings.Join(names, ", "))
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s/: %v", dir, err)
+		}
+	}
+
 	claim := regexp.MustCompile(`(?m)^([A-Z][a-z]+), and this is the whole list\.$`)
 	for _, page := range []string{"docs/_docs/security.md", "docs/_docs/configuration.md"} {
 		raw, err := os.ReadFile(filepath.Join(root, page))
