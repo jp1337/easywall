@@ -14,10 +14,16 @@ allow stays reachable whatever a feed says.
    alt="Four boxes in a row: your blocklist drops, then the allowlist accepts, then the feeds drop, then the port rules." %}
 
 > **A feed applies to every port, web ports included.** A fail2ban-sourced list
-> like blocklist.de blocks whatever address it names, wherever it connects. A
-> link-preview proxy or a search crawler fetching your site over 80 or 443 can
-> be on one too. Feeds are checked after your allowlist, so a verified
-> crawler's range belongs there, not in an exception you write per feed.
+> like blocklist.de blocks whatever address it names, wherever it connects.
+> **blocklist.de holds Googlebot and Bingbot ranges**: on 2026-10-13 it held 5
+> of Bingbot's 28 published ranges and 2 of Googlebot's 317. A crawler that
+> cannot reach your site drops it from search. Bing's index also feeds ChatGPT
+> search. On a host that serves a public website, either allowlist the ranges
+> the vendors publish
+> ([Googlebot](https://developers.google.com/static/crawling/ipranges/common-crawlers.json),
+> [Bingbot](https://www.bing.com/toolbox/bingbot.json)) or leave blocklist.de
+> off. Feeds are checked after your allowlist, so an allowlisted range passes
+> every feed.
 
 ## Start with Spamhaus DROP and DShield
 
@@ -157,7 +163,7 @@ What each costs, and where its terms are:
 |---|---|---|---|
 | Spamhaus DROP | practically none | ✓ | [terms](https://www.spamhaus.org/drop/terms/) |
 | DShield top block list | practically none | ✓ | [terms](https://isc.sans.edu/api/) |
-| blocklist.de (all) | some — dynamic and recycled addresses, some cloud hosts and Tor exits | ✓ | [terms](https://www.blocklist.de/en/export.html) |
+| blocklist.de (all) | some — dynamic and recycled addresses, some cloud hosts and Tor exits, and search crawlers (Googlebot, Bingbot) | ✓ | [terms](https://www.blocklist.de/en/export.html) |
 | CINS Army | some — about one in eleven is a cloud address | • | [terms](https://cinsscore.com/) |
 | Emerging Threats compromised | notable — a quarter are AWS and Google Cloud addresses; not for hosts that receive webhooks or monitoring from a cloud | • | [terms](https://rules.emergingthreats.net/open/suricata-7.0.3/LICENSE) |
 | IPsum, on ≥ 3 lists | yes — an aggregate, some sources aggressive, with Tor exits | ✗ | [terms](https://github.com/stamparm/ipsum) |
