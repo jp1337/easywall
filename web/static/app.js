@@ -154,7 +154,7 @@ function initBlockedTail() {
 
   const why = () => paused ? 'paused'
     : canHover && rows.matches(':hover') ? 'pointer'
-    : rows.contains(document.activeElement) ? 'focus' : 'on';
+    : rows.contains(document.activeElement) ? 'focus' : 'live';
   const show = () => { state.textContent = state.dataset[why()]; };
   const newest = () => {
     const first = rows.querySelector('tr[data-seq]');
@@ -174,7 +174,7 @@ function initBlockedTail() {
 
   document.body.addEventListener('htmx:beforeRequest', e => {
     if (e.detail.elt !== rows) return;
-    if (why() !== 'on') e.preventDefault();
+    if (why() !== 'live') e.preventDefault();
   });
   document.body.addEventListener('htmx:configRequest', e => {
     if (e.detail.elt !== rows) return;
@@ -183,7 +183,7 @@ function initBlockedTail() {
   });
   document.body.addEventListener('htmx:beforeSwap', e => {
     if (e.detail.elt !== rows) return;
-    if (why() !== 'on') { e.detail.shouldSwap = false; return; }
+    if (why() !== 'live') { e.detail.shouldSwap = false; return; }
     hadRows = hadRows || !!newest();
   });
   document.body.addEventListener('htmx:afterSwap', e => {
@@ -204,7 +204,7 @@ function initBlockedTail() {
     const limit = Number(rows.dataset.limit) || 200;
     [...rows.querySelectorAll('tr[data-seq]')].slice(limit).forEach(tr => tr.remove());
     if (announce && added) {
-      announce.textContent = (added === 1 ? announce.dataset.one : announce.dataset.many).replace('{n}', added);
+      announce.textContent = (added === 1 ? announce.dataset.single : announce.dataset.many).replace('{n}', added);
     }
   });
   rows.querySelectorAll('tr[data-seq]').forEach(tr => { tr.dataset.seen = '1'; });
