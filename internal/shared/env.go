@@ -76,7 +76,8 @@ type Provenance struct {
 	// differs from the built-in default. Empty both when the file only repeats
 	// the default and when an operator deliberately stored "" for a key whose
 	// default is also "" — the two are indistinguishable from this value alone,
-	// and Env is what is in force either way.
+	// and Env is what is in force either way. Also empty for an explicitly empty
+	// list (health_allow = []), which beats Env all the same.
 	Stored string
 }
 
@@ -316,11 +317,17 @@ func applyEnv[T any](cfg *T, def T, vars []EnvVar[T], look func(string) (string,
 		}
 
 		stored := v.Get(cfg)
-		if stored == v.Get(&def) {
+		// An empty string is an absent key for a string field, which TOML decodes
+		// to "". For a list it is `= []` — LoadConfig fills an absent list with
+		// its default before this runs. It used to read as absent for lists too,
+		// so health_allow = [], the one way to close /healthz, lost to
+		// EASYWALL_WEB_HEALTH_ALLOW and the endpoint stayed open.
+		isStored := stored != v.Get(&def) && (stored != "" || v.Kind == EnvList)
+		if !isStored {
 			stored = "" // the file only repeats the default; nobody set this
 		}
 		prov[v.TOMLKey] = Provenance{Name: v.Name, Env: raw, Stored: stored}
-		if stored != "" {
+		if isStored {
 			continue
 		}
 		if err := v.Set(cfg, raw); err != nil {
