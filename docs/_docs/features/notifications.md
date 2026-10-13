@@ -35,7 +35,7 @@ address is refused before it reaches the configuration file.
 
 | Trigger | Sent when | Carries |
 |---|---|---|
-| **An apply undid itself** | the window closed unconfirmed, or you ended it by hand | which of the two it was |
+| **An apply undid itself** | the window closed unconfirmed: it expired, you ended it by hand, panic mode ended it, or the core stopped inside it | which of these it was |
 | **An apply was confirmed** | you confirmed inside the window and the rules are live | the event, nothing more |
 | **Panic mode started or ended** | on either edge, including `easywall-core panic` at the console | which edge, in words |
 | **Repeated failed sign-ins** | five failures from one address inside five minutes | the count and the address |
@@ -51,7 +51,7 @@ status cache holds, so each one is a real ask rather than a free read. Confirmed
 and rolled back are states that stay, not instants that pass. A read landing after
 the 120-second window closed still finds the outcome, so nothing races that window.
 
-A rollback carries the reason it happened, and the two reasons are not flattened
+A rollback carries the reason it happened, and the reasons are not flattened
 into one: a window that expired is not a window an operator ended.
 
 ### The one about sign-ins

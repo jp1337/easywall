@@ -64,6 +64,32 @@ func TestHandleApplyGET_RolledBackByTimeoutKeepsTheTimeoutLead(t *testing.T) {
 	}
 }
 
+// A window ended by `easywall-core panic` is neither story above. The table is
+// down, so "the previous rules were restored" is false, and "apply again" is
+// refused until resume. Reachable since the core keeps the outcome after the
+// window instead of resetting it to idle.
+func TestHandleApplyGET_RolledBackByPanicGetsThePanicLead(t *testing.T) {
+	fc := newFakeCore(t)
+	s := newTestServer(t, fc)
+	enrollFactor(t, s)
+	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
+		Acceptance:       shared.AcceptanceRolledBack,
+		AcceptanceReason: "panic mode",
+		Panic:            true,
+	}))
+
+	rec := doAuthRequest(t, s, "GET", "/apply", nil)
+	assertStatus(t, rec, http.StatusOK)
+	lead := applyLeadText(t, rec.Body.String())
+
+	if !strings.Contains(lead, "Panic mode ended the window") {
+		t.Errorf("a panic-ended window did not get the panic lead; .apply-lead:\n%s", lead)
+	}
+	if strings.Contains(lead, "The window closed without a confirmation") {
+		t.Error("a panic-ended window shows the timeout lead, which says the previous rules are live")
+	}
+}
+
 // applyLeadText returns the contents of the rendered <p class="apply-lead">
 // element, so a check against it cannot be satisfied by the client-strings
 // blob that carries both sentences on every render.
