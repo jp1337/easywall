@@ -120,6 +120,7 @@ The background is in [dependencies](dependencies.md).
 | `TestTemplatesOnlyUseTranslatedKeys` | no visible string bypasses `T` |
 | `TestLocaleFilesAreAtParity` | `en.json` and `de.json` hold the same keys |
 | `TestTranslationsAreNotCopiedEnglish` | a German value is not the English one pasted across |
+| `TestEveryLocaleKeyIsUsed` | every `en.json` key is quoted in a template, `app.js` or non-test Go, or reached by a `printf "prefix_%s"`, `"prefix_" +` or `+ "_suffix"` the code builds keys with. Eight dead keys sat in all three catalogues, one of them on the copied-English allow-list |
 | `TestMarkupStringsAreRenderedThroughRichText` | a message with a link or a `code` span stays one message |
 | `TestOptionHelpsAreComplete` | every option in `optionHelps` has its `_desc`, `_protects`, `_breaks`, `_when` in `en` and `de`, and none carries markup. The disclosure asks for its keys through methods, which `TestTemplatesOnlyUseTranslatedKeys`' `T "literal"` regex cannot see |
 | `TestOptionHelpAnchorsAreFiltersHeadings`, `TestGFMHeadingIDMatchesTheBuiltSite` | every card's docs link lands on a heading `filters.md` has, by kramdown-parser-gfm 1.1.0's id rule, pinned to two ids read out of a real `docs/_site`. A renamed heading opens the page at the top, which looks like it worked |
