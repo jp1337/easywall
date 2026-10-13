@@ -638,7 +638,15 @@ func TestIntegration_ARealisticRuleSetWithFeedsApplies(t *testing.T) {
 				shared.NetworkSettings{}, feeds); err != nil {
 				t.Fatalf("the rollback to the four feeds: %v", err)
 			}
-			out, _ := exec.Command("nft", "list", "sets", "inet").CombinedOutput()
+			out, err := exec.Command("nft", "list", "sets", "inet").CombinedOutput()
+			if err != nil {
+				t.Fatalf("nft list sets inet: %v\n%s", err, out)
+			}
+			// The control: a listing that holds the four feeds' sets is one
+			// that would also show a country's, had one survived.
+			if !strings.Contains(string(out), "feed-dshield-v4") {
+				t.Errorf("the rollback's listing holds no feed-dshield-v4:\n%s", out)
+			}
 			if strings.Contains(string(out), "feed-country-") {
 				t.Errorf("a country's set outlived the rollback:\n%s", out)
 			}
@@ -695,8 +703,8 @@ func TestIntegration_ACountryIsCheckedAfterTheLists(t *testing.T) {
 	listenOn(t, feedTestPort)
 
 	open := []shared.PortRule{{Port: strconv.Itoa(feedTestPort), Description: "country test", ID: "fee0d0000002"}}
-	net := []netip.Prefix{netip.MustParsePrefix("10.77.1.0/24")}
-	feeds := FeedContents{"dshield": net, "country-de": net}
+	src := []netip.Prefix{netip.MustParsePrefix("10.77.1.0/24")}
+	feeds := FeedContents{"dshield": src, "country-de": src}
 	opts := shared.FirewallOptions{LogFeed: true, LogFeedLimit: 30}
 	apply := func(rules shared.Rules) {
 		t.Helper()
