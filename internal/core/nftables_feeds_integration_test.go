@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -590,6 +591,7 @@ func TestIntegration_ARealisticRuleSetWithFeedsApplies(t *testing.T) {
 	}
 	withFeeds := portRules(40, 1000)
 	withFeeds.Feeds = []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised"}
+	withCountries, countryFeeds := largestCountries(withFeeds, feeds)
 	for _, tc := range []struct {
 		name  string
 		rules shared.Rules
@@ -597,6 +599,7 @@ func TestIntegration_ARealisticRuleSetWithFeedsApplies(t *testing.T) {
 	}{
 		{"40 port rules and the four root01xvp feeds", withFeeds, feeds},
 		{"160 port rules, no feed", portRules(160, 1000), nil},
+		{"40 port rules, the four feeds and the 30 largest countries", withCountries, countryFeeds},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newIntegrationManager(t)
@@ -621,7 +624,117 @@ func TestIntegration_ARealisticRuleSetWithFeedsApplies(t *testing.T) {
 			if tc.feeds != nil && !setHolds(t, "feed-blocklist-de-v4", feeds["blocklist-de"][0].Addr()) {
 				t.Errorf("%s: the apply succeeded and blocklist-de's first address is not in its set", tc.name)
 			}
+			if len(tc.rules.Feeds) <= len(withFeeds.Feeds) {
+				return
+			}
+			// 2.26 spec §4: the largest country's last v6 address is loaded,
+			// and the rollback — the previous set applied again — takes every
+			// country's set with it, in one transaction like the apply.
+			us := countryFeeds["country-us"]
+			if !setHolds(t, "feed-country-us-v6", us[len(us)-1].Addr()) {
+				t.Errorf("%s: the United States' last IPv6 address is not in its set", tc.name)
+			}
+			if err := m.ApplyWithFeeds(shared.RulesState{Current: withFeeds}, allProtectionModulesOn(),
+				shared.NetworkSettings{}, feeds); err != nil {
+				t.Fatalf("the rollback to the four feeds: %v", err)
+			}
+			out, _ := exec.Command("nft", "list", "sets", "inet").CombinedOutput()
+			if strings.Contains(string(out), "feed-country-") {
+				t.Errorf("a country's set outlived the rollback:\n%s", out)
+			}
 		})
+	}
+}
+
+// countrySizes are the thirty largest countries in ipverse's aggregated lists,
+// IPv4 and IPv6 prefixes, counted 2026-10-13 from the release tarball
+// (country-ip-blocks.tar.gz). 141 910 + 55 235 prefixes in all.
+var countrySizes = []struct {
+	cc     string
+	v4, v6 int
+}{
+	{"us", 29690, 10685}, {"br", 4928, 8953}, {"de", 8746, 3091}, {"ru", 8660, 2169}, {"gb", 8232, 2046},
+	{"in", 7214, 2873}, {"nl", 5721, 1936}, {"ca", 6457, 1140}, {"id", 4792, 2788}, {"cn", 5514, 2035},
+	{"au", 5676, 1667}, {"fr", 4165, 1395}, {"pl", 3953, 980}, {"it", 3374, 1069}, {"es", 3433, 889},
+	{"hk", 3072, 917}, {"jp", 3203, 669}, {"bd", 2158, 1669}, {"ch", 2683, 871}, {"ua", 2661, 622},
+	{"se", 2057, 857}, {"ar", 1601, 1149}, {"ro", 2458, 270}, {"at", 1908, 597}, {"ir", 1747, 572},
+	{"tr", 1623, 670}, {"cz", 1570, 675}, {"sg", 1754, 482}, {"vn", 1269, 956}, {"za", 1591, 543},
+}
+
+// largestCountries is rules and feeds with the thirty countries switched on
+// after them, each at its measured size: synthetic addresses that never
+// merge, the worst case for elements, as syntheticFeed's are. Seeds from 8<<20
+// keep every country clear of the four feeds' 1<<20 to 4<<20.
+func largestCountries(rules shared.Rules, feeds FeedContents) (shared.Rules, FeedContents) {
+	out := FeedContents{}
+	for id, ps := range feeds {
+		out[id] = ps
+	}
+	rules.Feeds = slices.Clone(rules.Feeds)
+	for i, c := range countrySizes {
+		id := shared.CountryFeedID(c.cc)
+		seed := uint32(8+i) << 20
+		out[id] = append(syntheticFeed(c.v4, false, seed), syntheticFeed(c.v6, true, seed)...)
+		rules.Feeds = append(rules.Feeds, id)
+	}
+	return rules, out
+}
+
+// Spec D8 in the kernel: an address in a list and in a country is dropped,
+// counted and logged by the list, whichever was switched on first. In the
+// country alone, the country drops it under its own counter and prefix; on
+// the allowlist, it reaches the port.
+func TestIntegration_ACountryIsCheckedAfterTheLists(t *testing.T) {
+	for _, bin := range []string{"bash", "timeout"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("skipping: %s is not installed", bin)
+		}
+	}
+	m := newIntegrationManager(t)
+	r := newRouter(t)
+	listenOn(t, feedTestPort)
+
+	open := []shared.PortRule{{Port: strconv.Itoa(feedTestPort), Description: "country test", ID: "fee0d0000002"}}
+	net := []netip.Prefix{netip.MustParsePrefix("10.77.1.0/24")}
+	feeds := FeedContents{"dshield": net, "country-de": net}
+	opts := shared.FirewallOptions{LogFeed: true, LogFeedLimit: 30}
+	apply := func(rules shared.Rules) {
+		t.Helper()
+		if err := m.ApplyWithFeeds(shared.RulesState{Current: rules}, opts, shared.NetworkSettings{}, feeds); err != nil {
+			t.Fatalf("ApplyWithFeeds: %v", err)
+		}
+	}
+
+	apply(shared.Rules{TCP: open, Feeds: []string{"country-de", "dshield"}})
+	input := inputChainText(t, m)
+	list := indexOfRule(input, "ip saddr @feed-dshield-v4", "drop")
+	country := indexOfRule(input, "ip saddr @feed-country-de-v4", `log prefix "easywall feed: country-de "`)
+	if list < 0 || country < 0 || list > country {
+		t.Fatalf("want the list's drop (%d) before the country's log rule (%d):\n  %s",
+			list, country, strings.Join(input, "\n  "))
+	}
+	if tcpReaches(t, r.pidA, "10.77.1.1", feedTestPort) {
+		t.Fatal("a source in a list and a country reached the port")
+	}
+	counters, err := m.RuleCounters()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counters[feedCounterID("dshield")].Packets == 0 || counters[feedCounterID("country-de")].Packets != 0 {
+		t.Errorf("want the list to count the drop and the country nothing: %v", counters)
+	}
+
+	apply(shared.Rules{TCP: open, Feeds: []string{"country-de"}})
+	if tcpReaches(t, r.pidA, "10.77.1.1", feedTestPort) {
+		t.Fatal("a source in a country reached the port")
+	}
+	if counters, err = m.RuleCounters(); err != nil || counters[feedCounterID("country-de")].Packets == 0 {
+		t.Errorf("the country's drop counted nothing under %s: %v, %v", feedCounterID("country-de"), counters, err)
+	}
+
+	apply(shared.Rules{TCP: open, Allowlist: []string{"10.77.1.2"}, Feeds: []string{"country-de"}})
+	if !tcpReaches(t, r.pidA, "10.77.1.1", feedTestPort) {
+		t.Error("an allowlisted source in a country was dropped")
 	}
 }
 
