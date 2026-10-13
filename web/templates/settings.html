@@ -132,7 +132,8 @@
               <label class="field-label" for="routing_networks">{{T "settings_routing_networks_label"}}</label>
               <textarea id="routing_networks" name="routing_networks" rows="4"
                         class="input input-data w-full mt-1.5"
-                        placeholder="10.8.0.0/24&#10;192.168.50.0/24">{{.RoutingNetworks}}</textarea>
+                        placeholder="10.8.0.0/24&#10;192.168.50.0/24">
+{{.RoutingNetworks}}</textarea>
               <p class="field-help">{{richText (T "settings_routing_networks_help")}}</p>
             </div>
           </div>
@@ -167,7 +168,8 @@
               <label class="field-label" for="custom_networks">{{T "settings_custom_networks"}}</label>
               <textarea id="custom_networks" name="custom_networks" rows="4"
                         class="input input-data w-full mt-1.5"
-                        placeholder="192.168.100.0/24&#10;172.20.0.0/16">{{.CustomNetworks}}</textarea>
+                        placeholder="192.168.100.0/24&#10;172.20.0.0/16">
+{{.CustomNetworks}}</textarea>
               <p class="field-help">{{richText (T "settings_custom_networks_help")}}</p>
             </div>
           </div>
