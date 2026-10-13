@@ -75,6 +75,10 @@ type PageData struct {
 	// it rather than inside it.
 	FlashN int
 
+	// FlashName is the one name a flash may carry: the country /apply waits
+	// for (2.26), already in the request's language.
+	FlashName string
+
 	// Panic is true while the core reports that this installation is
 	// deliberately unfiltered. It is on PageData rather than on one handler's
 	// data because the banner it drives belongs on every page: a warning only
@@ -624,6 +628,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		// same page (handler_feeds.go).
 		r.Post("/blocklist/feeds", s.handleFeedsPOST)
 		r.Post("/blocklist/own-feeds", s.handleOwnFeedPOST)
+		r.Post("/blocklist/countries", s.handleCountriesPOST)
 
 		r.Get("/allowlist", s.handleAllowlistGET)
 		r.Post("/allowlist", s.handleAllowlistPOST)
@@ -790,9 +795,11 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 	sess := s.sessionForWrite(r)
 	flash, _ := sess.Values["flash"].(string)
 	flashN, _ := sess.Values["flash_n"].(int)
+	flashName, _ := sess.Values["flash_name"].(string)
 	if flash != "" {
 		delete(sess.Values, "flash")
 		delete(sess.Values, "flash_n")
+		delete(sess.Values, "flash_name")
 		_ = sess.Save(r, w)
 	}
 
@@ -862,6 +869,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name, page strin
 		Data:           data,
 		Panic:          panicMode,
 		FlashN:         flashN,
+		FlashName:      flashName,
 
 		AcceptancePending:   acceptancePending,
 		AcceptanceRemaining: acceptanceRemaining,
@@ -942,6 +950,14 @@ func (s *Server) setFlashN(w http.ResponseWriter, r *http.Request, msg string, n
 	sess := s.sessionForWrite(r)
 	sess.Values["flash"] = msg
 	sess.Values["flash_n"] = n
+	_ = sess.Save(r, w)
+}
+
+// setFlashName is setFlash with the one name a flash may carry.
+func (s *Server) setFlashName(w http.ResponseWriter, r *http.Request, msg, name string) {
+	sess := s.sessionForWrite(r)
+	sess.Values["flash"] = msg
+	sess.Values["flash_name"] = name
 	_ = sess.Save(r, w)
 }
 
@@ -1575,6 +1591,12 @@ func templateFuncs() template.FuncMap {
 		"feeds_own_err_name": true, "feeds_own_err_url": true, "feeds_own_err_login": true,
 		"feeds_own_err_password_again": true, "feeds_own_err_demo": true,
 		"feeds_own_err_in_use": true,
+		// The thirty-first country: nothing was staged, and the card says
+		// how many may be on (spec D5).
+		"feeds_error_too_many_countries": true,
+		// A country switched on and not fetched yet: nothing was applied, and
+		// the wait is the remedy.
+		"apply_country_not_loaded": true,
 		// Neither is a failure of the system: the operator asked for the window
 		// to end early, and either it did or it had already closed on its own.
 		"rules_rolled_back": true, "rollback_too_late": true,
@@ -1684,6 +1706,12 @@ func templateFuncs() template.FuncMap {
 			}
 			return m, nil
 		},
+		// countryFeed: a /blocked feed chip for a country names it as one and
+		// leads to its row in the Countries card (2.26).
+		"countryFeed": shared.IsCountryFeedID,
+		// maxCountries: a string that states the cap takes it from here, never
+		// from a digit in a locale file.
+		"maxCountries": func() int { return shared.MaxCountries },
 		// Class names come from DESIGN.md § Components — only the three firewall
 		// states carry colour, so there is no informational variant here.
 		"flashClass": func(key string) string {

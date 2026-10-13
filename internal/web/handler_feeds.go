@@ -65,7 +65,9 @@ func stagedFeeds(before, on, confirmed []string, configured func(n int) bool) ([
 	}
 	next := []string{}
 	for _, id := range before {
-		if want[id] {
+		// A country is the Countries card's (2.26): this form carries none,
+		// and saving it must not switch them all off.
+		if want[id] || shared.IsCountryFeedID(id) {
 			next = append(next, id)
 			delete(want, id)
 		}
@@ -222,10 +224,14 @@ func (s *Server) handleOwnFeedPOST(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// feedLabel is what /blocked calls the feed a row names: the catalogue name,
-// an own feed's configured name, or "Own feed N" in the page's language. An
-// id no catalogue knows (a core newer than this process) is shown as it is.
-func (s *Server) feedLabel(tFunc func(string, ...interface{}) string, id string) string {
+// feedLabel is what /blocked, /apply and the lockout verdict call a feed: the
+// catalogue name, a country's name in lang (2.26), an own feed's configured
+// name, or "Own feed N" in the page's language. An id no catalogue knows (a
+// core newer than this process) is shown as it is.
+func (s *Server) feedLabel(tFunc func(string, ...interface{}) string, lang, id string) string {
+	if cc, ok := shared.CountryCode(id); ok {
+		return countryName(lang, cc)
+	}
 	if n := ownFeedN(id); n > 0 {
 		if f, ok := s.feedStore.ownFeed(n); ok {
 			return f.Name
