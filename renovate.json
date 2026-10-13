@@ -106,7 +106,7 @@
       "semanticCommitScope": "go",
       "labels": ["renovate", "dependencies", "go", "needs-review"],
       "prBodyNotes": [
-        "Re-render the diagrams after merging this: `npm run build:diagrams` — `docs/_diagrams/install-choice.mmd` names the Go version and the rendered SVGs carry a digest of it.",
+        "Before this can merge, on this branch: `npm ci && npm run build:diagrams`, commit, push. `docs/_diagrams/install-choice.mmd` names the Go version and the rendered SVGs carry a digest of it, so the required check *Generated assets are current* stays red until then. Renovate cannot do it: the hosted app runs no postUpgradeTasks.",
         "`internal/shared/go_version_test.go` fails if any of the places that write the toolchain down disagree, so CI proves this PR is complete."
       ]
     },
@@ -133,7 +133,7 @@
       "matchManagers": ["npm"],
       "matchPackageNames": ["htmx.org"],
       "prBodyNotes": [
-        "Run after merging: `cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js`"
+        "Before this can merge, on this branch: `npm ci && cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js`, commit, push. The required check *Generated assets are current* compares the two and stays red until then. Renovate cannot do it: the hosted app runs no postUpgradeTasks."
       ]
     },
     {
@@ -152,7 +152,7 @@
       "matchManagers": ["npm"],
       "matchPackageNames": ["mermaid"],
       "prBodyNotes": [
-        "Run after merging: `npm run build:diagrams` — every diagram is stale until then, and the assets job says so."
+        "Before this can merge, on this branch: `npm ci && npm run build:diagrams`, commit, push. Every diagram is stale until then, and the required check *Generated assets are current* stays red. Renovate cannot do it: the hosted app runs no postUpgradeTasks."
       ]
     }
   ],
