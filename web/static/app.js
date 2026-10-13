@@ -346,8 +346,8 @@ function initRuleEditor() {
    A port table can hold fifty entries; scrolling to find one is the wrong
    interaction. Filtering happens in the browser because the rows are already
    here — a round trip would be slower and would discard unsaved edits. */
-function updateRuleCount() {
-  const tbody = document.getElementById('rules-tbody');
+function updateRuleCount(tbodyId = 'rules-tbody') {
+  const tbody = document.getElementById(tbodyId);
   const out   = document.getElementById('rules-count');
   if (!tbody || !out) return;
   const all     = [...tbody.querySelectorAll('tr[data-idx]')];
@@ -479,7 +479,7 @@ function initForwardingEditor() {
 
   tbody.addEventListener('click', e => {
     const del = e.target.closest('.del-rule');
-    if (del) { del.closest('tr').remove(); syncHidden(); }
+    if (del) { del.closest('tr').remove(); syncHidden(); updateRuleCount('fwd-tbody'); }
   });
 
   if (addBtn) {
@@ -491,6 +491,9 @@ function initForwardingEditor() {
       tbody.appendChild(tr);
       tr.querySelector('.f-src')?.focus();
       syncHidden();
+      // The counter is the ports page's: it was rendered once and never moved,
+      // so it read "4 rules" over six rows until the page was reloaded.
+      updateRuleCount('fwd-tbody');
     });
   }
 
