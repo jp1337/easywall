@@ -850,10 +850,12 @@ func (d *Daemon) dispatch(cmd shared.Command) shared.Response {
 		return shared.Response{Success: true}
 
 	case shared.CmdResume:
-		if err := d.firewall.Resume("console"); err != nil {
+		res, err := d.firewall.Resume("console")
+		if err != nil {
 			return errResp(err)
 		}
-		return shared.Response{Success: true}
+		data, _ := json.Marshal(res)
+		return shared.Response{Success: true, Data: data}
 
 	case shared.CmdLogEvent:
 		var p shared.LogEventPayload

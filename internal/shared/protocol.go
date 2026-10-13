@@ -325,6 +325,15 @@ type CancelResult struct {
 	Cancelled bool `json:"cancelled"`
 }
 
+// ResumeResult is returned for CmdResume: what the core actually did, so the
+// console can say so. WasEngaged is false for a RESUME with no panic mode to
+// end; Restored is false when nothing has ever been applied here, and the
+// restore therefore wrote nothing.
+type ResumeResult struct {
+	WasEngaged bool `json:"was_engaged"`
+	Restored   bool `json:"restored"`
+}
+
 // ErrApplyInProgressText is the exact Response.Error the core returns when
 // APPLY_RULES arrives while a cycle is already running.
 //

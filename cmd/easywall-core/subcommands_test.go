@@ -203,7 +203,8 @@ func TestRunSubcommand_PanicReportsSuccess(t *testing.T) {
 }
 
 func TestRunSubcommand_ResumeReportsSuccess(t *testing.T) {
-	cfgPath := writeConfig(t, coreSocket(t, shared.Response{Success: true}))
+	cfgPath := writeConfig(t, coreSocket(t, shared.Response{Success: true,
+		Data: json.RawMessage(`{"was_engaged":true,"restored":true}`)}))
 
 	var out, errOut bytes.Buffer
 	if code := runSubcommand("resume", []string{"-config", cfgPath}, &out, &errOut); code != 0 {
@@ -211,6 +212,27 @@ func TestRunSubcommand_ResumeReportsSuccess(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "back in force") {
 		t.Errorf("resume must say plainly that the stored rules are back in force:\n%s", out.String())
+	}
+}
+
+// Every other reply says what happened instead. "Back in force" used to follow
+// any successful RESUME, including one that ended nothing and restored nothing.
+func TestRunSubcommand_ResumeSaysWhatActuallyHappened(t *testing.T) {
+	for _, tc := range []struct {
+		data, want string
+	}{
+		{`{"was_engaged":true,"restored":false}`, "no rules to put back"},
+		{`{"was_engaged":false,"restored":true}`, "was not engaged. The stored rules were written again"},
+		{`{"was_engaged":false,"restored":false}`, "Nothing changed"},
+	} {
+		cfgPath := writeConfig(t, coreSocket(t, shared.Response{Success: true, Data: json.RawMessage(tc.data)}))
+		var out, errOut bytes.Buffer
+		if code := runSubcommand("resume", []string{"-config", cfgPath}, &out, &errOut); code != 0 {
+			t.Fatalf("%s: exit code %d, stderr: %s", tc.data, code, errOut.String())
+		}
+		if !strings.Contains(out.String(), tc.want) || strings.Contains(out.String(), "back in force") {
+			t.Errorf("%s: want %q and no \"back in force\", got:\n%s", tc.data, tc.want, out.String())
+		}
 	}
 }
 
