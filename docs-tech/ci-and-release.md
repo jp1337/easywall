@@ -62,6 +62,12 @@ user**, fetches `/firstrun` over HTTPS, re-runs `postinst` over a 2.21 data
 directory with what that layout let the web user plant, and compares
 `--version` against the package version. A cross-built package could do none of that.
 
+The package is built as `<version>+ci`. The changelog's own version equals the
+default in `version.go`, so a binary the `-X` never reached used to match it —
+a misspelt target in `debian/rules` stayed green. The Dockerfile's and
+`.goreleaser.yaml`'s `-X` are never asked; `TestEveryLinkerVersionFlagNamesTheVariable`
+holds every `-X` in the tree to the one variable.
+
 Two checks earn their place specifically:
 
 - `dpkg-deb --field … Architecture` **and** the ELF machine type of the binary

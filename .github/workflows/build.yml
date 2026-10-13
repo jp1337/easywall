@@ -493,10 +493,22 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y devscripts debhelper
 
+      # Built as <version>+ci, a version the source does not carry. The check
+      # "the version was compiled in" compares the binary with the changelog,
+      # and the changelog's own version equals the default in version.go — so
+      # a binary the -X never reached reported exactly what was expected, and
+      # a misspelt target in debian/rules stayed green. Measured with
+      # -X …shared.CurrentVersoin. Only this job's package carries the suffix;
+      # release.yml builds the changelog as it is.
       - name: Build .deb
         env:
           DEB_BUILD_OPTIONS: nocheck
-        run: dpkg-buildpackage -us -uc -b -d
+        run: |
+          set -euo pipefail
+          v=$(dpkg-parsechangelog --show-field Version)
+          { printf 'easywall (%s+ci) UNRELEASED; urgency=medium\n\n  * CI build.\n\n -- CI <ci@invalid>  %s\n\n' "$v" "$(date -R)"; cat debian/changelog; } > changelog.ci
+          mv changelog.ci debian/changelog
+          dpkg-buildpackage -us -uc -b -d
 
       - name: Collect .deb
         run: mkdir -p dist && mv ../*.deb dist/
@@ -878,6 +890,7 @@ jobs:
         run: |
           set -euo pipefail
           want=$(dpkg-parsechangelog --show-field Version)
+          case "$want" in *+ci) ;; *) echo "::error::the package is $want, not a +ci build: this check cannot tell a working -X from the source default"; exit 1 ;; esac
           for bin in easywall-core easywall-web; do
             got=$(docker exec easywall-test /usr/sbin/$bin --version | awk '{print $2}')
             echo "$bin --version -> $got (package $want)"
