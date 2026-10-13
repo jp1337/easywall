@@ -474,6 +474,9 @@
   {"id": "feeds_own_err_demo", "translation": "Die öffentliche Demo speichert keine eigenen Fremdlisten: ein hier eingegebenes Passwort läge auf ihrem Host."},
   {"id": "feeds_own_err_in_use", "translation": "Nicht entfernt: diese Fremdliste ist eingeschaltet. Schalte sie zuerst aus und wende die Regeln an."},
   {"id": "blocked_rule_feed_named", "translation": "Fremdliste: {{.Name}}"},
+  {"id": "feeds_error_too_many_countries", "translation": "Nichts wurde vorgemerkt: höchstens {{.Max}} Länder lassen sich einschalten. Entferne zuerst eines."},
+  {"id": "blocked_rule_country_named", "translation": "Land: {{.Name}}"},
+  {"id": "apply_country_not_loaded", "translation": "Nichts wurde angewendet: für {{.Name}} liegt noch keine Kopie vor. Warte, bis die Zeile des Landes auf der Sperrliste Einträge zeigt, und wende die Regeln dann an."},
 
   {"id": "forwarding_subtitle", "translation": "Verkehr, der auf einem Port ankommt, auf einen anderen Port dieses Hosts umleiten."},
   {"id": "forwarding_section", "translation": "NAT-Umleitungen"},

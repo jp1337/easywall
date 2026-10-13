@@ -121,8 +121,10 @@
     {{$label := T (printf "blocked_rule_%s" .Rule)}}
     {{/* A feed's chip names the feed and leads to its row on the blocklist
          page, where it is switched off; the allowlist button beside it is
-         the remedy (the feeds run after the allowlist). */}}
-    {{if eq .Rule "feed"}}{{$name := index $.FeedNames .Feed}}<a class="log-action" href="/blocklist#{{if .Feed}}feed-{{.Feed}}{{else}}feeds{{end}}">{{if $name}}{{T "blocked_rule_feed_named" (dict "Name" $name)}}{{else}}{{$label}}{{end}}</a>
+         the remedy (the feeds run after the allowlist). A country's (2.26)
+         says it is a country and leads to its row in the Countries card. */}}
+    {{if eq .Rule "feed"}}{{$name := index $.FeedNames .Feed}}{{if countryFeed .Feed}}<a class="log-action" href="/blocklist#{{.Feed}}">{{T "blocked_rule_country_named" (dict "Name" $name)}}</a>
+    {{else}}<a class="log-action" href="/blocklist#{{if .Feed}}feed-{{.Feed}}{{else}}feeds{{end}}">{{if $name}}{{T "blocked_rule_feed_named" (dict "Name" $name)}}{{else}}{{$label}}{{end}}</a>{{end}}
     {{else}}{{with blockedOption .Rule}}<a class="log-action" href="/options#opt-{{.}}">{{$label}}</a>{{else}}<span class="log-action">{{$label}}</span>{{end}}{{end}}
     {{if $.WhyKnown}}{{with .DropReasonParsed $.Rules $.Applied}}{{if eq .Code "ping_off"}}<span class="pkt-why">{{richText (T "blocked_why_ping_off") "/options#opt-icmp_allow_echo_request" (T "blocked_why_ping_off_link")}}</span>{{else if .Code}}<span class="pkt-why">{{T (printf "blocked_why_%s" .Code) .Params}}</span>{{end}}{{end}}{{end}}
   </div></td>

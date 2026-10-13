@@ -298,7 +298,7 @@
 {{if .Flash}}
 <div role="alert" class="alert {{flashClass .Flash}} mb-4" data-auto-dismiss>
   {{flashIcon .Flash}}
-  <span>{{T .Flash (dict "N" .FlashN)}}</span>
+  <span>{{T .Flash (dict "N" .FlashN "Name" .FlashName "Max" maxCountries)}}</span>
 </div>
 {{end}}
 {{end}}
