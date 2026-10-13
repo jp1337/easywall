@@ -255,8 +255,28 @@ const (
 
 // loginMaxBuckets bounds the limiter's map, whose size is the number of
 // addresses a stranger chooses to send from. It grew without limit: 20,000
-// /64s made 20,000 buckets.
-const loginMaxBuckets = 4096
+// /64s made 20,000 buckets. ~190 bytes each, so ~12 MB at the ceiling.
+//
+// At the ceiling a new address is refused, never let in by evicting another:
+// random eviction was tried, and cycling through more addresses than the map
+// holds reset an exhausted budget every time. Only sweepLoginBuckets frees a
+// slot, and only a bucket that limits nobody. The cost, documented in
+// security.md: while 65,536 sources are live, a source not among them waits.
+const loginMaxBuckets = 65536
+
+// sweepLoginBuckets drops the buckets that limit nobody: refilled to the full
+// budget, so indistinguishable from a new one, or unused for 15 minutes —
+// longer than the ten-minute window, so a fresh bucket after that still lets
+// no window hold more than loginBudget.
+func sweepLoginBuckets(now time.Time) {
+	loginLimiter.mu.Lock()
+	defer loginLimiter.mu.Unlock()
+	for k, b := range loginLimiter.buckets {
+		if now.Sub(b.lastSeen) > 15*time.Minute || b.lim.TokensAt(now) >= loginBudget {
+			delete(loginLimiter.buckets, k)
+		}
+	}
+}
 
 // limiterKey is the address a login budget belongs to: an IPv4 address, or
 // the /64 an IPv6 one is in. A single subscriber is routed a whole /64 and
@@ -309,16 +329,10 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 	// regardless of how many times this middleware factory is called (e.g. in tests).
 	loginLimiter.once.Do(func() {
 		go func() {
-			ticker := time.NewTicker(5 * time.Minute)
+			ticker := time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for range ticker.C {
-				loginLimiter.mu.Lock()
-				for ip, b := range loginLimiter.buckets {
-					if time.Since(b.lastSeen) > 15*time.Minute {
-						delete(loginLimiter.buckets, ip)
-					}
-				}
-				loginLimiter.mu.Unlock()
+				sweepLoginBuckets(loginClock())
 			}
 		}()
 	})
@@ -331,25 +345,22 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 			key := limiterKey(ip)
 			loginLimiter.mu.Lock()
 			b, ok := loginLimiter.buckets[key]
-			if !ok && len(loginLimiter.buckets) >= loginMaxBuckets {
-				// Evict any one. A caller who can force evictions already
-				// holds loginMaxBuckets fresh budgets of its own, so a reset
-				// bucket buys it nothing it did not have.
-				for k := range loginLimiter.buckets {
-					delete(loginLimiter.buckets, k)
-					break
-				}
-			}
-			if !ok {
+			allowed := false
+			switch {
+			case !ok && len(loginLimiter.buckets) >= loginMaxBuckets:
+				// Refused, not let in by evicting a bucket — see loginMaxBuckets.
+			case !ok:
 				// 5 tokens, one back every 10 minutes: at most 5 in any ten
 				// minutes, which is what security.md's fifteen code attempts
 				// rest on. It refilled one every 2 minutes, which is 9 password
 				// rounds in ten minutes — 27 code attempts, not 15.
 				b = &rateBucket{lim: rate.NewLimiter(rate.Every(loginBudgetRefill), loginBudget)}
 				loginLimiter.buckets[key] = b
+				fallthrough
+			default:
+				b.lastSeen = now
+				allowed = b.lim.AllowN(now, 1)
 			}
-			b.lastSeen = now
-			allowed := b.lim.AllowN(now, 1)
 			loginLimiter.mu.Unlock()
 
 			if !allowed {

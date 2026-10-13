@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/sessions"
@@ -824,5 +825,49 @@ func TestTheLoginLimiterMapIsBounded(t *testing.T) {
 	loginLimiter.mu.Unlock()
 	if n > loginMaxBuckets {
 		t.Errorf("%d buckets after %d addresses, want at most %d", n, loginMaxBuckets+500, loginMaxBuckets)
+	}
+
+	// At the ceiling a new address waits; once the sweep has something that
+	// limits nobody to drop, it gets in.
+	try := func() int {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = "198.51.100.77:4000"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+	if code := try(); code != http.StatusTooManyRequests {
+		t.Errorf("a new address at the ceiling got %d, want 429", code)
+	}
+	sweepLoginBuckets(time.Now().Add(16 * time.Minute))
+	if code := try(); code != http.StatusOK {
+		t.Errorf("a new address after the sweep got %d, want 200", code)
+	}
+}
+
+// The map's ceiling must not be a way to reset a budget. Evicting at random,
+// it was: exhaust one address, send from enough others to cycle the map, and
+// the first address was let through again.
+func TestFloodingTheLimiterDoesNotResetABudget(t *testing.T) {
+	resetLoginLimiter()
+	t.Cleanup(resetLoginLimiter)
+	h := LoginRateLimit(func(r *http.Request) (string, bool) { return resolveClient(r, nil) }, nil)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	try := func(addr string) int {
+		r := httptest.NewRequest("POST", "/login", nil)
+		r.RemoteAddr = addr
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w.Code
+	}
+
+	for i := 0; i < loginBudget; i++ {
+		try("203.0.113.50:4000")
+	}
+	for i := 0; i < 10*loginMaxBuckets; i++ {
+		try(fmt.Sprintf("[2001:db8:%x:%x::1]:4000", i>>16, i&0xffff))
+	}
+	if code := try("203.0.113.50:4000"); code != http.StatusTooManyRequests {
+		t.Errorf("an exhausted address got %d after a flood of new ones, want 429", code)
 	}
 }
