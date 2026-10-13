@@ -888,7 +888,7 @@ func (f *Firewall) Rollback() bool {
 // Used by Panic, which must not latch: an installation that panics and then
 // resumes has to be able to apply again. Shutdown wants ShutdownAcceptance.
 func (f *Firewall) CancelAcceptance() {
-	f.acceptance.Cancel()
+	f.acceptance.CancelForPanic()
 }
 
 // ShutdownAcceptance ends an open window and prevents a later one, for a daemon
