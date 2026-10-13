@@ -338,7 +338,7 @@
   {"id": "used_days_one", "translation": "yesterday"},
   {"id": "used_days_many", "translation": "{{.N}} days ago"},
   {"id": "tile_udp_note", "translation": "accepting datagrams"},
-  {"id": "tile_blocklist_note", "translation": "dropped before any rule"},
+  {"id": "tile_blocklist_note", "translation": "dropped before the allowlist"},
   {"id": "tile_allowlist_note", "translation": "bypass every port rule"},
   {"id": "tile_custom_note", "translation": "raw nftables statements"},
   {"id": "tile_forwarding_note", "translation": "NAT redirects"},
