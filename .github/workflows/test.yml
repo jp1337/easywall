@@ -50,7 +50,7 @@ jobs:
         run: go build ./...
 
       - name: Unit tests with race detector
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./internal/...
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./cmd/... ./internal/...
 
       # The profile has to exist and have something in it before anyone is told
       # about it. This check fails; the upload below does not, and that pairing
@@ -337,6 +337,6 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.14.0
           install-mode: goinstall
           args: --timeout 5m

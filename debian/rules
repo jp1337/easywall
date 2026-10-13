@@ -56,9 +56,14 @@ override_dh_auto_install:
 	# never ran — so on a real host the new binaries were on disk and the
 	# services were never restarted. Unattended upgrades take that path unless
 	# they also pass --force-confold, which is not something a package may assume.
+	#
+	# 0644, which is what ships: dh_fixperms resets 0640 to it, and the 0640
+	# this said before was never in a package. Nothing in them is secret — the
+	# session key is a placeholder postinst replaces — and /etc/easywall is
+	# 0750 root:easywall, so nobody else reaches them anyway.
 	install -d debian/easywall/etc/easywall
-	install -m 0640 config/easywall.toml debian/easywall/etc/easywall/easywall.toml.template
-	install -m 0640 config/web.toml      debian/easywall/etc/easywall/web.toml.template
+	install -m 0644 config/easywall.toml debian/easywall/etc/easywall/easywall.toml.template
+	install -m 0644 config/web.toml      debian/easywall/etc/easywall/web.toml.template
 	# systemd units. All three of them: easywall-selftest.service is new in 2.17
 	# and is the one place CAP_SYS_ADMIN is granted, so a package that ships the
 	# other two and not this one boots a core that records "unprovable" for ever
@@ -79,8 +84,25 @@ override_dh_auto_install:
 	install -d debian/easywall/usr/share/man/man1
 	install -m 0644 debian/easywall-core.1 debian/easywall/usr/share/man/man1/easywall-core.1
 
+# Enabling, starting and stopping the units, written into the maintainer
+# scripts by debhelper. deb-systemd-helper remembers a unit the administrator
+# disabled, and the postinst snippets also run on abort-upgrade, so a failed
+# upgrade starts the old version's services again; the hand-written systemctl
+# lines this replaces did neither — see debian/postinst.
+#
+# --no-restart-after-upgrade stops core and web in the new preinst, before its
+# files are unpacked, and starts them in postinst: postinst takes an old data
+# directory apart and needs both stopped while it does. prerm stops them on
+# remove. The self-test unit is enabled and never started here — see
+# debian/postinst for why.
+# TestEveryUnitIsInstalledAndManaged holds every systemd/*.service to one of
+# these two lines.
+override_dh_installsystemd:
+	dh_installsystemd --no-start easywall-selftest.service
+	dh_installsystemd --no-restart-after-upgrade easywall-core.service easywall-web.service
+
 override_dh_auto_test:
-	go test ./internal/...
+	go test ./cmd/... ./internal/...
 
 override_dh_auto_clean:
 	rm -rf bin

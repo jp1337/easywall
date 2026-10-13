@@ -58,7 +58,8 @@ that explicitly with `enabled: false` on the `golang` depType, so nobody adds
 | `groupName: "Go toolchain"` | every place the toolchain is written moves in **one** pull request, and never auto-merges whatever the update type says |
 | three Go `customManagers` | `debian/control`, the prose pins with a trailing `+`, and the four pins without one. All three use `versioning: docker`, for the reason below |
 | a fourth for `pagefind` | the exact version the documentation search index is built with, in `.github/actions/build-search-index/action.yml`. It was `pagefind@1`; the published index was then built by whatever 1.x resolved that morning, with no pull request and nothing to bisect. The loader also reads the bundle's JS API — the `window.PagefindUI` global, five option names, the ES-module form of the highlight file — and the action's count assertion counts index fragments, so a reshaped UI ships green. Default `npm` versioning, because a three-component pin *is* a valid semver version. Not auto-merged even on a patch, for the same reason |
-| `prBodyNotes` on htmx and mermaid | both need a manual step after merging, and CI fails without it |
+| a fifth for `gosec` and `govulncheck` | the `go install …@version` lines in `security.yml`, `go` datasource. They were `@latest`: the security gate ran whatever was released that morning, and a new gosec rule could turn `main` red with no pull request to point at. `golangci-lint` and `goreleaser` are pinned in their actions' `version:` input, which the github-actions manager reads by itself |
+| `prBodyNotes` on htmx, mermaid and the Go toolchain | each needs a manual step **on the pull request's branch** — the required *Generated assets are current* check is red until it is done, so the pull request cannot merge first |
 
 The prose manager is anchored on the trailing `+` (`Go 1.X+`) precisely so it
 cannot touch the five sentences about `net/http.CrossOriginProtection`. Those say
@@ -130,12 +131,27 @@ knew about it. It has both now.
 
 ## Manual steps some updates need
 
-| Dependency | After merging |
+On the Renovate branch, after `npm ci`; commit and push. Renovate then stops
+rebasing that branch, which is what it does with any commit it did not make. The
+alternative is merging the branch into a release branch and committing the result
+there, as 2.25.1 did for mermaid 12.1.0.
+
+The notes said "after merging" until 2.25.1, and no such pull request could merge:
+#210 (mermaid 12.1.0) was red on that check alone.
+
+| Dependency | Step |
 |---|---|
 | `htmx.org` | `cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js` — the served copy is committed and the `assets` job diffs it |
 | `mermaid` | `npm run build:diagrams` — the version is folded into each diagram's digest, so an upgrade makes every SVG stale by design |
 | the Go toolchain | `npm run build:diagrams`, because `docs/_diagrams/install-choice.mmd` names the Go version |
-| `pagefind` | look at the search on the deployed site: that it mounts, and that a result link still marks the term. CI proves the index covers all 26 pages and nothing more |
+| `pagefind` | after merging and the deploy, look at the search on the deployed site: that it mounts, and that a result link still marks the term. CI proves the index covers all 26 pages and nothing more |
+
+### Why Renovate does not do it
+
+| Way | Why not |
+|---|---|
+| `postUpgradeTasks` | blocked on the Mend-hosted app; free users cannot have commands allowlisted, OSS projects can ask for one per request — and `build:diagrams` drives a headless browser |
+| a workflow that regenerates on `renovate/**` and pushes | a push with `GITHUB_TOKEN` starts no workflow, so the check would stay red without a stored token; and it would run a just-published npm release with write access to the repository |
 
 ## Writing a version down anywhere new
 
