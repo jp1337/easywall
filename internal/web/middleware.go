@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -105,9 +106,73 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 				redirectRefused(w, r, "/login")
 				return
 			}
-			next.ServeHTTP(w, r)
+			if backgroundRequest(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			rw := &renewingWriter{ResponseWriter: w, r: r, sess: sess}
+			next.ServeHTTP(rw, r)
+			rw.renew() // a handler that wrote nothing at all
 		})
 	}
+}
+
+// renewSession re-signs an authenticated session, so its lifetime counts from
+// now: privacy.md and security.md say a session ends ten minutes after last
+// use. Only flash-writing actions used to save it, so a session browsed with
+// GETs ended ten minutes after sign-in — and an operator watching a long
+// acceptance window was sent to /login at the moment they went to confirm.
+//
+// Only for a session sessionUser has accepted. A revoked one never gets here,
+// which is what keeps the revocation record's one-lifetime retention sound.
+func renewSession(w http.ResponseWriter, r *http.Request, sess *sessions.Session) {
+	if err := sess.Save(r, w); err != nil {
+		slog.Warn("could not renew the session", "error", err)
+	}
+}
+
+// renewingWriter renews the session as the response starts, unless the
+// handler already saved it — a flash, a re-stamp after a password change. Two
+// Set-Cookie headers for one name is a response whose meaning depends on the
+// reader keeping the last one; one header is not.
+type renewingWriter struct {
+	http.ResponseWriter
+	r    *http.Request
+	sess *sessions.Session
+	done bool
+}
+
+func (w *renewingWriter) renew() {
+	if w.done {
+		return
+	}
+	w.done = true
+	for _, c := range w.Header().Values("Set-Cookie") {
+		if strings.HasPrefix(c, SessionName+"=") {
+			return
+		}
+	}
+	renewSession(w.ResponseWriter, w.r, w.sess)
+}
+
+func (w *renewingWriter) WriteHeader(code int) {
+	w.renew()
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *renewingWriter) Write(b []byte) (int, error) {
+	w.renew()
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *renewingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// backgroundRequest reports a GET a page makes on its own — htmx polling
+// /blocked/rows, app.js fetching /apply/status — rather than one the operator
+// made. Those do not renew a session, or an open tab would keep it alive for
+// ever. The apply screen renews explicitly while a window is open.
+func backgroundRequest(r *http.Request) bool {
+	return r.Method == http.MethodGet && (isHTMX(r) || r.Header.Get("Sec-Fetch-Dest") == "empty")
 }
 
 // RequireSecondFactor sends an authenticated operator with no second factor to
