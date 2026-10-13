@@ -14,7 +14,7 @@ access to misuse.
 | | |
 |---|---|
 | Cookie | `easywall`, signed with `session_key`, `HttpOnly` · `Secure` · `SameSite=Lax` |
-| Lifetime | `SessionLifetime` = 600 s, in `internal/web/auth.go` |
+| Lifetime | `SessionLifetime` = 600 s after last use, in `internal/web/auth.go`. `RequireAuth` re-signs the cookie on every request that is not `backgroundRequest` (an htmx or `fetch` GET); `/apply/status` also renews while a window is pending |
 | Constructed by | `newSessionStore` — the **only** place a store is built |
 | Password change | every other session is refused at once |
 | Logout | `POST /logout` — that session's identifier is recorded as revoked |
@@ -33,6 +33,11 @@ interface, with nothing to see. Measured before the fix: `/dashboard` answered 2
 with a cookie 29 days old, and 200 again after the logout record had been swept.
 
 `store.MaxAge()` sets both halves. Write that, never `Options.MaxAge`.
+
+Renewal on use (2.25.1; before it, only a flash renewed, so a session browsed
+with GETs ended 600 s after sign-in) does not loosen this: `RequireAuth`
+renews only a session `sessionUser` accepted, so a revoked cookie is never
+re-signed and still dies one lifetime after the logout at the latest.
 
 **That closed the cookie-age half and only that half**, and this page claimed the
 whole failure closed for three releases. The retention rests on a second
