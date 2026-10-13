@@ -5,6 +5,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -94,6 +97,27 @@ func TestSecurityHeaders_NoUnsafeInlineInScriptSrc(t *testing.T) {
 	csp := rec.Header().Get("Content-Security-Policy")
 	if strings.Contains(csp, "'unsafe-inline'") {
 		t.Errorf("CSP must not contain 'unsafe-inline': %s", csp)
+	}
+}
+
+// The other half of the rule above: with no 'unsafe-inline', an inline event
+// handler is never run. The dashboard's Import button was an onchange
+// attribute, so choosing a file did nothing — the only trace a console line.
+// A handler belongs in app.js.
+func TestTemplatesCarryNoInlineEventHandler(t *testing.T) {
+	inline := regexp.MustCompile(`(?i)\son[a-z]+\s*=\s*["']`)
+	paths, _ := filepath.Glob(filepath.Join(repoTemplates(t), "*.html"))
+	if len(paths) == 0 {
+		t.Fatal("no templates found")
+	}
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range inline.FindAllString(string(data), -1) {
+			t.Errorf("%s: inline event handler %q — the CSP blocks it; bind it in app.js", filepath.Base(p), strings.TrimSpace(m))
+		}
 	}
 }
 
