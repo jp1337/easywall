@@ -386,3 +386,29 @@ func TestTheReleaseWaitsForAGreenMain(t *testing.T) {
 		t.Error("goreleaser does not need main-is-green: a tag on a red main would be released")
 	}
 }
+
+// The required check "gosec" is the Actions job, not the code-scanning check
+// of the same name, so the job itself has to be able to fail. Until 2.25.1 its
+// run ended in `|| true` and nothing after it exited non-zero: a G204 planted
+// in shipped code left it green. And no workflow tool may float on `latest` —
+// Renovate cannot see it, so it moves with no pull request to point at.
+func TestTheSecurityToolsCanFailAndArePinned(t *testing.T) {
+	block := jobBlock(t, repoFile(t, ".github", "workflows", "security.yml"), "gosec")
+	if namedOutsideAComment(block, "|| true") {
+		t.Error("security.yml's gosec job swallows an exit status with `|| true`")
+	}
+	if !namedOutsideAComment(block, "exit 1") {
+		t.Error("nothing in security.yml's gosec job exits 1, so a finding cannot fail the required check")
+	}
+	root := repoRootDir(t)
+	for _, f := range trackedFiles(t, root) {
+		if !strings.HasPrefix(f, ".github/workflows/") {
+			continue
+		}
+		for i, line := range strings.Split(readRepoPath(t, root, f), "\n") {
+			if strings.Contains(line, "@latest") || strings.TrimSpace(line) == "version: latest" {
+				t.Errorf("%s:%d floats on latest, which Renovate cannot see: %s", f, i+1, strings.TrimSpace(line))
+			}
+		}
+	}
+}

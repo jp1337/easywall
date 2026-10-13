@@ -9,22 +9,22 @@ go 1.26.0
 // above, so every workflow, the release and the Debian package compile with
 // exactly this toolchain; Renovate keeps the line current on its own, which is
 // the whole reason it is here rather than spelled out in ten workflow steps.
-toolchain go1.27.1
+toolchain go1.27.2
 
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/boombuler/barcode v1.1.0
 	github.com/descope/virtualwebauthn v1.0.5
 	github.com/florianl/go-nflog/v2 v2.3.0
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/nftables v0.3.0
 	github.com/gorilla/sessions v1.4.0
 	github.com/mdlayher/netlink v1.11.2
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
-	golang.org/x/crypto v0.57.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/crypto v0.58.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
 )
 
@@ -41,6 +41,6 @@ require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
 )

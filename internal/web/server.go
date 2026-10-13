@@ -525,7 +525,18 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	// docs-tech/threat-model.md for why the setting is a list and never a flag.
 	r.Use(middleware.Recoverer)
 	r.Use(SecurityHeaders)
-	r.Use(MaxBodySize(64*1024, map[string]int64{"/import": maxImportBytes}))
+	r.Use(MaxBodySize(64*1024, map[string]int64{
+		"/import": maxImportBytes,
+		// Every editor an imported list lands in, so what /import accepts can
+		// be saved back — see maxListFormBytes.
+		"/ports":           maxListFormBytes,
+		"/forwarding":      maxListFormBytes,
+		"/blocklist":       maxListFormBytes,
+		"/allowlist":       maxListFormBytes,
+		"/iplist/validate": maxListFormBytes,
+		"/custom":          maxListFormBytes,
+		"/custom/validate": maxListFormBytes,
+	}))
 
 	// CSRF protection via Go 1.25 net/http.CrossOriginProtection (Origin/Sec-Fetch-Site header check)
 	cop := http.NewCrossOriginProtection()
@@ -597,6 +608,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(RequireAuth(s.store, s.currentCredential()))
 		r.Use(RequireSecondFactor(s.hasSecondFactor, s.client.IsDemo))
+		r.Use(RequireReadableForm)
 
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
@@ -1286,6 +1298,8 @@ func richText(text string, hrefLabelPairs ...string) (template.HTML, error) {
 var auditDetailKeys = map[string]string{
 	"timeout":               "audit_detail_timeout",
 	"cancelled by operator": "audit_detail_cancelled_by_operator",
+	"panic mode":            "audit_detail_panic_mode",
+	"core stopped":          "audit_detail_core_stopped",
 }
 
 // detailLabel translates a detail the core wrote from a known vocabulary, and
@@ -1469,8 +1483,8 @@ var clientStringKeys = []string{
 	"demo_readonly",
 	"state_idle", "state_pending", "state_accepted", "state_rolled_back",
 	"state_unknown",
-	"apply_rolled_back_toast", "apply_rolled_back_operator_toast",
-	"apply_lead_rolled_back", "apply_lead_rolled_back_operator",
+	"apply_rolled_back_toast", "apply_rolled_back_operator_toast", "apply_rolled_back_panic_toast",
+	"apply_lead_rolled_back", "apply_lead_rolled_back_operator", "apply_lead_rolled_back_panic",
 	"apply_chip_confirmed", "apply_chip_rolled_back",
 	"ports_port_hint", "ports_desc_hint", "ports_sources_hint", "action_remove_rule", "port_range_hint",
 	"count_entry_one", "count_entry_many", "count_rule_one", "count_rule_many",

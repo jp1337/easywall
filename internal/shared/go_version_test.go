@@ -397,3 +397,34 @@ func readRepoPath(t *testing.T, root, rel string) string {
 	}
 	return string(data)
 }
+
+// A Renovate note that tells a person to regenerate a committed artefact
+// "after merging" describes a pull request that cannot merge: the required
+// check "Generated assets are current" is red until the artefact is rebuilt
+// on the branch. All three such notes said so until 2.25.1, and #210
+// (mermaid 12.1.0) sat red on that check alone.
+func TestRenovateNotesDoNotDeferARequiredStep(t *testing.T) {
+	var cfg struct {
+		PackageRules []struct {
+			PrBodyNotes []string `json:"prBodyNotes"`
+		} `json:"packageRules"`
+	}
+	if err := json.Unmarshal([]byte(readRepoPath(t, repoRootDir(t), "renovate.json")), &cfg); err != nil {
+		t.Fatalf("parse renovate.json: %v", err)
+	}
+	steps := 0
+	for _, r := range cfg.PackageRules {
+		for _, n := range r.PrBodyNotes {
+			if !strings.Contains(n, "build:diagrams") && !strings.Contains(n, "htmx.min.js") {
+				continue
+			}
+			steps++
+			if strings.Contains(strings.ToLower(n), "after merging") {
+				t.Errorf("renovate.json defers a step the required assets check needs: %q", n)
+			}
+		}
+	}
+	if steps < 3 {
+		t.Errorf("found %d notes naming a regeneration step, want 3 (htmx, mermaid, Go toolchain)", steps)
+	}
+}

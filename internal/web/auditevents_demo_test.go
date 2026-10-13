@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -51,7 +52,7 @@ func TestTheDemoLogsARefusedLoginWithoutTheAddress(t *testing.T) {
 		resetLoginLimiter()
 		t.Cleanup(resetLoginLimiter)
 
-		var logs bytes.Buffer
+		var logs lockedBuffer
 		prev := slog.Default()
 		slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
 		t.Cleanup(func() { slog.SetDefault(prev) })
@@ -106,4 +107,25 @@ func TestTheDemoLinksTheGermanPrivacyPolicyInGerman(t *testing.T) {
 	if !strings.Contains(body, "https://easywall-project.org/datenschutz/") {
 		t.Error("the German demo does not link /datenschutz/")
 	}
+}
+
+// lockedBuffer is a bytes.Buffer a background goroutine may write to while the
+// test reads it. The server's auditEvents goroutine logs through slog.Default
+// whenever an event cannot reach the core, and a plain buffer made that a data
+// race the race detector caught about once in two hundred runs.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

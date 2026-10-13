@@ -21,7 +21,7 @@ holds no privilege worth stealing.
 | Auth brute force | Argon2id, plus 5 attempts per 10 minutes per source address |
 | CSRF | Go 1.25 `net/http.CrossOriginProtection` — `Origin` and `Sec-Fetch-Site` on every unsafe method |
 | XSS | `html/template` escapes by default; CSP with no `'unsafe-inline'` and no external origin |
-| Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, 600-second lifetime, and every session ends the moment the password changes |
+| Session hijacking | HTTPS only, `HttpOnly`, `Secure`, `SameSite=Lax`, ends 600 seconds after last use, and every session ends the moment the password changes |
 | Locking the admin out | The acceptance window rolls back on its own; if it already has and you are still shut out, `easywall-core panic` reaches the firewall from the console — see [Panic mode](#panic-mode) |
 | A clock that blocks the mandatory second factor | A board with no real-time clock, or one that is simply wrong, can make every code fail. Enrolling does not need console access to recover from that — see [If the clock is wrong](#if-the-clock-is-wrong) |
 | Known CVEs in dependencies | `govulncheck` on every pull request and weekly, plus CodeQL and `gosec` |
@@ -32,12 +32,12 @@ holds no privilege worth stealing.
 
 | | |
 |---|---|
-| Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password |
+| Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password. One at a time — see [what the limits cost](#what-the-sign-in-limits-cost) |
 | Password floor | at least 12 characters, with a digit and a symbol — not configurable |
 | Default password | none. The first-run wizard is mandatory |
 | First run | only with the setup token easywall-web prints to its log at start — [First Run]({{ '/docs/installation/first-run/' | relative_url }}#the-setup-token) |
-| Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
-| Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
+| Rate limit | 5 attempts per 10 minutes per source address — an IPv6 source counts as its /64. One returned every 10 minutes |
+| Session | ends 600 s after last use. A page polling on its own is not use, except the apply screen during a window · `HttpOnly` · `Secure` · `SameSite=Lax` |
 | Cookie signing key | generated on first start unless configured. Anyone holding it can forge a session, and the placeholder in the sample config is published here — so a missing, short or placeholder key is replaced and written back |
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |
 | Password change | ends every **other** session at once. Each carries a fingerprint of the password hash it was issued under and is refused once that stops matching |
@@ -68,6 +68,19 @@ restart.
 
 Both halves are held by tests. Three attempts end the attempt whichever door
 they came through, and the sixteenth in ten minutes does not get through.
+
+### What the sign-in limits cost
+
+Each limit closes a flood, and each has a price somebody else can make you pay.
+
+| Limit | Closes | The price |
+|---|---|---|
+| 5 attempts per 10 minutes, IPv6 per /64 | guessing; one host rotating through its /64 | whoever shares your /64, or your IPv4 address behind NAT, spends your budget |
+| One password hash at a time, 5 s wait | 64 MiB per attempt — ten at once took 668 MiB | a flood from many sources can keep the slot busy: your sign-in is answered `503` and still counts against your budget |
+| 65,536 sources tracked | memory chosen by strangers | while that many have tried in the last 15 minutes, a new source is answered `429` until one ages out. A source already tracked is unaffected |
+
+Nothing at the ceiling is let in by forgetting another source: that would
+hand an exhausted budget back to whoever sent from enough addresses.
 
 ### Passkeys are a second factor, never a replacement
 
@@ -136,7 +149,8 @@ matter for the rest of this model:
 - **While the marker exists, an apply is refused and the acceptance rollback
   stops at the kernel.** The stored rules are still reverted: an apply nobody
   confirmed never gets to keep `Current`, or the next restore would install it
-  with no window of its own. But the previous rules are not written back into a
+  with no window of its own. The same holds when the core dies inside the
+  window: the next start reverts first ([recovery]({{ '/docs/features/recovery/' | relative_url }})). But the previous rules are not written back into a
   table the console has deliberately torn down. That kernel half is the one place
   in easywall where the central promise — every apply reverts itself unless you
   confirm it — is switched off outright. That is because there is nothing

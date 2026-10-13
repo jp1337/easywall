@@ -30,7 +30,7 @@ optimising; cost is not.
 
 | Job | Note |
 |---|---|
-| `test` | `-race`, coverage uploaded to Codecov. The profile is checked non-empty by a step that *can* fail, because the upload step cannot (`continue-on-error`) |
+| `test` | `./cmd/...` and `./internal/...` with `-race` — `./internal/...` alone, until 2.25.1, left the 32 console-subcommand tests in `cmd/easywall-core` running nowhere (`TestEveryTestedPackageIsInTheUnitTestRuns`). Coverage uploaded to Codecov. The profile is checked non-empty by a step that *can* fail, because the upload step cannot (`continue-on-error`) |
 | `test-integration` | `sudo go test -tags integration` over `./internal/core/...` and, since 2.13, `./internal/web/...` — `-timeout 300s` for both packages together. Namespaced via `CLONE_NEWNET` in `TestMain`; the only place `nftables.go`'s rule builders execute (without this job they measure 0%) and the only place the trusted-proxy resolution sees a kernel-assigned peer rather than one a test wrote into a struct |
 | `assets` | rebuilds both stylesheets and diffs them, runs `check:diagrams`, and re-copies `htmx.min.js` from `node_modules` and diffs that. Three committed artefacts, three freshness checks |
 | `ui` | Playwright against demo mode. Catches what no Go assertion can: the forwarding editor storing `1E+04` as port 1, a console error, a sideways scroll, in both themes |
@@ -61,6 +61,12 @@ every path, starts both services, connects to the socket **as the `easywall`
 user**, fetches `/firstrun` over HTTPS, re-runs `postinst` over a 2.21 data
 directory with what that layout let the web user plant, and compares
 `--version` against the package version. A cross-built package could do none of that.
+
+The package is built as `<version>+ci`. The changelog's own version equals the
+default in `version.go`, so a binary the `-X` never reached used to match it —
+a misspelt target in `debian/rules` stayed green. The Dockerfile's and
+`.goreleaser.yaml`'s `-X` are never asked; `TestEveryLinkerVersionFlagNamesTheVariable`
+holds every `-X` in the tree to the one variable.
 
 Two checks earn their place specifically:
 
@@ -104,6 +110,13 @@ anything: everything behind the integration tag is a `_test.go` file, and gosec
 skips test files unless asked. Measured: 41 files either way without it, 148 with.
 Test-file findings are then filtered out of the SARIF with `jq` — they are printed
 in the log first, so the number is visible if anyone ever wants to act on them.
+
+**What remains fails the job.** Until 2.25.1 nothing in it could: `|| true` on the
+run, and the required check `gosec` is this Actions job — the code-scanning check
+of the same name, which does judge alerts, is not required. A G204 planted in
+shipped code left every step green. Now any finding outside a test file is red;
+a false positive takes a `#nosec Gxxx -- reason` at the line. The tools are pinned,
+and Renovate moves them — see [dependencies](dependencies.md).
 
 ### `docs.yml`
 

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -31,6 +33,29 @@ func TestSettingFormsSaveOnSubmitAndCanBeSubmittedWithoutAScript(t *testing.T) {
 			if !strings.Contains(form, `type="submit"`) {
 				t.Errorf("%s: form %d has no submit button, so it cannot be saved "+
 					"without JavaScript:\n%s", name, i, formTag(form))
+			}
+		}
+	}
+}
+
+// The HTML parser drops exactly one line break right after <textarea>. A list
+// rendered straight after the tag lost its leading blank line that way: typed,
+// saved, gone from the editor, and deleted for good by the next save. A line
+// break after every opening tag is the one the parser takes.
+func TestEveryTextareaOpensWithTheLineBreakTheParserDrops(t *testing.T) {
+	open := regexp.MustCompile(`<textarea[^>]*>`)
+	paths, _ := filepath.Glob(filepath.Join(repoTemplates(t), "*.html"))
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(data)
+		for _, loc := range open.FindAllStringIndex(body, -1) {
+			rest := body[loc[1]:]
+			if !strings.HasPrefix(rest, "\n") && !strings.HasPrefix(rest, "</textarea>") {
+				t.Errorf("%s: a textarea's content starts on its tag's line, so a leading blank line is lost:\n%s",
+					filepath.Base(p), body[loc[0]:loc[1]])
 			}
 		}
 	}

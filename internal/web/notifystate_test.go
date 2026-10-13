@@ -20,17 +20,20 @@ func TestObserveTurnsStatusIntoNotifications(t *testing.T) {
 	}{
 		{"the first observation seeds and announces nothing",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceRolledBack, false, "timeout")}, nil, nil, nil},
+		// Rollback rows keep LastApply at "t1": the core sets it only on an
+		// accept, so a rollback changes Acceptance and nothing else. Fixtures
+		// that moved it to "t2" passed whatever Acceptance did.
 		{"a new rollback after seeding",
-			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t2", shared.AcceptanceRolledBack, false, "timeout")},
+			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t1", shared.AcceptanceRolledBack, false, "timeout")},
 			[]string{"rolled_back"}, []string{"timeout"}, []string{"warning"}},
 		{"the same rollback seen twice says it once",
-			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t2", shared.AcceptanceRolledBack, false, "timeout"), st("t2", shared.AcceptanceRolledBack, false, "timeout")},
+			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t1", shared.AcceptanceRolledBack, false, "timeout"), st("t1", shared.AcceptanceRolledBack, false, "timeout")},
 			nil, nil, nil},
 		// AcceptanceReason distinguishes "the window expired" from "an operator
 		// ended it by hand" — exercise the half "timeout" everywhere else in
 		// this table never reaches, and prove it lands in Detail unflattened.
 		{"a rollback ended by the operator carries that reason, not the timeout wording",
-			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t2", shared.AcceptanceRolledBack, false, "operator ended it by hand")},
+			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t1", shared.AcceptanceRolledBack, false, "operator ended it by hand")},
 			[]string{"rolled_back"}, []string{"operator ended it by hand"}, []string{"warning"}},
 		// The `[]string{""}` is an assertion, not an omission: this row has one
 		// event, so `details` must have one element, and the element asserted is
@@ -39,6 +42,15 @@ func TestObserveTurnsStatusIntoNotifications(t *testing.T) {
 		{"a confirmed apply",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t2", shared.AcceptanceAccepted, false, "timeout")},
 			[]string{"accepted"}, []string{""}, []string{"info"}},
+		// What the core reported until 2.25.1: the outcome reset to idle as
+		// apply returned, so a 15 s poll saw pending and then idle. Nothing to
+		// announce in that — which is why the core now keeps the outcome.
+		{"pending then idle is not an outcome",
+			[]*shared.FirewallStatus{st("t1", shared.AcceptancePending, false, "timeout"), st("t1", shared.AcceptanceIdle, false, "")},
+			nil, nil, nil},
+		{"pending then a rollback, as the core reports it",
+			[]*shared.FirewallStatus{st("t1", shared.AcceptancePending, false, ""), st("t1", shared.AcceptanceRolledBack, false, "timeout")},
+			[]string{"rolled_back"}, []string{"timeout"}, []string{"warning"}},
 		{"panic engaged",
 			[]*shared.FirewallStatus{st("t1", shared.AcceptanceIdle, false, "timeout"), st("t1", shared.AcceptanceIdle, true, "timeout")},
 			[]string{"panic"}, []string{"panic mode was engaged — this host is not filtering"}, []string{"critical"}},
@@ -66,9 +78,9 @@ func TestObserveTurnsStatusIntoNotifications(t *testing.T) {
 		{"the state survives the nil: a repeated rollback across an intervening nil is not re-announced",
 			[]*shared.FirewallStatus{
 				st("t1", shared.AcceptanceIdle, false, "timeout"),
-				st("t2", shared.AcceptanceRolledBack, false, "timeout"),
+				st("t1", shared.AcceptanceRolledBack, false, "timeout"),
 				nil,
-				st("t2", shared.AcceptanceRolledBack, false, "timeout"),
+				st("t1", shared.AcceptanceRolledBack, false, "timeout"),
 			}, nil, nil, nil},
 	}
 	for _, tc := range cases {

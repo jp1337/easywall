@@ -36,7 +36,14 @@ PrivateTmp=yes
 # replace the core's files there and plant links root then wrote through). Not
 # prefixed with "-": postinst creates it, and a unit that cannot keep its state
 # should say so at start rather than lose passkeys quietly.
-ReadWritePaths=/var/lib/easywall/web /etc/easywall /run/easywall
+#
+# /run/easywall is prefixed: it is easywall-core.service's RuntimeDirectory=,
+# and systemd removes it whenever the core stops. Unprefixed, a missing path
+# failed this unit with 226/NAMESPACE, and after StartLimitBurst it stayed
+# down — a core that had crashed took the interface that reports
+# "core unreachable" with it. Skipped while absent, the socket is reached
+# again once the core recreates the directory; no restart needed.
+ReadWritePaths=/var/lib/easywall/web /etc/easywall -/run/easywall
 # ssl_dir is deliberately not ReadOnlyPaths: easywall generates its own
 # self-signed certificate there on first start and replaces it before it
 # expires. Marking it read-only made both impossible — the process could not

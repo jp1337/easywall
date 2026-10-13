@@ -169,8 +169,12 @@ func TestIntegration_PanicModeSurvivesARestart(t *testing.T) {
 
 	// And the operator's way out of panic mode has to work after a restart
 	// too, on the same Firewall value that just refused to restore.
-	if err := restarted.Resume("test"); err != nil {
+	res, err := restarted.Resume("test")
+	if err != nil {
 		t.Fatalf("Resume: %v", err)
+	}
+	if !res.WasEngaged || !res.Restored {
+		t.Errorf("Resume on a configured host in panic mode reported %+v, want both", res)
 	}
 	if !restarted.nft.Enforcing() {
 		t.Error("Enforcing() is false after Resume; ending panic mode must put the stored rules back")

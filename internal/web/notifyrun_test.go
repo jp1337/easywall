@@ -77,7 +77,7 @@ func TestTheNotifierPollsStatusAndPostsARollback(t *testing.T) {
 	mu.Unlock()
 
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
-		LastApply: "t2", Acceptance: shared.AcceptanceRolledBack, AcceptanceReason: "timeout"}))
+		LastApply: "t1", Acceptance: shared.AcceptanceRolledBack, AcceptanceReason: "timeout"}))
 	waitUntil(t, time.Second, func() bool { mu.Lock(); defer mu.Unlock(); return len(bodies) == 1 })
 
 	mu.Lock()
@@ -108,7 +108,7 @@ func TestASwitchedOffTriggerSendsNothing(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 	fc.SetResponse(shared.CmdGetStatus, successResp(shared.FirewallStatus{
-		LastApply: "t2", Acceptance: shared.AcceptanceRolledBack}))
+		LastApply: "t1", Acceptance: shared.AcceptanceRolledBack}))
 	time.Sleep(200 * time.Millisecond)
 	if n := atomic.LoadInt32(&hits); n != 0 {
 		t.Fatalf("a switched-off trigger posted %d times", n)

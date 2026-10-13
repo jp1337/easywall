@@ -88,8 +88,17 @@ func TestIntegration_Firewall_Apply_Accepted(t *testing.T) {
 	if status.LastApply == "" {
 		t.Error("expected LastApply to be set after a successful accepted Apply")
 	}
-	if status.Acceptance != shared.AcceptanceIdle {
-		t.Errorf("expected AcceptanceIdle after completion, got %s", status.Acceptance)
+	// accepted, not idle. This asserted idle until 2.25.1, which pinned the
+	// defect rather than the contract: apply reset the outcome to idle as it
+	// returned, so accepted and rolled_back were visible for milliseconds and
+	// the web notifier — polling every 15 s — never saw either. The outcome
+	// stands until the next apply.
+	if status.Acceptance != shared.AcceptanceAccepted {
+		t.Errorf("expected accepted after completion, got %s", status.Acceptance)
+	}
+	// Confirmed, so no longer provisional: a restart now must keep this set.
+	if _, err := os.Stat(fw.cfg.UnconfirmedMarkerPath()); !os.IsNotExist(err) {
+		t.Errorf("the unconfirmed marker survived the confirmation (stat: %v)", err)
 	}
 }
 
@@ -115,6 +124,64 @@ func TestIntegration_Firewall_Apply_Timeout_Rollback(t *testing.T) {
 	// Current should have been rolled back to the (empty) backup.
 	if len(state.Current.TCP) != 0 {
 		t.Errorf("expected empty current rules after rollback, got %+v", state.Current.TCP)
+	}
+	// And the outcome is still there to be read after Apply returned.
+	if st := fw.Status(); st.Acceptance != shared.AcceptanceRolledBack || st.AcceptanceReason != ReasonTimeout {
+		t.Errorf("status after a timed-out apply = %s/%q, want rolled_back/%q",
+			st.Acceptance, st.AcceptanceReason, ReasonTimeout)
+	}
+	if _, err := os.Stat(fw.cfg.UnconfirmedMarkerPath()); !os.IsNotExist(err) {
+		t.Errorf("the unconfirmed marker survived the rollback (stat: %v)", err)
+	}
+}
+
+// The core dies inside an open window, and starts again.
+//
+// Measured before the fix, in a network namespace: the restarted core's boot
+// restore put `tcp dport 443` into the kernel and nothing for 22 — the set the
+// window was judging, enforced with no window, for good. Built here the way it
+// happens: a real apply, stopped mid-window by abandoning the process's state,
+// and a fresh Firewall over the same data directory doing the boot restore.
+func TestIntegration_CoreDiesInsideTheWindow_RestartRestoresTheConfirmedSet(t *testing.T) {
+	fw := newTestFirewallWithRealNft(t)
+
+	_ = fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "22", Description: "SSH", SSH: true}})
+	go func() { time.Sleep(200 * time.Millisecond); fw.Accept() }()
+	if err := fw.Apply("integration-test"); err != nil {
+		t.Fatal(err)
+	}
+
+	_ = fw.rules.SaveStaged("tcp", []shared.PortRule{{Port: "443"}})
+	done := make(chan struct{})
+	go func() { _ = fw.Apply("integration-test"); close(done) }()
+	defer func() { fw.acceptance.Cancel(); <-done }()
+	deadline := time.Now().Add(5 * time.Second)
+	for !(fw.Status().Acceptance == shared.AcceptancePending && fw.nft.Enforcing()) {
+		if time.Now().After(deadline) {
+			t.Fatal("the second apply never opened its window")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(100 * time.Millisecond) // past the kernel write
+
+	restarted, err := NewFirewall(fw.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restarted.RestoreCurrent(RestoreReasonBoot); err != nil {
+		t.Fatalf("boot restore: %v", err)
+	}
+
+	out, err := exec.Command("nft", "list", "chain", "inet", tableName, "input").CombinedOutput()
+	if err != nil {
+		t.Fatalf("nft list: %v: %s", err, out)
+	}
+	if !strings.Contains(string(out), "dport 22 ") || strings.Contains(string(out), "dport 443 ") {
+		t.Errorf("after the restart the kernel should hold the confirmed 22 and not the "+
+			"unconfirmed 443:\n%s", out)
+	}
+	if st := restarted.Status(); st.Acceptance != shared.AcceptanceRolledBack || st.AcceptanceReason != ReasonCoreStopped {
+		t.Errorf("restarted status = %s/%q, want rolled_back/%q", st.Acceptance, st.AcceptanceReason, ReasonCoreStopped)
 	}
 }
 

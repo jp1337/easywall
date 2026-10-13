@@ -187,3 +187,48 @@ func TestIntegration_TheDenyDoesNotTouchOutboundFromTheBridge(t *testing.T) {
 			"that deny every container on the host loses the network at the next apply")
 	}
 }
+
+// Health compares the port counters against the established accept, and only
+// the input chain's copy of that accept is tagged. The port sum used to take
+// the forward chain's port rules too, so a healthy host whose inbound traffic
+// all goes to containers — completed connections, every one — reported
+// degraded/stateful_dead: forwarded packets counted, the input-chain
+// established counter at zero because nothing local was ever talked to.
+func TestIntegration_ForwardedTrafficAloneIsNotAStatefulDeadFirewall(t *testing.T) {
+	h, m := forwardScopeHarness(t)
+	rules := shared.Rules{TCP: []shared.PortRule{{
+		ID:          "0123456789ab",
+		Port:        strconv.Itoa(selftestForwardedPort),
+		Scope:       shared.ScopeForwarded,
+		Description: "a published container port",
+	}}}
+	nets := shared.NetworkSettings{Docker: shared.DockerConfig{
+		Enabled:        true,
+		CustomNetworks: []string{h.BridgeCIDR()},
+		PublishedPorts: shared.PublishedPortsFiltered,
+	}}
+	if err := m.Apply(shared.RulesState{Current: rules}, shared.FirewallOptions{}, nets); err != nil {
+		t.Fatalf("applying the filtered table inside the peer: %v", err)
+	}
+	fw := newTestFirewall(t, newTestConfig(t))
+	fw.nft = m
+
+	for range 3 {
+		crossed, err := crossesTo(h.ContainerAddr(), selftestForwardedPort)
+		if err != nil || !crossed {
+			skipOrFailUnprovable(t, "the forwarded port was not answered, so there is no "+
+				"completed forwarded connection to measure")
+		}
+	}
+	// The control: the forwarded rule did count, so a healthy answer below is not
+	// a counter nobody read.
+	if c, err := m.RuleCounters(); err != nil || c["0123456789ab"].Packets == 0 {
+		t.Fatalf("the forwarded rule counted nothing (%v, %v); the measurement below proves nothing", c, err)
+	}
+
+	if got := fw.Health(); got.State != shared.HealthOK {
+		t.Errorf("three completed forwarded connections and nothing else: Health() = %s/%s, want ok\n"+
+			"forwarded port packets are being compared against the input chain's established "+
+			"counter, which forwarded traffic never reaches", got.State, got.Reason)
+	}
+}

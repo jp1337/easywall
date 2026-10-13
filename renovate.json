@@ -42,6 +42,13 @@
     },
     {
       "customType": "regex",
+      "description": "gosec and govulncheck, installed with `go install …@version` in security.yml. They were `@latest`, which no manager can see: the security gate ran whatever tool had been released that morning, and a new gosec rule could turn main red with no pull request to point at. golangci-lint and goreleaser are pinned in their actions' `version:` input, which Renovate's github-actions manager reads itself.",
+      "managerFilePatterns": ["/^\\.github/workflows/security\\.yml$/"],
+      "matchStrings": ["go install (?<depName>github\\.com/securego/gosec/v2|golang\\.org/x/vuln)/cmd/[a-z]+@(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
       "description": "The exact Pagefind version the documentation search index is built with, in .github/actions/build-search-index/action.yml. It was `pagefind@1`, and no manager watched a floating range: the index published to easywall-project.org was built by whatever 1.x npm resolved that morning, with no pull request to review and no version recorded anywhere to bisect. The index format is not the risk — the loader in docs/_layouts/default.html reads the bundle's JS API, and that is what a minor release can reshape: the window.PagefindUI global, five option names, and pagefind-highlight.js being an ES module, which already broke highlighting silently on this branch. The action's own assertion counts index fragments against the page count and would still pass, so a bundle whose UI no longer mounts ships with CI green. Versioning is the npm default here, unlike the Go pins above: this pin carries all three components, so it is a valid semver version and needs no `docker` workaround.",
       "managerFilePatterns": ["/^\\.github/actions/build-search-index/action\\.yml$/"],
       "matchStrings": ["npx --yes pagefind@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
@@ -99,7 +106,7 @@
       "semanticCommitScope": "go",
       "labels": ["renovate", "dependencies", "go", "needs-review"],
       "prBodyNotes": [
-        "Re-render the diagrams after merging this: `npm run build:diagrams` — `docs/_diagrams/install-choice.mmd` names the Go version and the rendered SVGs carry a digest of it.",
+        "Before this can merge, on this branch: `npm ci && npm run build:diagrams`, commit, push. `docs/_diagrams/install-choice.mmd` names the Go version and the rendered SVGs carry a digest of it, so the required check *Generated assets are current* stays red until then. Renovate cannot do it: the hosted app runs no postUpgradeTasks.",
         "`internal/shared/go_version_test.go` fails if any of the places that write the toolchain down disagree, so CI proves this PR is complete."
       ]
     },
@@ -126,7 +133,7 @@
       "matchManagers": ["npm"],
       "matchPackageNames": ["htmx.org"],
       "prBodyNotes": [
-        "Run after merging: `cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js`"
+        "Before this can merge, on this branch: `npm ci && cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js`, commit, push. The required check *Generated assets are current* compares the two and stays red until then. Renovate cannot do it: the hosted app runs no postUpgradeTasks."
       ]
     },
     {
@@ -145,7 +152,7 @@
       "matchManagers": ["npm"],
       "matchPackageNames": ["mermaid"],
       "prBodyNotes": [
-        "Run after merging: `npm run build:diagrams` — every diagram is stale until then, and the assets job says so."
+        "Before this can merge, on this branch: `npm ci && npm run build:diagrams`, commit, push. Every diagram is stale until then, and the required check *Generated assets are current* stays red. Renovate cannot do it: the hosted app runs no postUpgradeTasks."
       ]
     }
   ],

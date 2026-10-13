@@ -47,7 +47,7 @@ Until 2.22 `/var/lib/easywall` was `0770`, and the web user could replace the
 core's files in it and plant links root wrote through
 ([threat model](threat-model.md#data_dir-is-roots)). `postinst` now sets `0750`
 first — from that line only root changes what is in it — then, with both
-services stopped by `prerm`:
+services stopped by the new package's `preinst`:
 
 | It finds | It does |
 |---|---|
@@ -188,7 +188,8 @@ proof got a unit instead.
 `easywall-core.service`'s bounding set the daemon cannot `unshare`, so it would
 record `unprovable` on every Debian install — the primary target.
 
-`postinst` enables it with the other two and deliberately does not start it.
+`dh_installsystemd --no-start` enables it with the other two and deliberately
+does not start it.
 Starting it there would hold an often-unattended upgrade for the length of a
 proof, and `selftest --if-stale` would then skip it at the next boot.
 `TestCapSysAdminIsGrantedByExactlyOneUnit` is what says no to the one-line diff
@@ -198,6 +199,32 @@ that widens the daemon instead.
 release widened it. It now asserts all three by installed path, and that
 `easywall-selftest.service` is *enabled* — `is-active` reports the wrong thing
 about a `oneshot`, and an installed-but-disabled unit is a proof that never runs.
+
+## Enabling, starting, stopping: debhelper's, not ours
+
+`override_dh_installsystemd` in `debian/rules` names every unit; debhelper writes
+the code into the maintainer scripts at their `#DEBHELPER#` line.
+
+| Event | What happens |
+|---|---|
+| install | all three enabled; core and web started |
+| upgrade | new `preinst` stops core and web (`--no-restart-after-upgrade`), `postinst` starts them after the data-directory repair |
+| upgrade fails | the old `postinst abort-upgrade` starts them again |
+| administrator disabled a unit | stays disabled across upgrades — `deb-systemd-helper` remembers |
+| remove / purge | stopped / enablement links removed |
+
+Until 2.25.1 `postinst` and `prerm` did this by hand with `systemctl` and had no
+`#DEBHELPER#` line, so debhelper's snippets were dropped. `prerm` disabled both
+services on `upgrade` and nothing undid it on `abort-upgrade`: a failed upgrade
+left 2.25.0 `install ok installed`, firewall disabled, gone at the next boot.
+Every upgrade also re-enabled a disabled web interface. Measured in an
+ubuntu:24.04 systemd container; build.yml's "A failed upgrade leaves the firewall
+running" measures both on every package, and
+`TestMaintainerScriptsKeepTheDebhelperMarker` keeps the marker.
+
+`deb-systemd-invoke` honours `/usr/sbin/policy-rc.d`. Docker's `ubuntu` image
+ships one that refuses every start, so the CI container deletes it — a host has
+none.
 
 ## Architecture
 
