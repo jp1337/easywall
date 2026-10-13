@@ -93,8 +93,7 @@ func TestAddingACountryFetchesItAndRemovingDoesNot(t *testing.T) {
 	var asked atomic.Int32
 	fc.OnCommand(shared.CmdGetFeeds, func(shared.Command) { asked.Add(1) })
 
-	// A browser sends the select's country with every press, the remove
-	// button's included.
+	// A form that carries remove only removes, whatever else it carries.
 	doAuthFormRequest(t, s, "/blocklist/countries", "add=country-de&remove=country-cn")
 	time.Sleep(150 * time.Millisecond)
 	if n := asked.Load(); n != 0 {
@@ -345,5 +344,22 @@ func TestACountryIsNeverStale(t *testing.T) {
 	}
 	if i := strings.Index(body, `<tr id="country-aq">`); i < 0 || strings.Contains(body[i:i+strings.Index(body[i:], "</tr>")], "no longer be maintained") {
 		t.Error("Antarctica is called unmaintained")
+	}
+}
+
+// The public demo shares one state and never fetches. A visitor's country
+// must not leave Apply refusing for everyone (final review M1).
+func TestDemoApplyIsNotBlockedByAStagedCountry(t *testing.T) {
+	c := NewDemoClient()
+	state, err := c.GetRules()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SaveRules("feeds", append(state.Staged.Feeds, "country-de")); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{client: c}
+	if cc, known := s.countryWithoutCopy(); !known || cc != "" {
+		t.Errorf("country %q (known %v) has no copy: the demo's Apply would be refused", cc, known)
 	}
 }

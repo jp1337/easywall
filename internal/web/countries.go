@@ -69,9 +69,8 @@ func countriesNext(before []string, add, remove string) ([]string, string) {
 	return nil, "save_error" // an id that is not a country: a forged form
 }
 
-// handleCountriesPOST adds or removes one country. The card's select is sent
-// with every press, so a Remove arrives with add set too: a form that carries
-// remove only removes, and fetches nothing.
+// handleCountriesPOST adds or removes one country. A form that carries
+// remove only removes, whatever else it carries, and fetches nothing.
 func (s *Server) handleCountriesPOST(w http.ResponseWriter, r *http.Request) {
 	back := "/blocklist#countries"
 	state, err := s.client.GetRules()
