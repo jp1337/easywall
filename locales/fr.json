@@ -425,7 +425,7 @@
   {"id": "apply_changes_action", "translation": "Appliquer les modifications"},
   {"id": "apply_nothing_staged", "translation": "Rien en attente à appliquer"},
   {"id": "apply_staged_warning", "translation": "Des modifications attendent. Elles ne font rien tant que vous ne les appliquez pas."},
-  {"id": "apply_rolled_back_toast", "translation": "Les règles ont été annulées — délai de confirmation dépassé."},
+  {"id": "apply_rolled_back_toast", "translation": "Les règles ont été annulées — la fenêtre s’est fermée sans confirmation."},
   {"id": "apply_how_title", "translation": "Comment se passe une application"},
   {"id": "apply_step1_title", "translation": "Les règles deviennent actives"},
   {"id": "apply_step1_desc", "translation": "Le jeu en attente est poussé immédiatement vers le noyau et commence à filtrer le trafic."},

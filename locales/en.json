@@ -714,7 +714,7 @@
   {"id": "apply_changes_action", "translation": "Apply changes"},
   {"id": "apply_nothing_staged", "translation": "Nothing staged to apply"},
   {"id": "apply_staged_warning", "translation": "Staged changes are waiting. They do nothing until you apply them."},
-  {"id": "apply_rolled_back_toast", "translation": "Rules were rolled back — acceptance timeout."},
+  {"id": "apply_rolled_back_toast", "translation": "Rules were rolled back — the window closed without a confirmation."},
   {"id": "apply_rolled_back_operator_toast", "translation": "Rules were rolled back at your request."},
   {"id": "apply_rolled_back_panic_toast", "translation": "The window was ended by panic mode."},
   {"id": "apply_how_title", "translation": "How applying works"},

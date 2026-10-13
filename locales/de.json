@@ -714,7 +714,7 @@
   {"id": "apply_changes_action", "translation": "Änderungen anwenden"},
   {"id": "apply_nothing_staged", "translation": "Nichts vorgemerkt zum Anwenden"},
   {"id": "apply_staged_warning", "translation": "Vorgemerkte Änderungen warten. Sie wirken erst, wenn sie angewendet werden."},
-  {"id": "apply_rolled_back_toast", "translation": "Regeln wurden zurückgenommen — Bestätigungsfenster abgelaufen."},
+  {"id": "apply_rolled_back_toast", "translation": "Regeln wurden zurückgenommen — das Fenster endete ohne Bestätigung."},
   {"id": "apply_rolled_back_panic_toast", "translation": "Das Fenster wurde durch den Notfallmodus beendet."},
   {"id": "apply_rolled_back_operator_toast", "translation": "Die Regeln wurden auf deinen Wunsch zurückgenommen."},
   {"id": "apply_how_title", "translation": "Wie das Anwenden abläuft"},
