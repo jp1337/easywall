@@ -609,6 +609,28 @@ func TestUpdateFeed_AShrunkFeedIsAcceptedAfterOffApplyOn(t *testing.T) {
 	}
 }
 
+// 2.26: the shrink guard is for truncated downloads, which a country's single
+// JSON document cannot produce. A country losing one of three prefixes is
+// stored while live; a list shrinking the same way is still refused.
+func TestUpdateFeed_ACountryMayShrinkAndAListMayNot(t *testing.T) {
+	for id, refused := range map[string]bool{"country-de": false, "dshield": true} {
+		t.Run(id, func(t *testing.T) {
+			fw := liveFeedFirewall(t, []string{id}, id)
+			if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: id, Entries: hosts(3)}, "test"); err != nil {
+				t.Fatal(err)
+			}
+			res, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: id, Entries: hosts(2)}, "test")
+			if refused {
+				if resp := errResp(err); resp.Error != shared.ErrFeedShrankText {
+					t.Fatalf("3 -> 2 on a live list: %q, want %q", resp.Error, shared.ErrFeedShrankText)
+				}
+			} else if err != nil || res.After != 2 {
+				t.Fatalf("3 -> 2 on a live country: %+v, %v", res, err)
+			}
+		})
+	}
+}
+
 // A 304 skips the rewrite only when nothing else would change: a copy no rule
 // set names any more is still pruned from the file.
 func TestUpdateFeed_ANotModifiedStillPrunes(t *testing.T) {
