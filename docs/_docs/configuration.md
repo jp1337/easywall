@@ -438,7 +438,7 @@ Five, and this is the whole list.
 |---|---|---|---|---|---|
 | Key | `update_check` | `telemetry` | `notify_kind` | none — **Blocklist** in the interface | `tls.acme` |
 | Default | **on** | **off** until you switch it on | **off** until you switch it on | **off**, each one | **off** until you switch it on |
-| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | each list's own address; an own feed's is yours | `tls.acme_directory`, Let's Encrypt if unset |
+| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | each list's own address, a country's on `raw.githubusercontent.com`; an own feed's is yours | `tls.acme_directory`, Let's Encrypt if unset |
 | How often | once a day | once a day | when something happens | on the list's schedule, hourly to daily | on first need, then before expiry |
 | Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall | a GET; an own feed's user and password to its own URL | `tls.hostname`, an account key made here, and `tls.acme_email` if set |
 | Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface | the feed's switch | `acme = false` — easywall then issues its own certificate |
