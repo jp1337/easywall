@@ -707,6 +707,7 @@
   {"id": "apply_lead_accepted", "translation": "Die Regeln sind bestätigt und bleiben in Kraft."},
   {"id": "apply_lead_rolled_back", "translation": "Das Fenster lief ohne Bestätigung ab, also wurden die vorherigen Regeln wiederhergestellt. Nichts Vorgemerktes ist verloren — prüfen und erneut anwenden."},
   {"id": "apply_lead_rolled_back_operator", "translation": "Du hast die Änderung zurückgenommen, die vorherigen Regeln sind wieder aktiv. Nichts Vorgemerktes ist verloren — prüfen und erneut anwenden."},
+  {"id": "apply_lead_rolled_back_panic", "translation": "Der Notfallmodus hat das Fenster beendet. Die gespeicherten Regeln sind wieder die von vor dieser Anwendung, und die Tabelle bleibt leer, bis der Notfallmodus an der Konsole beendet wird. Nichts Vorgemerktes ist verloren."},
   {"id": "apply_lead_staged", "translation": "Es gibt vorgemerkte Änderungen, die die laufende Firewall noch nicht hat."},
   {"id": "apply_lead_clean", "translation": "Die laufende Firewall entspricht dem Vorgemerkten. Es gibt nichts anzuwenden."},
   {"id": "apply_confirm_action", "translation": "Regeln bestätigen"},
@@ -714,6 +715,7 @@
   {"id": "apply_nothing_staged", "translation": "Nichts vorgemerkt zum Anwenden"},
   {"id": "apply_staged_warning", "translation": "Vorgemerkte Änderungen warten. Sie wirken erst, wenn sie angewendet werden."},
   {"id": "apply_rolled_back_toast", "translation": "Regeln wurden zurückgenommen — Bestätigungsfenster abgelaufen."},
+  {"id": "apply_rolled_back_panic_toast", "translation": "Das Fenster wurde durch den Notfallmodus beendet."},
   {"id": "apply_rolled_back_operator_toast", "translation": "Die Regeln wurden auf deinen Wunsch zurückgenommen."},
   {"id": "apply_how_title", "translation": "Wie das Anwenden abläuft"},
   {"id": "apply_step1_title", "translation": "Regeln werden aktiv"},
@@ -930,6 +932,8 @@
 
   {"id": "audit_detail_timeout", "translation": "Bestätigungsfenster abgelaufen"},
   {"id": "audit_detail_cancelled_by_operator", "translation": "Vom Betreiber zurückgenommen"},
+  {"id": "audit_detail_panic_mode", "translation": "Durch den Notfallmodus beendet"},
+  {"id": "audit_detail_core_stopped", "translation": "Core im Fenster beendet"},
   {"id": "audit_detail_via_proxy", "translation": "über Proxy"},
 
   {"id": "og_description", "translation": "Linux-Firewall-Verwaltung mit Weboberfläche. Go, nftables, Sicherheit zuerst."}

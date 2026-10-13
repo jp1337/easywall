@@ -136,7 +136,8 @@ matter for the rest of this model:
 - **While the marker exists, an apply is refused and the acceptance rollback
   stops at the kernel.** The stored rules are still reverted: an apply nobody
   confirmed never gets to keep `Current`, or the next restore would install it
-  with no window of its own. But the previous rules are not written back into a
+  with no window of its own. The same holds when the core dies inside the
+  window: the next start reverts first ([recovery]({{ '/docs/features/recovery/' | relative_url }})). But the previous rules are not written back into a
   table the console has deliberately torn down. That kernel half is the one place
   in easywall where the central promise — every apply reverts itself unless you
   confirm it — is switched off outright. That is because there is nothing

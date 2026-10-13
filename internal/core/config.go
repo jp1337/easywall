@@ -554,6 +554,12 @@ func (c *Config) PanicMarkerPath() string {
 	return c.DataDir + "/panic"
 }
 
+// UnconfirmedMarkerPath returns the path of the file that says the stored
+// Current holds a set no acceptance window has confirmed yet. See unconfirmed.go.
+func (c *Config) UnconfirmedMarkerPath() string {
+	return c.DataDir + "/unconfirmed"
+}
+
 // SaveNetworkSettings updates the [ipv6] and [docker] sections and atomically persists the config.
 func (c *Config) SaveNetworkSettings(s shared.NetworkSettings) error {
 	// Unset means filter, the same as everywhere else — a caller that omits the

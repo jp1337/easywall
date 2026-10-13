@@ -23,6 +23,10 @@ func TestAppJS_RolledBackToastSelectsByReason(t *testing.T) {
 		t.Error("render() never mentions apply_rolled_back_operator_toast, so an operator " +
 			"rollback still gets the timeout wording")
 	}
+	if !strings.Contains(status, "apply_rolled_back_panic_toast") {
+		t.Error("render() never mentions apply_rolled_back_panic_toast, so a window ended by " +
+			"panic mode is announced as a timeout")
+	}
 	if !strings.Contains(status, "apply_rolled_back_toast") {
 		t.Error("render() lost the timeout toast key entirely; a genuine timeout must keep " +
 			"the wording that was already correct for it")
@@ -46,6 +50,10 @@ func TestAppJS_RolledBackUpdatesTheLeadParagraph(t *testing.T) {
 		t.Error("render() never mentions apply_lead_rolled_back_operator, so it cannot pick " +
 			"the operator lead when updating .apply-lead")
 	}
+	if !strings.Contains(status, "apply_lead_rolled_back_panic") {
+		t.Error("render() never mentions apply_lead_rolled_back_panic, so a window ended by " +
+			"panic mode tells the operator the previous rules are live and to apply again")
+	}
 }
 
 // Both new strings are rendered by app.js in the browser, so they must be in
@@ -57,6 +65,8 @@ func TestClientStringsCoverTheAcceptanceReasonStrings(t *testing.T) {
 		"apply_rolled_back_operator_toast",
 		"apply_lead_rolled_back_operator",
 		"apply_lead_rolled_back",
+		"apply_rolled_back_panic_toast",
+		"apply_lead_rolled_back_panic",
 	} {
 		found := false
 		for _, k := range clientStringKeys {

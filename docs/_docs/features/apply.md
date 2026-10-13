@@ -82,7 +82,7 @@ A wrong *blocks new connections* would cost the trust the true one needs.
 | **Idle** | the running firewall matches what is staged | nothing |
 | **Staged changes** | you have edits the firewall does not have yet | apply them |
 | **Waiting for confirmation** | live but unconfirmed, the window is open | check a second connection, then confirm |
-| **Confirmed** | the rules stay | nothing |
+| **Confirmed** | the rules stay; shown until the next apply | nothing |
 | **Rolled back** | the window closed unconfirmed; the previous rules are back — on a first apply that means the firewall is off again, because there were none | your staged edits are still there — review and apply again |
 
 A rollback loses nothing you staged. It undoes what went **live**, and the edits
@@ -101,6 +101,8 @@ that caused it are still on their pages.
 - Stopping `easywall-core` counts as not confirming: the rules roll back before it
   exits. A restart inside those two minutes is an ordinary event, and it used to
   leave the unconfirmed set in place with nothing left to undo it.
+- If it dies instead — killed, out of memory, a power cut — the rollback happens
+  at its next start, before anything is restored.
 - A second apply is refused while one is running, with a message rather than a
   silent second timer.
 - The window keeps the length it started with. Changing the duration mid-window
@@ -117,7 +119,7 @@ machines you can physically reach — see
 | Symptom | Cause | Check |
 |---|---|---|
 | "Nothing staged to apply" | you saved nothing since the last apply | the [dashboard]({{ '/docs/features/dashboard/' | relative_url }}) says whether changes are pending |
-| Applied, then everything came back as it was | the window closed without a confirmation | the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) shows `apply_rolledback` with detail `timeout` |
+| Applied, then everything came back as it was | the window closed without a confirmation | the [audit log]({{ '/docs/features/audit-log/' | relative_url }}) shows `apply_rolledback`; the detail says why: `timeout`, `cancelled by operator`, `panic mode` or `core stopped` |
 | The apply failed outright | the kernel refused a rule — usually a [custom rule]({{ '/docs/features/custom-rules/' | relative_url }}) | `journalctl -u easywall-core` carries nft's own message |
 | `rollback_failed` in the log | the new rules did not take **and** the old ones did not come back | the worst outcome there is; check the daemon's log and the running table with `nft list table inet easywall` |
 | Your SSH dropped right after applying | that is the design | do nothing; the window restores the previous rules, and on a first apply it takes the firewall back down altogether — the audit log then reads `boot_not_configured` |
