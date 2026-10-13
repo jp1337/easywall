@@ -345,6 +345,13 @@ Two refusals that look alike and are not.
 | What a stolen session gains | the ability to undo a deliberate teardown | nothing — waiting 120 seconds reaches the same state |
 | Therefore | no control on the network-facing side; `easywall-core resume` at the console | `POST /apply/rollback`, session-authenticated like every other write |
 
+"No control" is enforced at the socket, not only in the interface: the core
+answers `PANIC` and `RESUME` only to a peer whose kernel-reported uid is 0
+(`peerCred` in `internal/core/daemon.go`). Until 2.25.1 it took them from any
+client, and the socket's group is exactly what lets `easywall-web` in — so a
+compromised web process could have disarmed the firewall, and the audit log
+would have said `console`.
+
 The button grants no capability. It saves the wait. Anything that could reach it
 could reach the identical outcome by doing nothing, which is why this is not the
 panic button pointed the other way.

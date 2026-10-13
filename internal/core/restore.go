@@ -419,20 +419,39 @@ func (f *Firewall) Panic(user string) error {
 	return nil
 }
 
-// Resume ends panic mode and puts the stored rules back.
+// Resume ends panic mode and puts the stored rules back, and reports which of
+// the two it actually did.
 //
 // The marker is cleared before the restore is attempted, so a restore that fails
 // does not leave a machine that is unfiltered *and* claims to be in panic mode —
 // two different problems reported as one.
-func (f *Firewall) Resume(user string) error {
+//
+// It used to report neither: a RESUME with nothing engaged still audited
+// "panic mode was ended" (and the web process turns that line into a
+// Panic-mode-ended notification), and the console printed "the stored rules are
+// back in force" on an installation where RestoreCurrent writes nothing because
+// nothing was ever applied.
+func (f *Firewall) Resume(user string) (shared.ResumeResult, error) {
 	f.panicMu.Lock()
 	defer f.panicMu.Unlock()
 
+	// Unreadable counts as engaged: the clear below is attempted either way, and
+	// an audit line too many is the better error than one missing.
+	engaged, known, _ := PanicState(f.cfg.PanicMarkerPath())
+	res := shared.ResumeResult{WasEngaged: engaged || !known}
+
 	if err := ClearPanic(f.cfg.PanicMarkerPath()); err != nil {
-		return fmt.Errorf("end panic mode: %w", err)
+		return res, fmt.Errorf("end panic mode: %w", err)
 	}
-	WriteAuditLog(f.cfg.AuditLogPath(), "panic_resumed", "all",
-		"panic mode was ended from the console", user)
+	if res.WasEngaged {
+		WriteAuditLog(f.cfg.AuditLogPath(), "panic_resumed", "all",
+			"panic mode was ended from the console", user)
+	}
+
+	// RestoreCurrent returns nil without writing on a host never configured;
+	// that is the case Restored has to tell apart.
+	state, stateErr := f.rules.GetState()
+	configured := stateErr == nil && f.everConfigured(state)
 
 	err := f.RestoreCurrent(RestoreReasonResume)
 	if errors.Is(err, ErrApplyInProgress) {
@@ -447,5 +466,6 @@ func (f *Firewall) Resume(user string) error {
 			"an apply held the slot; the stored rules were not restored — resume again once it finishes",
 			user)
 	}
-	return err
+	res.Restored = err == nil && configured
+	return res, err
 }

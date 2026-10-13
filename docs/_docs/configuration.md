@@ -89,7 +89,8 @@ The range is enforced, not merely suggested. Below ten seconds the window closes
 the confirmation page can be read, so every apply rolls back and the firewall can no
 longer be changed through the interface. A value outside the range in an existing file
 is brought to the nearest permitted one, with a warning, rather than keeping the daemon
-from starting. A value set through the interface is rejected outright.
+from starting. That includes `0`, which becomes 10; `enabled = false` is what switches
+the window off. A missing `duration` is 120. A value set through the interface is rejected outright.
 
 ### `[usage]`
 
