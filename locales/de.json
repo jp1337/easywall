@@ -603,7 +603,7 @@
   {"id": "feed_dshield_blocks", "translation": "Die 20 /24-Netze mit den meisten scannenden Quellen der letzten drei Tage."},
   {"id": "feed_dshield_fp_why", "translation": "Zwanzig Netze, jedes gerade beim Scannen gesehen."},
   {"id": "feed_blocklist_de_blocks", "translation": "Adressen, die fail2ban in den letzten 48 Stunden als Angreifer gemeldet hat."},
-  {"id": "feed_blocklist_de_fp_why", "translation": "Dynamische und neu vergebene Adressen, einige Cloud-Hosts und Tor-Ausgänge."},
+  {"id": "feed_blocklist_de_fp_why", "translation": "Dynamische und neu vergebene Adressen, einige Cloud-Hosts, Tor-Ausgänge — und Such-Crawler (Googlebot, Bingbot)."},
   {"id": "feed_cins_blocks", "translation": "Adressen, die die CINS-Sensoren beim Angriff sahen; immer die neuesten 15 000."},
   {"id": "feed_cins_fp_why", "translation": "Etwa jede elfte ist eine Cloud-Adresse, und die wechselt den Besitzer."},
   {"id": "feed_et_compromised_blocks", "translation": "Hosts, die bekanntermaßen kompromittiert sind."},
