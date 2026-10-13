@@ -36,9 +36,9 @@
       <div class="toolbar">
         <h2 class="section-title">{{T "blocked_recent"}}</h2>
         <span class="toolbar-spacer"></span>
-        {{with .Result}}<span class="toolbar-note" id="blocked-live-state" data-on="{{T "blocked_live_on"}}" data-paused="{{T "blocked_live_paused"}}" data-pointer="{{T "blocked_live_paused_pointer"}}" data-focus="{{T "blocked_live_paused_focus"}}">{{T "blocked_live_on"}}</span>
+        {{with .Result}}<span class="toolbar-note" id="blocked-live-state" data-live="{{T "blocked_live_on"}}" data-paused="{{T "blocked_live_paused"}}" data-pointer="{{T "blocked_live_paused_pointer"}}" data-focus="{{T "blocked_live_paused_focus"}}">{{T "blocked_live_on"}}</span>
         <button type="button" class="btn btn-sm" id="blocked-live-toggle" aria-pressed="false" aria-controls="blocked-rows" data-pause="{{T "blocked_live_pause"}}" data-resume="{{T "blocked_live_resume"}}">{{T "blocked_live_pause"}}</button>
-        <span class="sr-only" role="status" id="blocked-live-new" data-one="{{T "blocked_live_new_one"}}" data-many="{{T "blocked_live_new_many" (dict "N" "{n}")}}"></span>
+        <span class="sr-only" role="status" id="blocked-live-new" data-single="{{T "blocked_live_new_one"}}" data-many="{{T "blocked_live_new_many" (dict "N" "{n}")}}"></span>
         <span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>{{end}}
       </div>
       <form method="get" action="/blocked" class="pkt-filters" aria-label="{{T "blocked_filter_label"}}">
