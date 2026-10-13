@@ -181,6 +181,15 @@ var loginLimiter = struct {
 	buckets map[string]*rateBucket
 }{buckets: make(map[string]*rateBucket)}
 
+// The login budget: loginBudget attempts, one returned every loginBudgetRefill.
+const (
+	loginBudget       = 5
+	loginBudgetRefill = 10 * time.Minute
+)
+
+// loginClock is the limiter's clock, so a test can walk it through ten minutes.
+var loginClock = time.Now
+
 type rateBucket struct {
 	lim      *rate.Limiter
 	lastSeen time.Time
@@ -229,15 +238,19 @@ func LoginRateLimit(resolve func(*http.Request) (string, bool),
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ip, proxied := resolve(r)
 
+			now := loginClock()
 			loginLimiter.mu.Lock()
 			b, ok := loginLimiter.buckets[ip]
 			if !ok {
-				// 5 tokens, refills at 1 token per 2 minutes (5 per 10 min)
-				b = &rateBucket{lim: rate.NewLimiter(rate.Every(2*time.Minute), 5)}
+				// 5 tokens, one back every 10 minutes: at most 5 in any ten
+				// minutes, which is what security.md's fifteen code attempts
+				// rest on. It refilled one every 2 minutes, which is 9 password
+				// rounds in ten minutes — 27 code attempts, not 15.
+				b = &rateBucket{lim: rate.NewLimiter(rate.Every(loginBudgetRefill), loginBudget)}
 				loginLimiter.buckets[ip] = b
 			}
-			b.lastSeen = time.Now()
-			allowed := b.lim.Allow()
+			b.lastSeen = now
+			allowed := b.lim.AllowN(now, 1)
 			loginLimiter.mu.Unlock()
 
 			if !allowed {

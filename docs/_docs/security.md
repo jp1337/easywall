@@ -36,7 +36,7 @@ holds no privilege worth stealing.
 | Password floor | at least 12 characters, with a digit and a symbol — not configurable |
 | Default password | none. The first-run wizard is mandatory |
 | First run | only with the setup token easywall-web prints to its log at start — [First Run]({{ '/docs/installation/first-run/' | relative_url }}#the-setup-token) |
-| Rate limit | 5 attempts, refilling one every 2 minutes, per source address |
+| Rate limit | 5 attempts per 10 minutes per source address — one returned every 10 minutes |
 | Session | 600 s · `HttpOnly` · `Secure` · `SameSite=Lax` |
 | Cookie signing key | generated on first start unless configured. Anyone holding it can forge a session, and the placeholder in the sample config is published here — so a missing, short or placeholder key is replaced and written back |
 | Logout | ends that session immediately, and only that one. The identifier is recorded as revoked, because a signed cookie is self-contained and telling the browser to drop it leaves the value working. The record is in memory: a restart within ten minutes forgets it |

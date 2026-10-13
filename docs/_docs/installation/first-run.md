@@ -171,7 +171,7 @@ and the audit log both recording the proxy's own address.
 | "the choices could not be staged" | the core daemon was not reachable | `systemctl status easywall-core` (Debian) or `docker compose logs easywall` (Docker), then set the ports by hand |
 | The browser warns about the certificate | it is self-signed on first start | accept it, or configure your own — [Debian]({{ '/docs/installation/debian/' | relative_url }}#your-own-certificate) · [Docker]({{ '/docs/installation/docker/' | relative_url }}#your-own-certificate) |
 | Signed in, but every page says the core is unreachable | the socket is not reachable by the web user | `ls -l /run/easywall/core.sock` — it must be `root:easywall` |
-| "Too Many Requests" on sign-in | five failed attempts in ten minutes from your address | wait; one attempt is returned every two minutes |
+| "Too Many Requests" on sign-in | five failed attempts in ten minutes from your address | wait; one attempt is returned every ten minutes |
 
 ---
 
