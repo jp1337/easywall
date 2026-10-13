@@ -20,7 +20,7 @@ const (
 	feedSampleBytes = 80
 )
 
-// parseFeed reads one body in one of the three catalogue formats. It returns
+// parseFeed reads one body in one of the catalogue's four formats. It returns
 // the entries canonical and deduplicated — a full-length prefix as a bare
 // address (plan P12), so 100 000 IPv6 entries fit the socket — the number of
 // lines that were neither blank, a comment, nor an entry, and the first five
@@ -32,6 +32,9 @@ const (
 func parseFeed(format shared.FeedFormat, body []byte) (entries []string, rejected int, sample []string, err error) {
 	var entry func(line string) (netip.Prefix, bool, bool) // prefix, skip, ok
 	switch format {
+	case shared.FeedFormatIPverse:
+		body = ipverseLines(body)
+		entry = plainEntry
 	case shared.FeedFormatPlain:
 		entry = plainEntry
 	case shared.FeedFormatSpamhaus:
@@ -87,6 +90,23 @@ func plainEntry(line string) (netip.Prefix, bool, bool) {
 	}
 	p, ok := parseEntry(line)
 	return p, false, ok
+}
+
+// ipverseLines turns a country's aggregated.json (2.26) into one prefix a
+// line, for plainEntry: {"prefixes":{"ipv4":[…],"ipv6":[…]}}. A body that is
+// not that document is returned as it is, so each of its lines is counted as
+// rejected and the first five are shown on the row.
+func ipverseLines(body []byte) []byte {
+	var doc struct {
+		Prefixes struct {
+			IPv4 []string `json:"ipv4"`
+			IPv6 []string `json:"ipv6"`
+		} `json:"prefixes"`
+	}
+	if json.Unmarshal(body, &doc) != nil {
+		return body
+	}
+	return []byte(strings.Join(slices.Concat(doc.Prefixes.IPv4, doc.Prefixes.IPv6), "\n"))
 }
 
 // spamhausEntry: {"cidr":"…",…} per line; the {"type":"metadata",…} record

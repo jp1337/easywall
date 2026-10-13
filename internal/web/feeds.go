@@ -368,7 +368,7 @@ func (r *feedRunner) refreshFrom(id string, src feedSource, onlyWithoutCopy bool
 			next.Rejected, next.RejectedSample = st.Rejected, st.RejectedSample
 			break
 		}
-		// Every URL is one of the catalogue's three formats or an own
+		// Every URL is one of the catalogue's four formats or an own
 		// feed's plain text, so the format error cannot happen.
 		e, rejected, sample, _ := parseFeed(src.format, res.body)
 		entries = append(entries, e...)
