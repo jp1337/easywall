@@ -76,8 +76,14 @@ ignore-words-list = rouge,iif,oder,unparseable
 # diff does not show. It happened once, between two commits of the same release,
 # because a comment was reflowed. Where the phrase is not load-bearing, say
 # "the French title for changing a password" instead of quoting it.
-ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe|später unter Passwort|ohne zweiten Faktor|published_ports = "filterd"
+ignore-regex = vor (einer|[0-9]+) [A-Za-zÄÖÜäöüß]+|mot de passe|später unter Passwort|ohne zweiten Faktor|published_ports = "filterd"|"fm", "fo", "fr"|fm fo fr
 
+# `fo` is the Faroe Islands' ISO code, in the country list
+# (internal/shared/countries.go) and its 2.26 snapshot (countries_test.go).
+# codespell reads it as "of", far too common to put in ignore-words-list, so
+# only the run of codes around it is ignored, quoted in the Go list and bare in
+# the snapshot. A `fo` anywhere else is still caught.
+#
 # `published_ports = "filterd"` is a fixture, not a mistake. It is the typo an
 # operator makes, quoted verbatim in internal/shared/config_docker_test.go so
 # that TestDockerConfig_AnUnknownValueIsOpen can assert an unrecognised value

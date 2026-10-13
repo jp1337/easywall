@@ -200,18 +200,23 @@ func IsOwnFeedID(id string) bool {
 	return false
 }
 
-// CatalogueFeedByID finds a catalogue row.
+// CatalogueFeedByID finds a catalogue row, or a country's (2.26), which is
+// built from its code rather than listed in FeedCatalogue.
 func CatalogueFeedByID(id string) (CatalogueFeed, bool) {
 	for _, f := range FeedCatalogue {
 		if f.ID == id {
 			return f, true
 		}
 	}
+	if cc, ok := CountryCode(id); ok {
+		return countryFeed(cc), true
+	}
 	return CatalogueFeed{}, false
 }
 
-// KnownFeedID reports whether id may be switched on: a catalogue id or an
-// own-feed id. It is the whole of what the core knows about the catalogue.
+// KnownFeedID reports whether id may be switched on: a catalogue id, a
+// country's or an own-feed id. It is the whole of what the core knows about
+// the catalogue.
 func KnownFeedID(id string) bool {
 	_, ok := CatalogueFeedByID(id)
 	return ok || IsOwnFeedID(id)
@@ -226,7 +231,9 @@ func FeedLocaleKey(id, field string) string {
 }
 
 // FeedDisplayName is what a feed id is called where a person reads it: the
-// catalogue name, "Own feed N", or the bare id for an id nothing knows.
+// catalogue name, a country's code in capitals, "Own feed N", or the bare id
+// for an id nothing knows. The web process replaces the last three with the
+// page's language (feedLabel).
 func FeedDisplayName(id string) string {
 	if f, ok := CatalogueFeedByID(id); ok {
 		return f.Name
