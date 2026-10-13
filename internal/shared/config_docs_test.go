@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -267,5 +268,39 @@ func TestTheSchemaLanguagesAreTheShippedCatalogues(t *testing.T) {
 	sort.Strings(got)
 	if !reflect.DeepEqual(got, shipped) {
 		t.Errorf("web.schema.json language enum %v, locales/ ships %v", got, shipped)
+	}
+}
+
+// configuration.md said "Three flags, and nothing else" while easywall-web also
+// took -healthcheck and easywall-core five subcommands. Every flag either main
+// defines, and every subcommand, must be named in its "The command line"
+// section.
+func TestEveryCommandLineFlagIsDocumented(t *testing.T) {
+	page := repoFile(t, "docs", "_docs", "configuration.md")
+	start := strings.Index(page, "## The command line")
+	if start < 0 {
+		t.Fatal(`configuration.md has no "## The command line" section`)
+	}
+	section := page[start:]
+	if end := strings.Index(section[3:], "\n## "); end >= 0 {
+		section = section[:end+3]
+	}
+	flagRe := regexp.MustCompile(`flag\.(?:Bool|String|Int|Duration)\("([a-z-]+)"`)
+	for _, f := range []string{"cmd/easywall-core/main.go", "cmd/easywall-web/main.go"} {
+		for _, m := range flagRe.FindAllStringSubmatch(repoFile(t, f), -1) {
+			if !strings.Contains(section, "`-"+m[1]) {
+				t.Errorf("%s defines -%s; configuration.md's command-line section does not name it", f, m[1])
+			}
+		}
+	}
+	subRe := regexp.MustCompile(`(?m)^\t\{"([a-z]+)", "`)
+	subs := subRe.FindAllStringSubmatch(repoFile(t, "cmd", "easywall-core", "subcommands.go"), -1)
+	if len(subs) == 0 {
+		t.Fatal("found no subcommands in cmd/easywall-core/subcommands.go — the table's shape changed")
+	}
+	for _, m := range subs {
+		if !strings.Contains(section, "`"+m[1]+"`") {
+			t.Errorf("easywall-core has the subcommand %s; configuration.md's command-line section does not name it", m[1])
+		}
 	}
 }
