@@ -45,7 +45,7 @@
     "language": {
       "type": "string",
       "description": "Default UI language. Can be overridden per-session via Accept-Language header.",
-      "enum": ["en", "de"],
+      "enum": ["de", "en", "fr"],
       "default": "en"
     },
     "session_key": {
