@@ -118,11 +118,20 @@ func indexPorts(rules []PortRule) map[string]PortRule {
 // diff beside an apply button — the exact shape of failure 2.10 existed to end.
 func portDetail(r PortRule) string {
 	detail := r.Description
+	// Scope decides which chain the rule lands in. It was missing here, so a
+	// port moved from host to forwarded was pending with an empty preview.
+	var marks []string
 	if r.SSH {
+		marks = append(marks, "(ssh)")
+	}
+	if r.Scope != "" && r.Scope != ScopeHost {
+		marks = append(marks, "("+string(r.Scope)+")")
+	}
+	for _, m := range marks {
 		if detail == "" {
-			detail = "(ssh)"
+			detail = m
 		} else {
-			detail += " (ssh)"
+			detail += " " + m
 		}
 	}
 	var sources []string

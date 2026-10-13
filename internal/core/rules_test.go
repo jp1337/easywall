@@ -718,3 +718,47 @@ func TestExportImport_RoundTripsTheStagedSetIncludingComments(t *testing.T) {
 		}
 	}
 }
+
+// The dashboard's "Unapplied changes" and /apply's "What changes" must agree.
+// HasPendingChanges compared rules.json bytes while the preview is
+// shared.DiffRules, so a comment-only blocklist edit put the banner on the
+// dashboard and an empty preview on /apply; and a port moved to another scope
+// was pending with nothing listed, because the preview never read Scope.
+func TestHasPendingChanges_AgreesWithTheApplyPreview(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		before, after shared.Rules
+		pending       bool
+	}{
+		{"a comment added to the blocklist",
+			shared.Rules{Blocklist: []string{"192.0.2.1"}},
+			shared.Rules{Blocklist: []string{"# scanner", "192.0.2.1"}}, false},
+		{"two allowlist entries swapped",
+			shared.Rules{Allowlist: []string{"192.0.2.1", "192.0.2.2"}},
+			shared.Rules{Allowlist: []string{"192.0.2.2", "192.0.2.1"}}, false},
+		{"a port moved from host to forwarded",
+			shared.Rules{TCP: []shared.PortRule{{ID: "aaaaaaaaaaaa", Port: "8080"}}},
+			shared.Rules{TCP: []shared.PortRule{{ID: "aaaaaaaaaaaa", Port: "8080", Scope: shared.ScopeForwarded}}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, _ := newTempStore(t)
+			state, err := store.GetState()
+			if err != nil {
+				t.Fatal(err)
+			}
+			state.Current, state.Staged = tc.before, tc.after
+			if err := store.save(state); err != nil {
+				t.Fatal(err)
+			}
+			pending, err := store.HasPendingChanges()
+			if err != nil {
+				t.Fatal(err)
+			}
+			listed := len(shared.DiffRules(tc.before, tc.after))
+			if pending != tc.pending || pending != (listed > 0) {
+				t.Errorf("pending = %v, preview lists %d rows; want pending = %v and the two to agree",
+					pending, listed, tc.pending)
+			}
+		})
+	}
+}
