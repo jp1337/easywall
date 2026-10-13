@@ -159,6 +159,49 @@ func TestEveryUnitIsInstalledAndManaged(t *testing.T) {
 	}
 }
 
+// A unit that lists another unit's RuntimeDirectory= in a *Paths= setting has
+// to prefix it with "-". systemd creates a runtime directory when its owner
+// starts and removes it when the owner stops, and a listed path that does not
+// exist fails the namespace setup: status 226/NAMESPACE, and after
+// StartLimitBurst the unit stays down.
+//
+// easywall-web.service listed /run/easywall bare until 2.25.1. Measured in an
+// ubuntu:24.04 systemd container: with the core stopped, `systemctl restart
+// easywall-web` ended "failed" with 226/NAMESPACE after two restarts. With the
+// prefix it ran, answered /healthz "core_unreachable", and "not_enforcing" —
+// the core answering — once the core was started, without a restart.
+func TestAnotherUnitsRuntimeDirectoryIsOptional(t *testing.T) {
+	units := unitFiles(t)
+	owner := map[string]string{}
+	for name, body := range units {
+		for _, line := range strings.Split(body, "\n") {
+			if v, ok := strings.CutPrefix(strings.TrimSpace(line), "RuntimeDirectory="); ok {
+				for _, d := range strings.Fields(v) {
+					owner["/run/"+d] = name
+				}
+			}
+		}
+	}
+	if len(owner) == 0 {
+		t.Fatal("no unit declares RuntimeDirectory=: this guard is reading nothing")
+	}
+	for name, body := range units {
+		for _, line := range strings.Split(body, "\n") {
+			key, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if !ok || strings.HasPrefix(key, "#") || !strings.HasSuffix(key, "Paths") {
+				continue
+			}
+			for _, p := range strings.Fields(v) {
+				if o, ok := owner[strings.TrimPrefix(p, "+")]; ok && o != name {
+					t.Errorf("%s: %s lists %s bare. It is %s's RuntimeDirectory=, removed "+
+						"whenever that unit stops, and a missing path fails this unit with "+
+						"226/NAMESPACE; write it as -%s", name, key, p, o, strings.TrimPrefix(p, "+"))
+				}
+			}
+		}
+	}
+}
+
 // dh_installsystemd writes the code that enables, starts and stops the units
 // into a maintainer script only where that script has a #DEBHELPER# line. A
 // script without one drops it, and nothing says so: debhelper just leaves the
