@@ -49,6 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const langSelect = document.getElementById('lang-select');
   if (langSelect) langSelect.addEventListener('change', () => langSelect.form.submit());
 
+  // The dashboard's Import button is a file picker; choosing a file sends it.
+  // This was an inline onchange attribute, which the CSP blocks — choosing a
+  // file did nothing at all.
+  const rulesFile = document.querySelector('input[name="rules_file"]');
+  if (rulesFile) rulesFile.addEventListener('change', () => rulesFile.form.submit());
+
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
   const menuBtn = document.getElementById('menu-btn');
@@ -340,8 +346,8 @@ function initRuleEditor() {
    A port table can hold fifty entries; scrolling to find one is the wrong
    interaction. Filtering happens in the browser because the rows are already
    here — a round trip would be slower and would discard unsaved edits. */
-function updateRuleCount() {
-  const tbody = document.getElementById('rules-tbody');
+function updateRuleCount(tbodyId = 'rules-tbody') {
+  const tbody = document.getElementById(tbodyId);
   const out   = document.getElementById('rules-count');
   if (!tbody || !out) return;
   const all     = [...tbody.querySelectorAll('tr[data-idx]')];
@@ -473,7 +479,7 @@ function initForwardingEditor() {
 
   tbody.addEventListener('click', e => {
     const del = e.target.closest('.del-rule');
-    if (del) { del.closest('tr').remove(); syncHidden(); }
+    if (del) { del.closest('tr').remove(); syncHidden(); updateRuleCount('fwd-tbody'); }
   });
 
   if (addBtn) {
@@ -485,6 +491,9 @@ function initForwardingEditor() {
       tbody.appendChild(tr);
       tr.querySelector('.f-src')?.focus();
       syncHidden();
+      // The counter is the ports page's: it was rendered once and never moved,
+      // so it read "4 rules" over six rows until the page was reloaded.
+      updateRuleCount('fwd-tbody');
     });
   }
 

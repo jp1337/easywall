@@ -1033,8 +1033,9 @@ func tailFile(path string, max int64) ([]byte, bool, error) {
 
 // maxCustomRules bounds how many statements one request may ask the daemon to
 // check. Well above any real rule set — the editor is a textarea and a long one
-// holds a few dozen lines — and far below what a 64 KB form body can carry,
-// which is about three thousand.
+// holds a few dozen lines — and far below what the editor's form body can
+// carry: about three thousand at the 64 KB it once had, tens of thousands at
+// the import-sized limit it has had since 2.25.1.
 const maxCustomRules = 256
 
 // validateCustomRules checks the rules with "nft --check" and returns a map of

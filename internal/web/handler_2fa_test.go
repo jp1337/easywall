@@ -113,6 +113,22 @@ func TestEnrol_ConfirmStoresEverythingInOneWriteAndShowsTheCodesOnce(t *testing.
 	}
 }
 
+// A code pasted with the space an authenticator app copies along is the right
+// code. /firstrun/confirm and /login/verify trimmed it; this route compared the
+// raw field, refused "123456 " as wrong and marked the enrolment failed.
+func TestEnrol_ConfirmAcceptsACodeWithSurroundingSpace(t *testing.T) {
+	s := serverWithPassword(t)
+	_, cookie := beginEnrolment(t, s)
+
+	raw, _ := decodeTOTPSecret(s.pendingSecretFor(t, cookie))
+	code := totpAt(raw, stepAt(time.Now()))
+
+	rec := doFormRequest(s, "POST", "/password/2fa/confirm", "code=+"+code+"%20", cookie)
+	if rec.Code != http.StatusOK || !s.cfg.TOTPEnabled() {
+		t.Errorf("a correct code with a space around it was refused (status %d)", rec.Code)
+	}
+}
+
 // TestEnrol_ConfirmDoesNotReMintCodesWhenItIsNotTheFirstFactor.
 //
 // A passkey enrolled first may already have minted the operator's one set of
