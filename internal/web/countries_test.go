@@ -1,9 +1,12 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -166,6 +169,31 @@ func TestTheCountryRefusalStatesTheCap(t *testing.T) {
 	body := doRequest(s, "GET", "/apply", nil, rec.Result().Cookies()[0], makeAuthCookie(t, s)).Body.String()
 	if want := fmt.Sprintf("at most %d countries", shared.MaxCountries); !strings.Contains(body, want) {
 		t.Errorf("no %q in\n%s", want, body)
+	}
+
+	// The rendering alone passes with a literal 30 in the locale file, so the
+	// strings themselves must carry {{.Max}} and no digit. Every key that
+	// states the cap belongs in this list.
+	capKeys := []string{"feeds_error_too_many_countries"}
+	for _, lang := range []string{"en", "de"} {
+		raw, err := os.ReadFile(filepath.Join(localesDir(t), lang+".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var msgs []struct{ ID, Translation string }
+		if err := json.Unmarshal(raw, &msgs); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range capKeys {
+			i := slices.IndexFunc(msgs, func(m struct{ ID, Translation string }) bool { return m.ID == key })
+			if i < 0 {
+				t.Errorf("%s: no %s", lang, key)
+				continue
+			}
+			if tr := msgs[i].Translation; !strings.Contains(tr, "{{.Max}}") || strings.ContainsAny(tr, "0123456789") {
+				t.Errorf("%s %s = %q: want {{.Max}} and no digit", lang, key, tr)
+			}
+		}
 	}
 }
 

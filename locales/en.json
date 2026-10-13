@@ -476,7 +476,7 @@
   {"id": "blocked_rule_feed_named", "translation": "Feed: {{.Name}}"},
   {"id": "feeds_error_too_many_countries", "translation": "Nothing was staged: at most {{.Max}} countries can be switched on. Remove one first."},
   {"id": "blocked_rule_country_named", "translation": "Country: {{.Name}}"},
-  {"id": "apply_country_not_loaded", "translation": "Nothing was applied: {{.Name}} has no copy yet. Wait until its row on the blocklist page shows entries, then apply."},
+  {"id": "apply_country_not_loaded", "translation": "Nothing was applied: {{.Name}} has no copy yet. Wait until its row on the blocklist page shows entries, then apply — or switch it off there if it never does."},
 
   {"id": "forwarding_subtitle", "translation": "Redirect traffic arriving on one port to another port on this host."},
   {"id": "forwarding_section", "translation": "NAT redirects"},

@@ -476,7 +476,7 @@
   {"id": "blocked_rule_feed_named", "translation": "Fremdliste: {{.Name}}"},
   {"id": "feeds_error_too_many_countries", "translation": "Nichts wurde vorgemerkt: höchstens {{.Max}} Länder lassen sich einschalten. Entferne zuerst eines."},
   {"id": "blocked_rule_country_named", "translation": "Land: {{.Name}}"},
-  {"id": "apply_country_not_loaded", "translation": "Nichts wurde angewendet: für {{.Name}} liegt noch keine Kopie vor. Warte, bis die Zeile des Landes auf der Sperrliste Einträge zeigt, und wende die Regeln dann an."},
+  {"id": "apply_country_not_loaded", "translation": "Nichts wurde angewendet: für {{.Name}} liegt noch keine Kopie vor. Warte, bis die Zeile des Landes auf der Sperrliste Einträge zeigt, und wende die Regeln dann an — oder schalte das Land dort aus, falls das nie geschieht."},
 
   {"id": "forwarding_subtitle", "translation": "Verkehr, der auf einem Port ankommt, auf einen anderen Port dieses Hosts umleiten."},
   {"id": "forwarding_section", "translation": "NAT-Umleitungen"},
