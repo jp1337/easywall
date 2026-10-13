@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -40,5 +41,45 @@ func TestThePackageVersionIsTheReleaseVersion(t *testing.T) {
 			"  debian/rules takes the package version *and* the -ldflags version from this file, "+
 			"so the two would disagree about what the .deb contains, and the release would "+
 			"fail at the upload step with the images already published", got, CurrentVersion)
+	}
+}
+
+// Every -ldflags -X in the build files has to name shared.CurrentVersion, and
+// CurrentVersion has to be a variable. The linker ignores an -X whose target
+// does not exist, so a typo builds cleanly and the binary reports the literal
+// in the source — which is exactly what the Debian job's version check
+// compared it against until 2.25.1, so a misspelt target in debian/rules
+// stayed green. The Dockerfile's and .goreleaser.yaml's are never asked at all.
+// Measured: built with -X …shared.CurrentVersoin=2.25.0, easywall-core
+// reported 2.25.0, and the check passed.
+func TestEveryLinkerVersionFlagNamesTheVariable(t *testing.T) {
+	const target = "github.com/jp1337/easywall/internal/shared.CurrentVersion"
+	_ = &CurrentVersion // does not compile if it goes back to being a const
+
+	root := repoRootDir(t)
+	flag := regexp.MustCompile(`-X[ =]+([A-Za-z0-9_./-]+)=`)
+	files := 0
+	for _, f := range trackedFiles(t, root) {
+		switch {
+		case f == "Makefile", f == "Dockerfile", f == ".goreleaser.yaml", f == "debian/rules",
+			strings.HasPrefix(f, ".github/workflows/"):
+		default:
+			continue
+		}
+		found := false
+		for _, m := range flag.FindAllStringSubmatch(readRepoPath(t, root, f), -1) {
+			found = true
+			if m[1] != target {
+				t.Errorf("%s: -X %s names nothing the version lives in; the linker ignores it "+
+					"silently and the binary reports the source default. Want -X %s", f, m[1], target)
+			}
+		}
+		if found {
+			files++
+		}
+	}
+	// Makefile, Dockerfile, .goreleaser.yaml, debian/rules, build.yml.
+	if files < 5 {
+		t.Errorf("found -X in %d build files, want at least 5: the pattern has stopped matching", files)
 	}
 }
