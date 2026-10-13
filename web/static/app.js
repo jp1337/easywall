@@ -587,7 +587,8 @@ function initApplyStatus() {
 
       // The core (and the demo) write the literal string "cancelled by
       // operator" only when the operator clicked Roll back now; anything
-      // else — including a fresh install's empty string — is a timeout. Before
+      // else — a timeout, a core that stopped or died inside the window, a fresh
+      // install's empty string — is a window that closed unconfirmed. Before
       // this, every rollback announced "acceptance timeout" here, including
       // the one the operator had just caused by clicking the button — because
       // a timeout used to be the only way a window could end. Written as an
