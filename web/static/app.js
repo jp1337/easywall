@@ -49,6 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const langSelect = document.getElementById('lang-select');
   if (langSelect) langSelect.addEventListener('change', () => langSelect.form.submit());
 
+  // The dashboard's Import button is a file picker; choosing a file sends it.
+  // This was an inline onchange attribute, which the CSP blocks — choosing a
+  // file did nothing at all.
+  const rulesFile = document.querySelector('input[name="rules_file"]');
+  if (rulesFile) rulesFile.addEventListener('change', () => rulesFile.form.submit());
+
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('overlay');
   const menuBtn = document.getElementById('menu-btn');
