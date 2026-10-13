@@ -187,6 +187,17 @@ esac
 # anyway. The core is started regardless: Before= orders the two and never
 # gates them, which is this release's rule that no layer refuses to filter,
 # expressed in unit ordering.
+# A package operation is a deliberate start, not a crash loop, so it resets the
+# units' start rate limit first (StartLimitBurst=3 in 60 s, easywall-core.service).
+# Without this the limit counted dpkg's own stops and starts: an install, a failed
+# upgrade's abort-upgrade and the retry inside a minute were the fourth start,
+# and systemd refused it — "Start request repeated too quickly", the core left
+# down after an upgrade that succeeded. Measured in an ubuntu:24.04 systemd
+# container with the 2.25.1 CI package; build.yml's failed-upgrade step is the
+# sequence.
+if [ -d /run/systemd/system ]; then
+  systemctl reset-failed easywall-core.service easywall-web.service >/dev/null 2>&1 || true
+fi
 #DEBHELPER#
 
 # The first visitor to /firstrun used to own the firewall. It now asks for a
