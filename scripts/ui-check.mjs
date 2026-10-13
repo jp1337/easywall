@@ -781,6 +781,16 @@ async function checkForwardingRowEdgesLineUp(page) {
   } else {
     console.log('  ok   added forwarding row cells share one top edge');
   }
+
+  // The counter above the table was rendered once and never moved: "4 rules"
+  // over five rows until a reload. It is the ports page's updateRuleCount now.
+  const rows = await page.locator('#fwd-tbody tr[data-idx]').count();
+  const counted = parseInt(await page.textContent('#rules-count') ?? '', 10);
+  if (counted !== rows) {
+    fail('forwarding count', `the counter says ${counted} with ${rows} rows on the page`);
+  } else {
+    console.log(`  ok   the forwarding counter follows an added row (${rows})`);
+  }
 }
 
 /**
