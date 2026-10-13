@@ -26,6 +26,12 @@ confirmed, or by surviving a rollback nobody had to trigger. Restoring it is not
 a new change taking effect unconfirmed — refusing to restore it would be the
 actual change, and the one nobody asked for.
 
+One case would break that: the core dying *inside* a window — killed, out of
+memory, a power cut — before it could roll back. An apply therefore leaves a
+marker (`unconfirmed` in `data_dir`) until its window has an outcome. A start
+that finds it puts back the set in force before that apply first, and logs
+`apply_rolledback` with detail `core stopped`.
+
 A window here could not work even if you wanted it to. Nobody is present at boot
 to confirm, so it would expire. The rollback would install `Backup`, which
 nobody confirmed either. There is no second window behind that one to catch it.
