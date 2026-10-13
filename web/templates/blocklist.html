@@ -32,7 +32,8 @@
                     hx-post="/iplist/validate"
                     hx-trigger="input changed delay:600ms, change delay:200ms"
                     hx-target="#iplist-errors"
-                    hx-swap="innerHTML">{{range .Entries}}{{.}}
+                    hx-swap="innerHTML">
+{{range .Entries}}{{.}}
 {{end}}</textarea>
 
           <div class="editor-foot">
