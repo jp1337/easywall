@@ -372,6 +372,11 @@ const MaxMessageBytes = 8 << 20
 // refresh as too large without a round trip.
 const ErrRequestTooLargeText = "request too large"
 
+// ErrConsoleOnlyText is the exact Response.Error the core returns for PANIC or
+// RESUME from a peer that is not root. Those two are the console's: the web
+// process shares the socket's group and must not be able to send them.
+const ErrConsoleOnlyText = "only root at the console may send this command"
+
 // ErrRequestTooLarge is what SendCommand returns for a command it will not
 // send. errors.Is finds it through the wrapping.
 var ErrRequestTooLarge = errors.New(ErrRequestTooLargeText)
