@@ -353,23 +353,38 @@ func (f *Firewall) resetUsageBaselines() {
 // port used between two applies — which is every port, on a machine whose rules
 // are not being changed — would be dated at the next apply or not at all.
 //
-// An interval of zero stops the ticker and nothing else: the apply-time collect
-// still runs, because that call exists to keep the flush from destroying a
-// number rather than to sample one.
+// An interval of zero stops the collects and nothing else: the apply-time
+// collect still runs, because that call exists to keep the flush from
+// destroying a number rather than to sample one.
+//
+// The interval is re-read every second, because SIGHUP reloads [usage]. It
+// used to be read once, here: a reload changed nothing until a restart, and an
+// interval of 0 at start returned for good, so switching the ticker back on
+// with the documented SIGHUP did nothing at all.
 func (f *Firewall) collectUsagePeriodically(quit <-chan struct{}) {
-	interval := f.cfg.UsageInterval()
-	if interval <= 0 {
-		slog.Info("the usage counter ticker is switched off; Last used will only advance " +
-			"when rules are applied")
-		return
-	}
-	tick := time.NewTicker(interval)
+	tick := time.NewTicker(time.Second) // usage.interval is whole seconds
 	defer tick.Stop()
+	last := time.Now()
+	off := false
 	for {
 		select {
 		case <-quit:
 			return
-		case <-tick.C:
+		case now := <-tick.C:
+			interval := f.cfg.UsageInterval()
+			if interval <= 0 {
+				if !off {
+					slog.Info("the usage counter ticker is switched off; Last used will only " +
+						"advance when rules are applied")
+					off = true
+				}
+				continue
+			}
+			off = false
+			if now.Sub(last) < interval {
+				continue
+			}
+			last = now
 			if err := f.CollectUsage(); err != nil {
 				slog.Warn("could not read the port counters", "error", err)
 			}

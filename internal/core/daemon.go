@@ -254,7 +254,8 @@ func (d *Daemon) Start() error {
 
 	// The counter ticker, tracked in wg for the same reason as the reconciler:
 	// Stop waits for it to notice d.quit rather than leaving it reading netlink
-	// into a closed daemon. It returns immediately when usage.interval is 0.
+	// into a closed daemon. It keeps running at usage.interval = 0, so a SIGHUP
+	// can switch it back on.
 	if d.track() {
 		go func() {
 			defer d.wg.Done()
