@@ -1,6 +1,6 @@
 # The reviewer's first thirty
 
-`locales/en.json` holds 461 keys. A reviewer checking a new language against it
+`locales/en.json` holds 877 keys. A reviewer checking a new language against it
 in order reaches the sentences that matter most at roughly key 400, tired. This
 page collects them so they are read first.
 
