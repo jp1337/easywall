@@ -603,7 +603,7 @@
   {"id": "feed_dshield_blocks", "translation": "The 20 /24 networks with the most scanning sources over the last three days."},
   {"id": "feed_dshield_fp_why", "translation": "Twenty networks, each seen scanning right now."},
   {"id": "feed_blocklist_de_blocks", "translation": "Addresses fail2ban reported for attacks in the last 48 hours."},
-  {"id": "feed_blocklist_de_fp_why", "translation": "Dynamic and recycled addresses, some cloud hosts and some Tor exits."},
+  {"id": "feed_blocklist_de_fp_why", "translation": "Dynamic and recycled addresses, some cloud hosts, some Tor exits — and search crawlers (Googlebot, Bingbot)."},
   {"id": "feed_cins_blocks", "translation": "Addresses the CINS sensors saw attacking; always the latest 15 000."},
   {"id": "feed_cins_fp_why", "translation": "About one in eleven is a cloud address, and those change owner."},
   {"id": "feed_et_compromised_blocks", "translation": "Hosts known to be compromised."},

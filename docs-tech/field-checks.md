@@ -20,6 +20,7 @@ together find what neither finds alone.
 | 2.24 | the published-port warning never read Docker's `iptables-nft` DNAT — an xtables target, not the nft `nat` expression the check read — since 2.20.1 | fixed in 2.24 (Task 3) |
 | 2.24.0 | the published-port warning named 8 ports published on 127.0.0.1 only (nginx back ends), all answering | 2.24.1 — loopback binds skipped; the host's own connection never crosses forward |
 | 2.24.1 | IPv6 on 25: 0 connects for the first hours, then 23 of 396 (≈6 %) in 15 h, 0 drops | senders had cached the AAAA as unreachable; nothing to change. 993/143/465/587 proven from outside |
+| 2.25.1 | blocklist.de held 5 of Bingbot's 28 published ranges, 1 of GPTBot's 18 and 2 of Googlebot's 317; no other feed held any. 0 drops from them in the ring | `feeds.md` names the crawlers and both remedies; the operator switched blocklist.de off |
 
 ## When
 
