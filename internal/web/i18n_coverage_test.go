@@ -189,8 +189,7 @@ func TestTranslationsAreNotCopiedEnglish(t *testing.T) {
 	same := map[string]bool{
 		"demo_label": true, "nav_group_system": true, "nav_system": true,
 		"ports_tcp": true, "ports_udp": true, "log_col_user": true,
-		"forwarding_protocol": true, "dashboard_status": true,
-		"system_title": true, "audit_title": true,
+		"forwarding_protocol": true, "system_title": true, "audit_title": true,
 	}
 
 	dir := localesDir(t)

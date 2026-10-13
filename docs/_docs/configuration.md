@@ -45,13 +45,18 @@ hash. Pointed at a file that exists, the command says so and changes nothing.
 
 ## The command line
 
-Three flags, and nothing else.
+Both binaries take three flags; `easywall-web` takes a fourth.
 
 | | |
 |---|---|
 | `-config <path>` | which file to read. Defaults to `/etc/easywall/easywall.toml` and `/etc/easywall/web.toml` |
 | `-write-config <path>` | write the commented default to that path, `0600`, and exit. Refuses if the file exists, and does not create the directory |
 | `-version` | print the version and exit — what the binary was actually built as |
+| `-healthcheck` | `easywall-web` only: ask `/healthz` at `bind_addr`, exit 0 on a 200 — the container's [health check]({{ '/docs/features/health/' | relative_url }}) |
+
+`easywall-core` also has five subcommands: `health` and `selftest`
+([health]({{ '/docs/features/health/' | relative_url }})), `status`, `panic` and `resume`
+([recovery]({{ '/docs/features/recovery/' | relative_url }})). `easywall-core -h` lists them.
 
 ```bash
 easywall-core --version     # easywall-core {{ site.version }}

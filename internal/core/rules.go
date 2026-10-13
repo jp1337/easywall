@@ -203,7 +203,13 @@ func (s *RulesStore) SaveStaged(ruleType string, rules interface{}) error {
 	return s.save(state)
 }
 
-// HasPendingChanges returns true when staged rules differ from current rules.
+// HasPendingChanges returns true when applying the staged rules would change
+// the firewall — exactly when /apply's preview, shared.DiffRules, lists a row.
+//
+// It compared the JSON bytes until 2.25.1, so a comment added to the blocklist
+// or two allowlist entries swapped put "Unapplied changes" on the dashboard
+// while /apply listed nothing. Such an edit is still stored and goes live with
+// the next apply; it just changes nothing in the kernel.
 func (s *RulesStore) HasPendingChanges() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,15 +218,7 @@ func (s *RulesStore) HasPendingChanges() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	cur, err := json.Marshal(state.Current)
-	if err != nil {
-		return false, err
-	}
-	staged, err := json.Marshal(state.Staged)
-	if err != nil {
-		return false, err
-	}
-	return string(cur) != string(staged), nil
+	return len(shared.DiffRules(state.Current, state.Staged)) > 0, nil
 }
 
 // BackupCurrent copies current → backup before applying new rules.

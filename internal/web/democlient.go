@@ -658,10 +658,8 @@ func demoErr(err error) shared.Response {
 // core.Firewall.Status does. A demo whose pending state is computed differently
 // from the product's is a demo that teaches the wrong thing.
 func (d *demoState) hasPendingLocked() bool {
-	a, _ := json.Marshal(d.rules.Current)
-	b, _ := json.Marshal(d.rules.Staged)
-	if string(a) != string(b) {
-		return true
+	if len(shared.DiffRules(d.rules.Current, d.rules.Staged)) > 0 {
+		return true // the core's rule, RulesStore.HasPendingChanges
 	}
 	live := shared.AppliedConfig{Firewall: d.options, Network: d.settings}
 	return len(shared.DiffConfig(d.appliedConfig, live)) > 0

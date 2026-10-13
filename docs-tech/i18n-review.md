@@ -1,6 +1,6 @@
 # The reviewer's first thirty
 
-`locales/en.json` holds 461 keys. A reviewer checking a new language against it
+`locales/en.json` holds 877 keys. A reviewer checking a new language against it
 in order reaches the sentences that matter most at roughly key 400, tired. This
 page collects them so they are read first.
 
@@ -40,8 +40,8 @@ independent of what any port rule says.
 
 | id | English text |
 |---|---|
-| `blocklist_subtitle` | Sources that are dropped before any other rule is evaluated. |
-| `blocklist_what_body` | The blocklist is evaluated first. An address listed here is dropped even if a port rule would have accepted it. |
+| `blocklist_subtitle` | Sources that are dropped before the allowlist, the feeds and the port rules are evaluated. |
+| `blocklist_what_body` | The blocklist is evaluated before the allowlist and the port rules. An address listed here is dropped even if a port rule would have accepted it. Under `ipv6.mode = "passthrough"` an IPv6 entry does nothing: all IPv6 is accepted before this list. |
 | `blocklist_order_step_blocklist_desc` | Dropped. Nothing further down can let it in — not even an allowlist entry inside a blocked range. |
 | `blocklist_order_step_allowlist_desc` | Accepted — the feeds never see it. |
 | `blocklist_order_step_feeds_desc` | Dropped, unless the allowlist accepted it first. |
@@ -131,7 +131,7 @@ real exception.
 | `allowlist_section_desc` | Accepted before the port rules are consulted. The protection modules still run first — only the bogon filter makes an exception for this list. |
 | `allowlist_wayback_note` | An allowlisted source skips the port rules entirely, so it reaches services that are not listed under {} at all. |
 | `allowlist_narrow_body` | An entry here reaches every port, open or not. Prefer a single address over a range, and a range over a whole network. |
-| `tile_blocklist_note` | dropped before any rule |
+| `tile_blocklist_note` | dropped before the allowlist |
 | `tile_allowlist_note` | bypass every port rule |
 
 ## Demo mode

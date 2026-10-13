@@ -45,7 +45,7 @@
     "language": {
       "type": "string",
       "description": "Default UI language. Can be overridden per-session via Accept-Language header.",
-      "enum": ["en", "de"],
+      "enum": ["de", "en", "fr"],
       "default": "en"
     },
     "session_key": {
@@ -121,7 +121,7 @@
     },
     "update_check": {
       "type": "boolean",
-      "description": "Check github.com once a day for a newer release and show a banner on the dashboard. One of the two requests easywall can make \u2014 the other is the installation count, which is off unless switched on. Set to false to remove this one. The dashboard never waits for it either way.",
+      "description": "Check github.com once a day for a newer release and show a banner on the dashboard. One of the five requests easywall can make \u2014 the others (installation count, notifications, feeds, ACME) are off unless switched on. Set to false to remove this one. The dashboard never waits for it either way.",
       "default": true
     },
     "telemetry": {

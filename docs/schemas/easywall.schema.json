@@ -122,7 +122,7 @@
         "enabled": {
           "type": "boolean",
           "description": "Auto-detect Docker bridge interfaces and allowlist their networks.",
-          "default": false
+          "default": true
         },
         "allow_bridge_networks": {
           "type": "boolean",
