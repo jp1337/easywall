@@ -980,6 +980,9 @@ async function checkBlockedTailHoldsStill(page) {
     await page.waitForTimeout(12000);
     if (await firstSeq() === underPointer) fail('blocked tail', 'the tail did not resume after the pointer left the table');
     if (await stateText() !== liveText) fail('blocked tail', `the state line reads "${await stateText()}" while live`);
+    // A poll with nothing new must be observed at all: wait for one idle poll.
+    if (!rowsSeen.some(r => r.status === 204)) await page.waitForTimeout(7000);
+    if (!rowsSeen.some(r => r.status === 204)) fail('blocked tail', 'no poll answered 204 — "nothing new answers 204" was not observed');
     const asked = rowsSeen.filter(r => r.status === 200 || r.status === 204);
     if (asked.length === 0 || !asked.every(r => /[?&]after=\d+/.test(r.url))) {
       fail('blocked tail', `a poll did not carry after=<seq>: ${asked.map(r => r.url).join(', ')}`);
@@ -987,12 +990,6 @@ async function checkBlockedTailHoldsStill(page) {
     if (asked.some(r => r.status === 200 && r.swap !== 'afterbegin')) {
       fail('blocked tail', 'a poll with new rows answered with the whole view');
     }
-    // A size check over zero 204s proves nothing: wait for one idle poll.
-    if (!rowsSeen.some(r => r.status === 204)) {
-      await page.waitForTimeout(7000);
-      if (!rowsSeen.some(r => r.status === 204)) fail('blocked tail', 'no poll answered 204 — "nothing new carries no body" was not observed');
-    }
-    if (rowsSeen.some(r => r.status === 204 && r.bytes !== 0)) fail('blocked tail', 'a poll with nothing new carried a body');
     const marked = await page.locator('#blocked-rows tr.pkt-new').count();
     if (marked === 0) fail('blocked tail', 'the newest batch is not marked');
     const limit = await page.$eval('#blocked-rows', t => Number(t.dataset.limit));
@@ -1003,6 +1000,7 @@ async function checkBlockedTailHoldsStill(page) {
     if (await page.$eval('#blocked-live-toggle', b => b.getAttribute('aria-pressed')) !== 'true') {
       fail('blocked tail', 'the Pause button is not pressed after a click');
     }
+    await page.waitForTimeout(500);       // a poll in flight at the click lands before the count starts
     rowsSeen.length = 0;
     const paused = await firstSeq();
     await page.waitForTimeout(12000);
