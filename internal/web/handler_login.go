@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/subtle"
 	"log/slog"
 	"net/http"
@@ -45,7 +46,15 @@ func (s *Server) handleLoginPOST(w http.ResponseWriter, r *http.Request) {
 	// as a lookup — one request per guess tells an attacker the account name of
 	// the single account this system has.
 	wantUser, wantHash := s.cfg.Credentials()
-	passwordOK := VerifyPassword(password, wantHash)
+	ctx, cancel := context.WithTimeout(r.Context(), loginHashWait)
+	passwordOK, err := verifyPasswordCtx(ctx, password, wantHash)
+	cancel()
+	if err != nil {
+		// Not checked at all, so neither a success nor a failure to record.
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		return
+	}
 	usernameOK := subtle.ConstantTimeCompare([]byte(username), []byte(wantUser)) == 1
 
 	if !usernameOK || !passwordOK {

@@ -297,14 +297,28 @@ code attempts in ten minutes, invisible to a test that never moved the clock.
 Buckets unused for 15 minutes are swept by a goroutine started once per
 process; longer than the window, so a sweep never hands out more than five.
 An IPv6 client is keyed by its /64 — a subscriber picks any address in it, and
-keyed per address 200 attempts from one /64 all passed. The map holds at most
-4096 buckets; a new key at the ceiling evicts an arbitrary one, which gains a
-caller nothing: forcing evictions takes 4096 fresh budgets of its own.
+keyed per address 200 attempts from one /64 all passed. The price is the NAT
+one IPv4 always had: whoever shares the /64 shares the budget.
+
+The map holds at most 65,536 buckets (~12 MB). At the ceiling a new key is
+**refused**, never let in by evicting another. Random eviction was the first
+version, and cycling ten times the ceiling's worth of keys reset an exhausted
+budget every time (`TestFloodingTheLimiterDoesNotResetABudget`). Only the
+sweep frees a slot, every minute, and only a bucket that limits nobody: back to
+the full budget, or idle 15 minutes. The price: a source not yet tracked waits
+while 65,536 others are live.
 
 Each attempt that passes costs a 64 MiB Argon2id run. `argon2Slots` lets one run
-at a time and queues the rest as goroutines, not allocations: ten parallel
-attempts took the process to 668 MiB before, ~200 MB peak after (the Go heap
-holds about three runs' worth between collections).
+at a time; the rest wait as goroutines, not allocations: ten parallel attempts
+took the process to 668 MiB before, ~200 MB peak after (the Go heap holds about
+three runs' worth between collections). A sign-in waits at most
+`loginHashWait` (5 s) or until its client leaves, then gets `503`, so a flood
+leaves no backlog behind it. The price: during one, the operator's sign-in can
+be the `503`, and it has already spent a token. A cap is the only alternative to
+a flood that ends in the OOM killer.
+
+"Five in any ten minutes" means a half-open window: a sixth at exactly +600 s
+gets through, which is the next window.
 
 Only the login path is limited. The rest of the interface is behind
 authentication, and the protection modules in the firewall itself are what limit

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -10,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -209,12 +211,24 @@ var defaultArgon2Params = argon2Params{
 // hosts docs/_docs/installation/requirements.md sizes at ~32 MB idle.
 var argon2Slots = make(chan struct{}, 1)
 
+// loginHashWait is how long a sign-in waits for argon2Slots before it is
+// answered 503. A flood from many sources can keep the slot busy; without a
+// limit the backlog grew without one and the operator's own attempt queued
+// behind all of it, still running after the flood had stopped. A var so a
+// test need not wait it out.
+var loginHashWait = 5 * time.Second
+
 // idKey is argon2.IDKey behind argon2Slots. Every hash this process computes
-// goes through here, or the bound above stops being one.
-func idKey(password, salt []byte, p argon2Params) []byte {
-	argon2Slots <- struct{}{}
+// goes through here, or the bound above stops being one. It gives up when ctx
+// ends — a deadline, or a client that has gone away.
+func idKey(ctx context.Context, password, salt []byte, p argon2Params) ([]byte, error) {
+	select {
+	case argon2Slots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	defer func() { <-argon2Slots }()
-	return argon2.IDKey(password, salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	return argon2.IDKey(password, salt, p.iterations, p.memory, p.parallelism, p.keyLength), nil
 }
 
 // HashPassword returns an argon2id encoded hash of the given password.
@@ -225,7 +239,7 @@ func HashPassword(password string) (string, error) {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
 
-	hash := idKey([]byte(password), salt, p)
+	hash, _ := idKey(context.Background(), []byte(password), salt, p) // waits as long as it takes
 
 	b64salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64hash := base64.RawStdEncoding.EncodeToString(hash)
@@ -270,15 +284,25 @@ var (
 // safe on the inside because the reason is one of the constants above — the
 // stored credential does not reach the journal even in pieces.
 func VerifyPassword(password, encodedHash string) bool {
+	ok, _ := verifyPasswordCtx(context.Background(), password, encodedHash)
+	return ok
+}
+
+// verifyPasswordCtx is VerifyPassword for the sign-in, which must not wait for
+// a hashing slot past ctx: an error means it was not checked at all.
+func verifyPasswordCtx(ctx context.Context, password, encodedHash string) (bool, error) {
 	p, salt, hash, err := decodeArgon2Hash(encodedHash)
 	if err != nil {
 		slog.Error("the stored password hash cannot be used, so no password can match it; "+
 			"replace the password line in web.toml with a hash easywall produced, or clear it "+
 			"to reopen the first-run wizard", "reason", err.Error())
-		return false
+		return false, nil
 	}
-	other := idKey([]byte(password), salt, p)
-	return subtle.ConstantTimeCompare(hash, other) == 1
+	other, err := idKey(ctx, []byte(password), salt, p)
+	if err != nil {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare(hash, other) == 1, nil
 }
 
 // decodeArgon2Hash parses a $argon2id$... encoded hash.

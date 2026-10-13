@@ -32,7 +32,7 @@ holds no privilege worth stealing.
 
 | | |
 |---|---|
-| Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password. One at a time; further sign-ins wait their turn |
+| Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password. One at a time — see [what the limits cost](#what-the-sign-in-limits-cost) |
 | Password floor | at least 12 characters, with a digit and a symbol — not configurable |
 | Default password | none. The first-run wizard is mandatory |
 | First run | only with the setup token easywall-web prints to its log at start — [First Run]({{ '/docs/installation/first-run/' | relative_url }}#the-setup-token) |
@@ -68,6 +68,19 @@ restart.
 
 Both halves are held by tests. Three attempts end the attempt whichever door
 they came through, and the sixteenth in ten minutes does not get through.
+
+### What the sign-in limits cost
+
+Each limit closes a flood, and each has a price somebody else can make you pay.
+
+| Limit | Closes | The price |
+|---|---|---|
+| 5 attempts per 10 minutes, IPv6 per /64 | guessing; one host rotating through its /64 | whoever shares your /64, or your IPv4 address behind NAT, spends your budget |
+| One password hash at a time, 5 s wait | 64 MiB per attempt — ten at once took 668 MiB | a flood from many sources can keep the slot busy: your sign-in is answered `503` and still counts against your budget |
+| 65,536 sources tracked | memory chosen by strangers | while that many have tried in the last 15 minutes, a new source is answered `429` until one ages out. A source already tracked is unaffected |
+
+Nothing at the ceiling is let in by forgetting another source: that would
+hand an exhausted budget back to whoever sent from enough addresses.
 
 ### Passkeys are a second factor, never a replacement
 
