@@ -35,6 +35,7 @@ func TestTheCountriesCardKeepsEveryOtherFeed(t *testing.T) {
 		"removing a list": {"remove=dshield", "save_error", nil},
 		"an unknown code": {"add=country-zz", "save_error", nil},
 		"nothing":         {"", "save_error", nil},
+		"an empty select": {"add=", "save_error", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s, _, got := feedsCore(t, shared.RulesState{Staged: shared.Rules{Feeds: before}}, nil)
@@ -324,5 +325,25 @@ func TestCountriesSortTheWayAReaderLooksThemUp(t *testing.T) {
 		if !slices.Equal(names, want) {
 			t.Errorf("%s: the order differs from collation:\n got %q\nwant %q", lang, names, want)
 		}
+	}
+}
+
+// The core sets ChangedAt only when the prefixes change, so Antarctica's four
+// networks stay unchanged for months. "A list that stops changing may no
+// longer be maintained" is true of a feed and wrong of a country.
+func TestACountryIsNeverStale(t *testing.T) {
+	old := time.Now().Add(-31 * 24 * time.Hour)
+	s, _, _ := feedsCore(t, shared.RulesState{
+		Staged: shared.Rules{Feeds: []string{"dshield", "country-aq"}},
+	}, []shared.FeedStatus{
+		{ID: "dshield", Stored: true, Entries: 20, ChangedAt: old, InKernel: true},
+		{ID: "country-aq", Stored: true, Entries: 4, ChangedAt: old, InKernel: true},
+	})
+	body := doAuthRequest(t, s, "GET", "/blocklist", nil).Body.String()
+	if n := strings.Count(body, "may no longer be maintained"); n != 1 {
+		t.Errorf("%d stale warnings, want one: the list's, not the country's", n)
+	}
+	if i := strings.Index(body, `<tr id="country-aq">`); i < 0 || strings.Contains(body[i:i+strings.Index(body[i:], "</tr>")], "no longer be maintained") {
+		t.Error("Antarctica is called unmaintained")
 	}
 }

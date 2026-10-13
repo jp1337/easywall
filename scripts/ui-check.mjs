@@ -1206,7 +1206,7 @@ async function checkCountriesCard(page) {
   }
   await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
   if (await page.locator('#countries tr#country-aq').count() !== 1) { fail('countries card', 'the demo\'s Antarctica row is missing'); return; }
-  const offered = await page.locator('#country-add option').count();
+  const offered = await page.locator('#country-add option[value^="country-"]').count();
   if (offered < 200) { fail('countries card', `${offered} countries offered, want every one not switched on`); return; }
 
   await page.selectOption('#country-add', 'country-is');

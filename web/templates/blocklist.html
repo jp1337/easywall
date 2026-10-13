@@ -314,7 +314,8 @@
   {{end}}
   <form method="POST" action="/blocklist/countries" class="editor-foot">
     <label class="sr-only" for="country-add">{{T "countries_add_label"}}</label>
-    <select id="country-add" name="add" class="input input-sm country-select">
+    <select id="country-add" name="add" class="input input-sm country-select" required>
+      <option value="" selected disabled>{{T "countries_select_prompt"}}</option>
       {{range .CountryOptions}}<option value="{{.ID}}">{{.Name}} ({{.Code}})</option>{{end}}
     </select>
     <button type="submit" class="btn btn-primary">{{T "countries_add"}}</button>

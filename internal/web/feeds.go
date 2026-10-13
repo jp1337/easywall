@@ -618,7 +618,7 @@ type feedRow struct {
 	Failures    int
 
 	// Warnings (spec §5), each zero when it does not apply.
-	Stale            bool // a copy unchanged for 30 days
+	Stale            bool // a list's copy unchanged for 30 days; never a country's: a small one stays unchanged for months
 	AllowlistOverlap int  // staged allowlist entries this copy covers
 	FailedInARow     int  // Failures, from feedFailWarnAfter on
 }
@@ -698,7 +698,7 @@ func (s *Server) feedRows(state *shared.RulesState) []feedRow {
 		r.LastError, r.HTTPStatus, r.Failures = st.LastError, st.HTTPStatus, st.Failures
 		r.Status = feedStatusOf(st, c.Stored, coreRead)
 
-		r.Stale = c.Stored && !c.ChangedAt.IsZero() && now.Sub(c.ChangedAt) >= feedStaleAfter
+		r.Stale = !r.Country && c.Stored && !c.ChangedAt.IsZero() && now.Sub(c.ChangedAt) >= feedStaleAfter
 		if st.Failures >= feedFailWarnAfter {
 			r.FailedInARow = st.Failures
 		}
