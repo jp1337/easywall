@@ -12,10 +12,7 @@ Information under Art. 13 and 14 GDPR. Auf Deutsch:
 
 ## Who is responsible
 
-<p>Jochen Pylypiw<br>
-c/o IP-Management #12226<br>
-Ludwig-Erhard-Straße 18<br>
-20459 Hamburg, Germany</p>
+{% include controller.html suffix=", Germany" %}
 
 E-mail: [info@easywall-project.org](mailto:info@easywall-project.org)
 
