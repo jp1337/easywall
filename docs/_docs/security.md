@@ -295,12 +295,12 @@ Six, and this is the whole list.
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
 | Notifications | **an address you choose** | when one of the four things you ticked happens, and whenever you press **Send a test** | the event, its detail, this host's name and the version | **off** until you set an address |
 | Feeds | each list you switch on, at the address the catalogue names, a country's on `raw.githubusercontent.com` — or **an address you choose** for an own feed | on the list's schedule, hourly to daily | nothing about you — a GET with the version in the User-Agent; to an own feed, the user and password you gave it | **off**, each one, until you switch it on |
-| Country lookup | `github.com`, which redirects to `release-assets.githubusercontent.com` — no other host, never over plain HTTP | once a day | nothing about you — a GET with the version in the User-Agent | **on**, `country_lookup = false` removes it |
+| Country lookup | `github.com`, which redirects to `release-assets.githubusercontent.com` — no other host, never over plain HTTP | once a day; after a failure, retried from an hour on | nothing about you — a GET with the version in the User-Agent | **on**, `country_lookup = false` removes it |
 | A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, your agreement to the authority's subscriber terms, the public half of an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
 
 Two run by default. Once a day the update check asks `api.github.com`, and the
 country lookup downloads ipverse's country list from `github.com` and
-`release-assets.githubusercontent.com`. `update_check = false` and
+`release-assets.githubusercontent.com` — after a failure, retried from an hour on. `update_check = false` and
 `country_lookup = false` in `web.toml` switch them off.
 
 The first five are not on the path of a page. On a host with no route out they

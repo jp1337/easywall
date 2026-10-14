@@ -33,7 +33,8 @@ deinem Server an die Dienste, die
 
 Zwei davon laufen ab Werk, je einmal am Tag. Die Update-Prüfung fragt
 `api.github.com`. Die Länderabfrage lädt eine Liste von Adressblöcken von
-`github.com`, das sie über `release-assets.githubusercontent.com` ausliefert.
+`github.com`, das sie über `release-assets.githubusercontent.com` ausliefert,
+nach einem Fehler ab einer Stunde erneut.
 `update_check = false` und `country_lookup = false` in der `web.toml` schalten
 sie ab.
 

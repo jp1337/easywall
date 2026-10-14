@@ -127,6 +127,35 @@ func TestTheCountryArchiveFollowsGitHubsTwoRedirects(t *testing.T) {
 	}
 }
 
+// A copy on disk that does not parse is no table: load leaves it empty, the
+// lookup is due at once, and the next refresh replaces the file.
+func TestACorruptCopyIsRefusedAndFetchedAgain(t *testing.T) {
+	a := &archiveServer{next: githubsChain(), body: countryArchive(t, sampleCountryFiles...), etag: `"1"`}
+	l := testLookup(t, a)
+	if err := os.WriteFile(l.path, []byte("not an archive"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	l = newCountryLookup(l.path, l.store) // a start, reading that copy
+	l.http.Transport = a
+	l.load()
+	if l.table.Load() != nil {
+		t.Fatal("a corrupt copy was loaded as a table")
+	}
+	if !l.due(time.Now()) {
+		t.Fatal("a corrupt copy on disk: not due")
+	}
+	l.refresh()
+	if len(a.requests()) == 0 {
+		t.Fatal("refresh made no request")
+	}
+	if got := l.country(de); got != "de" {
+		t.Errorf("country(%s) = %q after the fetch, want de", de, got)
+	}
+	if raw, err := os.ReadFile(l.path); err != nil || !bytes.Equal(raw, a.body) {
+		t.Errorf("the corrupt copy was not replaced: %v", err)
+	}
+}
+
 // Spec D2: any other redirect is refused before it is followed — a third
 // host, plain http, another port, a user in the URL, a fourth hop — and the
 // table in use stays.
