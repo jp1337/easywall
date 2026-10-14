@@ -1221,6 +1221,35 @@ async function checkCountriesCard(page) {
 }
 
 /**
+ * The country column (2.27). The demo's own table names its documentation
+ * sources — the packet Antarctica's feed refused reads AQ — and Block stages a
+ * country exactly as the Countries card's Add does: the flash is green, the
+ * row offers it no more, and the card lists it. Removed again on the card, so
+ * the demo is left as the next check found it.
+ */
+async function checkBlockedNamesCountries(page) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  const head = await page.$eval('#blocked-rows', t => t.closest('table').querySelector('thead th[title]')?.textContent.trim() || '');
+  if (!head) { fail('country column', 'no Country header — is country_lookup = true in the demo config?'); return; }
+  const cells = await page.$$eval('#blocked-rows abbr[title]', as => [...new Set(as.map(a => `${a.textContent}=${a.title}`))]);
+  if (!cells.includes('AQ=Antarctica')) { fail('country column', `no row reads AQ: ${cells.join(', ')}`); return; }
+  const block = page.locator('#blocked-rows form:has(input[name="cc"][value="tk"]) button').first();
+  if (await block.count() === 0) { fail('country column', 'no row offers Block TK'); return; }
+  if (await page.locator('#blocked-rows form:has(input[name="cc"][value="aq"])').count() !== 0) {
+    fail('country column', 'Block AQ is offered although Antarctica is switched on'); return;
+  }
+  await Promise.all([page.waitForNavigation(), block.click()]);
+  if (await page.locator('.alert.alert-ok').count() === 0) { fail('country column', 'Block TK did not say it was staged'); return; }
+  if (await page.locator('#blocked-rows input[name="cc"][value="tk"]').count() !== 0) {
+    fail('country column', 'Block TK is still offered once Tokelau is staged'); return;
+  }
+  await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
+  if (await page.locator('#country-tk').count() !== 1) { fail('country column', 'the Countries card does not list Tokelau'); return; }
+  await Promise.all([page.waitForNavigation(), page.click('#country-tk button[name="remove"]')]);
+  console.log(`  ok   country column: ${cells.join(', ')}; Block TK staged it, the row offered it no more, the card removed it`);
+}
+
+/**
  * A /blocked card at 390px in German keeps an address whole and its Details
  * clear of the buttons. The card's td is a flex row with overflow-wrap:
  * anywhere, so each link of the route used to be its own flex item and broke
@@ -2228,6 +2257,7 @@ async function runChecks(browser, session) {
   await checkBlockedSaysWhy(p);
   await checkFeedsCard(p);
   await checkCountriesCard(p);
+  await checkBlockedNamesCountries(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkOptionsDisclosureFits(browser, session);

@@ -75,6 +75,7 @@ language     = "en"
 session_key  = "$(openssl rand -hex 32)"
 demo_mode    = true
 update_check = false
+country_lookup = true
 username     = "admin"
 password     = "$PASSWORD_HASH"
 telemetry    = false

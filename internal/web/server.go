@@ -363,7 +363,10 @@ func NewServer(cfg *Config) (*Server, error) {
 		s.feeds = newFeedRunner(client, s.feedStore)
 		s.feedStop = make(chan struct{})
 	}
-	if cfg.CountryLookup && !cfg.DemoMode {
+	switch {
+	case cfg.CountryLookup && cfg.DemoMode:
+		s.lookup = newDemoCountryLookup(s.feedStore)
+	case cfg.CountryLookup:
 		s.lookup = newCountryLookup(cfg.CountryTablePath(), s.feedStore)
 		s.feeds.lookup = s.lookup
 	}
