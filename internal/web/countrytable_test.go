@@ -7,6 +7,7 @@ import (
 	"errors"
 	"math/rand/v2"
 	"net/netip"
+	"slices"
 	"strings"
 	"testing"
 
@@ -275,12 +276,18 @@ func TestRangesOutOfOrderAreRefused(t *testing.T) {
 	}
 }
 
-// The prefix bound: one file within feedMaxBody repeating one prefix is read
-// up to countryArchiveMaxPrefixes and refused one past it.
+// The prefix bound: files within countryFileMax repeating one prefix are
+// read up to countryArchiveMaxPrefixes and refused one past it.
 func TestAnArchiveOfTooManyPrefixesIsRefused(t *testing.T) {
+	const perFile = 130_000 // 1.95 MB of JSON
 	for n, want := range map[int]error{countryArchiveMaxPrefixes: nil, countryArchiveMaxPrefixes + 1: errCountryArchiveTooLong} {
-		list := strings.TrimSuffix(strings.Repeat(`"192.0.2.0/24",`, n), ",")
-		if _, err := parseCountryArchive(bytes.NewReader(countryArchive(t, [2]string{"country/de/aggregated.json", aggregated(list, ``)}))); !errors.Is(err, want) {
+		var files [][2]string
+		for i, cc := range []string{"de", "fr", "ie", "ru", "sg"} {
+			k := min(perFile, n-i*perFile)
+			list := strings.TrimSuffix(strings.Repeat(`"192.0.2.0/24",`, k), ",")
+			files = append(files, [2]string{"country/" + cc + "/aggregated.json", aggregated(list, ``)})
+		}
+		if _, err := parseCountryArchive(bytes.NewReader(countryArchive(t, files...))); !errors.Is(err, want) {
 			t.Errorf("%d prefixes: err = %v, want %v", n, err, want)
 		}
 	}
@@ -317,5 +324,107 @@ func BenchmarkCountryLookup(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; b.Loop(); i++ {
 		tab.lookup(addrs[i&(len(addrs)-1)])
+	}
+}
+
+// The last IPv6 key and a tie. US holds ffff::/16 and the last /64 of the key
+// space, FR the same /64; on IPv4 US and DE both hold 198.51.100.0/24. The
+// range ending at ^uint64(0) must not wrap the sweep back to 0, and the same
+// prefix under two countries goes to the higher CountryCodes index: US. US is
+// listed first, so the archive's order alone would give the tie to DE and FR.
+func TestTheLastKeyAndATieBuildExactly(t *testing.T) {
+	tab, err := parseCountryArchive(bytes.NewReader(countryArchive(t,
+		[2]string{"country/us/aggregated.json", aggregated(`"198.51.100.0/24"`, `"ffff::/16","ffff:ffff:ffff:ffff::/64"`)},
+		[2]string{"country/de/aggregated.json", aggregated(`"198.51.100.0/24"`, ``)},
+		[2]string{"country/fr/aggregated.json", aggregated(``, `"ffff:ffff:ffff:ffff::/64"`)},
+	)))
+	if err != nil {
+		t.Fatalf("parseCountryArchive: %v", err)
+	}
+	if de, us := slices.Index(shared.CountryCodes, "de"), slices.Index(shared.CountryCodes, "us"); de >= us || us > 255 {
+		t.Fatalf("the fixture needs us after de in CountryCodes: %d, %d", de, us)
+	}
+	us := uint8(slices.Index(shared.CountryCodes, "us")) // #nosec G115 -- checked above
+	for name, c := range map[string]struct{ got, want countryRanges }{
+		"v4": {tab.v4, countryRanges{start: []uint64{0xc6336400}, end: []uint64{0xc63364ff}, cc: []uint8{us}}},
+		"v6": {tab.v6, countryRanges{start: []uint64{0xffff << 48}, end: []uint64{^uint64(0)}, cc: []uint8{us}}},
+	} {
+		if !slices.Equal(c.got.start, c.want.start) || !slices.Equal(c.got.end, c.want.end) || !slices.Equal(c.got.cc, c.want.cc) {
+			t.Errorf("%s = %x %x %v, want %x %x %v", name, c.got.start, c.got.end, c.got.cc, c.want.start, c.want.end, c.want.cc)
+		}
+	}
+}
+
+// parseEntry, not netip.ParsePrefix: an unmasked prefix is masked, and an
+// IPv4 prefix written in IPv6 lands in the IPv4 table.
+func TestPrefixesAreReadAsTheFeedsReadThem(t *testing.T) {
+	tab, err := parseCountryArchive(bytes.NewReader(countryArchive(t,
+		[2]string{"country/de/aggregated.json", aggregated(`"192.0.2.77/24"`, `"::ffff:198.51.100.0/120"`)},
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for addr, want := range map[string]string{"192.0.2.5": "de", "198.51.100.1": "de"} {
+		if got := tab.lookup(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("lookup(%s) = %q, want %q", addr, got, want)
+		}
+	}
+}
+
+// A symlink named like a country's file is skipped, not followed or decoded.
+func TestASymlinkInTheArchiveIsSkipped(t *testing.T) {
+	var b bytes.Buffer
+	tw := tar.NewWriter(&b)
+	if err := tw.WriteHeader(&tar.Header{Name: "country/fr/aggregated.json", Linkname: "../de/aggregated.json", Typeflag: tar.TypeSymlink}); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range sampleCountryFiles {
+		if err := tw.WriteHeader(&tar.Header{Name: f[0], Mode: 0o644, Size: int64(len(f[1])), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(f[1])); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tab, err := parseCountryArchive(bytes.NewReader(gzipped(t, b.Bytes())))
+	if err != nil {
+		t.Fatalf("parseCountryArchive: %v", err)
+	}
+	if tab.countries != 3 {
+		t.Errorf("countries = %d, want 3", tab.countries)
+	}
+}
+
+// One country's file larger than countryFileMax is refused, even when it is
+// valid JSON padded with spaces.
+func TestACountryFileLargerThanItMayBeIsRefused(t *testing.T) {
+	doc := aggregated(`"192.0.2.0/24"`, ``)
+	for size, want := range map[int]error{countryFileMax: nil, countryFileMax + 1: errCountryArchiveTooLong} {
+		body := doc + strings.Repeat(" ", size-len(doc))
+		if _, err := parseCountryArchive(bytes.NewReader(countryArchive(t, [2]string{"country/de/aggregated.json", body}))); !errors.Is(err, want) {
+			t.Errorf("%d bytes: err = %v, want %v", size, err, want)
+		}
+	}
+}
+
+// A prefix broader than a country's breadth (2.26: /4 and /16) is skipped:
+// it would label every unassigned address it covers. The US's broadest,
+// 16.0.0.0/6 and 2630::/16 (2026-10-14), are read.
+func TestAPrefixBroaderThanACountryIsSkipped(t *testing.T) {
+	tab, err := parseCountryArchive(bytes.NewReader(countryArchive(t,
+		[2]string{"country/us/aggregated.json", aggregated(`"0.0.0.0/3","16.0.0.0/6"`, `"2000::/15","2630::/16"`)},
+	)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for addr, want := range map[string]string{
+		"1.1.1.1": "", "17.0.0.1": "us", "2001:db8::1": "", "2630::1": "us",
+	} {
+		if got := tab.lookup(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("lookup(%s) = %q, want %q", addr, got, want)
+		}
 	}
 }
