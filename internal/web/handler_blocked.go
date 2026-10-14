@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -74,14 +75,18 @@ type countryCell struct {
 	Block bool   // offered: the staged rules were read and do not hold it
 }
 
+// rulesFunc is one request's GET_RULES: sync.OnceValues(s.client.GetRules),
+// so rulesNow, countryCells and buildPreview share a single answer, asked only
+// when one of them needs it.
+type rulesFunc func() (*shared.RulesState, error)
+
 // countryCells fills rows.Countries for the sources on screen. Nothing while
-// the lookup is off. GET_RULES is asked once, and only when a row has a
-// country: Block is offered only for a country not staged already.
-func (s *Server) countryCells(r *http.Request, rows *blockedRows) {
+// the lookup is off. The rules are read only when a row has a country: Block
+// is offered only for a country not staged already.
+func (s *Server) countryCells(r *http.Request, rows *blockedRows, rules rulesFunc) {
 	if s.lookup == nil {
 		return
 	}
-	rows.Lookup = true
 	lang := ResolveLang(s.bundle, r, s.cfg.Language)
 	var staged []string
 	known := false
@@ -92,7 +97,7 @@ func (s *Server) countryCells(r *http.Request, rows *blockedRows) {
 		}
 		if rows.Countries == nil {
 			rows.Countries = map[netip.Addr]countryCell{}
-			if state, err := s.client.GetRules(); err == nil {
+			if state, err := rules(); err == nil {
 				staged, known = state.Staged.Feeds, true
 			}
 		}
@@ -120,17 +125,19 @@ func (s *Server) feedNames(r *http.Request, rows *blockedRows) {
 }
 
 // rulesNow fills rows' reason inputs, and asks only when a default-drop row is
-// on screen. The cost is two more socket round trips per five-second poll —
-// GET_RULES and GET_APPLIED_CONFIG, each one small file the core reads from
-// disk — on top of the two the tail already makes. The applied settings rather
+// on screen. The cost is at most two more socket round trips per five-second
+// poll — GET_RULES and GET_APPLIED_CONFIG, each one small file the core reads
+// from disk — on top of the two the tail already makes. GET_RULES is the
+// request's one answer (rules), shared with countryCells, so a country row
+// beside a drop row adds no third. The applied settings rather
 // than GET_SETTINGS: a saved setting reaches the kernel at the next apply,
 // and "now" means what the kernel holds. shared.ParseRules runs once here, not
 // once per row: DropReasonParsed reads the parsed form.
-func (s *Server) rulesNow(rows *blockedRows) {
+func (s *Server) rulesNow(rows *blockedRows, rules rulesFunc) {
 	if !slices.ContainsFunc(rows.Entries, func(e shared.PacketLogEntry) bool { return e.Rule == "drop" }) {
 		return
 	}
-	state, err := s.client.GetRules()
+	state, err := rules()
 	if err != nil {
 		slog.Debug("no drop reasons: the rules could not be read", "error", err)
 		return
@@ -252,6 +259,8 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	rules := rulesFunc(sync.OnceValues(s.client.GetRules))
+	data.Rows.Lookup = s.lookup != nil
 	res, err := s.client.GetPacketLog(f)
 	if err != nil {
 		slog.Warn("could not get the packet log", "error", err)
@@ -262,9 +271,9 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.Entries = res.Entries
 		data.Rows.Listening = res.Listening
 		data.Rows.Since = res.Since
-		s.rulesNow(&data.Rows)
+		s.rulesNow(&data.Rows, rules)
 		s.feedNames(r, &data.Rows)
-		s.countryCells(r, &data.Rows)
+		s.countryCells(r, &data.Rows, rules)
 	}
 	if s.lookup != nil {
 		st := s.lookup.status()
@@ -281,7 +290,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	// Total even when Incomplete is true (buildPreview already sets Total to
 	// the rule count before it returns on an unreadable configuration half),
 	// so /blocked must show the same number rather than hide it.
-	data.Staged = s.buildPreview(r).Total
+	data.Staged = s.buildPreview(r, rules).Total
 	s.render(w, r, "blocked.html", "blocked", data)
 }
 
@@ -302,6 +311,10 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 	// browser and this process may hand an older one back.
 	w.Header().Set("Cache-Control", "no-store")
 	rows := blockedRows{Entries: []shared.PacketLogEntry{}, Query: filterQuery(f), Filtered: !f.IsZero()}
+	// Before the packet log is asked: a failed tail still renders under the
+	// page's head, which has the Country column while the lookup is on.
+	rows.Lookup = s.lookup != nil
+	rules := rulesFunc(sync.OnceValues(s.client.GetRules))
 	swap := "innerHTML"
 	if res, err := s.client.GetPacketLog(f); err == nil {
 		rows.Entries = res.Entries
@@ -314,9 +327,9 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 			}
 			rows.Entries, swap = newer, "afterbegin"
 		}
-		s.rulesNow(&rows)
+		s.rulesNow(&rows, rules)
 		s.feedNames(r, &rows)
-		s.countryCells(r, &rows)
+		s.countryCells(r, &rows, rules)
 	} else {
 		slog.Debug("could not get the packet log for the live tail", "error", err)
 		rows.CoreErr = err.Error()
