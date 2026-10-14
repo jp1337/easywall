@@ -41,6 +41,11 @@ var (
 // 310 MB (pre-flight review, 2.27).
 const countryArchiveMaxPrefixes = 1 << 19
 
+// countryFileMax bounds one aggregated.json: the largest, the US's, is 753 323
+// bytes on 2026-10-14, so 2 MiB is 2.7 times that. feedMaxBody's 8 MiB let one
+// hostile file be decoded whole before the prefix bound counted anything.
+const countryFileMax = 2 << 20
+
 // countryRanges is one family's table: sorted, disjoint ranges, each with the
 // index of its code in shared.CountryCodes. IPv4 is the address as a number;
 // IPv6 is its first 64 bits, because no delegation is longer than a /64 (the
@@ -134,6 +139,8 @@ func newCountryPrefix(p netip.Prefix, cc uint8) countryPrefix {
 // ones that enclose the current address: each address is emitted once, under
 // the innermost prefix that holds it, at any depth of nesting.
 func buildCountryRanges(ps []countryPrefix) countryRanges {
+	// The same prefix under two countries: the higher CountryCodes index is
+	// pushed last, so it wins — deterministically, whatever the archive's order.
 	slices.SortFunc(ps, func(a, b countryPrefix) int {
 		return cmp.Or(cmp.Compare(a.start, b.start), cmp.Compare(a.bits, b.bits), cmp.Compare(a.cc, b.cc))
 	})
@@ -143,7 +150,7 @@ func buildCountryRanges(ps []countryPrefix) countryRanges {
 		start: make([]uint64, 0, len(ps)), end: make([]uint64, 0, len(ps)), cc: make([]uint8, 0, len(ps)),
 	}
 	add := func(s, e uint64, cc uint8) {
-		if n := len(rs.start); n > 0 && rs.cc[n-1] == cc && rs.end[n-1] != ^uint64(0) && rs.end[n-1]+1 == s {
+		if n := len(rs.start); n > 0 && rs.cc[n-1] == cc && rs.end[n-1]+1 == s {
 			rs.end[n-1] = e
 			return
 		}
@@ -225,8 +232,8 @@ func parseCountryArchive(r io.Reader) (*countryTable, error) {
 		if idx < 0 {
 			continue
 		}
-		if hdr.Size > feedMaxBody {
-			return nil, errCountryArchiveTooLong
+		if hdr.Size > countryFileMax {
+			return nil, fmt.Errorf("%w: %s is %d bytes", errCountryArchiveTooLong, hdr.Name, hdr.Size)
 		}
 		var doc struct {
 			Prefixes struct {
@@ -241,7 +248,9 @@ func parseCountryArchive(r io.Reader) (*countryTable, error) {
 		for _, list := range [][]string{doc.Prefixes.IPv4, doc.Prefixes.IPv6} {
 			for _, s := range list {
 				p, ok := parseEntry(s)
-				if !ok {
+				// Broader than a country ever is (2.26's breadth): such a
+				// prefix would label every unassigned address it covers.
+				if !ok || p.Bits() < shared.FeedMaxBitsV4Country || p.Addr().Is6() && p.Bits() < shared.FeedMaxBitsV6Country {
 					continue
 				}
 				if len(v4)+len(v6) >= countryArchiveMaxPrefixes {
