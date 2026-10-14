@@ -25,9 +25,17 @@ E-mail: [info@easywall-project.org](mailto:info@easywall-project.org)
 
 **easywall installed on your own server is yours.** You are the controller of
 everything it processes; nothing reaches us unless you switch the installation
-count on. Its other outbound requests (update check, notifications, ACME) go
-from your server to the services you configure, not to us — listed in
-[Security]({{ '/docs/security/' | relative_url }}).
+count on. Its other outbound requests (update check, notifications, feeds, the
+country lookup, ACME) go from your server to the services named in
+[Security]({{ '/docs/security/' | relative_url }}), not to us.
+
+Two of them are made by default, each once a day. The update check asks
+`api.github.com`. The country lookup downloads a list of address blocks from
+`github.com`, which hands it out from `release-assets.githubusercontent.com`,
+so GitHub receives your server's IP address and a User-Agent naming easywall
+and its version; after a failure, retried from an hour on.
+`update_check = false` and `country_lookup = false` in `web.toml` switch them
+off.
 
 No page sets a tracking cookie, loads anything from a third party, or uses
 an analytics service.
@@ -110,5 +118,5 @@ portability (20), and **objection** to processing based on legitimate interest
 Write to the address or e-mail above. You may also complain to a data protection
 supervisory authority (Art. 77).
 
-As of 2 October 2026. Source: Impressum-Privatschutz, adapted to this site.
+As of 14 October 2026. Source: Impressum-Privatschutz, adapted to this site.
 

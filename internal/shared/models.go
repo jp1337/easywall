@@ -561,12 +561,13 @@ type WebConfig struct {
 	// request an operator may reasonably want gone entirely rather than merely
 	// failing quietly.
 	//
-	// One of the five requests easywall can make. The others are Telemetry
+	// One of the six requests easywall can make. The others are Telemetry
 	// below, a notification to NotifyURL, the feeds switched on in Rules.Feeds,
-	// and autocert fetching a certificate when TLSConfig.ACME is on — all four
-	// off unless switched on. The notification and an own feed are the two
-	// whose destination easywall does not name. docs/_docs/security.md lists
-	// all five.
+	// CountryLookup's archive, and autocert fetching a certificate when
+	// TLSConfig.ACME is on. CountryLookup is on by default, like this one; the
+	// other four are off unless switched on. The notification and an own feed
+	// are the two whose destination easywall does not name.
+	// docs/_docs/security.md lists all six.
 	UpdateCheck *bool `toml:"update_check"`
 
 	// Telemetry records whether the operator agreed to easywall counting this
@@ -600,6 +601,13 @@ type WebConfig struct {
 	// deployment so visitors can explore every page without affecting any
 	// real firewall. State resets when the process restarts.
 	DemoMode bool `toml:"demo_mode"`
+
+	// CountryLookup names, on /blocked, the country each refused source
+	// address is registered to (2.27). On, this process downloads ipverse's
+	// release archive once a day, a request that leaves the host; false makes
+	// none. A plain bool, but it ships true: an absent key decodes to false, so
+	// LoadConfig restores the shipped value for a file that predates the key.
+	CountryLookup bool `toml:"country_lookup"`
 
 	// TrustedProxies lists the addresses and networks whose forwarding header
 	// may be believed. Empty — the default — means no header's value is ever

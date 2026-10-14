@@ -121,13 +121,18 @@
     },
     "update_check": {
       "type": "boolean",
-      "description": "Check github.com once a day for a newer release and show a banner on the dashboard. One of the five requests easywall can make \u2014 the others (installation count, notifications, feeds, ACME) are off unless switched on. Set to false to remove this one. The dashboard never waits for it either way.",
+      "description": "Check github.com once a day for a newer release and show a banner on the dashboard. One of the six requests easywall can make, and one of the two on by default \u2014 the other is the country lookup; the installation count, notifications, feeds and ACME are off unless switched on. Set to false to remove this one. The dashboard never waits for it either way.",
       "default": true
     },
     "telemetry": {
       "type": "boolean",
       "description": "Whether this installation may be counted. Off unless switched on, and asked for during the first-run wizard rather than assumed. Once a day it sends a random identifier generated on this machine plus the version to https://telemetry.wdkro.de/v1/count — enough to tell whether a critical fix reached everyone, not enough to describe anyone. Your address is not recorded. Switch it off here or under System in the interface.",
       "default": false
+    },
+    "country_lookup": {
+      "type": "boolean",
+      "description": "Name, on Blocked traffic, the country each refused source address is registered to. On, the web process downloads ipverse's country list from github.com once a day; off, nothing is downloaded and the page has no country column.",
+      "default": true
     },
     "demo_mode": {
       "type": "boolean",

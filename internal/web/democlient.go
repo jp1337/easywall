@@ -41,6 +41,41 @@ var demoShapes = []shared.PacketLogEntry{
 	{Rule: "feed", Feed: "country-aq", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.190")},
 }
 
+// demoCountries is the demo's country table (2.27): the demo fetches nothing,
+// and its sources are documentation addresses, which belong to no country.
+// So it names three that single out no country of people — Antarctica and two
+// of the least populated places ipverse lists — and leaves the rest unnamed,
+// so the dash shows too. 192.0.2.190 is the packet Antarctica's feed refused,
+// and it reads AQ; Antarctica is switched on, so its rows offer no Block.
+var demoCountries = []struct{ prefix, cc string }{
+	{"192.0.2.0/26", "tk"},   // .5 .23 .42 .61 — Tokelau
+	{"192.0.2.64/26", "nf"},  // .77 .88 .99 — Norfolk Island
+	{"192.0.2.184/29", "aq"}, // .190 — Antarctica
+	{"2001:db8:5::/48", "aq"},
+}
+
+func demoCountryTable() *countryTable {
+	var v4, v6 []countryPrefix
+	for _, d := range demoCountries {
+		p := netip.MustParsePrefix(d.prefix)
+		r := newCountryPrefix(p, uint8(slices.Index(shared.CountryCodes, d.cc))) // #nosec G115 -- TestCountryCodesFitAByte
+		if p.Addr().Is4() {
+			v4 = append(v4, r)
+		} else {
+			v6 = append(v6, r)
+		}
+	}
+	return &countryTable{v4: buildCountryRanges(v4), v6: buildCountryRanges(v6), countries: 3}
+}
+
+// newDemoCountryLookup is the demo's lookup: its table, loaded, and no client
+// — the demo makes no outbound request, and builds no runner to call refresh.
+func newDemoCountryLookup(store *feedStore) *countryLookup {
+	l := &countryLookup{store: store, now: time.Now}
+	l.table.Store(demoCountryTable())
+	return l
+}
+
 // demoEvery is how often the demo "refuses" something new — enough for the
 // live tail to visibly move while someone looks at it.
 const demoEvery = 7 * time.Second
@@ -609,6 +644,8 @@ func newDemoFeedStore(now time.Time) *feedStore {
 			"cins": {Status: FeedFailedNoCopy, LastError: feedErrHTTPStatus, HTTPStatus: 503,
 				Failures: 2, LastAttempt: ago(50 * time.Minute)},
 			"country-aq": {Status: FeedUnchanged, LastAttempt: ago(5 * time.Hour)},
+			// The country lookup's line on /blocked: checked, unchanged.
+			countryLookupKey: {Status: FeedUnchanged, LastAttempt: ago(20 * time.Minute)},
 		},
 		// No user and no password: nothing a visitor could read back.
 		Own: [shared.MaxOwnFeeds]OwnFeed{{Name: "CrowdSec Raw IP List",

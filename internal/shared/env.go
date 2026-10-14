@@ -159,6 +159,16 @@ var WebEnvVars = []EnvVar[WebConfig]{
 			c.DemoMode = b
 			return nil
 		}},
+	{"EASYWALL_WEB_COUNTRY_LOOKUP", "country_lookup", EnvBool,
+		func(c *WebConfig) string { return strconv.FormatBool(c.CountryLookup) },
+		func(c *WebConfig, v string) error {
+			b, err := parseBool(v)
+			if err != nil {
+				return err
+			}
+			c.CountryLookup = b
+			return nil
+		}},
 	{"EASYWALL_WEB_TELEMETRY", "telemetry", EnvBool,
 		func(c *WebConfig) string { return boolValue(c.Telemetry) },
 		func(c *WebConfig, v string) error {

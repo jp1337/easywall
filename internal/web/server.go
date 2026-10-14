@@ -170,6 +170,11 @@ type Server struct {
 	feedStop  chan struct{}
 	feedOnce  sync.Once
 
+	// lookup names each /blocked row's country (2.27). nil when web.toml
+	// says country_lookup = false — on by default. The feed runner loads and
+	// refreshes it.
+	lookup *countryLookup
+
 	// events carries login events to the core without a request waiting on one.
 	events     *auditEvents
 	eventsStop chan struct{}
@@ -357,6 +362,13 @@ func NewServer(cfg *Config) (*Server, error) {
 	} else {
 		s.feeds = newFeedRunner(client, s.feedStore)
 		s.feedStop = make(chan struct{})
+	}
+	switch {
+	case cfg.CountryLookup && cfg.DemoMode:
+		s.lookup = newDemoCountryLookup(s.feedStore)
+	case cfg.CountryLookup:
+		s.lookup = newCountryLookup(cfg.CountryTablePath(), s.feedStore)
+		s.feeds.lookup = s.lookup
 	}
 
 	s.events = newAuditEvents(client, cfg.DemoMode)
@@ -1557,6 +1569,7 @@ func templateFuncs() template.FuncMap {
 		// A row action on /blocked staged its rule. Nothing is live yet, and
 		// the flash says so; it is still the action working.
 		"blocked_staged_allowlist": true, "blocked_staged_blocklist": true, "blocked_staged_port": true,
+		"blocked_staged_country": true,
 		// An own feed's address is stored; switching it on is the card's.
 		"feeds_own_saved": true,
 	}

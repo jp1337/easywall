@@ -11,6 +11,10 @@ A country is a list of the networks registered to it. Like a
 your allowlist, so an address you allow stays reachable. An address that is in a
 feed as well is counted and logged by the feed.
 
+**Which ones do your drops come from?** The
+[country column]({{ '/docs/features/blocked-traffic/' | relative_url }}#where-it-comes-from)
+on Blocked traffic shows it. A row's **Block *XX*** stages its country here.
+
 ## Add a country
 
 1. Open **Blocklist** and scroll to **Countries**.

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,6 +86,11 @@ func (c *Config) RecoveryCodes() []string {
 	return out
 }
 
+// retiredWebKeys are keys an older web.toml may still hold and the docs call
+// "read by nothing": ignored without a warning, which would otherwise repeat on
+// every start and every -healthcheck for a file that is not wrong.
+var retiredWebKeys = []string{"csrf_key"}
+
 // LoadConfig reads and parses the TOML config at path.
 func LoadConfig(path string) (*Config, error) {
 	// #nosec G304 -- path is the --config argument this process was started with,
@@ -95,8 +101,23 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := toml.Unmarshal(data, &cfg.WebConfig); err != nil {
+	meta, err := toml.Decode(string(data), &cfg.WebConfig)
+	if err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+	// A switch that ships on is on for a file that predates it: the package
+	// never replaces web.toml, and an absent bool decodes to false (the 2.25.0
+	// trap). Before fileConfig and the overlay, so both see the default.
+	// A key that landed in the wrong table (country_lookup after [tls] becomes
+	// tls.country_lookup) is not decoded into anything: say so, do not refuse.
+	for _, k := range meta.Undecoded() {
+		if slices.Contains(retiredWebKeys, k.String()) {
+			continue
+		}
+		slog.Warn("web.toml: key not recognised and ignored; check its table", "key", k.String())
+	}
+	if !meta.IsDefined("country_lookup") {
+		cfg.CountryLookup = shared.WebDefault().CountryLookup
 	}
 	cfg.configPath = path
 	cfg.fileConfig = cfg.WebConfig // before the overlay, deliberately
@@ -401,6 +422,15 @@ func (c *Config) FeedStatePath() string {
 		return c.StateDir() + "/feed_fetch.json"
 	}
 	return c.SSLDir + "/../feed_fetch.json"
+}
+
+// CountryTablePath is where the country lookup keeps ipverse's archive as it
+// was last downloaded (2.27), so a restart reads it instead of fetching again.
+func (c *Config) CountryTablePath() string {
+	if c.DataDir != "" {
+		return c.StateDir() + "/countries.tar.gz"
+	}
+	return c.SSLDir + "/../countries.tar.gz"
 }
 
 // TOTPReplayPath returns the path for the last accepted TOTP step.

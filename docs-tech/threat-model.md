@@ -461,6 +461,15 @@ the password alone.
   shows only the host, but the edit form carries the full stored URL back into
   the page for a signed-in session — path and query included, where a key may
   sit (CrowdSec's integration id is one). The password is never written back.
+- What the country archive says (2.27, on by default). A hostile or broken
+  release on ipverse, or on either of the two hosts the download may be
+  redirected to, can name the wrong country on /blocked and on a *Block
+  country* button. That is the whole reach: the table is a label in the web
+  process, never a rule, and staging a country still goes through /apply's
+  verdict and window. The download is bounded — 8 MiB fetched, 64 MiB
+  unpacked, 2 MiB per country, 524 288 prefixes — and follows redirects only
+  to `github.com` and `release-assets.githubusercontent.com`, over HTTPS on
+  the default port with no user in the URL, three at most.
 - A descriptor the web process held open across the upgrade. It is stopped by
   `prerm`, and every non-root file is replaced by a new root-owned inode, so
   none survives a package upgrade. A host process running as uid 100 beside a

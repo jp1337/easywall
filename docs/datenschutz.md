@@ -27,9 +27,17 @@ E-Mail: [info@easywall-project.org](mailto:info@easywall-project.org)
 **easywall auf deinem eigenen Server gehört dir.** Für alles, was es
 verarbeitet, bist du verantwortlich; zu uns gelangt nichts, solange du die
 Installationszählung nicht einschaltest. Seine übrigen ausgehenden Anfragen
-(Update-Prüfung, Benachrichtigungen, ACME) gehen von deinem Server an die
-Dienste, die du einstellst, nicht an uns — aufgelistet unter
-[Security]({{ '/docs/security/' | relative_url }}).
+(Update-Prüfung, Benachrichtigungen, Feeds, Länderabfrage, ACME) gehen von
+deinem Server an die Dienste, die
+[Security]({{ '/docs/security/' | relative_url }}) nennt, nicht an uns.
+
+Zwei davon laufen ab Werk, je einmal am Tag. Die Update-Prüfung fragt
+`api.github.com`. Die Länderabfrage lädt eine Liste von Adressblöcken von
+`github.com`, das sie über `release-assets.githubusercontent.com` ausliefert
+und dabei die IP-Adresse deines Servers und einen User-Agent mit easywall und
+seiner Version erhält, nach einem Fehler ab einer Stunde erneut.
+`update_check = false` und `country_lookup = false` in der `web.toml` schalten
+sie ab.
 
 Keine Seite setzt ein Tracking-Cookie, lädt etwas von Dritten oder nutzt einen
 Analysedienst.
@@ -118,7 +126,7 @@ Zukunft widerrufen (Art. 7 Abs. 3). Schreib an die Anschrift oder E-Mail oben.
 Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren
 (Art. 77).
 
-Stand: 2. Oktober 2026. Quelle: Impressum-Privatschutz, angepasst an diese Website.
+Stand: 14. Oktober 2026. Quelle: Impressum-Privatschutz, angepasst an diese Website.
 
 In English: [Privacy policy]({{ '/privacy/' | relative_url }}).
 

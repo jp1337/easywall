@@ -255,6 +255,13 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		_ = os.Remove(tmpPath)
 		return err
 	}
+	// On disk before the rename: otherwise a power cut can leave path
+	// renamed onto an empty file.
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		_ = os.Remove(tmpPath)
 		return err

@@ -980,9 +980,19 @@ async function checkBlockedTailHoldsStill(page) {
     await page.waitForTimeout(12000);
     if (await firstSeq() === underPointer) fail('blocked tail', 'the tail did not resume after the pointer left the table');
     if (await stateText() !== liveText) fail('blocked tail', `the state line reads "${await stateText()}" while live`);
-    // A poll with nothing new must be observed at all: wait for one idle poll.
-    if (!rowsSeen.some(r => r.status === 204)) await page.waitForTimeout(7000);
-    if (!rowsSeen.some(r => r.status === 204)) fail('blocked tail', 'no poll answered 204 — "nothing new answers 204" was not observed');
+    // "Nothing new answers 204", asked directly: waiting for an idle poll
+    // depended on the 5 s poll's phase against the demo's 7 s packets. A
+    // packet landing between the read and the request answers 200; then ask
+    // again after the newest row that answer carried.
+    let seq = await page.$eval('#blocked-rows tr[data-seq]', tr => tr.dataset.seq);
+    let quiet;
+    for (let i = 0; i < 3; i++) {
+      const r = await page.request.get(`${BASE}/blocked/rows?after=${seq}`);
+      quiet = r.status();
+      if (quiet === 204) break;
+      seq = (/data-seq="(\d+)"/.exec(await r.text()) || [])[1] || await page.$eval('#blocked-rows tr[data-seq]', tr => tr.dataset.seq);
+    }
+    if (quiet !== 204) fail('blocked tail', `/blocked/rows?after=${seq} answered ${quiet}, not 204 — nothing new must answer 204`);
     const asked = rowsSeen.filter(r => r.status === 200 || r.status === 204);
     if (asked.length === 0 || !asked.every(r => /[?&]after=\d+/.test(r.url))) {
       fail('blocked tail', `a poll did not carry after=<seq>: ${asked.map(r => r.url).join(', ')}`);
@@ -1218,6 +1228,35 @@ async function checkCountriesCard(page) {
   await Promise.all([page.waitForNavigation(), page.click('#country-is button[name="remove"]')]);
   if (await page.locator('#country-is').count() !== 0) { fail('countries card', 'Remove left the row'); return; }
   console.log(`  ok   countries card: Antarctica's row and chip, ${offered} offered, an added country staged, kept by the Feeds save, removed`);
+}
+
+/**
+ * The country column (2.27). The demo's own table names its documentation
+ * sources — the packet Antarctica's feed refused reads AQ — and Block stages a
+ * country exactly as the Countries card's Add does: the flash is green, the
+ * row offers it no more, and the card lists it. Removed again on the card, so
+ * the demo is left as the next check found it.
+ */
+async function checkBlockedNamesCountries(page) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  const head = await page.$eval('#blocked-rows', t => t.closest('table').querySelector('thead th[title]')?.textContent.trim() || '');
+  if (!head) { fail('country column', 'no Country header — is country_lookup = true in the demo config?'); return; }
+  const cells = await page.$$eval('#blocked-rows abbr[title]', as => [...new Set(as.map(a => `${a.textContent}=${a.title}`))]);
+  if (!cells.includes('AQ=Antarctica')) { fail('country column', `no row reads AQ: ${cells.join(', ')}`); return; }
+  const block = page.locator('#blocked-rows form:has(input[name="cc"][value="tk"]) button').first();
+  if (await block.count() === 0) { fail('country column', 'no row offers Block TK'); return; }
+  if (await page.locator('#blocked-rows form:has(input[name="cc"][value="aq"])').count() !== 0) {
+    fail('country column', 'Block AQ is offered although Antarctica is switched on'); return;
+  }
+  await Promise.all([page.waitForNavigation(), block.click()]);
+  if (await page.locator('.alert.alert-ok').count() === 0) { fail('country column', 'Block TK did not say it was staged'); return; }
+  if (await page.locator('#blocked-rows input[name="cc"][value="tk"]').count() !== 0) {
+    fail('country column', 'Block TK is still offered once Tokelau is staged'); return;
+  }
+  await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
+  if (await page.locator('#country-tk').count() !== 1) { fail('country column', 'the Countries card does not list Tokelau'); return; }
+  await Promise.all([page.waitForNavigation(), page.click('#country-tk button[name="remove"]')]);
+  console.log(`  ok   country column: ${cells.join(', ')}; Block TK staged it, the row offered it no more, the card removed it`);
 }
 
 /**
@@ -2228,6 +2267,7 @@ async function runChecks(browser, session) {
   await checkBlockedSaysWhy(p);
   await checkFeedsCard(p);
   await checkCountriesCard(p);
+  await checkBlockedNamesCountries(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkOptionsDisclosureFits(browser, session);

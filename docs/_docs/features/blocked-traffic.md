@@ -25,7 +25,7 @@ and switch one on. The two worth starting with:
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/blocked" ext="png"
      alt="The Blocked traffic page: a filter bar above a table of refused packets, each row carrying the actions its rule allows and a details disclosure." %}
-  <figcaption>Six columns cover a triage glance; everything else is one click into Details.</figcaption>
+  <figcaption>Seven columns cover a triage glance (six with the country lookup off); everything else is one click into Details.</figcaption>
 </figure>
 
 | Column | Shows |
@@ -33,6 +33,7 @@ and switch one on. The two worth starting with:
 | Time | When the packet arrived, local time — to the second today, without seconds beyond that; hover for the exact instant |
 | Interface | The device it arrived on |
 | Source → Destination | Address, and the destination port if there is one |
+| Country | The country the source's address block is registered to, as its code; hover for the name, `—` for none. Only with the [country lookup](#where-it-comes-from) on |
 | Proto | `tcp`, `udp`, `icmp`, `icmpv6`, or a bare protocol number |
 | Rule | Which of the eleven switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
 
@@ -46,6 +47,40 @@ with a rule on the left until the next ones arrive. It pauses while you point
 at the table or work in it, so no row slides away under the cursor. **Pause**
 stops it until you press **Resume**. The line beside the button says whether it
 is live and, if not, why. Resuming catches up.
+
+## Where it comes from
+
+The **Country** column is on by default. To switch it off:
+
+```toml
+country_lookup = false   # web.toml; or EASYWALL_WEB_COUNTRY_LOOKUP=false
+```
+
+Restart `easywall-web`; with it off, no request is made. **An upgraded host
+starts fetching once a day unless you switch it off.** `easywall-web` downloads
+[ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks) (CC0,
+1.75 MB, 238 countries, 248 507 prefixes) from `github.com`, which hands it out
+from `release-assets.githubusercontent.com` — no other host — and keeps it in
+`<data_dir>/web/countries.tar.gz`. After a failure the old list stays in use
+and the download is retried from an hour on. The line under the table says what
+is loaded and when it was checked.
+
+| Cost and limits | Measured or enforced |
+|---|---|
+| Table in memory | about 4 MB; `easywall-web` about +10 MB after a download |
+| Lookup per row | about 70 ns |
+| Archive / unpacked | at most 8 MiB / 64 MiB |
+| One country file | at most 2 MiB |
+| Prefixes in all | at most 524 288 |
+| Skipped | prefixes broader than IPv4 /4 or IPv6 /16 |
+
+**A registration is not a location.** The column says which country the
+address block is registered to. VPNs, cloud regions and Tor exits do not follow
+it. Only the web process holds the list; nothing it says reaches the firewall
+until you stage a country and apply.
+
+There is no country filter: the filter runs in the core, which has no list,
+and filtering the rows on the page (200 by default) would filter a sample.
 
 ## Why a default drop refused it
 
@@ -72,7 +107,7 @@ you bookmark or paste into a message to someone else.
 
 ## Act on a row
 
-Three actions per row, only where they make sense — *Open* needs a destination
+Four actions per row, only where they make sense — *Open* needs a destination
 port and a protocol the firewall can open:
 
 | Action | Does |
@@ -80,6 +115,7 @@ port and a protocol the firewall can open:
 | **Allowlist** | Stages the source address on the allowlist |
 | **Blocklist** | Stages the source address on the blocklist |
 | **Open *port*** | Stages a port rule for the packet's destination port and protocol |
+| **Block *XX*** | Stages the source's country, as [Block a country]({{ '/docs/features/countries/' | relative_url }}) does, at most 30. Only for a country not on yet, never on a forwarded packet: countries filter what reaches this host |
 
 | The packet was refused by | Offered | Why not the others |
 |---|---|---|
@@ -112,6 +148,7 @@ reaches the kernel, and no acceptance window starts, until you go there.
 
 ## What it does not show
 
-Accepted traffic, bytes per session, geolocation and reverse DNS. It is a list
-of packets the firewall refused, decoded from what NFLOG hands the core — nothing
-this page shows was looked up anywhere else.
+Accepted traffic, bytes per session, a location and reverse DNS. It is a list
+of packets the firewall refused, decoded from what NFLOG hands the core. The
+country column is the one exception, and it is a registration looked up in the
+list this host downloaded — never a request per address.

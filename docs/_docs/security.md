@@ -287,7 +287,7 @@ built for.
 
 ### Every request that goes out
 
-Five, and this is the whole list.
+Six, and this is the whole list.
 
 | | Destination | When | Carries | Default |
 |---|---|---|---|---|
@@ -295,9 +295,15 @@ Five, and this is the whole list.
 | Installation count | `telemetry.wdkro.de` | once a day | a random identifier generated on your machine, and the version | **off** until you switch it on |
 | Notifications | **an address you choose** | when one of the four things you ticked happens, and whenever you press **Send a test** | the event, its detail, this host's name and the version | **off** until you set an address |
 | Feeds | each list you switch on, at the address the catalogue names, a country's on `raw.githubusercontent.com` — or **an address you choose** for an own feed | on the list's schedule, hourly to daily | nothing about you — a GET with the version in the User-Agent; to an own feed, the user and password you gave it | **off**, each one, until you switch it on |
+| Country lookup | `github.com`, which redirects to `release-assets.githubusercontent.com` — no other host, never over plain HTTP | once a day; after a failure, retried from an hour on | nothing about you — a GET with the version in the User-Agent | **on**, `country_lookup = false` removes it |
 | A certificate | the ACME directory, Let's Encrypt unless `acme_directory` names another | on first need, and again before expiry | the one name in `tls.hostname`, your agreement to the authority's subscriber terms, the public half of an account key made here, and `acme_email` if you set one | **off** until `acme = true` |
 
-The first four are not on the path of a page. On a host with no route out they
+Two run by default. Once a day the update check asks `api.github.com`, and the
+country lookup downloads ipverse's country list from `github.com` and
+`release-assets.githubusercontent.com` — after a failure, retried from an hour on. `update_check = false` and
+`country_lookup = false` in `web.toml` switch them off.
+
+The first five are not on the path of a page. On a host with no route out they
 simply fail, and nothing else changes. The exact request the count makes is printed
 verbatim under [Configuration]({{ '/docs/configuration/' | relative_url }}#counting-installations).
 
@@ -371,6 +377,9 @@ lives:
 | Disk | **nothing, by default.** With `persist = true`: `/var/log/easywall/packets.log`, `0600 root` — it rewrites itself to the ring, oldest first out, once it holds more than twice `entries` lines, and needs no logrotate |
 | Leaves the host | never. The web process asks the core over the socket; nothing is sent anywhere |
 | Erase it | `systemctl stop easywall-core && rm /var/log/easywall/packets.log` — also the repair for a corrupt file: a line over 64 KiB stops the replay and the log falls back to memory-only until the file is removed and the core restarts |
+
+The country column is looked up in the copy of ipverse's list kept on this
+host; no address leaves it for that.
 
 Retention is bounded by count, not time: at the default sixty lines a minute,
 20 000 entries is about five and a half hours, and a flood shortens it.
