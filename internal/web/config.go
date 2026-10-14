@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -85,6 +86,11 @@ func (c *Config) RecoveryCodes() []string {
 	return out
 }
 
+// retiredWebKeys are keys an older web.toml may still hold and the docs call
+// "read by nothing": ignored without a warning, which would otherwise repeat on
+// every start and every -healthcheck for a file that is not wrong.
+var retiredWebKeys = []string{"csrf_key"}
+
 // LoadConfig reads and parses the TOML config at path.
 func LoadConfig(path string) (*Config, error) {
 	// #nosec G304 -- path is the --config argument this process was started with,
@@ -105,6 +111,9 @@ func LoadConfig(path string) (*Config, error) {
 	// A key that landed in the wrong table (country_lookup after [tls] becomes
 	// tls.country_lookup) is not decoded into anything: say so, do not refuse.
 	for _, k := range meta.Undecoded() {
+		if slices.Contains(retiredWebKeys, k.String()) {
+			continue
+		}
 		slog.Warn("web.toml: key not recognised and ignored; check its table", "key", k.String())
 	}
 	if !meta.IsDefined("country_lookup") {
