@@ -313,6 +313,7 @@ Three logging switches belong to no module and are set here as well:
 | `notify_on_accepted` | bool | Notify when an apply was confirmed — `false` by default |
 | `notify_on_panic` | bool | Notify when panic mode engaged or ended — `false` by default |
 | `notify_on_failed_logins` | bool | Notify on repeated failed sign-ins from one address — `false` by default |
+| `country_lookup` | bool | Name, on **Blocked traffic**, the country each refused source is registered to — `true` by default. On, ipverse's list is downloaded daily; `false` makes no request. See [Every request that leaves the host](#every-request-that-leaves-the-host) |
 | `demo_mode` | bool | Run against an in-memory mock instead of the core. For the public demo only — never on a host you are protecting |
 | `trusted_proxies` | array of strings | Addresses and networks whose `X-Forwarded-For` header is believed. Empty by default, which means the TCP peer is authoritative. See [Behind a reverse proxy](#behind-a-reverse-proxy) for what listing one costs |
 | `health_allow` | array of strings | Addresses and networks that may read `/healthz`. Loopback by default. See [Who may read /healthz](#who-may-read-healthz) |

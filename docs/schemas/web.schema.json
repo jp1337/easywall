@@ -129,6 +129,11 @@
       "description": "Whether this installation may be counted. Off unless switched on, and asked for during the first-run wizard rather than assumed. Once a day it sends a random identifier generated on this machine plus the version to https://telemetry.wdkro.de/v1/count — enough to tell whether a critical fix reached everyone, not enough to describe anyone. Your address is not recorded. Switch it off here or under System in the interface.",
       "default": false
     },
+    "country_lookup": {
+      "type": "boolean",
+      "description": "Name, on Blocked traffic, the country each refused source address is registered to. On, the web process downloads ipverse's country list from github.com once a day; off, nothing is downloaded and the page has no country column.",
+      "default": true
+    },
     "demo_mode": {
       "type": "boolean",
       "description": "Run against an in-memory mock instead of the core socket, for the public demo. No rule ever reaches a kernel and state resets when the process restarts. Never enable this on a host you are actually protecting.",

@@ -38,15 +38,16 @@ func TestApplyCoreEnv_SetsEveryVariable(t *testing.T) {
 func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 	var cfg WebConfig
 	_, err := applyEnv(&cfg, WebConfig{}, WebEnvVars, lookup(map[string]string{
-		"EASYWALL_WEB_BIND_ADDR":    "0.0.0.0:9999",
-		"EASYWALL_WEB_SOCKET_PATH":  "/run/w.sock",
-		"EASYWALL_WEB_SSL_DIR":      "/ssl",
-		"EASYWALL_WEB_DATA_DIR":     "/wdata",
-		"EASYWALL_WEB_TLS_CERT":     "/c.pem",
-		"EASYWALL_WEB_TLS_KEY":      "/k.pem",
-		"EASYWALL_WEB_LANGUAGE":     "de",
-		"EASYWALL_WEB_UPDATE_CHECK": "false",
-		"EASYWALL_WEB_DEMO_MODE":    "true",
+		"EASYWALL_WEB_BIND_ADDR":      "0.0.0.0:9999",
+		"EASYWALL_WEB_SOCKET_PATH":    "/run/w.sock",
+		"EASYWALL_WEB_SSL_DIR":        "/ssl",
+		"EASYWALL_WEB_DATA_DIR":       "/wdata",
+		"EASYWALL_WEB_TLS_CERT":       "/c.pem",
+		"EASYWALL_WEB_TLS_KEY":        "/k.pem",
+		"EASYWALL_WEB_LANGUAGE":       "de",
+		"EASYWALL_WEB_UPDATE_CHECK":   "false",
+		"EASYWALL_WEB_DEMO_MODE":      "true",
+		"EASYWALL_WEB_COUNTRY_LOOKUP": "false",
 	}))
 	if err != nil {
 		t.Fatalf("applyEnv: %v", err)
@@ -77,6 +78,9 @@ func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 	}
 	if !cfg.DemoMode {
 		t.Error("DemoMode = false, want true")
+	}
+	if cfg.CountryLookup {
+		t.Error("CountryLookup = true, want false")
 	}
 }
 
