@@ -980,9 +980,19 @@ async function checkBlockedTailHoldsStill(page) {
     await page.waitForTimeout(12000);
     if (await firstSeq() === underPointer) fail('blocked tail', 'the tail did not resume after the pointer left the table');
     if (await stateText() !== liveText) fail('blocked tail', `the state line reads "${await stateText()}" while live`);
-    // A poll with nothing new must be observed at all: wait for one idle poll.
-    if (!rowsSeen.some(r => r.status === 204)) await page.waitForTimeout(7000);
-    if (!rowsSeen.some(r => r.status === 204)) fail('blocked tail', 'no poll answered 204 — "nothing new answers 204" was not observed');
+    // "Nothing new answers 204", asked directly: waiting for an idle poll
+    // depended on the 5 s poll's phase against the demo's 7 s packets. A
+    // packet landing between the read and the request answers 200; then ask
+    // again after the newest row that answer carried.
+    let seq = await page.$eval('#blocked-rows tr[data-seq]', tr => tr.dataset.seq);
+    let quiet;
+    for (let i = 0; i < 3; i++) {
+      const r = await page.request.get(`${BASE}/blocked/rows?after=${seq}`);
+      quiet = r.status();
+      if (quiet === 204) break;
+      seq = (/data-seq="(\d+)"/.exec(await r.text()) || [])[1] || await page.$eval('#blocked-rows tr[data-seq]', tr => tr.dataset.seq);
+    }
+    if (quiet !== 204) fail('blocked tail', `/blocked/rows?after=${seq} answered ${quiet}, not 204 — nothing new must answer 204`);
     const asked = rowsSeen.filter(r => r.status === 200 || r.status === 204);
     if (asked.length === 0 || !asked.every(r => /[?&]after=\d+/.test(r.url))) {
       fail('blocked tail', `a poll did not carry after=<seq>: ${asked.map(r => r.url).join(', ')}`);
