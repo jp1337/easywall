@@ -65,15 +65,12 @@ from `release-assets.githubusercontent.com` — no other host — and keeps it i
 and the download is retried from an hour on. The line under the table says what
 is loaded and when it was checked.
 
-| Cost, measured on the whole list | |
+| Cost and limits | Measured or enforced |
 |---|---|
 | Table in memory | about 4 MB; `easywall-web` about +10 MB after a download |
-| One row | about 70 ns |
-
-| Limit | |
-|---|---|
-| Archive / unpacked | 8 MiB / 64 MiB |
-| One country file | 2 MiB |
+| Lookup per row | about 70 ns |
+| Archive / unpacked | at most 8 MiB / 64 MiB |
+| One country file | at most 2 MiB |
 | Prefixes in all | at most 524 288 |
 | Skipped | prefixes broader than IPv4 /4 or IPv6 /16 |
 
@@ -83,7 +80,7 @@ it. Only the web process holds the list; nothing it says reaches the firewall
 until you stage a country and apply.
 
 There is no country filter: the filter runs in the core, which has no list,
-and filtering the 200 rows on the page would filter a sample.
+and filtering the rows on the page (200 by default) would filter a sample.
 
 ## Why a default drop refused it
 
