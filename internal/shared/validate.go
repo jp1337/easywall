@@ -94,14 +94,23 @@ func ValidateRules(r Rules) error {
 	// an empty set named after whatever the web process sent, and a second
 	// copy of one id would be two rules dropping the same traffic.
 	seenFeeds := make(map[string]bool, len(r.Feeds))
+	countries := 0
 	for _, id := range r.Feeds {
 		if !KnownFeedID(id) {
-			return fmt.Errorf("feed %q is neither a catalogue feed nor own-1 to own-%d", id, MaxOwnFeeds)
+			return fmt.Errorf("feed %q is neither a catalogue feed, a country, nor own-1 to own-%d", id, MaxOwnFeeds)
 		}
 		if seenFeeds[id] {
 			return fmt.Errorf("feed %q is switched on twice", id)
 		}
 		seenFeeds[id] = true
+		if IsCountryFeedID(id) {
+			countries++
+		}
+	}
+	// Spec D5: every country is two sets and up to four rules, and every
+	// refresh reads all of them.
+	if countries > MaxCountries {
+		return fmt.Errorf("%d countries are switched on; at most %d may be", countries, MaxCountries)
 	}
 	for i, rule := range r.Custom {
 		if err := validateCustomRule(rule); err != nil {

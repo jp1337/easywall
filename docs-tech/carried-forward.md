@@ -37,6 +37,16 @@ own acceptance round and its own integration test is a release, and this file's
 own rule is that an entry carries enough context to *act on*. Everything below
 is struck through and kept as the record of what was ruled and when.
 
+## From 2.26
+
+Found while reviewing Countries, proven against `cebe8910`, the commit the branch
+was cut from.
+
+| | |
+|---|---|
+| **`TestIntegration_AFeedWithNoCopyHasAnEmptySet` can pass vacuously** | the teardown check ends in `out, _ := exec.Command("nft", "list", "sets", "inet").CombinedOutput()`; if `nft` fails, `out` is empty and "a feed set outlived the teardown" cannot fire. Predates 2.26: `a1787c1a9`, 2026-09-25 |
+| **`shortTime` prints an English month in the German UI** | `internal/web/server.go` formats `"2 Jan 15:04"` with Go's fixed English month names, so `de` reads "13 Oct 09:12". Predates 2.26; the feed rows only show it more often |
+
 ## The one exception, added in 2.17
 
 A **contract hole** the release introduced and deliberately did not close is not a

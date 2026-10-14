@@ -15,7 +15,7 @@ connections, neighbour discovery and Docker networks — and under
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/blocklist" ext="png"
-     alt="The blocklist page: a textarea of blocked addresses with a live entry count and context cards explaining what gets blocked and that the order matters, then a Feeds table with one row per curated list — its verdict, state, last refresh, entries and a switch — and the own feeds below it." %}
+     alt="The blocklist page: a textarea of blocked addresses with a live entry count and context cards explaining what gets blocked and that the order matters, then a Feeds table with one row per curated list — its verdict, state, last refresh, entries and a switch — and the own feeds below it, then a Countries card listing the countries switched on, with a select to add another." %}
   <figcaption>Every line is validated as you type, and the line number is named when one does not parse.</figcaption>
 </figure>
 

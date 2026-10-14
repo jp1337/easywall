@@ -121,7 +121,7 @@ func (s *Server) liveChanges(r *http.Request) ([]applyPreviewSet, int) {
 		return nil, 0
 	}
 	deltas := shared.DiffRules(state.Backup, state.Current)
-	s.ownFeedDiffLabels(r, deltas)
+	s.feedDiffLabels(r, deltas)
 
 	var sets []applyPreviewSet
 	for _, set := range previewSetOrder {
@@ -156,7 +156,7 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 
 	p := &applyPreview{}
 	deltas := shared.DiffRules(state.Current, state.Staged)
-	s.ownFeedDiffLabels(r, deltas)
+	s.feedDiffLabels(r, deltas)
 	for _, set := range previewSetOrder {
 		var group []shared.RuleDelta
 		for _, d := range deltas {
@@ -208,18 +208,20 @@ func (s *Server) buildPreview(r *http.Request) *applyPreview {
 	return p
 }
 
-// ownFeedDiffLabels replaces an own feed's diff label. shared.DiffRules calls
-// shared.FeedDisplayName, which knows no locale or configured name and always
-// renders the English "Own feed N" (carry-in, controller ruling: an own feed
-// must never show that literal on a German page) — here it becomes the
-// operator's own name when set, else the localized default, the same as the
-// card and the /blocked chip.
-func (s *Server) ownFeedDiffLabels(r *http.Request, deltas []shared.RuleDelta) {
+// feedDiffLabels replaces an own feed's and a country's diff label.
+// shared.DiffRules calls shared.FeedDisplayName, which knows no locale or
+// configured name and renders the English "Own feed N" and a country's bare
+// code (carry-in, controller ruling: an own feed must never show that literal
+// on a German page) — here it becomes the operator's own name when set, else
+// the localized default, and a country's name in the page's language: the
+// same as the cards and the /blocked chip.
+func (s *Server) feedDiffLabels(r *http.Request, deltas []shared.RuleDelta) {
 	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
 	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	lang := ResolveLang(s.bundle, r, s.cfg.Language)
 	for i := range deltas {
-		if deltas[i].Set == "feeds" && ownFeedN(deltas[i].Key) > 0 {
-			deltas[i].Label = s.feedLabel(tFunc, deltas[i].Key)
+		if deltas[i].Set == "feeds" && (ownFeedN(deltas[i].Key) > 0 || shared.IsCountryFeedID(deltas[i].Key)) {
+			deltas[i].Label = s.feedLabel(tFunc, lang, deltas[i].Key)
 		}
 	}
 }
@@ -298,12 +300,14 @@ func (s *Server) verdictFor(r *http.Request, staged shared.Rules, o shared.Firew
 	// (Fix round 1, Finding 1) — a second staged feed answering "unknown" is
 	// not a reason to leave the page saying "in the feed , which drops it".
 	if v.Reason == shared.ReasonInFeed {
-		// The first staged feed that holds it — the one whose rule comes first.
+		// The first staged feed that holds it — the one whose rule comes
+		// first, which puts the countries last (2.26 D8).
 		loc := NewLocalizer(s.bundle, r, s.cfg.Language)
 		tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
-		for _, id := range staged.Feeds {
+		lang := ResolveLang(s.bundle, r, s.cfg.Language)
+		for _, id := range shared.FeedRuleOrder(staged.Feeds) {
 			if slices.Contains(hits, id) {
-				v.Feed = s.feedLabel(tFunc, id)
+				v.Feed = s.feedLabel(tFunc, lang, id)
 				break
 			}
 		}
@@ -371,9 +375,58 @@ func addressIsLocal(addr netip.Addr) bool {
 	return false
 }
 
+// countryWithoutCopy is the code of the first staged country the core holds
+// no copy of, "" when there is none. Applying then would load its set empty,
+// and the copy would arrive with the next refresh, after the window was
+// confirmed: with no acceptance window, and the operator's address may be in
+// it (2.26). known is false when the core could not say. Catalogue and own
+// feeds keep their 2.23 behaviour by decision: the ruling (B1) is about
+// countries only.
+func (s *Server) countryWithoutCopy() (cc string, known bool) {
+	state, err := s.client.GetRules()
+	if err != nil {
+		slog.Warn("cannot read the staged rules to check the countries' copies", "error", err)
+		return "", false
+	}
+	var countries []string
+	for _, id := range state.Staged.Feeds {
+		if shared.IsCountryFeedID(id) {
+			countries = append(countries, id)
+		}
+	}
+	if len(countries) == 0 {
+		return "", true
+	}
+	res, err := s.client.GetFeeds("")
+	if err != nil {
+		slog.Warn("cannot ask the core which countries have a copy", "error", err)
+		return "", false
+	}
+	stored := map[string]bool{}
+	for _, f := range res.Feeds {
+		stored[f.ID] = f.Stored
+	}
+	for _, id := range countries {
+		if !stored[id] {
+			cc, _ := shared.CountryCode(id)
+			return cc, true
+		}
+	}
+	return "", true
+}
+
 // handleApplyStart triggers an asynchronous rule application on the core.
 // The core applies rules and enters the acceptance window.
 func (s *Server) handleApplyStart(w http.ResponseWriter, r *http.Request) {
+	if cc, known := s.countryWithoutCopy(); !known || cc != "" {
+		if known {
+			s.setFlashName(w, r, "apply_country_not_loaded", countryName(ResolveLang(s.bundle, r, s.cfg.Language), cc))
+		} else {
+			s.setFlash(w, r, "apply_error")
+		}
+		http.Redirect(w, r, "/apply", http.StatusSeeOther)
+		return
+	}
 	if err := s.client.ApplyRules(); err != nil {
 		slog.Warn("apply rules error", "error", err)
 		// The core refuses a second apply while a window is open, and that is

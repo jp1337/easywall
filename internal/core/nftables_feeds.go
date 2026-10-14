@@ -173,8 +173,9 @@ func feedSet(t *nftables.Table, id string, f addrFamily) *nftables.Set {
 // addFeeds writes, for every id in enabled and both families, the set, its
 // elements and the two rules — the rate-limited log rule, then
 // `ip saddr @feed-<id>-v4 counter drop` carrying feedCounterID(id). Apply calls
-// it between the allowlist accepts and the port accepts (spec §4, D3). It
-// returns what the elements add to the batch, for the send buffer.
+// it between the allowlist accepts and the port accepts (spec §4, D3). The
+// countries come after the lists (2.26 D8, shared.FeedRuleOrder). It returns
+// what the elements add to the batch, for the send buffer.
 func (m *NftablesManager) addFeeds(t *nftables.Table, c *nftables.Chain, enabled []string,
 	feeds FeedContents, opts shared.FirewallOptions) (int, error) {
 	// The two errors below cannot happen with these arguments — AddSet refuses
@@ -183,7 +184,7 @@ func (m *NftablesManager) addFeeds(t *nftables.Table, c *nftables.Chain, enabled
 	// connection until the next Flush; the next writer's own DelTable is what
 	// discards them.
 	batch := 0
-	for _, id := range enabled {
+	for _, id := range shared.FeedRuleOrder(enabled) {
 		v4, v6 := splitFamilies(mergeRanges(feeds[id]))
 		batch += feedElementBytes(v4, v6)
 		for _, f := range addrFamilies {

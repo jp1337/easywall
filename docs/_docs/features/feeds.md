@@ -8,7 +8,8 @@ description: Block known attackers with lists other people publish — checked a
 
 A feed is a list of attacking addresses that somebody else publishes and
 easywall fetches. Feeds are checked **after** your allowlist, so an address you
-allow stays reachable whatever a feed says.
+allow stays reachable whatever a feed says. To block a whole country, see
+[Countries]({{ '/docs/features/countries/' | relative_url }}).
 
 {% include themed-figure.html base="/assets/diagrams/feed-order" ext="svg"
    alt="Four boxes in a row: your blocklist drops, then the allowlist accepts, then the feeds drop, then the port rules." %}
@@ -23,7 +24,9 @@ allow stays reachable whatever a feed says.
 > ([Googlebot](https://developers.google.com/static/crawling/ipranges/common-crawlers.json),
 > [Bingbot](https://www.bing.com/toolbox/bingbot.json)) or leave blocklist.de
 > off. Feeds are checked after your allowlist, so an allowlisted range passes
-> every feed.
+> every feed. Blocking the United States as a
+> [country]({{ '/docs/features/countries/' | relative_url }}) blocks both
+> crawlers whole.
 
 ## Start with Spamhaus DROP and DShield
 
@@ -169,3 +172,19 @@ What each costs, and where its terms are:
 | IPsum, on ≥ 3 lists | yes — an aggregate, some sources aggressive, with Tor exits | ✗ | [terms](https://github.com/stamparm/ipsum) |
 | Hagezi threat intelligence IPs | yes — cloud hosts and Tor exits | ✗ | [terms](https://github.com/hagezi/dns-blocklists) |
 | Tor exit nodes | by design — every Tor user, legitimate or not | ✗ | [terms](https://metrics.torproject.org/collector.html) |
+
+### Countries
+
+How to add one: [Block a country]({{ '/docs/features/countries/' | relative_url }}).
+
+| | |
+|---|---|
+| Source | [ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks), CC0 1.0, built from the five regional registries' delegation files |
+| Fetched from | `raw.githubusercontent.com`, one file per country, both address families |
+| Refresh | every 24 h; the list is rebuilt daily around 01:25 UTC |
+| Breadth limit | IPv4 down to /4, IPv6 down to /16 (the lists' limit is /8 and /16) |
+| Cap | 30 countries switched on at once |
+| Default | off, each one |
+
+The cap is there because every refresh rewrites the stored copies: 30 countries
+take that file from 0.5 MB to about 4 MB.

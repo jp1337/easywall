@@ -36,6 +36,9 @@ var demoShapes = []shared.PacketLogEntry{
 	// A feed's refusal (2.23): blocklist.de is switched on in the seeded
 	// rules, so its chip names it and leads to its row on /blocklist.
 	{Rule: "feed", Feed: "blocklist-de", Proto: "tcp", DstPort: 25, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.180")},
+	// A country's refusal (2.26): Antarctica is switched on in the seeded
+	// rules, so its chip reads "Country: Antarctica" and leads to its row.
+	{Rule: "feed", Feed: "country-aq", Proto: "tcp", DstPort: 443, TCPFlags: "SYN", CtState: "new", Src: netip.MustParseAddr("192.0.2.190")},
 }
 
 // demoEvery is how often the demo "refuses" something new — enough for the
@@ -233,8 +236,10 @@ func (d *demoState) seed() {
 		// public demo's card shows every state a feed row has — see
 		// newDemoFeedStore for which row shows which. In Current as well as
 		// Staged, so the apply screen shows no feed change until a visitor
-		// makes one.
-		Feeds: []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised", "cins"},
+		// makes one. And one country, so the Countries card has a row:
+		// Antarctica — four networks, and no country of people the public
+		// demo would be seen to single out.
+		Feeds: []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised", "cins", "country-aq"},
 	}
 	d.rules = shared.RulesState{
 		Current: example,
@@ -336,6 +341,11 @@ func (d *demoState) seed() {
 		"et-compromised": {ID: "et-compromised", Stored: true, Entries: 686,
 			ChangedAt: ago(34 * 24 * time.Hour), CheckedAt: ago(25 * time.Minute),
 			Packets: 97, CountersRead: true},
+		// ipverse's aggregated list for AQ: three IPv4 networks and one IPv6
+		// (2026-10-13), refreshed daily.
+		"country-aq": {ID: "country-aq", Stored: true, Entries: 4,
+			ChangedAt: ago(9 * 24 * time.Hour), CheckedAt: ago(5 * time.Hour),
+			Packets: 12, CountersRead: true},
 	}
 	d.settings = shared.NetworkSettings{
 		IPv6: shared.IPv6Config{
@@ -581,6 +591,7 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 //	                refused as a shrink from 32 002 to 9 140
 //	et-compromised  unchanged; unchanged for 30 days; 2 lines not an address
 //	cins            failed, no copy; failed twice; in the kernel with an empty set
+//	country-aq      unchanged — the Countries card's one row
 //	any other       never fetched and "on once you apply", once a visitor
 //	                switches it on and saves
 //	own-1           configured and off: its host is the row's source
@@ -597,6 +608,7 @@ func newDemoFeedStore(now time.Time) *feedStore {
 				Rejected: 2, RejectedSample: []string{"Rate limit exceeded.", "Try again in 10 minutes."}},
 			"cins": {Status: FeedFailedNoCopy, LastError: feedErrHTTPStatus, HTTPStatus: 503,
 				Failures: 2, LastAttempt: ago(50 * time.Minute)},
+			"country-aq": {Status: FeedUnchanged, LastAttempt: ago(5 * time.Hour)},
 		},
 		// No user and no password: nothing a visitor could read back.
 		Own: [shared.MaxOwnFeeds]OwnFeed{{Name: "CrowdSec Raw IP List",
@@ -622,6 +634,13 @@ func (d *demoState) feedStatusLocked() shared.GetFeedsResult {
 		st, ok := d.feeds[id]
 		if !ok {
 			st = shared.FeedStatus{ID: id}
+			if shared.IsCountryFeedID(id) {
+				// Nothing here fetches, and /apply refuses a country with no
+				// copy: one visitor's country would block every visitor's apply.
+				now := time.Now()
+				st = shared.FeedStatus{ID: id, Stored: true, Entries: 3,
+					ChangedAt: now.Add(-24 * time.Hour), CheckedAt: now.Add(-time.Hour)}
+			}
 		}
 		st.InKernel = slices.Contains(d.rules.Current.Feeds, id)
 		if !st.InKernel {

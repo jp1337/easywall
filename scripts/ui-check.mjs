@@ -1192,6 +1192,35 @@ async function checkFeedsCard(page) {
 }
 
 /**
+ * The Countries card on /blocklist (2.26). The demo's Antarctica has a row and
+ * a /blocked chip that leads to it. Adding a country stages it — its row says
+ * on once applied — and a save of the Feeds card keeps it: that form carries
+ * no country, and saving it once switched every country off. Remove takes
+ * the row away again, so the demo is left as it was found.
+ */
+async function checkCountriesCard(page) {
+  await page.goto(`${BASE}/blocked?rule=feed`, { waitUntil: 'networkidle' });
+  if (await page.locator('#blocked-rows a.log-action[href="/blocklist#country-aq"]').count() === 0) {
+    fail('countries card', 'no /blocked chip leads to the demo\'s Antarctica row');
+    return;
+  }
+  await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
+  if (await page.locator('#countries tr#country-aq').count() !== 1) { fail('countries card', 'the demo\'s Antarctica row is missing'); return; }
+  const offered = await page.locator('#country-add option[value^="country-"]').count();
+  if (offered < 200) { fail('countries card', `${offered} countries offered, want every one not switched on`); return; }
+
+  await page.selectOption('#country-add', 'country-is');
+  await Promise.all([page.waitForNavigation(), page.click('#countries form.editor-foot button[type="submit"]')]);
+  const state = await page.locator('#country-is .status-dot.pending').first().innerText().catch(() => '');
+  if (!/apply/i.test(state)) { fail('countries card', `an added country reads "${state}", not "on once you apply"`); return; }
+  await Promise.all([page.waitForNavigation(), page.click('form[action="/blocklist/feeds"] button[type="submit"]')]);
+  if (await page.locator('#country-is').count() !== 1) { fail('countries card', 'saving the Feeds card switched the country off'); return; }
+  await Promise.all([page.waitForNavigation(), page.click('#country-is button[name="remove"]')]);
+  if (await page.locator('#country-is').count() !== 0) { fail('countries card', 'Remove left the row'); return; }
+  console.log(`  ok   countries card: Antarctica's row and chip, ${offered} offered, an added country staged, kept by the Feeds save, removed`);
+}
+
+/**
  * A /blocked card at 390px in German keeps an address whole and its Details
  * clear of the buttons. The card's td is a flex row with overflow-wrap:
  * anywhere, so each link of the route used to be its own flex item and broke
@@ -2198,6 +2227,7 @@ async function runChecks(browser, session) {
   await checkBlockedTailStateHoldsTheLayout(browser, session);
   await checkBlockedSaysWhy(p);
   await checkFeedsCard(p);
+  await checkCountriesCard(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkOptionsDisclosureFits(browser, session);

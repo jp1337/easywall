@@ -1,3 +1,12 @@
+easywall (2.26.0) unstable; urgency=medium
+
+  * Countries: block the networks registered to a country, each switched on
+    by itself on the Blocklist page, at most 30, refreshed daily from
+    ipverse/country-ip-blocks.
+  * Apply waits until a country switched on has its first copy.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Wed, 14 Oct 2026 09:32:39 +0200
+
 easywall (2.25.2) unstable; urgency=medium
 
   * /blocked's live tail asks for new rows only and gets 204 when there
