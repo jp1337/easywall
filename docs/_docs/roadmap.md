@@ -58,8 +58,8 @@ publish. Publishing addresses needs a GDPR balancing test, a delisting channel
 and an Art. 30 record.
 
 **Deferred: a country filter on Blocked.** 2.27 shows where an address comes
-from; filtering the page by country needs the lookup on the server side of the
-pagination, so it waits for a request that asks for it.
+from. Filtering by country needs the lookup where the page's rows are chosen, so
+it waits for a request that asks for it.
 
 **Deferred: a refresh that would drop your own address.** A refresh loads with
 no acceptance window, so a later copy listing the address you manage the host

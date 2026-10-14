@@ -101,6 +101,14 @@ func TestAddingACountryFetchesItAndRemovingDoesNot(t *testing.T) {
 	}
 	doAuthFormRequest(t, s, "/blocklist/countries", "add=country-de")
 	waitUntil(t, 2*time.Second, func() bool { return asked.Load() >= 1 })
+	// The fetch runs on its own goroutine and still writes feed_fetch.json
+	// after the core was asked; let it finish, or TempDir's cleanup races it
+	// ("directory not empty").
+	waitUntil(t, 2*time.Second, func() bool {
+		s.feeds.mu.Lock()
+		defer s.feeds.mu.Unlock()
+		return len(s.feeds.inflight) == 0
+	})
 }
 
 // Spec D7: a country's name is CLDR's, in the page's language.
