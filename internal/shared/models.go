@@ -601,6 +601,13 @@ type WebConfig struct {
 	// real firewall. State resets when the process restarts.
 	DemoMode bool `toml:"demo_mode"`
 
+	// CountryLookup names, on /blocked, the country each refused source
+	// address is registered to (2.27). On, this process downloads ipverse's
+	// release archive once a day, a request that leaves the host; false makes
+	// none. A plain bool, but it ships true: an absent key decodes to false, so
+	// LoadConfig restores the shipped value for a file that predates the key.
+	CountryLookup bool `toml:"country_lookup"`
+
 	// TrustedProxies lists the addresses and networks whose forwarding header
 	// may be believed. Empty — the default — means no header's value is ever
 	// read and the TCP peer stays authoritative, which is 2.12's behaviour

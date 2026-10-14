@@ -59,6 +59,7 @@ the one in effect.
 | `EASYWALL_WEB_LANGUAGE` | `language` | string | sidebar switch, per browser | Fallback UI locale — `en` or `de` |
 | `EASYWALL_WEB_UPDATE_CHECK` | `update_check` | bool | — | Ask github.com once a day whether a newer release exists |
 | `EASYWALL_WEB_DEMO_MODE` | `demo_mode` | bool | — | Run against an in-memory mock instead of the core — the public demo only |
+| `EASYWALL_WEB_COUNTRY_LOOKUP` | `country_lookup` | bool | — | Name the country each refused source is registered to, on **Blocked traffic** — on unless set `false`, which makes no request |
 | `EASYWALL_WEB_TELEMETRY` | `telemetry` | bool | **System** | Report this installation once a day — off unless set |
 | `EASYWALL_WEB_TRUSTED_PROXIES` | `trusted_proxies` | list | — | Comma-separated addresses and networks whose `X-Forwarded-For` header is believed |
 | `EASYWALL_WEB_HEALTH_ALLOW` | `health_allow` | list | — | Comma-separated addresses and networks that may read `/healthz`. Loopback unless you widen it — and a non-loopback `bind_addr` must be added here, or the container's own HEALTHCHECK is refused |
