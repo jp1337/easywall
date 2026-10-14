@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -102,16 +103,89 @@ func TestBlockedRows_IsNeverStored(t *testing.T) {
 }
 
 // rulesNow costs two socket round trips; a delta without a default-drop row
-// must not pay them.
+// must not pay them. With the lookup on and a country on the new rows, the
+// Block button may ask GET_RULES once — and no more.
 func TestBlockedRows_ADeltaWithoutADropRowAsksNoRules(t *testing.T) {
+	for name, on := range map[string]bool{"lookup off": false, "lookup on": true} {
+		t.Run(name, func(t *testing.T) {
+			ring := tailRing(311, 200)
+			ring[150].Rule = "drop" // old: the page already has it
+			for i := range 3 {
+				ring[i].Src = netip.MustParseAddr("192.0.2.80") // DE in the sample table
+			}
+			fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: ring}, shared.FirewallOptions{LogBlocked: true})
+			s.lookup = nil
+			if on {
+				s.lookup = lookupWith(t, sampleCountryTable(t))
+			}
+			var rules, applied atomic.Int32
+			fc.OnCommand(shared.CmdGetRules, func(shared.Command) { rules.Add(1) })
+			fc.OnCommand(shared.CmdGetAppliedConfig, func(shared.Command) { applied.Add(1) })
+			body := doAuthRequest(t, s, "GET", "/blocked/rows?after=308", nil).Body.String()
+			if on && !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+				t.Fatalf("the delta's rows carry no country; the test proves nothing:\n%s", body)
+			}
+			want := int32(0)
+			if on {
+				want = 1
+			}
+			if got := rules.Load(); got > want {
+				t.Errorf("GET_RULES asked %d times for a delta with no default-drop row; want at most %d", got, want)
+			}
+			if got := applied.Load(); got != 0 {
+				t.Errorf("GET_APPLIED_CONFIG asked %d times for a delta with no default-drop row", got)
+			}
+		})
+	}
+}
+
+// A delta with both a default-drop row and a country row needs the rules for
+// two things — the drop reason and the Block button — and asks for them once.
+func TestBlockedRows_ADropRowAndACountryRowAskTheRulesOnce(t *testing.T) {
 	ring := tailRing(311, 200)
-	ring[150].Rule = "drop" // old: the page already has it
+	ring[0].Rule = "drop"
+	ring[1].Src = netip.MustParseAddr("192.0.2.80")
 	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: ring}, shared.FirewallOptions{LogBlocked: true})
+	s.lookup = lookupWith(t, sampleCountryTable(t))
 	var asked atomic.Int32
 	fc.OnCommand(shared.CmdGetRules, func(shared.Command) { asked.Add(1) })
-	doAuthRequest(t, s, "GET", "/blocked/rows?after=309", nil)
-	if got := asked.Load(); got != 0 {
-		t.Errorf("GET_RULES asked %d times for a delta with no default-drop row", got)
+	body := doAuthRequest(t, s, "GET", "/blocked/rows?after=309", nil).Body.String()
+	if !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+		t.Fatalf("the delta's rows carry no country:\n%s", body)
+	}
+	if got := asked.Load(); got != 1 {
+		t.Errorf("GET_RULES asked %d times; want exactly 1", got)
+	}
+}
+
+// The full page reads the rules for the reasons, the Block buttons and the
+// staged count: one GET_RULES for all three.
+func TestBlocked_ThePageAsksTheRulesOnce(t *testing.T) {
+	ring := tailRing(311, 5)
+	ring[0].Rule = "drop"
+	ring[1].Src = netip.MustParseAddr("192.0.2.80")
+	fc, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: ring}, shared.FirewallOptions{LogBlocked: true})
+	s.lookup = lookupWith(t, sampleCountryTable(t))
+	var asked atomic.Int32
+	fc.OnCommand(shared.CmdGetRules, func(shared.Command) { asked.Add(1) })
+	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
+	if !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+		t.Fatalf("the page's rows carry no country:\n%s", body)
+	}
+	if got := asked.Load(); got != 1 {
+		t.Errorf("GET_RULES asked %d times; want exactly 1", got)
+	}
+}
+
+// A tail whose packet log could not be read still renders under the page's
+// head, and that head has the Country column while the lookup is on.
+func TestBlockedRows_AFailedTailSpansTheCountryColumn(t *testing.T) {
+	fc, s := blockedCore(t, shared.PacketLogResult{}, shared.FirewallOptions{LogBlocked: true})
+	s.lookup = lookupWith(t, sampleCountryTable(t))
+	fc.SetResponse(shared.CmdGetPacketLog, shared.Response{Success: false, Error: "timeout"})
+	body := doAuthRequest(t, s, "GET", "/blocked/rows?after=5", nil).Body.String()
+	if !strings.Contains(body, `colspan="7"`) {
+		t.Errorf("the failed tail does not span the 7-column head:\n%s", body)
 	}
 }
 

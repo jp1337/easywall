@@ -92,7 +92,7 @@ func (s *Server) handleApplyGET(w http.ResponseWriter, r *http.Request) {
 	case status.Acceptance == shared.AcceptancePending:
 		data.Live, data.LiveCount = s.liveChanges(r)
 	case status.HasPending:
-		data.Preview = s.buildPreview(r)
+		data.Preview = s.buildPreview(r, s.client.GetRules)
 	}
 	s.render(w, r, "apply.html", "apply", data)
 }
@@ -147,8 +147,10 @@ func (s *Server) liveChanges(r *http.Request) ([]applyPreviewSet, int) {
 // failed read is never simply omitted — Incomplete is set so the template says
 // so, because an apply screen that quietly drops the lockout verdict reads as
 // "nothing to warn about".
-func (s *Server) buildPreview(r *http.Request) *applyPreview {
-	state, err := s.client.GetRules()
+//
+// rules is GET_RULES; /blocked passes its request's shared answer.
+func (s *Server) buildPreview(r *http.Request, rules rulesFunc) *applyPreview {
+	state, err := rules()
 	if err != nil {
 		slog.Warn("could not read the rules for the apply preview", "error", err)
 		return &applyPreview{Incomplete: true}
