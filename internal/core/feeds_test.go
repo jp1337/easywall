@@ -79,7 +79,7 @@ func readFeedsFile(t *testing.T, fw *Firewall) []byte {
 // real if unrouted addresses a feed may legitimately carry, 2001:db8::/32 is
 // carved out of global space specifically so nobody ships it as reachable.
 func TestValidateFeedEntries(t *testing.T) {
-	kept, dropped, err := validateFeedEntries([]string{
+	kept, dropped, err := validateFeedEntries("dshield", []string{
 		"203.0.113.9", " 198.51.100.0/24 ", "198.51.100.77/24", "::ffff:192.0.2.1", "::ffff:192.0.2.0/120",
 		"2001:db8::/32", "10.1.2.3", "100.64.0.1", "127.0.0.1", "169.254.1.1", "0.1.2.3",
 		"224.0.0.1", "240.0.0.1", "172.16.0.0/12", "192.168.1.0/24", "100.0.0.0/8",
@@ -109,7 +109,7 @@ func TestValidateFeedEntries(t *testing.T) {
 // nonGlobalV4 range exactly — alongside real addresses; before this fix every
 // fetch of it was refused as "224.0.0.0/3 is broader than /8", nothing kept.
 func TestValidateFeedEntries_DropsNonGlobalBeforeRefusingBreadth(t *testing.T) {
-	kept, dropped, err := validateFeedEntries([]string{
+	kept, dropped, err := validateFeedEntries("dshield", []string{
 		"224.0.0.0/3", "10.0.0.0/8", "100.64.0.0/10", "1.2.3.0/24",
 	})
 	if err != nil {
@@ -133,7 +133,7 @@ func TestValidateFeedEntries_DropsNonGlobalBeforeRefusingBreadth(t *testing.T) {
 // fails, the breadth check.
 func TestValidateFeedEntries_ZeroRoutesStillRefuseOnBreadth(t *testing.T) {
 	for _, e := range []string{"0.0.0.0/0", "::/0"} {
-		if _, _, err := validateFeedEntries([]string{e}); err == nil {
+		if _, _, err := validateFeedEntries("dshield", []string{e}); err == nil {
 			t.Errorf("%s was accepted", e)
 		}
 	}
@@ -144,12 +144,12 @@ func TestValidateFeedEntries_ZeroRoutesStillRefuseOnBreadth(t *testing.T) {
 // otherwise have swallowed, like 0.0.0.0/0.
 func TestValidateFeedEntries_RefusesTooBroad(t *testing.T) {
 	for _, e := range []string{"0.0.0.0/0", "12.0.0.0/7", "2000::/15", "::/0", "::ffff:0.0.0.0/100"} {
-		if _, _, err := validateFeedEntries([]string{"203.0.113.9", e}); err == nil {
+		if _, _, err := validateFeedEntries("dshield", []string{"203.0.113.9", e}); err == nil {
 			t.Errorf("%s was accepted", e)
 		}
 	}
 	for _, e := range []string{"12.0.0.0/8", "2a00::/16"} {
-		if _, _, err := validateFeedEntries([]string{e}); err != nil {
+		if _, _, err := validateFeedEntries("dshield", []string{e}); err != nil {
 			t.Errorf("%s is exactly the limit and was refused: %v", e, err)
 		}
 	}
@@ -157,7 +157,7 @@ func TestValidateFeedEntries_RefusesTooBroad(t *testing.T) {
 
 func TestValidateFeedEntries_RefusesWhatDoesNotParse(t *testing.T) {
 	for _, e := range []string{"", "not-an-address", "198.51.100.0/33", "fe80::1%eth0", "::ffff:1.2.3.4/95", "<html>"} {
-		_, _, err := validateFeedEntries([]string{"203.0.113.9", e})
+		_, _, err := validateFeedEntries("dshield", []string{"203.0.113.9", e})
 		if err == nil {
 			t.Errorf("%q was accepted", e)
 			continue
@@ -169,10 +169,10 @@ func TestValidateFeedEntries_RefusesWhatDoesNotParse(t *testing.T) {
 }
 
 func TestValidateFeedEntries_RefusesMoreThanTheLimit(t *testing.T) {
-	if _, _, err := validateFeedEntries(hosts(shared.FeedMaxEntries + 1)); err == nil {
+	if _, _, err := validateFeedEntries("dshield", hosts(shared.FeedMaxEntries+1)); err == nil {
 		t.Error("100 001 entries were accepted")
 	}
-	if _, _, err := validateFeedEntries(hosts(shared.FeedMaxEntries)); err != nil {
+	if _, _, err := validateFeedEntries("dshield", hosts(shared.FeedMaxEntries)); err != nil {
 		t.Errorf("exactly the limit was refused: %v", err)
 	}
 }
@@ -604,6 +604,28 @@ func TestUpdateFeed_AShrunkFeedIsAcceptedAfterOffApplyOn(t *testing.T) {
 			state, _ := fw.rules.GetState()
 			if got := fw.feedContents(state.Current)[id]; len(got) != 10 {
 				t.Errorf("the apply loads %d entries, want the accepted 10", len(got))
+			}
+		})
+	}
+}
+
+// 2.26: the shrink guard is for truncated downloads, which a country's single
+// JSON document cannot produce. A country losing one of three prefixes is
+// stored while live; a list shrinking the same way is still refused.
+func TestUpdateFeed_ACountryMayShrinkAndAListMayNot(t *testing.T) {
+	for id, refused := range map[string]bool{"country-de": false, "dshield": true} {
+		t.Run(id, func(t *testing.T) {
+			fw := liveFeedFirewall(t, []string{id}, id)
+			if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: id, Entries: hosts(3)}, "test"); err != nil {
+				t.Fatal(err)
+			}
+			res, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: id, Entries: hosts(2)}, "test")
+			if refused {
+				if resp := errResp(err); resp.Error != shared.ErrFeedShrankText {
+					t.Fatalf("3 -> 2 on a live list: %q, want %q", resp.Error, shared.ErrFeedShrankText)
+				}
+			} else if err != nil || res.After != 2 {
+				t.Fatalf("3 -> 2 on a live country: %+v, %v", res, err)
 			}
 		})
 	}

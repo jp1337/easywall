@@ -186,6 +186,8 @@ func TestHandleApplyStart_PanicEngagedSaysSoInsteadOfGenericFailure(t *testing.T
 	s := newTestServer(t, fc)
 	enrollFactor(t, s)
 	fc.SetResponse(shared.CmdApplyRules, errorRespFor(shared.ErrPanicEngagedText))
+	// Readable rules, so the countries' check (2.26) lets the apply through.
+	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{}))
 
 	rec := doAuthFormRequest(t, s, "/apply/start", "")
 	assertRedirect(t, rec, "/apply")

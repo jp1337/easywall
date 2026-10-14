@@ -110,7 +110,8 @@ func feedPrefix(e string) (netip.Prefix, bool) {
 
 // validateFeedEntries is spec §3 steps 3 to 5: at most FeedMaxEntries, each
 // parsed again, what is not globally routable dropped and counted, then none
-// of what remains broader than /8 or /16. It returns the kept prefixes
+// of what remains broader than shared.FeedMaxBits(id) — /8 and /16 for a list,
+// /4 and /16 for a country (2.26). It returns the kept prefixes
 // deduplicated and sorted, which is the form feeds.json stores and Changed
 // compares.
 //
@@ -121,7 +122,8 @@ func feedPrefix(e string) (netip.Prefix, bool) {
 // update over it. 0.0.0.0/0 and ::/0 are not wholly inside any single
 // non-global range — they overlap all of them, and everything else — so they
 // still reach, and fail, the breadth check.
-func validateFeedEntries(entries []string) (kept []netip.Prefix, dropped int, err error) {
+func validateFeedEntries(id string, entries []string) (kept []netip.Prefix, dropped int, err error) {
+	maxV4, maxV6 := shared.FeedMaxBits(id)
 	if len(entries) > shared.FeedMaxEntries {
 		return nil, 0, fmt.Errorf("%d entries; a feed may hold at most %d", len(entries), shared.FeedMaxEntries)
 	}
@@ -135,8 +137,8 @@ func validateFeedEntries(entries []string) (kept []netip.Prefix, dropped int, er
 			dropped++
 			continue
 		}
-		if (p.Addr().Is4() && p.Bits() < shared.FeedMaxBitsV4) || (p.Addr().Is6() && p.Bits() < shared.FeedMaxBitsV6) {
-			return nil, 0, fmt.Errorf("%s is broader than /%d (IPv4) or /%d (IPv6)", p, shared.FeedMaxBitsV4, shared.FeedMaxBitsV6)
+		if (p.Addr().Is4() && p.Bits() < maxV4) || (p.Addr().Is6() && p.Bits() < maxV6) {
+			return nil, 0, fmt.Errorf("%s is broader than /%d (IPv4) or /%d (IPv6)", p, maxV4, maxV6)
 		}
 		if !isGlobal(p) {
 			dropped++
@@ -206,7 +208,7 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 		vErr    error
 	)
 	if !p.NotModified {
-		kept, dropped, vErr = validateFeedEntries(p.Entries)
+		kept, dropped, vErr = validateFeedEntries(p.ID, p.Entries)
 	}
 	if !f.beginApply() {
 		return shared.UpdateFeedResult{}, ErrApplyInProgress
@@ -271,7 +273,11 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 	// takes any size — which is how an operator accepts a list that really
 	// did shrink, or an own feed whose URL now names a shorter list: switch
 	// it off and apply, switch it on, and the next fetch is stored.
-	if had && inCurrent && shrinks(stored.Entries, len(kept)) {
+	// A country is exempt (2.26): it arrives as one aggregated.json, and a
+	// truncated document fails to parse, so the web parser rejects the whole
+	// body and truncation never reaches here. A country of a few prefixes that
+	// loses one (an RIR transfer) is a real shrink, and 3 -> 2 is under 70 %.
+	if had && inCurrent && !shared.IsCountryFeedID(p.ID) && shrinks(stored.Entries, len(kept)) {
 		f.auditFeedRefused(p.ID, fmt.Sprintf("%d entries is under %d %% of the %d stored",
 			len(kept), shared.FeedShrinkPercent, stored.Entries), user)
 		return shared.UpdateFeedResult{}, errors.New(shared.ErrFeedShrankText)

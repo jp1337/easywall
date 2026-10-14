@@ -61,10 +61,12 @@ type blockedRows struct {
 }
 
 // feedNames fills rows.FeedNames for the "feed" rows on screen: the catalogue
-// name, or an own feed's configured one, in the request's language.
+// name, a country's, or an own feed's configured one, in the request's
+// language.
 func (s *Server) feedNames(r *http.Request, rows *blockedRows) {
 	loc := NewLocalizer(s.bundle, r, s.cfg.Language)
 	tFunc := func(id string, args ...interface{}) string { return T(loc, id, args...) }
+	lang := ResolveLang(s.bundle, r, s.cfg.Language)
 	for _, e := range rows.Entries {
 		if e.Rule != "feed" || e.Feed == "" {
 			continue
@@ -72,7 +74,7 @@ func (s *Server) feedNames(r *http.Request, rows *blockedRows) {
 		if rows.FeedNames == nil {
 			rows.FeedNames = map[string]string{}
 		}
-		rows.FeedNames[e.Feed] = s.feedLabel(tFunc, e.Feed)
+		rows.FeedNames[e.Feed] = s.feedLabel(tFunc, lang, e.Feed)
 	}
 }
 

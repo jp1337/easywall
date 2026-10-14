@@ -18,9 +18,9 @@ import (
 // of their own, because an HTML form cannot nest and the blocklist's textarea
 // has one already.
 
-// feedsCard is what the card renders. Callers build one only once GET_RULES
-// has answered, and leave it nil otherwise: a toggle drawn without knowing
-// what is staged would switch every feed off on its first save.
+// feedsCard is what the Feeds and Countries cards render. Callers build one
+// only once GET_RULES has answered, and leave it nil otherwise: a toggle drawn
+// without knowing what is staged would switch every feed off on its first save.
 type feedsCard struct {
 	Rows     []feedRow
 	CoreRead bool // GET_FEEDS answered; otherwise counts, times and counters are not shown
@@ -28,11 +28,40 @@ type feedsCard struct {
 	// A refused own-feed save, rendered beside its slot with what was typed.
 	OwnErrSlot int    // 1..3, 0 for none
 	OwnErrKey  string // a feeds_own_err_* key
+
+	// The Countries card (2.26): the countries switched on in Staged or
+	// Current, and every country not staged, for the select — both by name
+	// in the page's language.
+	Countries      []feedRow
+	CountryOptions []countryOption
 }
 
-func (s *Server) feedsCard(state *shared.RulesState) *feedsCard {
+// countryOption is one entry of the Countries card's select.
+type countryOption struct{ ID, Code, Name string }
+
+// feedsCard builds both cards. lang names the countries (spec D7).
+func (s *Server) feedsCard(state *shared.RulesState, lang string) *feedsCard {
 	rows := s.feedRows(state)
-	return &feedsCard{Rows: rows, CoreRead: len(rows) > 0 && rows[0].CoreRead}
+	card := &feedsCard{CoreRead: len(rows) > 0 && rows[0].CoreRead}
+	byName := func(a, b string) int { return strings.Compare(nameSortKey(a), nameSortKey(b)) }
+	for _, r := range rows {
+		if !r.Country {
+			card.Rows = append(card.Rows, r)
+			continue
+		}
+		r.Name = countryName(lang, strings.ToLower(r.Code))
+		card.Countries = append(card.Countries, r)
+	}
+	slices.SortFunc(card.Countries, func(a, b feedRow) int { return byName(a.Name, b.Name) })
+	for _, cc := range shared.CountryCodes {
+		id := shared.CountryFeedID(cc)
+		if state != nil && slices.Contains(state.Staged.Feeds, id) {
+			continue
+		}
+		card.CountryOptions = append(card.CountryOptions, countryOption{ID: id, Code: strings.ToUpper(cc), Name: countryName(lang, cc)})
+	}
+	slices.SortFunc(card.CountryOptions, func(a, b countryOption) int { return byName(a.Name, b.Name) })
+	return card
 }
 
 // ownFeedN is n for "own-n", 0 for anything else.
@@ -65,7 +94,9 @@ func stagedFeeds(before, on, confirmed []string, configured func(n int) bool) ([
 	}
 	next := []string{}
 	for _, id := range before {
-		if want[id] {
+		// A country is the Countries card's (2.26): this form carries none,
+		// and saving it must not switch them all off.
+		if want[id] || shared.IsCountryFeedID(id) {
 			next = append(next, id)
 			delete(want, id)
 		}
@@ -209,7 +240,7 @@ func (s *Server) handleOwnFeedPOST(w http.ResponseWriter, r *http.Request) {
 		u.User = nil
 		f.URL = u.String()
 	}
-	card := s.feedsCard(state)
+	card := s.feedsCard(state, ResolveLang(s.bundle, r, s.cfg.Language))
 	for i := range card.Rows {
 		if row := &card.Rows[i]; row.Own && row.OwnN == n {
 			row.Name, row.URL, row.User = f.Name, f.URL, f.User
@@ -222,10 +253,14 @@ func (s *Server) handleOwnFeedPOST(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// feedLabel is what /blocked calls the feed a row names: the catalogue name,
-// an own feed's configured name, or "Own feed N" in the page's language. An
-// id no catalogue knows (a core newer than this process) is shown as it is.
-func (s *Server) feedLabel(tFunc func(string, ...interface{}) string, id string) string {
+// feedLabel is what /blocked, /apply and the lockout verdict call a feed: the
+// catalogue name, a country's name in lang (2.26), an own feed's configured
+// name, or "Own feed N" in the page's language. An id no catalogue knows (a
+// core newer than this process) is shown as it is.
+func (s *Server) feedLabel(tFunc func(string, ...interface{}) string, lang, id string) string {
+	if cc, ok := shared.CountryCode(id); ok {
+		return countryName(lang, cc)
+	}
 	if n := ownFeedN(id); n > 0 {
 		if f, ok := s.feedStore.ownFeed(n); ok {
 			return f.Name
