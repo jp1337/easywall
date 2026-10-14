@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Roadmap
-description: Fourteen releases, ordered by exposure — what it quietly does not do first, then maintenance, then reach.
+description: Thirteen releases, ordered by exposure — what it quietly does not do first, then maintenance, then reach.
 ---
 
 # Roadmap
@@ -15,11 +15,10 @@ the [Changelog]({{ '/docs/changelog/' | relative_url }}).
 first, then what lets you maintain it, then what reaches further:
 
 ```
-Say what it does         2.26  What it counts can be asked for
+Say what it does         2.27  What it counts can be asked for
 
-Be able to maintain it   2.27  Every entry has a why and an until
-                         2.28  Whoever knocks gets locked out
-                         2.29  Countries
+Be able to maintain it   2.28  Every entry has a why and an until
+                         2.29  Whoever knocks gets locked out
 
 Reach further            2.30  One package, four formats
                          2.31  Moving off the firewall already running
@@ -39,10 +38,9 @@ earlier as an end in itself and never twice.
 
 | Version | What | Why it comes when it does |
 |---|---|---|
-| **2.26** | **What it counts can be asked for** — a metrics endpoint | The kernel counters have existed since 2.15 and live only in the interface, so an operator with Grafana cannot see the thing the release was for. Its own entry rather than folded into 2.20, because a scrape format is a second public interface with a compatibility promise — the reasoning that makes 3.0 a major. `DESIGN.md`'s Known Gaps names the missing data-visualisation language; this release either brings one or states plainly that it does not, rather than that decision arriving mid-build |
-| **2.27** | **Every entry has a why and an until** — blocklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
-| **2.28** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser — and the CrowdSec bouncer's `set-only` mode, which 2.23 deliberately does not document. **Closed ports answer**: the default policy gains `reject` — a TCP reset, ICMP port-unreachable otherwise, rate-limited, dropping above the limit — beside today's silent `drop`. A silent drop makes a misconfiguration look like a hang: a 2.23 production host with an AAAA record and IPv4-only mail ports left mail clients waiting for a timeout instead of falling back to IPv4. Stealth buys little on a host that answers on its open ports. The same release, because it decides what a closed port tells whoever knocks on it |
-| **2.29** | **Countries** — country zones, each switched on individually, all off by default | Split off from the feeds, which shipped as 2.23. Built from the RIRs' delegation files, which need no account; the web process downloads, never the core |
+| **2.27** | **What it counts can be asked for** — a metrics endpoint | The kernel counters have existed since 2.15 and live only in the interface, so an operator with Grafana cannot see the thing the release was for. Its own entry rather than folded into 2.20, because a scrape format is a second public interface with a compatibility promise — the reasoning that makes 3.0 a major. `DESIGN.md`'s Known Gaps names the missing data-visualisation language; this release either brings one or states plainly that it does not, rather than that decision arriving mid-build |
+| **2.28** | **Every entry has a why and an until** — blocklist entries carry a comment and an expiry | The textarea becomes a table; pasting a list of addresses still works, folded underneath it |
+| **2.29** | **Whoever knocks gets locked out** — repeated knocking on closed ports blocks itself, in an nftables set with a timeout, no userspace parser involved | Substitutes for reading `journald`/`auth.log` as root. A named set that fail2ban or CrowdSec can write into covers the credential case without turning the root process into a log parser — and the CrowdSec bouncer's `set-only` mode, which 2.23 deliberately does not document. **Closed ports answer**: the default policy gains `reject` — a TCP reset, ICMP port-unreachable otherwise, rate-limited, dropping above the limit — beside today's silent `drop`. A silent drop makes a misconfiguration look like a hang: a 2.23 production host with an AAAA record and IPv4-only mail ports left mail clients waiting for a timeout instead of falling back to IPv4. Stealth buys little on a host that answers on its open ports. The same release, because it decides what a closed port tells whoever knocks on it |
 | **2.30** | **One package, four formats** — `.deb`, `.rpm`, Arch and Alpine from one description, with `debian/` replaced by an nfpm manifest rather than joined by one | `requirements.md` says of Arch, Fedora and openSUSE that they *should work but are not in CI*: they get a tarball and write the service units themselves. `release.yml` refuses a second packaging definition in as many words — *two definitions of one artefact is how a package comes to contain no binaries* — and only a replacement honours that. The nine paths with their owners and modes are declared once and **proven by four install-verify jobs, not asserted**. Alpine is taken deliberately, knowing it means OpenRC and therefore a second init class to keep tested |
 | **2.31** | **Moving off the firewall already running** — read `nft list ruleset` and ufw's rules, and offer them as a staged set | The only entry on this list that removes an *adoption* barrier rather than adding a feature. Whoever already has a firewall copies it out by hand today. After the packaging, because an operator installs first and migrates second |
 | **2.32** | **Updates arrive on their own** — a signed APT and RPM repository, so `apt upgrade` and `dnf upgrade` find easywall | The documented install is `wget` and `dpkg -i`, so an operator learns about 2.16 only because the interface says so and installs it by hand. After 2.30, because a repository serves finished packages and not the other way round. It is also this project's first promise that means **operation** rather than code: a signing key to keep for years, and a URL that must not move |
@@ -69,7 +67,7 @@ spec amendment and a later release. Until then, allowlist that address.
 | | |
 |---|---|
 | SMTP notifications | Credentials in `web.toml`, foreign mail servers, deliverability — ntfy reaches the same phone without any of it |
-| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.28) |
+| A reimplemented fail2ban | Replaced by the named set the real one can write into (2.29) |
 | Zones, on the firewalld model | easywall runs on hosts with one uplink; what zones would be for is covered by `routing.mode` |
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |

@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.26.0">2.26.0</a>
   <a href="#2.25.2">2.25.2</a>
   <a href="#2.25.1">2.25.1</a>
   <a href="#2.25.0">2.25.0</a>
@@ -80,7 +81,40 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.25.2" markdown="1">
+<details open id="2.26.0" markdown="1">
+<summary><strong>2.26.0</strong> · 2026-10-14 — Countries</summary>
+
+### Added
+
+- **Block a country.** A new card on **Blocklist** lists the countries you
+  switched on and adds one from a select of all 238, named in the page's
+  language. Each country is a feed: checked after the allowlist and after
+  every other feed, refreshed daily, kept at its last copy when a refresh
+  fails, and named on **Blocked** as *Country: Germany*. The source is
+  [ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks)
+  (CC0), built daily from the five registries; an unchanged country costs a
+  `304`. At most 30 at a time — the thirty largest, at their real sizes, are
+  what the integration test loads (280 kernel rules, one transaction). See
+  [Countries](https://easywall-project.org/docs/features/countries/).
+- **Apply waits for a country's first copy.** A country switched on is fetched
+  in the background; until its copy is stored, **Apply** refuses and names it,
+  so an empty set is never confirmed and filled later without a window.
+
+### Changed
+
+- A country's IPv4 networks may be as broad as /4 — the United States holds
+  `16.0.0.0/6`, and a list's /8 limit would have refused its whole copy. IPv6
+  keeps /16 for everything.
+- A country is exempt from the 70 % shrink guard: its copy arrives as one JSON
+  document, so a truncated download cannot parse, and a real shrink — a block
+  transferred to another country — must load.
+- Saving the Feeds card keeps every country switched on.
+
+[See the code changes between 2.25.2 and 2.26.0](https://github.com/jp1337/easywall/compare/v2.25.2...v2.26.0)
+
+</details>
+
+<details id="2.25.2" markdown="1">
 <summary><strong>2.25.2</strong> · 2026-10-14 — The live tail sends what is new</summary>
 
 ### Fixed
