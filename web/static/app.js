@@ -148,12 +148,13 @@ function initBlockedTail() {
   const toggle = document.getElementById('blocked-live-toggle');
   const announce = document.getElementById('blocked-live-new');
   if (!rows || !state || !toggle) return;
-  const canHover = matchMedia('(hover: hover)').matches;
+  // Read on every check, not once: a tablet gains a mouse, a window moves screens.
+  const hoverQuery = matchMedia('(hover: hover)');
   let paused = false;
   let hadRows = false;
 
   const why = () => paused ? 'paused'
-    : canHover && rows.matches(':hover') ? 'pointer'
+    : hoverQuery.matches && rows.matches(':hover') ? 'pointer'
     : rows.contains(document.activeElement) ? 'focus' : 'live';
   const show = () => { state.textContent = state.dataset[why()]; };
   const newest = () => {
@@ -163,7 +164,6 @@ function initBlockedTail() {
 
   toggle.addEventListener('click', () => {
     paused = !paused;
-    toggle.setAttribute('aria-pressed', String(paused));
     toggle.textContent = paused ? toggle.dataset.resume : toggle.dataset.pause;
     show();
   });
@@ -204,7 +204,11 @@ function initBlockedTail() {
     const limit = Number(rows.dataset.limit) || 200;
     [...rows.querySelectorAll('tr[data-seq]')].slice(limit).forEach(tr => tr.remove());
     if (announce && added) {
-      announce.textContent = (added === 1 ? announce.dataset.single : announce.dataset.many).replace('{n}', added);
+      // A live region announces a change; the same "1 new entry" set twice is
+      // none. Empty it, then set the message on the next tick.
+      const msg = (added === 1 ? announce.dataset.single : announce.dataset.many).replace('{n}', added);
+      announce.textContent = '';
+      setTimeout(() => { announce.textContent = msg; }, 50);
     }
   });
   rows.querySelectorAll('tr[data-seq]').forEach(tr => { tr.dataset.seen = '1'; });

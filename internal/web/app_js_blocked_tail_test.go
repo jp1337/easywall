@@ -19,12 +19,22 @@ func TestAppJS_TheBlockedTailPausesWhileTheTableIsInUse(t *testing.T) {
 	for _, want := range []string{
 		"htmx:beforeRequest", "blocked-rows", ":hover", "document.activeElement", "preventDefault",
 		"htmx:configRequest", "parameters.after", "htmx:afterSwap", "HX-Reswap", "dataset.limit", "pkt-new",
-		"blocked-live-toggle", "aria-pressed",
+		"blocked-live-toggle",
 		"htmx:beforeSwap", "shouldSwap", "(hover: hover)", "hadRows",
+		// Read per check, not once at load: a tablet gains a mouse.
+		"hoverQuery.matches",
+		// A live region is silent when set to the text it already holds; it
+		// is emptied first so a second "1 new entry" is announced.
+		"announce.textContent = ''",
 	} {
 		if !strings.Contains(tail, want) {
 			t.Errorf("the live-tail section does not contain %q", want)
 		}
+	}
+	// A toggle button whose label changes must not also carry aria-pressed
+	// (ARIA Authoring Practices, Button): the label already says Pause or Resume.
+	if strings.Contains(tail, "aria-pressed") {
+		t.Error("the live-tail section sets aria-pressed on a button whose label changes")
 	}
 	if !regexp.MustCompile(`(?m)^\s*initBlockedTail\(\);`).MatchString(src) {
 		t.Error("initBlockedTail is never called")
