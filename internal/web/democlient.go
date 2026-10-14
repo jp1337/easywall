@@ -645,7 +645,7 @@ func newDemoFeedStore(now time.Time) *feedStore {
 				Failures: 2, LastAttempt: ago(50 * time.Minute)},
 			"country-aq": {Status: FeedUnchanged, LastAttempt: ago(5 * time.Hour)},
 			// The country lookup's line on /blocked: checked, unchanged.
-			countryLookupKey: {Status: FeedUnchanged, LastAttempt: ago(3 * time.Hour)},
+			countryLookupKey: {Status: FeedUnchanged, LastAttempt: ago(20 * time.Minute)},
 		},
 		// No user and no password: nothing a visitor could read back.
 		Own: [shared.MaxOwnFeeds]OwnFeed{{Name: "CrowdSec Raw IP List",
