@@ -31,8 +31,9 @@ country lookup, ACME) go from your server to the services named in
 
 Two of them are made by default, each once a day. The update check asks
 `api.github.com`. The country lookup downloads a list of address blocks from
-`github.com`, which hands it out from `release-assets.githubusercontent.com`;
-after a failure, retried from an hour on.
+`github.com`, which hands it out from `release-assets.githubusercontent.com`,
+so GitHub receives your server's IP address and a User-Agent naming easywall
+and its version; after a failure, retried from an hour on.
 `update_check = false` and `country_lookup = false` in `web.toml` switch them
 off.
 
