@@ -60,3 +60,24 @@ func TestAKeyInTheWrongTableIsReported(t *testing.T) {
 		t.Errorf("no warning names tls.country_lookup; log: %q", buf.String())
 	}
 }
+
+// A retired key the docs call "read by nothing" (csrf_key) is not wrong, and
+// must not warn on every start and every -healthcheck; an unknown key still does.
+func TestARetiredKeyIsIgnoredQuietly(t *testing.T) {
+	for body, warns := range map[string]bool{
+		"csrf_key = \"abc\"\n": false,
+		"csrf_kee = \"abc\"\n": true,
+	} {
+		var buf bytes.Buffer
+		old := slog.Default()
+		slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+		_, err := LoadConfig(writeTempConfig(t, body))
+		slog.SetDefault(old)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if got := strings.Contains(buf.String(), "key not recognised"); got != warns {
+			t.Errorf("%q: warned = %v, want %v; log: %q", body, got, warns, buf.String())
+		}
+	}
+}
