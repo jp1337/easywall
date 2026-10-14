@@ -73,6 +73,18 @@ func TestBlockedRows_ARenumberedRingSendsTheWholeView(t *testing.T) {
 	}
 }
 
+// A page that holds rows, asking after an empty ring, must be told the ring is
+// empty; a 204 would leave the old rows on screen for as long as it is open.
+func TestBlockedRows_AnEmptyRingSendsTheWholeView(t *testing.T) {
+	res, body := tailGet(t, nil, "/blocked/rows?after=311")
+	if res.Code != http.StatusOK || res.Header().Get("HX-Reswap") != "innerHTML" {
+		t.Fatalf("status %d, HX-Reswap %q; want 200 and innerHTML", res.Code, res.Header().Get("HX-Reswap"))
+	}
+	if !strings.Contains(body, "Nothing has been refused since") {
+		t.Errorf("the empty ring does not say so:\n%s", body)
+	}
+}
+
 func TestBlockedRows_AnUnreadableAfterSendsTheWholeView(t *testing.T) {
 	res, _ := tailGet(t, tailRing(311, 5), "/blocked/rows?after=x")
 	if res.Header().Get("HX-Reswap") != "innerHTML" {

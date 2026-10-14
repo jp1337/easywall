@@ -282,9 +282,12 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 // entriesAfter returns the entries newer than after, newest first as the core
 // sends them, and whether a delta is meaningful at all: not without an after,
 // and not when the newest entry is older than after — the ring was renumbered
-// and the page's rows are no longer comparable.
+// and the page's rows are no longer comparable — and not when there are no
+// entries at all: the page holds rows the view no longer has (the ring was
+// emptied, or a filter now matches nothing), and only the whole view replaces
+// them with the empty or no-match message. A 204 would leave them forever.
 func entriesAfter(entries []shared.PacketLogEntry, after uint64) ([]shared.PacketLogEntry, bool) {
-	if after == 0 || (len(entries) > 0 && entries[0].Seq < after) {
+	if after == 0 || len(entries) == 0 || entries[0].Seq < after {
 		return nil, false
 	}
 	i := 0
