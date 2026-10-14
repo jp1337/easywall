@@ -1,3 +1,13 @@
+easywall (2.27.0) unstable; urgency=medium
+
+  * Where it comes from: a Country column on Blocked, from ipverse's dataset
+    loaded once a day by easywall-web, and a Block XX row action.
+  * New outbound request to GitHub, on by default; switch it off with
+    country_lookup = false (also for hosts that set update_check = false).
+  * easywall-web warns at start about web.toml keys it does not read.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Wed, 14 Oct 2026 19:10:07 +0200
+
 easywall (2.26.0) unstable; urgency=medium
 
   * Countries: block the networks registered to a country, each switched on

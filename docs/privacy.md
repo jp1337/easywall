@@ -118,5 +118,5 @@ portability (20), and **objection** to processing based on legitimate interest
 Write to the address or e-mail above. You may also complain to a data protection
 supervisory authority (Art. 77).
 
-As of 2 October 2026. Source: Impressum-Privatschutz, adapted to this site.
+As of 14 October 2026. Source: Impressum-Privatschutz, adapted to this site.
 
