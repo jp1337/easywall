@@ -58,6 +58,47 @@ type blockedRows struct {
 	// FeedNames is what each feed a "feed" row names is called, by id — filled
 	// by feedNames, only when such a row is on screen.
 	FeedNames map[string]string
+
+	// Lookup is true while the country lookup is on (2.27): the Country
+	// column is drawn. Countries holds a cell for each on-screen source the
+	// table names; a source with none reads "—".
+	Lookup    bool
+	Countries map[netip.Addr]countryCell
+}
+
+// countryCell is one source's Country cell and its Block button (spec D5, D6).
+type countryCell struct {
+	Code  string // "RU", what the cell shows
+	CC    string // "ru", what the button posts
+	Name  string // the cell's title, in the page's language
+	Block bool   // offered: the staged rules were read and do not hold it
+}
+
+// countryCells fills rows.Countries for the sources on screen. Nothing while
+// the lookup is off. GET_RULES is asked once, and only when a row has a
+// country: Block is offered only for a country not staged already.
+func (s *Server) countryCells(r *http.Request, rows *blockedRows) {
+	if s.lookup == nil {
+		return
+	}
+	rows.Lookup = true
+	lang := ResolveLang(s.bundle, r, s.cfg.Language)
+	var staged []string
+	known := false
+	for _, e := range rows.Entries {
+		cc := s.lookup.country(e.Src)
+		if cc == "" {
+			continue
+		}
+		if rows.Countries == nil {
+			rows.Countries = map[netip.Addr]countryCell{}
+			if state, err := s.client.GetRules(); err == nil {
+				staged, known = state.Staged.Feeds, true
+			}
+		}
+		rows.Countries[e.Src] = countryCell{Code: strings.ToUpper(cc), CC: cc, Name: countryName(lang, cc),
+			Block: known && !slices.Contains(staged, shared.CountryFeedID(cc))}
+	}
 }
 
 // feedNames fills rows.FeedNames for the "feed" rows on screen: the catalogue
@@ -118,6 +159,7 @@ type blockedData struct {
 	Staged   int // changes waiting for Apply, counted exactly as /apply counts them
 	RuleList []string
 	Protos   []string
+	Lookup   *countryLookupStatus // the country table's line; nil while the lookup is off
 }
 
 // blockedFilter reads the URL. The second value names the first field that
@@ -222,6 +264,11 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Rows.Since = res.Since
 		s.rulesNow(&data.Rows)
 		s.feedNames(r, &data.Rows)
+		s.countryCells(r, &data.Rows)
+	}
+	if s.lookup != nil {
+		st := s.lookup.status()
+		data.Lookup = &st
 	}
 	// Only decides what the empty state and the header say. Unreadable, it
 	// says nothing rather than something false.
@@ -269,6 +316,7 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 		}
 		s.rulesNow(&rows)
 		s.feedNames(r, &rows)
+		s.countryCells(r, &rows)
 	} else {
 		slog.Debug("could not get the packet log for the live tail", "error", err)
 		rows.CoreErr = err.Error()
@@ -377,6 +425,9 @@ func (s *Server) stageFromLog(r *http.Request) string {
 		})
 		ruleType, payload, done = proto, *rules, "blocked_staged_port"
 
+	case "country":
+		return s.stageCountryFromLog(r.FormValue("cc"), state.Staged.Feeds)
+
 	default:
 		return "blocked_refused_invalid"
 	}
@@ -389,6 +440,31 @@ func (s *Server) stageFromLog(r *http.Request) string {
 		return "save_error"
 	}
 	return done
+}
+
+// stageCountryFromLog is the Countries card's Add, from a row (2.27, spec
+// D6): the same cap and the same refusal, and the first fetch at once. No
+// lockout question here, as the card asks none: /apply's verdict names a
+// country that would cut the operator off, and an apply waits until the
+// country's copy has loaded.
+func (s *Server) stageCountryFromLog(cc string, staged []string) string {
+	id := shared.CountryFeedID(cc)
+	if !shared.IsCountryFeedID(id) {
+		return "blocked_refused_invalid"
+	}
+	if slices.Contains(staged, id) {
+		return "blocked_refused_already"
+	}
+	next, refused := countriesNext(staged, id, "")
+	if refused != "" {
+		return refused
+	}
+	if err := s.client.SaveRules("feeds", next); err != nil {
+		slog.Warn("could not stage a country from the log", "error", err)
+		return "save_error"
+	}
+	s.refreshFeedNow(id)
+	return "blocked_staged_country"
 }
 
 // lockoutRefusal answers whether staging after instead of before would take

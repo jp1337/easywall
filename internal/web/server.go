@@ -1566,6 +1566,7 @@ func templateFuncs() template.FuncMap {
 		// A row action on /blocked staged its rule. Nothing is live yet, and
 		// the flash says so; it is still the action working.
 		"blocked_staged_allowlist": true, "blocked_staged_blocklist": true, "blocked_staged_port": true,
+		"blocked_staged_country": true,
 		// An own feed's address is stored; switching it on is the card's.
 		"feeds_own_saved": true,
 	}
