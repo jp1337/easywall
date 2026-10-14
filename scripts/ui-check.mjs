@@ -997,9 +997,14 @@ async function checkBlockedTailHoldsStill(page) {
 
     await page.click('#blocked-live-toggle');
     await page.mouse.move(5, 5);
-    if (await page.$eval('#blocked-live-toggle', b => b.getAttribute('aria-pressed')) !== 'true') {
-      fail('blocked tail', 'the Pause button is not pressed after a click');
+    // The label says what a click does; aria-pressed on a button whose label
+    // changes would announce "Resume, pressed" (ARIA APG, Button).
+    const toggleState = await page.$eval('#blocked-live-toggle', b =>
+      ({ text: b.textContent.trim(), resume: b.dataset.resume, pressed: b.hasAttribute('aria-pressed') }));
+    if (toggleState.text !== toggleState.resume) {
+      fail('blocked tail', `the button reads "${toggleState.text}" after Pause; want "${toggleState.resume}"`);
     }
+    if (toggleState.pressed) fail('blocked tail', 'the Pause button carries aria-pressed while its label changes');
     await page.waitForTimeout(500);       // a poll in flight at the click lands before the count starts
     rowsSeen.length = 0;
     const paused = await firstSeq();
@@ -1032,6 +1037,47 @@ async function checkBlockedTailHoldsStill(page) {
   } finally {
     page.off('response', onResponse);
   }
+}
+
+/**
+ * The state line's paused sentence is longer than "Live" and must not move the
+ * button or wrap the toolbar (2.25.2 final review): a table that moves under
+ * the pointer fires pointerleave, and the tail oscillates between live and
+ * paused. Before the fix, en at 390px grew the toolbar from 80 to 113px.
+ */
+async function checkBlockedTailStateHoldsTheLayout(browser, session) {
+  let n = 0;
+  for (const width of [1600, 900, 390]) {
+    for (const lang of ['en', 'de']) {
+      const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session,
+        viewport: { width, height: 900 } });
+      await ctx.addCookies([{ name: 'easywall_lang', value: lang, url: BASE }]);
+      const page = await ctx.newPage();
+      await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+      const layout = () => page.evaluate(() => ({
+        toolbar: document.getElementById('blocked-live-state').closest('.toolbar').getBoundingClientRect().height,
+        table: document.getElementById('blocked-rows').getBoundingClientRect().top + window.scrollY,
+      }));
+      await page.mouse.move(1, 1);
+      const live = await layout();
+      await page.hover('#blocked-rows tr:first-child td:first-child');
+      const paused = await page.waitForFunction(() => {
+        const s = document.getElementById('blocked-live-state');
+        return s.textContent === s.dataset.pointer;
+      }, null, { timeout: 3000 }).then(() => true, () => false);
+      const ptr = await layout();
+      await ctx.close();
+      const where = `${lang} ${width}px`;
+      if (!paused) { fail('blocked tail layout', `${where}: the state line never said the pointer pauses it`); continue; }
+      if (ptr.toolbar !== live.toolbar || ptr.table !== live.table) {
+        fail('blocked tail layout', `${where}: the paused state line moved the layout — toolbar ` +
+          `${live.toolbar}→${ptr.toolbar}px, table top ${live.table}→${ptr.table}px`);
+        continue;
+      }
+      n++;
+    }
+  }
+  if (n === 6) console.log('  ok   blocked tail state line moves neither toolbar nor table, en/de at 1600/900/390');
 }
 
 /**
@@ -2149,6 +2195,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
+  await checkBlockedTailStateHoldsTheLayout(browser, session);
   await checkBlockedSaysWhy(p);
   await checkFeedsCard(p);
   await checkASignedOutTailNavigates(browser, session);
