@@ -91,8 +91,10 @@ func TestBothPagesCountTheSameOutboundRequests(t *testing.T) {
 		"internal/shared/telemetry.go": {"Counting installations — telemetry.wdkro.de", "telemetry.wdkro.de"},
 		"internal/web/notify.go":       {"Notifications — an address the operator chooses", "Notifications"},
 		"internal/web/feeds.go":        {"Feeds — each list switched on, at its own address", "Feeds"},
-		"internal/web/acme.go":         certificate,
-		"internal/web/tlscert.go":      certificate,
+		"internal/web/countrylookup.go": {"Country lookup — github.com, then release-assets.githubusercontent.com",
+			"release-assets.githubusercontent.com"},
+		"internal/web/acme.go":    certificate,
+		"internal/web/tlscert.go": certificate,
 	}
 
 	var found []string

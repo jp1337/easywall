@@ -860,6 +860,7 @@
   {"id": "blocked_refused_already", "translation": "Schon vorhanden — nichts vorzumerken."},
   {"id": "blocked_refused_invalid", "translation": "Nicht vorgemerkt: Aktion oder Adresse ließen sich nicht lesen."},
   {"id": "blocked_refused_unknown", "translation": "Nicht vorgemerkt: Die Einstellungen der Firewall ließen sich nicht lesen, also kann nicht geprüft werden, ob Sie sich aussperren würden."},
+  {"id": "blocked_lookup_redirected", "translation": "der Download wurde zu einem anderen Host als denen von GitHub umgeleitet, und das wird abgelehnt"},
 
   {"id": "password_subtitle", "translation": "Das Passwort für die Anmeldung an dieser Oberfläche. Nach der Änderung bleibt diese Sitzung angemeldet."},
   {"id": "password_hint", "translation": "Mindestens 12 Zeichen, mit einer Ziffer und einem Sonderzeichen."},

@@ -170,6 +170,11 @@ type Server struct {
 	feedStop  chan struct{}
 	feedOnce  sync.Once
 
+	// lookup names each /blocked row's country (2.27). nil when web.toml
+	// says country_lookup = false — on by default. The feed runner loads and
+	// refreshes it.
+	lookup *countryLookup
+
 	// events carries login events to the core without a request waiting on one.
 	events     *auditEvents
 	eventsStop chan struct{}
@@ -357,6 +362,10 @@ func NewServer(cfg *Config) (*Server, error) {
 	} else {
 		s.feeds = newFeedRunner(client, s.feedStore)
 		s.feedStop = make(chan struct{})
+	}
+	if cfg.CountryLookup && !cfg.DemoMode {
+		s.lookup = newCountryLookup(cfg.CountryTablePath(), s.feedStore)
+		s.feeds.lookup = s.lookup
 	}
 
 	s.events = newAuditEvents(client, cfg.DemoMode)

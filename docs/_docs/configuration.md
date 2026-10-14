@@ -298,14 +298,14 @@ Three logging switches belong to no module and are set here as well:
 | `bind_addr` | string | Listen address and port — e.g. `"0.0.0.0:12227"` or `"127.0.0.1:12227"` |
 | `socket_path` | string | Path to the core Unix socket — must match `easywall.toml` |
 | `ssl_dir` | string | Directory where the auto-generated TLS cert/key are stored |
-| `data_dir` | string | The data directory, `/var/lib/easywall` by default. This process keeps its state in `web/` inside it: passkeys, the TOTP replay guard, the version cache, the installation identifier |
+| `data_dir` | string | The data directory, `/var/lib/easywall` by default. This process keeps its state in `web/` inside it: passkeys, the TOTP replay guard, the version cache, the installation identifier, the country table |
 | `language` | string | Fallback UI locale — any code `locales/` holds a catalogue for; `en`, `de` and `fr` ship. Only used when the browser asks for a language easywall does not have and no choice has been made in the interface |
 | `session_key` | string | Hex secret that signs the session cookie — `openssl rand -hex 32`, which is 64 characters. Optional: one is generated on first start and written back here if the key is missing, shorter than 32 characters, or still the shipped placeholder |
 | `username` | string | Login username — set via the first-run wizard |
 | `password` | string | Argon2id hash — set via the first-run wizard, do not edit by hand |
 | `totp_secret` | string | Base32 shared secret for the second factor, written by the interface — empty means none is enrolled. Clear this, `recovery_codes` and `<data_dir>/web/passkeys.json`, then restart, for password-only sign-in |
 | `recovery_codes` | array of strings | Argon2id hashes of the eight one-time recovery codes — never the codes themselves, which are shown once. One entry is removed each time a code is used |
-| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of four possible outbound requests; see below |
+| `update_check` | bool | Ask github.com once a day whether a newer release exists — `true` by default. One of six possible outbound requests, and one of the two on by default; see below |
 | `telemetry` | bool | Whether this installation may be counted — off unless switched on, and asked during the first run. See below |
 | `notify_kind` | string | Notification transport — `"webhook"`, `"ntfy"`, or `""` for off, which is the default. See [Every request that leaves the host](#every-request-that-leaves-the-host) |
 | `notify_url` | string | Where the notification is posted. A credential: an ntfy topic is readable by anyone who knows it. Redirects are refused |
@@ -433,28 +433,31 @@ fails with a key-mismatch error naming a certificate you never configured.
 
 ## Every request that leaves the host
 
-Five, and this is the whole list.
+Six, and this is the whole list.
 
-| | Update check | Counting installations | Notifications | Feeds | A certificate |
-|---|---|---|---|---|---|
-| Key | `update_check` | `telemetry` | `notify_kind` | none — **Blocklist** in the interface | `tls.acme` |
-| Default | **on** | **off** until you switch it on | **off** until you switch it on | **off**, each one | **off** until you switch it on |
-| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | each list's own address, a country's on `raw.githubusercontent.com`; an own feed's is yours | `tls.acme_directory`, Let's Encrypt if unset |
-| How often | once a day | once a day | when something happens | on the list's schedule, hourly to daily | on first need, then before expiry |
-| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall | a GET; an own feed's user and password to its own URL | `tls.hostname`, an account key made here, and `tls.acme_email` if set |
-| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface | the feed's switch | `acme = false` — easywall then issues its own certificate |
+| | Update check | Counting installations | Notifications | Feeds | Country lookup | A certificate |
+|---|---|---|---|---|---|---|
+| Key | `update_check` | `telemetry` | `notify_kind` | none — **Blocklist** in the interface | `country_lookup` | `tls.acme` |
+| Default | **on** | **off** until you switch it on | **off** until you switch it on | **off**, each one | **on** | **off** until you switch it on |
+| Destination | `api.github.com` | `telemetry.wdkro.de` | `notify_url` — yours, not ours | each list's own address, a country's on `raw.githubusercontent.com`; an own feed's is yours | `github.com`, redirected to `release-assets.githubusercontent.com` | `tls.acme_directory`, Let's Encrypt if unset |
+| How often | once a day | once a day | when something happens | on the list's schedule, hourly to daily | once a day | on first need, then before expiry |
+| Carries | nothing about you — a plain GET for the newest release | a random identifier and the version, in full below | what happened to your firewall | a GET; an own feed's user and password to its own URL | a GET | `tls.hostname`, an account key made here, and `tls.acme_email` if set |
+| Switched off by | `update_check = false` | `telemetry = false`, or **System** in the interface | `notify_kind = ""`, or **Notifications** in the interface | the feed's switch | `country_lookup = false` | `acme = false` — easywall then issues its own certificate |
+
+Two are on by default: the update check and the country lookup.
 
 `notify_url` and an own feed's URL are the only destinations easywall does not
 name. The authority is a default you may replace; the rest are fixed. That is why
 the notification address is treated as a credential and kept in `web.toml` at
 `0600`, beside `session_key`, and why an own feed's password is never shown back.
 
-The first four never delay a page. The update check is served from a cache on
+The first five never delay a page. The update check is served from a cache on
 disk and refreshed in the background. A failure is remembered for an hour so a
 host with no route out is not retrying on every load. The count runs in the
 background and gives up after ten seconds. A feed refreshes in the background
-too, and a failed refresh keeps the copy already loaded. The certificate is the one that can
-stop a page, because it is what serves it.
+too, and a failed refresh keeps the copy already loaded; so does the country
+lookup. The certificate is the one that can stop a page, because it is what
+serves it.
 
 ### The update check
 
