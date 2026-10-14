@@ -330,6 +330,11 @@ key  = ""
 		// No runner: nothing in a handler test fetches a feed.
 		feedStore: newFeedStore(cfg.FeedStatePath()),
 	}
+	// As NewServer: country_lookup is on by default, so this web.toml has a
+	// lookup. No runner loads or fetches it — its table stays empty.
+	if cfg.CountryLookup {
+		s.lookup = newCountryLookup(cfg.CountryTablePath(), s.feedStore)
+	}
 	// Built the way production builds it (NewServer wires this the same way,
 	// right after the struct literal): a real, empty store rather than the
 	// bare "0" this used to be. credentialFingerprint reads

@@ -77,6 +77,7 @@
               <th>{{T "blocked_col_time"}}</th>
               <th>{{T "blocked_col_iface"}}</th>
               <th>{{T "blocked_col_flow"}}</th>
+              {{if .Rows.Lookup}}<th title="{{T "blocked_col_country_title"}}">{{T "blocked_col_country"}}</th>{{end}}
               <th>{{T "blocked_col_proto"}}</th>
               <th>{{T "blocked_col_rule"}}</th>
               <th>{{T "blocked_col_actions"}}</th>
@@ -88,6 +89,15 @@
         </table>
       </div>
       {{end}}
+      {{/* The country table's one line (2.27): what it holds and when it was
+           checked, or, while the lookup is off, the key that switches it on.
+           The failure is named through ReasonKey: a refused redirect is the
+           lookup's own sentence, not the feeds'. Outside blocked_rows, so the
+           live tail's answers never carry it. */}}
+      <div class="editor-foot"><p class="group-note">{{with .Lookup}}{{$st := .}}
+        {{if .Loaded}}{{T "blocked_lookup_loaded" (dict "Countries" .Countries "Ranges" .Ranges "Checked" (shortTime (.CheckedAt.Format "2006-01-02T15:04:05Z07:00")))}}{{else}}{{T "blocked_lookup_loading"}}{{end}}
+        {{with .LastError}}{{T "blocked_lookup_failed" (dict "Reason" (T $st.ReasonKey (dict "Status" $st.HTTPStatus)))}}{{end}}
+      {{else}}{{richText (T "blocked_lookup_off") "https://easywall-project.org/docs/features/blocked-traffic/#where-it-comes-from" (T "blocked_lookup_off_link")}}{{end}}</p></div>
     </div>
     {{end}}
   </div>
@@ -104,6 +114,12 @@
   <td class="pkt-flow" data-label="{{T "blocked_col_flow"}}">
     <span class="pkt-route"><a href="/blocked?src={{.Src}}">{{.Src}}</a> → <a href="/blocked?dst={{.Dst}}">{{dstHost .Dst .DstPort}}</a>{{if .DstPort}}<a href="/blocked?port={{.DstPort}}">:{{.DstPort}}</a>{{end}}</span>
   </td>
+  {{/* The country the source's block is registered to (2.27): a label, never
+       a rule. On the 390 px card it is one more labelled line (data-label).
+       A forwarded packet is not offered Block: the countries filter the input
+       chain only. */}}
+  {{$c := index $.Countries .Src}}{{$block := and $c.Block (ne .Hook "forward")}}
+  {{if $.Lookup}}<td class="pkt-flow" data-label="{{T "blocked_col_country"}}">{{if $c.Code}}<abbr title="{{$c.Name}}">{{$c.Code}}</abbr>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>{{end}}
   <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
   {{/* .log-action, not .badge: a rule name is language ("SSH brute force"),
        not a value, so it takes the UI face rather than the data face — the
@@ -152,6 +168,12 @@
         <button type="submit" class="btn btn-sm">{{T "blocked_action_blocklist"}}</button>
       </form>
       {{end}}
+      {{if $block}}
+      <form method="post" action="/blocked/stage">
+        <input type="hidden" name="act" value="country"><input type="hidden" name="cc" value="{{$c.CC}}"><input type="hidden" name="q" value="{{$q}}">
+        <button type="submit" class="btn btn-sm" aria-label="{{T "blocked_action_country_named" (dict "Name" $c.Name)}}">{{T "blocked_action_country" (dict "Code" $c.Code)}}</button>
+      </form>
+      {{end}}
       {{if $r.Open}}
       <form method="post" action="/blocked/stage">
         <input type="hidden" name="act" value="open"><input type="hidden" name="proto" value="{{.Proto}}"><input type="hidden" name="port" value="{{.DstPort}}"><input type="hidden" name="q" value="{{$q}}">
@@ -164,7 +186,7 @@
            What can is removing the entry, and that is the list page's job. */}}
       <a href="/blocklist" class="btn btn-sm">{{T "blocked_action_edit_blocklist"}}</a>
       {{end}}
-      {{if not (or $r.Allowlist $r.Blocklist $r.Open (eq .Rule "blocklist"))}}
+      {{if not (or $r.Allowlist $r.Blocklist $r.Open $block (eq .Rule "blocklist"))}}
       <span class="text-ink-subtle">—</span>
       {{end}}
     </div>
@@ -184,7 +206,7 @@
   </div></td>
 </tr>
 {{else}}
-<tr><td colspan="6" class="text-center text-ink-subtle py-6">
+<tr><td colspan="{{if .Lookup}}7{{else}}6{{end}}" class="text-center text-ink-subtle py-6">
   {{if .CoreErr}}{{T "core_unreachable"}} {{.CoreErr}}
   {{else if not .LoggingKnown}}{{T "blocked_core_unreachable"}}
   {{else if not .Logging}}{{T "blocked_empty_off"}} <a href="/options#opt-log_blocked_connections">{{T "blocked_empty_off_link"}}</a>
