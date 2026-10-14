@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.2] — 2026-10-14
+
+**The live tail sends what is new.**
+
+### Fixed
+
+- **/blocked resent its whole table every five seconds.** Each poll carried
+  every row, measured at 190 KB for 103 rows, uncompressed — about 137 MB an
+  hour for one open tab. The poll now carries the newest row's number; the
+  answer is the rows after it, or `204 No Content` when there are none.
+- **A paused tail looked like a broken one.** The tail skipped its poll while
+  the pointer rested on the table — on a table that fills the screen, nearly
+  always — and said nothing. The line beside the table now says whether it is
+  live, and if not, why.
+- **A core restarted without its spill file, or a log emptied under an open
+  page,** now replaces the page's rows instead of leaving stale ones.
+- `/blocked/rows` is sent with `Cache-Control: no-store`.
+
+### Added
+
+- **Pause and Resume** for the tail; resuming catches up.
+- **New rows are marked** with a rule on the left until the next ones arrive,
+  and a polite status region says how many came.
+
+### Documentation
+
+- `blocked-traffic.md`: the tail, its pause and its mark. `DESIGN.md`: the
+  mark. A field finding from root01xvp: a Firefox tail that stalled was HTTP/3
+  advertised to a UDP port with no listener, in front of easywall.
+
 ## [2.25.1] — 2026-10-13
 
 **A bug bounty: what looked right and did nothing.**
@@ -2814,7 +2844,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.25.1...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.25.2...HEAD
+[2.25.2]: https://github.com/jp1337/easywall/compare/v2.25.1...v2.25.2
 [2.25.1]: https://github.com/jp1337/easywall/compare/v2.25.0...v2.25.1
 [2.25.0]: https://github.com/jp1337/easywall/compare/v2.24.1...v2.25.0
 [2.24.1]: https://github.com/jp1337/easywall/compare/v2.24.0...v2.24.1
