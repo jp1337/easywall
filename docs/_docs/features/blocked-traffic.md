@@ -39,6 +39,14 @@ and switch one on. The two worth starting with:
 **Details** opens the rest: exact time, TCP flags, ICMP type and code, connection state, TTL, source
 port, chain and packet mark — whichever of these the packet carried.
 
+## Live
+
+The table asks for new rows every five seconds and shows them on top, marked
+with a rule on the left until the next ones arrive. It pauses while you point
+at the table or work in it, so no row slides away under the cursor. **Pause**
+stops it until you press **Resume**. The line beside the button says whether it
+is live and, if not, why. Resuming catches up.
+
 ## Why a default drop refused it
 
 *Default drop* means no switch refused the packet — nothing let it in. The line

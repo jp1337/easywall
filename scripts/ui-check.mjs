@@ -944,47 +944,140 @@ async function checkApplyPreview(page) {
 }
 
 /**
- * /blocked's live tail must not move what the operator is pointing at or
- * destroy what has keyboard focus (2.21.1 F3, F12). The demo refuses a packet
- * every 7 s, so 12 s is at least one poll with new rows either way.
+ * /blocked's live tail (2.21.1 F3, F12; 2.25.2). It must not move what the
+ * operator is pointing at or destroy what has keyboard focus, must say when
+ * and why it is paused, must ask only for what is new, and must stop asking
+ * while the Pause button is pressed. The demo refuses a packet every 7 s, so
+ * 12 s is at least one poll with new rows either way.
  */
 async function checkBlockedTailHoldsStill(page) {
-  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
-  if (await page.locator('#blocked-rows details').count() === 0) {
-    fail('blocked tail', 'no rows to observe — the demo produced no refused packets');
-    return;
-  }
-  const firstSeq = () => page.$eval('#blocked-rows details', d => d.id);
+  const rowsSeen = [];
+  const onResponse = async res => {
+    if (!res.url().includes('/blocked/rows')) return;
+    rowsSeen.push({ url: res.url(), status: res.status(), swap: res.headers()['hx-reswap'] || '',
+                    bytes: (await res.body().catch(() => Buffer.alloc(0))).length });
+  };
+  page.on('response', onResponse);
+  try {
+    await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+    if (await page.locator('#blocked-rows details').count() === 0) {
+      fail('blocked tail', 'no rows to observe — the demo produced no refused packets');
+      return;
+    }
+    const firstSeq = () => page.$eval('#blocked-rows details', d => d.id);
+    const stateText = () => page.$eval('#blocked-live-state', s => s.textContent.trim());
+    const liveText = await page.$eval('#blocked-live-state', s => s.dataset.live);
+    if (/["'\\]/.test(liveText)) fail('blocked tail', `the live state reads ${liveText} — an attribute named data-on* is escaped as script`);
 
-  await page.hover('#blocked-rows tr:first-child td:first-child');
-  const underPointer = await firstSeq();
-  await page.waitForTimeout(12000);
-  if (await firstSeq() !== underPointer) {
-    fail('blocked tail', 'rows moved while the pointer was on the table');
-  }
+    await page.hover('#blocked-rows tr:first-child td:first-child');
+    const underPointer = await firstSeq();
+    await page.waitForTimeout(12000);
+    if (await firstSeq() !== underPointer) fail('blocked tail', 'rows moved while the pointer was on the table');
+    if (await stateText() === liveText) fail('blocked tail', 'the state line says live while the pointer pauses the tail');
 
-  await page.mouse.move(5, 5);
-  await page.waitForTimeout(12000);
-  if (await firstSeq() === underPointer) {
-    fail('blocked tail', 'the tail did not resume after the pointer left the table');
-  }
+    rowsSeen.length = 0;
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(12000);
+    if (await firstSeq() === underPointer) fail('blocked tail', 'the tail did not resume after the pointer left the table');
+    if (await stateText() !== liveText) fail('blocked tail', `the state line reads "${await stateText()}" while live`);
+    // A poll with nothing new must be observed at all: wait for one idle poll.
+    if (!rowsSeen.some(r => r.status === 204)) await page.waitForTimeout(7000);
+    if (!rowsSeen.some(r => r.status === 204)) fail('blocked tail', 'no poll answered 204 — "nothing new answers 204" was not observed');
+    const asked = rowsSeen.filter(r => r.status === 200 || r.status === 204);
+    if (asked.length === 0 || !asked.every(r => /[?&]after=\d+/.test(r.url))) {
+      fail('blocked tail', `a poll did not carry after=<seq>: ${asked.map(r => r.url).join(', ')}`);
+    }
+    if (asked.some(r => r.status === 200 && r.swap !== 'afterbegin')) {
+      fail('blocked tail', 'a poll with new rows answered with the whole view');
+    }
+    const marked = await page.locator('#blocked-rows tr.pkt-new').count();
+    if (marked === 0) fail('blocked tail', 'the newest batch is not marked');
+    const limit = await page.$eval('#blocked-rows', t => Number(t.dataset.limit));
+    if (await page.locator('#blocked-rows tr[data-seq]').count() > limit) fail('blocked tail', `more than ${limit} rows on the page`);
 
-  if (await page.locator('#blocked-rows .pkt-actions .btn').count() === 0) {
-    fail('blocked tail', 'no row action to focus — the demo produced no refused packets');
-    return;
+    await page.click('#blocked-live-toggle');
+    await page.mouse.move(5, 5);
+    // The label says what a click does; aria-pressed on a button whose label
+    // changes would announce "Resume, pressed" (ARIA APG, Button).
+    const toggleState = await page.$eval('#blocked-live-toggle', b =>
+      ({ text: b.textContent.trim(), resume: b.dataset.resume, pressed: b.hasAttribute('aria-pressed') }));
+    if (toggleState.text !== toggleState.resume) {
+      fail('blocked tail', `the button reads "${toggleState.text}" after Pause; want "${toggleState.resume}"`);
+    }
+    if (toggleState.pressed) fail('blocked tail', 'the Pause button carries aria-pressed while its label changes');
+    await page.waitForTimeout(500);       // a poll in flight at the click lands before the count starts
+    rowsSeen.length = 0;
+    const paused = await firstSeq();
+    await page.waitForTimeout(12000);
+    if (rowsSeen.length > 0) fail('blocked tail', `${rowsSeen.length} polls were sent while paused`);
+    if (await firstSeq() !== paused) fail('blocked tail', 'rows arrived while paused');
+    await page.click('#blocked-live-toggle');
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(7000);
+    if (await firstSeq() === paused) fail('blocked tail', 'Resume did not catch up');
+
+    if (await page.locator('#blocked-rows .pkt-actions .btn').count() === 0) {
+      fail('blocked tail', 'no row action to focus — the demo produced no refused packets');
+      return;
+    }
+    await page.focus('#blocked-rows .pkt-actions .btn');
+    const label = await page.evaluate(() => document.activeElement.textContent.trim());
+    const focusText = await page.$eval('#blocked-live-state', s => s.dataset.focus);
+    await page.waitForTimeout(12000);
+    if (await stateText() !== focusText) fail('blocked tail', `the state line reads "${await stateText()}" while a row button has focus`);
+    const still = await page.evaluate(() => {
+      const a = document.activeElement;
+      return a && a.isConnected && !!a.closest('#blocked-rows') ? a.textContent.trim() : null;
+    });
+    if (still !== label) {
+      fail('blocked tail', `keyboard focus on "${label}" was lost to ${still === null ? 'the page' : `"${still}"`}`);
+      return;
+    }
+    console.log('  ok   blocked tail asks only for what is new, holds still under pointer, focus and Pause, says so, resumes after');
+  } finally {
+    page.off('response', onResponse);
   }
-  await page.focus('#blocked-rows .pkt-actions .btn');
-  const label = await page.evaluate(() => document.activeElement.textContent.trim());
-  await page.waitForTimeout(12000);
-  const still = await page.evaluate(() => {
-    const a = document.activeElement;
-    return a && a.isConnected && !!a.closest('#blocked-rows') ? a.textContent.trim() : null;
-  });
-  if (still !== label) {
-    fail('blocked tail', `keyboard focus on "${label}" was lost to ${still === null ? 'the page' : `"${still}"`}`);
-    return;
+}
+
+/**
+ * The state line's paused sentence is longer than "Live" and must not move the
+ * button or wrap the toolbar (2.25.2 final review): a table that moves under
+ * the pointer fires pointerleave, and the tail oscillates between live and
+ * paused. Before the fix, en at 390px grew the toolbar from 80 to 113px.
+ */
+async function checkBlockedTailStateHoldsTheLayout(browser, session) {
+  let n = 0;
+  for (const width of [1600, 900, 390]) {
+    for (const lang of ['en', 'de']) {
+      const ctx = await browser.newContext({ ignoreHTTPSErrors: true, storageState: session,
+        viewport: { width, height: 900 } });
+      await ctx.addCookies([{ name: 'easywall_lang', value: lang, url: BASE }]);
+      const page = await ctx.newPage();
+      await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+      const layout = () => page.evaluate(() => ({
+        toolbar: document.getElementById('blocked-live-state').closest('.toolbar').getBoundingClientRect().height,
+        table: document.getElementById('blocked-rows').getBoundingClientRect().top + window.scrollY,
+      }));
+      await page.mouse.move(1, 1);
+      const live = await layout();
+      await page.hover('#blocked-rows tr:first-child td:first-child');
+      const paused = await page.waitForFunction(() => {
+        const s = document.getElementById('blocked-live-state');
+        return s.textContent === s.dataset.pointer;
+      }, null, { timeout: 3000 }).then(() => true, () => false);
+      const ptr = await layout();
+      await ctx.close();
+      const where = `${lang} ${width}px`;
+      if (!paused) { fail('blocked tail layout', `${where}: the state line never said the pointer pauses it`); continue; }
+      if (ptr.toolbar !== live.toolbar || ptr.table !== live.table) {
+        fail('blocked tail layout', `${where}: the paused state line moved the layout — toolbar ` +
+          `${live.toolbar}→${ptr.toolbar}px, table top ${live.table}→${ptr.table}px`);
+        continue;
+      }
+      n++;
+    }
   }
-  console.log('  ok   blocked tail holds still under pointer and focus, resumes after');
+  if (n === 6) console.log('  ok   blocked tail state line moves neither toolbar nor table, en/de at 1600/900/390');
 }
 
 /**
@@ -2102,6 +2195,7 @@ async function runChecks(browser, session) {
   await checkPortsRowAgreesWithServer(p);
   await checkApplyPreview(p);
   await checkBlockedTailHoldsStill(p);
+  await checkBlockedTailStateHoldsTheLayout(browser, session);
   await checkBlockedSaysWhy(p);
   await checkFeedsCard(p);
   await checkASignedOutTailNavigates(browser, session);

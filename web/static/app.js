@@ -127,18 +127,92 @@ function initListCounter(inputId, outId, one, many) {
 }
 
 /* ── Blocked traffic live tail ────────────────────────────────────────────
-   The tail replaces every row every five seconds. While the pointer or the
-   keyboard focus is in the table the poll is skipped: a swap would slide the
-   row under the cursor and destroy the focused button. The fragment is the
-   whole view, so the first poll after the operator leaves catches up.
+   Every five seconds the tail asks for the rows newer than the newest it
+   holds (after=<seq>); the server answers 204 when there are none, or with
+   only the new rows and HX-Reswap: afterbegin. The page keeps at most
+   data-limit rows, marks the latest batch (.pkt-new) and announces its size.
+   The poll is skipped while the operator paused it, or while the pointer or
+   the keyboard focus is in the table — an insert at the top would slide the
+   row under the cursor — and the state line says which of the three it is.
+   A poll already in flight when that happens is not swapped in either; `after`
+   has not moved, so the next poll fetches the same rows again.
+   The pointer counts only on devices that hover: on a phone :hover sticks
+   after a tap. Only a page that never had rows marks its first fill as new;
+   once it has held rows, a later whole-view swap (an error row, a renumbered
+   ring) is not news.
    Ceiling: a screen reader's browse cursor does not move focus, so it is not
    seen here. */
 function initBlockedTail() {
-  document.body.addEventListener('htmx:beforeRequest', e => {
-    const t = e.detail && e.detail.elt;
-    if (!t || t.id !== 'blocked-rows') return;
-    if (t.matches(':hover') || t.contains(document.activeElement)) e.preventDefault();
+  const rows = document.getElementById('blocked-rows');
+  const state = document.getElementById('blocked-live-state');
+  const toggle = document.getElementById('blocked-live-toggle');
+  const announce = document.getElementById('blocked-live-new');
+  if (!rows || !state || !toggle) return;
+  // Read on every check, not once: a tablet gains a mouse, a window moves screens.
+  const hoverQuery = matchMedia('(hover: hover)');
+  let paused = false;
+  let hadRows = false;
+
+  const why = () => paused ? 'paused'
+    : hoverQuery.matches && rows.matches(':hover') ? 'pointer'
+    : rows.contains(document.activeElement) ? 'focus' : 'live';
+  const show = () => { state.textContent = state.dataset[why()]; };
+  const newest = () => {
+    const first = rows.querySelector('tr[data-seq]');
+    return first ? first.dataset.seq : '';
+  };
+
+  toggle.addEventListener('click', () => {
+    paused = !paused;
+    toggle.textContent = paused ? toggle.dataset.resume : toggle.dataset.pause;
+    show();
   });
+  for (const ev of ['pointerenter', 'pointerleave', 'focusin', 'focusout']) {
+    // focusout fires before the new focus lands; read the state after it.
+    rows.addEventListener(ev, () => setTimeout(show, 0));
+  }
+
+  document.body.addEventListener('htmx:beforeRequest', e => {
+    if (e.detail.elt !== rows) return;
+    if (why() !== 'live') e.preventDefault();
+  });
+  document.body.addEventListener('htmx:configRequest', e => {
+    if (e.detail.elt !== rows) return;
+    const seq = newest();
+    if (seq) e.detail.parameters.after = seq;
+  });
+  document.body.addEventListener('htmx:beforeSwap', e => {
+    if (e.detail.elt !== rows) return;
+    if (why() !== 'live') { e.detail.shouldSwap = false; return; }
+    hadRows = hadRows || !!newest();
+  });
+  document.body.addEventListener('htmx:afterSwap', e => {
+    if (e.detail.elt !== rows || e.detail.xhr.status !== 200) return;
+    rows.querySelectorAll('tr.pkt-new').forEach(tr => tr.classList.remove('pkt-new'));
+    // A whole-view swap onto a page that had rows is a renumbered ring, not news.
+    if (e.detail.xhr.getResponseHeader('HX-Reswap') !== 'afterbegin' && hadRows) {
+      rows.querySelectorAll('tr[data-seq]').forEach(tr => { tr.dataset.seen = '1'; });
+      return;
+    }
+    let added = 0;
+    for (const tr of rows.querySelectorAll('tr[data-seq]')) {
+      if (tr.dataset.seen) break;
+      tr.dataset.seen = '1';
+      tr.classList.add('pkt-new');
+      added++;
+    }
+    const limit = Number(rows.dataset.limit) || 200;
+    [...rows.querySelectorAll('tr[data-seq]')].slice(limit).forEach(tr => tr.remove());
+    if (announce && added) {
+      // A live region announces a change; the same "1 new entry" set twice is
+      // none. Empty it, then set the message on the next tick.
+      const msg = (added === 1 ? announce.dataset.single : announce.dataset.many).replace('{n}', added);
+      announce.textContent = '';
+      setTimeout(() => { announce.textContent = msg; }, 50);
+    }
+  });
+  rows.querySelectorAll('tr[data-seq]').forEach(tr => { tr.dataset.seen = '1'; });
+  show();
 }
 
 /* ── HTMX toast ───────────────────────────────────────────────────────────
