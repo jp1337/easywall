@@ -3443,6 +3443,17 @@ body {
      ink-muted clears 4.5:1 in both themes and comes to full ink when the row
      is hovered or holds focus. */
   .pkt-actions .btn { color: var(--color-ink-muted); }
+  /* The live tail's latest batch: a rule in ink, not a state colour — a new
+     row is news, not a verdict — faded in at the slow token. The
+     reduced-motion block drops the fade; the rule stays. */
+  #blocked-rows tr.pkt-new > td:first-child { box-shadow: inset 2px 0 0 var(--color-ink); }
+  #blocked-rows tr.pkt-new { animation: pkt-new-in var(--motion-slow) var(--motion-ease); }
+  @keyframes pkt-new-in { from { opacity: 0; } to { opacity: 1; } }
+  /* The tail's state line holds a slot as wide as its longest sentence (de,
+     260px at 12px = 32.5ch), so "Live" turning into "Paused while you point at
+     the table" moves neither the button nor the table: a table that moved
+     under the pointer fired pointerleave, and the tail oscillated. */
+  #blocked-live-state { flex: 1 0 34ch; max-width: 100%; text-align: right; }
   .table tbody tr:hover .pkt-actions .btn,
   .table tbody tr:focus-within .pkt-actions .btn { color: var(--color-ink); }
 
@@ -3879,4 +3890,12 @@ body {
   .table-reflow td.feed-name-cell::before { content: none; }
   /* The count cells are set in the data face; their label is not data. */
   .feed-table.table-reflow td.col-count::before { font-family: var(--font-ui); }
+}
+
+/* On a card the first cell is one line of many, and its rule was a tick; the
+   live tail's mark runs along the whole card instead. Its own block, for the
+   same reason as the one above. */
+@container (max-width: 940px) {
+  #blocked-rows tr.pkt-new { box-shadow: inset 2px 0 0 var(--color-ink); }
+  #blocked-rows tr.pkt-new > td:first-child { box-shadow: none; }
 }

@@ -29,7 +29,7 @@ Pretending it does not
 exist to leave the file at zero would be the dishonesty this sweep exists to
 end. See `docs-tech/specs/2026-09-11-the-carried-forward-sweep.md`.
 
-**Open entries: none, as of 2.20.1.** That one was closed by 2.19's Scope column a
+**Open entries: one, as of 2.25.2 — the first section below. Before it: none, as of 2.20.1.** That one was closed by 2.19's Scope column a
 day later, and the last remaining entry — `detectDockerBridges` returning IPv4
 CIDRs only — moved to the roadmap's **2.28** row (renumbered **2.29** since)
 rather than being carried again. Its ruling did not change; the ruling is the reason. Work that needs its
@@ -68,6 +68,14 @@ whole subject is not doing that — the rule is amended here, in the open.
 
 Not published — this directory sits outside `docs/`, which is the entire Jekyll
 source. See `TestTheTechnicalDocsAreNotPublished`.
+
+# From 2.25.2 — the live tail sends what is new
+
+Open. Found at 2.25.2's final review; not caused by it.
+
+| | |
+|---|---|
+| **/blocked's toolbar count stays at the page-load value while the tail adds rows** | *"47 von 47"* is rendered once by `blocked.html` into `.toolbar-count`, outside `#blocked-rows`; the tail swaps only the tbody, so the count never moves while rows arrive or fall off past `data-limit`. **Proven older than the branch:** the line `<span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>` is byte-identical at `773c37d2` (the pre-branch base, line 40) and on the branch (line 42), and before 2.25.2 the tail swapped the whole tbody (`hx-swap="innerHTML"`) with the count outside it all the same. Closing it is a choice of mechanism — an out-of-band swap of the count with each answer, or the page counting its own rows — and `Matched` is the core's count of the filtered ring, which the delta answer (`afterbegin`) does not carry today |
 
 # From 2.19 — what it passes on, it also filters
 

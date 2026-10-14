@@ -23,6 +23,9 @@ type blockedRows struct {
 	// measured, html/template leaves an already-encoded query after "?" intact
 	// and only turns & into &amp; for the attribute.
 	Query string
+	// Limit is how many rows the page keeps; the live tail drops the oldest
+	// beyond it after every insert.
+	Limit int
 
 	// The rest is what blocked_rows' own {{else}} needs to choose its empty
 	// message. handleBlocked fills these from the same two calls it already
@@ -188,7 +191,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 
 	data := &blockedData{
 		Bad: bad, Unread: bad != "",
-		Rows:     blockedRows{Query: filterQuery(f), Filtered: !f.IsZero()},
+		Rows:     blockedRows{Query: filterQuery(f), Filtered: !f.IsZero(), Limit: f.EffectiveLimit()},
 		RuleList: append(append([]string{}, shared.PacketLogRules...), shared.PacketLogRuleOther),
 		Protos:   shared.PacketLogProtos,
 	}
@@ -233,17 +236,35 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "blocked.html", "blocked", data)
 }
 
-// handleBlockedRows is the live tail: the rows alone, polled every five
-// seconds. A separate request from handleBlocked's, so it asks the core the
-// same two questions again rather than inheriting an answer from a page load
-// that may be minutes old.
+// handleBlockedRows is the live tail: polled every five seconds with after=<seq>,
+// the highest Seq the page holds. It answers with the rows newer than that and
+// htmx puts them on top (HX-Reswap: afterbegin), or with 204 when there are
+// none, so an idle tail costs no body at all. With no after — the page had no
+// rows — or with a ring that went backwards (a core restarted without its
+// spill file numbers from 1 again), it answers with the whole view. A
+// separate request from handleBlocked's, so it asks the core the same two
+// questions again rather than inheriting an answer from a page load that may
+// be minutes old.
 func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
-	f, _ := blockedFilter(r.URL.Query()) // an unreadable filter here renders as no filter, exactly like the page
+	q := r.URL.Query()
+	f, _ := blockedFilter(q) // an unreadable filter here renders as no filter, exactly like the page
+	after, _ := strconv.ParseUint(q.Get("after"), 10, 64)
+	// The answer is the state of the ring at this moment; nothing between the
+	// browser and this process may hand an older one back.
+	w.Header().Set("Cache-Control", "no-store")
 	rows := blockedRows{Entries: []shared.PacketLogEntry{}, Query: filterQuery(f), Filtered: !f.IsZero()}
+	swap := "innerHTML"
 	if res, err := s.client.GetPacketLog(f); err == nil {
 		rows.Entries = res.Entries
 		rows.Listening = res.Listening
 		rows.Since = res.Since
+		if newer, ok := entriesAfter(res.Entries, after); ok {
+			if len(newer) == 0 {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			rows.Entries, swap = newer, "afterbegin"
+		}
 		s.rulesNow(&rows)
 		s.feedNames(r, &rows)
 	} else {
@@ -254,7 +275,26 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 		rows.Logging = opts.LogsAnything()
 		rows.LoggingKnown = true
 	}
+	w.Header().Set("HX-Reswap", swap)
 	s.renderPartial(w, r, "blocked_rows", rows)
+}
+
+// entriesAfter returns the entries newer than after, newest first as the core
+// sends them, and whether a delta is meaningful at all: not without an after,
+// and not when the newest entry is older than after — the ring was renumbered
+// and the page's rows are no longer comparable — and not when there are no
+// entries at all: the page holds rows the view no longer has (the ring was
+// emptied, or a filter now matches nothing), and only the whole view replaces
+// them with the empty or no-match message. A 204 would leave them forever.
+func entriesAfter(entries []shared.PacketLogEntry, after uint64) ([]shared.PacketLogEntry, bool) {
+	if after == 0 || len(entries) == 0 || entries[0].Seq < after {
+		return nil, false
+	}
+	i := 0
+	for i < len(entries) && entries[i].Seq > after {
+		i++
+	}
+	return entries[:i], true
 }
 
 // handleBlockedStage runs one row action and returns to the view it came from.
