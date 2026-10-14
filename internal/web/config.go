@@ -102,6 +102,11 @@ func LoadConfig(path string) (*Config, error) {
 	// A switch that ships on is on for a file that predates it: the package
 	// never replaces web.toml, and an absent bool decodes to false (the 2.25.0
 	// trap). Before fileConfig and the overlay, so both see the default.
+	// A key that landed in the wrong table (country_lookup after [tls] becomes
+	// tls.country_lookup) is not decoded into anything: say so, do not refuse.
+	for _, k := range meta.Undecoded() {
+		slog.Warn("web.toml: key not recognised and ignored; check its table", "key", k.String())
+	}
 	if !meta.IsDefined("country_lookup") {
 		cfg.CountryLookup = shared.WebDefault().CountryLookup
 	}

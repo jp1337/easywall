@@ -1,6 +1,9 @@
 package web
 
 import (
+	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/jp1337/easywall/internal/shared"
@@ -30,5 +33,30 @@ func TestCountryLookupIsOnUnlessSwitchedOff(t *testing.T) {
 	t.Setenv("EASYWALL_WEB_COUNTRY_LOOKUP", "false")
 	if load(`bind_addr = "127.0.0.1:1"`) {
 		t.Error("EASYWALL_WEB_COUNTRY_LOOKUP=false did not switch it off")
+	}
+}
+
+// The fallback runs before fileConfig is copied, or the default would be
+// stored as a file value of false and encode() would write it back.
+func TestCountryLookupFallbackPrecedesTheStoredCopy(t *testing.T) {
+	cfg, err := LoadConfig(writeTempConfig(t, `bind_addr = "127.0.0.1:1"`))
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if !cfg.fileConfig.CountryLookup {
+		t.Error("fileConfig.CountryLookup is false for a file without the key; it would be persisted as off")
+	}
+}
+
+func TestAKeyInTheWrongTableIsReported(t *testing.T) {
+	var buf bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(old) })
+	if _, err := LoadConfig(writeTempConfig(t, "[tls]\ncountry_lookup = false\n")); err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if !strings.Contains(buf.String(), "tls.country_lookup") {
+		t.Errorf("no warning names tls.country_lookup; log: %q", buf.String())
 	}
 }
