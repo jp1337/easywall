@@ -13,10 +13,7 @@ Informationen nach Art. 13 und 14 DSGVO.
 
 ## Verantwortlich
 
-<p>Jochen Pylypiw<br>
-c/o IP-Management #12226<br>
-Ludwig-Erhard-Straße 18<br>
-20459 Hamburg</p>
+{% include controller.html %}
 
 E-Mail: [info@easywall-project.org](mailto:info@easywall-project.org)
 

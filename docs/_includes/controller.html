@@ -1,0 +1,15 @@
+{%- comment -%}
+The controller's name and postal address, required on the legal pages, never
+live in the repository. The deploy job writes docs/_data/legal.yml from the
+LEGAL_YML secret (lines: [...]) before Jekyll builds; a local or pull-request
+build has none and says so. `suffix` appends to the last line (", Germany"),
+`country` adds a line of its own.
+{%- endcomment -%}
+{%- assign legal = site.data.legal -%}
+{%- if legal and legal.lines -%}
+<p>{% for line in legal.lines %}{{ line | escape }}{% if forloop.last %}{{ include.suffix }}{% endif %}{% unless forloop.last %}<br>
+{% endunless %}{% endfor %}{% if include.country %}<br>
+{{ include.country }}{% endif %}</p>
+{%- else -%}
+<p><em>Name and postal address are filled in when the site is deployed.</em></p>
+{%- endif -%}
