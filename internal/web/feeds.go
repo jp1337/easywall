@@ -96,6 +96,10 @@ type feedRunner struct {
 	// firstSeen is when a pass first found a feed with no attempt on
 	// record; its first pull waits for this install's slot after it.
 	firstSeen map[string]time.Time
+
+	// lookup is the country lookup (2.27), refreshed on this runner's tick;
+	// nil when web.toml switches it off.
+	lookup *countryLookup
 }
 
 func newFeedRunner(client *CoreClient, store *feedStore) *feedRunner {
@@ -124,6 +128,9 @@ func feedUserAgent() string {
 
 // run refreshes whatever is due, now and every feedTick, until done closes.
 func (r *feedRunner) run(done <-chan struct{}) {
+	if r.lookup != nil {
+		r.lookup.load() // before the first pass asks whether it is due
+	}
 	t := time.NewTicker(feedTick)
 	defer t.Stop()
 	for {
@@ -140,6 +147,11 @@ func (r *feedRunner) run(done <-chan struct{}) {
 // Current that is due. An id in both is seen twice and refreshed once: the
 // first refresh makes it not due.
 func (r *feedRunner) pass() {
+	// First, and whether or not the core answers: the table is this
+	// process's alone.
+	if r.lookup != nil && r.lookup.due(r.now()) {
+		r.lookup.refresh()
+	}
 	state, err := r.client.GetRules()
 	if err != nil {
 		slog.Debug("feeds: rules not read; no refresh this pass", "error", err)
@@ -484,21 +496,34 @@ func (r *feedRunner) fetch(rawURL string, st feedFetchState, conditional bool, s
 	}
 	req.Header.Set("User-Agent", feedUserAgent())
 	if conditional {
-		// Both: GitHub raw honours only If-None-Match (research §pihole).
-		if st.ETag != "" {
-			req.Header.Set("If-None-Match", st.ETag)
-		}
-		if st.LastModified != "" {
-			req.Header.Set("If-Modified-Since", st.LastModified)
-		}
+		setValidators(req, st)
 	}
 	if src.user != "" {
 		req.SetBasicAuth(src.user, src.password)
 	}
+	return readFeedResponse(r.http, req, conditional)
+}
 
-	// #nosec G704 -- a catalogue URL, or an own feed's, which an authenticated
-	// operator set and saveOwnFeed held to https or loopback http (P14).
-	resp, err := r.http.Do(req)
+// setValidators makes req conditional on the copy st describes. Both: GitHub
+// raw honours only If-None-Match (research §pihole).
+func setValidators(req *http.Request, st feedFetchState) {
+	if st.ETag != "" {
+		req.Header.Set("If-None-Match", st.ETag)
+	}
+	if st.LastModified != "" {
+		req.Header.Set("If-Modified-Since", st.LastModified)
+	}
+}
+
+// readFeedResponse sends req with c and reads the answer: a 304 when it was
+// conditional, otherwise a 200 of at most feedMaxBody that is not a web page.
+// Every failure is a *feedFailure. The feeds and the country lookup (2.27)
+// share it; each builds its own request and brings its own client.
+func readFeedResponse(c *http.Client, req *http.Request, conditional bool) (fetched, error) {
+	// #nosec G704 -- a catalogue URL, an own feed's, which an authenticated
+	// operator set and saveOwnFeed held to https or loopback http (P14), or
+	// the country archive's fixed URL.
+	resp, err := c.Do(req)
 	if err != nil {
 		return fetched{}, requestFailure(err, feedErrUnreachable)
 	}

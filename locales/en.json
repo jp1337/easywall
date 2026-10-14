@@ -860,6 +860,7 @@
   {"id": "blocked_refused_already", "translation": "Already there — nothing to stage."},
   {"id": "blocked_refused_invalid", "translation": "Not staged: that action or address could not be read."},
   {"id": "blocked_refused_unknown", "translation": "Not staged: the firewall's settings could not be read, so it cannot be checked whether this would lock you out."},
+  {"id": "blocked_lookup_redirected", "translation": "the download was redirected to a host other than GitHub's, which is refused"},
 
   {"id": "password_subtitle", "translation": "The password for signing in to this interface. You stay signed in on this device after changing it."},
   {"id": "password_hint", "translation": "At least 12 characters, with a digit and a symbol."},

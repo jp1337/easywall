@@ -65,10 +65,11 @@ health_allow = ["127.0.0.1/8", "::1/128"]
 # ─── Update check ───────────────────────────────────────────────────────────
 # The dashboard asks github.com once a day whether a newer release exists. It
 # never delays a page: the answer comes from a cache on disk. Set to false to
-# remove it entirely. This is one of the five requests easywall can make; the
+# remove it entirely. This is one of the six requests easywall can make; the
 # others are the installation count below, a notification, the feeds switched on
-# under Blocklist, and fetching a certificate when ACME is switched on. All four
-# are off unless asked for. configuration.md lists all five.
+# under Blocklist, the country lookup below, and fetching a certificate when ACME
+# is switched on. This one and the country lookup are on by default; the other
+# four are off unless asked for. configuration.md lists all six.
 update_check = true
 
 # ─── Country lookup ─────────────────────────────────────────────────────────

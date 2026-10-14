@@ -561,12 +561,13 @@ type WebConfig struct {
 	// request an operator may reasonably want gone entirely rather than merely
 	// failing quietly.
 	//
-	// One of the five requests easywall can make. The others are Telemetry
+	// One of the six requests easywall can make. The others are Telemetry
 	// below, a notification to NotifyURL, the feeds switched on in Rules.Feeds,
-	// and autocert fetching a certificate when TLSConfig.ACME is on — all four
-	// off unless switched on. The notification and an own feed are the two
-	// whose destination easywall does not name. docs/_docs/security.md lists
-	// all five.
+	// CountryLookup's archive, and autocert fetching a certificate when
+	// TLSConfig.ACME is on. CountryLookup is on by default, like this one; the
+	// other four are off unless switched on. The notification and an own feed
+	// are the two whose destination easywall does not name.
+	// docs/_docs/security.md lists all six.
 	UpdateCheck *bool `toml:"update_check"`
 
 	// Telemetry records whether the operator agreed to easywall counting this
