@@ -12,10 +12,7 @@ Information under Art. 13 and 14 GDPR. Auf Deutsch:
 
 ## Who is responsible
 
-<p>JP<br>
-c/o [c/o address]<br>
-[street]<br>
-20459 Hamburg, Germany</p>
+{% include controller.html suffix=", Germany" %}
 
 E-mail: [info@easywall-project.org](mailto:info@easywall-project.org)
 

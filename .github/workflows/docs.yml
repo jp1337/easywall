@@ -149,11 +149,32 @@ jobs:
           bundler-cache: true
           working-directory: docs
 
+      # The controller's name and postal address never live in the repository;
+      # the legal pages render them from this file (docs/_includes/controller.html).
+      # A published Impressum without them breaks § 5 DDG, so an empty secret
+      # stops the deploy rather than shipping the placeholder.
+      - name: Legal contact from the deployment secret
+        env:
+          LEGAL_YML: ${{ secrets.LEGAL_YML }}
+        run: |
+          test -n "$LEGAL_YML" || { echo "::error::the LEGAL_YML secret is empty"; exit 1; }
+          mkdir -p docs/_data
+          printf '%s\n' "$LEGAL_YML" > docs/_data/legal.yml
+
       - name: Build docs
         working-directory: docs
         run: bundle exec jekyll build
         env:
           JEKYLL_ENV: production
+
+      - name: The legal pages carry the controller
+        working-directory: docs
+        run: |
+          for page in legal-notice privacy datenschutz; do
+            if grep -q "filled in when the site is deployed" "_site/$page/index.html"; then
+              echo "::error::_site/$page has no controller address"; exit 1
+            fi
+          done
 
       # The same floor the pull-request build asserts. It was on that job alone,
       # which is the one path where nothing is published — so the check existed

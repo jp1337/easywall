@@ -14,11 +14,7 @@ Covers [easywall-project.org](https://easywall-project.org/) and
 
 ## Information pursuant to § 5 DDG · Angaben gemäß § 5 DDG
 
-<p>JP<br>
-c/o [c/o address]<br>
-[street]<br>
-20459 Hamburg<br>
-Deutschland</p>
+{% include controller.html country="Deutschland" %}
 
 ## Contact · Kontakt
 
@@ -26,10 +22,6 @@ E-Mail: [info@easywall-project.org](mailto:info@easywall-project.org)
 
 ## Responsible for editorial content pursuant to § 18 Abs. 2 MStV · Redaktionell verantwortlich gemäß § 18 Abs. 2 MStV
 
-<p>JP<br>
-c/o [c/o address]<br>
-[street]<br>
-20459 Hamburg<br>
-Deutschland</p>
+{% include controller.html country="Deutschland" %}
 
 Quelle: Impressum-Privatschutz
