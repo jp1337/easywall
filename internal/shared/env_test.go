@@ -47,7 +47,7 @@ func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 		"EASYWALL_WEB_LANGUAGE":       "de",
 		"EASYWALL_WEB_UPDATE_CHECK":   "false",
 		"EASYWALL_WEB_DEMO_MODE":      "true",
-		"EASYWALL_WEB_COUNTRY_LOOKUP": "false",
+		"EASYWALL_WEB_COUNTRY_LOOKUP": "true",
 	}))
 	if err != nil {
 		t.Fatalf("applyEnv: %v", err)
@@ -79,8 +79,8 @@ func TestApplyWebEnv_SetsEveryVariable(t *testing.T) {
 	if !cfg.DemoMode {
 		t.Error("DemoMode = false, want true")
 	}
-	if cfg.CountryLookup {
-		t.Error("CountryLookup = true, want false")
+	if !cfg.CountryLookup {
+		t.Error("CountryLookup = false, want true")
 	}
 }
 

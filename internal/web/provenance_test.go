@@ -175,7 +175,7 @@ var keysWithoutAControl = map[string]string{
 	"tls.cert":        "a path to a file the operator installs outside easywall",
 	"tls.key":         "a path to a file the operator installs outside easywall",
 	"demo_mode":       "decides whether there is a firewall behind the interface at all; a control for it inside that interface would be answering its own question",
-	"country_lookup":  "an outbound request is switched on in web.toml, where the host is configured, and the interface has no control for it; /blocked names the key in one line instead",
+	"country_lookup":  "an outbound request is switched off in web.toml, where the host is configured, and the interface has no control for it; /blocked names the key in one line instead",
 	"update_check":    "no control exists yet; the switch is on the 2.x roadmap and the environment page is where it is documented meanwhile",
 	"language":        "the switch in the sidebar writes a cookie for this browser, not a stored value — so there is no stored-versus-environment conflict to draw",
 	"trusted_proxies": "a trust boundary set before the process starts, the same reason bind_addr and socket_path have none — a control that could widen it from inside the interface would let the interface decide who may impersonate its own caller",
