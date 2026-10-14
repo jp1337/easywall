@@ -1250,10 +1250,12 @@ side by side.
 ### The live tail
 
 **Added 2026-10-13 (2.25.2).** /blocked's newest batch carries `.pkt-new`: a
-2 px inset rule in `ink` on the row's first cell — news, not a verdict, so no
-state colour — and a 200 ms fade-in that `prefers-reduced-motion` drops. The
-mark moves to the next batch; it is never the only carrier of the
-information, which the state line and a polite status region say in words.
+2 px inset rule in `ink` on the row's first cell — on a card, along the whole
+card — news, not a verdict, so no state colour — and a `--motion-slow` fade-in
+that `prefers-reduced-motion` drops. The mark moves to the next batch; it is
+never the only carrier of the information, which the state line and a polite
+status region say in words. The state line holds a slot as wide as its longest
+sentence (`34ch`), so its text changing moves neither the button nor the table.
 
 ### Switch rows
 
