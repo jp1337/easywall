@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.0] — 2026-10-14
+
+**Where it comes from.**
+
+### Added
+
+- **A Country column on Blocked.** Each address shows the country it is
+  registered in, from
+  [ipverse/country-ip-blocks](https://github.com/ipverse/country-ip-blocks)
+  (CC0), loaded once a day by `easywall-web`.
+- **Block XX.** A row action that blocks the address's country in one step,
+  the same feed that **Blocklist** adds.
+- **A status line** on Blocked: when the lookup was last checked, and why it
+  failed if it did.
+
+### Changed
+
+- **A new outbound request, on by default.** Once a day to `github.com` and
+  `release-assets.githubusercontent.com`; the first fetch comes right after the
+  upgrade restart. Switch it off with `country_lookup = false` or
+  `EASYWALL_WEB_COUNTRY_LOOKUP=false`. **A host that set `update_check = false`
+  so that it never contacts GitHub must now also set this.** GitHub receives
+  the server's IP address and a User-Agent naming easywall and its version.
+- `easywall-web` takes about 10 MB more RSS, and the dataset is 1.7 MB in
+  `data_dir/web/countries.tar.gz`.
+- A host without outbound access retries with backoff from 1 h to 24 h, logs a
+  warning each time and shows the failure in the status line.
+- `easywall-web` now warns at start about `web.toml` keys it does not read, for
+  example a key placed after `[tls]`. The retired `csrf_key` is exempt.
+- Blocked asks the core for the rules once per request instead of up to three
+  times.
+
+### Fixed
+
+- `check:ui`'s `204` check is deterministic.
+
 ## [2.26.0] — 2026-10-14
 
 **Countries.**
@@ -2874,7 +2910,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.26.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.27.0...HEAD
+[2.27.0]: https://github.com/jp1337/easywall/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/jp1337/easywall/compare/v2.25.2...v2.26.0
 [2.25.2]: https://github.com/jp1337/easywall/compare/v2.25.1...v2.25.2
 [2.25.1]: https://github.com/jp1337/easywall/compare/v2.25.0...v2.25.1

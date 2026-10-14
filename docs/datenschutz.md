@@ -126,7 +126,7 @@ Zukunft widerrufen (Art. 7 Abs. 3). Schreib an die Anschrift oder E-Mail oben.
 Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren
 (Art. 77).
 
-Stand: 2. Oktober 2026. Quelle: Impressum-Privatschutz, angepasst an diese Website.
+Stand: 14. Oktober 2026. Quelle: Impressum-Privatschutz, angepasst an diese Website.
 
 In English: [Privacy policy]({{ '/privacy/' | relative_url }}).
 
