@@ -79,3 +79,7 @@ docs/Gemfile.lock
 
 # subagent-driven-development scratch (ledger, briefs, review packages)
 .superpowers/
+
+# The legal pages' name and postal address: written by the deploy job from the
+# LEGAL_YML secret, never committed (docs/_includes/controller.html).
+docs/_data/legal.yml
