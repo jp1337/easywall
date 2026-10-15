@@ -704,7 +704,7 @@
   {"id": "system_telemetry_switch_desc", "translation": "Once a day, a random identifier generated on this machine and the version easywall is running. Not the hostname, not an address, not a rule, not a count of anything you have configured. Switch it off and the next day nothing is sent; the identifier lives in your data directory and can be deleted."},
   {"id": "system_telemetry_endpoint", "translation": "Sent to"},
   {"id": "telemetry_prompt_title", "translation": "May this installation be counted?"},
-  {"id": "telemetry_prompt_body", "translation": "easywall was updated. Counting is off. Once a day it would send a random identifier generated on this machine and the version, nothing else — so we can see how many installations run and whether a critical fix reached them."},
+  {"id": "telemetry_prompt_body", "translation": "Counting is off. Once a day it would send a random identifier generated on this machine and the version, nothing else — so we can see how many installations run and whether a critical fix reached them."},
   {"id": "telemetry_prompt_detail", "translation": "Your address is not recorded at the other end. You can change this any time under System."},
   {"id": "telemetry_prompt_more", "translation": "What is sent, exactly"},
   {"id": "telemetry_prompt_yes", "translation": "Yes, count it"},

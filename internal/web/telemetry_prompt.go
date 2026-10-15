@@ -104,8 +104,15 @@ func (s *Server) handleTelemetryPromptPOST(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	// A refusal must leave the card where it is: the card's outerHTML swap
+	// would otherwise replace it with respondPartialError's empty 200, and an
+	// operator who clicked Yes would see it gone as if it had worked.
+	keepCard := func(flash string) {
+		w.Header().Set("HX-Reswap", "none")
+		s.respondPartialError(w, r, "/", flash)
+	}
 	if s.client.IsDemo() {
-		s.respondPartialError(w, r, "/", "demo_readonly")
+		keepCard("demo_readonly")
 		return
 	}
 
@@ -117,7 +124,7 @@ func (s *Server) handleTelemetryPromptPOST(w http.ResponseWriter, r *http.Reques
 		// question was answered (D9).
 		if err := s.cfg.SaveTelemetry(enabled); err != nil {
 			slog.Warn("could not save the telemetry setting", "error", err)
-			s.respondPartialError(w, r, "/", "save_error")
+			keepCard("save_error")
 			return
 		}
 		slog.Info("telemetry setting changed", "enabled", enabled, "via", "dashboard question")

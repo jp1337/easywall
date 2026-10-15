@@ -223,6 +223,19 @@ func TestTelemetryPrompt_FailedWrites(t *testing.T) {
 			t.Error("a consent that failed to save left a marker")
 		}
 	})
+	t.Run("htmx keeps the card when the consent fails", func(t *testing.T) {
+		s := promptServer(t)
+		s.cfg.configPath = filepath.Join(t.TempDir(), "missing", "web.toml")
+		req := httptest.NewRequest("POST", "/telemetry/prompt", strings.NewReader("answer=yes"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+		req.AddCookie(makeAuthCookie(t, s))
+		rec := httptest.NewRecorder()
+		s.router.ServeHTTP(rec, req)
+		if rec.Header().Get("HX-Reswap") != "none" {
+			t.Errorf("a failed save let htmx swap the card away (HX-Reswap %q)", rec.Header().Get("HX-Reswap"))
+		}
+	})
 	t.Run("marker not written, consent kept", func(t *testing.T) {
 		s := promptServer(t)
 		dir := filepath.Dir(s.cfg.TelemetryPromptPath())

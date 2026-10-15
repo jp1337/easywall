@@ -704,7 +704,7 @@
   {"id": "system_telemetry_switch_desc", "translation": "Einmal am Tag eine auf diesem Rechner erzeugte Zufalls-Kennung und die laufende Version. Nicht der Hostname, keine Adresse, keine Regel, keine Anzahl von irgendetwas, das du eingerichtet hast. Abschalten heißt: am nächsten Tag geht nichts mehr raus; die Kennung liegt in deinem Datenverzeichnis und darf gelöscht werden."},
   {"id": "system_telemetry_endpoint", "translation": "Ziel"},
   {"id": "telemetry_prompt_title", "translation": "Darf diese Installation mitgezählt werden?"},
-  {"id": "telemetry_prompt_body", "translation": "easywall wurde aktualisiert. Die Zählung ist aus. Einmal am Tag ginge eine auf diesem Rechner erzeugte Zufalls-Kennung und die Version raus, sonst nichts — damit wir sehen, wie viele Installationen laufen und ob ein kritischer Fix sie erreicht hat."},
+  {"id": "telemetry_prompt_body", "translation": "Die Zählung ist aus. Einmal am Tag ginge eine auf diesem Rechner erzeugte Zufalls-Kennung und die Version raus, sonst nichts — damit wir sehen, wie viele Installationen laufen und ob ein kritischer Fix sie erreicht hat."},
   {"id": "telemetry_prompt_detail", "translation": "Deine Adresse wird auf der Gegenseite nicht gespeichert. Jederzeit änderbar unter System."},
   {"id": "telemetry_prompt_more", "translation": "Was genau gesendet wird"},
   {"id": "telemetry_prompt_yes", "translation": "Ja, mitzählen"},
