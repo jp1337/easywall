@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.1] — 2026-10-15
+
+**Flags, and the name where a thumb can read it.**
+
+### Changed
+
+- **/blocked shows each country with its flag.** On a desktop the flag sits beside
+  the code, and a click or tap on the code opens the country's name; on a phone
+  the row reads the whole name, *Russia (RU)*. The Countries card on Blocklist
+  carries the flag too. The flags are
+  [flag-icons](https://github.com/lipis/flag-icons) 7.5.0 (MIT), shipped as
+  `web/static/flags/` — about 1.5 MB in the package; a page loads only the flags
+  of the countries it shows.
+- The row action reads **Block country** in every row; screen readers hear
+  *Block country: Russia*.
+
+### Documentation
+
+- A block page for refused visitors is listed as deliberately excluded, with the
+  reason: easywall drops the packet in the kernel, and for HTTPS such a page
+  would need the site's own certificate.
+- Field check of 2.27.0: the +85 MB reading was the login's argon2id peak
+  (VmHWM); easywall-web settles about 7 MB above 2.26.0.
+
 ## [2.27.0] — 2026-10-14
 
 **Where it comes from.**
@@ -2910,7 +2934,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.27.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.27.1...HEAD
+[2.27.1]: https://github.com/jp1337/easywall/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/jp1337/easywall/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/jp1337/easywall/compare/v2.25.2...v2.26.0
 [2.25.2]: https://github.com/jp1337/easywall/compare/v2.25.1...v2.25.2
