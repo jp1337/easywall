@@ -333,6 +333,7 @@ func TestIntegration_ACertificateArrivesOverHTTP01(t *testing.T) {
 	cfg.TLS.ACME = true
 	cfg.TLS.ACMEAgreeTOS = true
 	cfg.TLS.ACMEDirectory = pebble.DirectoryURL
+	cfg.CountryLookup = false // no test reaches for the network; Start runs the feed runner
 
 	hash, err := HashPassword(testPassword)
 	if err != nil {
