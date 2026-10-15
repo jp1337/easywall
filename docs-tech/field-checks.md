@@ -12,10 +12,10 @@ together find what neither finds alone.
 | 2.23.0 | every apply with four feeds failed: `recvmsg: no buffer space available` | 2.23.1 — the kernel acks every message and echoes every rule; the receive buffer was never raised. Older than 2.23 (≈107 rules on 2.22); every test had used one port rule |
 | 2.23.0 | the failed apply said *nothing was written to the kernel* — the kernel had committed | 2.23.1 — a receive-side overflow is no longer tagged so |
 | 2.23.1 | 60 dropped fragments were the host's own WireGuard peer | /options and `filters.md` name tunnels beside DNSSEC |
-| 2.23.1 | IPv6 mail clients hung on a silent drop (AAAA record, IPv4-only ports) | roadmap 2.31: closed ports can answer (`reject`) |
+| 2.23.1 | IPv6 mail clients hung on a silent drop (AAAA record, IPv4-only ports) | roadmap 2.32 (*Whoever knocks gets locked out*): closed ports answer (`reject`) |
 | 2.23.2 | feeds stopped 3,472 of 3,903 SSH drops (89 %) before the brute-force meter | feeds preempt sshbrute — documented behaviour, nothing to change |
 | 2.23.2 | 334 IPv6 default drops on mail ports (993/25/143/587/465/4190) in 11 h | the IPv4-only container gap — 2.24 |
-| 2.23.2 | feeds drop some legitimate fetchers on 80/443 (blocklist.de, CINS) | `feeds.md` note and allowlist recipe (2.24); a per-feed port scope is roadmap 2.40 |
+| 2.23.2 | feeds drop some legitimate fetchers on 80/443 (blocklist.de, CINS) | `feeds.md` note and allowlist recipe (2.24); a per-feed port scope is roadmap 2.41 |
 | 2.23.2 | IPv4 echo-request always meets policy drop | 2.25 — Answer pings, on by default, both families; the stateless ICMP accepts conntrack covered are gone |
 | 2.24 | the published-port warning never read Docker's `iptables-nft` DNAT — an xtables target, not the nft `nat` expression the check read — since 2.20.1 | fixed in 2.24 (Task 3) |
 | 2.24.0 | the published-port warning named 8 ports published on 127.0.0.1 only (nginx back ends), all answering | 2.24.1 — loopback binds skipped; the host's own connection never crosses forward |
@@ -23,6 +23,7 @@ together find what neither finds alone.
 | 2.25.1 | blocklist.de held 5 of Bingbot's 28 published ranges, 1 of GPTBot's 18 and 2 of Googlebot's 317; no other feed held any. 0 drops from them in the ring | `feeds.md` names the crawlers and both remedies; the operator switched blocklist.de off |
 | 2.25.1 | `/blocked` showed no new rows for minutes in Firefox while the core logged them; the 5-s polls went out. traefik advertised Alt-Svc h3=":442", but UDP 442 had no endpoints — ArgoCD's client-side apply drops the 8443/UDP containerPort (strategic-merge key is containerPort only) and still reports Synced. With network.http.http3.enable=false the rows updated | cluster fix (ServerSideApply on the traefik app) in the k8s repository; easywall's tail now sends what is new (2.25.2) and marks /blocked/rows Cache-Control: no-store |
 | 2.27.0 | easywall-web read +85 MB RSS against 2.26.0 | that was `VmHWM` after the operator's login — argon2id takes 64 MiB per hash. Steady state ~39 MB, +7 MB over 2.26.0. Read `VmRSS`, not `VmHWM` |
+| 2.27.1 | blocklist.de all.txt listed Googlebot and Bingbot on root01xvp | 2.29: ✗ and the SSH list recommended instead |
 
 ## When
 

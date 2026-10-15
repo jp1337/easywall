@@ -742,6 +742,72 @@ func TestServer_StartStop(t *testing.T) {
 	}
 }
 
+// Stop waits for a refresh in progress: a country download that finished after
+// Stop returned wrote into a data_dir the caller had already removed (CI, 2.29).
+func TestServer_StopWaitsForTheRefreshInProgress(t *testing.T) {
+	asked := make(chan struct{}, 1)
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		asked <- struct{}{}
+		<-release
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+	// A failing path must not leave the handler blocked: srv.Close waits for it.
+	defer func() {
+		select {
+		case release <- struct{}{}:
+		default:
+		}
+	}()
+	was := countryArchiveURL
+	countryArchiveURL = srv.URL + "/country-ip-blocks.tar.gz"
+	t.Cleanup(func() { countryArchiveURL = was })
+
+	fc := newFakeCore(t)
+	dir := t.TempDir()
+	sslDir := dir + "/ssl"
+	_ = os.MkdirAll(sslDir, 0750)
+	if err := generateSelfSignedCert(sslDir); err != nil {
+		t.Fatalf("generateSelfSignedCert: %v", err)
+	}
+	cfg := &Config{}
+	cfg.configPath = dir + "/web.toml"
+	cfg.BindAddr = "127.0.0.1:0"
+	cfg.SocketPath = fc.socketPath
+	cfg.SSLDir = sslDir
+	cfg.DataDir = dir
+	cfg.SessionKey = "test-key-32bytes-padding-padding!"
+	cfg.CountryLookup = true
+	s, err := NewServer(cfg)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	if s.tmpl, err = loadTemplates(repoTemplates(t)); err != nil {
+		t.Fatalf("loadTemplates: %v", err)
+	}
+	go func() { _ = s.Start() }()
+	select {
+	case <-asked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the runner never asked for the country table")
+	}
+
+	stopped := make(chan struct{})
+	go func() { s.Stop(); close(stopped) }()
+	select {
+	case <-stopped:
+		t.Fatal("Stop returned while a refresh was still in progress")
+	case <-time.After(300 * time.Millisecond):
+	}
+	release <- struct{}{}
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not return after the refresh finished")
+	}
+}
+
 func TestPageDataCarriesTheInstalledVersion(t *testing.T) {
 	fc := newFakeCore(t)
 	s := newTestServer(t, fc)

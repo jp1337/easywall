@@ -41,6 +41,7 @@
         <span class="sr-only" role="status" id="blocked-live-new" data-single="{{T "blocked_live_new_one"}}" data-many="{{T "blocked_live_new_many" (dict "N" "{n}")}}"></span>
         <span class="toolbar-count">{{T "blocked_count" (dict "N" (len .Entries) "M" .Matched)}}</span>{{end}}
       </div>
+      {{if .CoreOld}}<p role="status" class="field-help">{{T "blocked_country_core_old"}}</p>{{end}}
       <form method="get" action="/blocked" class="pkt-filters" aria-label="{{T "blocked_filter_label"}}">
         <label class="pkt-field"><span>{{T "blocked_filter_src"}}</span>
           {{/* No placeholder: its computed colour is already --color-ink-subtle
@@ -65,6 +66,11 @@
           </select></label>
         <label class="pkt-field pkt-field-narrow"><span>{{T "blocked_filter_iface"}}</span>
           <input type="text" name="in" value="{{.Form.InDev}}" class="input input-sm input-data{{if eq $bad "in"}} is-error{{end}}"{{if eq $bad "in"}} aria-invalid="true"{{end}}></label>
+        {{if .Countries}}<label class="pkt-field"><span>{{T "blocked_filter_country"}}</span>
+          <select name="country" class="input input-sm{{if eq $bad "country"}} is-error{{end}}"{{if eq $bad "country"}} aria-invalid="true"{{end}}>
+            <option value="">{{T "blocked_filter_any"}}</option>
+            {{$c := .Form.Country}}{{range .Countries}}<option value="{{.ID}}"{{if eq .ID $c}} selected{{end}}>{{.Name}}</option>{{end}}
+          </select></label>{{end}}
         <button type="submit" class="btn btn-sm">{{T "blocked_filter_apply"}}</button>
         <a href="/blocked" class="btn btn-sm">{{T "blocked_filter_clear"}}</a>
       </form>
@@ -124,7 +130,7 @@
        title for the mouse. The card layout shows .cc-long, the whole name,
        instead: on a phone it is read without a tap. The popover's id carries
        the row's Seq, unique on the page and in every tail delta. */}}
-  {{if $.Lookup}}<td class="pkt-flow" data-label="{{T "blocked_col_country"}}">{{if $c.Code}}<span class="cc"><img class="flag" src="{{flagURL $c.CC}}" alt="" width="20" height="15"><span class="cc-short"><button type="button" class="cc-code" popovertarget="cc-{{.Seq}}" title="{{$c.Name}}">{{$c.Code}}</button><span class="cc-pop" id="cc-{{.Seq}}" popover>{{$c.Name}}</span></span><span class="cc-long">{{$c.Name}} ({{$c.Code}})</span></span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>{{end}}
+  {{if $.Lookup}}<td class="pkt-flow" data-label="{{T "blocked_col_country"}}">{{if $c.Code}}<span class="cc"><img class="flag" src="{{flagURL $c.CC}}" alt="" width="20" height="15"><span class="cc-short"><button type="button" class="cc-code" popovertarget="cc-{{.Seq}}" title="{{$c.Name}}">{{$c.Code}}</button><span class="cc-pop" id="cc-{{.Seq}}" popover>{{$c.Name}} <a class="link" href="{{$c.Only}}">{{T "blocked_only_country"}}<span class="sr-only"> ({{$c.Name}})</span></a></span></span><span class="cc-long">{{$c.Name}} ({{$c.Code}}) <a class="link" href="{{$c.Only}}">{{T "blocked_only_country"}}<span class="sr-only"> ({{$c.Name}})</span></a></span></span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>{{end}}
   <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
   {{/* .log-action, not .badge: a rule name is language ("SSH brute force"),
        not a value, so it takes the UI face rather than the data face — the

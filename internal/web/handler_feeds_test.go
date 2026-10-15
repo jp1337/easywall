@@ -54,8 +54,8 @@ func TestStagingFeedsKeepsTheOrderTheyWereSwitchedOn(t *testing.T) {
 	next, refused := stagedFeeds(
 		[]string{"dshield", "spamhaus-drop", "cins"},
 		[]string{"spamhaus-drop", "et-compromised", "dshield", "blocklist-de", "dshield"},
-		nil, none)
-	if want := []string{"dshield", "spamhaus-drop", "blocklist-de", "et-compromised"}; refused != "" || !slices.Equal(next, want) {
+		[]string{"blocklist-de"}, none)
+	if want := []string{"dshield", "spamhaus-drop", "et-compromised", "blocklist-de"}; refused != "" || !slices.Equal(next, want) {
 		t.Errorf("stagedFeeds = %v, %q; want %v", next, refused, want)
 	}
 	if next, refused := stagedFeeds([]string{"dshield"}, nil, nil, none); refused != "" || next == nil || len(next) != 0 {
@@ -74,13 +74,15 @@ func TestADeliberateFeedNeedsItsOwnConfirmation(t *testing.T) {
 		form   url.Values
 		want   []string // nil: refused
 	}{
-		"no box":            {nil, url.Values{"feed": {"tor-exits"}}, nil},
-		"another feed's":    {nil, url.Values{"feed": {"tor-exits", "ipsum-3"}, "confirm": {"ipsum-3"}}, nil},
-		"ticked":            {nil, url.Values{"feed": {"tor-exits"}, "confirm": {"tor-exits"}}, []string{"tor-exits"}},
-		"already staged":    {[]string{"hagezi-tif"}, url.Values{"feed": {"hagezi-tif"}}, []string{"hagezi-tif"}},
-		"a ✓ needs no box":  {nil, url.Values{"feed": {"spamhaus-drop"}}, []string{"spamhaus-drop"}},
-		"a • needs no box":  {nil, url.Values{"feed": {"cins"}}, []string{"cins"}},
-		"only in the query": {nil, url.Values{"feed": {"tor-exits"}}, nil},
+		"no box":                   {nil, url.Values{"feed": {"tor-exits"}}, nil},
+		"another feed's":           {nil, url.Values{"feed": {"tor-exits", "ipsum-3"}, "confirm": {"ipsum-3"}}, nil},
+		"ticked":                   {nil, url.Values{"feed": {"tor-exits"}, "confirm": {"tor-exits"}}, []string{"tor-exits"}},
+		"already staged":           {[]string{"hagezi-tif"}, url.Values{"feed": {"hagezi-tif"}}, []string{"hagezi-tif"}},
+		"blocklist-de new, no box": {nil, url.Values{"feed": {"blocklist-de"}}, nil},
+		"blocklist-de stays on":    {[]string{"blocklist-de"}, url.Values{"feed": {"blocklist-de"}}, []string{"blocklist-de"}},
+		"a ✓ needs no box":         {nil, url.Values{"feed": {"spamhaus-drop"}}, []string{"spamhaus-drop"}},
+		"a • needs no box":         {nil, url.Values{"feed": {"cins"}}, []string{"cins"}},
+		"only in the query":        {nil, url.Values{"feed": {"tor-exits"}}, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s, _, got := feedsCore(t, shared.RulesState{Staged: shared.Rules{Feeds: c.before}}, nil)
@@ -229,7 +231,7 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 		"the status":         {ci, "Failed — no copy yet"},
 		"the reason":         {ci, "the server answered 503"},
 		"an empty set":       {own, "In the kernel with an empty set"},
-		"a refused shrink":   {ds, "Refused: shrank from 20 to 3. To accept the smaller list, switch the feed off and apply, then switch it on and apply."},
+		"a refused shrink":   {ds, "Refused: shrank from 20 to 3. A list that stays this small for a day and three fetches is taken. To take it now, switch the feed off and apply, then switch it on and apply."},
 		"an own feed's host": {own, ">admin.example.net:8443<"},
 		"the verdict":        {sp, "✓ Recommended"},
 		"false positives":    {sp, "Practically none."},
@@ -300,7 +302,7 @@ func TestOnlyADeliberateFeedAsksForConfirmation(t *testing.T) {
 	for _, b := range boxes {
 		got = append(got, b[1])
 	}
-	if want := []string{"ipsum-3", "tor-exits"}; !slices.Equal(got, want) {
+	if want := []string{"blocklist-de", "ipsum-3", "tor-exits"}; !slices.Equal(got, want) {
 		t.Errorf("confirmation boxes on %v, want %v (hagezi-tif is staged already)", got, want)
 	}
 	if !strings.Contains(body, "I know this refuses every Tor user, legitimate or not.") {

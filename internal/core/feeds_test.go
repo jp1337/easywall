@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jp1337/easywall/internal/shared"
 )
@@ -648,5 +649,124 @@ func TestUpdateFeed_ANotModifiedStillPrunes(t *testing.T) {
 	}
 	if all, _ := NewFeedStore(fw.cfg.FeedsPath()).All(); len(all) != 1 {
 		t.Errorf("feeds.json holds %d copies after a 304, want cins pruned", len(all))
+	}
+}
+
+func fixedFeedClock(t *testing.T) *time.Time {
+	t.Helper()
+	clock := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	prev := feedNow
+	feedNow = func() time.Time { return clock }
+	t.Cleanup(func() { feedNow = prev })
+	return &clock
+}
+
+// 2.29 D5: the third refusal in a row, at least 24 h after the first, is stored.
+func TestUpdateFeed_AShrinkThatLastsADayIsTaken(t *testing.T) {
+	clock := fixedFeedClock(t)
+	start := *clock
+	fw := liveFeedFirewall(t, []string{"hagezi-tif"}, "hagezi-tif")
+	if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: "hagezi-tif", Entries: hosts(10)}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	small := shared.UpdateFeedPayload{ID: "hagezi-tif", Entries: hosts(4)}
+	for i, step := range []time.Duration{0, 12 * time.Hour, 11 * time.Hour} { // 0 h, 12 h, 23 h
+		*clock = clock.Add(step)
+		if _, err := fw.UpdateFeed(small, "test"); err == nil || errResp(err).Error != shared.ErrFeedShrankText {
+			t.Fatalf("refusal %d at +%v: %v, want shrank", i+1, clock.Sub(start), err)
+		}
+	}
+	*clock = clock.Add(time.Hour) // 24 h after the first refusal, fourth in a row
+	res, err := fw.UpdateFeed(small, "test")
+	if err != nil || res.After != 4 {
+		t.Fatalf("a day of refusals: %+v, %v; want the 4 stored", res, err)
+	}
+	if log, _ := os.ReadFile(fw.cfg.AuditLogPath()); !strings.Contains(string(log), "feed_shrink_accepted") {
+		t.Error("the acceptance was not audited")
+	}
+}
+
+// Two refusals a day apart are still only two: the count matters, not the age.
+func TestUpdateFeed_TwoRefusalsADayApartAreNotEnough(t *testing.T) {
+	clock := fixedFeedClock(t)
+	fw := liveFeedFirewall(t, []string{"hagezi-tif"}, "hagezi-tif")
+	if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: "hagezi-tif", Entries: hosts(10)}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	small := shared.UpdateFeedPayload{ID: "hagezi-tif", Entries: hosts(4)}
+	for _, step := range []time.Duration{0, 25 * time.Hour} {
+		*clock = clock.Add(step)
+		if _, err := fw.UpdateFeed(small, "test"); err == nil || errResp(err).Error != shared.ErrFeedShrankText {
+			t.Fatalf("at +%v: %v, want shrank", step, err)
+		}
+	}
+}
+
+// Review focus 4: a truncation that recovers resets the watch.
+func TestUpdateFeed_ANormalFetchResetsTheShrinkWatch(t *testing.T) {
+	clock := fixedFeedClock(t)
+	fw := liveFeedFirewall(t, []string{"dshield"}, "dshield")
+	full := shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(10)}
+	small := shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(4)}
+	if _, err := fw.UpdateFeed(full, "test"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = fw.UpdateFeed(small, "test")
+	*clock = clock.Add(13 * time.Hour)
+	_, _ = fw.UpdateFeed(small, "test")
+	*clock = clock.Add(time.Hour)
+	if _, err := fw.UpdateFeed(full, "test"); err != nil {
+		t.Fatal(err)
+	}
+	*clock = clock.Add(11 * time.Hour) // 25 h after the first refusal
+	if _, err := fw.UpdateFeed(small, "test"); err == nil || errResp(err).Error != shared.ErrFeedShrankText {
+		t.Fatalf("after a normal fetch the watch must start again: %v", err)
+	}
+}
+
+// A 304 is a normal fetch too: the list is not small any more.
+func TestUpdateFeed_ANotModifiedResetsTheShrinkWatch(t *testing.T) {
+	clock := fixedFeedClock(t)
+	fw := liveFeedFirewall(t, []string{"dshield"}, "dshield")
+	small := shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(4)}
+	if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(10)}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = fw.UpdateFeed(small, "test")
+	*clock = clock.Add(13 * time.Hour)
+	_, _ = fw.UpdateFeed(small, "test")
+	*clock = clock.Add(time.Hour)
+	if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield", NotModified: true}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	*clock = clock.Add(11 * time.Hour)
+	if _, err := fw.UpdateFeed(small, "test"); err == nil || errResp(err).Error != shared.ErrFeedShrankText {
+		t.Fatalf("after a 304 the watch must start again: %v", err)
+	}
+}
+
+func TestUpdateFeed_AFeedSwitchedBackOnStartsAFreshWatch(t *testing.T) {
+	clock := fixedFeedClock(t)
+	fw := liveFeedFirewall(t, []string{"dshield"}, "dshield")
+	_, _ = fw.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(10)}, "test")
+	small := shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(4)}
+	_, _ = fw.UpdateFeed(small, "test")
+	*clock = clock.Add(23 * time.Hour)
+	_, _ = fw.UpdateFeed(small, "test")
+	// Taken while not in Current (existing rule), which must clear the watch.
+	if err := fw.rules.SaveStaged("feeds", []string{}); err != nil {
+		t.Fatal(err)
+	}
+	promote(t, fw)
+	if err := fw.rules.SaveStaged("feeds", []string{"dshield"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fw.UpdateFeed(shared.UpdateFeedPayload{ID: "dshield", Entries: hosts(10)}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	promote(t, fw)
+	*clock = clock.Add(2 * time.Hour) // 25 h after the old first refusal
+	if _, err := fw.UpdateFeed(small, "test"); err == nil || errResp(err).Error != shared.ErrFeedShrankText {
+		t.Fatalf("an old watch survived the feed being taken at full size: %v", err)
 	}
 }

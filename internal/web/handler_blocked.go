@@ -73,6 +73,7 @@ type countryCell struct {
 	CC    string // "ru", what the button posts
 	Name  string // the cell's title, in the page's language
 	Block bool   // offered: the staged rules were read and do not hold it
+	Only  string // this view narrowed to the country (2.29 D11)
 }
 
 // rulesFunc is one request's GET_RULES: sync.OnceValues(s.client.GetRules),
@@ -90,6 +91,7 @@ func (s *Server) countryCells(r *http.Request, rows *blockedRows, rules rulesFun
 	lang := ResolveLang(s.bundle, r, s.cfg.Language)
 	var staged []string
 	known := false
+	only, _ := url.ParseQuery(rows.Query)
 	for _, e := range rows.Entries {
 		cc := s.lookup.country(e.Src)
 		if cc == "" {
@@ -101,8 +103,9 @@ func (s *Server) countryCells(r *http.Request, rows *blockedRows, rules rulesFun
 				staged, known = state.Staged.Feeds, true
 			}
 		}
+		only.Set("country", cc)
 		rows.Countries[e.Src] = countryCell{Code: strings.ToUpper(cc), CC: cc, Name: countryName(lang, cc),
-			Block: known && !slices.Contains(staged, shared.CountryFeedID(cc))}
+			Block: known && !slices.Contains(staged, shared.CountryFeedID(cc)), Only: "/blocked?" + only.Encode()}
 	}
 }
 
@@ -154,7 +157,7 @@ func (s *Server) rulesNow(rows *blockedRows, rules rulesFunc) {
 // independent of whether they parsed. A filter that could not be read must
 // still appear in its field, or the operator cannot see what they typed to
 // fix it.
-type blockedForm struct{ Src, Dst, Port, Proto, Rule, InDev string }
+type blockedForm struct{ Src, Dst, Port, Proto, Rule, InDev, Country string }
 
 type blockedData struct {
 	Form     blockedForm
@@ -167,10 +170,14 @@ type blockedData struct {
 	RuleList []string
 	Protos   []string
 	Lookup   *countryLookupStatus // the country table's line; nil while the lookup is off
+	// Countries is the Country field's choice, by name; none while no table
+	// is loaded, and then the field is not drawn (2.29 D10).
+	Countries []countryOption
+	CoreOld   bool // the country view stopped at the newest thousand: the core cannot page (D9)
 }
 
 // blockedFilter reads the URL. The second value names the first field that
-// could not be read ("src", "dst", "port", "proto", "rule", "in"), empty when
+// could not be read ("src", "dst", "port", "proto", "rule", "in", "country"), empty when
 // the filter is good; the filter returned is then empty: a view the operator
 // did not ask for is better than a partly applied one they cannot tell from
 // the one they asked for.
@@ -181,8 +188,9 @@ func blockedFilter(q url.Values) (shared.PacketLogFilter, string) {
 		Proto: q.Get("proto"),
 		// A filter saved before 2.23 says rule=blacklist; read it as the rule's
 		// name now, and the redirect in handleBlocked moves the URL on.
-		Rule:  shared.CurrentListName(q.Get("rule")),
-		InDev: strings.TrimSpace(q.Get("in")),
+		Rule:    shared.CurrentListName(q.Get("rule")),
+		InDev:   strings.TrimSpace(q.Get("in")),
+		Country: strings.ToLower(strings.TrimSpace(q.Get("country"))),
 	}
 	if p := strings.TrimSpace(q.Get("port")); p != "" {
 		n, err := strconv.ParseUint(p, 10, 16)
@@ -201,6 +209,7 @@ func blockedFilter(q url.Values) (shared.PacketLogFilter, string) {
 		{"proto", shared.PacketLogFilter{Proto: f.Proto}},
 		{"rule", shared.PacketLogFilter{Rule: f.Rule}},
 		{"in", shared.PacketLogFilter{InDev: f.InDev}},
+		{"country", shared.PacketLogFilter{Country: f.Country}},
 	} {
 		if c.one.Validate() != nil {
 			return shared.PacketLogFilter{}, c.name
@@ -213,7 +222,7 @@ func blockedFilter(q url.Values) (shared.PacketLogFilter, string) {
 // raw query, so nothing the request carried reaches a link unvalidated.
 func filterQuery(f shared.PacketLogFilter) string {
 	v := url.Values{}
-	for k, val := range map[string]string{"src": f.Src, "dst": f.Dst, "proto": f.Proto, "rule": f.Rule, "in": f.InDev} {
+	for k, val := range map[string]string{"src": f.Src, "dst": f.Dst, "proto": f.Proto, "rule": f.Rule, "in": f.InDev, "country": f.Country} {
 		if val != "" {
 			v.Set(k, val)
 		}
@@ -224,14 +233,24 @@ func filterQuery(f shared.PacketLogFilter) string {
 	return v.Encode()
 }
 
+// countryFilterOn is whether the Country filter exists: only while a table is
+// loaded (2.29 D10). Otherwise a country in the URL is dropped before it is
+// read, so a field the page does not draw is never the one marked bad.
+func (s *Server) countryFilterOn() bool { return s.lookup != nil && s.lookup.status().Loaded }
+
 func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	asked := q.Encode()
+	if !s.countryFilterOn() {
+		q.Del("country")
+	}
 	f, bad := blockedFilter(q)
 	// A readable filter lives at one URL. The GET form sends every field, the
 	// empty ones too; redirect once to the query filterQuery would have built.
 	// Compared re-encoded, not raw: html/template writes an IPv6 link as
-	// %3a and url.Values.Encode as %3A, and those are the same query.
-	if bad == "" && r.URL.RawQuery != "" && q.Encode() != filterQuery(f) {
+	// %3a and url.Values.Encode as %3A, and those are the same query. Against
+	// the query as asked, so a dropped country redirects too.
+	if bad == "" && r.URL.RawQuery != "" && asked != filterQuery(f) {
 		to := "/blocked"
 		if enc := filterQuery(f); enc != "" {
 			to += "?" + enc
@@ -247,7 +266,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		Protos:   shared.PacketLogProtos,
 	}
 	if bad == "" {
-		data.Form = blockedForm{Src: f.Src, Dst: f.Dst, Proto: f.Proto, Rule: f.Rule, InDev: f.InDev}
+		data.Form = blockedForm{Src: f.Src, Dst: f.Dst, Proto: f.Proto, Rule: f.Rule, InDev: f.InDev, Country: f.Country}
 		if f.Port != 0 {
 			data.Form.Port = strconv.Itoa(int(f.Port))
 		}
@@ -255,13 +274,19 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Form = blockedForm{
 			Src: strings.TrimSpace(q.Get("src")), Dst: strings.TrimSpace(q.Get("dst")),
 			Port: strings.TrimSpace(q.Get("port")), Proto: q.Get("proto"), Rule: q.Get("rule"),
-			InDev: strings.TrimSpace(q.Get("in")),
+			InDev: strings.TrimSpace(q.Get("in")), Country: strings.ToLower(strings.TrimSpace(q.Get("country"))),
 		}
 	}
 
 	rules := rulesFunc(sync.OnceValues(s.client.GetRules))
 	data.Rows.Lookup = s.lookup != nil
-	res, err := s.client.GetPacketLog(f)
+	var res *shared.PacketLogResult
+	var err error
+	if f.Country != "" {
+		res, data.CoreOld, err = s.countryEntries(f)
+	} else {
+		res, err = s.client.GetPacketLog(f)
+	}
 	if err != nil {
 		slog.Warn("could not get the packet log", "error", err)
 		data.CoreErr = err.Error()
@@ -278,6 +303,13 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 	if s.lookup != nil {
 		st := s.lookup.status()
 		data.Lookup = &st
+		if st.Loaded {
+			lang := ResolveLang(s.bundle, r, s.cfg.Language)
+			for _, cc := range shared.CountryCodes {
+				data.Countries = append(data.Countries, countryOption{ID: cc, Code: strings.ToUpper(cc), Name: countryName(lang, cc)})
+			}
+			slices.SortFunc(data.Countries, func(a, b countryOption) int { return strings.Compare(nameSortKey(a.Name), nameSortKey(b.Name)) })
+		}
 	}
 	// Only decides what the empty state and the header say. Unreadable, it
 	// says nothing rather than something false.
@@ -304,28 +336,38 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 // questions again rather than inheriting an answer from a page load that may
 // be minutes old.
 func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	f, _ := blockedFilter(q) // an unreadable filter here renders as no filter, exactly like the page
-	after, _ := strconv.ParseUint(q.Get("after"), 10, 64)
 	// The answer is the state of the ring at this moment; nothing between the
 	// browser and this process may hand an older one back.
 	w.Header().Set("Cache-Control", "no-store")
+	q := r.URL.Query()
+	if q.Get("country") != "" && !s.countryFilterOn() {
+		// A country view open across an easywall-web restart: its rows are
+		// never mixed with every other country's. Loading: wait for the table.
+		// Switched off: reload, and the page's redirect drops the field.
+		if s.lookup == nil {
+			w.Header().Set("HX-Refresh", "true")
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	f, _ := blockedFilter(q) // an unreadable filter here renders as no filter, exactly like the page
+	after, _ := strconv.ParseUint(q.Get("after"), 10, 64)
 	rows := blockedRows{Entries: []shared.PacketLogEntry{}, Query: filterQuery(f), Filtered: !f.IsZero()}
 	// Before the packet log is asked: a failed tail still renders under the
 	// page's head, which has the Country column while the lookup is on.
 	rows.Lookup = s.lookup != nil
 	rules := rulesFunc(sync.OnceValues(s.client.GetRules))
 	swap := "innerHTML"
-	if res, err := s.client.GetPacketLog(f); err == nil {
+	if res, delta, err := s.tailEntries(f, after); err == nil {
 		rows.Entries = res.Entries
 		rows.Listening = res.Listening
 		rows.Since = res.Since
-		if newer, ok := entriesAfter(res.Entries, after); ok {
-			if len(newer) == 0 {
+		if delta {
+			if len(res.Entries) == 0 {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			rows.Entries, swap = newer, "afterbegin"
+			swap = "afterbegin"
 		}
 		s.rulesNow(&rows, rules)
 		s.feedNames(r, &rows)
@@ -340,6 +382,89 @@ func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("HX-Reswap", swap)
 	s.renderPartial(w, r, "blocked_rows", rows)
+}
+
+// tailEntries is what one poll of the live tail shows: the rows newer than
+// after when delta is true, the whole view otherwise. With a country it asks
+// once for the newest thousand and filters them here (2.29 D8) — the page
+// load already made the exact scan — and only a ring that went backwards
+// since after costs the whole scan again.
+func (s *Server) tailEntries(f shared.PacketLogFilter, after uint64) (res *shared.PacketLogResult, delta bool, err error) {
+	if f.Country == "" {
+		if res, err = s.client.GetPacketLog(f); err != nil {
+			return nil, false, err
+		}
+		if newer, ok := entriesAfter(res.Entries, after); ok {
+			res.Entries, delta = newer, true
+		}
+		return res, delta, nil
+	}
+	q := f
+	q.Country, q.Limit = "", shared.PacketLogMaxLimit
+	if res, err = s.client.GetPacketLog(q); err != nil {
+		return nil, false, err
+	}
+	entries := res.Entries
+	if after != 0 {
+		newer, ok := entriesAfter(entries, after)
+		if !ok {
+			res, _, err = s.countryEntries(f)
+			return res, false, err
+		}
+		entries, delta = newer, true
+	}
+	mine := []shared.PacketLogEntry{}
+	for _, e := range entries {
+		if len(mine) < f.EffectiveLimit() && s.lookup.country(e.Src) == f.Country {
+			mine = append(mine, e)
+		}
+	}
+	res.Entries = mine
+	return res, delta, nil
+}
+
+// countryEntries reads the whole ring a page at a time and keeps the entries
+// whose source the country table places in f.Country (2.29 D7): exact, not a
+// sample of the newest 200. The second value is true when the core ignored
+// before — an older core (D9) — and the paging stopped there.
+func (s *Server) countryEntries(f shared.PacketLogFilter) (*shared.PacketLogResult, bool, error) {
+	q := f
+	q.Country, q.Limit, q.Before = "", shared.PacketLogMaxLimit, 0
+	keep := f.EffectiveLimit()
+	var out *shared.PacketLogResult
+	for {
+		res, err := s.client.GetPacketLog(q)
+		if err != nil {
+			return nil, false, err
+		}
+		if out == nil {
+			first := *res
+			first.Entries, first.Matched = []shared.PacketLogEntry{}, 0
+			out = &first
+		}
+		for _, e := range res.Entries {
+			if q.Before != 0 && e.Seq >= q.Before {
+				return out, true, nil
+			}
+			if s.lookup.country(e.Src) != f.Country {
+				continue
+			}
+			out.Matched++
+			if len(out.Entries) < keep {
+				out.Entries = append(out.Entries, e)
+			}
+		}
+		if len(res.Entries) < q.Limit {
+			return out, false, nil
+		}
+		// Nothing is older than seq 1, and a before of 0 is no before at all:
+		// the same page again, for ever.
+		last := res.Entries[len(res.Entries)-1].Seq
+		if last <= 1 {
+			return out, false, nil
+		}
+		q.Before = last
+	}
 }
 
 // entriesAfter returns the entries newer than after, newest first as the core

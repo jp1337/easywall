@@ -311,6 +311,8 @@ language = "en"
 username = "admin"
 password = ""
 update_check = false
+# No unit test reaches for the network.
+country_lookup = false
 [tls]
 cert = ""
 key  = ""

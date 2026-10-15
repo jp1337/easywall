@@ -18,7 +18,7 @@ Twenty-five command types:
 | `GET_SYSTEM` · `SAVE_SYSTEM` | the acceptance window |
 | `GET_STATUS` | dashboard state, asked of the kernel. `acceptance` keeps `accepted` or `rolled_back` (with `acceptance_reason`: `timeout`, `cancelled by operator`, `panic mode`, `core stopped`) until the next apply — a 15-second poller has to be able to find it. `acceptance_enabled` says whether a window is configured at all — `acceptance: idle` alone cannot separate *none open now* from *none will ever open*. `unknown_bridges` names a Docker network that exists now and is not in the rules in force — created after the last apply (spec 2.24 D5); omitted when there is none |
 | `GET_LOG` | the last 200 audit entries |
-| `GET_PACKET_LOG` | the refused-packet ring, filtered by `PacketLogFilter`, newest first; plus whether the core holds its NFLOG group and why not |
+| `GET_PACKET_LOG` | the refused-packet ring, filtered by `PacketLogFilter`, newest first; `before` (seq, exclusive upper bound, 0 = none) is how the web process pages the ring for the country filter (2.29) — the country filter itself is not a protocol field; plus whether the core holds its NFLOG group and why not |
 | `EXPORT_RULES` · `IMPORT_RULES` | the rule set as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |
@@ -60,10 +60,10 @@ nothing in it, and checks in this order:
 | 3 | ≤ 100 000 entries, each parsed again with `netip`, `::ffff:` unmapped | refused; a bad entry is named by position, never quoted |
 | 4 | wholly inside non-global space — RFC 1918, 100.64/10, 127/8, 169.254/16, 0/8, 224/3; IPv6 outside 2000::/3 or inside 2001:db8::/32 (documentation) — checked **before** the breadth refusal, so a feed's own bogon documentation (FireHOL level1's `224.0.0.0/3`, `10.0.0.0/8`…) is dropped rather than refusing the whole update (review finding, D4-4 revision) | dropped and counted (`dropped`); nothing left at all is refused |
 | 5 | no prefix broader than /8 (v4) or /16 (v6) — only what row 4 left standing reaches this; `0.0.0.0/0` and `::/0` overlap non-global space without being wholly inside it, so they still refuse here | the whole update refused |
-| 6 | for a feed enabled in **Current** only: at least 70 % of the stored count. Staged-only or switched off, any size — off, apply, on is how a list that really shrank is accepted | refused, exactly `ErrFeedShrankText` |
+| 6 | for a feed enabled in **Current** only: at least 70 % of the stored count. Staged-only or switched off, any size — off, apply, on is how a list that really shrank is accepted (the web's switch-on fetches a feed refused as a shrink although a copy is stored) | refused, exactly `ErrFeedShrankText` — unless it has been refused three fetches in a row over at least 24 h (memory-only watch, reset by any stored copy or 304): then taken, and `feed_shrink_accepted` is audited once the copy is stored (2.29 D5) |
 | 7 | enabled in **Current**, changed or not: loaded first — under `m.mu` and the apply slot, both sets flushed and refilled in ≤ 64 KiB chunks, one batch. No counter booking: a set flush leaves the rules' counters alone (`TestIntegration_ARefreshKeepsTheCounter`) | refused and audited with the kernel's reason; nothing stored, nothing half-loaded |
 | 8 | written to `<data_dir>/feeds.json` atomically — skipped when only `checked_at` moved (a 304, the same list again): the cache takes it | error; the kernel already holds the new copy |
-| 9 | audit `feed_updated` only when the copy changed; `feed_refused` for the data guards (3–6), a kernel refusal and an unknown id (without the id) | — |
+| 9 | audit `feed_updated` only when the copy changed; `feed_shrink_accepted` when step 6 took a long-lived shrink; `feed_refused` for the data guards (3–6), a kernel refusal and an unknown id (without the id) | — |
 
 Every refusal leaves the previous version in the kernel and on disk. An apply
 cycle holds the slot for its whole acceptance window; an update arriving then is

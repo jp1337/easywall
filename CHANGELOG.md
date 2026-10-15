@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.0] — 2026-10-15
+
+**Which lists, and which country.**
+
+### Added
+
+- **/blocked filters by country, over the whole log** — a *Country* select, and
+  *Only this country* in the name popover. The count covers the whole log, not
+  the page. `GET_PACKET_LOG` takes `before`.
+- **Two blocklist.de feeds** — *SSH* (recommended) and *IMAP, POP3* (optional).
+
+### Changed
+
+- **blocklist.de (all) is now deliberate-only (✗)** — it lists search crawlers,
+  uptime monitors and Cloudflare. Installations that have it on keep it on.
+- **A list refused as a shrink for a day and three fetches in a row is taken**,
+  and audited as `feed_shrink_accepted`.
+
+### Fixed
+
+- **Off, apply, on, apply takes a list refused as a shrink** — switching it on
+  now fetches it at once. Before, the second apply reloaded the old copy.
+
+### Documentation
+
+- The feed catalogue was re-measured 2026-10-15.
+- The roadmap moves down one: the metrics endpoint is now 2.30.
+
 ## [2.28.0] — 2026-10-15
 
 **An update asks once.**
@@ -2955,7 +2983,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.28.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.29.0...HEAD
+[2.29.0]: https://github.com/jp1337/easywall/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/jp1337/easywall/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/jp1337/easywall/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/jp1337/easywall/compare/v2.26.0...v2.27.0

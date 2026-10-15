@@ -15,16 +15,22 @@ allow stays reachable whatever a feed says. To block a whole country, see
    alt="Four boxes in a row: your blocklist drops, then the allowlist accepts, then the feeds drop, then the port rules." %}
 
 > **A feed applies to every port, web ports included.** A fail2ban-sourced list
-> like blocklist.de blocks whatever address it names, wherever it connects.
-> **blocklist.de holds Googlebot and Bingbot ranges**: on 2026-10-13 it held 5
-> of Bingbot's 28 published ranges and 2 of Googlebot's 317. A crawler that
-> cannot reach your site drops it from search. Bing's index also feeds ChatGPT
-> search. On a host that serves a public website, either allowlist the ranges
-> the vendors publish
+> blocks whatever address it names, wherever it connects.
+> **blocklist.de (all) holds search crawlers, an uptime monitor and Cloudflare**:
+> on 2026-10-15 it held Googlebot, Google's special crawlers, Bingbot, Applebot,
+> StatusCake and Cloudflare addresses. Of 9 captures since June, Bingbot and
+> StatusCake were in all 9 and Googlebot in 8; Cloudflare was measured only on
+> that day. A
+> crawler that cannot reach your site drops it from search; Bing's index also
+> feeds ChatGPT search. That is why it is ✗. **The SSH list had none in 11
+> samples** and is the recommended one. An installation that already has
+> blocklist.de (all) on keeps it on; switch to the SSH list on a host that
+> serves websites. To keep the full list, allowlist the ranges the vendors
+> publish
 > ([Googlebot](https://developers.google.com/static/crawling/ipranges/common-crawlers.json),
-> [Bingbot](https://www.bing.com/toolbox/bingbot.json)) or leave blocklist.de
-> off. Feeds are checked after your allowlist, so an allowlisted range passes
-> every feed. Blocking the United States as a
+> [Bingbot](https://www.bing.com/toolbox/bingbot.json)). Feeds are checked
+> after your allowlist, so an allowlisted range passes every feed. Blocking the
+> United States as a
 > [country]({{ '/docs/features/countries/' | relative_url }}) blocks both
 > crawlers whole.
 
@@ -125,7 +131,7 @@ acceptance window; switching a feed on or off does.
 | *Unchanged for 30 days* | check the list's source page; a list that stops changing may be abandoned |
 | *Contains allowlist entries (N)* | nothing — those addresses stay reachable, which is the point of the order |
 | *Failed N times in a row* | read the *Error* line above it |
-| *Refused: shrank from N to M* | the core refuses a list under 70 % of the copy it holds. To take the smaller list, switch the feed off and apply, then on and apply |
+| *Refused: shrank from N to M* | the core refuses a list under 70 % of the copy it holds. A list that stays that small for a day and three fetches in a row is taken, and the audit log says so. To take it sooner, switch the feed off and apply, then on — which fetches it at once — and apply |
 | *N lines were not an address* | the first five are shown — often a notice from the server among the addresses, such as a rate-limit sentence |
 
 The core also refuses, whole, a list of more than 100 000 entries, or one with a
@@ -144,7 +150,7 @@ Press **Apply now** again; `easywall-core resume` waits for it on its own.
 
 ## Reference: the catalogue
 
-### Measured 2026-09-24
+### Measured 2026-10-15
 
 The figures are a snapshot. A release that changes a feed's verdict measures
 it again.
@@ -153,11 +159,13 @@ it again.
 |---|---|---|---|
 | [Spamhaus DROP](https://www.spamhaus.org/blocklists/do-not-route-or-peer/) | Netblocks that were hijacked or handed to criminals | 1710 + 91 (IPv4 + IPv6) | 12 h |
 | [DShield top block list](https://isc.sans.edu/api/) | The 20 /24 networks with the most scanning sources over the last three days | 20 × /24 | 1 h |
-| [blocklist.de (all)](https://www.blocklist.de/en/export.html) | Addresses fail2ban reported for attacks in the last 48 hours | 32 002 | 1 h |
+| [blocklist.de (SSH)](https://www.blocklist.de/en/export.html) | Addresses fail2ban reported for SSH attacks in the last 48 hours | 4078 | 1 h |
+| [blocklist.de (IMAP, POP3)](https://www.blocklist.de/en/export.html) | Addresses fail2ban reported for IMAP, POP3 and SASL attacks in the last 48 hours | 4538 | 1 h |
 | [CINS Army](https://cinsscore.com/) | Addresses the CINS sensors saw attacking; always the latest 15 000 | 15 000 | 1 h |
 | [Emerging Threats compromised](https://rules.emergingthreats.net/OPEN_download_instructions.html) | Hosts known to be compromised | 686 | 1 h |
+| [blocklist.de (all)](https://www.blocklist.de/en/export.html) | Addresses fail2ban reported for attacks in the last 48 hours | 25 945 | 1 h |
 | [IPsum, on ≥ 3 lists](https://github.com/stamparm/ipsum) | Addresses on at least three of more than 30 public lists | 19 549 | 24 h |
-| [Hagezi threat intelligence IPs](https://github.com/hagezi/dns-blocklists) | Addresses from threat-intelligence sources, collected for DNS blocking | 79 175 | 24 h |
+| [Hagezi threat intelligence IPs](https://github.com/hagezi/dns-blocklists) | Addresses from threat-intelligence sources, collected for DNS blocking | 36 487 | 24 h |
 | [Tor exit nodes](https://metrics.torproject.org/collector.html) | Every Tor exit relay | 1370 | 1 h |
 
 What each costs, and where its terms are:
@@ -166,9 +174,11 @@ What each costs, and where its terms are:
 |---|---|---|---|
 | Spamhaus DROP | practically none | ✓ | [terms](https://www.spamhaus.org/drop/terms/) |
 | DShield top block list | practically none | ✓ | [terms](https://isc.sans.edu/api/) |
-| blocklist.de (all) | some — dynamic and recycled addresses, some cloud hosts and Tor exits, and search crawlers (Googlebot, Bingbot) | ✓ | [terms](https://www.blocklist.de/en/export.html) |
+| blocklist.de (SSH) | some — dynamic and recycled addresses, some cloud hosts; no crawler or monitor since January 2026 | ✓ | [terms](https://www.blocklist.de/en/export.html) |
+| blocklist.de (IMAP, POP3) | some — as the SSH list; worth it only on a mail host | • | [terms](https://www.blocklist.de/en/export.html) |
 | CINS Army | some — about one in eleven is a cloud address | • | [terms](https://cinsscore.com/) |
 | Emerging Threats compromised | notable — a quarter are AWS and Google Cloud addresses; not for hosts that receive webhooks or monitoring from a cloud | • | [terms](https://rules.emergingthreats.net/open/suricata-7.0.3/LICENSE) |
+| blocklist.de (all) | yes — dynamic addresses, cloud hosts, and Googlebot, Bingbot, Applebot, StatusCake and Cloudflare | ✗ | [terms](https://www.blocklist.de/en/export.html) |
 | IPsum, on ≥ 3 lists | yes — an aggregate, some sources aggressive, with Tor exits | ✗ | [terms](https://github.com/stamparm/ipsum) |
 | Hagezi threat intelligence IPs | yes — cloud hosts and Tor exits | ✗ | [terms](https://github.com/hagezi/dns-blocklists) |
 | Tor exit nodes | by design — every Tor user, legitimate or not | ✗ | [terms](https://metrics.torproject.org/collector.html) |

@@ -814,7 +814,7 @@ func TestDemoAnswersTheFeedCommands(t *testing.T) {
 	for _, f := range res.Feeds {
 		byID[f.ID] = f
 	}
-	for _, id := range []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised", "country-aq"} {
+	for _, id := range []string{"spamhaus-drop", "dshield", "blocklist-de-ssh", "blocklist-de", "et-compromised", "country-aq"} {
 		f := byID[id]
 		if !f.Stored || !f.InKernel || f.Entries == 0 || f.CheckedAt.IsZero() || !f.CountersRead {
 			t.Errorf("%s in the demo: %+v", id, f)
@@ -823,8 +823,8 @@ func TestDemoAnswersTheFeedCommands(t *testing.T) {
 	if f := byID["cins"]; f.Stored || !f.InKernel {
 		t.Errorf("cins in the demo: %+v — switched on, and no copy", f)
 	}
-	if len(res.Feeds) != 6 {
-		t.Errorf("the seeded demo reports %d feeds, want 6: %+v", len(res.Feeds), res.Feeds)
+	if len(res.Feeds) != 7 {
+		t.Errorf("the seeded demo reports %d feeds, want 7: %+v", len(res.Feeds), res.Feeds)
 	}
 
 	if err := c.SaveRules("feeds", append(slices.Clone(d.rules.Current.Feeds), "tor-exits")); err != nil {

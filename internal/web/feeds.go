@@ -183,7 +183,8 @@ func (r *feedRunner) dropSwitchedOff(on []string) {
 }
 
 // refreshNow is the first fetch after a feed is switched on, so the apply
-// finds a copy (spec §3). Nothing happens when the core already holds one.
+// finds a copy (spec §3). Nothing happens when the core already holds one,
+// unless that copy's last refresh was refused as a shrink (2.29 final review I1).
 func (r *feedRunner) refreshNow(id string) {
 	go r.refresh(id, true)
 }
@@ -347,8 +348,10 @@ func (r *feedRunner) refreshFrom(id string, src feedSource, onlyWithoutCopy bool
 	st := r.store.fetchState(id)
 	// A switch-on fetches only for a feed with no copy, and never inside a
 	// running backoff: after a 429 or a timeout, each off-and-on would
-	// otherwise be one more request to the same host.
-	if onlyWithoutCopy && (stored || st.Failures > 0 &&
+	// otherwise be one more request to the same host. Except after a shrink
+	// refusal: off, apply, on must fetch while the feed is staged only, so
+	// the next apply loads the smaller list rather than the copy it refused.
+	if onlyWithoutCopy && st.LastError != feedErrShrank && (stored || st.Failures > 0 &&
 		r.now().Before(nextFeedAttempt(st, src.interval))) {
 		return
 	}

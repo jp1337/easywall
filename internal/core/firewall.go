@@ -23,6 +23,8 @@ type Firewall struct {
 	rules      *RulesStore
 	acceptance *Acceptance
 
+	shrink map[string]shrinkWatch // UpdateFeed only, under the apply slot
+
 	// applyMu guards applying, which records that a cycle is running.
 	//
 	// This was a plain mutex that Apply held for the whole cycle, so a second

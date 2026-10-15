@@ -169,6 +169,11 @@ type Server struct {
 	feeds     *feedRunner
 	feedStop  chan struct{}
 	feedOnce  sync.Once
+	// feedDone closes when the runner has returned; Stop waits for it once
+	// Start has launched it, so no refresh still writes into data_dir/web after
+	// Stop returns (a country download finishing late did, in CI).
+	feedDone    chan struct{}
+	feedStarted atomic.Bool
 
 	// lookup names each /blocked row's country (2.27). nil when web.toml
 	// says country_lookup = false — on by default. The feed runner loads and
@@ -362,6 +367,7 @@ func NewServer(cfg *Config) (*Server, error) {
 	} else {
 		s.feeds = newFeedRunner(client, s.feedStore)
 		s.feedStop = make(chan struct{})
+		s.feedDone = make(chan struct{})
 	}
 	switch {
 	case cfg.CountryLookup && cfg.DemoMode:
@@ -480,7 +486,11 @@ func (s *Server) Start() error {
 		go s.telemetry.Run(s.telemetryStop)
 	}
 	if s.feeds != nil {
-		go s.feeds.run(s.feedStop)
+		s.feedStarted.Store(true)
+		go func() {
+			defer close(s.feedDone)
+			s.feeds.run(s.feedStop)
+		}()
 	}
 	go s.events.run(s.eventsStop)
 	go s.runNotifier(s.notifyStop)
@@ -505,6 +515,13 @@ func (s *Server) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = s.httpSrv.Shutdown(ctx)
+	if s.feedStarted.Load() {
+		select {
+		case <-s.feedDone:
+		case <-ctx.Done():
+			slog.Warn("feeds: the refresh in progress did not finish before shutdown")
+		}
+	}
 
 	// Closed only after Shutdown returns, not before. auditEvents.run exits the
 	// instant eventsStop closes, and Record only warns when its buffer is full —
@@ -1111,8 +1128,9 @@ var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, 
 	// of a feed stored (and loaded, when the feed is live), and one refused by
 	// its guards. Neutral — a refresh changes what a set holds, not whether
 	// the firewall is doing what it says.
-	"feed_updated": "audit_feed_updated",
-	"feed_refused": "audit_feed_refused",
+	"feed_updated":         "audit_feed_updated",
+	"feed_refused":         "audit_feed_refused",
+	"feed_shrink_accepted": "audit_feed_shrink_accepted",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall

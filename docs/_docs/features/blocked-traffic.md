@@ -79,9 +79,6 @@ address block is registered to. VPNs, cloud regions and Tor exits do not follow
 it. Only the web process holds the list; nothing it says reaches the firewall
 until you stage a country and apply.
 
-There is no country filter: the filter runs in the core, which has no list,
-and filtering the rows on the page (200 by default) would filter a sample.
-
 ## Why a default drop refused it
 
 *Default drop* means no switch refused the packet — nothing let it in. The line
@@ -100,10 +97,17 @@ No line appears while the applied rules cannot be read.
 
 ## Narrow it down
 
-Six filters sit above the table — source, destination, port, protocol, rule,
-interface — and clicking an address, a port or an interface in a row filters to
-it directly. The filter is the URL's query string, so the view is exactly what
+Seven filters sit above the table — source, destination, port, protocol, rule,
+interface, country. Clicking an address, a port or an interface in a row filters
+to it directly. The filter is the URL's query string, so the view is exactly what
 you bookmark or paste into a message to someone else.
+
+**Country** searches the whole log, not the 200 rows on screen, and the count
+beside the title is over the whole log too. *Only this country*, under a
+country's name in its row, opens the same view and keeps the other filters.
+The field is absent while the [country lookup](#where-it-comes-from) is off or
+has not loaded yet. An `easywall-core` older than `easywall-web` cannot page
+its log; the view then holds only the newest 1 000 packets, and says so.
 
 ## Act on a row
 
