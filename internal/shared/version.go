@@ -27,7 +27,7 @@ import (
 // stylesheet URL never changed across an upgrade even though it is versioned
 // precisely so that it does. `easywall-core --version` prints this, so a build
 // can be checked rather than assumed.
-var CurrentVersion = "2.27.1"
+var CurrentVersion = "2.28.0"
 
 const (
 	// cacheMaxAge is how long a successful check is trusted.
@@ -337,4 +337,15 @@ func saveCache(path string, info *VersionInfo) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0600)
+}
+
+// MinorVersion is "major.minor" of a release version — the unit the telemetry
+// question is asked once per (2.28): "2.28.0-rc1" gives "2.28". A version that
+// does not parse, such as a "dev" build, gives false.
+func MinorVersion(v string) (string, bool) {
+	nums, _, ok := splitVersion(v)
+	if !ok || len(nums) < 2 {
+		return "", false
+	}
+	return strconv.Itoa(nums[0]) + "." + strconv.Itoa(nums[1]), true
 }

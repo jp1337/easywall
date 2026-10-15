@@ -267,6 +267,9 @@ function initHtmxToast() {
     notify_destination_required: { text: str('notify_destination_required'), kind: 'warning' },
     notify_demo_no_send:      { text: str('notify_demo_no_send'), kind: 'warning' },
     demo_readonly:            { text: str('demo_readonly'), kind: 'warning' },
+    telemetry_prompt_saved_yes:   { text: str('telemetry_prompt_saved_yes'), kind: 'success' },
+    telemetry_prompt_saved_no:    { text: str('telemetry_prompt_saved_no'), kind: 'success' },
+    telemetry_prompt_saved_never: { text: str('telemetry_prompt_saved_never'), kind: 'success' },
   };
 
   const show = (key, kind) => {

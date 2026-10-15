@@ -259,6 +259,9 @@ func (s *Server) completeFirstRun(w http.ResponseWriter, r *http.Request, a Firs
 		slog.Error("save credentials error", "error", err)
 		return false, false, err
 	}
+	// The wizard asked about counting, ticked or not: the dashboard must not ask
+	// again on this minor version (spec 2.28 D4).
+	s.recordTelemetryAnswer(false)
 
 	if err := s.applyFirstRunChoices(answers); err != nil {
 		slog.Warn("first run: could not stage the initial choices", "error", err)

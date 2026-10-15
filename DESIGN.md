@@ -643,6 +643,11 @@ indigo. Neither hue was one of the three states, so a coloured log tag became
 ambiguous — was it a state, or just emphasis? Informational events are now neutral
 chips. Only the three states get colour.
 
+**Amended 2026-10-15 (2.28): a consent question leans nowhere.** The dashboard's
+counting question (`.ask-actions`) gives *Yes* and *No* the same plain `.btn` — same
+size, no `btn-primary` — and the way out, *Don't ask again*, a `.link`. Nothing is
+pre-selected. An answer the interface leans towards is not an answer.
+
 **Amended 2026-10-15 (2.27.1): a flag is identity, not state.** /blocked's Country
 column and the Countries card on /blocklist draw a country's flag — colour that says
 nothing about the firewall. It is allowed because a flag cannot be mistaken for a

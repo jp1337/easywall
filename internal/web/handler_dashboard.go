@@ -44,6 +44,13 @@ type dashboardData struct {
 	// days. Zero hides the line rather than printing a zero: "0 unused for 30+
 	// days" is a sentence about nothing.
 	UnusedTCP int
+
+	// AskTelemetry shows the card asking whether this installation may be
+	// counted, once per minor version (spec 2.28 D1).
+	AskTelemetry bool
+	// TelemetryEndpoint is the address the card names, for the reason System
+	// names it: what is sent is only checkable if where is shown too.
+	TelemetryEndpoint string
 }
 
 // unusedThreshold is how long a port has to have been quiet before the dashboard
@@ -163,6 +170,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// "non-blocking" above a call that waited out a five-second HTTP timeout on
 	// every render — on exactly the isolated hosts easywall is built for.
 	data.Version = s.version.Info()
+	data.AskTelemetry = s.askTelemetry()
+	data.TelemetryEndpoint = shared.TelemetryEndpoint
 
 	s.render(w, r, "dashboard.html", "dashboard", data)
 }

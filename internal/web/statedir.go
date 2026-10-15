@@ -21,7 +21,8 @@ const stateSubdir = "web"
 
 // stateFiles is every name this process keeps in its state dir: the Config
 // paths, and the copy passkeyStore sets aside when the store will not parse.
-// All but feed_fetch.json (2.23) and countries.tar.gz (2.27) once lived
+// All but feed_fetch.json (2.23), countries.tar.gz (2.27) and
+// telemetry_prompt.json (2.28) once lived
 // directly in data_dir, and
 // prepareStateDir moves those; a name here must never be one of the core's
 // files in data_dir, or the move would take it. TestEveryWebStatePathIsInTheStateDir
@@ -34,6 +35,7 @@ var stateFiles = []string{
 	"telemetry.json",
 	"feed_fetch.json",
 	"countries.tar.gz",
+	"telemetry_prompt.json",
 }
 
 // prepareStateDir creates <data_dir>/web and brings in any state file still

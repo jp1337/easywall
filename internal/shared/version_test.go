@@ -471,3 +471,19 @@ func TestChecker_UnwritableCacheStillServesTheAnswer(t *testing.T) {
 		t.Errorf("a cache that cannot be written must not lose the result, got %q", got)
 	}
 }
+
+func TestMinorVersion(t *testing.T) {
+	for in, want := range map[string]string{
+		"2.28.0": "2.28", "v2.28.1": "2.28", "2.28.0-rc1": "2.28",
+		"v2.28.0-44-g5abc123": "2.28", "3.0.0": "3.0",
+	} {
+		if got, ok := MinorVersion(in); !ok || got != want {
+			t.Errorf("MinorVersion(%q) = %q, %v; want %q", in, got, ok, want)
+		}
+	}
+	for _, in := range []string{"dev", "", "5abc123", "2"} {
+		if got, ok := MinorVersion(in); ok {
+			t.Errorf("MinorVersion(%q) = %q, true; want false", in, got)
+		}
+	}
+}

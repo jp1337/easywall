@@ -391,6 +391,8 @@ key  = ""
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
+	// NewServer makes data_dir/web before it opens a store; so does this.
+	prepareStateDir(cfg.DataDir)
 
 	client := NewCoreClient(fc.socketPath)
 

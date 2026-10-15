@@ -16,6 +16,29 @@
     </div>
     {{end}}{{end}}
 
+    {{if .AskTelemetry}}
+    <form method="POST" action="/telemetry/prompt" hx-post="/telemetry/prompt"
+          hx-target="this" hx-swap="outerHTML" id="telemetry-ask">
+      <section class="card mb-4" aria-labelledby="telemetry-ask-title">
+        <div class="section-head">
+          <div class="section-head-text">
+            <h2 class="section-title" id="telemetry-ask-title">{{T "telemetry_prompt_title"}}</h2>
+            <p class="section-desc">{{T "telemetry_prompt_body"}}</p>
+          </div>
+        </div>
+        <div class="card-pad">
+        <p><code class="break-all">GET {{.TelemetryEndpoint}}?id=…&amp;v=…</code></p>
+        <p class="field-help mt-1.5">{{T "telemetry_prompt_detail"}} <a class="link" href="https://easywall-project.org/docs/configuration/#counting-installations" target="_blank" rel="noopener">{{T "telemetry_prompt_more"}}</a></p>
+        <div class="ask-actions">
+          <button type="submit" name="answer" value="yes" class="btn">{{T "telemetry_prompt_yes"}}</button>
+          <button type="submit" name="answer" value="no" class="btn">{{T "telemetry_prompt_no"}}</button>
+          <button type="submit" name="answer" value="never" class="link">{{T "telemetry_prompt_never"}}</button>
+        </div>
+        </div>
+      </section>
+    </form>
+    {{end}}
+
     {{if .CoreErr}}
     <div role="alert" class="alert alert-crit mb-4">
       <svg class="size-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/></svg>

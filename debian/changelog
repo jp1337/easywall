@@ -1,3 +1,10 @@
+easywall (2.28.0) unstable; urgency=low
+
+  * An update asks once: while counting is off, the dashboard asks after each
+    minor or major update whether this installation may be counted.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Thu, 15 Oct 2026 18:30:00 +0200
+
 easywall (2.27.1) unstable; urgency=low
 
   * /blocked shows each country with its flag; the name opens on a tap and
