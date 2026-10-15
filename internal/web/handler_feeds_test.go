@@ -229,7 +229,7 @@ func TestTheFeedsCardSaysWhatIsStagedAndWhatIsLive(t *testing.T) {
 		"the status":         {ci, "Failed — no copy yet"},
 		"the reason":         {ci, "the server answered 503"},
 		"an empty set":       {own, "In the kernel with an empty set"},
-		"a refused shrink":   {ds, "Refused: shrank from 20 to 3. To accept the smaller list, switch the feed off and apply, then switch it on and apply."},
+		"a refused shrink":   {ds, "Refused: shrank from 20 to 3. A list that stays this small for a day and three fetches is taken. To take it now, switch the feed off and apply, then switch it on and apply."},
 		"an own feed's host": {own, ">admin.example.net:8443<"},
 		"the verdict":        {sp, "✓ Recommended"},
 		"false positives":    {sp, "Practically none."},

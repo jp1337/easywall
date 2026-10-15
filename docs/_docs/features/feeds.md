@@ -125,7 +125,7 @@ acceptance window; switching a feed on or off does.
 | *Unchanged for 30 days* | check the list's source page; a list that stops changing may be abandoned |
 | *Contains allowlist entries (N)* | nothing — those addresses stay reachable, which is the point of the order |
 | *Failed N times in a row* | read the *Error* line above it |
-| *Refused: shrank from N to M* | the core refuses a list under 70 % of the copy it holds. To take the smaller list, switch the feed off and apply, then on and apply |
+| *Refused: shrank from N to M* | the core refuses a list under 70 % of the copy it holds. A list that stays that small for a day and three fetches in a row is taken, and the audit log says so. To take it sooner, switch the feed off and apply, then on and apply |
 | *N lines were not an address* | the first five are shown — often a notice from the server among the addresses, such as a rate-limit sentence |
 
 The core also refuses, whole, a list of more than 100 000 entries, or one with a

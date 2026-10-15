@@ -158,6 +158,26 @@ func validateFeedEntries(id string, entries []string) (kept []netip.Prefix, drop
 	return kept, dropped, nil
 }
 
+// feedNow is the clock UpdateFeed reads; a var so the shrink watch's day can
+// be tested without waiting one.
+var feedNow = time.Now
+
+// shrinkWatch is how long a live list has been refused as a shrink (2.29 D5,
+// D6): the first refusal of the current run and how many followed. Memory
+// only — a refusal leaves feeds.json byte-identical, and a restart only
+// starts the day again.
+type shrinkWatch struct {
+	since time.Time
+	seen  int
+}
+
+// shrinkAcceptAfter and shrinkAcceptSeen: a truncated download is one broken
+// fetch; a list that stays small for a day and three fetches is a real shrink.
+const (
+	shrinkAcceptAfter = 24 * time.Hour
+	shrinkAcceptSeen  = 3
+)
+
 // shrinks is spec D5: a version under FeedShrinkPercent of the stored count is
 // refused. A first load has no stored count.
 func shrinks(before, after int) bool {
@@ -239,7 +259,7 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 	if err != nil {
 		return shared.UpdateFeedResult{}, err
 	}
-	now := time.Now().UTC()
+	now := feedNow().UTC()
 	res := shared.UpdateFeedResult{Before: stored.Entries}
 
 	// A 304: checked_at moves and nothing else (plan P8). With no stored copy
@@ -250,6 +270,7 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 		}
 		stored.CheckedAt = now
 		res.After, res.Dropped = stored.Entries, stored.Dropped
+		delete(f.shrink, p.ID) // the list is not small any more
 		return res, f.feeds.Put(p.ID, stored, feedIDs(state))
 	}
 
@@ -277,10 +298,24 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 	// truncated document fails to parse, so the web parser rejects the whole
 	// body and truncation never reaches here. A country of a few prefixes that
 	// loses one (an RIR transfer) is a real shrink, and 3 -> 2 is under 70 %.
+	// A list refused for a day and three fetches in a row is taken (2.29 D5).
+	var shrinkTaken *shrinkWatch
 	if had && inCurrent && !shared.IsCountryFeedID(p.ID) && shrinks(stored.Entries, len(kept)) {
-		f.auditFeedRefused(p.ID, fmt.Sprintf("%d entries is under %d %% of the %d stored",
-			len(kept), shared.FeedShrinkPercent, stored.Entries), user)
-		return shared.UpdateFeedResult{}, errors.New(shared.ErrFeedShrankText)
+		if f.shrink == nil {
+			f.shrink = map[string]shrinkWatch{}
+		}
+		w := f.shrink[p.ID]
+		if w.seen == 0 {
+			w.since = now
+		}
+		w.seen++
+		if w.seen < shrinkAcceptSeen || now.Sub(w.since) < shrinkAcceptAfter {
+			f.shrink[p.ID] = w
+			f.auditFeedRefused(p.ID, fmt.Sprintf("%d entries is under %d %% of the %d stored",
+				len(kept), shared.FeedShrinkPercent, stored.Entries), user)
+			return shared.UpdateFeedResult{}, errors.New(shared.ErrFeedShrankText)
+		}
+		shrinkTaken = &w
 	}
 
 	next := storedFeed{Prefixes: prefixStrings(kept), Entries: len(kept), Dropped: dropped,
@@ -317,6 +352,13 @@ func (f *Firewall) UpdateFeed(p shared.UpdateFeedPayload, user string) (shared.U
 		slog.Error("a feed's new copy is loaded and could not be stored", "feed", p.ID, "error", err)
 		return res, err
 	}
+	// Stored: only now is the watch over, and only now is it an acceptance.
+	if shrinkTaken != nil {
+		WriteAuditLog(f.cfg.AuditLogPath(), "feed_shrink_accepted", "feeds",
+			fmt.Sprintf("%s: %d entries replace %d after %d refusals since %s",
+				p.ID, len(kept), stored.Entries, shrinkTaken.seen-1, shrinkTaken.since.Format(time.RFC3339)), user)
+	}
+	delete(f.shrink, p.ID)
 
 	// 9. Only a version that changed is an event. An hourly list that did not
 	// change would put 24 lines a day per feed into a log the interface shows

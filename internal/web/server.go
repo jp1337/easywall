@@ -1111,8 +1111,9 @@ var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, 
 	// of a feed stored (and loaded, when the feed is live), and one refused by
 	// its guards. Neutral — a refresh changes what a set holds, not whether
 	// the firewall is doing what it says.
-	"feed_updated": "audit_feed_updated",
-	"feed_refused": "audit_feed_refused",
+	"feed_updated":         "audit_feed_updated",
+	"feed_refused":         "audit_feed_refused",
+	"feed_shrink_accepted": "audit_feed_shrink_accepted",
 }
 
 // auditActionTones maps an action to a firewall state, and only to a firewall
