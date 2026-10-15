@@ -90,9 +90,9 @@ func TestBlocked_NamesTheCountryOfEachSource(t *testing.T) {
 
 	for lang, want := range map[string][]string{
 		"en": {`<th title="The country the address block is registered to.`, deCell, deCode, `>Germany (DE)</span>`,
-			`aria-label="Block Germany">Block country</button>`},
+			`aria-label="Block country: Germany">Block country</button>`},
 		"de": {`title="Deutschland">DE</button>`, `>Deutschland (DE)</span>`,
-			`aria-label="Deutschland sperren">Land sperren</button>`, `data-label="Land"`},
+			`aria-label="Land sperren: Deutschland">Land sperren</button>`, `data-label="Land"`},
 	} {
 		body := doRequest(s, "GET", "/blocked", nil, makeAuthCookie(t, s), &http.Cookie{Name: LangCookie, Value: lang}).Body.String()
 		for _, w := range append(want, blockDEForm) {
