@@ -44,8 +44,10 @@ const blockDEForm = `<input type="hidden" name="act" value="country"><input type
 // its title for the mouse.
 const deCode = `title="Germany">DE</button>`
 
-// onlyDE is the cell's link to the view of Germany alone (2.29 D11).
-const onlyDE = `<a class="link" href="/blocked?country=de">Only this country</a>`
+// onlyDE is the cell's link to the view of Germany alone (2.29 D11). Its
+// accessible name carries the country: a links list is not 200 identical
+// "Only this country" (final review M1).
+const onlyDE = `<a class="link" href="/blocked?country=de">Only this country<span class="sr-only"> (Germany)</span></a>`
 
 // deCell opens the Country cell of a source in Germany: the flag first.
 const deCell = `data-label="Country"><span class="cc"><img class="flag" src="/static/flags/de.svg?v=`
@@ -98,7 +100,7 @@ func TestBlocked_NamesTheCountryOfEachSource(t *testing.T) {
 	for lang, want := range map[string][]string{
 		"en": {`<th title="The country the address block is registered to.`, deCell, deCode, `>Germany (DE) ` + onlyDE + `</span>`,
 			`aria-label="Block country: Germany">Block country</button>`},
-		"de": {`title="Deutschland">DE</button>`, `>Deutschland (DE) <a class="link" href="/blocked?country=de">Nur dieses Land</a></span>`,
+		"de": {`title="Deutschland">DE</button>`, `>Deutschland (DE) <a class="link" href="/blocked?country=de">Nur dieses Land<span class="sr-only"> (Deutschland)</span></a></span>`,
 			`aria-label="Land sperren: Deutschland">Land sperren</button>`, `data-label="Land"`},
 	} {
 		body := doRequest(s, "GET", "/blocked", nil, makeAuthCookie(t, s), &http.Cookie{Name: LangCookie, Value: lang}).Body.String()
@@ -379,25 +381,32 @@ func seqsOf(t *testing.T, body string) []uint64 {
 }
 
 // 2.29 D7: the country filter reads the whole ring, a page of a thousand at a
-// time, not the newest 200 — and the count is over the whole ring too.
+// time, not the newest 200 — and the count is over the whole ring too. RU
+// appears only below seq 1 500, so every row comes from past the first page.
 func TestBlocked_TheCountryFilterPagesThroughTheWholeLog(t *testing.T) {
-	_, s, asked := ringCore(t, ringOf(2500), false)
+	ring := ringOf(2500)
+	for i := range ring {
+		if ring[i].Seq > 1400 {
+			ring[i].Src = samplePacket().Src // in no country
+		}
+	}
+	_, s, asked := ringCore(t, ring, false)
 	rec := doAuthRequest(t, s, "GET", "/blocked?country=ru", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d, Location %q", rec.Code, rec.Header().Get("Location"))
 	}
 	body := rec.Body.String()
 	seqs := seqsOf(t, body)
-	if len(seqs) != 200 {
-		t.Fatalf("%d rows, want 200", len(seqs))
+	if len(seqs) != 200 || seqs[0] != 1400 || seqs[199] != 1002 {
+		t.Fatalf("%d rows from %v, want RU's newest 200, 1400 down to 1002", len(seqs), seqs[:min(len(seqs), 3)])
 	}
 	for _, seq := range seqs {
 		if seq%2 != 0 {
 			t.Fatalf("row %d is not in RU", seq)
 		}
 	}
-	if !strings.Contains(body, `<span class="toolbar-count">200 of 1250</span>`) {
-		t.Error("the count is not 200 of 1250, over the whole ring")
+	if !strings.Contains(body, `<span class="toolbar-count">200 of 700</span>`) {
+		t.Error("the count is not 200 of 700, over the whole ring")
 	}
 	asks := asked.all()
 	if len(asks) < 3 {
@@ -451,15 +460,21 @@ func TestBlocked_AnUnknownCountryIsMarkedAndFiltersNothing(t *testing.T) {
 }
 
 // 2.29 D10: while the lookup is off, there is no Country field, and a link
-// carrying one lands on the view without it — never an empty one.
+// carrying one lands on the view without it — never an empty one. A tail
+// still polling with a country (a tab open across a restart) adds no rows of
+// other countries (final review M2): it waits for the table, or, with the
+// lookup off, reloads the page, whose redirect drops the field.
 func TestBlocked_NoCountryFilterWhileTheLookupIsOff(t *testing.T) {
-	for name, lookup := range map[string]func(*testing.T) *countryLookup{
-		"off":        func(*testing.T) *countryLookup { return nil },
-		"not loaded": func(t *testing.T) *countryLookup { return lookupWith(t, nil) },
+	for name, tc := range map[string]struct {
+		lookup  func(*testing.T) *countryLookup
+		refresh string
+	}{
+		"off":        {func(*testing.T) *countryLookup { return nil }, "true"},
+		"not loaded": {func(t *testing.T) *countryLookup { return lookupWith(t, nil) }, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, s, _ := ringCore(t, ringOf(20), false)
-			s.lookup = lookup(t)
+			s.lookup = tc.lookup(t)
 			rec := doAuthRequest(t, s, "GET", "/blocked?country=ru&port=22", nil)
 			assertRedirect(t, rec, "/blocked?port=22")
 			body := doAuthRequest(t, s, "GET", "/blocked?port=22", nil).Body.String()
@@ -469,9 +484,16 @@ func TestBlocked_NoCountryFilterWhileTheLookupIsOff(t *testing.T) {
 			if !slices.Contains(seqsOf(t, body), 19) {
 				t.Error("a row outside RU is missing")
 			}
-			rows := doAuthRequest(t, s, "GET", "/blocked/rows?country=ru", nil).Body.String()
+			tail := doAuthRequest(t, s, "GET", "/blocked/rows?country=ru&after=10", nil)
+			if tail.Code != http.StatusNoContent || tail.Body.Len() != 0 {
+				t.Errorf("the tail of a country view answered %d with %d bytes: rows of every country", tail.Code, tail.Body.Len())
+			}
+			if got := tail.Header().Get("HX-Refresh"); got != tc.refresh {
+				t.Errorf("HX-Refresh = %q, want %q", got, tc.refresh)
+			}
+			rows := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
 			if !slices.Contains(seqsOf(t, rows), 19) {
-				t.Error("the tail filtered by a country it cannot know")
+				t.Error("the tail with no country is missing a row")
 			}
 		})
 	}
@@ -532,11 +554,48 @@ func TestBlocked_TheCountryTailRedrawsARingThatWentBackwards(t *testing.T) {
 func TestBlocked_TheCountryNameLeadsToOnlyThatCountry(t *testing.T) {
 	_, s, _ := ringCore(t, ringOf(2), false)
 	body := doAuthRequest(t, s, "GET", "/blocked?port=22", nil).Body.String()
-	link := `<a class="link" href="/blocked?country=ru&amp;port=22">Only this country</a>`
+	link := `<a class="link" href="/blocked?country=ru&amp;port=22">Only this country<span class="sr-only"> (Russia)</span></a>`
 	if n := strings.Count(body, link); n != 2 {
 		t.Errorf("the RU row carries %d links to only RU, want 2 (popover and card):\n%s", n, body)
 	}
 	if !strings.Contains(body, `<span class="cc-pop" id="cc-2" popover>Russia `+link+`</span>`) {
 		t.Error("the popover does not carry the link")
+	}
+}
+
+// Final review M3: a bad other field re-draws the form as typed, and the
+// Country select keeps a code typed in capitals — a re-submit keeps it.
+func TestBlocked_ABadFieldKeepsTheCountryChosen(t *testing.T) {
+	_, s, _ := ringCore(t, ringOf(2), false)
+	body := doAuthRequest(t, s, "GET", "/blocked?country=RU&port=x", nil).Body.String()
+	if !strings.Contains(body, `aria-invalid="true"`) {
+		t.Fatal("the bad port is not marked")
+	}
+	if !strings.Contains(body, `<option value="ru" selected>`) {
+		t.Error("the Country select lost RU")
+	}
+}
+
+// Final review M4: a full page ending at seq 0 is the end of the ring. Its
+// before would be 0 — omitted, no before at all — and the same page again for
+// ever; the paging stops there instead.
+func TestBlocked_TheCountryFilterStopsAtSeqZero(t *testing.T) {
+	ring := ringOf(shared.PacketLogMaxLimit)
+	for i := range ring {
+		ring[i].Seq--
+	}
+	_, s, asked := ringCore(t, ring, false)
+	done := make(chan string, 1)
+	go func() { done <- doAuthRequest(t, s, "GET", "/blocked?country=ru", nil).Body.String() }()
+	select {
+	case body := <-done:
+		if n := len(asked.all()); n != 1 {
+			t.Errorf("%d requests for a ring of one page, want 1", n)
+		}
+		if n := len(seqsOf(t, body)); n != 200 {
+			t.Errorf("%d rows, want 200", n)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("the country view is still paging after %d requests", len(asked.all()))
 	}
 }

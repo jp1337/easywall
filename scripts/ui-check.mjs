@@ -1365,10 +1365,18 @@ async function checkBlockedCardsKeepValuesWhole(browser, session) {
     // Every link in a flow cell, not .pkt-route's: the check must still see
     // the links if the grouping is lost. Lines are counted on a Range over the
     // text, because a blockified flex item reports one rect however it wraps.
+    // Only drawn text: an .sr-only span (the country in "Only this country")
+    // is positioned off the line and would count as a second one.
     const lines = el => {
-      const r = document.createRange();
-      r.selectNodeContents(el);
-      return new Set([...r.getClientRects()].map(q => Math.round(q.top))).size;
+      const tops = new Set();
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        if (n.parentElement.closest('.sr-only')) continue;
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        for (const q of r.getClientRects()) tops.add(Math.round(q.top));
+      }
+      return tops.size;
     };
     for (const a of document.querySelectorAll('#blocked-rows td.pkt-flow a')) {
       // An IPv4 address or a port fits a 390px line; only a long IPv6 may break.

@@ -479,6 +479,24 @@ func TestSwitchingOnFetchesOnlyWhenTheCoreHasNoCopy(t *testing.T) {
 	}
 }
 
+// 2.29 final review I1: a copy whose last refresh was refused as a shrink is
+// the one the operator is replacing. Off, apply, on fetches at once — inside
+// the backoff too — so the second apply loads the smaller list, not the old.
+func TestSwitchingOnFetchesAFeedRefusedAsAShrink(t *testing.T) {
+	h := newFeedHarness(t, true)
+	now := time.Now()
+	h.r.now = func() time.Time { return now }
+	h.r.store.setFetchState("own-1", feedFetchState{LastAttempt: now, Failures: 3, LastError: feedErrShrank,
+		Status: FeedFailedCopy, ShrankFrom: 1000, ShrankTo: 1})
+	h.r.refreshFrom("own-1", plainSource(h.list("192.0.2.1\n")), true)
+	if h.hits.Load() != 1 || len(h.sent()) != 1 {
+		t.Fatalf("hits %d, sent %d: the switch-on did not fetch the list refused as a shrink", h.hits.Load(), len(h.sent()))
+	}
+	if st := h.r.store.fetchState("own-1"); st.LastError != "" || st.ShrankFrom != 0 {
+		t.Errorf("after the accepted update: %+v", st)
+	}
+}
+
 // A pass refreshes what is switched on in Staged or Current, once, and not
 // an empty own-feed slot.
 func TestAPassRefreshesStagedAndCurrentOnce(t *testing.T) {

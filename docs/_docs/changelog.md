@@ -102,6 +102,11 @@ which is the file GitHub and the release tooling read.
 - **A list refused as a shrink for a day and three fetches in a row is taken**,
   and audited as `feed_shrink_accepted`.
 
+### Fixed
+
+- **Off, apply, on, apply takes a list refused as a shrink** — switching it on
+  now fetches it at once. Before, the second apply reloaded the old copy.
+
 ### Documentation
 
 - The feed catalogue was re-measured 2026-10-15.

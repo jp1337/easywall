@@ -274,7 +274,7 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 		data.Form = blockedForm{
 			Src: strings.TrimSpace(q.Get("src")), Dst: strings.TrimSpace(q.Get("dst")),
 			Port: strings.TrimSpace(q.Get("port")), Proto: q.Get("proto"), Rule: q.Get("rule"),
-			InDev: strings.TrimSpace(q.Get("in")), Country: strings.TrimSpace(q.Get("country")),
+			InDev: strings.TrimSpace(q.Get("in")), Country: strings.ToLower(strings.TrimSpace(q.Get("country"))),
 		}
 	}
 
@@ -336,15 +336,22 @@ func (s *Server) handleBlocked(w http.ResponseWriter, r *http.Request) {
 // questions again rather than inheriting an answer from a page load that may
 // be minutes old.
 func (s *Server) handleBlockedRows(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	if !s.countryFilterOn() {
-		q.Del("country")
-	}
-	f, _ := blockedFilter(q) // an unreadable filter here renders as no filter, exactly like the page
-	after, _ := strconv.ParseUint(q.Get("after"), 10, 64)
 	// The answer is the state of the ring at this moment; nothing between the
 	// browser and this process may hand an older one back.
 	w.Header().Set("Cache-Control", "no-store")
+	q := r.URL.Query()
+	if q.Get("country") != "" && !s.countryFilterOn() {
+		// A country view open across an easywall-web restart: its rows are
+		// never mixed with every other country's. Loading: wait for the table.
+		// Switched off: reload, and the page's redirect drops the field.
+		if s.lookup == nil {
+			w.Header().Set("HX-Refresh", "true")
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	f, _ := blockedFilter(q) // an unreadable filter here renders as no filter, exactly like the page
+	after, _ := strconv.ParseUint(q.Get("after"), 10, 64)
 	rows := blockedRows{Entries: []shared.PacketLogEntry{}, Query: filterQuery(f), Filtered: !f.IsZero()}
 	// Before the packet log is asked: a failed tail still renders under the
 	// page's head, which has the Country column while the lookup is on.
@@ -450,7 +457,13 @@ func (s *Server) countryEntries(f shared.PacketLogFilter) (*shared.PacketLogResu
 		if len(res.Entries) < q.Limit {
 			return out, false, nil
 		}
-		q.Before = res.Entries[len(res.Entries)-1].Seq
+		// Nothing is older than seq 1, and a before of 0 is no before at all:
+		// the same page again, for ever.
+		last := res.Entries[len(res.Entries)-1].Seq
+		if last <= 1 {
+			return out, false, nil
+		}
+		q.Before = last
 	}
 }
 
