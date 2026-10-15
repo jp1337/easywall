@@ -46,6 +46,7 @@ type fakeCore struct {
 	defaultResp shared.Response
 	lastCmd     *shared.Command
 	observers   map[shared.CommandType]func(shared.Command)
+	responders  map[shared.CommandType]func(shared.Command) shared.Response
 }
 
 func newFakeCore(t *testing.T) *fakeCore {
@@ -92,6 +93,17 @@ func (fc *fakeCore) OnCommand(cmdType shared.CommandType, fn func(shared.Command
 	fc.observers[cmdType] = fn
 }
 
+// Respond answers one command type from fn, consulted before the canned
+// responses: for a test whose answer depends on what was asked.
+func (fc *fakeCore) Respond(cmdType shared.CommandType, fn func(shared.Command) shared.Response) {
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if fc.responders == nil {
+		fc.responders = make(map[shared.CommandType]func(shared.Command) shared.Response)
+	}
+	fc.responders[cmdType] = fn
+}
+
 func (fc *fakeCore) LastCommand() *shared.Command {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
@@ -135,10 +147,14 @@ func (fc *fakeCore) handleConn(conn net.Conn) {
 		resp = fc.defaultResp
 	}
 	observer := fc.observers[cmd.Type]
+	responder := fc.responders[cmd.Type]
 	fc.mu.Unlock()
 
 	if observer != nil {
 		observer(cmd)
+	}
+	if responder != nil {
+		resp = responder(cmd)
 	}
 
 	out, _ := json.Marshal(resp)

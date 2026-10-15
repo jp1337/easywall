@@ -3534,6 +3534,11 @@ body {
   @supports (position-area: bottom) {
     .cc-pop { inset: auto; margin: 4px 0 0; position-area: bottom span-right; }
   }
+  /* "Only this country" (2.29) is a phrase, not a value: it keeps .link's
+     underline, which .pkt-flow a takes off the cell's values, and stays whole
+     on a card. In the popover it is its own line under the name. */
+  .cc .link { text-decoration: underline; white-space: nowrap; }
+  .cc-pop .link { display: block; margin-top: 2px; }
   a.log-action:hover { color: var(--color-ink); text-decoration-color: currentColor; }
   a.log-action:focus-visible {
     outline: 2px solid var(--color-focus-ring);

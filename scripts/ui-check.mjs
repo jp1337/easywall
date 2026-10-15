@@ -1287,7 +1287,7 @@ async function checkBlockedNamesCountries(page) {
     const b = document.querySelector(`[popovertarget="${p.id}"]`).getBoundingClientRect(), r = p.getBoundingClientRect();
     return { text: p.textContent, below: r.top >= b.bottom && r.top - b.bottom < 16 && Math.abs(r.left - b.left) < 40 };
   });
-  if (!pop || pop.text !== 'Antarctica') { fail('country column', `a click on AQ opened ${pop ? `"${pop.text}"` : 'no popover'}`); return; }
+  if (!pop || !pop.text.startsWith('Antarctica ')) { fail('country column', `a click on AQ opened ${pop ? `"${pop.text}"` : 'no popover'}`); return; }
   if (!pop.below) { fail('country column', 'the name opened away from its code'); return; }
   await page.keyboard.press('Escape');
   if (await page.locator('#blocked-rows .cc-pop:popover-open').count() !== 0) { fail('country column', 'Escape left the name open'); return; }
@@ -1300,7 +1300,7 @@ async function checkBlockedNamesCountries(page) {
     return { long: seen(cell?.querySelector('.cc-long')) ? cell.querySelector('.cc-long').textContent : '', code: seen(cell?.querySelector('.cc-code')) };
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  if (phone.long !== 'Antarctica (AQ)' || phone.code) { fail('country column', `at 390px the cell shows "${phone.long}"${phone.code ? ' and the code button' : ''}`); return; }
+  if (!phone.long.startsWith('Antarctica (AQ) ') || phone.code) { fail('country column', `at 390px the cell shows "${phone.long}"${phone.code ? ' and the code button' : ''}`); return; }
   const block = page.locator('#blocked-rows form:has(input[name="cc"][value="tk"]) button').first();
   if (await block.count() === 0) { fail('country column', 'no row offers Block TK'); return; }
   if (await page.locator('#blocked-rows form:has(input[name="cc"][value="aq"])').count() !== 0) {
@@ -1315,6 +1315,34 @@ async function checkBlockedNamesCountries(page) {
   if (await page.locator('#country-tk').count() !== 1) { fail('country column', 'the Countries card does not list Tokelau'); return; }
   await Promise.all([page.waitForNavigation(), page.click('#country-tk button[name="remove"]')]);
   console.log(`  ok   country column: ${cells.join(', ')}; ${flags.length} flags loaded at 20x15, AQ's name opens under it on a click, "Antarctica (AQ)" at 390px; Block TK staged it, the row offered it no more, the card removed it`);
+}
+
+/**
+ * The Country filter (2.29 D7, D11). The first row's country chosen in the
+ * filter bar leaves only that country's rows, counted over the whole log —
+ * never fewer than are shown — and the popover's "Only this country" leads to
+ * the same kind of view.
+ */
+async function checkBlockedFiltersByCountry(page) {
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  const cc = (await page.locator('#blocked-rows button.cc-code').first().textContent().catch(() => '')).trim().toLowerCase();
+  if (!cc) { fail('country filter', 'no row names a country'); return; }
+  await page.selectOption('select[name="country"]', cc);
+  await Promise.all([page.waitForNavigation(), page.click('form.pkt-filters button[type="submit"]')]);
+  if (!page.url().includes(`country=${cc}`)) { fail('country filter', `the form led to ${page.url()}`); return; }
+  const codes = await page.$$eval('#blocked-rows tr[data-seq]', trs => trs.map(tr => tr.querySelector('.cc-code')?.textContent.trim().toLowerCase() || '—'));
+  const others = codes.filter(c => c !== cc);
+  if (codes.length === 0 || others.length) { fail('country filter', `${codes.length} rows, ${others.length} of them not ${cc}: ${[...new Set(others)].join(', ')}`); return; }
+  const count = await page.locator('.toolbar-count').textContent();
+  const m = count.match(/(\d+)\D+(\d+)/);
+  if (!m || Number(m[1]) !== codes.length || Number(m[2]) < codes.length) { fail('country filter', `the count reads "${count}" over ${codes.length} rows`); return; }
+  await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
+  await page.locator('#blocked-rows button.cc-code').first().click();
+  const link = page.locator('#blocked-rows .cc-pop:popover-open a');
+  if (await link.count() !== 1) { fail('country filter', 'the name\'s popover has no link'); return; }
+  await Promise.all([page.waitForNavigation(), link.click()]);
+  if (!/[?&]country=[a-z]{2}\b/.test(page.url())) { fail('country filter', `Only this country led to ${page.url()}`); return; }
+  console.log(`  ok   country filter: ${cc.toUpperCase()} chosen leaves ${codes.length} rows, all ${cc.toUpperCase()}, "${count.trim()}"; the popover's link leads to ${new URL(page.url()).search}`);
 }
 
 /**
@@ -2326,6 +2354,7 @@ async function runChecks(browser, session) {
   await checkFeedsCard(p);
   await checkCountriesCard(p);
   await checkBlockedNamesCountries(p);
+  await checkBlockedFiltersByCountry(p);
   await checkASignedOutTailNavigates(browser, session);
   await checkBlockedCardsKeepValuesWhole(browser, session);
   await checkOptionsDisclosureFits(browser, session);
