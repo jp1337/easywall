@@ -274,7 +274,7 @@ func (d *demoState) seed() {
 		// makes one. And one country, so the Countries card has a row:
 		// Antarctica — four networks, and no country of people the public
 		// demo would be seen to single out.
-		Feeds: []string{"spamhaus-drop", "dshield", "blocklist-de", "et-compromised", "cins", "country-aq"},
+		Feeds: []string{"spamhaus-drop", "dshield", "blocklist-de-ssh", "blocklist-de", "et-compromised", "cins", "country-aq"},
 	}
 	d.rules = shared.RulesState{
 		Current: example,
@@ -367,6 +367,11 @@ func (d *demoState) seed() {
 		"dshield": {ID: "dshield", Stored: true, Entries: 20,
 			ChangedAt: ago(3 * time.Hour), CheckedAt: ago(38 * time.Minute),
 			Packets: 18873, CountersRead: true, AllowlistOverlap: 1},
+		// The SSH list, the one the catalogue recommends; "all" stays on beside
+		// it, a ✗ feed that is on (spec D4).
+		"blocklist-de-ssh": {ID: "blocklist-de-ssh", Stored: true, Entries: 4078,
+			ChangedAt: ago(2 * time.Hour), CheckedAt: ago(22 * time.Minute),
+			Packets: 1286, CountersRead: true},
 		// The last good copy is four hours old; the three lists since were
 		// refused as a shrink (ruling X1).
 		"blocklist-de": {ID: "blocklist-de", Stored: true, Entries: 32002,
@@ -622,6 +627,7 @@ func (d *demoState) Send(cmd shared.Command) shared.Response {
 //
 //	spamhaus-drop   updated
 //	dshield         unchanged; 1 allowlist entry overlaps
+//	blocklist-de-ssh unchanged
 //	blocklist-de    failed, previous copy active; failed 3 times in a row;
 //	                refused as a shrink from 32 002 to 9 140
 //	et-compromised  unchanged; unchanged for 30 days; 2 lines not an address
@@ -635,8 +641,9 @@ func newDemoFeedStore(now time.Time) *feedStore {
 	return &feedStore{st: &feedStateFile{
 		OffsetSeconds: 1020,
 		Fetch: map[string]feedFetchState{
-			"spamhaus-drop": {Status: FeedUpdated, LastAttempt: ago(7 * time.Hour)},
-			"dshield":       {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
+			"spamhaus-drop":    {Status: FeedUpdated, LastAttempt: ago(7 * time.Hour)},
+			"dshield":          {Status: FeedUnchanged, LastAttempt: ago(38 * time.Minute)},
+			"blocklist-de-ssh": {Status: FeedUnchanged, LastAttempt: ago(22 * time.Minute)},
 			"blocklist-de": {Status: FeedFailedCopy, LastError: feedErrShrank, Failures: 3, LastAttempt: ago(20 * time.Minute),
 				ShrankFrom: 32002, ShrankTo: 9140},
 			"et-compromised": {Status: FeedUnchanged, LastAttempt: ago(25 * time.Minute),

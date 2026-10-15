@@ -23,6 +23,7 @@ together find what neither finds alone.
 | 2.25.1 | blocklist.de held 5 of Bingbot's 28 published ranges, 1 of GPTBot's 18 and 2 of Googlebot's 317; no other feed held any. 0 drops from them in the ring | `feeds.md` names the crawlers and both remedies; the operator switched blocklist.de off |
 | 2.25.1 | `/blocked` showed no new rows for minutes in Firefox while the core logged them; the 5-s polls went out. traefik advertised Alt-Svc h3=":442", but UDP 442 had no endpoints — ArgoCD's client-side apply drops the 8443/UDP containerPort (strategic-merge key is containerPort only) and still reports Synced. With network.http.http3.enable=false the rows updated | cluster fix (ServerSideApply on the traefik app) in the k8s repository; easywall's tail now sends what is new (2.25.2) and marks /blocked/rows Cache-Control: no-store |
 | 2.27.0 | easywall-web read +85 MB RSS against 2.26.0 | that was `VmHWM` after the operator's login — argon2id takes 64 MiB per hash. Steady state ~39 MB, +7 MB over 2.26.0. Read `VmRSS`, not `VmHWM` |
+| 2.27.1 | blocklist.de all.txt listed Googlebot and Bingbot on root01xvp | 2.29: ✗ and the SSH list recommended instead |
 
 ## When
 

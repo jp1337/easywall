@@ -13,8 +13,8 @@ import (
 // parses it by the row's format, and the interface renders the verdict. So
 // every row is checked for shape here, once.
 func TestFeedCatalogueRowsAreComplete(t *testing.T) {
-	if len(FeedCatalogue) != 8 {
-		t.Fatalf("the catalogue has %d rows; spec §1 offers eight", len(FeedCatalogue))
+	if len(FeedCatalogue) != 10 {
+		t.Fatalf("the catalogue has %d rows; spec §1 offers ten", len(FeedCatalogue))
 	}
 	idRe := regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 	seen := map[string]bool{}
@@ -26,7 +26,7 @@ func TestFeedCatalogueRowsAreComplete(t *testing.T) {
 			t.Errorf("%q is in the catalogue twice", f.ID)
 		}
 		seen[f.ID] = true
-		if f.Name == "" || len(f.URLs) == 0 || f.MeasuredAt != "2026-09-24" {
+		if f.Name == "" || len(f.URLs) == 0 || f.MeasuredAt != "2026-10-15" {
 			t.Errorf("%s: name %q, %d URLs, measured %q", f.ID, f.Name, len(f.URLs), f.MeasuredAt)
 		}
 		if f.Interval < time.Hour {
@@ -108,17 +108,27 @@ func TestFeedCatalogueMatchesSpecOne(t *testing.T) {
 		fp       FeedFalsePositives
 		interval time.Duration
 	}{
-		"spamhaus-drop":  {FeedRecommended, FalsePositivesNone, 12 * time.Hour},
-		"dshield":        {FeedRecommended, FalsePositivesNone, time.Hour},
-		"blocklist-de":   {FeedRecommended, FalsePositivesSome, time.Hour},
-		"cins":           {FeedOptional, FalsePositivesSome, time.Hour},
-		"et-compromised": {FeedOptional, FalsePositivesNotable, time.Hour},
-		"ipsum-3":        {FeedDeliberate, FalsePositivesYes, 24 * time.Hour},
-		"hagezi-tif":     {FeedDeliberate, FalsePositivesYes, 24 * time.Hour},
-		"tor-exits":      {FeedDeliberate, FalsePositivesByDesign, time.Hour},
+		"spamhaus-drop":     {FeedRecommended, FalsePositivesNone, 12 * time.Hour},
+		"dshield":           {FeedRecommended, FalsePositivesNone, time.Hour},
+		"blocklist-de-ssh":  {FeedRecommended, FalsePositivesSome, time.Hour},
+		"blocklist-de-imap": {FeedOptional, FalsePositivesSome, time.Hour},
+		"cins":              {FeedOptional, FalsePositivesSome, time.Hour},
+		"et-compromised":    {FeedOptional, FalsePositivesNotable, time.Hour},
+		"blocklist-de":      {FeedDeliberate, FalsePositivesYes, time.Hour},
+		"ipsum-3":           {FeedDeliberate, FalsePositivesYes, 24 * time.Hour},
+		"hagezi-tif":        {FeedDeliberate, FalsePositivesYes, 24 * time.Hour},
+		"tor-exits":         {FeedDeliberate, FalsePositivesByDesign, time.Hour},
 	}
 	if len(FeedCatalogue) != len(want) {
 		t.Fatalf("%d rows, spec §1 has %d", len(FeedCatalogue), len(want))
+	}
+	var order []string
+	for _, f := range FeedCatalogue {
+		order = append(order, f.ID)
+	}
+	if want := []string{"spamhaus-drop", "dshield", "blocklist-de-ssh", "blocklist-de-imap", "cins",
+		"et-compromised", "blocklist-de", "ipsum-3", "hagezi-tif", "tor-exits"}; !slices.Equal(order, want) {
+		t.Errorf("order %v, want %v", order, want)
 	}
 	for _, f := range FeedCatalogue {
 		w, ok := want[f.ID]

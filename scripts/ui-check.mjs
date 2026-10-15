@@ -1181,12 +1181,16 @@ async function checkBlockedSaysWhy(page) {
 async function checkFeedsCard(page) {
   await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
   const rows = await page.locator('#feeds tr[id^="feed-"]').count();
-  if (rows < 8) { fail('feeds card', `${rows} feed rows on /blocklist, want the eight catalogue feeds`); return; }
+  if (rows < 10) { fail('feeds card', `${rows} feed rows on /blocklist, want the ten catalogue feeds`); return; }
+  const order = await page.$$eval('#feeds tr[id^="feed-"]', trs => trs.slice(0, 3).map(t => t.id));
+  if (order.join() !== 'feed-spamhaus-drop,feed-dshield,feed-blocklist-de-ssh') {
+    fail('feeds card', `first rows ${order.join()}, want Spamhaus DROP, DShield, blocklist.de (SSH)`); return;
+  }
   const badLinks = await page.$$eval('#feeds a[target="_blank"]', as => as
     .filter(a => !/\bnoopener\b/.test(a.rel) || !/\bnoreferrer\b/.test(a.rel) || !a.href.startsWith('https://'))
     .map(a => a.outerHTML));
   const links = await page.locator('#feeds a[target="_blank"]').count();
-  if (links < 16 || badLinks.length) { // a source and a terms link for each of the eight
+  if (links < 20 || badLinks.length) { // a source and a terms link for each of the ten
     fail('feeds card', `${links} source/terms links; without noopener noreferrer or https: ${badLinks[0] || 'none'}`);
     return;
   }

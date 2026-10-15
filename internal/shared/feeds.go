@@ -98,7 +98,7 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedRecommended, FalsePositives: FalsePositivesNone,
 		Homepage:   "https://www.spamhaus.org/blocklists/do-not-route-or-peer/",
 		Terms:      "https://www.spamhaus.org/drop/terms/",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
 	},
 	{
 		ID: "dshield", Name: "DShield top block list",
@@ -107,16 +107,25 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedRecommended, FalsePositives: FalsePositivesNone,
 		Homepage:   "https://isc.sans.edu/api/",
 		Terms:      "https://isc.sans.edu/api/",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
 	},
 	{
-		ID: "blocklist-de", Name: "blocklist.de (all)",
-		URLs:   []string{"https://lists.blocklist.de/lists/all.txt"},
+		ID: "blocklist-de-ssh", Name: "blocklist.de (SSH)",
+		URLs:   []string{"https://lists.blocklist.de/lists/ssh.txt"},
 		Format: FeedFormatPlain, Interval: time.Hour,
 		Verdict: FeedRecommended, FalsePositives: FalsePositivesSome,
 		Homepage:   "https://www.blocklist.de/en/export.html",
 		Terms:      "https://www.blocklist.de/en/export.html",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
+	},
+	{
+		ID: "blocklist-de-imap", Name: "blocklist.de (IMAP, POP3)",
+		URLs:   []string{"https://lists.blocklist.de/lists/imap.txt"},
+		Format: FeedFormatPlain, Interval: time.Hour,
+		Verdict: FeedOptional, FalsePositives: FalsePositivesSome,
+		Homepage:   "https://www.blocklist.de/en/export.html",
+		Terms:      "https://www.blocklist.de/en/export.html",
+		MeasuredAt: "2026-10-15",
 	},
 	{
 		ID: "cins", Name: "CINS Army",
@@ -125,7 +134,7 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedOptional, FalsePositives: FalsePositivesSome,
 		Homepage:   "https://cinsscore.com/",
 		Terms:      "https://cinsscore.com/",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
 	},
 	{
 		ID: "et-compromised", Name: "Emerging Threats compromised",
@@ -134,7 +143,16 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedOptional, FalsePositives: FalsePositivesNotable,
 		Homepage:   "https://rules.emergingthreats.net/OPEN_download_instructions.html",
 		Terms:      "https://rules.emergingthreats.net/open/suricata-7.0.3/LICENSE",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
+	},
+	{
+		ID: "blocklist-de", Name: "blocklist.de (all)",
+		URLs:   []string{"https://lists.blocklist.de/lists/all.txt"},
+		Format: FeedFormatPlain, Interval: time.Hour,
+		Verdict: FeedDeliberate, FalsePositives: FalsePositivesYes,
+		Homepage:   "https://www.blocklist.de/en/export.html",
+		Terms:      "https://www.blocklist.de/en/export.html",
+		MeasuredAt: "2026-10-15",
 	},
 	{
 		ID: "ipsum-3", Name: "IPsum, on ≥ 3 lists",
@@ -143,7 +161,7 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedDeliberate, FalsePositives: FalsePositivesYes,
 		Homepage:   "https://github.com/stamparm/ipsum",
 		Terms:      "https://github.com/stamparm/ipsum",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
 	},
 	{
 		ID: "hagezi-tif", Name: "Hagezi threat intelligence IPs",
@@ -152,7 +170,7 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedDeliberate, FalsePositives: FalsePositivesYes,
 		Homepage:   "https://github.com/hagezi/dns-blocklists",
 		Terms:      "https://github.com/hagezi/dns-blocklists",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
 	},
 	{
 		ID: "tor-exits", Name: "Tor exit nodes",
@@ -161,7 +179,7 @@ var FeedCatalogue = []CatalogueFeed{
 		Verdict: FeedDeliberate, FalsePositives: FalsePositivesByDesign,
 		Homepage:   "https://metrics.torproject.org/collector.html",
 		Terms:      "https://metrics.torproject.org/collector.html",
-		MeasuredAt: "2026-09-24",
+		MeasuredAt: "2026-10-15",
 	},
 }
 
@@ -172,8 +190,8 @@ const (
 	MaxOwnFeeds = 3
 	// OwnFeedInterval: CrowdSec's free tier allows one pull a day.
 	OwnFeedInterval = 24 * time.Hour
-	// FeedMaxEntries bounds one feed's copy. Hagezi TIF, the largest offered,
-	// is 79 175.
+	// FeedMaxEntries bounds one feed's copy. Hagezi TIF was the largest
+	// offered at 79 175 (2026-09-24); 36 487 on 2026-10-15.
 	FeedMaxEntries = 100000
 	// FeedShrinkPercent: a version with fewer than 70 % of the stored count is
 	// refused (spec D5 — shrink only; CINS rotates 13.9 % at constant size).
