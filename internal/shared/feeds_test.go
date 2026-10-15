@@ -126,9 +126,9 @@ func TestFeedCatalogueMatchesSpecOne(t *testing.T) {
 	for _, f := range FeedCatalogue {
 		order = append(order, f.ID)
 	}
-	if want := []string{"spamhaus-drop", "dshield", "blocklist-de-ssh", "blocklist-de-imap", "cins",
-		"et-compromised", "blocklist-de", "ipsum-3", "hagezi-tif", "tor-exits"}; !slices.Equal(order, want) {
-		t.Errorf("order %v, want %v", order, want)
+	if wantOrder := []string{"spamhaus-drop", "dshield", "blocklist-de-ssh", "blocklist-de-imap", "cins",
+		"et-compromised", "blocklist-de", "ipsum-3", "hagezi-tif", "tor-exits"}; !slices.Equal(order, wantOrder) {
+		t.Errorf("order %v, want %v", order, wantOrder)
 	}
 	for _, f := range FeedCatalogue {
 		w, ok := want[f.ID]

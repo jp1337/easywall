@@ -18,7 +18,9 @@ allow stays reachable whatever a feed says. To block a whole country, see
 > blocks whatever address it names, wherever it connects.
 > **blocklist.de (all) holds search crawlers, an uptime monitor and Cloudflare**:
 > on 2026-10-15 it held Googlebot, Google's special crawlers, Bingbot, Applebot,
-> StatusCake and Cloudflare addresses, and had in every sample since June. A
+> StatusCake and Cloudflare addresses. Of 9 captures since June, Bingbot and
+> StatusCake were in all 9 and Googlebot in 8; Cloudflare was measured only on
+> that day. A
 > crawler that cannot reach your site drops it from search; Bing's index also
 > feeds ChatGPT search. That is why it is ✗. **The SSH list had none in 11
 > samples** and is the recommended one. An installation that already has

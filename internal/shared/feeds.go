@@ -85,8 +85,9 @@ type CatalogueFeed struct {
 	MeasuredAt string
 }
 
-// FeedCatalogue is spec §1, in its order. Measured 2026-09-24; the sources
-// for every URL are in docs-tech/specs/2026-09-24-2.23-research.md.
+// FeedCatalogue is spec §1, in its order. Measured 2026-09-24 and again
+// 2026-10-15; the sources are in docs-tech/specs/2026-09-24-2.23-research.md
+// and 2026-10-15-2.29-feeds-research.md.
 var FeedCatalogue = []CatalogueFeed{
 	{
 		ID: "spamhaus-drop", Name: "Spamhaus DROP",

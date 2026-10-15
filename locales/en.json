@@ -619,7 +619,7 @@
   {"id": "feed_dshield_blocks", "translation": "The 20 /24 networks with the most scanning sources over the last three days."},
   {"id": "feed_dshield_fp_why", "translation": "Twenty networks, each seen scanning right now."},
   {"id": "feed_blocklist_de_blocks", "translation": "Addresses fail2ban reported for attacks in the last 48 hours."},
-  {"id": "feed_blocklist_de_fp_why", "translation": "One report is enough to list an address for 48 hours. Every sample since June held search crawlers (Googlebot, Bingbot, Applebot), an uptime monitor (StatusCake) and Cloudflare addresses — on a website behind Cloudflare it refuses part of your own CDN."},
+  {"id": "feed_blocklist_de_fp_why", "translation": "Any single report lists an address for 48 hours. Samples since June held Bingbot and StatusCake (9 of 9), Googlebot (8 of 9) and Applebot (newest); today also Cloudflare addresses — on a website behind Cloudflare it refuses part of your own CDN."},
   {"id": "feed_blocklist_de_ssh_blocks", "translation": "Addresses fail2ban reported for SSH attacks in the last 48 hours."},
   {"id": "feed_blocklist_de_ssh_fp_why", "translation": "Dynamic and recycled addresses, some cloud hosts. No search crawler or uptime monitor in any sample since January 2026."},
   {"id": "feed_blocklist_de_imap_blocks", "translation": "Addresses fail2ban reported for IMAP, POP3 and SASL attacks in the last 48 hours."},
