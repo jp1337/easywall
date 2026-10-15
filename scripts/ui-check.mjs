@@ -1216,6 +1216,8 @@ async function checkCountriesCard(page) {
   }
   await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
   if (await page.locator('#countries tr#country-aq').count() !== 1) { fail('countries card', 'the demo\'s Antarctica row is missing'); return; }
+  const flag = await page.$eval('#country-aq .feed-title img.flag', i => i.decode().catch(() => {}).then(() => i.naturalWidth)).catch(() => 0);
+  if (!flag) { fail('countries card', 'Antarctica\'s flag did not load'); return; }
   const offered = await page.locator('#country-add option[value^="country-"]').count();
   if (offered < 200) { fail('countries card', `${offered} countries offered, want every one not switched on`); return; }
 
@@ -1227,7 +1229,7 @@ async function checkCountriesCard(page) {
   if (await page.locator('#country-is').count() !== 1) { fail('countries card', 'saving the Feeds card switched the country off'); return; }
   await Promise.all([page.waitForNavigation(), page.click('#country-is button[name="remove"]')]);
   if (await page.locator('#country-is').count() !== 0) { fail('countries card', 'Remove left the row'); return; }
-  console.log(`  ok   countries card: Antarctica's row and chip, ${offered} offered, an added country staged, kept by the Feeds save, removed`);
+  console.log(`  ok   countries card: Antarctica's row, flag and chip, ${offered} offered, an added country staged, kept by the Feeds save, removed`);
 }
 
 /**
@@ -1241,8 +1243,40 @@ async function checkBlockedNamesCountries(page) {
   await page.goto(`${BASE}/blocked`, { waitUntil: 'networkidle' });
   const head = await page.$eval('#blocked-rows', t => t.closest('table').querySelector('thead th[title]')?.textContent.trim() || '');
   if (!head) { fail('country column', 'no Country header — is country_lookup = true in the demo config?'); return; }
-  const cells = await page.$$eval('#blocked-rows abbr[title]', as => [...new Set(as.map(a => `${a.textContent}=${a.title}`))]);
+  const cells = await page.$$eval('#blocked-rows button.cc-code[title]', as => [...new Set(as.map(a => `${a.textContent}=${a.title}`))]);
   if (!cells.includes('AQ=Antarctica')) { fail('country column', `no row reads AQ: ${cells.join(', ')}`); return; }
+  // 2.27.1: every flag loaded — a 404 or a CSP refusal is an image with no
+  // natural width — and each is drawn 20x15.
+  const flags = await page.$$eval('#blocked-rows img.flag', imgs => Promise.all(imgs.map(i => i.decode().catch(() => {}).then(() => {
+    const r = i.getBoundingClientRect();
+    return { src: i.getAttribute('src'), w: i.naturalWidth, box: `${Math.round(r.width)}x${Math.round(r.height)}` };
+  }))));
+  const broken = flags.filter(f => f.w === 0 || f.box !== '20x15');
+  if (flags.length === 0 || broken.length) { fail('country column', `${flags.length} flags, broken or resized: ${[...new Set(broken.map(f => `${f.src} ${f.box}`))].join(', ')}`); return; }
+  // The code opens its name on a click (the Popover API), under the code, and
+  // Escape closes it.
+  const code = page.locator('#blocked-rows button.cc-code[title="Antarctica"]').first();
+  await code.click();
+  const pop = await page.evaluate(() => {
+    const p = document.querySelector('#blocked-rows .cc-pop:popover-open');
+    if (!p) return null;
+    const b = document.querySelector(`[popovertarget="${p.id}"]`).getBoundingClientRect(), r = p.getBoundingClientRect();
+    return { text: p.textContent, below: r.top >= b.bottom && r.top - b.bottom < 16 && Math.abs(r.left - b.left) < 40 };
+  });
+  if (!pop || pop.text !== 'Antarctica') { fail('country column', `a click on AQ opened ${pop ? `"${pop.text}"` : 'no popover'}`); return; }
+  if (!pop.below) { fail('country column', 'the name opened away from its code'); return; }
+  await page.keyboard.press('Escape');
+  if (await page.locator('#blocked-rows .cc-pop:popover-open').count() !== 0) { fail('country column', 'Escape left the name open'); return; }
+  // At 390 the card layout names the country in full, with no tap; the code
+  // and its popover are not drawn.
+  await page.setViewportSize({ width: 390, height: 1000 });
+  const phone = await page.evaluate(() => {
+    const seen = el => el && el.getClientRects().length > 0;
+    const cell = [...document.querySelectorAll('#blocked-rows .cc')].find(c => c.querySelector('.cc-code[title="Antarctica"]'));
+    return { long: seen(cell?.querySelector('.cc-long')) ? cell.querySelector('.cc-long').textContent : '', code: seen(cell?.querySelector('.cc-code')) };
+  });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  if (phone.long !== 'Antarctica (AQ)' || phone.code) { fail('country column', `at 390px the cell shows "${phone.long}"${phone.code ? ' and the code button' : ''}`); return; }
   const block = page.locator('#blocked-rows form:has(input[name="cc"][value="tk"]) button').first();
   if (await block.count() === 0) { fail('country column', 'no row offers Block TK'); return; }
   if (await page.locator('#blocked-rows form:has(input[name="cc"][value="aq"])').count() !== 0) {
@@ -1256,7 +1290,7 @@ async function checkBlockedNamesCountries(page) {
   await page.goto(`${BASE}/blocklist`, { waitUntil: 'networkidle' });
   if (await page.locator('#country-tk').count() !== 1) { fail('country column', 'the Countries card does not list Tokelau'); return; }
   await Promise.all([page.waitForNavigation(), page.click('#country-tk button[name="remove"]')]);
-  console.log(`  ok   country column: ${cells.join(', ')}; Block TK staged it, the row offered it no more, the card removed it`);
+  console.log(`  ok   country column: ${cells.join(', ')}; ${flags.length} flags loaded at 20x15, AQ's name opens under it on a click, "Antarctica (AQ)" at 390px; Block TK staged it, the row offered it no more, the card removed it`);
 }
 
 /**
