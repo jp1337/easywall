@@ -36,6 +36,13 @@ func countryPackets() []shared.PacketLogEntry {
 
 const blockDEForm = `<input type="hidden" name="act" value="country"><input type="hidden" name="cc" value="de">`
 
+// deCode is the cell's code for Germany: a button that opens the name (2.27.1),
+// its title for the mouse.
+const deCode = `title="Germany">DE</button>`
+
+// deCell opens the Country cell of a source in Germany: the flag first.
+const deCell = `data-label="Country"><span class="cc"><img class="flag" src="/static/flags/de.svg?v=`
+
 // Spec D3, amended: off, there is no column and no Block button, and one line
 // says which key switches it on. Off is country_lookup = false, and then
 // NewServer builds no lookup (TestTheCountryLookupExistsOnlyWhenSwitchedOn).
@@ -82,9 +89,10 @@ func TestBlocked_NamesTheCountryOfEachSource(t *testing.T) {
 	fc.SetResponse(shared.CmdGetRules, successResp(shared.RulesState{Staged: shared.Rules{Feeds: []string{"dshield"}}}))
 
 	for lang, want := range map[string][]string{
-		"en": {`<th title="The country the address block is registered to.`, `<abbr title="Germany">DE</abbr>`,
-			`aria-label="Block every address registered to Germany">Block DE</button>`, `data-label="Country"`},
-		"de": {`<abbr title="Deutschland">DE</abbr>`, `>DE sperren</button>`, `data-label="Land"`},
+		"en": {`<th title="The country the address block is registered to.`, deCell, deCode, `>Germany (DE)</span>`,
+			`aria-label="Block country: Germany">Block country</button>`},
+		"de": {`title="Deutschland">DE</button>`, `>Deutschland (DE)</span>`,
+			`aria-label="Land sperren: Deutschland">Land sperren</button>`, `data-label="Land"`},
 	} {
 		body := doRequest(s, "GET", "/blocked", nil, makeAuthCookie(t, s), &http.Cookie{Name: LangCookie, Value: lang}).Body.String()
 		for _, w := range append(want, blockDEForm) {
@@ -98,8 +106,35 @@ func TestBlocked_NamesTheCountryOfEachSource(t *testing.T) {
 		}
 	}
 	rows := doAuthRequest(t, s, "GET", "/blocked/rows", nil).Body.String()
-	if !strings.Contains(rows, `<abbr title="Germany">DE</abbr>`) || !strings.Contains(rows, blockDEForm) {
+	if !strings.Contains(rows, deCode) || !strings.Contains(rows, blockDEForm) {
 		t.Errorf("the live tail's rows carry no country:\n%s", rows)
+	}
+}
+
+// 2.27.1: the cell is the flag, the code — a button whose popover holds the
+// name, so a tap shows it on a desktop layout — and the full name, which the
+// card layout shows instead. The popover is the row's own: its id carries the
+// row's Seq, so two rows of one country never open each other's. No country
+// is still a dash, with no flag.
+func TestBlocked_TheCountryCellIsAFlagACodeAndTheName(t *testing.T) {
+	_, s := blockedCore(t, shared.PacketLogResult{Listening: true, Entries: countryPackets()},
+		shared.FirewallOptions{SSHBruteForceLog: true})
+	s.lookup = lookupWith(t, sampleCountryTable(t))
+	for _, path := range []string{"/blocked", "/blocked/rows"} {
+		body := doAuthRequest(t, s, "GET", path, nil).Body.String()
+		want := `<span class="cc"><img class="flag" src="/static/flags/de.svg?v=` + shared.CurrentVersion + `" alt="" width="20" height="15">` +
+			`<span class="cc-short"><button type="button" class="cc-code" popovertarget="cc-51" title="Germany">DE</button>` +
+			`<span class="cc-pop" id="cc-51" popover>Germany</span></span>` +
+			`<span class="cc-long">Germany (DE)</span></span>`
+		if !strings.Contains(body, want) {
+			t.Errorf("%s: no country cell\n%s\nin\n%s", path, want, body)
+		}
+		if n := strings.Count(body, `class="flag"`); n != 1 {
+			t.Errorf("%s: %d flags, want one: 203.0.113.9 is in no country", path, n)
+		}
+		if !strings.Contains(body, `data-label="Country"><span class="text-ink-subtle">—</span>`) {
+			t.Errorf("%s: the source in no country is not a dash", path)
+		}
 	}
 }
 
@@ -118,7 +153,7 @@ func TestBlocked_TheLiveTailsNewRowsCarryTheCountry(t *testing.T) {
 	if n := strings.Count(body, "<tr data-seq="); n != 1 {
 		t.Fatalf("%d rows in the delta, want the one newer than 50", n)
 	}
-	for _, w := range []string{`data-label="Country"><abbr title="Germany">DE</abbr></td>`, blockDEForm} {
+	for _, w := range []string{deCell, deCode, blockDEForm} {
 		if !strings.Contains(body, w) {
 			t.Errorf("the delta row does not contain %s:\n%s", w, body)
 		}
@@ -151,7 +186,7 @@ func TestBlocked_OffersBlockOnlyWhereItWouldDoSomething(t *testing.T) {
 			if strings.Contains(body, blockDEForm) {
 				t.Error("Block DE is offered")
 			}
-			if !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+			if !strings.Contains(body, deCode) {
 				t.Error("the country cell is gone")
 			}
 		})

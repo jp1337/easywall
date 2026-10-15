@@ -122,7 +122,7 @@ func TestBlockedRows_ADeltaWithoutADropRowAsksNoRules(t *testing.T) {
 			fc.OnCommand(shared.CmdGetRules, func(shared.Command) { rules.Add(1) })
 			fc.OnCommand(shared.CmdGetAppliedConfig, func(shared.Command) { applied.Add(1) })
 			body := doAuthRequest(t, s, "GET", "/blocked/rows?after=308", nil).Body.String()
-			if on && !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+			if on && !strings.Contains(body, deCode) {
 				t.Fatalf("the delta's rows carry no country; the test proves nothing:\n%s", body)
 			}
 			want := int32(0)
@@ -150,7 +150,7 @@ func TestBlockedRows_ADropRowAndACountryRowAskTheRulesOnce(t *testing.T) {
 	var asked atomic.Int32
 	fc.OnCommand(shared.CmdGetRules, func(shared.Command) { asked.Add(1) })
 	body := doAuthRequest(t, s, "GET", "/blocked/rows?after=309", nil).Body.String()
-	if !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+	if !strings.Contains(body, deCode) {
 		t.Fatalf("the delta's rows carry no country:\n%s", body)
 	}
 	if got := asked.Load(); got != 1 {
@@ -169,7 +169,7 @@ func TestBlocked_ThePageAsksTheRulesOnce(t *testing.T) {
 	var asked atomic.Int32
 	fc.OnCommand(shared.CmdGetRules, func(shared.Command) { asked.Add(1) })
 	body := doAuthRequest(t, s, "GET", "/blocked", nil).Body.String()
-	if !strings.Contains(body, `<abbr title="Germany">DE</abbr>`) {
+	if !strings.Contains(body, deCode) {
 		t.Fatalf("the page's rows carry no country:\n%s", body)
 	}
 	if got := asked.Load(); got != 1 {

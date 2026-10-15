@@ -274,6 +274,7 @@ func TestTheCountriesCardShowsOnlyTheSwitchedOnCountries(t *testing.T) {
 	for what, c := range map[string]struct{ in, text string }{
 		"its name":         {de, "Deutschland"},
 		"its code":         {de, ">DE<"},
+		"its flag":         {de, `<div class="feed-title"><img class="flag" src="/static/flags/de.svg?v=` + shared.CurrentVersion + `" alt="" width="20" height="15"> Deutschland`},
 		"on and live":      {de, "Aktiv"},
 		"its entries":      {de, ">11837<"},
 		"its packets":      {de, ">42<"},

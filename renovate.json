@@ -137,6 +137,14 @@
       ]
     },
     {
+      "description": "flag-icons is copied into web/static/flags by npm run build:flags and CI rebuilds and compares the two, so a bump without the rebuild fails the assets job.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["flag-icons"],
+      "prBodyNotes": [
+        "Before this can merge, on this branch: `npm ci && npm run build:flags && git add web/static/flags`, commit, push. The required check *Generated assets are current* compares the two and stays red until then."
+      ]
+    },
+    {
       "description": "pagefind builds the documentation search index, and the pin exists because a bump can change the bundle's JS API without changing the index format — the loader in docs/_layouts/default.html would stop mounting while the action's count assertion still passes. Patch releases are auto-merged everywhere else in this file; that would put an unread bundle on easywall-project.org, so this one waits for a person.",
       "matchManagers": ["custom.regex"],
       "matchPackageNames": ["pagefind"],

@@ -1,3 +1,10 @@
+easywall (2.27.1) unstable; urgency=low
+
+  * /blocked shows each country with its flag; the name opens on a tap and
+    reads in full on a phone. The row action reads "Block country".
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Thu, 15 Oct 2026 12:48:06 +0200
+
 easywall (2.27.0) unstable; urgency=medium
 
   * Where it comes from: a Country column on Blocked, from ipverse's dataset

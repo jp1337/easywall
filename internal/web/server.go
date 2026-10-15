@@ -1722,6 +1722,12 @@ func templateFuncs() template.FuncMap {
 		// countryFeed: a /blocked feed chip for a country names it as one and
 		// leads to its row in the Countries card (2.26).
 		"countryFeed": shared.IsCountryFeedID,
+		// flagURL: country cc's flag (2.27.1), versioned as the stylesheet is —
+		// a release that changes a flag changes its URL. Lower case, whichever
+		// spelling the caller holds.
+		"flagURL": func(cc string) string {
+			return "/static/flags/" + strings.ToLower(cc) + ".svg?v=" + shared.CurrentVersion
+		},
 		// maxCountries: a string that states the cap takes it from here, never
 		// from a digit in a locale file.
 		"maxCountries": func() int { return shared.MaxCountries },

@@ -142,6 +142,7 @@ The notes said "after merging" until 2.25.1, and no such pull request could merg
 | Dependency | Step |
 |---|---|
 | `htmx.org` | `cp node_modules/htmx.org/dist/htmx.min.js web/static/htmx.min.js` — the served copy is committed and the `assets` job diffs it |
+| `flag-icons` | `npm run build:flags && git add web/static/flags` — the 238 flags are committed and the `assets` job rebuilds and diffs them |
 | `mermaid` | `npm run build:diagrams` — the version is folded into each diagram's digest, so an upgrade makes every SVG stale by design |
 | the Go toolchain | `npm run build:diagrams`, because `docs/_diagrams/install-choice.mmd` names the Go version |
 | `pagefind` | after merging and the deploy, look at the search on the deployed site: that it mounts, and that a result link still marks the term. CI proves the index covers all 26 pages and nothing more |

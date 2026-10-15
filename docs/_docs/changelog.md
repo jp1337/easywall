@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.27.1">2.27.1</a>
   <a href="#2.27.0">2.27.0</a>
   <a href="#2.26.0">2.26.0</a>
   <a href="#2.25.2">2.25.2</a>
@@ -82,7 +83,34 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.27.0" markdown="1">
+<details open id="2.27.1" markdown="1">
+<summary><strong>2.27.1</strong> · 2026-10-15 — Flags, and the name where a thumb can read it</summary>
+
+### Changed
+
+- **/blocked shows each country with its flag.** On a desktop the flag sits beside
+  the code, and a click or tap on the code opens the country's name; on a phone
+  the row reads the whole name, *Russia (RU)*. The Countries card on Blocklist
+  carries the flag too. The flags are
+  [flag-icons](https://github.com/lipis/flag-icons) 7.5.0 (MIT), shipped as
+  `web/static/flags/` — about 1.5 MB in the package; a page loads only the flags
+  of the countries it shows.
+- The row action reads **Block country** in every row; screen readers hear
+  *Block country: Russia*.
+
+### Documentation
+
+- A block page for refused visitors is listed as deliberately excluded, with the
+  reason: easywall drops the packet in the kernel, and for HTTPS such a page
+  would need the site's own certificate.
+- Field check of 2.27.0: the +85 MB reading was the login's argon2id peak
+  (VmHWM); easywall-web settles about 7 MB above 2.26.0.
+
+[See the code changes between 2.27.0 and 2.27.1](https://github.com/jp1337/easywall/compare/v2.27.0...v2.27.1)
+
+</details>
+
+<details id="2.27.0" markdown="1">
 <summary><strong>2.27.0</strong> · 2026-10-14 — Where it comes from</summary>
 
 ### Added

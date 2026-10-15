@@ -13,7 +13,7 @@ feed as well is counted and logged by the feed.
 
 **Which ones do your drops come from?** The
 [country column]({{ '/docs/features/blocked-traffic/' | relative_url }}#where-it-comes-from)
-on Blocked traffic shows it. A row's **Block *XX*** stages its country here.
+on Blocked traffic shows it. A row's **Block country** stages its country here.
 
 ## Add a country
 

@@ -76,6 +76,7 @@ spec amendment and a later release. Until then, allowlist that address.
 | Rule schedules | "Open this port between 08:00 and 18:00" is a state machine nobody can debug once it is in the wrong state |
 | IDS/IPS, deep packet inspection, QoS | Different products. easywall filters packets |
 | Managing several hosts from one interface | The API in 3.0 makes Ansible possible. A fleet interface is a second product |
+| A block page for refused visitors | A refused packet is dropped in the kernel. To show a page, easywall would have to accept the connection it refuses, and for HTTPS it would need the site's own certificate — Cloudflare can, because it terminates TLS. A reverse proxy that holds the certificate is the place for it |
 | More than one account | The single account is the shape of the product: one operator, one firewall, one audit trail. A second account is a permission model, and a permission model on a box whose whole job is one ruleset is a second product. |
 
 ## What already shipped

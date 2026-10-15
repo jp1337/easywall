@@ -643,6 +643,15 @@ indigo. Neither hue was one of the three states, so a coloured log tag became
 ambiguous — was it a state, or just emphasis? Informational events are now neutral
 chips. Only the three states get colour.
 
+**Amended 2026-10-15 (2.27.1): a flag is identity, not state.** /blocked's Country
+column and the Countries card on /blocklist draw a country's flag — colour that says
+nothing about the firewall. It is allowed because a flag cannot be mistaken for a
+state: it is a country's own picture, it always sits beside that country's code or
+name, and nothing the firewall does changes it. It is held to that: **20×15, a 1px
+`rule` hairline around it** (a ring, so it takes no pixel from the picture and a white
+flag keeps its edge on either theme), **never larger, never used for anything but a
+country.**
+
 ## Colors
 
 The greys are bent toward blue. The original reason was harmony with an ice-blue
