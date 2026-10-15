@@ -480,7 +480,7 @@ func RuleFromPrefix(prefix string) string {
 
 const (
 	packetLogDefaultLimit = 200 // what the page shows; the audit log shows as many
-	packetLogMaxLimit     = 1000
+	PacketLogMaxLimit     = 1000
 )
 
 // PacketLogFilter narrows GET_PACKET_LOG. Every field is optional and they
@@ -493,6 +493,12 @@ type PacketLogFilter struct {
 	Rule  string `json:"rule,omitempty"`
 	InDev string `json:"in,omitempty"`
 	Limit int    `json:"limit,omitempty"`
+	// Before keeps entries whose Seq is below it — how the web process pages
+	// through the whole ring (2.29 D7). Zero bounds nothing.
+	Before uint64 `json:"before,omitempty"`
+	// Country is the web process's own filter (2.29 D7): the core has no
+	// country table and never sees it. Lower case, one of CountryCodes.
+	Country string `json:"-"`
 }
 
 // ifaceName is what Linux allows in an interface name, and no more: IFNAMSIZ
@@ -519,6 +525,9 @@ func (f PacketLogFilter) Validate() error {
 	if f.InDev != "" && !ifaceName.MatchString(f.InDev) {
 		return fmt.Errorf("in: %q is not an interface name", f.InDev)
 	}
+	if f.Country != "" && !slices.Contains(CountryCodes, f.Country) {
+		return fmt.Errorf("country: %q is not a country code", f.Country)
+	}
 	if f.Limit < 0 {
 		return fmt.Errorf("limit: %d is negative", f.Limit)
 	}
@@ -533,7 +542,7 @@ func (f PacketLogFilter) EffectiveLimit() int {
 	if f.Limit <= 0 {
 		return packetLogDefaultLimit
 	}
-	return min(f.Limit, packetLogMaxLimit)
+	return min(f.Limit, PacketLogMaxLimit)
 }
 
 // Matcher compiles the filter once, so a query over twenty thousand entries
@@ -555,7 +564,8 @@ func (f PacketLogFilter) Matcher() (func(PacketLogEntry) bool, error) {
 			(f.Port == 0 || e.DstPort == f.Port) &&
 			(f.Proto == "" || e.Proto == f.Proto) &&
 			(f.Rule == "" || e.Rule == f.Rule) &&
-			(f.InDev == "" || e.InDev == f.InDev)
+			(f.InDev == "" || e.InDev == f.InDev) &&
+			(f.Before == 0 || e.Seq < f.Before)
 	}, nil
 }
 

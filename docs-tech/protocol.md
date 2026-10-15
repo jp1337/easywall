@@ -18,7 +18,7 @@ Twenty-five command types:
 | `GET_SYSTEM` · `SAVE_SYSTEM` | the acceptance window |
 | `GET_STATUS` | dashboard state, asked of the kernel. `acceptance` keeps `accepted` or `rolled_back` (with `acceptance_reason`: `timeout`, `cancelled by operator`, `panic mode`, `core stopped`) until the next apply — a 15-second poller has to be able to find it. `acceptance_enabled` says whether a window is configured at all — `acceptance: idle` alone cannot separate *none open now* from *none will ever open*. `unknown_bridges` names a Docker network that exists now and is not in the rules in force — created after the last apply (spec 2.24 D5); omitted when there is none |
 | `GET_LOG` | the last 200 audit entries |
-| `GET_PACKET_LOG` | the refused-packet ring, filtered by `PacketLogFilter`, newest first; plus whether the core holds its NFLOG group and why not |
+| `GET_PACKET_LOG` | the refused-packet ring, filtered by `PacketLogFilter`, newest first; `before` (seq, exclusive upper bound, 0 = none) is how the web process pages the ring for the country filter (2.29) — the country filter itself is not a protocol field; plus whether the core holds its NFLOG group and why not |
 | `EXPORT_RULES` · `IMPORT_RULES` | the rule set as JSON |
 | `VALIDATE_CUSTOM` | `nft --check` for the live editor |
 | `GET_APPLIED_CONFIG` | the options and network settings that went into the kernel with the rules that are in it |

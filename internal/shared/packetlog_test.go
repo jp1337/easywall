@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"encoding/json"
 	"net/netip"
 	"reflect"
 	"strings"
@@ -219,5 +220,43 @@ func TestFeedLogPrefixesFitTheKernel(t *testing.T) {
 		if rule, feed := ParseLogPrefix(FeedLogPrefix(id)); rule != "feed" || feed != id {
 			t.Errorf("FeedLogPrefix(%q) reads back as %q, %q", id, rule, feed)
 		}
+	}
+}
+
+func TestPacketLogFilter_BeforeBoundsTheSeq(t *testing.T) {
+	m, err := PacketLogFilter{Before: 10}.Matcher()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !m(PacketLogEntry{Seq: 9}) || m(PacketLogEntry{Seq: 10}) || m(PacketLogEntry{Seq: 11}) {
+		t.Error("before=10 must keep 9 and drop 10 and 11")
+	}
+	all, _ := PacketLogFilter{}.Matcher()
+	if !all(PacketLogEntry{Seq: 1 << 40}) {
+		t.Error("before=0 must not bound anything")
+	}
+}
+
+func TestPacketLogFilter_CountryNeverReachesTheWire(t *testing.T) {
+	b, err := json.Marshal(PacketLogFilter{Country: "ru", Before: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "ru") || !strings.Contains(string(b), `"before":5`) {
+		t.Errorf("wire form %s: want before and no country", b)
+	}
+}
+
+func TestPacketLogFilter_CountryIsOneOfTheCodes(t *testing.T) {
+	if err := (PacketLogFilter{Country: "ru"}).Validate(); err != nil {
+		t.Errorf("ru refused: %v", err)
+	}
+	for _, bad := range []string{"RU", "xx", "r", "rus"} {
+		if (PacketLogFilter{Country: bad}).Validate() == nil {
+			t.Errorf("country %q accepted", bad)
+		}
+	}
+	if (PacketLogFilter{Country: "ru"}).IsZero() {
+		t.Error("a country is a filter")
 	}
 }
