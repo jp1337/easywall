@@ -327,7 +327,7 @@
 {{define "country_row"}}
 <tr id="{{.ID}}">
   <td class="col-flex feed-name-cell" data-label="{{T "countries_col_country"}}"><div class="feed-cell">
-    <div class="feed-title">{{.Name}} <span class="font-data text-ink-muted">{{.Code}}</span></div>
+    <div class="feed-title"><img class="flag" src="{{flagURL .Code}}" alt="" width="20" height="15"> {{.Name}} <span class="font-data text-ink-muted">{{.Code}}</span></div>
     {{template "feed_warnings" .}}
     <details class="pkt-detail feed-detail">
       <summary>{{T "blocked_detail"}}</summary>

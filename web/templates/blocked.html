@@ -119,7 +119,12 @@
        A forwarded packet is not offered Block: the countries filter the input
        chain only. */}}
   {{$c := index $.Countries .Src}}{{$block := and $c.Block (ne .Hook "forward")}}
-  {{if $.Lookup}}<td class="pkt-flow" data-label="{{T "blocked_col_country"}}">{{if $c.Code}}<abbr title="{{$c.Name}}">{{$c.Code}}</abbr>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>{{end}}
+  {{/* 2.27.1: the flag, then the code as a button whose popover names the
+       country — a tap on a desktop layout, no script (the HTML Popover API);
+       title for the mouse. The card layout shows .cc-long, the whole name,
+       instead: on a phone it is read without a tap. The popover's id carries
+       the row's Seq, unique on the page and in every tail delta. */}}
+  {{if $.Lookup}}<td class="pkt-flow" data-label="{{T "blocked_col_country"}}">{{if $c.Code}}<span class="cc"><img class="flag" src="{{flagURL $c.CC}}" alt="" width="20" height="15"><span class="cc-short"><button type="button" class="cc-code" popovertarget="cc-{{.Seq}}" title="{{$c.Name}}">{{$c.Code}}</button><span class="cc-pop" id="cc-{{.Seq}}" popover>{{$c.Name}}</span></span><span class="cc-long">{{$c.Name}} ({{$c.Code}})</span></span>{{else}}<span class="text-ink-subtle">—</span>{{end}}</td>{{end}}
   <td class="pkt-flow" data-label="{{T "blocked_col_proto"}}">{{.Proto}}</td>
   {{/* .log-action, not .badge: a rule name is language ("SSH brute force"),
        not a value, so it takes the UI face rather than the data face — the
@@ -171,7 +176,7 @@
       {{if $block}}
       <form method="post" action="/blocked/stage">
         <input type="hidden" name="act" value="country"><input type="hidden" name="cc" value="{{$c.CC}}"><input type="hidden" name="q" value="{{$q}}">
-        <button type="submit" class="btn btn-sm" aria-label="{{T "blocked_action_country_named" (dict "Name" $c.Name)}}">{{T "blocked_action_country" (dict "Code" $c.Code)}}</button>
+        <button type="submit" class="btn btn-sm" aria-label="{{T "blocked_action_country_named" (dict "Name" $c.Name)}}">{{T "blocked_action_block_country"}}</button>
       </form>
       {{end}}
       {{if $r.Open}}

@@ -33,7 +33,7 @@ and switch one on. The two worth starting with:
 | Time | When the packet arrived, local time — to the second today, without seconds beyond that; hover for the exact instant |
 | Interface | The device it arrived on |
 | Source → Destination | Address, and the destination port if there is one |
-| Country | The country the source's address block is registered to, as its code; hover for the name, `—` for none. Only with the [country lookup](#where-it-comes-from) on |
+| Country | Where the source's address block is registered: flag and code — tap the code for the name; a phone shows the name. `—` for none. Needs the [country lookup](#where-it-comes-from) |
 | Proto | `tcp`, `udp`, `icmp`, `icmpv6`, or a bare protocol number |
 | Rule | Which of the eleven switches refused it, or *Another rule*. A module's name links to its switch on Options; a *Default drop* says why underneath |
 
@@ -115,7 +115,7 @@ port and a protocol the firewall can open:
 | **Allowlist** | Stages the source address on the allowlist |
 | **Blocklist** | Stages the source address on the blocklist |
 | **Open *port*** | Stages a port rule for the packet's destination port and protocol |
-| **Block *XX*** | Stages the source's country, as [Block a country]({{ '/docs/features/countries/' | relative_url }}) does, at most 30. Only for a country not on yet, never on a forwarded packet: countries filter what reaches this host |
+| **Block country** | Stages the source's country, as [Block a country]({{ '/docs/features/countries/' | relative_url }}) does, at most 30. Only for a country not on yet, never on a forwarded packet: countries filter what reaches this host |
 
 | The packet was refused by | Offered | Why not the others |
 |---|---|---|

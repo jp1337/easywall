@@ -3478,6 +3478,62 @@ body {
   /* A chip that leads to its option carries the link's permanent underline
      (DESIGN.md § Links and badges): the underline is the affordance. */
   a.log-action { text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--color-ink-subtle); }
+
+  /* A country's flag (2.27.1): identity, not state (DESIGN.md § Colors) —
+     20×15 and never larger, a rule hairline around it so a white or pale
+     flag keeps an edge on either theme. A ring, not a border: a border would
+     take its pixel out of the 20×15. */
+  .flag {
+    display: inline-block;
+    flex: none;
+    width: 20px;
+    height: 15px;
+    vertical-align: -2px;
+    box-shadow: 0 0 0 1px var(--color-rule);
+  }
+  /* /blocked's Country cell: flag and code above the card breakpoint, flag
+     and the whole name on a card (the @container block at the end). One flex
+     item on a card, as .pkt-route is. */
+  .cc { display: inline-flex; align-items: center; gap: 6px; }
+  .cc-long { display: none; font-family: var(--font-ui); }
+  /* The code opens its name on a tap or a click: a button, so it is reached
+     by keyboard too, drawn as the data it is with the dotted underline that
+     <abbr> had — the affordance, and no button chrome in a data column. */
+  .cc-code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    text-decoration-color: var(--color-ink-subtle);
+  }
+  .cc-code:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  /* The name, the tooltip's surface (DESIGN.md tooltip). Under the code where
+     the browser anchors a popover to its invoker; centred in the viewport,
+     the UA's own placement, where it does not — still the name, still
+     dismissed by a tap anywhere or Escape. */
+  .cc-pop {
+    padding: 5px 9px;
+    background: var(--color-surface-raised);
+    color: var(--color-ink);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-overlay);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+  @supports (position-area: bottom) {
+    .cc-pop { inset: auto; margin: 4px 0 0; position-area: bottom span-right; }
+  }
   a.log-action:hover { color: var(--color-ink); text-decoration-color: currentColor; }
   a.log-action:focus-visible {
     outline: 2px solid var(--color-focus-ring);
@@ -3903,4 +3959,12 @@ body {
 @container (max-width: 940px) {
   #blocked-rows tr.pkt-new { box-shadow: inset 2px 0 0 var(--color-ink); }
   #blocked-rows tr.pkt-new > td:first-child { box-shadow: none; }
+}
+
+/* A country cell on a card names the country in full (2.27.1): on a phone the
+   name is read without a tap, and the code's popover is not needed. Its own
+   block, for the same reason as the two above. */
+@container (max-width: 940px) {
+  .cc-short { display: none; }
+  .cc-long { display: inline; }
 }
