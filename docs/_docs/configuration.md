@@ -486,6 +486,23 @@ GET https://telemetry.wdkro.de/v1/count?id=<32 hex characters>&v=<version>
 Turning it off does not need the core process to be running — consent that can only
 be withdrawn while another daemon is reachable would not be consent.
 
+#### Asked again after an update
+
+<figure class="docs-shot">
+  {% include themed-figure.html base="/assets/img/screens/telemetry-ask" ext="png"
+     alt="A card at the top of the dashboard asking whether this installation may be counted, showing the request it would send, with the buttons Yes, count it and No, thanks and a link-styled Don't ask again." %}
+</figure>
+
+| | |
+|---|---|
+| When | the first dashboard after a **minor or major** update (2.27 → 2.28), while counting is off. A patch release (2.28.0 → 2.28.1) does not ask |
+| Never asked | counting is on · *Don't ask again* was chosen · `EASYWALL_WEB_TELEMETRY` is set (the deployment decided) · demo mode |
+| An answer | *Yes*, *No*, the first-run wizard and the switch under **System** all count as the answer for this version |
+| Where it is kept | `<data_dir>/web/telemetry_prompt.json`. Delete it and the next dashboard asks again |
+
+It is a card, not a page in the way: signing in to roll something back never
+waits on it.
+
 > The number is a lower bound and cannot be made tamper-proof: the endpoint is open, so
 > anyone can invent identifiers. It is good enough to tell ten installations from ten
 > thousand, and to see whether a fix has spread. It is not good for anything else, and

@@ -581,6 +581,26 @@ async function checkTheGate(browser) {
       console.log('  ok   the gate holds every page until a factor is enrolled, then opens');
     }
 
+    // 2.28: the first dashboard after an update asks whether to count this
+    // installation. This instance is the only non-demo one that reaches the
+    // dashboard, and the demo never asks.
+    const ask = page.locator('#telemetry-ask');
+    if (!(await ask.count())) {
+      fail('telemetry question', 'the first dashboard of a never-asked installation shows no question');
+    } else {
+      await Promise.all([
+        page.waitForResponse((r) => r.url().endsWith('/telemetry/prompt')),
+        page.click("#telemetry-ask button[value=no]"),
+      ]);
+      await page.waitForSelector('#telemetry-ask', { state: 'detached' });
+      await page.reload({ waitUntil: 'load' });
+      if (await page.locator('#telemetry-ask').count()) {
+        fail('telemetry question', 'the question came back after No on the same version');
+      } else {
+        console.log('  ok   the dashboard asks once, and No puts it away for this version');
+      }
+    }
+
     await ctx.close();
   } finally {
     proc.kill();
@@ -2693,6 +2713,59 @@ async function takeVerifyScreenshot(browser, theme) {
 }
 
 /**
+ * The counting question (2.28) — the card alone, not the dashboard around it.
+ * The demo never asks, so this signs in to a throwaway non-demo instance with
+ * a second factor, the way takeVerifyScreenshot does; the core is absent, and
+ * the card is cropped so its error banner stays out of the figure.
+ */
+async function takeTelemetryAskScreenshot(browser, theme) {
+  const hash = readPasswordHash(CONFIG_PATH);
+  if (!hash) {
+    console.log(`  skip telemetry-ask-${theme}.png: could not read the password hash out of ${CONFIG_PATH}`);
+    return false;
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'easywall-ui-ask-'));
+  const port = 12234;
+  const secret = 'JBSWY3DPEHPK3PXP';
+  writeFileSync(join(dir, 'web.toml'), [
+    `bind_addr = "127.0.0.1:${port}"`,
+    `socket_path = "${join(dir, 'nowhere.sock')}"`,
+    `ssl_dir = "${join(dir, 'ssl')}"`,
+    `data_dir = "${dir}"`,
+    `language = "en"`,
+    `demo_mode = false`,
+    `session_key = "ui-check-ask-session-key-32bytes!!"`,
+    `username = "${USER}"`,
+    `password = "${hash}"`,
+    `totp_secret = "${secret}"`,
+    `recovery_codes = []`,
+    `update_check = false`,
+  ].join('\n'));
+
+  const proc = spawn('bin/easywall-web', ['-config', join(dir, 'web.toml')], { stdio: 'inherit' });
+  try {
+    const base = `https://127.0.0.1:${port}`;
+    await waitForPort(`${base}/login`);
+    const ctx = await screenshotContext(browser, theme);
+    const page = await ctx.newPage();
+    await page.goto(`${base}/login`, { waitUntil: 'load' });
+    await page.fill('input[name=username]', USER);
+    await page.fill('input[name=password]', PASS);
+    await Promise.all([page.waitForLoadState('load'), page.click("form[action='/login'] button[type=submit]")]);
+    await page.fill('input[name=code]', totp(secret));
+    await Promise.all([page.waitForLoadState('load'), page.click("form[action='/login/verify'] button[type=submit]")]);
+    const out = `docs/assets/img/screens/telemetry-ask-${theme}.png`;
+    await page.locator('#telemetry-ask').screenshot({ path: out });
+    console.log(`  wrote ${out}`);
+    await ctx.close();
+    return true;
+  } finally {
+    proc.kill();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
  * The whole documented set: DEFAULT_SCREENSHOT_PAGES plus every screen that
  * is not a plain authenticated GET. Account and dataset: whatever `admin`
  * and the demo seed's DEMO_MODE instance at BASE hold — see this script's
@@ -2706,6 +2779,9 @@ async function takeFullScreenshotSet(browser, session) {
     await takeWizardScreenshots(browser, theme);
     if (!(await takeVerifyScreenshot(browser, theme))) {
       notCaptured.push(`two-factor-verify-${theme}.png`);
+    }
+    if (!(await takeTelemetryAskScreenshot(browser, theme))) {
+      notCaptured.push(`telemetry-ask-${theme}.png`);
     }
   }
   if (notCaptured.length) {
@@ -2730,13 +2806,16 @@ try {
     // three wizard screens, which takeWizardScreenshots shoots on its own
     // throwaway instance.
     const wizard = screenshotArgs.includes('/firstrun');
-    const paths = screenshotArgs.filter(a => a !== '/firstrun');
+    const paths = screenshotArgs.filter(a => a !== '/firstrun' && a !== '/telemetry-ask');
     if (!screenshotArgs.length) {
       await takeFullScreenshotSet(browser, session);
     } else {
       if (paths.length) await takeScreenshots(browser, session, paths);
       if (wizard) {
         for (const theme of ['light', 'dark']) await takeWizardScreenshots(browser, theme);
+      }
+      if (screenshotArgs.includes('/telemetry-ask')) {
+        for (const theme of ['light', 'dark']) await takeTelemetryAskScreenshot(browser, theme);
       }
     }
   } else {

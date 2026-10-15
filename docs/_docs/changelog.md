@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.28.0">2.28.0</a>
   <a href="#2.27.1">2.27.1</a>
   <a href="#2.27.0">2.27.0</a>
   <a href="#2.26.0">2.26.0</a>
@@ -83,7 +84,31 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.27.1" markdown="1">
+<details open id="2.28.0" markdown="1">
+<summary><strong>2.28.0</strong> · 2026-10-15 — An update asks once</summary>
+
+### Added
+
+- **The dashboard asks whether this installation may be counted** — once after
+  each minor or major update, and only while counting is off. A card at the top,
+  not a page in the way: *Yes, count it*, *No, thanks* and *Don't ask again*. It
+  shows the request it would send. It never appears when
+  `EASYWALL_WEB_TELEMETRY` is set, because the deployment decided, nor in demo
+  mode. The answer for this version is kept in
+  `<data_dir>/web/telemetry_prompt.json`; the first-run wizard and the switch
+  under **System** count as answers too.
+
+### Documentation
+
+- Configuration, environment variables and both privacy pages say when the
+  question comes back and how to stop it.
+- The roadmap moves down one: the metrics endpoint is now 2.29.
+
+[See the code changes between 2.27.1 and 2.28.0](https://github.com/jp1337/easywall/compare/v2.27.1...v2.28.0)
+
+</details>
+
+<details id="2.27.1" markdown="1">
 <summary><strong>2.27.1</strong> · 2026-10-15 — Flags, and the name where a thumb can read it</summary>
 
 ### Changed

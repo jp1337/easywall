@@ -242,6 +242,11 @@ func TestHandleFirstRunPOST_TelemetryIsOffUnlessTicked(t *testing.T) {
 	if s.cfg.Telemetry == nil {
 		t.Error("the answer should be recorded, not left unset")
 	}
+	// And the dashboard must not ask the same question again on its first load
+	// (spec 2.28 D4).
+	if p := readTelemetryPrompt(s.cfg.TelemetryPromptPath()); p.Asked == "" {
+		t.Error("the wizard's answer was not recorded for the dashboard's question")
+	}
 }
 
 // The SSH port is the one answer that can lock the operator out, so it is

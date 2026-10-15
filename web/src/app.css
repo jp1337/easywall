@@ -3610,6 +3610,29 @@ body {
     .apply-chip-label { display: none; }
   }
 
+  /* ── The counting question (2.28) ─────────────────────────────────────────
+     Yes and No are the same .btn on purpose: a consent question whose answer
+     the interface leans towards is not a question. "Don't ask again" is a
+     plain link-styled submit, so it needs the button chrome taken off. */
+  .ask-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .ask-actions button.link {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  @media (max-width: 480px) {
+    .ask-actions .btn { flex: 1 1 100%; }
+  }
+
   /* ── Update banner ─────────────────────────────────────────────────────── */
   .update-banner {
     display: flex;

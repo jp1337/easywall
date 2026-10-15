@@ -695,6 +695,7 @@ func (s *Server) buildRouter(cfg *Config) chi.Router {
 		r.Get("/system", s.handleSystemGET)
 		r.Post("/system", s.handleSystemPOST)
 		r.Post("/system/telemetry", s.handleTelemetryPOST)
+		r.Post("/telemetry/prompt", s.handleTelemetryPromptPOST)
 
 		r.Get("/notify", s.handleNotifyGET)
 		r.Post("/notify", s.handleNotifyPOST)
@@ -1527,6 +1528,9 @@ var clientStringKeys = []string{
 	// name field is empty — the same rule handlePasskeyFinish enforces on its
 	// own, stated once and asked in both places.
 	"passkey_name_required",
+	// The dashboard's counting question answers over HTMX (2.28), so its three
+	// outcomes arrive as toasts.
+	"telemetry_prompt_saved_yes", "telemetry_prompt_saved_no", "telemetry_prompt_saved_never",
 }
 
 func clientStrings(tFunc func(string, ...interface{}) string) map[string]string {
@@ -1572,6 +1576,9 @@ func templateFuncs() template.FuncMap {
 		"blocked_staged_country": true,
 		// An own feed's address is stored; switching it on is the card's.
 		"feeds_own_saved": true,
+		// The counting question was answered — any answer is the page working.
+		"telemetry_prompt_saved_yes": true, "telemetry_prompt_saved_no": true,
+		"telemetry_prompt_saved_never": true,
 	}
 	warningKeys := map[string]bool{
 		"password_too_short": true, "password_mismatch": true, "username_required": true,

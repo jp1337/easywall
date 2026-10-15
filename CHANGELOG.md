@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.0] — 2026-10-15
+
+**An update asks once.**
+
+### Added
+
+- **The dashboard asks whether this installation may be counted** — once after
+  each minor or major update, and only while counting is off. A card at the top,
+  not a page in the way: *Yes, count it*, *No, thanks* and *Don't ask again*. It
+  shows the request it would send. It never appears when
+  `EASYWALL_WEB_TELEMETRY` is set, because the deployment decided, nor in demo
+  mode. The answer for this version is kept in
+  `<data_dir>/web/telemetry_prompt.json`; the first-run wizard and the switch
+  under **System** count as answers too.
+
+### Documentation
+
+- Configuration, environment variables and both privacy pages say when the
+  question comes back and how to stop it.
+- The roadmap moves down one: the metrics endpoint is now 2.29.
+
 ## [2.27.1] — 2026-10-15
 
 **Flags, and the name where a thumb can read it.**
@@ -2934,7 +2955,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.27.1...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.28.0...HEAD
+[2.28.0]: https://github.com/jp1337/easywall/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/jp1337/easywall/compare/v2.27.0...v2.27.1
 [2.27.0]: https://github.com/jp1337/easywall/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/jp1337/easywall/compare/v2.25.2...v2.26.0

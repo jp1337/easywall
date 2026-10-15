@@ -86,7 +86,8 @@ country_lookup = true
 
 # ─── Counting installations ─────────────────────────────────────────────────
 # Off unless switched on, and asked for during the first-run wizard rather than
-# assumed. Once a day:
+# assumed — and, while it is off, once more on the dashboard after each minor or
+# major update (not when EASYWALL_WEB_TELEMETRY is set). Once a day:
 #
 #   GET https://telemetry.wdkro.de/v1/count?id=<32 hex>&v=<version>
 #

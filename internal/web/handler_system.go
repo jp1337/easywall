@@ -151,6 +151,8 @@ func (s *Server) handleTelemetryPOST(w http.ResponseWriter, r *http.Request) {
 	// is nothing to restart: switching off here means the next attempt sends
 	// nothing.
 	slog.Info("telemetry setting changed", "enabled", enabled)
+	// An answer given here is an answer to the dashboard's question too (D4).
+	s.recordTelemetryAnswer(false)
 	s.respondPartialSave(w, r, "/system", "system_saved")
 }
 

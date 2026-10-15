@@ -94,7 +94,8 @@ Protokoll, das 36 Tage aufbewahrt wird; länger bleibt nur eine Zahl je Version.
 Die Kennung entsteht auf deinem Server und beschreibt niemanden; wer
 `telemetry.json` löscht, bekommt eine neue. Rechtsgrundlage: Einwilligung
 (Art. 6 Abs. 1 lit. a DSGVO), widerrufen durch Ausschalten unter *System* — die
-nächste Meldung wird dann nicht mehr gesendet.
+nächste Meldung wird dann nicht mehr gesendet. Solange sie aus ist, fragt die
+Oberfläche nach jedem Funktions-Update einmal nach; *Nicht mehr fragen* beendet das.
 
 ## E-Mail
 
@@ -126,7 +127,7 @@ Zukunft widerrufen (Art. 7 Abs. 3). Schreib an die Anschrift oder E-Mail oben.
 Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren
 (Art. 77).
 
-Stand: 14. Oktober 2026. Quelle: Impressum-Privatschutz, angepasst an diese Website.
+Stand: 15. Oktober 2026. Quelle: Impressum-Privatschutz, angepasst an diese Website.
 
 In English: [Privacy policy]({{ '/privacy/' | relative_url }}).
 
