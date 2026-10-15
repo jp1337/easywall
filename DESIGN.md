@@ -646,7 +646,7 @@ chips. Only the three states get colour.
 **Amended 2026-10-15 (2.28): a consent question leans nowhere.** The dashboard's
 counting question (`.ask-actions`) gives *Yes* and *No* the same plain `.btn` — same
 size, no `btn-primary` — and the way out, *Don't ask again*, a `.link`. Nothing is
-pre-selected. An answer the interface leans towards is not an answer.
+preselected. An answer the interface leans towards is not an answer.
 
 **Amended 2026-10-15 (2.27.1): a flag is identity, not state.** /blocked's Country
 column and the Countries card on /blocklist draw a country's flag — colour that says

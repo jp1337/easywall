@@ -35,7 +35,7 @@ func (c *Config) TelemetryPromptPath() string {
 // asked: the worst a broken file costs is the question once more.
 func readTelemetryPrompt(path string) telemetryPrompt {
 	var p telemetryPrompt
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- Config.TelemetryPromptPath, under data_dir
 	if err != nil {
 		return p
 	}
