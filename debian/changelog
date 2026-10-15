@@ -1,3 +1,10 @@
+easywall (2.29.0) unstable; urgency=low
+
+  * Which lists, and which country: /blocked filters by country over the whole
+    log; blocklist.de's SSH list is recommended and its full list is not.
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Thu, 15 Oct 2026 19:30:00 +0200
+
 easywall (2.28.0) unstable; urgency=low
 
   * An update asks once: while counting is off, the dashboard asks after each

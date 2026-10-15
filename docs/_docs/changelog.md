@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.29.0">2.29.0</a>
   <a href="#2.28.0">2.28.0</a>
   <a href="#2.27.1">2.27.1</a>
   <a href="#2.27.0">2.27.0</a>
@@ -84,7 +85,33 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.28.0" markdown="1">
+<details open id="2.29.0" markdown="1">
+<summary><strong>2.29.0</strong> · 2026-10-15 — Which lists, and which country</summary>
+
+### Added
+
+- **/blocked filters by country, over the whole log** — a *Country* select, and
+  *Only this country* in the name popover. The count covers the whole log, not
+  the page. `GET_PACKET_LOG` takes `before`.
+- **Two blocklist.de feeds** — *SSH* (recommended) and *IMAP, POP3* (optional).
+
+### Changed
+
+- **blocklist.de (all) is now deliberate-only (✗)** — it lists search crawlers,
+  uptime monitors and Cloudflare. Installations that have it on keep it on.
+- **A list refused as a shrink for a day and three fetches in a row is taken**,
+  and audited as `feed_shrink_accepted`.
+
+### Documentation
+
+- The feed catalogue was re-measured 2026-10-15.
+- The roadmap moves down one: the metrics endpoint is now 2.30.
+
+[See the code changes between 2.28.0 and 2.29.0](https://github.com/jp1337/easywall/compare/v2.28.0...v2.29.0)
+
+</details>
+
+<details id="2.28.0" markdown="1">
 <summary><strong>2.28.0</strong> · 2026-10-15 — An update asks once</summary>
 
 ### Added

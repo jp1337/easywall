@@ -98,8 +98,8 @@ No line appears while the applied rules cannot be read.
 ## Narrow it down
 
 Seven filters sit above the table — source, destination, port, protocol, rule,
-interface, country — and clicking an address, a port or an interface in a row filters to
-it directly. The filter is the URL's query string, so the view is exactly what
+interface, country. Clicking an address, a port or an interface in a row filters
+to it directly. The filter is the URL's query string, so the view is exactly what
 you bookmark or paste into a message to someone else.
 
 **Country** searches the whole log, not the 200 rows on screen, and the count
