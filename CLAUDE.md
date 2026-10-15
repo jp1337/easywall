@@ -35,6 +35,7 @@ sudo go test -tags integration ./internal/core/...   # against a real kernel
 npm run build:css     # web/static/style.css      — committed
 npm run build:docs-css# docs/assets/css/style.css — committed
 npm run build:diagrams# docs/assets/diagrams/     — committed, two SVGs per source
+npm run build:flags   # web/static/flags/         — committed, one SVG per country
 npm run check:ui      # drives the interface in a browser against demo mode
 ```
 

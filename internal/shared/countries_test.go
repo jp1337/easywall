@@ -145,3 +145,32 @@ func TestMaxCountriesNeverGoesDown(t *testing.T) {
 		t.Errorf("MaxCountries = %d; 2.26.0 shipped 30 and a rule set may hold that many", MaxCountries)
 	}
 }
+
+// 2.27.1: every country has its flag in web/static/flags, and nothing else is
+// there but flag-icons' licence. Read from git ls-files, so a flag left
+// untracked fails here as it would fail a release, and a file for a code no
+// longer in CountryCodes — or any stray — fails as stale. npm run build:flags
+// writes the directory whole.
+func TestEveryCountryHasItsFlag(t *testing.T) {
+	root := repoRootDir(t)
+	want := map[string]bool{"web/static/flags/LICENSE-flag-icons.txt": true}
+	for _, cc := range CountryCodes {
+		want["web/static/flags/"+cc+".svg"] = true
+	}
+	for _, f := range trackedFiles(t, root) {
+		if !strings.HasPrefix(f, "web/static/flags/") {
+			continue
+		}
+		if !want[f] {
+			t.Errorf("%s is not a flag of a country in CountryCodes, nor the licence: stale (npm run build:flags)", f)
+			continue
+		}
+		if !strings.HasSuffix(f, ".txt") && !strings.HasPrefix(readRepoPath(t, root, f), "<svg ") {
+			t.Errorf("%s is not an SVG", f)
+		}
+		delete(want, f)
+	}
+	for f := range want {
+		t.Errorf("%s is missing (npm run build:flags, then git add)", f)
+	}
+}
