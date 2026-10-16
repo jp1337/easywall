@@ -16,7 +16,7 @@ require (
 	github.com/boombuler/barcode v1.1.0
 	github.com/descope/virtualwebauthn v1.0.5
 	github.com/florianl/go-nflog/v2 v2.3.0
-	github.com/go-chi/chi/v5 v5.4.0
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/nftables v0.3.0
 	github.com/gorilla/sessions v1.4.0
