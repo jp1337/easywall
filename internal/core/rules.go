@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -374,6 +375,22 @@ func emptyState() shared.RulesState {
 // produced and the reader rejects would remove an audit entry from the record
 // with nothing to show that it had ever been there. One encoder on both sides
 // means that cannot happen.
+// auditLogMaxBytes bounds the audit log in place. The deb's logrotate is the
+// primary bound — daily, 30 days, compressed (debian/easywall.logrotate); this
+// is the backstop for an install that has none. The container image ships
+// supervisor and nftables but no logrotate, so without this the one low-volume
+// file the privileged core appends to for ever grows unbounded on exactly the
+// machine the packet log's own rotation exists to protect (packetlog.go: "a
+// missing logrotate is a full disk on the one machine that must not fall over").
+// Generous on purpose: where logrotate runs it keeps the file far smaller and
+// this never fires. A var so a test can lower it.
+var auditLogMaxBytes int64 = 16 << 20 // 16 MiB
+
+// auditMu serialises a rotation's read-modify-write against concurrent appends —
+// command handling and feed refusals write audit entries from different
+// goroutines.
+var auditMu sync.Mutex
+
 func WriteAuditLog(logPath, action, ruleType, detail, user string) {
 	line, err := json.Marshal(shared.AuditLogEntry{
 		Time:     time.Now().UTC().Format(time.RFC3339),
@@ -386,6 +403,10 @@ func WriteAuditLog(logPath, action, ruleType, detail, user string) {
 		slog.Error("could not encode audit entry", "action", action, "error", err)
 		return
 	}
+
+	auditMu.Lock()
+	defer auditMu.Unlock()
+	rotateAuditLogIfLarge(logPath)
 
 	// 0600, and the group bit is gone on purpose. This is the record of who
 	// changed the firewall and when, and the only process that reads it is this
@@ -406,4 +427,44 @@ func WriteAuditLog(logPath, action, ruleType, detail, user string) {
 	if _, err := f.Write(append(line, '\n')); err != nil {
 		slog.Error("could not write audit entry", "path", logPath, "error", err)
 	}
+}
+
+// rotateAuditLogIfLarge rewrites the audit log down to its newest entries once it
+// grows past auditLogMaxBytes, keeping the most recent half so a rotation is rare
+// rather than one per following write. Best-effort: any error leaves the file
+// untouched and the append proceeds — losing an entry to a rotation failure is
+// worse than a large file. Call under auditMu.
+func rotateAuditLogIfLarge(logPath string) {
+	fi, err := os.Stat(logPath)
+	if err != nil || fi.Size() < auditLogMaxBytes {
+		return
+	}
+	// #nosec G304 -- logPath is cfg.AuditLogPath(), built from log_dir; no
+	// request can name it.
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return
+	}
+	keep := auditLogMaxBytes / 2
+	if int64(len(data)) <= keep {
+		return
+	}
+	tail := data[int64(len(data))-keep:]
+	// Start at a line boundary so the oldest kept entry is whole and parseable.
+	if i := bytes.IndexByte(tail, '\n'); i >= 0 {
+		tail = tail[i+1:]
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(logPath), ".audit-*.tmp") // 0600 by os.CreateTemp
+	if err != nil {
+		return
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck // removed only if the rename below did not consume it
+	if _, err := tmp.Write(tail); err != nil {
+		_ = tmp.Close()
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		return
+	}
+	_ = os.Rename(tmp.Name(), logPath)
 }

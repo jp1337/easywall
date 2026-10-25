@@ -236,11 +236,19 @@ func fetchLatestRelease() (*githubRelease, error) {
 // running ahead of the newest release — a build from main, a release candidate,
 // the maintainer — was told on every dashboard load that an update was
 // available, and pointed at an older version.
+//
+// current is compared through ReleaseVersion, not raw. A development build
+// carries a git-describe string (v2.29.1-5-gABC, v2.29.1-dirty), and that
+// suffix means "ahead of the tag" — the opposite of a semver pre-release, which
+// splitVersion would otherwise read it as, sorting the build below its own tag
+// and announcing an "update" back to it on every dashboard load. That is the
+// exact regression the change above fixed for `latest != current`; comparing
+// the release the build sits on fixes it for compareVersions too.
 func isNewer(latest, current string) bool {
 	if latest == "" {
 		return false
 	}
-	return compareVersions(latest, current) > 0
+	return compareVersions(latest, ReleaseVersion(current)) > 0
 }
 
 // compareVersions orders two version strings, returning -1, 0 or 1. A leading

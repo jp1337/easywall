@@ -92,6 +92,27 @@ func TestValidate_MissingSSLDir(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsAnUnknownNotifyKind(t *testing.T) {
+	// The schema and the /notify handler both restrict notify_kind; a value
+	// hand-written into web.toml reached the notifier unchecked, where anything
+	// but "ntfy" posts to notify_url as a webhook.
+	cfg := newCfgWith("0.0.0.0:12227", "/run/x", "/tmp", "key")
+	cfg.NotifyKind = "garbage"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "notify_kind") {
+		t.Errorf("expected notify_kind error, got: %v", err)
+	}
+}
+
+func TestValidate_AcceptsTheKnownNotifyKinds(t *testing.T) {
+	for _, k := range []string{"", "webhook", "ntfy"} {
+		cfg := newCfgWith("0.0.0.0:12227", "/run/x", "/tmp", strings.Repeat("a", 64))
+		cfg.NotifyKind = k
+		if err := cfg.Validate(); err != nil && strings.Contains(err.Error(), "notify_kind") {
+			t.Errorf("notify_kind=%q wrongly rejected: %v", k, err)
+		}
+	}
+}
+
 func TestValidate_DefaultsDataDir(t *testing.T) {
 	path := writeTempConfig(t, validConfigContent)
 	cfg, _ := LoadConfig(path)
