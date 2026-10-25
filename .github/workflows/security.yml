@@ -84,7 +84,7 @@ jobs:
           cache: true
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
 
       # -tests is what makes -tags do anything here. Everything behind the
       # integration tag is a _test.go file, and gosec skips test files unless
