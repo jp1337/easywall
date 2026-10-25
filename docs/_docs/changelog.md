@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#2.29.1">2.29.1</a>
   <a href="#2.29.0">2.29.0</a>
   <a href="#2.28.0">2.28.0</a>
   <a href="#2.27.1">2.27.1</a>
@@ -85,7 +86,26 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.29.0" markdown="1">
+<details open id="2.29.1" markdown="1">
+<summary><strong>2.29.1</strong> · 2026-10-25 — Built with Go 1.27.3</summary>
+
+### Security
+
+- **Built with Go 1.27.3**, which distrusts compromised intermediate
+  certificates in `crypto/x509` (GO-2026-6809, CVE-2026-111943). Every HTTPS
+  request easywall makes verifies with it: feeds, the country database, the
+  update check, notifications.
+
+### Changed
+
+- `go-chi/chi` 5.5.0, `mermaid` 12.2.0. The `katex` override is gone: mermaid
+  now asks for a safe range itself.
+
+[See the code changes between 2.29.0 and 2.29.1](https://github.com/jp1337/easywall/compare/v2.29.0...v2.29.1)
+
+</details>
+
+<details id="2.29.0" markdown="1">
 <summary><strong>2.29.0</strong> · 2026-10-15 — Which lists, and which country</summary>
 
 ### Added

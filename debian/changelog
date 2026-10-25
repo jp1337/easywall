@@ -1,3 +1,10 @@
+easywall (2.29.1) unstable; urgency=medium
+
+  * Built with Go 1.27.3: crypto/x509 distrusts compromised intermediate
+    certificates (GO-2026-6809).
+
+ -- JP <12394156+jp1337@users.noreply.github.com>  Sun, 25 Oct 2026 20:30:00 +0100
+
 easywall (2.29.0) unstable; urgency=low
 
   * Which lists, and which country: /blocked filters by country over the whole

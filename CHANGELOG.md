@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.1] — 2026-10-25
+
+**Built with Go 1.27.3.**
+
+### Security
+
+- **Built with Go 1.27.3**, which distrusts compromised intermediate
+  certificates in `crypto/x509` (GO-2026-6809, CVE-2026-111943). Every HTTPS
+  request easywall makes verifies with it: feeds, the country database, the
+  update check, notifications.
+
+### Changed
+
+- `go-chi/chi` 5.5.0, `mermaid` 12.2.0. The `katex` override is gone: mermaid
+  now asks for a safe range itself.
+
 ## [2.29.0] — 2026-10-15
 
 **Which lists, and which country.**
@@ -2983,7 +2999,8 @@ After explicit configuration the following ICMPv6 types are allowed additionally
 - easywall Firewall Core Part running as root user finished
 - The New easywall will be one part running as root and one part running as easywall user which has access to config files.
 
-[Unreleased]: https://github.com/jp1337/easywall/compare/v2.29.0...HEAD
+[Unreleased]: https://github.com/jp1337/easywall/compare/v2.29.1...HEAD
+[2.29.1]: https://github.com/jp1337/easywall/compare/v2.29.0...v2.29.1
 [2.29.0]: https://github.com/jp1337/easywall/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/jp1337/easywall/compare/v2.27.1...v2.28.0
 [2.27.1]: https://github.com/jp1337/easywall/compare/v2.27.0...v2.27.1
