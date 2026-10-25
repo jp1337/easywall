@@ -18,16 +18,15 @@
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.0",
-    "tailwindcss": "^4.1.0",
-    "mermaid": "^12.0.0",
+    "flag-icons": "7.6.0",
+    "mermaid": "^12.2.0",
     "playwright-core": "^1.50.0",
-    "flag-icons": "7.6.0"
+    "tailwindcss": "^4.1.0"
   },
   "dependencies": {
     "htmx.org": "^2.0.10"
   },
   "overrides": {
-    "lodash-es": "^4.18.0",
-    "katex": "^0.18.11"
+    "lodash-es": "^4.18.0"
   }
 }
