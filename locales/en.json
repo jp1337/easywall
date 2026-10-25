@@ -279,6 +279,7 @@
   {"id": "audit_options_saved", "translation": "Options saved"},
   {"id": "audit_settings_saved", "translation": "Settings saved"},
   {"id": "audit_system_saved", "translation": "System settings saved"},
+  {"id": "audit_audit_rotated", "translation": "Audit log rotated"},
   {"id": "audit_boot_enforced", "translation": "Rules restored at startup"},
   {"id": "audit_boot_not_configured", "translation": "Not filtering — nothing configured yet"},
   {"id": "audit_boot_enforce_failed", "translation": "Rules could not be restored"},

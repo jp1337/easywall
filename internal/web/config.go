@@ -167,6 +167,16 @@ func (c *Config) Validate() error {
 	if err := shared.ValidateAddressList("health_allow", c.HealthAllow); err != nil {
 		return err
 	}
+	// The schema and the /notify handler both restrict notify_kind to this set;
+	// Validate did not, so a value hand-written into web.toml that the overlay
+	// never touches reached the notifier, where anything other than "ntfy" is
+	// treated as a webhook and posted to notify_url. A typo became a silent
+	// webhook; the same reasoning as the address lists above, caught at load.
+	switch c.NotifyKind {
+	case "", "webhook", "ntfy":
+	default:
+		return fmt.Errorf("notify_kind is %q; it must be \"webhook\", \"ntfy\", or empty for off", c.NotifyKind)
+	}
 	if c.SSLDir == "" {
 		return fmt.Errorf("ssl_dir is required")
 	}

@@ -11,5 +11,5 @@ build has none and says so. `suffix` appends to the last line (", Germany"),
 {% endunless %}{% endfor %}{% if include.country %}<br>
 {{ include.country }}{% endif %}</p>
 {%- else -%}
-<p><em>Name and postal address are filled in when the site is deployed.</em></p>
+<p><em>Name and postal address are filled in when the site is deployed.</em></p>{%- comment -%} The "filled in when the site is deployed" wording is the needle the deploy gate greps for (.github/workflows/docs.yml, "The legal pages carry the controller"); change both together. {%- endcomment -%}
 {%- endif -%}

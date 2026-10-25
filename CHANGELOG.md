@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**What an audit turned up.**
+
+### Fixed
+
+- **A development build no longer shows a false "update available" banner.** A
+  build from source carries the `git describe` string (`v2.29.1-dirty`,
+  `v2.29.1-5-gABC`); the update check read that suffix as a pre-release and, on
+  every dashboard load, offered an "update" back to the release the build is
+  already ahead of. Released binaries, built from a clean tag, were never
+  affected. `isNewer` now compares the release the build sits on.
+- **The audit log can no longer fill the disk where logrotate is absent.** The
+  packaged install rotates it; the container image ships no logrotate, so the
+  privileged core appended to one file for ever. It now rewrites itself down to
+  its most recent entries past 16 MiB — a backstop that never fires where
+  logrotate keeps the file small.
+
+### Changed
+
+- **A `notify_kind` outside `webhook`, `ntfy` or empty is refused at startup.**
+  Hand-written into `web.toml`, an unknown value reached the notifier, where
+  anything but `ntfy` was posted to `notify_url` as a webhook. The schema and the
+  interface already restricted it; the config loader now does too.
+
+### Documentation
+
+- The `update_check` schema description names `api.github.com`, the host the check
+  contacts — it said `github.com`. The distinction matters for an egress
+  allowlist.
+
 ## [2.29.1] — 2026-10-25
 
 **Built with Go 1.27.3.**

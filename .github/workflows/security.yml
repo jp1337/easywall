@@ -159,3 +159,26 @@ jobs:
             exit 1
           fi
           echo "no gosec finding in shipped code"
+
+  country-breadth:
+    name: Country breadth fits upstream
+    # The country feed's /4 (v4) and /16 (v6) breadth limits are justified by a
+    # measurement of upstream's lists (internal/shared/countries.go); the v6 one
+    # has no headroom. Upstream rebuilds daily on its own schedule, so a prefix
+    # broader than a limit would make the core refuse the whole country update
+    # with only a feed_refused line. This re-measures weekly and fails first.
+    #
+    # Only on the schedule: it fetches live data, and push/pull_request runs stay
+    # hermetic and offline.
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Re-measure every country against the breadth limits
+        run: go test -tags nettest -run TestCountryBreadthFitsUpstream ./internal/shared/

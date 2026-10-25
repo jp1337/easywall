@@ -279,6 +279,7 @@
   {"id": "audit_options_saved", "translation": "Optionen gespeichert"},
   {"id": "audit_settings_saved", "translation": "Netzwerkeinstellungen gespeichert"},
   {"id": "audit_system_saved", "translation": "Systemeinstellungen gespeichert"},
+  {"id": "audit_audit_rotated", "translation": "Audit-Log rotiert"},
   {"id": "audit_boot_enforced", "translation": "Regeln beim Start wiederhergestellt"},
   {"id": "audit_boot_not_configured", "translation": "Filtert nicht — noch nichts konfiguriert"},
   {"id": "audit_boot_enforce_failed", "translation": "Regeln nicht wiederhergestellt"},

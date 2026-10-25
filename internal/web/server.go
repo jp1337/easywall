@@ -1058,6 +1058,7 @@ var auditActionLabels = map[string]string{ // #nosec G101 -- message-id labels, 
 	"options_saved":    "audit_options_saved",
 	"settings_saved":   "audit_settings_saved",
 	"system_saved":     "audit_system_saved",
+	"audit_rotated":    "audit_audit_rotated",
 
 	// Panic mode, and the boot-time enforcement it sits beside: the four from
 	// the original panic-mode work plus three a later fix round added once the

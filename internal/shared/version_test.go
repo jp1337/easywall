@@ -313,6 +313,17 @@ func TestIsNewer_DoesNotOfferADowngrade(t *testing.T) {
 	if !isNewer("v2.6.0", "2.5.0") {
 		t.Error("a later release is an available update")
 	}
+	// A development build carries the git-describe string the Makefile injects,
+	// not a clean tag: commits past the tag, or a dirty tree. Both mean "ahead
+	// of the release", so neither is offered an "update" back to that release.
+	// Compared raw, the describe suffix reads as a semver pre-release and sorts
+	// below the tag — the regression this guards.
+	if isNewer("2.5.0", "v2.5.0-5-g5abc123") {
+		t.Error("a build ahead of the tag is not offered an update back to it")
+	}
+	if isNewer("2.5.0", "v2.5.0-dirty") {
+		t.Error("a dirty build at the tag is not offered an update back to it")
+	}
 }
 
 // --- Fetch and cache primitives -------------------------------------------

@@ -16,6 +16,7 @@ until you open them. This page is generated from
 which is the file GitHub and the release tooling read.
 
 <nav class="changelog-versions" aria-label="Versions">
+  <a href="#Unreleased">Unreleased</a>
   <a href="#2.29.1">2.29.1</a>
   <a href="#2.29.0">2.29.0</a>
   <a href="#2.28.0">2.28.0</a>
@@ -86,7 +87,41 @@ which is the file GitHub and the release tooling read.
   addEventListener('hashchange', openTarget);
 </script>
 
-<details open id="2.29.1" markdown="1">
+<details open id="Unreleased" markdown="1">
+<summary><strong>Unreleased</strong> — What an audit turned up</summary>
+
+### Fixed
+
+- **A development build no longer shows a false "update available" banner.** A
+  build from source carries the `git describe` string (`v2.29.1-dirty`,
+  `v2.29.1-5-gABC`); the update check read that suffix as a pre-release and, on
+  every dashboard load, offered an "update" back to the release the build is
+  already ahead of. Released binaries, built from a clean tag, were never
+  affected. `isNewer` now compares the release the build sits on.
+- **The audit log can no longer fill the disk where logrotate is absent.** The
+  packaged install rotates it; the container image ships no logrotate, so the
+  privileged core appended to one file for ever. It now rewrites itself down to
+  its most recent entries past 16 MiB — a backstop that never fires where
+  logrotate keeps the file small.
+
+### Changed
+
+- **A `notify_kind` outside `webhook`, `ntfy` or empty is refused at startup.**
+  Hand-written into `web.toml`, an unknown value reached the notifier, where
+  anything but `ntfy` was posted to `notify_url` as a webhook. The schema and the
+  interface already restricted it; the config loader now does too.
+
+### Documentation
+
+- The `update_check` schema description names `api.github.com`, the host the check
+  contacts — it said `github.com`. The distinction matters for an egress
+  allowlist.
+
+[See everything changed since the last release](https://github.com/jp1337/easywall/compare/v2.29.1...HEAD)
+
+</details>
+
+<details id="2.29.1" markdown="1">
 <summary><strong>2.29.1</strong> · 2026-10-25 — Built with Go 1.27.3</summary>
 
 ### Security

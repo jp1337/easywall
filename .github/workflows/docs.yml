@@ -160,6 +160,12 @@ jobs:
           test -n "$LEGAL_YML" || { echo "::error::the LEGAL_YML secret is empty"; exit 1; }
           mkdir -p docs/_data
           printf '%s\n' "$LEGAL_YML" > docs/_data/legal.yml
+          # controller.html renders the placeholder unless legal.lines is truthy,
+          # so a secret present but without a lines: key ships the placeholder and
+          # the -n check above would wave it through. The gate below greps the
+          # rendered pages for the placeholder text, but that depends on the
+          # wording staying in step; this catches the real cause at its source.
+          grep -q '^lines:' docs/_data/legal.yml || { echo "::error::LEGAL_YML has no top-level 'lines:' key; the controller block would render its placeholder"; exit 1; }
 
       - name: Build docs
         working-directory: docs
@@ -170,9 +176,15 @@ jobs:
       - name: The legal pages carry the controller
         working-directory: docs
         run: |
+          set -euo pipefail
           for page in legal-notice privacy datenschutz; do
-            if grep -q "filled in when the site is deployed" "_site/$page/index.html"; then
-              echo "::error::_site/$page has no controller address"; exit 1
+            f="_site/$page/index.html"
+            # grep -q on an absent file exits 2, which `if` reads as "no match" —
+            # so without this line a legal page that stopped building passed the
+            # gate and deployed missing. Assert it exists, then that it is filled.
+            test -f "$f" || { echo "::error::$f was not built — a legal page is missing from the deploy"; exit 1; }
+            if grep -q "filled in when the site is deployed" "$f"; then
+              echo "::error::$f still shows the controller placeholder"; exit 1
             fi
           done
 
