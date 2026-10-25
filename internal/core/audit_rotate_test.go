@@ -31,8 +31,11 @@ func TestWriteAuditLog_BackstopBoundsAnUnrotatedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Size() >= auditLogMaxBytes {
-		t.Fatalf("audit log is %d bytes, not bounded under the %d-byte cap", fi.Size(), auditLogMaxBytes)
+	// Rotation fires before each append, so the file can sit one entry past the
+	// cap between fires; it never reaches twice it. (Unrotated, these 2000 entries
+	// are ~55× the cap.)
+	if fi.Size() >= 2*auditLogMaxBytes {
+		t.Fatalf("audit log is %d bytes, not bounded near the %d-byte cap", fi.Size(), auditLogMaxBytes)
 	}
 
 	data, err := os.ReadFile(path)
@@ -47,12 +50,22 @@ func TestWriteAuditLog_BackstopBoundsAnUnrotatedFile(t *testing.T) {
 		t.Error("the oldest entry was kept; the file was not actually rotated")
 	}
 	// Every surviving line must still be a whole, parseable entry — the rotation
-	// must cut on a line boundary.
+	// must cut on a line boundary — and the eviction must be recorded, not silent.
+	var sawMarker bool
 	for _, l := range strings.Split(strings.TrimRight(string(data), "\n"), "\n") {
 		var e shared.AuditLogEntry
 		if err := json.Unmarshal([]byte(l), &e); err != nil {
 			t.Fatalf("rotation left a partial line: %q", l)
 		}
+		if e.Action == "audit_rotated" {
+			sawMarker = true
+			if !strings.Contains(e.Detail, "dropped") {
+				t.Errorf("audit_rotated entry does not record what was dropped: %q", e.Detail)
+			}
+		}
+	}
+	if !sawMarker {
+		t.Error("rotation left no audit_rotated marker — the eviction was silent")
 	}
 }
 

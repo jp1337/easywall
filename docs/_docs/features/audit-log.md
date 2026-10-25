@@ -180,7 +180,12 @@ recorded.
 take **and** the previous ones did not come back.
 
 Line-oriented JSON ships straight into Filebeat, Promtail or any log collector.
-Rotation is `logrotate`'s job — the Debian package installs a config for it.
+Rotation is `logrotate`'s job — the Debian package installs a config for it. Where
+there is none — the container image ships no `logrotate` — the core keeps the file
+from growing without bound on its own, rewriting it to its most recent entries
+once it passes 16 MiB and recording an `audit_rotated` entry that says how many
+bytes it dropped. `logrotate`, where it runs, keeps the file far below that and
+this never fires.
 
 ## When it looks wrong
 
