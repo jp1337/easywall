@@ -414,8 +414,7 @@ func TestBuildPortExprs_RangeAndSingle(t *testing.T) {
 // Snapshot rotation is pointed at log_dir, which also holds audit.log — and it
 // used to take every non-directory file in there. "audit.log" sorts before
 // "nftables_…", so it was the first thing removed: on the eleventh apply,
-// easywall deleted the security record that audit-log.md calls append-only and
-// never truncated by easywall.
+// easywall deleted the security record that audit-log.md calls append-only.
 func TestRotateSnapshots_TouchesNothingItDidNotWrite(t *testing.T) {
 	dir := t.TempDir()
 
