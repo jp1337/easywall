@@ -3122,8 +3122,8 @@ func snapshotPath(dir string, t time.Time) string {
 // non-directory entry in the directory — and the directory it is called with is
 // log_dir, which also holds audit.log. "audit.log" sorts before "nftables_…",
 // so it was the first thing deleted: on the eleventh apply, easywall removed the
-// security record that audit-log.md describes as append-only and never
-// truncated by easywall. Anything logrotate had put beside it went the same way.
+// security record that audit-log.md describes as append-only. Anything logrotate
+// had put beside it went the same way.
 //
 // The names embed a UTC timestamp in a format that sorts lexicographically, so
 // name order is age order.

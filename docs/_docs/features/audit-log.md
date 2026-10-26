@@ -157,7 +157,7 @@ It names the process. There were four from 2.7; 2.17's self-test added the fifth
 
 ## On disk
 
-One JSON object per line, append-only, never truncated by easywall:
+One JSON object per line, append-only:
 
 ```bash
 tail -f /var/log/easywall/audit.log
@@ -191,7 +191,7 @@ keeps the file far below that, and this never fires.
 | Symptom | Cause |
 |---|---|
 | The table is empty | Nothing recorded yet, or the core cannot write to `log_dir` |
-| Older entries missing | The viewer caps at 200. The file has them all |
+| Older entries missing | The viewer caps at 200; the file has the rest, until rotation drops the oldest past 16 MiB (above) |
 | A search finds nothing you know is in the log | The filter searches the same newest 200, not the file. `grep` the file for anything older |
 | Wrong timezone | Timestamps are stored in UTC and shown in the server's local zone. If the interface disagrees with your clock, it is the *server's* zone that is off — `timedatectl set-timezone Europe/Berlin`, then restart `easywall-web`. In Docker, set `TZ` on the container |
 | A filter finds nothing | It matches action, rule type, detail and user; not the timestamp — and only within the 200 entries the page was given |
