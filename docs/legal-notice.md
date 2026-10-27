@@ -4,6 +4,11 @@ title: Legal notice
 description: Impressum for easywall-project.org and demo.easywall-project.org — who is responsible and how to reach them.
 permalink: /legal-notice/
 toc: false
+# Carries the controller's name and postal address (controller.html). Kept out
+# of search indexes so those personal details are not published by Google et al:
+# noindex meta (default.html) and omitted from sitemap.xml (jekyll-sitemap).
+noindex: true
+sitemap: false
 ---
 
 # Legal notice · Impressum
