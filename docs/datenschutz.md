@@ -3,6 +3,10 @@ layout: default
 title: Datenschutzerklärung
 description: Was easywall-project.org, die öffentliche Demo und die freiwillige Installationszählung über dich verarbeiten — und was nicht.
 permalink: /datenschutz/
+# Carries the controller's name and postal address (controller.html). Kept out
+# of search indexes so those personal details are not published by Google et al.
+noindex: true
+sitemap: false
 ---
 
 <div lang="de" markdown="1">

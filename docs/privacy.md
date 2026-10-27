@@ -3,6 +3,10 @@ layout: default
 title: Privacy policy
 description: What easywall-project.org, the public demo and the opt-in installation count process about you — and what they do not.
 permalink: /privacy/
+# Carries the controller's name and postal address (controller.html). Kept out
+# of search indexes so those personal details are not published by Google et al.
+noindex: true
+sitemap: false
 ---
 
 # Privacy policy
