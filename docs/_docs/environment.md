@@ -56,7 +56,7 @@ the one in effect.
 | `EASYWALL_WEB_DATA_DIR` | `data_dir` | string | — | The data directory; the web process keeps its state in `web/` inside it |
 | `EASYWALL_WEB_TLS_CERT` | `tls.cert` | string | — | Path to a custom TLS certificate PEM file |
 | `EASYWALL_WEB_TLS_KEY` | `tls.key` | string | — | Path to the matching private key PEM file |
-| `EASYWALL_WEB_LANGUAGE` | `language` | string | sidebar switch, per browser | Fallback UI locale — `en` or `de` |
+| `EASYWALL_WEB_LANGUAGE` | `language` | string | sidebar switch, per browser | Fallback UI locale — any code `locales/` holds; `en`, `de`, `fr` ship |
 | `EASYWALL_WEB_UPDATE_CHECK` | `update_check` | bool | — | Ask github.com once a day whether a newer release exists |
 | `EASYWALL_WEB_DEMO_MODE` | `demo_mode` | bool | — | Run against an in-memory mock instead of the core — the public demo only |
 | `EASYWALL_WEB_COUNTRY_LOOKUP` | `country_lookup` | bool | — | Name the country each refused source is registered to, on **Blocked traffic** — on unless set `false`, which makes no request |

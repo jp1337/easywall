@@ -109,7 +109,7 @@ Then open `https://localhost:12227`. The first visit
 | | |
 |---|---|
 | Go 1.27, single binary | `go-chi/chi` · `html/template` |
-| nftables via `google/nftables` | direct netlink, no `nft` subprocess |
+| nftables via `google/nftables` | netlink for typed rules; `nft` only for custom rules |
 | Argon2id | `golang.org/x/crypto`, 16-byte salt per password |
 | CSRF | `net/http.CrossOriginProtection`, Go 1.25 native |
 | Design system | [`DESIGN.md`](DESIGN.md) + Tailwind v4 — no third-party UI library |

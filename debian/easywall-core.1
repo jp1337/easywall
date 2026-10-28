@@ -7,13 +7,18 @@ easywall\-core \- the privileged half of easywall, and its console controls
 .br
 .B easywall\-core
 \fIcommand\fR [\fB\-config\fR \fIpath\fR]
+.PP
+The command comes first. A flag before it is refused:
+.B easywall\-core \-config
+.I path
+.B panic
+exits 1 with "unexpected argument".
 .SH DESCRIPTION
 .B easywall\-core
 runs as root, speaks netlink, and owns the nftables table
 .IR "inet easywall" .
 It is normally started by systemd and reached over a Unix socket by
-.BR easywall\-web (1),
-which holds no privilege of its own.
+the unprivileged web process, which holds no privilege of its own.
 .PP
 At startup it puts the last confirmed rule set back into the kernel. nftables
 rules do not survive a reboot, and without this the machine would come up
@@ -27,6 +32,17 @@ and when rules were last applied. Exits 0 when the firewall is enforcing or when
 panic mode says it was meant not to be, and 2 when the machine is simply not
 filtering or when the daemon is not running \- so it can be used from a
 monitoring check.
+.TP
+.B health
+Report whether the firewall is doing what it says: a state (ok, degraded or
+fail), the reason, and what the last self-test proved. Exits 0 for ok, 1 for
+degraded, and 2 for fail, which includes panic mode and no daemon running.
+.TP
+.B selftest
+Prove the rule builder against this kernel and record the result. Needs
+CAP_SYS_ADMIN; without it the result is "unprovable", which exits 0.
+.B \-if\-stale
+runs the proof only when the recorded version or kernel differs from this one.
 .TP
 .B panic
 Take the firewall down and record that it was deliberate. The machine is
@@ -78,6 +94,7 @@ and exit. Never overwrites an existing file.
 Reload
 .RI [ firewall ],
 .RI [ acceptance ],
+.RI [ usage ],
 .RI [ ipv6 ],
 .RI [ docker ],
 and
@@ -124,15 +141,19 @@ below the worst case can send SIGKILL during a restore or rollback.
 The command succeeded.
 .TP
 .B 1
-The command failed. The reason is on standard error.
+The command failed; the reason is on standard error. Exception:
+.B health
+reporting "degraded" exits 1 and prints on standard output.
 .TP
 .B 2
-.B status
-only: the machine is not filtering and panic mode is not engaged, or the daemon
-is not running. A machine with no daemon running is not in the state it should
+.B status:
+the machine is not filtering and panic mode is not engaged, or the daemon is
+not running.
+.B health:
+the state is fail (panic mode included), or the daemon is not running; the
+state is on standard output. A machine with no daemon running is not in the state it should
 be, because nothing will restore the rules when the daemon starts.
 .SH SEE ALSO
-.BR easywall\-web (1),
 .BR nft (8)
 .PP
 https://easywall\-project.org
