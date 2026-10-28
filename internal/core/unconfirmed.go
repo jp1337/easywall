@@ -1,12 +1,15 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/jp1337/easywall/internal/shared"
 )
 
 // The unconfirmed marker closes the hole a dead core used to leave in the
@@ -27,17 +30,41 @@ import (
 // window has an outcome on disk; RestoreCurrent finding it means the previous
 // run never got that far, and reverts Current to Backup — the last set a window
 // did confirm — before restoring anything.
+//
+// The marker also carries the configuration that was in force before the
+// apply: the applied-config snapshot as it stood, as JSON. Backup is the rules
+// half of "what to go back to" and this is the options-and-network half; the
+// live config already holds the operator's new values, so without it a restart
+// inside the window rebuilt the confirmed rules with the options under trial.
+// An empty marker — written by a core before this, or on a host with no
+// snapshot — falls back to the live config, which is what every restart did.
 
 // markUnconfirmed places the marker durably: data, rename, then the directory
 // entry, the idiom EngagePanic uses and for its reason — the case this exists
 // for is the one where the machine goes down hard.
-func markUnconfirmed(path string) error {
+//
+// before is the snapshot of what was live; it is written into the marker when
+// it was recorded, and the marker is left empty otherwise. 0600, CreateTemp's
+// own mode, like applied-config.json: it holds the same configuration.
+func markUnconfirmed(path string, before shared.AppliedConfigResult) error {
+	var data []byte
+	if before.Recorded {
+		var err error
+		if data, err = json.Marshal(before.Config); err != nil {
+			return fmt.Errorf("encode the configuration in force: %w", err)
+		}
+	}
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, "unconfirmed-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create unconfirmed marker: %w", err)
 	}
 	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("write unconfirmed marker: %w", err)
+	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		_ = os.Remove(tmpPath)
@@ -75,21 +102,35 @@ func clearUnconfirmed(path string) {
 }
 
 // revertUnconfirmed undoes an apply whose window a previous run of the core
-// never closed, and reports whether there was one. Called by RestoreCurrent
-// with the apply slot held, so no apply in this process can own the marker.
-func (f *Firewall) revertUnconfirmed() error {
+// never closed, and reports whether there was one, with the configuration the
+// marker says was in force before it. Called by RestoreCurrent with the apply
+// slot held, so no apply in this process can own the marker.
+func (f *Firewall) revertUnconfirmed() (shared.AppliedConfigResult, bool, error) {
 	path := f.cfg.UnconfirmedMarkerPath()
 	if _, err := os.Lstat(path); errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return shared.AppliedConfigResult{}, false, nil
 	} else if err != nil {
-		return fmt.Errorf("read unconfirmed marker: %w", err)
+		return shared.AppliedConfigResult{}, false, fmt.Errorf("read unconfirmed marker: %w", err)
+	}
+	// A marker that will not read or parse still reverts the rules — that is
+	// the half that may have locked somebody out — and leaves the options to
+	// configToRestore's fallback.
+	var before shared.AppliedConfigResult
+	if data, err := os.ReadFile(path); err != nil { // #nosec G304 -- path is built from the daemon's own config
+		slog.Error("could not read the configuration the unconfirmed marker records", "marker", path, "error", err)
+	} else if len(data) > 0 {
+		if cfg, err := parseAppliedConfig(data); err != nil {
+			slog.Error("could not parse the configuration the unconfirmed marker records", "marker", path, "error", err)
+		} else {
+			before = shared.AppliedConfigResult{Recorded: true, Config: cfg}
+		}
 	}
 	if err := f.rules.Rollback(); err != nil {
-		return fmt.Errorf("revert an apply that was never confirmed: %w", err)
+		return before, false, fmt.Errorf("revert an apply that was never confirmed: %w", err)
 	}
 	clearUnconfirmed(path)
 	f.acceptance.RecordRolledBack(ReasonCoreStopped)
 	WriteAuditLog(f.cfg.AuditLogPath(), "apply_rolledback", "all", ReasonCoreStopped, "core")
 	slog.Warn("the core stopped inside an acceptance window; the rules in force before that apply are restored")
-	return nil
+	return before, true, nil
 }

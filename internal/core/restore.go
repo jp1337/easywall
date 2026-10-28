@@ -104,7 +104,8 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	// See unconfirmed.go. Refusing on an error, rather than restoring, because
 	// what would be restored is exactly the set that may have locked the
 	// operator out.
-	if err := f.revertUnconfirmed(); err != nil {
+	before, reverted, err := f.revertUnconfirmed()
+	if err != nil {
 		WriteAuditLog(f.cfg.AuditLogPath(), "boot_enforce_failed", "all",
 			fmt.Sprintf("%s: %s", reason, err.Error()), "core")
 		return err
@@ -179,6 +180,14 @@ func (f *Firewall) RestoreCurrent(reason string) error {
 	f.collectUsageBeforeWrite()
 
 	opts, nets := f.cfg.FirewallOptions(), f.cfg.NetworkSettings()
+	if reverted {
+		// The configuration in force before the apply that was never confirmed,
+		// not f.cfg, which already holds the options that apply was trying out.
+		// This used to rebuild the reverted rules with those options — a restart
+		// inside the window kept ipv6.mode=block live after reverting the rules.
+		// See configToRestore.
+		opts, nets = f.configToRestore(before)
+	}
 	if err := f.nft.ApplyWithFeeds(state, opts, nets, f.feedContents(state.Current)); err != nil {
 		// Recorded, not just returned. This is the line an operator needs when
 		// the machine came up unfiltered and nobody can say why.
