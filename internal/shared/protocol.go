@@ -261,7 +261,8 @@ func ValidLoginEvent(ev LoginEvent) bool {
 // LogEventPayload is the payload for CmdLogEvent.
 //
 // Four fields and not one of them is free text. Addr is run through
-// netip.ParseAddr in the core and normalised there; if that fails the entry is
+// netip.ParseAddr in the core and normalised there, its IPv6 zone dropped (a
+// zone is any bytes of any length, so it was free text); if that fails the entry is
 // written *without* an address rather than dropped, because the entry is the
 // record and the address is the annotation. Left is an integer and can smuggle
 // nothing. Proxied is a boolean: false only when the resolved-client walk named

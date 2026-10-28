@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // Panic mode: the machine is deliberately unfiltered, and it stays that way
@@ -58,15 +59,35 @@ import (
 // alone" immediately before rolling back anyway, in adjacent journal lines. A
 // caller that treats "cannot tell" differently has to be free to say something
 // different.
+//
+// Logged once per distinct error, and again after it has cleared — the shape of
+// UsageStore.lastParseErr. It used to log on every call, and GET_STATUS,
+// GET_HEALTH and the unknown-bridge check all call this: the web's status poll
+// and Docker's ten-second healthcheck turned the journal into one repeated line.
 func PanicEngaged(markerPath string) bool {
 	engaged, known, err := PanicState(markerPath)
-	if !known {
+	panicWarn.mu.Lock()
+	defer panicWarn.mu.Unlock()
+	if known {
+		panicWarn.last = ""
+		return engaged
+	}
+	if text := markerPath + ": " + err.Error(); text != panicWarn.last {
+		panicWarn.last = text
 		slog.Error("cannot tell whether panic mode is engaged, so assuming it is "+
 			"and leaving the firewall alone; fix the permissions on the data "+
 			"directory and run `easywall-core resume`",
 			"marker", markerPath, "error", err)
 	}
 	return engaged
+}
+
+// panicWarn is the last unreadable-marker error PanicEngaged reported.
+// Package-level because PanicEngaged is a function of a path, and a process has
+// one marker.
+var panicWarn struct {
+	mu   sync.Mutex
+	last string
 }
 
 // PanicState answers the same question as PanicEngaged in three values instead

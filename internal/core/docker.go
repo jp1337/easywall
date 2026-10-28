@@ -114,10 +114,15 @@ type publishedPort struct {
 var detectPublishedPortsFn = detectPublishedPorts
 
 // dockerNATTables are the tables a published port's DNAT rule is written into:
-// `ip nat` with the iptables-nft backend, `ip docker` with the native nftables
-// one. Chains are not named here — Docker has renamed those more than once, and
-// a rule is identified below by what it does, not by where it sits.
-var dockerNATTables = map[string]bool{"nat": true, "docker": true}
+// `ip nat` / `ip6 nat` with the iptables-nft backend, `ip docker-bridges` /
+// `ip6 docker-bridges` with the native nftables one (moby's nftabler.go,
+// dockerTable; the name it has had since that backend was added). This used to
+// say `docker`, a table no Docker writes, so under the native backend the
+// warning read no DNAT rule at all. Its rules are plain `dnat to` statements in
+// a regular chain, the encoding publishedPortFromRule already reads. Chains are
+// not named here — Docker has renamed those more than once, and a rule is
+// identified below by what it does, not by where it sits.
+var dockerNATTables = map[string]bool{"nat": true, "docker-bridges": true}
 
 // detectPublishedPorts returns the container ports Docker has published on this
 // host, as the kernel has them.
