@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/jp1337/easywall/config"
 	"github.com/jp1337/easywall/internal/shared"
 )
 
@@ -81,34 +82,28 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 
+	// The shipped file first, then the operator's over it: a key the file does
+	// not name is its shipped default, for every key at once. This decoded into
+	// a zero Config until 2.29.1 and backfilled the keys somebody remembered —
+	// the limits, icmp_allow_echo_request, acceptance.duration — so a
+	// hand-written or templated file without acceptance.enabled ran with no
+	// rollback window, without docker.enabled lost container networking, and
+	// without the ICMPv6 keys broke IPv6, all while the schema said true.
+	// Decoded from the bytes rather than copied from shared.CoreDefault(), whose
+	// pointer fields alias the package default the decoder would write through.
 	var cfg Config
+	if _, err := toml.Decode(string(config.Core), &cfg.CoreConfig); err != nil {
+		return nil, fmt.Errorf("built-in default configuration: %w", err)
+	}
 	meta, err := toml.Decode(string(data), &cfg.CoreConfig)
 	if err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
-	// A limit the file does not name is its default, not zero. The package
-	// generates easywall.toml once and never replaces it, so a host upgraded
-	// from 2.22 has no log_feed_connections_limit: read as 0, /options rendered
-	// value="0" min="1", the browser refused to submit the form, and no option
-	// could be saved at all. Before readOldLogKeys, so a 2.22 file's
-	// old-spelling blocklist log limit still sets its limit.
-	for _, l := range shared.FirewallLimits {
-		if !meta.IsDefined("firewall", l.Key) {
-			*l.Value(&cfg.Firewall) = l.Default
-		}
-	}
-	// A switch that ships on is on for a file that predates it. The package
-	// never replaces easywall.toml, so every host upgraded from 2.24 has no
-	// icmp_allow_echo_request, and read as false IPv6 pings — answered until
-	// then — would stop without anybody choosing it (2.25 D2).
-	if !meta.IsDefined("firewall", "icmp_allow_echo_request") {
-		cfg.Firewall.ICMPAllowEchoRequest = shared.CoreDefault().Firewall.ICMPAllowEchoRequest
-	}
-	// The window length a file does not name is the shipped 120 s, as
-	// configuration.md documents. It read as 0, Validate refused 0, and the
-	// daemon would not start over a key the documentation calls optional.
-	if !meta.IsDefined("acceptance", "duration") {
-		cfg.Acceptance.Duration = shared.CoreDefault().Acceptance.Duration
+	// A file from before 2.5.0 names ipv6.enabled and no mode. Left at the
+	// shipped "filter", migrateIPv6Mode would never tell its operator the old
+	// key did nothing.
+	if meta.IsDefined("ipv6", "enabled") && !meta.IsDefined("ipv6", "mode") {
+		cfg.IPv6.Mode = ""
 	}
 	if err := readOldLogKeys(data, &cfg.CoreConfig); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)

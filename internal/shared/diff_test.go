@@ -244,3 +244,25 @@ func TestDiffRules_FeedsAreNamed(t *testing.T) {
 		t.Errorf("an unknown feed id diffed as %+v", got)
 	}
 }
+
+// A second rule for a port is a second kernel accept: addPortAccept builds every
+// entry, and nft takes the first that matches. diffPorts used to key on the first
+// entry alone, so adding an open copy of a source-restricted port widened it to
+// the world with an empty preview and no "Unapplied changes" — HasPendingChanges
+// is this diff.
+func TestDiffRules_ASecondRuleForAPortIsAChange(t *testing.T) {
+	ssh := PortRule{Port: "22", Description: "SSH", Sources: []string{"10.0.0.0/8"}}
+	open := PortRule{Port: "22", Description: "SSH"}
+	cur := Rules{TCP: []PortRule{ssh}}
+	widened := Rules{TCP: []PortRule{ssh, open}}
+
+	if got := DiffRules(cur, widened); len(got) != 1 || got[0].Kind != DeltaChanged {
+		t.Fatalf("an open second rule for a restricted port must show as a change, got %v", got)
+	}
+	if got := DiffRules(widened, cur); len(got) != 1 || got[0].Kind != DeltaChanged {
+		t.Fatalf("removing the second rule must show as a change, got %v", got)
+	}
+	if got := DiffRules(widened, widened); len(got) != 0 {
+		t.Errorf("an unchanged duplicate is not a change, got %v", got)
+	}
+}
