@@ -84,9 +84,10 @@ func (s *Server) readPending(r *http.Request) (pendingLogin, bool) {
 	if time.Since(time.Unix(p.IssuedAt, 0)) > time.Duration(pendingLifetime)*time.Second {
 		return pendingLogin{}, false
 	}
-	// The one place the budget is enforced, and it reads the server's count, not
-	// the client's. Both doors reach it: /login/verify and
-	// /login/passkey/finish both go through pendingForRequest.
+	// It reads the server's count, not the client's, so a spent state is refused
+	// on every route. The two doors that check a factor do not rely on this read:
+	// it is a moment before their check, and spendPendingAttempt reserves the
+	// attempt atomically instead — see reservePendingAttempt.
 	p.Attempts = pendingAttemptCount(p.ID)
 	if p.Attempts >= pendingMaxAttempts {
 		return pendingLogin{}, false

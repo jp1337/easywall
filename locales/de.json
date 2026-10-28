@@ -166,7 +166,7 @@
   {"id": "username_required",    "translation": "Benutzername ist erforderlich."},
   {"id": "password_too_short",   "translation": "Passwort muss mindestens 12 Zeichen lang sein."},
   {"id": "password_needs_digit",  "translation": "Das Passwort muss mindestens eine Ziffer enthalten."},
-  {"id": "password_needs_symbol", "translation": "Das Passwort muss mindestens ein Zeichen enthalten, das weder Buchstabe noch Ziffer ist."},
+  {"id": "password_needs_symbol", "translation": "Das Passwort muss mindestens ein Sonderzeichen, Satzzeichen oder Leerzeichen enthalten."},
   {"id": "password_mismatch",    "translation": "Passwörter stimmen nicht überein."},
   {"id": "internal_error",       "translation": "Ein interner Fehler ist aufgetreten."},
   {"id": "apply_error",          "translation": "Regelanwendung fehlgeschlagen."},

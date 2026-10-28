@@ -206,7 +206,7 @@ func TestPending_AttemptEntriesAreSweptAtTheLifetime(t *testing.T) {
 	}
 
 	// A write sweeps it out of the map entirely, not merely past a read guard.
-	recordPendingAttempt(newSessionID())
+	reservePendingAttempt(newSessionID())
 
 	pendingAttempts.mu.Lock()
 	_, still := pendingAttempts.at[stale]

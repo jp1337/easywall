@@ -33,7 +33,7 @@ holds no privilege worth stealing.
 | | |
 |---|---|
 | Hash | Argon2id — 64 MiB, 3 iterations, parallelism 4, 16-byte salt per password. One at a time — see [what the limits cost](#what-the-sign-in-limits-cost) |
-| Password floor | at least 12 characters, with a digit and a symbol — not configurable |
+| Password floor | at least 12 characters, with a digit and a symbol — punctuation, a symbol or a space. Invisible characters (a zero-width space, a soft hyphen, a combining accent) count as neither. Not configurable |
 | Default password | none. The first-run wizard is mandatory |
 | First run | only with the setup token easywall-web prints to its log at start — [First Run]({{ '/docs/installation/first-run/' | relative_url }}#the-setup-token) |
 | Rate limit | 5 attempts per 10 minutes per source address — an IPv6 source counts as its /64. One returned every 10 minutes |
@@ -58,7 +58,9 @@ That count is the server's, held in memory against a random identifier the
 intermediate cookie carries. Until 2.18 it lived in the cookie itself, so the
 three bound a browser that kept sending back what the server handed it. A
 client replaying one frozen cookie went on guessing. Nothing is written back to
-that cookie now, so there is nothing for a client to decline to keep.
+that cookie now, so there is nothing for a client to decline to keep. Each
+attempt is taken from the count before the code is checked, so attempts sent
+all at once get three checks between them, not one each.
 
 A restart empties the table, and a half-finished login then starts again with
 the full three. That direction is deliberate: forgetting costs an attacker one

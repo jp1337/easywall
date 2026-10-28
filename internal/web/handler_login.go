@@ -169,6 +169,21 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 	return p, true
 }
 
+// spendPendingAttempt is pendingForRequest for the two doors that check a
+// factor: it also reserves the attempt the check is about to spend, so the
+// budget is taken before the guess is looked at rather than charged after it.
+// See reservePendingAttempt for what the charge-after order allowed.
+func (s *Server) spendPendingAttempt(r *http.Request) (pendingLogin, bool) {
+	p, ok := s.pendingForRequest(r)
+	if !ok {
+		return pendingLogin{}, false
+	}
+	if p.Attempts, ok = reservePendingAttempt(p.ID); !ok {
+		return pendingLogin{}, false
+	}
+	return p, true
+}
+
 // handleLoginVerifyPOST is the second step.
 //
 // It has no IP limit of its own, and the arithmetic is why: one intermediate
@@ -197,7 +212,7 @@ func (s *Server) pendingForRequest(r *http.Request) (pendingLogin, bool) {
 // one unchanging cookie, which is the only shape that proves the inner budget
 // is the server's and not the client's.
 func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.pendingForRequest(r)
+	p, ok := s.spendPendingAttempt(r)
 	if !ok {
 		s.clearPending(w, r)
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -218,26 +233,34 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case isRecoveryShape(code):
-		remaining, used := consumeRecoveryCode(code, s.cfg.RecoveryCodes())
-		if used {
-			// The session is granted before the write, and if the write fails it
-			// is granted anyway: the code is in the operator's hands, not an
-			// attacker's, and "a full disk locks you out of your firewall" is the
-			// worse outcome — the same weighing as "refusing to restore is worse"
-			// in 2.7.
-			if err := s.cfg.SaveRecoveryCodes(remaining); err != nil {
-				slog.Error("a recovery code was accepted but could not be consumed; it will "+
-					"work again until this is fixed", "error", err, "remaining", len(remaining))
-				s.setFlashN(w, r, "recovery_not_consumed", len(remaining))
-			} else {
-				s.setFlashN(w, r, "recovery_left", len(remaining))
-			}
-			s.clearPending(w, r)
-			s.grantSession(w, r, p.User)
-			s.recordLoginEvent(r, shared.EvRecoveryUsed, len(remaining))
-			http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
-			return
+		hashes := s.cfg.RecoveryCodes()
+		i := matchRecoveryCode(code, hashes)
+		if i < 0 {
+			break
 		}
+		// Removed by hash under the config lock, not by writing back the set
+		// read above — see RemoveRecoveryCode for the double spend that allowed.
+		// Not removed means another request spent it first: a wrong code.
+		left, removed, err := s.cfg.RemoveRecoveryCode(hashes[i])
+		if !removed {
+			break
+		}
+		// The session is granted even if the write fails: the code is in the
+		// operator's hands, not an attacker's, and "a full disk locks you out of
+		// your firewall" is the worse outcome — the same weighing as "refusing to
+		// restore is worse" in 2.7.
+		if err != nil {
+			slog.Error("a recovery code was accepted but could not be consumed; it will "+
+				"work again until this is fixed", "error", err, "remaining", left)
+			s.setFlashN(w, r, "recovery_not_consumed", left)
+		} else {
+			s.setFlashN(w, r, "recovery_left", left)
+		}
+		s.clearPending(w, r)
+		s.grantSession(w, r, p.User)
+		s.recordLoginEvent(r, shared.EvRecoveryUsed, left)
+		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
+		return
 	}
 
 	// Everything else, including a six-digit code that did not match and a
@@ -251,11 +274,11 @@ func (s *Server) handleLoginVerifyPOST(w http.ResponseWriter, r *http.Request) {
 // past the limit the code field is subject to. See handleLoginVerifyPOST's own
 // comment for the arithmetic this produces.
 //
-// The charge lands in the server's map, not in the response: nothing is written
-// back to the cookie, so there is nothing for a client to decline to keep.
+// The charge was already taken by spendPendingAttempt, in the server's map and
+// before the check; p.Attempts is that charge. Nothing is written back to the
+// cookie, so there is nothing for a client to decline to keep.
 func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pendingLogin, ev shared.LoginEvent) {
 	s.recordLoginEvent(r, ev, 0)
-	p.Attempts = recordPendingAttempt(p.ID)
 	if p.Attempts >= pendingMaxAttempts {
 		// Back to /login without saying whether the password or the factor
 		// failed, and without ever saying how many attempts were left.
@@ -275,7 +298,15 @@ func (s *Server) failVerifyAttempt(w http.ResponseWriter, r *http.Request, p pen
 // step N whenever a code from N-1 was accepted, locking the operator out for
 // thirty seconds immediately after a successful login.
 func (s *Server) acceptTOTP(code string) bool {
-	raw, err := decodeTOTPSecret(s.cfg.TOTPSecret())
+	secret := s.cfg.TOTPSecret()
+	if secret == "" {
+		// A passkey-only account: no secret, so a code is simply wrong. This
+		// used to fall through to the decode below, which fails on "" and logged
+		// at ERROR that the secret was unusable — telling the operator to delete
+		// passkeys.json, the one factor the account has, on every mistyped code.
+		return false
+	}
+	raw, err := decodeTOTPSecret(secret)
 	if err != nil {
 		slog.Error("the stored TOTP secret cannot be used, so no code can match it; to sign in "+
 			"with the password alone, clear totp_secret and recovery_codes in web.toml and "+
@@ -305,9 +336,18 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// unthrottled request write an audit line on demand; a loop of them erased
 	// the visible log (GET_LOG returns only the last 200 lines) in under two
 	// seconds.
+	//
+	// And only for a session that is still signed in. The guard was id != ""
+	// alone, and a cookie that was already logged out still carries its id: 300
+	// replays of one revoked cookie wrote 301 EvLogout lines, the same erasure by
+	// anyone who had held a session once. sessionUser is RequireAuth's own test,
+	// so a revoked or superseded session is nobody here too. Revoking is still
+	// unconditional on the id — it is idempotent and costs nothing to repeat.
 	if id, _ := sess.Values[SessionIDKey].(string); id != "" {
+		if sessionUser(sess, s.currentCredential()) != "" {
+			s.recordLoginEvent(r, shared.EvLogout, 0)
+		}
 		revokeSession(id)
-		s.recordLoginEvent(r, shared.EvLogout, 0)
 	}
 
 	sess.Options.MaxAge = -1
