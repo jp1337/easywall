@@ -98,6 +98,16 @@ which is the file GitHub and the release tooling read.
   every dashboard load, offered an "update" back to the release the build is
   already ahead of. Released binaries, built from a clean tag, were never
   affected. `isNewer` now compares the release the build sits on.
+- **A second rule for a port now shows in the apply preview.** Adding an open
+  row for a port that already had a source-restricted one opened that port to
+  everyone — the kernel gets one accept per row — while `/apply` listed nothing
+  and the dashboard showed no unapplied change. The preview compared the first
+  row per port only; it now compares all of them.
+- **`easywall-core -config <path> panic` no longer starts a second daemon.** A
+  subcommand is only recognised as the first argument; written after a flag it
+  was silently ignored, and the daemon that started instead restored the rules
+  and took over the running core's socket. Anything left over after the flags is
+  now refused with the order that works.
 - **The audit log can no longer fill the disk where logrotate is absent.** The
   packaged install rotates it; the container image ships no logrotate, so the
   privileged core appended to one file for ever. It now rewrites itself down to
@@ -106,6 +116,13 @@ which is the file GitHub and the release tooling read.
 
 ### Changed
 
+- **A key missing from `easywall.toml` is its shipped default, for every key.**
+  Only the numeric limits, `icmp_allow_echo_request` and `acceptance.duration`
+  were filled in; every other absent switch read as off. A hand-written or
+  templated file without `acceptance.enabled` ran with no rollback window,
+  without `docker.enabled` cut containers off, and without the ICMPv6 keys broke
+  IPv6 — while the schema and `configuration.md` said each defaults to on. The
+  file the package installs names every key, so a packaged host sees no change.
 - **A `notify_kind` outside `webhook`, `ntfy` or empty is refused at startup.**
   Hand-written into `web.toml`, an unknown value reached the notifier, where
   anything but `ntfy` was posted to `notify_url` as a webhook. The schema and the
