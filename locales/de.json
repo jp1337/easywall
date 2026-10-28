@@ -770,6 +770,7 @@
   {"id": "apply_verdict_unknown", "translation": "nicht feststellbar"},
   {"id": "reach_no_address", "translation": "Die Adresse dieser Anfrage konnte nicht gelesen werden, daher lässt sich dazu nichts sagen."},
   {"id": "reach_proxied", "translation": "Die Anfrage kam über einen Proxy. Das ist dessen Adresse, nicht deine."},
+  {"id": "reach_trusted_proxy", "translation": "Du kommst über einen vertrauenswürdigen Proxy. Die Adresse ist deine, aber der Port, den dein Browser erreicht, ist der des Proxys — und der ist von hier aus nicht sichtbar."},
   {"id": "reach_loopback", "translation": "Du bist über das Loopback-Interface verbunden, das vor jeder Regel akzeptiert wird."},
   {"id": "reach_ipv6_passthrough", "translation": "IPv6 steht auf Durchleiten, daher wird sämtlicher IPv6-Verkehr vor jeder Regel akzeptiert."},
   {"id": "reach_ipv6_blocked", "translation": "IPv6 steht auf Blockieren, daher wird sämtlicher IPv6-Verkehr vor jeder Regel verworfen."},

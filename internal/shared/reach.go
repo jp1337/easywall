@@ -52,7 +52,11 @@ const (
 	ReasonInFeed          ReachReason = "in_feed"
 	// ReasonFeedsUnreadable is the caller's, not Reachable's: GET_FEEDS
 	// failed and the answer depends on whether this address is in a feed.
-	ReasonFeedsUnreadable    ReachReason = "feeds_unreadable"
+	ReasonFeedsUnreadable ReachReason = "feeds_unreadable"
+	// ReasonTrustedProxy is the caller's too: a trusted proxy named the
+	// client, but the port that client's packets reach is the proxy's, and
+	// neither it nor where the proxy runs is on the request.
+	ReasonTrustedProxy       ReachReason = "trusted_proxy"
 	ReasonPortOpen           ReachReason = "port_open"
 	ReasonPortSourceMismatch ReachReason = "port_source_mismatch"
 	ReasonCustomRules        ReachReason = "custom_rules"
@@ -64,7 +68,7 @@ const (
 var AllReachReasons = []ReachReason{
 	ReasonNoAddress, ReasonProxied, ReasonLoopback, ReasonIPv6Passthrough,
 	ReasonIPv6Blocked, ReasonBogonFilter, ReasonDockerNetwork, ReasonDockerBridge,
-	ReasonBlocklisted, ReasonAllowlisted, ReasonInFeed, ReasonFeedsUnreadable,
+	ReasonBlocklisted, ReasonAllowlisted, ReasonInFeed, ReasonFeedsUnreadable, ReasonTrustedProxy,
 	ReasonPortOpen, ReasonCustomRules, ReasonPortSourceMismatch, ReasonNoRule,
 }
 

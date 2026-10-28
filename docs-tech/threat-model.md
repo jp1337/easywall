@@ -201,8 +201,11 @@ as before 2.13 — and true for a trusted peer too, whenever its header names
 nobody and the walk falls back to the peer as a stand-in.
 
 **Being on the list is total trust in that peer.** It chooses the address the
-audit log records, the address the lockout verdict is computed for, and the key
-the login limiter counts against. Two ways to give that away:
+audit log records, the address the blocked-traffic page refuses to blocklist,
+and the key the login limiter counts against. Not the apply screen's verdict:
+that reads `trusted_proxy`, *cannot tell*, because the client's SYN goes to the
+proxy's port — or to another host — and `webPort` is only where the proxy
+forwards. 2.13 computed it for `webPort` anyway and was wrong both ways. Two ways to give that away:
 
 - listing a proxy that is not actually in front of easywall;
 - listing a **network** wider than the proxies it holds — anything that can

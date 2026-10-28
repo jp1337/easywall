@@ -49,7 +49,7 @@ func TestTheOldListNamesAreGone(t *testing.T) {
 		"internal/core/config.go":               10, // readOldLogKeys: the two TOML keys, their tags and the warning
 		"internal/core/appliedconfig.go":        5,  // applied-config.json from 2.22 carries LogBlacklist(Limit)
 		"internal/core/packetlog.go":            1,  // packets.log replay
-		"internal/web/server.go":                4,  // GET 301 and POST of /blacklist and /whitelist
+		"internal/web/server.go":                4,  // legacyListPaths, and the body limit it hands /blacklist and /whitelist
 		"internal/web/handler_blocked.go":       1,  // a saved /blocked?rule= filter and a stale row action
 		"docs/_docs/features/blocklist.md":      1,  // redirect_from: the old URL
 		"docs/_docs/features/allowlist.md":      1,  // redirect_from: the old URL
@@ -61,6 +61,7 @@ func TestTheOldListNamesAreGone(t *testing.T) {
 		"internal/shared/docs_coverage_test.go":  2,
 		"internal/core/upgrade_222_test.go":      8,
 		"internal/web/renamed_routes_test.go":    14,
+		"internal/web/body_limit_test.go":        2, // the aliases keep the editors' body limit
 		"internal/shared/old_list_names_test.go": 6, // this file: the paths and comments above
 	}
 	// Paths that keep an old word in their name. The stub answers the old URL
