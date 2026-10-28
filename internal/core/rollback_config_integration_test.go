@@ -57,7 +57,7 @@ func TestIntegration_ARestartInsideTheWindowRestoresThePreviousOptions(t *testin
 	go func() { _ = fw.Apply("test"); close(done) }()
 	defer func() { fw.acceptance.Cancel(); <-done }()
 	deadline := time.Now().Add(5 * time.Second)
-	for !(fw.Status().Acceptance == shared.AcceptancePending && fw.nft.Enforcing()) {
+	for fw.Status().Acceptance != shared.AcceptancePending || !fw.nft.Enforcing() {
 		if time.Now().After(deadline) {
 			t.Fatal("the apply never opened its window")
 		}
