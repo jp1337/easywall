@@ -53,9 +53,42 @@ jobs:
           echo "::error::main's runs of $SHA did not finish within 45 minutes"
           exit 1
 
+  # GoReleaser names everything after the tag and publishes the release and the
+  # :latest images; the Debian legs take their version from debian/changelog and
+  # used to be the only place that compared it with the tag — after all of that
+  # was out. A tag the tree does not agree with published a release with no .deb,
+  # and /releases/latest/download/easywall_amd64.deb answered 404. So the tree
+  # is asked first. CurrentVersion and docs/_config.yml are held to
+  # debian/changelog by unit tests, which main-is-green requires.
+  tag-matches-the-tree:
+    name: the tag is the version the tree declares
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: debian/changelog, version.go and CHANGELOG.md name the tag
+        run: |
+          set -euo pipefail
+          want="${GITHUB_REF_NAME#v}"
+          fail=0
+          deb=$(sed -n '1s/^easywall (\([^)]*\)).*/\1/p' debian/changelog)
+          go=$(sed -n 's/^var CurrentVersion = "\(.*\)"$/\1/p' internal/shared/version.go)
+          # The newest released heading, the one under [Unreleased].
+          log=$(sed -n '/^## \[[0-9]/{s/^## \[\([^]]*\)\].*/\1/p;q}' CHANGELOG.md)
+          for pair in "debian/changelog=$deb" "internal/shared/version.go=$go" "CHANGELOG.md=$log"; do
+            if [ "${pair#*=}" = "$want" ]; then
+              echo "ok  ${pair%%=*} says $want"
+            else
+              echo "::error::${pair%%=*} says '${pair#*=}', the tag is $want"
+              fail=1
+            fi
+          done
+          exit $fail
+
   goreleaser:
     name: GoReleaser
-    needs: main-is-green
+    needs: [main-is-green, tag-matches-the-tree]
     runs-on: ubuntu-26.04
 
     # Map secrets to env vars — secrets context is not available in step `if`,

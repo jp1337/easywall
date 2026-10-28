@@ -14,7 +14,7 @@
   <a href="https://github.com/jp1337/easywall/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/test.yml?branch=main&label=tests&logo=github&logoColor=white" alt="Tests"></a>
   <a href="https://github.com/jp1337/easywall/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/build.yml?branch=main&label=build&logo=github&logoColor=white" alt="Build"></a>
   <a href="https://github.com/jp1337/easywall/actions/workflows/security.yml"><img src="https://img.shields.io/github/actions/workflow/status/jp1337/easywall/security.yml?branch=main&label=security&logo=github&logoColor=white" alt="Security"></a>
-  <a href="https://codecov.io/gh/jp1337/easywall"><img src="https://img.shields.io/codecov/c/github/jp1337/easywall?logo=codecov&logoColor=white&label=coverage" alt="Coverage"></a>
+  <a href="https://codecov.io/gh/jp1337/easywall"><img src="https://img.shields.io/codecov/c/github/jp1337/easywall/main?logo=codecov&logoColor=white&label=coverage" alt="Coverage"></a>
 </p>
 
 <p align="center">

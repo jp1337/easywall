@@ -2,12 +2,13 @@ Source: easywall
 Section: net
 Priority: optional
 Maintainer: easywall maintainers <12394156+jp1337@users.noreply.github.com>
-# The golang-go floor below is what the source actually needs: go.mod pins the
-# toolchain to 1.27.0, and a build with GOTOOLCHAIN=local refuses anything older.
-# It said >= 1.21 since the 2.0.0 rewrite, which was already false — the web
-# process calls http.NewCrossOriginProtection, a Go 1.25 API. Debian trixie ships
-# 1.24, so building this package there needs golang from backports; our own .deb
-# is built in CI with the toolchain go.mod names.
+# The golang-go floor below follows go.mod's toolchain line — the Go every
+# release is built and tested with — not the oldest Go that compiles the source.
+# That is the go directive, and GOTOOLCHAIN=local holds a build to it alone:
+# measured, go1.26.8 builds both binaries and go1.25.14 refuses. It said >= 1.21
+# since the 2.0.0 rewrite, which was false — the web process calls
+# http.NewCrossOriginProtection, a Go 1.25 API. Debian trixie ships 1.24, so
+# building this package there needs golang from backports.
 Build-Depends: debhelper-compat (= 13), golang-go (>= 2:1.27~)
 Standards-Version: 4.6.2
 Homepage: https://easywall-project.org
@@ -17,7 +18,10 @@ Rules-Requires-Root: no
 
 Package: easywall
 Architecture: any
-Depends: ${misc:Depends}, adduser, nftables, openssl
+# ca-certificates is a hard dependency: without the bundle every HTTPS request
+# easywall makes — update check, feeds, country lists, ACME, notifications —
+# fails certificate verification, and --no-install-recommends leaves it out.
+Depends: ${misc:Depends}, adduser, ca-certificates, nftables, openssl
 Recommends: logrotate
 Description: Linux firewall management with a web interface
  easywall provides a secure web interface for managing nftables firewall rules

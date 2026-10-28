@@ -38,7 +38,7 @@ freshly installed package.
 | `/var/lib/easywall` | `root:easywall` | 0750 | the core's: rules, apply state, panic marker. Traversable by the web user, not writable — see below |
 | `/var/lib/easywall/web` | `easywall:easywall` | 0700 | the web process's state: passkeys, TOTP replay, version cache, telemetry id |
 | `/var/log/easywall` | `root:easywall` | 0750 | audit log, rotated by logrotate |
-| `/run/easywall` | `root:easywall` | 0750 | created by systemd from the unit's `User=`/`Group=` |
+| `/run/easywall` | `root:easywall` | 0750 | postinst makes it; systemd recreates it at every core start from `RuntimeDirectory=` and the unit's `User=`/`Group=` |
 | `/lib/systemd/system/easywall-{core,web,selftest}.service` | `root:root` | 0644 | checked by installed path. A unit file nothing installs does not exist on the machine |
 
 ## The data directory stopped being shared
@@ -212,6 +212,7 @@ the code into the maintainer scripts at their `#DEBHELPER#` line.
 | upgrade fails | the old `postinst abort-upgrade` starts them again |
 | administrator disabled a unit | stays disabled across upgrades — `deb-systemd-helper` remembers |
 | remove / purge | stopped / enablement links removed |
+| purge | `debian/postrm` removes `/etc/easywall`, `/var/lib/easywall`, `/var/log/easywall`, `/run/easywall` |
 
 Until 2.25.1 `postinst` and `prerm` did this by hand with `systemctl` and had no
 `#DEBHELPER#` line, so debhelper's snippets were dropped. `prerm` disabled both
@@ -221,6 +222,13 @@ Every upgrade also re-enabled a disabled web interface. Measured in an
 ubuntu:24.04 systemd container; build.yml's "A failed upgrade leaves the firewall
 running" measures both on every package, and
 `TestMaintainerScriptsKeepTheDebhelperMarker` keeps the marker.
+
+Purge removes what `postinst` made, secrets included: `web.toml`, the TLS key,
+the rules, the audit log (Debian policy 10.7.3, 10.8). Until 2.29.2 there was no
+`postrm` of ours, and purge left all of it. The `easywall` user and group stay —
+policy does not ask for it, and a deleted account hands what it still owns to the
+next one given its uid. build.yml's "Remove keeps the configuration, purge
+removes it" measures both halves.
 
 `deb-systemd-invoke` honours `/usr/sbin/policy-rc.d`. Docker's `ubuntu` image
 ships one that refuses every start, so the CI container deletes it — a host has
@@ -235,7 +243,13 @@ their own architecture — never cross-compiled — which is what lets CI instal
 start each one. See [ci-and-release](ci-and-release.md).
 
 `Build-Depends` names the Go version from `go.mod`'s `toolchain` line and is kept
-in step by Renovate plus `TestGoToolchainIsTheSameEverywhere`. It said `>= 1.21`
+in step by Renovate plus `TestGoToolchainIsTheSameEverywhere`. It is the Go releases
+are built and tested with, not a compile floor: `GOTOOLCHAIN=local` holds a build
+only to the `go` directive — go1.26.8 builds both binaries, go1.25.14 refuses.
+
+`Depends` carries `ca-certificates`. Without it an `--no-install-recommends`
+install has no CA bundle, and every HTTPS request easywall makes fails
+verification. It said `>= 1.21`
 since the 2.0.0 rewrite while the code already needed 1.25 for
 `http.NewCrossOriginProtection`.
 
