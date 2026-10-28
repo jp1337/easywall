@@ -2944,10 +2944,20 @@ func (m *NftablesManager) addForwardingRules(t *nftables.Table, rules []shared.F
 		// example {source_port: 2222, dest_port: 22} produced
 		// `tcp dport 22 redirect to :2222` — it captured SSH on 22 and sent it
 		// somewhere nothing was listening, while 2222 did nothing at all.
+		//
+		// `fib daddr type local` first: only a packet addressed to this host is
+		// redirected. The rule matched the port alone until 2.29, so on a host
+		// that routes, a client dialling another machine's port 80 through it
+		// was answered by this host's 8080 — measured in the harness — while
+		// forwarding.md said traffic passing through is not touched. The FIB
+		// lookup is family-agnostic in an inet table, so IPv6 is covered by the
+		// same expression.
 		m.adder.AddRule(&nftables.Rule{
 			Table: t,
 			Chain: preChain,
 			Exprs: []expr.Any{
+				&expr.Fib{Register: 1, ResultADDRTYPE: true, FlagDADDR: true},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: binaryutil.NativeEndian.PutUint32(unix.RTN_LOCAL)},
 				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
 				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{byte(protoNum)}},
 				&expr.Payload{

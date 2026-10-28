@@ -55,7 +55,7 @@ the port your [port rules]({{ '/docs/features/ports/' | relative_url }}) must op
 |---|---|
 | **Not** forwarding to another machine | the kernel statement is `redirect`, which retargets a port on *this* host. There is no destination-address field, and easywall writes no rule that can send traffic elsewhere |
 | **Not** a way past the firewall | the redirected packet goes through the input chain like any other — blocklist, protection modules and port rules all apply |
-| **Not** for traffic passing through | only packets addressed to this host are redirected |
+| **Not** for traffic passing through | only packets addressed to this host are redirected (`fib daddr type local`); a connection this host routes to another machine is left alone |
 
 ## Ports below 1024
 
