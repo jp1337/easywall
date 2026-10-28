@@ -12,6 +12,8 @@ A list of addresses that are dropped. It is consulted before the allowlist, the
 feeds and the port rules. It is **not** consulted before loopback, established
 connections, neighbour discovery and Docker networks — and under
 `ipv6.mode = "passthrough"` it never sees IPv6 at all (diagram below).
+It also drops every forwarded packet the `forward` chain filters — to a
+container or a routed network — before any forwarded port rule.
 
 <figure class="docs-shot">
   {% include themed-figure.html base="/assets/img/screens/blocklist" ext="png"

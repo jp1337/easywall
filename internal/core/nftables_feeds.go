@@ -206,6 +206,12 @@ func (m *NftablesManager) addFeeds(t *nftables.Table, c *nftables.Chain, enabled
 				perMinute: opts.LogFeedLimit,
 			}, userdata.AppendString(nil, userdata.TypeComment, feedCounterID(id)),
 				&expr.Counter{}, &expr.Verdict{Kind: expr.VerdictDrop})
+			// The same set, looked up for a forwarded packet: see addForwardLists.
+			if m.fwdLists != nil {
+				m.adder.AddRule(&nftables.Rule{Table: t, Chain: m.fwdLists, Exprs: append(srcAddrExprs(f),
+					&expr.Lookup{SourceRegister: 1, SetName: set.Name, SetID: set.ID},
+					&expr.Counter{}, &expr.Verdict{Kind: expr.VerdictDrop})})
+			}
 		}
 	}
 	return batch, nil
