@@ -730,9 +730,19 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 	// cancelled rather than confirmed, so rollback runs and puts the previous
 	// rules back. The configuration is changed again *while the window is
 	// open*, after the ordinary apply step above has already written and
-	// recorded its own value, so a snapshot matching the live configuration
-	// afterwards can only be rollback's own recordAppliedConfig call — not a
-	// leftover from the write this apply started with.
+	// recorded its own value.
+	//
+	// This asserted the opposite until the sweep of 2026-10: that the rollback
+	// recorded the live configuration, the one changed during the window. That
+	// was the defect, pinned — the rollback rebuilt the table with an option the
+	// operator had never confirmed, and /apply then said nothing was pending.
+	// The rollback now goes back to the configuration in force before this
+	// apply (what the step above recorded), records that, and the change made
+	// during the window stays configured and shows as pending.
+	beforeRollback, err := readAppliedConfig(cfg.AppliedConfigPath())
+	if err != nil || !beforeRollback.Recorded {
+		t.Fatalf("no snapshot before the rollback: recorded=%v err=%v", beforeRollback.Recorded, err)
+	}
 	cfg.Acceptance.Enabled = true
 	cfg.Acceptance.Duration = shared.AcceptanceDurationMin // short; the test cancels rather than waits
 
@@ -763,13 +773,14 @@ func TestIntegration_AppliedConfigIsRecordedWhereverTheKernelIsWritten(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if drift := shared.DiffConfig(res.Config, shared.AppliedConfig{
-		Firewall: cfg.FirewallOptions(), Network: cfg.NetworkSettings(),
-	}); len(drift) != 0 {
-		t.Errorf("after a rollback the snapshot still disagrees with the live config: %v", drift)
+	if drift := shared.DiffConfig(res.Config, beforeRollback.Config); len(drift) != 0 {
+		t.Errorf("after a rollback the snapshot is not the configuration in force before the apply: %v", drift)
 	}
-	if fw.Status().HasPending {
-		t.Error("a rollback that just recorded its own configuration still reports a pending change")
+	if got := cfg.FirewallOptions().Fragments; got != rolledBack.Fragments {
+		t.Errorf("the rollback discarded the configured change: fragments=%v, want %v", got, rolledBack.Fragments)
+	}
+	if !fw.Status().HasPending {
+		t.Error("a rolled-back option change is not reported as pending")
 	}
 }
 

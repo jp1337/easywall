@@ -267,7 +267,7 @@ func TestPanic_EndsAnOpenAcceptanceWindow(t *testing.T) {
 		defer close(done)
 		if accepted := fw.acceptance.Wait(); !accepted {
 			WriteAuditLog(cfg.AuditLogPath(), "apply_rolledback", "all", "timeout", "apply-goroutine")
-			fw.rollback(shared.RulesState{}, "apply-goroutine")
+			fw.rollback(shared.RulesState{}, shared.AppliedConfigResult{}, "apply-goroutine")
 		}
 	}()
 
@@ -446,7 +446,7 @@ func TestRollback_UnderPanicStillRevertsTheRulesFile(t *testing.T) {
 		t.Fatalf("EngagePanic: %v", err)
 	}
 
-	fw.rollback(previous, "web")
+	fw.rollback(previous, shared.AppliedConfigResult{}, "web")
 
 	state, err := fw.rules.GetState()
 	if err != nil {
@@ -544,7 +544,7 @@ func TestRollback_ProceedsWhenTheMarkerCannotBeRead(t *testing.T) {
 	// of its own when it fails, which the teardown assertion at the end of this
 	// test would read as the undo it exists to forbid.
 	previous := shared.RulesState{Current: shared.Rules{TCP: []shared.PortRule{{Port: "22"}}}}
-	fw.rollback(previous, "web")
+	fw.rollback(previous, shared.AppliedConfigResult{}, "web")
 
 	for _, e := range auditEntries(t, cfg) {
 		if e.Action == "rollback_skipped" {
@@ -686,7 +686,7 @@ func TestRollback_UnderPanicSaysSoWhenTheRevertItselfFailed(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(cfg.DataDir, 0o750) })
 
-	fw.rollback(shared.RulesState{}, "web")
+	fw.rollback(shared.RulesState{}, shared.AppliedConfigResult{}, "web")
 
 	var skipped *shared.AuditLogEntry
 	for i, e := range auditEntries(t, cfg) {
@@ -859,7 +859,7 @@ func TestRollback_FirstApplyTeardownFailureIsReportedHonestly(t *testing.T) {
 		t.Fatal("the fixture is not a fresh installation, so this test proves nothing")
 	}
 
-	fw.rollback(shared.RulesState{}, "web")
+	fw.rollback(shared.RulesState{}, shared.AppliedConfigResult{}, "web")
 
 	var got *shared.AuditLogEntry
 	entries := auditEntries(t, cfg)
@@ -954,7 +954,7 @@ func TestRestoreCurrent_RevertsAnApplyAPreviousRunNeverConfirmed(t *testing.T) {
 	if err := dead.rules.BackupCurrent(); err != nil {
 		t.Fatal(err)
 	}
-	if err := markUnconfirmed(cfg.UnconfirmedMarkerPath()); err != nil {
+	if err := markUnconfirmed(cfg.UnconfirmedMarkerPath(), shared.AppliedConfigResult{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := dead.rules.PromoteStaged(); err != nil {

@@ -129,6 +129,13 @@ The core stores `applied-config.json` in its data directory, mode 0600, atomical
 wherever `nft.Apply` succeeds — an ordinary apply, a rollback, and the boot or
 `resume` restore. Nowhere else: a refused or failed apply put nothing in the kernel.
 
+It is also what a rollback goes back to. An apply reads it before writing the
+kernel; the rollback rebuilds the table with that snapshot, not with the live
+config, and records it again — so a rolled-back option change stays configured
+and shows as pending. The `unconfirmed` marker carries the same snapshot as JSON
+for a core that dies inside the window; an empty marker (older core, or no
+snapshot) falls back to the live config.
+
 `recorded: false` means the file is not there, which is what an installation
 upgrading to 2.10 looks like. That state is *unknown*, not *identical*:
 `Status.HasPending` keeps its 2.9 meaning until a snapshot exists, so no
