@@ -860,7 +860,7 @@ func (m *NftablesManager) ApplyWithFeeds(state shared.RulesState, opts shared.Fi
 	}
 	if opts.Bogons {
 		m.addBogonFilter(table, inputChain, opts,
-			append(append([]string(nil), state.Current.Allowlist...), dockerCIDRs...))
+			append(append([]string(nil), state.Current.Allowlist...), dockerCIDRs...), state.Current)
 	}
 	if opts.SSHBruteForce {
 		m.addSSHBruteForce(table, inputChain, state.Current, opts)
@@ -1443,7 +1443,14 @@ func (m *NftablesManager) addFragmentDrop(t *nftables.Table, c *nftables.Chain, 
 // The drops live in their own chain so an exception can `return` from it and
 // carry on down the input chain; a `return` in a base chain would fall through
 // to the drop policy instead, which is the opposite of an exception.
-func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions, exempt []string) {
+//
+// A port rule's Sources are the same statement, narrower: "this private network
+// may reach this port". They were not exempt until 2.29, so `tcp 2222 from
+// 10.9.0.0/24` stopped answering 10.9.0.2 the moment the filter was switched on
+// — measured in the harness — while the rule still showed as open. Each source
+// returns from this chain for its own protocol and port only, so the network
+// gains nothing at a port the operator did not name.
+func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, opts shared.FirewallOptions, exempt []string, rules shared.Rules) {
 	bogonChain := m.conn.AddChain(&nftables.Chain{Name: "bogon", Table: t})
 
 	// The exceptions come first, so a source the operator has allowed leaves
@@ -1458,6 +1465,31 @@ func (m *NftablesManager) addBogonFilter(t *nftables.Table, c *nftables.Chain, o
 			Chain: bogonChain,
 			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictReturn}),
 		})
+	}
+	for _, set := range []struct {
+		proto byte
+		rules []shared.PortRule
+	}{{unix.IPPROTO_TCP, rules.TCP}, {unix.IPPROTO_UDP, rules.UDP}} {
+		for _, rule := range set.rules {
+			if !rule.FiltersHost() { // the bogon chain hangs off input only
+				continue
+			}
+			for _, src := range rule.Sources {
+				match := ipv4SourceMatch(src) // nil for a comment or IPv6
+				if match == nil {
+					continue
+				}
+				exprs := append(match,
+					&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+					&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{set.proto}})
+				exprs = append(exprs, buildPortExprs(rule.Port)...)
+				m.adder.AddRule(&nftables.Rule{
+					Table: t,
+					Chain: bogonChain,
+					Exprs: append(exprs, &expr.Verdict{Kind: expr.VerdictReturn}),
+				})
+			}
+		}
 	}
 
 	// The eleven ranges are shared.BogonRanges — one list, so the rules this

@@ -66,7 +66,9 @@ everyone — what every rule written before 2.11 means, and still the default.
 
 Each usable entry becomes its own nft rule, matched on the source address before
 the port is tested. An [allowlist]({{ '/docs/features/allowlist/' | relative_url }})
-entry is still the way to allow an address on *every* port at once.
+entry is still the way to allow an address on *every* port at once. A private
+network named here passes the [bogon filter]({{ '/docs/features/filters/' | relative_url }}#what-it-does-not-drop)
+for this port only.
 
 > **A network is matched by its network address.** `10.9.9.9/24` is applied as
 > `10.9.9.0/24` — 255 addresses more than you typed, and this page does not echo
