@@ -11,13 +11,14 @@ For distributions without a package. Check
 
 ## Build
 
-Go 1.27+ on the **build** machine — not on the target. That is the toolchain
+Go 1.27+ on the **build** machine (plus Node.js) — not on the target. Go is the toolchain
 `go.mod` pins; on Debian trixie it comes from backports, since trixie itself ships
 Go 1.24.
 
 ```bash
 git clone https://github.com/jp1337/easywall.git
 cd easywall
+npm ci              # Tailwind, which `make build` runs first
 make build          # produces bin/easywall-core and bin/easywall-web
 ```
 
@@ -50,7 +51,6 @@ sudo install -d -m 0750 -o root     -g easywall /var/lib/easywall
 sudo install -d -m 0700 -o easywall -g easywall /var/lib/easywall/web
 sudo install -d -m 0750 -o root     -g easywall /var/log/easywall
 
-sudo install -m 0600 -o root -g root config/easywall.toml /etc/easywall/
 ```
 
 **The ownership is the point, not a detail.**

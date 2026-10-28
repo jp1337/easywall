@@ -77,7 +77,7 @@ whole protocol was.
 | `APPLY_RULES` · `ACCEPT` | promote Staged and start the timer · confirm |
 | `CANCEL_ACCEPTANCE` | end the open window now, without waiting out the timeout |
 | `GET_OPTIONS` · `SAVE_OPTIONS` | protection modules |
-| `GET_SETTINGS` · `SAVE_SETTINGS` | IPv6 and Docker |
+| `GET_SETTINGS` · `SAVE_SETTINGS` | IPv6, Docker and routing |
 | `GET_SYSTEM` · `SAVE_SYSTEM` | acceptance window |
 | `GET_STATUS` · `GET_LOG` | dashboard · last 200 audit entries |
 | `GET_PACKET_LOG` | what the firewall refused — decoded packets from easywall's NFLOG group, filtered, newest first |

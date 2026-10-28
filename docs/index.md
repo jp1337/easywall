@@ -69,7 +69,7 @@ toc: false
     <div class="docs-card">
       <h2>From source</h2>
       <p class="mono">make build && sudo make install</p>
-      <p>Go 1.27, no runtime dependencies beyond the kernel.</p>
+      <p>Go 1.27, no runtime dependencies beyond the kernel, `nft` and `openssl`.</p>
       <a href="{{ '/docs/installation/manual/' | relative_url }}">Build it →</a>
     </div>
   </div>
