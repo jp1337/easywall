@@ -357,22 +357,23 @@ func (d *Daemon) Start() error {
 		}()
 	}
 
-	// At most maxConns connections are served at once; the next waits in the
-	// listen backlog until one ends. This loop used to accept without limit,
-	// and each served connection can hold MaxMessageBytes of request: 32 clients
-	// each sending 8 MiB−1 and never closing took the heap from 4 MiB to
-	// 286 MiB. Queued rather than refused, so a burst from the web process waits
-	// milliseconds instead of failing.
-	slots := make(chan struct{}, maxConns)
+	// At most maxConns connections are served at once and maxQueued more wait;
+	// past that a connection is closed unserved. This loop used to accept
+	// without limit, and each served connection can hold MaxMessageBytes of
+	// request: 32 clients each sending 8 MiB−1 and never closing took the heap
+	// from 4 MiB to 286 MiB. Queued rather than refused, so a burst from the
+	// web process waits milliseconds instead of failing.
+	//
+	// A root peer — the console — skips both. The first cap was a semaphore in
+	// front of Accept, so sixteen idle connections from the web process left
+	// `easywall-core panic` in the listen backlog until its client timed out:
+	// the unprivileged side could keep the operator's last resort from being
+	// heard.
+	serving := make(chan struct{}, maxConns)
+	admitted := make(chan struct{}, maxConns+maxQueued)
 	for {
-		select {
-		case slots <- struct{}{}:
-		case <-d.quit:
-			return nil
-		}
 		conn, err := ln.Accept()
 		if err != nil {
-			<-slots
 			select {
 			case <-d.quit:
 				return nil
@@ -391,16 +392,41 @@ func (d *Daemon) Start() error {
 		// which Accept fails into the quit branch above and the loop returns —
 		// so it is not a spin, but it is not one connection either.
 		if !d.track() {
-			<-slots
 			_ = conn.Close()
 			continue
 		}
 		go func() {
 			defer d.wg.Done()
-			defer func() { <-slots }()
+			if isConsolePeer(conn) {
+				d.handleConn(conn)
+				return
+			}
+			select {
+			case admitted <- struct{}{}:
+				defer func() { <-admitted }()
+			default:
+				slog.Warn("socket connection refused: too many open", "limit", maxConns+maxQueued)
+				_ = conn.Close()
+				return
+			}
+			select {
+			case serving <- struct{}{}:
+				defer func() { <-serving }()
+			case <-d.quit:
+				_ = conn.Close()
+				return
+			}
 			d.handleConn(conn)
 		}()
 	}
+}
+
+// isConsolePeer reports whether the kernel says conn's peer is root. A
+// variable so a test, which never has a root peer of its own — or always does,
+// under sudo — can choose which connection is the console.
+var isConsolePeer = func(conn net.Conn) bool {
+	uid, _, err := peerCred(conn)
+	return err == nil && uid == 0
 }
 
 // track takes a slot in d.wg for a piece of work the daemon is about to start,
@@ -598,6 +624,17 @@ func (d *Daemon) Stop() {
 // hold in memory at sixteen times MaxMessageBytes.
 const maxConns = 16
 
+// maxQueued is how many more wait for one of those slots before a connection
+// is closed unserved. A waiting connection has read nothing, so it holds a
+// descriptor and a goroutine, not a request.
+const maxQueued = 48
+
+// requestTimeout bounds reading a request. Every client writes its whole
+// request the moment it connects (shared.SendCommand), so this is
+// milliseconds in practice; at connTimeout an idle connection held a serving
+// slot for 35 s and could be renewed for ever.
+var requestTimeout = 5 * time.Second
+
 // connTimeout bounds each wait on a peer: reading its request, writing its
 // reply. It is the longest any client waits for a reply (CommandTimeout), so
 // no client within its own deadline is cut off; past it, the client has given
@@ -641,7 +678,7 @@ func (d *Daemon) handleConn(conn net.Conn) {
 	if !d.waitOnPeer(conn) {
 		return
 	}
-	_ = conn.SetDeadline(time.Now().Add(connTimeout))
+	_ = conn.SetDeadline(time.Now().Add(requestTimeout))
 
 	// One byte past the limit, so a request that is too long is refused as
 	// that. Cut at the limit, it used to reach json.Unmarshal truncated and be

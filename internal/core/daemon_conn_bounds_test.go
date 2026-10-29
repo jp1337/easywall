@@ -1,7 +1,9 @@
 package core
 
 import (
+	"encoding/json"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -98,5 +100,59 @@ func TestDaemon_ServesAtMostMaxConnsAtOnce(t *testing.T) {
 	}
 	if got := d.servedConns(); got != maxConns {
 		t.Errorf("after one closed: serving %d, want %d", got, maxConns)
+	}
+}
+
+// The console is never queued behind the web process. The cap used to be a
+// semaphore in front of Accept, so maxConns idle connections from the
+// unprivileged side left `easywall-core panic` in the listen backlog until its
+// client gave up. A test has no root peer of its own (or, under sudo, only
+// root peers), so the console here is the connection dialled from a named
+// address.
+func TestDaemon_TheConsoleIsServedWhileTheCapIsFull(t *testing.T) {
+	cfg := newTestConfig(t)
+	off := 0
+	cfg.Usage.Interval = &off
+	fw := newTestFirewall(t, cfg)
+	d := &Daemon{cfg: cfg, firewall: fw, quit: make(chan struct{})}
+
+	consoleAddr := filepath.Join(t.TempDir(), "console.sock")
+	saved := isConsolePeer
+	isConsolePeer = func(conn net.Conn) bool { return conn.RemoteAddr().String() == consoleAddr }
+	t.Cleanup(func() { isConsolePeer = saved })
+	startTestDaemon(t, d)
+
+	var held []net.Conn
+	defer func() {
+		for _, c := range held {
+			_ = c.Close()
+		}
+	}()
+	for range maxConns + maxQueued + 4 {
+		c, err := net.Dial("unix", cfg.SocketPath)
+		if err != nil {
+			t.Fatalf("dial: %v", err)
+		}
+		held = append(held, c)
+	}
+
+	console, err := net.DialUnix("unix", &net.UnixAddr{Name: consoleAddr, Net: "unix"},
+		&net.UnixAddr{Name: cfg.SocketPath, Net: "unix"})
+	if err != nil {
+		t.Fatalf("dial as the console: %v", err)
+	}
+	defer console.Close()
+	req, _ := json.Marshal(shared.Command{Type: shared.CmdGetStatus})
+	if _, err := console.Write(req); err != nil {
+		t.Fatal(err)
+	}
+	_ = console.CloseWrite()
+	_ = console.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var resp shared.Response
+	if err := json.NewDecoder(console).Decode(&resp); err != nil {
+		t.Fatalf("the console was not served while the web side held every slot: %v", err)
+	}
+	if !resp.Success {
+		t.Errorf("console request failed: %s", resp.Error)
 	}
 }

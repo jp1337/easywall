@@ -50,8 +50,9 @@ first limit planned (plan P12). `TestMaxMessageBytesCarriesAFullFeed` pins both,
 
 | | Core (`handleConn`, the accept loop) |
 |---|---|
-| deadline | `connTimeout` per wait on the peer — reading the request, writing the reply — = the longest `CommandTimeout` (35 s). Dispatch is not under it, so an import's `nft --check` is never cut off. `TestDaemonConnTimeout_CoversEveryClientDeadline` |
-| at once | `maxConns`, 16; the next waits in the listen backlog. `TestDaemon_ServesAtMostMaxConnsAtOnce` |
+| deadline | `requestTimeout` (5 s) to read the request — every client writes it on connect; `connTimeout` (the longest `CommandTimeout`, 35 s) to write the reply. Dispatch is under neither, so an import's `nft --check` is never cut off. `TestDaemonConnTimeout_CoversEveryClientDeadline` |
+| at once | `maxConns`, 16 served; `maxQueued`, 48 more wait for a slot; past that a connection is closed unserved. `TestDaemon_ServesAtMostMaxConnsAtOnce` |
+| root peer | the console (SO_PEERCRED uid 0) skips both caps, so the web side cannot hold `panic` in the backlog. `TestDaemon_TheConsoleIsServedWhileTheCapIsFull` |
 | at Stop | a connection waiting on its peer is closed; one in dispatch finishes and is answered. `TestDaemonStop_DoesNotWaitForAnIdleClient` |
 
 Before: no deadline and no cap — one idle client held `systemctl restart` until
