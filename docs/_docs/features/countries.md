@@ -9,7 +9,9 @@ description: Block the addresses registered to a country — each one switched o
 A country is a list of the networks registered to it. Like a
 [feed]({{ '/docs/features/feeds/' | relative_url }}), it is checked **after**
 your allowlist, so an address you allow stays reachable. An address that is in a
-feed as well is counted and logged by the feed.
+feed as well is counted and logged by the feed. A country also drops
+the forwarded packets the `forward` chain filters, to a container or a routed
+network.
 
 **Which ones do your drops come from?** The
 [country column]({{ '/docs/features/blocked-traffic/' | relative_url }}#where-it-comes-from)

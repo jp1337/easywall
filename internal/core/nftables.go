@@ -52,6 +52,10 @@ const (
 	// renders here and nowhere else must still have its counter read somewhere.
 	forwardChainName = "forward"
 
+	// forwardListsChainName is the regular chain the forward chain jumps to for
+	// the blocklist, the allowlist and the feeds — see addForwardLists.
+	forwardListsChainName = "forward-lists"
+
 	// fragmentChainName is the prerouting chain the fragment drop lives in, and
 	// the only easywall chain at that hook besides the NAT one ("prerouting"). It
 	// exists only while drop_fragments is on.
@@ -165,6 +169,12 @@ type NftablesManager struct {
 	// bakedBridges is the container networks the forward chain of the last
 	// successful write was built over, after ipv6.mode's filter (2.24 D5).
 	bakedBridges []string
+
+	// fwdLists is the forward-lists chain buildForwardChain created for the
+	// apply in progress, or nil when it rendered none. addFeeds, which runs
+	// later in the same apply because a lookup has to follow its set in the
+	// batch, appends each feed's forward drop to it. Under mu.
+	fwdLists *nftables.Chain
 }
 
 // builtRecorder is the production adder: it records the rule and forwards it to
@@ -2344,6 +2354,8 @@ func (m *NftablesManager) buildForwardChain(
 	docker shared.DockerConfig, routing shared.RoutingConfig, dockerCIDRs []string,
 	ipv6 shared.IPv6Mode,
 ) []string {
+	m.fwdLists = nil // this apply's, never the last one's
+
 	// What may cross: the Docker networks, always — the coexistence above
 	// reaches no container otherwise, and that must not depend on a key nobody
 	// has set yet — plus whatever routing.networks names. Under "open" the
@@ -2378,9 +2390,87 @@ func (m *NftablesManager) buildForwardChain(
 	// the host loses the network at the next apply — and the acceptance window
 	// cannot see it, because SSH arrives on input.
 	m.addEstablishedAccept(t, c)
+	m.addForwardLists(t, c, rules, routing, dockerCIDRs)
 	m.addForwardPortRules(t, c, rules, docker, dockerCIDRs, ipv6)
 	m.addForwardExceptions(t, c, exceptions)
 	return dockerCIDRs
+}
+
+// addForwardLists puts the blocklist, the allowlist and the feeds (countries
+// included) in front of every forwarded accept, in the input chain's order:
+// container networks, blocklist, allowlist, feeds — after the established
+// accept, so a connection already open survives a list change as it does on
+// input.
+//
+// Until this, all three were rendered into the input chain only. Under
+// published_ports = "filtered" a blocklisted client reached a container on its
+// forwarded port — `ip saddr 10.9.0.2 drop` in input, `tcp dport 80 accept` in
+// forward, nothing between the two — and so did every feed- and country-listed
+// address, on the one arrangement docker.md calls one firewall on a container
+// host (TestIntegration_TheListsRefuseAForwardedSource).
+//
+// A regular chain, jumped to, because the allowlist cannot accept here: in the
+// input chain its accept opens the host to that source, in this chain it would
+// open every container port and every routed destination. It returns instead,
+// which exempts the source from the feeds below it and from nothing else — the
+// bogon chain's pattern. A container network's source returns first, as the
+// input chain's bridge accept comes first, so a container's own outbound
+// traffic never meets a list.
+//
+// The feed drops are lookups into the input chain's sets — one set per feed and
+// family, refreshed once — appended by addFeeds through m.fwdLists. No log rule:
+// the forward chain logs nothing today, and /blocked reads a forwarded row as
+// one no list decided (shared.PacketLogEntry.Remedies). The counter is untagged:
+// a feed's `_feed-<id>` stays the count of what it kept off this host.
+//
+// Nothing renders when there is nothing to refuse — no blocklist entry, no feed
+// — so a host without lists keeps the chain it had. Under routing.mode = "open"
+// the forward chain filters only what goes to a container, so only that jumps.
+func (m *NftablesManager) addForwardLists(t *nftables.Table, c *nftables.Chain, rules shared.Rules,
+	routing shared.RoutingConfig, cidrs []string) {
+	var blocked [][]expr.Any
+	for _, entry := range rules.Blocklist {
+		if match := cidrMatch(entry, posSrcAddr); match != nil {
+			blocked = append(blocked, match)
+		}
+	}
+	if len(blocked) == 0 && len(rules.Feeds) == 0 {
+		return
+	}
+	lists := m.conn.AddChain(&nftables.Chain{Name: forwardListsChainName, Table: t})
+	m.fwdLists = lists
+
+	add := func(match []expr.Any, v expr.VerdictKind) {
+		m.adder.AddRule(&nftables.Rule{Table: t, Chain: lists,
+			Exprs: append(match, &expr.Verdict{Kind: v})})
+	}
+	for _, cidr := range cidrs {
+		if match := cidrMatch(cidr, posSrcAddr); match != nil {
+			add(match, expr.VerdictReturn)
+		}
+	}
+	for _, match := range blocked {
+		add(append(match, &expr.Counter{}), expr.VerdictDrop)
+	}
+	for _, entry := range rules.Allowlist {
+		if match := cidrMatch(entry, posSrcAddr); match != nil {
+			add(match, expr.VerdictReturn)
+		}
+	}
+
+	jump := func(match []expr.Any) {
+		m.adder.AddRule(&nftables.Rule{Table: t, Chain: c,
+			Exprs: append(match, &expr.Verdict{Kind: expr.VerdictJump, Chain: lists.Name})})
+	}
+	if routing.Mode != shared.RoutingOpen {
+		jump(nil)
+		return
+	}
+	for _, cidr := range cidrs {
+		if match := cidrMatch(cidr, posDstAddr); match != nil {
+			jump(match)
+		}
+	}
 }
 
 // forwardPortRulesRender is the question buildForwardChain has to answer before

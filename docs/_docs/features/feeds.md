@@ -8,7 +8,10 @@ description: Block known attackers with lists other people publish — checked a
 
 A feed is a list of attacking addresses that somebody else publishes and
 easywall fetches. Feeds are checked **after** your allowlist, so an address you
-allow stays reachable whatever a feed says. To block a whole country, see
+allow stays reachable whatever a feed says. A feed also drops
+the forwarded packets the `forward` chain filters, to a container or a routed
+network. To block a
+whole country, see
 [Countries]({{ '/docs/features/countries/' | relative_url }}).
 
 {% include themed-figure.html base="/assets/diagrams/feed-order" ext="svg"

@@ -67,7 +67,9 @@ never reaches the `input` chain and no ordinary port rule can see it. Under
 `published_ports = "filtered"` easywall's `forward` chain denies inbound traffic
 to a container address, and a port rule with scope `forwarded` is what opens one.
 That is the whole list of ports on the host in one place — which is what a
-provider firewall was doing for you.
+provider firewall was doing for you. The blocklist, the feeds and the
+countries are checked before those rules too; the allowlist exempts from the
+feeds only and opens no container port.
 
 > **Switching it on closes every published port that has no forwarded rule.**
 > Write the rules first, then flip the key, then apply once. The 120-second
