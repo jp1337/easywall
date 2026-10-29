@@ -23,7 +23,7 @@ import (
 // newPendingStore's own comment objects to a server-side table — "a map any
 // stranger can fill is memory any stranger occupies" — and that objection is
 // answered rather than overruled. An entry is created only by
-// recordPendingAttempt, which is reachable only with a pending cookie this
+// reservePendingAttempt, which is reachable only with a pending cookie this
 // server signed, which is issued only behind a verified password, which
 // LoginRateLimit caps at 5 per 10 minutes per address. A stranger with no
 // password fills nothing; the operator's own worst case is 5 entries of a few
@@ -63,11 +63,19 @@ func pendingAttemptCount(id string) int {
 	return c.n
 }
 
-// recordPendingAttempt charges one failed attempt to this intermediate state and
-// returns the new total.
-func recordPendingAttempt(id string) int {
+// reservePendingAttempt charges one attempt to this intermediate state before
+// its code or assertion is looked at, and reports whether the budget had one to
+// give. Check and charge are one critical section.
+//
+// It used to be recordPendingAttempt, called after the check had failed, while
+// readPending had read the count before it — two locks with the guess in
+// between. Every request that arrived before the first charge landed read 0, so
+// one frozen cookie posted 64 times at once had 5–9 codes checked in process
+// and 3–4 over HTTP/2, against a budget of 3. A successful attempt is charged
+// too; it ends the state, so the charge is never seen.
+func reservePendingAttempt(id string) (n int, ok bool) {
 	if id == "" {
-		return 0
+		return 0, false
 	}
 	now := time.Now()
 
@@ -80,11 +88,14 @@ func recordPendingAttempt(id string) int {
 		}
 	}
 
-	c, ok := pendingAttempts.at[id]
-	if !ok {
+	c, found := pendingAttempts.at[id]
+	if !found {
 		c = pendingCounter{begun: now}
+	}
+	if c.n >= pendingMaxAttempts {
+		return c.n, false
 	}
 	c.n++
 	pendingAttempts.at[id] = c
-	return c.n
+	return c.n, true
 }

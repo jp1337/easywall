@@ -35,9 +35,12 @@ with a cookie 29 days old, and 200 again after the logout record had been swept.
 `store.MaxAge()` sets both halves. Write that, never `Options.MaxAge`.
 
 Renewal on use (2.25.1; before it, only a flash renewed, so a session browsed
-with GETs ended 600 s after sign-in) does not loosen this: `RequireAuth`
-renews only a session `sessionUser` accepted, so a revoked cookie is never
-re-signed and still dies one lifetime after the logout at the latest.
+with GETs ended 600 s after sign-in) renews only a session `sessionUser`
+accepted — **when the request began**. That was offered here as proof that a
+revoked cookie is never re-signed, and it was not: a request in flight at the
+logout re-signed the session as its response started, same `user` and `sid`,
+age zero, alive one lifetime past the revocation record. The password and
+second-factor re-stamps and `/apply/status`'s renewal had the same gap.
 
 **That closed the cookie-age half and only that half**, and this page claimed the
 whole failure closed for three releases. The retention rests on a second
@@ -50,11 +53,16 @@ inside the login rate limit. No retention closes that, because the refresh
 resets the cookie's own age too.
 
 `sessionForWrite` in `sessionrevoke.go` drops `user` and `sid` before those
-three saves when the session's id is revoked. **State it as an invariant rather
-than an observation: a path that saves a session it has not authenticated goes
-through `sessionForWrite`, or the retention above stops being true.** Everything
-behind `RequireAuth` is exempt by construction — a revoked session never reaches
-those paths at all. Reproduced against `fbac69f`, so it predates the branch.
+three saves when the session's id is revoked. Reproduced against `fbac69f`, so it
+predates the branch.
+
+Both halves are now held in one place: the session store is `sessionStore`,
+whose `Save` strips a revoked `user` and `sid` under the revocation lock. A
+logout is therefore either before a save — which then signs nobody — or after
+it, and then the cookie's stamp is no later than the logout. **The invariant: no
+session is saved except through `sessionStore.Save`**, and the revocation record
+is kept `SessionLifetime + 1 s` (`revocationRetention`), because securecookie
+stamps whole seconds and accepts a cookie while `now − stamp ≤ SessionLifetime`.
 
 Signing out is a `POST` for a related reason. `CrossOriginProtection` checks the
 `Origin` and `Sec-Fetch-Site` headers of **unsafe methods only** — `GET`, `HEAD`

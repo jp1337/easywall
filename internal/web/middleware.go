@@ -123,8 +123,9 @@ func RequireAuth(store sessions.Store, currentCredential func() string) func(htt
 // GETs ended ten minutes after sign-in — and an operator watching a long
 // acceptance window was sent to /login at the moment they went to confirm.
 //
-// Only for a session sessionUser has accepted. A revoked one never gets here,
-// which is what keeps the revocation record's one-lifetime retention sound.
+// Only for a session sessionUser accepted — when the request began. One logged
+// out while the request was in flight still gets here; sessionStore.Save is what
+// refuses to re-sign it, at the moment it signs.
 func renewSession(w http.ResponseWriter, r *http.Request, sess *sessions.Session) {
 	if err := sess.Save(r, w); err != nil {
 		slog.Warn("could not renew the session", "error", err)

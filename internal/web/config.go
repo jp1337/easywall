@@ -599,6 +599,36 @@ func (c *Config) SaveRecoveryCodes(hashes []string) error {
 	return nil
 }
 
+// RemoveRecoveryCode deletes one stored hash, if it is still stored, and writes
+// the set — the lookup and the write under one lock. remaining is how many are
+// left (as written, or as they would have been when the write fails); removed
+// is false when the hash was not there, because a concurrent request spent it
+// first or the set was regenerated.
+//
+// Consuming a code used to be RecoveryCodes, argon2 against all eight (~300 ms),
+// then SaveRecoveryCodes(the other seven), with no lock across them. Two codes
+// used at once both read the same eight, so the second write put the first code
+// back: both logins were accepted, the file said 7 where 6 were left, and one
+// spent code worked again. The same code twice at once opened two sessions.
+// The argon2 runs outside the lock; only this compare-and-remove is inside it.
+//
+// Rolled back on a failed write, as SaveRecoveryCodes is.
+func (c *Config) RemoveRecoveryCode(hash string) (remaining int, removed bool, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prevCodes := c.WebConfig.RecoveryCodes
+	i := slices.Index(prevCodes, hash)
+	if i < 0 {
+		return len(prevCodes), false, nil
+	}
+	c.WebConfig.RecoveryCodes = slices.Delete(slices.Clone(prevCodes), i, i+1)
+	if err := c.saveLocked(); err != nil {
+		c.WebConfig.RecoveryCodes = prevCodes
+		return len(prevCodes) - 1, true, err
+	}
+	return len(c.WebConfig.RecoveryCodes), true, nil
+}
+
 // ErrAlreadySetUp is returned when the wizard is asked to create an account on
 // an installation that already has one.
 var ErrAlreadySetUp = errors.New("the account has already been created")

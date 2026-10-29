@@ -127,15 +127,30 @@ func isRecoveryShape(s string) bool {
 
 // consumeRecoveryCode checks the submitted value against every stored hash and
 // returns the set with the matching one removed.
+func consumeRecoveryCode(code string, hashes []string) (remaining []string, ok bool) {
+	matched := matchRecoveryCode(code, hashes)
+	if matched < 0 {
+		return hashes, false
+	}
+
+	remaining = make([]string, 0, len(hashes)-1)
+	remaining = append(remaining, hashes[:matched]...)
+	remaining = append(remaining, hashes[matched+1:]...)
+	return remaining, true
+}
+
+// matchRecoveryCode returns the index of the hash code matches, or -1. The login
+// handler removes that one hash through Config.RemoveRecoveryCode rather than
+// writing back a set it computed before the lock.
 //
 // All eight are checked with no early exit on a match — the same stance
 // handler_login.go writes out for not short-circuiting argon2 against the name
 // comparison. Eight argon2 verifications is roughly 300 ms, which is why the
 // route that calls this is bounded by the pending state's three attempts rather
 // than left open.
-func consumeRecoveryCode(code string, hashes []string) (remaining []string, ok bool) {
+func matchRecoveryCode(code string, hashes []string) int {
 	if !isRecoveryShape(code) {
-		return hashes, false
+		return -1
 	}
 	want := normaliseRecoveryCode(code)
 
@@ -145,12 +160,5 @@ func consumeRecoveryCode(code string, hashes []string) (remaining []string, ok b
 			matched = i
 		}
 	}
-	if matched < 0 {
-		return hashes, false
-	}
-
-	remaining = make([]string, 0, len(hashes)-1)
-	remaining = append(remaining, hashes[:matched]...)
-	remaining = append(remaining, hashes[matched+1:]...)
-	return remaining, true
+	return matched
 }

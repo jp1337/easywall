@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/gorilla/sessions"
 	"golang.org/x/crypto/argon2"
@@ -56,25 +55,35 @@ const (
 // the thing to build if this is ever revisited; it needs a list to ship or
 // query, and the web process is not allowed to telephone anybody.
 func passwordPolicyError(password string) string {
-	// Runes, not bytes. utf8.RuneCountInString("äöüäöüäöüäö1!") is 13 and
-	// len() is 24, and a rule that counted bytes would accept six umlauts as
-	// twelve characters.
-	if utf8.RuneCountInString(password) < minPasswordLen {
-		return "password_too_short"
-	}
-
+	// Characters a reader sees, counted in runes — not bytes, or six umlauts
+	// would be twelve characters — and not counting the invisible ones.
+	//
+	// The count was utf8.RuneCountInString and the symbol test !unicode.IsLetter,
+	// so a zero-width space (U+200B), a soft hyphen (U+00AD) or a combining mark
+	// counted toward twelve and satisfied the symbol rule: "abcdefghij1" plus one
+	// U+200B passed with nothing visible where its symbol was. Format, control
+	// and non-spacing/enclosing mark runes now count for neither, so a
+	// decomposed é (e + U+0301) is one character, as its precomposed form is.
+	var length int
 	var hasDigit, hasSymbol bool
 	for _, r := range password {
+		if unicode.In(r, unicode.Cf, unicode.Cc, unicode.Mn, unicode.Me) {
+			continue
+		}
+		length++
 		switch {
 		case unicode.IsDigit(r):
 			hasDigit = true
-		case !unicode.IsLetter(r):
-			// Anything that is neither a letter nor a digit, rather than a list
-			// of accepted punctuation. A list rejects §, € and an en dash,
-			// which are no weaker than !, and it rejects a space — which would
-			// punish a passphrase for being one.
+		case unicode.IsPunct(r) || unicode.IsSymbol(r) || unicode.Is(unicode.Zs, r):
+			// Any punctuation, symbol or space, rather than a list of accepted
+			// punctuation. A list rejects §, € and an en dash, which are no
+			// weaker than !, and it rejects a space — which would punish a
+			// passphrase for being one.
 			hasSymbol = true
 		}
+	}
+	if length < minPasswordLen {
+		return "password_too_short"
 	}
 
 	// The first unmet requirement, not all of them: the hint under the field
@@ -108,7 +117,9 @@ func passwordPolicyError(password string) string {
 //
 // store.MaxAge sets both halves — the Max-Age the browser sees and the age the
 // server enforces — so use it rather than writing Options.MaxAge.
-func newSessionStore(key string) *sessions.CookieStore {
+//
+// Wrapped in sessionStore, so no save can re-sign a revoked session.
+func newSessionStore(key string) *sessionStore {
 	store := sessions.NewCookieStore([]byte(key))
 	store.Options = &sessions.Options{
 		Path:     "/",
@@ -117,7 +128,7 @@ func newSessionStore(key string) *sessions.CookieStore {
 		SameSite: http.SameSiteLaxMode,
 	}
 	store.MaxAge(SessionLifetime)
-	return store
+	return &sessionStore{store}
 }
 
 // newPendingStore builds the store for the login's intermediate state.

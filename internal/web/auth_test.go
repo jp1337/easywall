@@ -180,6 +180,17 @@ func TestThePasswordPolicyIsAFloorAndNotAPreference(t *testing.T) {
 		// Counted in runes, not bytes: twelve multi-byte letters are twelve
 		// characters, and len() would call them more.
 		{"twelve runes that are more than twelve bytes", "äöüäöüäöüäö1!", ""},
+
+		// Invisible runes are not the symbol and are not characters. Each of
+		// these satisfied both rules: !unicode.IsLetter accepted a zero-width
+		// space, a soft hyphen or a combining mark as the symbol, and the rune
+		// count counted it toward twelve.
+		{"zero-width space as the symbol", "abcdefghij1\u200b", "password_too_short"},
+		{"soft hyphen as the symbol", "abcdefghijk1\u00ad", "password_needs_symbol"},
+		{"combining mark as the symbol", "abcdefghijk1\u0301", "password_needs_symbol"},
+		{"zero-width spaces as length", "abcdefghi1!\u200b\u200b", "password_too_short"},
+		{"a decomposed é is one character", "abcdefghe\u03011!", "password_too_short"},
+		{"a non-breaking space is a space", "abcdefghijk1\u00a0", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
